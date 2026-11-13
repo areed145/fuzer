@@ -35,11 +35,11 @@ classes:
         traces: [speed, power, running_status, driver.speed, driver.power, driver.running_status]
       - key: vibration
         label: Vibration and bearings
-        traces: [vibration, shaft_vibration, axial_position, bearing_temperature]
+        traces: [vibration, shaft_vibration, bearing_temperature]
       - key: lube_seals
-        label: Lube oil and seals
+        label: Lube oil, seals and thrust
         show: false
-        traces: [lube_oil_pressure, lube_oil_temperature, seal_vent_flow, driver.lube_oil_pressure,
+        traces: [axial_position, lube_oil_pressure, lube_oil_temperature, seal_vent_flow, driver.lube_oil_pressure,
                  driver.lube_oil_temperature]
       - key: driver_fuel
         label: Driver exhaust and fuel

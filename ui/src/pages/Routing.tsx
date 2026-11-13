@@ -22,13 +22,12 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
     {!routes.data ? <Status loading={routes.loading} error={routes.error} />
       : rows.length === 0 ? <EmptyState title="No types of work yet">Source packs and modules declare them.</EmptyState>
       : <Table variant="list" className="routing-table">
-        <thead><tr><th>Type</th><th>Declared in</th><th>Joins one event</th><th>Starts</th><th>Due</th></tr></thead>
+        <thead><tr><th>Type</th><th>Goes to</th><th>Due</th><th>Also</th></tr></thead>
         <tbody>{rows.map((r) => <tr key={r.type} aria-current={r.type === type ? "true" : undefined}>
-          <td><a href={href("/routing", { type: r.type })}><strong>{r.label}</strong></a> <span className="muted small mono">{r.type}</span></td>
-          <td className="small">{r.declared_in}{r.source_system ? ` (${r.source_system})` : ""}</td>
-          <td className="small">{r.joins ? `within ${r.join_hours} h` : "no"}</td>
+          <td><a href={href("/routing", { type: r.type })} title={r.type}><strong>{r.label}</strong></a></td>
           <td className="small"><Starts r={r} /></td>
           <td className="small">{dueText(r)}</td>
+          <td className="small muted">{also(r)}</td>
         </tr>)}</tbody>
       </Table>}
     {chosen && <RouteDetail key={chosen.type} route={chosen} />}
@@ -36,14 +35,24 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
   </section>;
 }
 
+const words = (name: string) => name.replace(/_/g, " ");
+
 function Starts({ r }: { r: Route }) {
   if (!r.process) return <span className="muted">waits for the IOC to dispatch</span>;
-  return <><a className="mono" href={href(`/processes/${r.process}`)}>{r.process}</a>
-    {r.role && <> in the <a href={href("/teams", { role: r.role })}>{r.role}</a> queue</>}</>;
+  // Most types start the plain queue process, so only a different process is worth naming.
+  const process = <a href={href(`/processes/${r.process}`)}>{words(r.process)}</a>;
+  if (!r.role) return <>the {process} process</>;
+  return <><a href={href("/teams", { role: r.role })}>{words(r.role)} queue</a>{r.process !== "queue_item" && <> via {process}</>}</>;
+}
+
+/** What is unusual about a type: where it was declared when not in code, and whether repeats join one event. */
+function also(r: Route) {
+  return [r.joins && `repeats within ${r.join_hours} h join one event`,
+    r.declared_in !== "code" && `from a ${r.declared_in}${r.source_system ? ` (${r.source_system})` : ""}`].filter(Boolean).join(" · ");
 }
 
 function dueText(r: Route) {
-  if (!r.due) return <span className="muted">by its role's SLA</span>;
+  if (!r.due) return <span className="muted">role SLA</span>;
   const map = Object.entries(r.due.hours).map(([p, h]) => `${p}: ${h} h`).join(", ");
   return <>{map || "off"}{r.due.setting && <span className="muted"> (setting <span className="mono">{r.due.setting}</span>)</span>}</>;
 }

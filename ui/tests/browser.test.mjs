@@ -5660,3 +5660,63 @@ test("R.5 an owner restricts licensed manuals to a group, confirmed, and puts a 
   assert.deepEqual(writes.at(-1), { groups: ["licensed"] });
   await card.getByText("Sees documents restricted to licensed.").waitFor();
 });
+
+test("P5.13b The entity's Measurements tab is one trend: template panels, event lanes, chips that switch them", async () => {
+  const vals = [["2024-03-13T00:00", 17], ["2024-03-14T00:00", 17], ["2024-03-14T04:00", 1], ["2024-03-15T00:00", 17]];
+  const trace = (id, role_label, uom, extra = {}) => ({ id, point: `OK:${id}.PV`, description: `Compressor ${role_label}`, uom,
+    axis: uom.toLowerCase(), show: true, values: vals, min: 1, max: 17, mean: 15, last: 17, role_label,
+    on: { id: "k1", label: "K-1", relation: "self" }, limits: [], ...extra });
+  const view = { provider: "synthetic", centre: "2024-03-14T03:20", start: "2024-03-12T03:20", end: "2024-03-15T03:20",
+    step_minutes: 30, upsets: ["2024-03-14T03:20"], unit: "k1", unit_label: "K-1", classes: ["CO"],
+    template: { key: "CO", title: "Compressor" }, missing: [{ role: "interstage_pressure", role_label: "Interstage pressure", relation: "self" }],
+    groups: [
+      { key: "pressures", label: "Pressures", show: true, traces: [trace("pt1", "Suction pressure", "barg"), trace("pt2", "Discharge pressure", "barg")] },
+      { key: "driver", label: "Driver", show: true, traces: [trace("st1", "Speed", "rpm", { on: { id: "gt", label: "GT-1", relation: "driver" } })] },
+      { key: "lube", label: "Lube oil, seals and thrust", show: false, traces: [trace("pt3", "Lube oil pressure", "barg", { show: false })] },
+    ], other: [] };
+  const timeline = { unit: "k1", start: view.start, end: view.end, lanes: [
+    { key: "alarms", label: "Alarms", events: [{ id: "pt2", kind: "alarm", label: "OK:pt2.PV", start: "2024-03-14T03:00", end: "2024-03-14T03:30", text: "lo 5", detail: null }] },
+    { key: "log", label: "Operator log", events: [{ id: "log1", kind: "log_entry", label: "op", start: "2024-03-14T03:25", end: null, text: "K-1 tripped", detail: null }] },
+    { key: "cases", label: "Cases", events: [{ id: null, item_id: 7, kind: "case", label: "Compressor trip", start: "2024-03-14T03:20", end: "2024-03-14T09:00", text: "Compressor trip", detail: "machine_trip", status: "open" }] },
+    { key: "maintenance", label: "Notifications and work orders", events: [] },
+    { key: "downtime", label: "Downtime and incidents", events: [] },
+  ] };
+  let windows = [];
+  await page.route("**/entities/k1", route => route.fulfill({ json: { fuzer_id: "k1", kind: "tag", label: "K-1",
+    golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.route("**/entities/k1/trend-view*", route => route.fulfill({ json: view }));
+  await page.route("**/entities/k1/timeline*", route => {
+    const q = new URL(route.request().url()).searchParams;
+    windows.push([q.get("start"), q.get("end")]);
+    return route.fulfill({ json: timeline });
+  });
+  await page.route("**/entities/k1/measurements*", route => route.fulfill({ json: { id: "k1", series: [], truncated: false } }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/e/k1?tab=trends`);
+  const card = page.locator(".trend-view");
+  await card.getByRole("heading", { name: /Compressor/ }).waitFor();
+  await card.locator(".main-svg").first().waitFor();
+  assert.deepEqual(windows, [[view.start, view.end]], "the lanes are read for the trend's own window");
+  // what the template shows is on; the group it switches off is one chip
+  assert.equal(await card.getByRole("button", { name: "Suction pressure", exact: true }).getAttribute("aria-pressed"), "true");
+  assert.equal(await card.getByRole("button", { name: "Speed · GT-1", exact: true }).getAttribute("aria-pressed"), "true");
+  assert.equal(await card.getByRole("button", { name: "Lube oil pressure" }).count(), 0);
+  await card.getByText("Not on this unit: interstage pressure.").waitFor();
+  // empty lanes have no chip; every other lane names its count
+  await card.getByRole("button", { name: "Alarms 1" }).waitFor();
+  assert.equal(await card.getByRole("button", { name: /Work orders/ }).count(), 0);
+  const panels = () => card.locator(".annotation-text").allTextContents();
+  assert.deepEqual(await panels(), ["Pressures", "Driver"]);
+  await card.getByRole("button", { name: "Lube oil, seals and thrust", exact: true }).click();
+  await card.getByRole("button", { name: "Lube oil pressure", exact: true }).waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 3);
+  await card.getByRole("button", { name: "Pressures", exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 2);
+  assert.deepEqual(await panels(), ["Driver", "Lube oil, seals and thrust"]);
+  await waveScreenshot("p5-13b-trend-desktop");
+  // on a phone a group switches as a whole and the chart fits the screen
+  await page.setViewportSize({ width: 390, height: 900 });
+  await card.getByRole("button", { name: "Driver", exact: true }).waitFor();
+  assert.equal(await card.getByRole("button", { name: "Speed · GT-1", exact: true }).isVisible(), false);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "no sideways scroll");
+});
