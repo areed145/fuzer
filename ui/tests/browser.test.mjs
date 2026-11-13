@@ -6340,3 +6340,31 @@ test("P5.14 a P&ID on the whole screen: zoom, pan, a tap opens a tag, connected 
   await page.getByAltText("P&ID OKAN-20-PID-003").waitFor();
   assert.deepEqual(errors, []);
 });
+
+test("on a phone the page itself doesn't zoom: no double-tap zoom, fields at 16px, the viewport locked", async () => {
+  const phone = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p = await phone.newPage();
+  await p.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || path.endsWith(".svg") || path.endsWith(".png")) return route.continue();
+    return route.fulfill({ json: path === "/auth/me" ? { mode: "local", configured: true, user: null } : [] });
+  });
+  await p.goto(`${url}/#/search`);
+  const viewport = await p.getAttribute('meta[name="viewport"]', "content");
+  assert.match(viewport, /maximum-scale=1/);
+  assert.equal(await p.evaluate(() => getComputedStyle(document.documentElement).touchAction), "manipulation");
+  const size = await p.evaluate(() => {
+    const field = document.createElement("input");
+    field.className = "yaml";
+    document.body.append(field);
+    return getComputedStyle(field).fontSize;
+  });
+  assert.equal(size, "16px");
+  const cancelled = await p.evaluate(() => {
+    const gesture = new Event("gesturestart", { cancelable: true, bubbles: true });
+    document.body.dispatchEvent(gesture);
+    return gesture.defaultPrevented;
+  });
+  assert.equal(cancelled, true);
+  await phone.close();
+});

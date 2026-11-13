@@ -209,6 +209,9 @@
 
 * { box-sizing: border-box; }
 
+/* No double-tap zoom on the page (pinch stays with the views that zoom on purpose; see zoomLock.ts). */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -241,6 +244,10 @@ select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 button { cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: default; }
+/* iOS zooms the page into any field whose text is under 16px when it gets focus; on a touch screen fields are 16px. */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+}
 input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
