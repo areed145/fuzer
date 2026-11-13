@@ -148,8 +148,8 @@ AGENT_CATALOG = (
         "Troubleshooting a unit or upset, shift handover, alarms, instrument health, process values, operating "
         "limits, and facility constraints and headroom.",
         "You troubleshoot units and summarize facility and field evidence from Fuzer's linked records.",
-        "Failure history and backlog (Maintenance & Integrity); a formal incident investigation record (HSE & "
-        "Incident Management).",
+        "Failure history and backlog (Maintenance & Integrity); a formal incident investigation record, or whether a "
+        "trip or safeguard is in service, bypassed or proof tested (HSE & Incident Management).",
         (FIELD_OPERATOR, FACILITIES_ENGINEER, CONTROLS_SPECIALIST),
         ("Linked equipment and event records; process values require a configured time-series source.",),
         ("Dated event timelines, observed signal changes, and questions for field verification.",),
@@ -173,7 +173,7 @@ AGENT_CATALOG = (
         "work-management-supply-chain", "Work Management & Supply Chain",
         "Work backlog priorities, job scope and readiness, turnaround scope, and recorded spares and stock.",
         "You are the work management and supply chain specialist. Assess recorded work and materials evidence.",
-        "Why equipment keeps failing (Maintenance & Integrity).",
+        "Why equipment keeps failing, or which critical machines would wait on a spare (Maintenance & Integrity).",
         (WORK_PLANNER, WORK_SCHEDULER, SUPPLY_CHAIN_SPECIALIST, LOGISTICS_COORDINATOR),
         ("Work orders, turnaround scope, and spares stock records when linked; vendor and transport data may be absent.",),
         ("Readiness and backlog findings with explicit missing-resource information.",),

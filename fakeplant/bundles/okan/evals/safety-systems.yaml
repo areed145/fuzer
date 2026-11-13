@@ -5,5 +5,5 @@
   must_mention: [SG-OK-201, [bypass, bypassed], [proof test, tested], [twice, "2", two]]
   specialists: [hse-incident-management]
 - question: What caused the flaring in November 2025?
-  must_mention: [[unknown, no record, not explained]]
+  must_mention: [[unknown, no record, not explained, "doesn't record", not recorded, no cause]]
   specialists: [hse-incident-management]

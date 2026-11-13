@@ -128,3 +128,24 @@ def test_a_bundle_that_exempts_a_pack_holds_no_answer_keys_for_it(fourth):
 
 def test_every_shipped_exemption_names_a_shipped_pack():
     assert packs.unknown_exemptions() == []
+
+
+@pytest.mark.unit
+def test_the_orchestrator_routes_by_the_packs_each_specialist_holds():
+    """Each pack sits under its owner in the routing list, in its playbook's own words, so a question a pack covers
+    (a meter's allocation factor, a trip's proof test) goes to that specialist rather than being answered as a lookup."""
+    from fuzer import agents
+
+    text = agents.routing()
+    blocks = {}
+    for line in text.splitlines():
+        if line.startswith("- "):
+            owner = line[2:].split(":", 1)[0]
+            blocks[owner] = []
+        else:
+            blocks[owner].append(line.strip())
+    for path in packs.shipped():
+        assert f"- Pack: {packs.summary(path)}" in blocks[path.split("/", 1)[0]], path
+    assert packs.summary("production-surveillance/metering-and-balances").startswith("Metering and balances - ")
+    assert "spare" in packs.summary("maintenance-integrity/reliability")
+    assert "covers is that specialist's" in agents.ORCHESTRATOR

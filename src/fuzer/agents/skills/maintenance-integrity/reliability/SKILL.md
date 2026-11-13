@@ -1,6 +1,6 @@
 ---
 name: reliability
-description: Reliability, maintenance and inspection - rotating equipment health (vibration zones, BEP, curves, failure fits), bad actors, MTBF by unit and ISO 14224 class, failure modes and repeat failures, PM and inspection compliance, overdue statutory inspections, and root-cause leads.
+description: Reliability, maintenance and inspection - rotating equipment health (vibration zones, BEP, curves, failure fits), bad actors, MTBF by unit and ISO 14224 class, failure modes and repeat failures, PM and inspection compliance, overdue statutory inspections, root-cause leads, and which critical machines would wait on a spare if they failed.
 ---
 
 # Reliability, maintenance and inspection
@@ -49,6 +49,9 @@ A repeat failure is the same failure mode on the same unit more than once in the
    interval against its Weibull characteristic life (eta): `random_failures` and `early_life` mean a fixed interval
    won't help (condition monitoring, or repair quality), `interval_too_long` that wear-out failures come before the
    PM; `fails_before_pm_pct` is the share expected to fail first. `insufficient_failures` is unknown, not fine.
+   Quote the characteristic life (eta) with its number and unit beside the PM interval, and name the failure
+   pattern in words (early life, random, wear-out) rather than only its code, so the reader sees why the interval
+   does or doesn't fit.
    Inspection plans are left out, and a statutory interval is never proposed for change.
 6. **Equipment performance.** `calc("compressor_performance", stage)` gives a stage's polytropic
    efficiency against its first week (`efficiency_drop`: fouling, wear, recycle through a hot cooler);

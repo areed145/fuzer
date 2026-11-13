@@ -21,7 +21,8 @@ could not be checked.
   records it (`retirement_basis` says "recorded minimum thickness"), or for a pipeline the pressure design thickness
   on an assumed grade the result names. A vessel with none on record gets no remaining life: say so and ask for the
   minimum thickness from its design (its U-1A or datasheet), then rerun with `min_required_mm`. Name the governing
-  CML. `calc("wall_loss", ref)` gives the fitted per-CML trend when you want each location on its own, and
+  CML, say which rate governs it (long-term or short-term), and name the retirement basis in those words (the
+  recorded minimum required thickness, or that none is on record). `calc("wall_loss", ref)` gives the fitted per-CML trend when you want each location on its own, and
   `measurements(ref, "wall_thickness")` the readings themselves.
 - **Inspection plan** (`calc("inspection_plan", ref)`): the item's condition inspection plan from the maintenance
   plans against the interval its wall supports (half the remaining life, at most ten years, after the last survey).
