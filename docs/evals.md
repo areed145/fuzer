@@ -124,6 +124,29 @@ it fails when a score is under its floor (`GATES`, `CEILINGS`) or recall fell si
 GitHub workflow (`.github/workflows/ci.yml`) runs the tests and this eval on the fake Okan plant for
 4–10 November 2024.
 
+## Sweeping the work detectors over history
+
+The work detectors (well tests, gas lift, quality drift, flare, loops, trips, machine health, and the rest that raise
+cases rather than SRE detections) are scored by a sweep (`sweep.py`, `fuzer eval --sweep`, P3.6a). Each bundle's
+`evals/detections.yaml` says, per detector, the stretch of history to sweep and the events it should raise: a key
+fragment and the window in which a run should raise it. A detector that can't arise on the bundle's asset type says
+why (`not_here`).
+
+**Runs.** The detector runs as a schedule runs it, every `every_days` across the stretch (or on the dates listed
+under `at`, for a slow one), and at each event's end so a short event is never stepped over. It gets the time
+arguments its signature takes: the stretch since the previous run, or the run's own time.
+
+**Matching.** A raise is a new exception of one of the detector's own work types. A key held open is not raised
+again; one raised again after it cleared counts again. It is true when its key holds an event's key and the run
+falls in the event's window, and a false alarm otherwise.
+
+**Scores.** Recall (events raised over events declared), precision (true raises over all), false alarms a week, and
+which events were missed and which raises were false. `fuzer eval --sweep` keeps each detector's scores in
+`ops_eval` as `sweep:<detector>`, which the Detection page reads, and exits 1 when one is under its floor
+(`sweep.GATES`, or the detector's own `gates` in the file, set where a false alarm is kept as found rather than
+hidden). `tests/evals/test_sweep.py` checks the cheap detectors on every change and the whole Okan sweep in the e2e
+tier.
+
 ## Reading drawings
 
 `fuzer pid-score` scores what Claude read off the fake plant's P&IDs and PFDs against their answer key
