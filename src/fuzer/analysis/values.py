@@ -3,6 +3,7 @@ the Values tab, the assistant's `process_values` tool and the troubleshooting br
 
 from datetime import datetime, timedelta
 
+from ..core import clock
 from ..graph.operations import data_through
 from ..sources.timeseries import (
     FIRST_TIMED,
@@ -102,4 +103,4 @@ def _latest(conn, src, hours_after: int) -> str:
     if last:
         end = datetime.fromisoformat(last) + timedelta(days=1)
         return (end - timedelta(hours=hours_after)).isoformat(timespec="minutes")
-    return datetime.now().isoformat(timespec="minutes")
+    return clock.now().isoformat(timespec="minutes")

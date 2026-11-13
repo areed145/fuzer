@@ -21,11 +21,10 @@ held, and a follow-up is raised.
 
 import csv
 import logging
-from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from ..core import settings, work
+from ..core import clock, settings, work
 from ..core.exceptions import ExceptionError
 
 MODES = ("none", "draft", "send")
@@ -196,7 +195,7 @@ def apply_update(conn, u: dict) -> str | None:
         nums = [int(r[k]) for r in rows if str(r.get(k, "")).isdigit()]
         new[k] = str(max(nums) + 1) if nums else f"{mine[k]}-F"
         for col, value in (("status", u.get("status")), ("short_text", u.get("short_text")),
-                           ("created", date.today().isoformat()), ("notif_type", u.get("notif_type")),
+                           ("created", clock.today().isoformat()), ("notif_type", u.get("notif_type")),
                            ("priority", u.get("priority"))):
             if col in cols and value:
                 new[col] = value

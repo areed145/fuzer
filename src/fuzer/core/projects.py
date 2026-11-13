@@ -187,4 +187,7 @@ def save(conn, name: str, cfg: dict, by: str) -> dict:
         on conflict (name) do update set config = excluded.config, updated_by = excluded.updated_by, updated_at = now()
         """, (name, Jsonb(cfg), by))
     conn.commit()
+    from . import db
+
+    db.forget_zones()
     return config(conn, name)

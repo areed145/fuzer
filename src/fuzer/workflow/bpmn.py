@@ -38,6 +38,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from xml.etree import ElementTree as ET
 
+from ..core import clock
+
 BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 FUZER = "https://fuzer.dev/schema/bpmn"
 NS = {"bpmn": BPMN, "fuzer": FUZER}
@@ -572,7 +574,7 @@ def _literal_timer(text: str) -> bool:
 
 def _parse_date(text: str) -> datetime:
     dt = datetime.fromisoformat(text)
-    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+    return clock.aware(dt)
 
 
 def timer_error(kind: str, text: str) -> str | None:

@@ -64,7 +64,7 @@ def _resolved(rows, path: Path):
     if not _relative(path):
         yield from rows
         return
-    today = relative_dates._anchors(None)
+    today = relative_dates.plant_today()
     for r in rows:
         yield relative_dates.resolve_all(r, today)
 

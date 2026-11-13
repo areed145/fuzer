@@ -14,7 +14,7 @@ around it agree, whatever the asset type.
 
 from datetime import datetime, timedelta
 
-from ..core import settings
+from ..core import clock, settings
 from .exceptions import anchor_map, anchors
 
 STEP = 5  # minutes between the historian values an alarm is read from
@@ -43,8 +43,8 @@ def window(conn, item_id: int) -> tuple[datetime, datetime, list[str]] | None:
         if not timed:  # a day: the whole of it
             b += timedelta(days=1)
     else:
-        a = min(r["first_seen"] for r in rows).replace(tzinfo=None)
-        b = max(r["last_seen"] for r in rows).replace(tzinfo=None)
+        a = min(r["first_seen"] for r in rows).astimezone(clock.zone()).replace(tzinfo=None)
+        b = max(r["last_seen"] for r in rows).astimezone(clock.zone()).replace(tzinfo=None)
     before = settings.get(conn, "exceptions.around_before_hours")
     after = settings.get(conn, "exceptions.around_after_hours")
     return (a - timedelta(hours=before), b + timedelta(hours=after),

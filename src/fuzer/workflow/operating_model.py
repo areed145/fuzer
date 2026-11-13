@@ -40,7 +40,7 @@ from pathlib import Path
 
 import yaml
 
-from ..core import settings
+from ..core import clock, settings
 
 STANDARD_NAME, STANDARD_VERSION = "standard", 1
 SETTING_GROUPS = ("Work", "SRE", "Signals", "Alarms", "Opportunities", "Reports", "Detection")
@@ -222,7 +222,7 @@ def name(conn, part: str, key: str, reason: str, owner: str, by: str, review_by:
     if not (key or "").strip() or not (reason or "").strip() or not (owner or "").strip():
         raise OperatingModelError("a named deviation needs a key, a reason and an owner")
     try:
-        due = date.fromisoformat(str(review_by)[:10]) if review_by else date.today() + timedelta(days=REVIEW_DAYS)
+        due = date.fromisoformat(str(review_by)[:10]) if review_by else clock.today() + timedelta(days=REVIEW_DAYS)
     except ValueError:
         raise OperatingModelError(f"review_by {review_by!r} isn't a date (YYYY-MM-DD)") from None
     row = conn.execute(
@@ -239,7 +239,7 @@ def name(conn, part: str, key: str, reason: str, owner: str, by: str, review_by:
 
 def named(conn) -> list[dict]:
     """Every deviation this project has named: {part, key, reason, owner, named_by, named_at, review_by, overdue}."""
-    today = date.today()
+    today = clock.today()
     return [{**r, "overdue": bool(r["review_by"] and r["review_by"] < today)} for r in _names(conn).values()]
 
 

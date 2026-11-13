@@ -20,9 +20,9 @@ In practice, over the last `days`:
 says why), or `drifted` (an unnamed difference, an overdue review, or not applied).
 """
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-from ..core import detectors
+from ..core import clock, detectors
 from ..core.findings import DETERMINISTIC, Finding, fact
 
 DAYS = 28
@@ -164,7 +164,7 @@ def reviews(conn, pack=None, by: str = "agent:standards") -> dict:
             items=(fact("Differs at", f"{d['part']} {d['key']}"), fact("Why", d["reason"]), fact("Owner", d["owner"]),
                    fact("Named", f"{d['named_at']:%Y-%m-%d} by {d['named_by']}"),
                    fact("Review was due", d["review_by"].isoformat()),
-                   fact("Overdue by", (date.today() - d["review_by"]).days, "days")))
+                   fact("Overdue by", (clock.today() - d["review_by"]).days, "days")))
         try:
             res = raise_exception(conn, REVIEW_TYPE, key, f"Review the {d['part']} deviation {d['key']}", by,
                                   source="standards", finding=found,

@@ -27,7 +27,7 @@ trip is listed but is not a demand.
 
 from datetime import UTC, datetime, timedelta
 
-from ..core import detectors
+from ..core import clock, detectors
 from ..core.findings import DETERMINISTIC, Finding, at, fact
 
 IN_PLACE = ("active", "in place", "applied", "bypassed", "inhibited", "overridden", "forced")
@@ -40,7 +40,7 @@ def _when(v: str | None) -> datetime | None:
         t = datetime.fromisoformat(str(v).replace("Z", "+00:00").replace(" ", "T"))
     except ValueError:
         return None
-    return t if t.tzinfo else t.replace(tzinfo=UTC)
+    return clock.aware(t)
 
 
 def loaded(conn) -> bool:
@@ -539,7 +539,7 @@ def unrecorded(conn, now: datetime | None = None) -> list[dict]:
 
     from .exceptions import anchor_map
 
-    now = (now or datetime.now(UTC)).replace(tzinfo=None)
+    now = clock.aware(now).astimezone(clock.zone()).replace(tzinfo=None) if now else clock.now()
     rows = conn.execute(
         """
         select pl.record, pl.limit_type, pl.point_id, pl.source, pl.basis, pl.value, pl.unit, pl.valid_from,
@@ -561,7 +561,7 @@ def unrecorded(conn, now: datetime | None = None) -> list[dict]:
         when = r["valid_from"]
         mine = stands.get(r["point_id"], set()) | {r["point_id"]}
         cover = [c["label"] for c in recs if set(c["about"]) & mine and (o := _when(c["opened"])) is not None
-                 and when - timedelta(days=BEFORE_DAYS) <= o.replace(tzinfo=None) <= when + timedelta(days=AFTER_DAYS)]
+                 and when - timedelta(days=BEFORE_DAYS) <= o.astimezone(clock.zone()).replace(tzinfo=None) <= when + timedelta(days=AFTER_DAYS)]
         if not cover:
             out.append({**dict(r), "valid_from": when.isoformat(timespec="minutes"), "key": f"{r['record']}#{r['limit_type']}"})
     return out

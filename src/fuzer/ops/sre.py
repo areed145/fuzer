@@ -29,7 +29,7 @@ import numpy as np
 from psycopg.types.json import Jsonb
 
 from ..analysis import calcs, limits, signals
-from ..core import detectors, settings
+from ..core import clock, detectors, settings
 from ..core.detectors import MODEL, POINTS, RULE, STATISTICAL
 from ..core.jsonsafe import plain as _plain
 from ..graph.topology import (  # noqa: F401  (sre.topology, as before)
@@ -468,7 +468,7 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
     run covers the last day. At most `max_days` per call."""
     from ..graph import operations
 
-    end = datetime.fromisoformat(until) if until else min(datetime.now().replace(second=0, microsecond=0),
+    end = datetime.fromisoformat(until) if until else min(clock.now().replace(second=0, microsecond=0),
                                                           datetime.fromisoformat(operations.as_of(conn)) + timedelta(days=1))
     mark = watermark(conn)
     start = datetime.fromisoformat(since) if since else (mark - OVERLAP if mark else end - timedelta(days=1))

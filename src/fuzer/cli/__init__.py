@@ -657,10 +657,11 @@ def _projects(conn, args) -> None:
 
 
 def _when(value: str):
-    from datetime import UTC, datetime
+    from datetime import datetime
 
-    t = datetime.fromisoformat(value)
-    return t.replace(tzinfo=UTC) if t.tzinfo is None else t
+    from ..core import clock
+
+    return clock.aware(datetime.fromisoformat(value))
 
 
 def _audit(conn, args) -> None:

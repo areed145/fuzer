@@ -23,7 +23,7 @@ import re
 
 from psycopg.types.json import Jsonb
 
-from ..core import events, findings, gates, work
+from ..core import clock, events, findings, gates, work
 from ..core.exceptions import TYPES, ExceptionError, ExceptionType
 
 OPEN = "open"
@@ -455,7 +455,7 @@ def shelve(conn, exception_id: int, by: str, reason: str, until) -> dict:
     """Set a standing condition aside (P3.5c, #694): off the open list, with a reason, until `until`. New raises still
     add their evidence; when the expiry passes the work tick puts it back. Never a safety case type (`gates`): an
     integrity window breach stays in front of the IOC."""
-    from datetime import UTC, datetime, timedelta
+    from datetime import datetime, timedelta
 
     from ..core import gates, settings
 
@@ -469,7 +469,7 @@ def shelve(conn, exception_id: int, by: str, reason: str, until) -> dict:
     if not (reason or "").strip():
         raise ExceptionError("shelving needs a reason")
     at = until if isinstance(until, datetime) else datetime.fromisoformat(str(until))
-    at = at if at.tzinfo else at.replace(tzinfo=UTC)
+    at = clock.aware(at)
     now = conn.execute("select now() as t").fetchone()["t"]
     days = settings.get(conn, "exceptions.max_shelve_days")
     if at <= now:

@@ -16,10 +16,10 @@ the rank history and says why a card moved.
 """
 
 from collections import defaultdict
-from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
+from ..core import clock
 from ..core.jsonsafe import plain as _plain
 
 PAGE = 50
@@ -189,7 +189,7 @@ def refresh(conn, pack) -> dict:
     before = {r["key"]: r for r in conn.execute("select key, rank, value_usd, first_seen from board_card")}
     areas = {r["src"]: r["dst"] for r in conn.execute(
         "select e.src, e.dst from edge e join entity a on a.fuzer_id = e.dst and a.kind = 'area' where e.rel = 'part_of'")}
-    now = datetime.now()
+    now = clock.now()
     conn.execute("delete from board_card")
     moved = 0
     for c in cards:

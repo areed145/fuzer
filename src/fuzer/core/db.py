@@ -76,11 +76,58 @@ def search_path(schema: str | None = None) -> str:
     return f"{schema},{SHARED}"
 
 
+_zones: dict[tuple, tuple[float, str | None]] = {}
+ZONE_SECONDS = (60, 5)  # how long a project's timezone is kept: found, and not found (a project may be added soon)
+
+
+def _zone(url: str, schema: str) -> str | None:
+    """The timezone of the project whose register is `schema` (#882), as projects.field reads it: the project's
+    config `timezone` (its stored row, else its shipped bundle's), or the deprecated FUZER_TIMEZONE for the
+    database's first project. None when there is none, or it names no zone."""
+    import time
+    from zoneinfo import ZoneInfo
+
+    project = scope().project or os.environ.get("FUZER_PROJECT")
+    key = (url, schema, project)
+    hit = _zones.get(key)
+    if hit and time.monotonic() - hit[0] < ZONE_SECONDS[0 if hit[1] else 1]:
+        return hit[1]
+    tz = os.environ.get("FUZER_TIMEZONE") if schema == PROJECT_SCHEMA else None
+    if not tz:
+        from . import projects
+
+        try:  # not connect(): it would ask for the zone again
+            with psycopg.connect(url, autocommit=True, connect_timeout=5) as c:
+                rows = dict(c.execute(f"select name, config from {SHARED}.project").fetchall())
+        except psycopg.Error:  # no database or no project table yet
+            rows = {}
+        own = sorted(n for n, cfg in rows.items() if (cfg.get("schema") or PROJECT_SCHEMA) == schema)
+        name = project if project in own else (own[0] if own else project if schema == PROJECT_SCHEMA else None)
+        cfg = rows.get(name) or (projects.repo_config(name) if name else None) or {}
+        tz = cfg.get("timezone")
+    try:
+        tz = str(ZoneInfo(tz)) if tz else None
+    except (ValueError, KeyError, OSError):  # ZoneInfoNotFoundError is a KeyError
+        tz = None
+    _zones[key] = (time.monotonic(), tz)
+    return tz
+
+
+def forget_zones() -> None:
+    """Read projects' timezones again (a project was added or changed)."""
+    _zones.clear()
+
+
 def connect(autocommit: bool = False, url: str | None = None, schema: str | None = None) -> psycopg.Connection:
     """A connection that finds its project's tables first, then the shared ones, by unqualified name. The project
-    is the current scope's unless `schema` names one; a project never sees another project's schema."""
-    return psycopg.connect(url or database_url(), row_factory=dict_row, autocommit=autocommit,
-                           options=f"-c search_path={search_path(schema)}")
+    is the current scope's unless `schema` names one; a project never sees another project's schema. It runs in the
+    project's timezone, so a time without a zone, or a date, cast to timestamptz is the plant's wall clock (#882)."""
+    url = url or database_url()
+    schema = schema or scope().schema
+    options = f"-c search_path={search_path(schema)}"
+    if tz := _zone(url, schema):
+        options += f" -c TimeZone={tz}"
+    return psycopg.connect(url, row_factory=dict_row, autocommit=autocommit, options=options)
 
 
 def create_project_schema(conn, schema: str) -> None:

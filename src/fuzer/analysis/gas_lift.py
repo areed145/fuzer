@@ -9,9 +9,8 @@ wellhead pressure) by measurement role, so nothing here knows a field, a well or
   clears it when the casing settles. It flags candidates for review; no lift gas or choke change is proposed.
 """
 
-from datetime import datetime
 
-from ..core import detectors
+from ..core import clock, detectors
 from ..core.findings import DETERMINISTIC, Finding, at, fact
 from . import loops
 from .calcs import read, window_of
@@ -121,5 +120,5 @@ def watch(conn, until: str | None = None, days: int = DAYS, by: str = "agent:gas
         clear_exception(conn, INSTABILITY_TYPE, key, by, reason="the casing pressure has settled")
         cleared.append(key)
     conn.commit()
-    return {"at": until or datetime.now().isoformat(timespec="minutes"), "wells": len(found_rows), "raised": raised,
+    return {"at": until or clock.now().isoformat(timespec="minutes"), "wells": len(found_rows), "raised": raised,
             "cleared": cleared, "errors": errors}

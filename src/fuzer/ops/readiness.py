@@ -12,6 +12,8 @@ people dispatch: the dispatch route and card), and the reason goes on the case's
 
 from datetime import UTC, date, datetime
 
+from ..core import clock
+
 
 def _units(conn, subjects: list[str]) -> list[str]:
     """The equipment behind a job's subjects: each subject and whatever is installed at it now."""
@@ -24,7 +26,7 @@ def _units(conn, subjects: list[str]) -> list[str]:
 
 def spares(conn, subjects: list[str], today: date | None = None) -> dict:
     """The BOM's parts for a job's equipment: needed, in stock, on order. Ready when every part is in stock."""
-    today = today or date.today()
+    today = today or clock.today()
     units = _units(conn, subjects)
     rows = conn.execute(
         """
@@ -227,7 +229,7 @@ def _when(v: str | None) -> datetime | None:
         t = datetime.fromisoformat(v.replace("Z", "+00:00").replace(" ", "T"))
     except ValueError:
         return None
-    return t if t.tzinfo else t.replace(tzinfo=UTC)
+    return clock.aware(t)
 
 
 def _n(x: float) -> str:
