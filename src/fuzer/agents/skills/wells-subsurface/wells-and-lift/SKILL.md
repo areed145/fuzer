@@ -1,6 +1,6 @@
 ---
 name: wells-and-lift
-description: Wells and artificial lift - whether the latest well test can be trusted, the well's decline and forecast with its range, gas lift performance against the economic optimum, the choke's condition, and what limits the well (choke, back-pressure or lift), for any producing well; and voidage replacement and Hall plots for water injectors.
+description: Wells and artificial lift - whether the latest well test can be trusted, the well's decline and forecast with its range, gas lift performance against the economic optimum, the choke's condition, and what limits the well (choke, back-pressure or lift), for any producing well; a well by depth (its frac stages and completion against the trajectory and depth logs such as gamma ray); and voidage replacement and Hall plots for water injectors.
 ---
 
 # Wells and artificial lift
@@ -32,8 +32,14 @@ Then, in order:
   characteristic. It needs the choke's characteristic on record: when the response says the curve is missing, say
   so and name the datasheet it needs.
 - **What limits it** (`calc("well_constraint", well)`): choke, back-pressure or lift, from the pressure ratio across
-  the choke and the header pressure. `calc("dp_drift", well)`, charted with `plot_dp_drift(well)`, shows a
+  the choke and the header pressure. Say whether the well has a choke position reading and what it is; with none,
+  say there is no choke position on record, so the ratio shows critical flow but not how far the choke could open.
+  `calc("dp_drift", well)`, charted with `plot_dp_drift(well)`, shows a
   restriction building in the flowline between tests. `detect_changes(well)` dates steps on the well's points.
+- **By depth** (`well_depths(well)`, charted with `plot_well_trajectory(well)`): the trajectory, each completion
+  component (frac stages, packers) by MD and TVD, and each depth log's median over each component's interval. Quote
+  the stages with both depths and what the gamma ray reads across them (low gamma is the sand, high the shale). A
+  well with no survey or log loaded says which is missing.
 - **Interventions and gain**: recorded work comes from `maintenance_history(well)` and `downtime(well)`.
   `intervention_gains(well)` sets each recorded intervention's oil rate after against the decline fitted through the
   tests before, so the gain is net of decline and carries a 90 % range; charted with `plot_intervention_gains`.

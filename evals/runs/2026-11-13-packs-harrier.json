@@ -1,0 +1,373 @@
+{
+  "date": "2026-11-13",
+  "kind": "packs",
+  "model": "claude-sonnet-5-5",
+  "effort": "high",
+  "specialist_effort": "medium",
+  "bundle": "harrier",
+  "passed": 7,
+  "asked": 7,
+  "not_applicable": {
+    "field-operations-facilities/gas-treating": "it treats no gas; its vapours go to vapour recovery and the oxidiser",
+    "wells-subsurface/wells-and-lift": "a pipeline and terminal has no wells"
+  },
+  "packs": {
+    "field-operations-facilities/alarms-and-instruments": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.5,
+      "looked_at_charts": 0,
+      "cost_usd": 0.48,
+      "cost_per_answer_usd": 0.238,
+      "seconds_per_answer": 31.4,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Over the last seven days, is the terminal's alarm rate within target, and which alarms are standing?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 10,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 7,
+          "seconds": 33.5,
+          "cost_usd": 0.2789
+        },
+        {
+          "domain": null,
+          "question": "Can we trust the oxidiser firebox temperature H1-TT-8007?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [
+            "instrument_health"
+          ],
+          "charted": null,
+          "tool_calls": 12,
+          "seconds": 29.3,
+          "cost_usd": 0.1975
+        }
+      ]
+    },
+    "hse-incident-management/safety-systems": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.32,
+      "cost_per_answer_usd": 0.161,
+      "seconds_per_answer": 24.9,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Is crude tank A E1-T-5001A still protected by its high-high level shutdown?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "hse-incident-management"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 7,
+          "seconds": 23.0,
+          "cost_usd": 0.1814
+        },
+        {
+          "domain": null,
+          "question": "Which safeguards on the VRU compressor G1-K-7001 need attention?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 7,
+          "operating_instructions": [],
+          "specialists": [
+            "hse-incident-management"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 3,
+          "seconds": 26.7,
+          "cost_usd": 0.1403
+        }
+      ]
+    },
+    "maintenance-integrity/compression": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 1.22,
+      "cost_per_answer_usd": 0.608,
+      "seconds_per_answer": 51.8,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "How is the vapour recovery compressor G1-K-7001 today, and what should we do about it?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "hse-incident-management",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 40,
+          "seconds": 47.2,
+          "cost_usd": 0.6148
+        },
+        {
+          "domain": null,
+          "question": "Why did G1-K-7001 trip yesterday, and is it safe to keep running?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 5,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "hse-incident-management",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 42,
+          "seconds": 56.4,
+          "cost_usd": 0.6006
+        }
+      ]
+    },
+    "maintenance-integrity/pumps-and-drivers": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.5,
+      "looked_at_charts": 0,
+      "cost_usd": 0.68,
+      "cost_per_answer_usd": 0.34,
+      "seconds_per_answer": 38.0,
+      "results": [
+        {
+          "domain": null,
+          "question": "Is mainline pump A1-P-1003B running to its curve?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 8,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "vibration"
+          ],
+          "charted": null,
+          "tool_calls": 7,
+          "seconds": 28.7,
+          "cost_usd": 0.1871
+        },
+        {
+          "domain": null,
+          "question": "The midline is on one pump. What happens if B1-P-2001B trips?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 7,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "hse-incident-management",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 39,
+          "seconds": 47.4,
+          "cost_usd": 0.4931
+        }
+      ],
+      "passed": true,
+      "short": []
+    },
+    "maintenance-integrity/reliability": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.57,
+      "cost_per_answer_usd": 0.285,
+      "seconds_per_answer": 36.8,
+      "results": [
+        {
+          "domain": null,
+          "question": "If the VRU aftercooler fan belt goes again, do we have a spare?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 9,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity",
+            "work-management-supply-chain"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 18,
+          "seconds": 33.6,
+          "cost_usd": 0.2786
+        },
+        {
+          "domain": null,
+          "question": "Is the PM interval right for Harrier's mainline pumps?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 5,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 26,
+          "seconds": 39.9,
+          "cost_usd": 0.2908
+        }
+      ],
+      "passed": true,
+      "short": []
+    },
+    "maintenance-integrity/static-equipment": {
+      "questions": 1,
+      "mentions": 1.0,
+      "cited": 0.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": 1.0,
+      "charts_per_answer": 1.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.19,
+      "cost_per_answer_usd": 0.189,
+      "seconds_per_answer": 27.5,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "How fast is the mainline HR-PL-001 losing wall, and where is it worst?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 1,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "wall_thickness"
+          ],
+          "charted": true,
+          "tool_calls": 7,
+          "seconds": 27.5,
+          "cost_usd": 0.189
+        }
+      ]
+    },
+    "production-surveillance/metering-and-balances": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 1.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.76,
+      "cost_per_answer_usd": 0.379,
+      "seconds_per_answer": 45.4,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "The terminal receipts look high against the origin this week. Which meter is reading wrong?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 7,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "production-surveillance"
+          ],
+          "routed": true,
+          "charts": [
+            "trend",
+            "trend"
+          ],
+          "charted": null,
+          "tool_calls": 48,
+          "seconds": 59.0,
+          "cost_usd": 0.5201
+        },
+        {
+          "domain": null,
+          "question": "Can you give me an allocation factor for the terminal receipt meter?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 9,
+          "operating_instructions": [],
+          "specialists": [
+            "production-surveillance"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 12,
+          "seconds": 31.8,
+          "cost_usd": 0.2381
+        }
+      ]
+    }
+  }
+}

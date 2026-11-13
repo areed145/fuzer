@@ -5,7 +5,7 @@
   "effort": "high",
   "specialist_effort": "medium",
   "bundle": "okan",
-  "passed": 5,
+  "passed": 8,
   "asked": 9,
   "not_applicable": {},
   "packs": {
@@ -125,47 +125,44 @@
     },
     "hse-incident-management/safety-systems": {
       "questions": 2,
-      "mentions": 0.875,
+      "mentions": 1.0,
       "cited": 1.0,
       "safe": 1.0,
-      "routed": 0.5,
+      "routed": 1.0,
       "charted": null,
-      "charts_per_answer": 0.0,
+      "charts_per_answer": 1.0,
       "looked_at_charts": 0,
-      "cost_usd": 2.26,
-      "cost_per_answer_usd": 1.132,
-      "seconds_per_answer": 86.0,
-      "passed": false,
-      "short": [
-        "routed 50% under 100%"
-      ],
+      "cost_usd": 1.85,
+      "cost_per_answer_usd": 0.923,
+      "seconds_per_answer": 78.9,
       "results": [
         {
           "domain": null,
           "question": "Is the 2nd stage vibration trip on 20-K-2200B in service, tested and working as designed?",
-          "mentions": 0.75,
-          "missing": [
-            "SG-OK-201"
-          ],
-          "citations": 8,
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 3,
           "operating_instructions": [],
           "specialists": [
-            "field-operations-facilities",
+            "hse-incident-management",
             "maintenance-integrity"
           ],
-          "routed": false,
-          "charts": [],
+          "routed": true,
+          "charts": [
+            "vibration",
+            "vibration"
+          ],
           "charted": null,
-          "tool_calls": 52,
-          "seconds": 103.3,
-          "cost_usd": 1.3312
+          "tool_calls": 27,
+          "seconds": 81.8,
+          "cost_usd": 0.8239
         },
         {
           "domain": null,
           "question": "What caused the flaring in November 2025?",
           "mentions": 1.0,
           "missing": [],
-          "citations": 3,
+          "citations": 8,
           "operating_instructions": [],
           "specialists": [
             "field-operations-facilities",
@@ -174,11 +171,13 @@
           "routed": true,
           "charts": [],
           "charted": null,
-          "tool_calls": 35,
-          "seconds": 68.8,
-          "cost_usd": 0.9333
+          "tool_calls": 36,
+          "seconds": 76.0,
+          "cost_usd": 1.0231
         }
-      ]
+      ],
+      "passed": true,
+      "short": []
     },
     "maintenance-integrity/compression": {
       "questions": 2,
@@ -316,20 +315,15 @@
     "maintenance-integrity/reliability": {
       "questions": 3,
       "mentions": 0.723,
-      "cited": 0.667,
+      "cited": 1.0,
       "safe": 1.0,
-      "routed": 0.667,
+      "routed": 1.0,
       "charted": null,
       "charts_per_answer": 0.67,
       "looked_at_charts": 0,
-      "cost_usd": 2.85,
-      "cost_per_answer_usd": 0.949,
-      "seconds_per_answer": 129.1,
-      "passed": false,
-      "short": [
-        "mentions 72% under 80%",
-        "routed 67% under 100%"
-      ],
+      "cost_usd": 1.98,
+      "cost_per_answer_usd": 0.659,
+      "seconds_per_answer": 88.0,
       "results": [
         {
           "domain": null,
@@ -342,19 +336,19 @@
               "eta"
             ]
           ],
-          "citations": 1,
+          "citations": 3,
           "operating_instructions": [],
           "specialists": [
             "maintenance-integrity"
           ],
           "routed": true,
           "charts": [
-            "bar"
+            "weibull"
           ],
           "charted": null,
-          "tool_calls": 33,
-          "seconds": 203.9,
-          "cost_usd": 1.1378
+          "tool_calls": 35,
+          "seconds": 144.8,
+          "cost_usd": 0.777
         },
         {
           "domain": null,
@@ -362,24 +356,24 @@
           "mentions": 0.5,
           "missing": [
             [
-              "early life",
-              "early_life",
-              "early-life"
+              "repair quality",
+              "installation",
+              "how the work is done"
             ]
           ],
-          "citations": 4,
+          "citations": 5,
           "operating_instructions": [],
           "specialists": [
             "maintenance-integrity"
           ],
           "routed": true,
           "charts": [
-            "custom"
+            "weibull"
           ],
           "charted": null,
-          "tool_calls": 24,
-          "seconds": 75.3,
-          "cost_usd": 0.6479
+          "tool_calls": 15,
+          "seconds": 62.8,
+          "cost_usd": 0.551
         },
         {
           "domain": null,
@@ -389,46 +383,39 @@
           "citations": 5,
           "operating_instructions": [],
           "specialists": [
-            "work-management-supply-chain"
+            "maintenance-integrity"
           ],
-          "routed": false,
+          "routed": true,
           "charts": [],
           "charted": null,
-          "tool_calls": 67,
-          "seconds": 108.2,
-          "cost_usd": 1.0607
+          "tool_calls": 18,
+          "seconds": 56.3,
+          "cost_usd": 0.6502
         }
+      ],
+      "passed": false,
+      "short": [
+        "mentions 72% under 80%"
       ]
     },
     "maintenance-integrity/static-equipment": {
       "questions": 2,
-      "mentions": 0.67,
+      "mentions": 1.0,
       "cited": 0.5,
       "safe": 1.0,
       "routed": 1.0,
       "charted": null,
       "charts_per_answer": 1.5,
       "looked_at_charts": 0,
-      "cost_usd": 1.13,
-      "cost_per_answer_usd": 0.565,
-      "seconds_per_answer": 59.3,
-      "passed": false,
-      "short": [
-        "mentions 67% under 80%"
-      ],
+      "cost_usd": 0.95,
+      "cost_per_answer_usd": 0.475,
+      "seconds_per_answer": 51.4,
       "results": [
         {
           "domain": null,
           "question": "Is the GGCP inlet separator 20-V-2001 due an inspection, and how long can it run?",
-          "mentions": 0.67,
-          "missing": [
-            [
-              "minimum thickness",
-              "minimum required thickness",
-              "retirement thickness",
-              "tmin"
-            ]
-          ],
+          "mentions": 1.0,
+          "missing": [],
           "citations": 5,
           "operating_instructions": [],
           "specialists": [
@@ -439,20 +426,15 @@
             "wall_thickness"
           ],
           "charted": null,
-          "tool_calls": 15,
-          "seconds": 54.9,
-          "cost_usd": 0.5376
+          "tool_calls": 11,
+          "seconds": 47.5,
+          "cost_usd": 0.431
         },
         {
           "domain": null,
           "question": "Which flowline is losing wall fastest, and when does it need inspecting?",
-          "mentions": 0.67,
-          "missing": [
-            [
-              "short-term",
-              "short term"
-            ]
-          ],
+          "mentions": 1.0,
+          "missing": [],
           "citations": 1,
           "operating_instructions": [],
           "specialists": [
@@ -464,65 +446,68 @@
             "measurements"
           ],
           "charted": null,
-          "tool_calls": 13,
-          "seconds": 63.8,
-          "cost_usd": 0.5915
+          "tool_calls": 7,
+          "seconds": 55.3,
+          "cost_usd": 0.5182
         }
-      ]
+      ],
+      "passed": true,
+      "short": []
     },
     "production-surveillance/metering-and-balances": {
       "questions": 2,
-      "mentions": 0.875,
+      "mentions": 1.0,
       "cited": 1.0,
       "safe": 1.0,
-      "routed": 0.0,
+      "routed": 1.0,
       "charted": null,
-      "charts_per_answer": 0.0,
+      "charts_per_answer": 1.0,
       "looked_at_charts": 0,
-      "cost_usd": 0.45,
-      "cost_per_answer_usd": 0.223,
-      "seconds_per_answer": 27.8,
-      "passed": false,
-      "short": [
-        "routed 0% under 100%"
-      ],
+      "cost_usd": 1.1,
+      "cost_per_answer_usd": 0.548,
+      "seconds_per_answer": 45.2,
       "results": [
         {
           "domain": null,
           "question": "What is the allocation factor at the oil export fiscal meter 10-FT-3001?",
-          "mentions": 0.75,
-          "missing": [
-            [
-              "0.9",
-              "90"
-            ]
-          ],
-          "citations": 4,
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 3,
           "operating_instructions": [],
-          "specialists": [],
-          "routed": false,
-          "charts": [],
+          "specialists": [
+            "production-surveillance"
+          ],
+          "routed": true,
+          "charts": [
+            "field_allocation_factor"
+          ],
           "charted": null,
-          "tool_calls": 5,
-          "seconds": 17.4,
-          "cost_usd": 0.1912
+          "tool_calls": 9,
+          "seconds": 44.4,
+          "cost_usd": 0.558
         },
         {
           "domain": null,
           "question": "Can the oil export fiscal meter 10-FT-3001 be checked against another meter?",
           "mentions": 1.0,
           "missing": [],
-          "citations": 8,
+          "citations": 5,
           "operating_instructions": [],
-          "specialists": [],
-          "routed": false,
-          "charts": [],
+          "specialists": [
+            "production-surveillance"
+          ],
+          "routed": true,
+          "charts": [
+            "trend"
+          ],
           "charted": null,
-          "tool_calls": 16,
-          "seconds": 38.2,
-          "cost_usd": 0.2547
+          "tool_calls": 14,
+          "seconds": 46.0,
+          "cost_usd": 0.5377
         }
-      ]
+      ],
+      "passed": true,
+      "short": []
     },
     "wells-subsurface/wells-and-lift": {
       "questions": 2,
