@@ -25,7 +25,8 @@ def runtime(okan_db, monkeypatch):
     monkeypatch.setenv("FUZER_OWNER_BOOTSTRAP_TOKEN", "test-owner-code-that-is-long-enough-for-setup")
     monkeypatch.delenv("RENDER", raising=False)
     with db.connect() as conn:
-        conn.execute("truncate access_event, access_login, access_session, access_membership, access_account, access_role cascade")
+        conn.execute("truncate access_event, access_login, access_session, access_membership, access_account, access_role, "
+                     "access_document_group cascade")
         access.seed(conn)
     with TestClient(app, base_url="https://testserver") as client:
         yield client
@@ -617,3 +618,94 @@ def test_area_grants_narrow_what_a_person_acts_on_never_what_they_read(runtime):
     assert client.put(f"/auth/accounts/{person.id}/projects/{project}/areas", json={"areas": []}).status_code == 200
     be(person, person_token)
     assert comment(there) == 200  # no areas again: the whole project
+
+
+def _manual_and_procedure(conn):
+    """A licensed OEM manual with one of its sections and the equipment model it applies to, and an open procedure."""
+    def doc(doc_type):
+        return conn.execute("select g.fuzer_id from golden g join entity e on e.fuzer_id = g.fuzer_id "
+                            "and e.kind = 'document' and e.merged_into is null "
+                            "where g.field = 'doc_type' and g.value #>> '{}' = %s order by 1 limit 1",
+                            (doc_type,)).fetchone()["fuzer_id"]
+    manual, procedure = doc("oem_manual"), doc("procedure")
+    section = conn.execute("select src from edge where rel = 'part_of' and dst = %s limit 1", (manual,)).fetchone()["src"]
+    title = conn.execute("select value #>> '{}' as t from golden where fuzer_id = %s and field = 'title'",
+                         (manual,)).fetchone()["t"]
+    return manual, section, title, procedure
+
+
+def _ids(value) -> set[str]:
+    out = set()
+    if isinstance(value, dict):
+        out |= {v for k, v in value.items() if k in access.REFERENCE_KEYS and isinstance(v, str)}
+        for v in value.values():
+            out |= _ids(v)
+    elif isinstance(value, list):
+        for v in value:
+            out |= _ids(v)
+    return out
+
+
+def test_restricted_documents_are_hidden_everywhere_from_people_outside_their_group(runtime):
+    from fuzer.agents import mcp_server
+    from fuzer.core.capabilities import ASKER
+
+    client = runtime
+    person, person_token = signed_in(client, roles=("reader",), subject=str(uuid.UUID(int=41)))
+
+    def be(who, token):
+        client.cookies.set("__Host-fuzer_session", token, domain="testserver.local", path="/")
+        client.headers["X-Fuzer-CSRF"] = who.csrf
+
+    with db.connect() as conn:
+        manual, section, title, procedure = _manual_and_procedure(conn)
+        project = access._default_project(conn)
+    words = " ".join(title.split()[:2])
+    assert client.get(f"/entities/{manual}").status_code == 200  # nothing restricted: open, as before
+    assert manual in _ids(client.get("/entities", params={"q": words, "kind": "document"}).json())
+    assert {manual, section} & _ids(client.get("/knowledge/search", params={"q": words, "limit": 50}).json())
+    token = ASKER.set(person.actor)
+    try:
+        assert manual in _ids(mcp_server.search(words, kind="document"))
+        assert {manual, section} & _ids(mcp_server.search_knowledge(words, limit=20))
+    finally:
+        ASKER.reset(token)
+    assert client.put(f"/auth/projects/{project}/document-groups",
+                      json={"restricted": {"oem_manual": "licensed"}}).status_code == 403  # owners only
+
+    owner, owner_token = signed_in(client, owner=True, roles=(), subject=str(uuid.UUID(int=42)))
+    listed = client.get(f"/auth/projects/{project}/document-groups").json()
+    assert listed["restricted"] == {} and {"doc_type": "oem_manual", "documents": 22} in listed["classes"]
+    assert client.put(f"/auth/projects/{project}/document-groups",
+                      json={"restricted": {"oem_manual": "licensed"}}).status_code == 200
+    assert client.get(f"/entities/{manual}").status_code == 200  # an owner sees everything
+
+    be(person, person_token)
+    for path in (f"/entities/{manual}", f"/entities/{section}", f"/documents/{manual}/file", f"/graph/{manual}"):
+        assert client.get(path).status_code == 404, path
+    assert manual not in _ids(client.get("/lookup", params={"text": title}).json())
+    found = client.get("/entities", params={"q": words, "kind": "document"}).json()
+    assert manual not in _ids(found)
+    passages = client.get("/knowledge/search", params={"q": words, "limit": 50}).json()
+    assert not ({manual, section} & _ids(passages))
+    assert client.get(f"/entities/{procedure}").status_code == 200  # an open class stays open
+    token = ASKER.set(person.actor)
+    try:
+        assert manual not in _ids(mcp_server.search(words, kind="document"))
+        assert mcp_server.get_entity(manual) == {"error": "nothing found; try the search tool"}
+        assert not ({manual, section} & _ids(mcp_server.search_knowledge(words, limit=20)))
+        assert "error" not in mcp_server.get_entity(procedure)
+    finally:
+        ASKER.reset(token)
+
+    be(owner, owner_token)
+    assert client.put(f"/auth/accounts/{person.id}/projects/{project}/groups",
+                      json={"groups": ["licensed"]}).status_code == 200
+    admin = client.get("/auth/access").json()
+    assert next(a for a in admin["accounts"] if a["id"] == person.id)["groups"] == {project: ["licensed"]}
+    be(person, person_token)
+    assert client.get(f"/entities/{manual}").status_code == 200  # in the group: seen again
+    with db.connect() as conn:
+        events = conn.execute("select action, project from access_event where action in "
+                              "('document_groups_set', 'groups_set') order by id").fetchall()
+    assert [(e["action"], e["project"]) for e in events] == [("document_groups_set", project), ("groups_set", project)]

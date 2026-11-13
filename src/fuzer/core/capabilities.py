@@ -12,6 +12,7 @@ before it bound and every one declared after, so import order never drops a tool
 through the workflow engine).
 """
 
+import functools
 from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -39,6 +40,27 @@ def _bound(cap: Capability) -> Capability:
     return cap
 
 
+def guarded(fn: Callable) -> Callable:
+    """`fn` as the surfaces serve it: while a signed-in person is asking (ASKER), its result leaves out the restricted
+    documents they may not see (R.5, #29), and a result that is one of them is refused as not found."""
+
+    @functools.wraps(fn)
+    def tool(*args, **kwargs):
+        out = fn(*args, **kwargs)
+        asker = ASKER.get()
+        if not asker or not asker.startswith("user:"):
+            return out
+        from . import access, db
+
+        with db.connect() as conn:
+            hidden = access.hidden_documents(conn, access.principal(conn, asker.removeprefix("user:")))
+        if access.refers_to(out, hidden):
+            return {"error": "nothing found; try the search tool"}
+        return access.scrub(out, hidden)
+
+    return tool
+
+
 def capability(*agents: str, kind: str = "query") -> Callable:
     """Declare the decorated function as a tool for these agents."""
     if kind not in KINDS:
@@ -47,7 +69,7 @@ def capability(*agents: str, kind: str = "query") -> Callable:
     def register(fn: Callable) -> Callable:
         if fn.__name__ in REGISTRY:
             raise ValueError(f"tool {fn.__name__} is declared twice")
-        REGISTRY[fn.__name__] = _bound(Capability(fn.__name__, tuple(agents), kind, fn))
+        REGISTRY[fn.__name__] = _bound(Capability(fn.__name__, tuple(agents), kind, guarded(fn)))
         return fn
 
     return register

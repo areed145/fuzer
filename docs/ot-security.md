@@ -83,6 +83,31 @@ owners span every area. The check sits beside the workflow-role check at the ser
 (`api/security.py`), so it applies to every route that acts on work; each change is an `areas_set` access event in
 the project's audit record.
 
+## Restricted documents (#29)
+
+Area grants narrow what a person can act on. A restricted document class narrows what they can *see*.
+
+An owner restricts a document class to a named group in one project. The class is the document's `doc_type`, such as `oem_manual` for licensed manuals. The owner then puts people in groups:
+
+- `PUT /auth/projects/{project}/document-groups` sets the restricted classes.
+- `GET` on the same path lists every class the register holds, with document counts.
+- `PUT /auth/accounts/{id}/projects/{project}/groups` puts an account in groups.
+
+Each change is an access event (`document_groups_set` or `groups_set`) in the project's audit record.
+
+Someone outside a class's group can't see its documents, their sections, or ids merged into them:
+
+- **API:** every route that names one by path answers 404, including the file download. Every JSON response leaves out the records that name one, at the access boundary in `api/security.py`. A response that is one of them answers 404.
+- **Assistant:** each tool is served guarded (`core/capabilities.py`). While a signed-in person asks, the model never sees those documents in a tool result.
+
+Owners see everything. A class with no restriction is open to everyone who can read the project, as before.
+
+Not yet covered:
+
+- **Trusted local mode and local MCP** have no signed-in person and are not filtered.
+- **Shared text written before the restriction** may still hold content from these documents: an asset brief, an assistant memory, or a case note. Records citing the documents are dropped, but text that quotes them without an id is not.
+- **Teams threads** are not a source yet, so there is nothing to restrict.
+
 ## What this means for the code today
 
 These hold now and are checked by `tests/architecture/test_read_write_paths.py`:
