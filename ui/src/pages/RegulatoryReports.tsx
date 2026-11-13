@@ -2,11 +2,11 @@
 // basis (measured, estimated, missing) and the rows it is made of, the figures on estimated or missing data marked
 // first, and the review case that holds it.
 import { useState } from "react";
-import { api, type RegulatoryListing, type ReportBasis, type ReportFigure, type ReportRow } from "../api";
+import { api, type RegulatoryListing, type RegulatoryReport, type ReportBasis, type ReportFigure, type ReportRow } from "../api";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
 import { useAct } from "./workflows/shared";
-import { Badge, Button, Card, Table } from "../ui";
+import { Badge, Button, Card, ConfirmAction, Input, Table } from "../ui";
 import "../styles/reports.css";
 
 const BASIS_TONE: Record<ReportBasis, "ok" | "warn" | "danger"> = { measured: "ok", estimated: "warn", missing: "danger" };
@@ -52,6 +52,71 @@ function Figure({ f, open, onToggle }: { f: ReportFigure; open: boolean; onToggl
   );
 }
 
+function download(file: { filename: string; content: string }) {
+  const url = URL.createObjectURL(new Blob([file.content], { type: "text/csv" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** P7.6b: approve the latest version (a person's call), export it, and send it or record it as filed. */
+function Decide({ d, onDone }: { d: RegulatoryReport; onDone: () => void }) {
+  const [person] = usePerson();
+  const [note, setNote] = useState("");
+  const [system, setSystem] = useState("");
+  const a = useAct();
+  const latest = d.version === Math.max(...d.versions);
+  const needsNote = d.marked.length > 0;
+  return (
+    <Card as="section">
+      <h2>Approve and submit</h2>
+      {d.status === "draft" && !latest && <p className="small muted">An older draft; only the latest version can be approved.</p>}
+      {d.status === "draft" && latest && (!person ? (
+        <p className="small">Say who you are in the sidebar (bottom left) to approve it.</p>
+      ) : (
+        <>
+          {needsNote && (
+            <Input aria-label="Why it can go as it is" width="full" value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder="Why it can go with the marked figures as they are" />
+          )}
+          <ConfirmAction label="Approve report" busy={!!a.busy} disabled={needsNote && note.trim().length < 3}
+            consequence={`You approve version ${d.version} of the ${d.title.toLowerCase()} for ${d.coverage.label} as it stands; its review case closes.`}
+            onConfirm={() => a.run("approve", () => api.approveRegulatoryReport(d.template, d.period, person, d.version,
+              note.trim() || undefined), onDone)} />
+        </>
+      ))}
+      {d.approved_by && (
+        <p className="small">Approved by {d.approved_by} {d.approved_at ? when(d.approved_at) : ""}
+          {d.approval_note ? `: “${d.approval_note}”` : ""}.</p>
+      )}
+      <div className="actions">
+        <Button disabled={!!a.busy} onClick={() => a.run("export", () => api.exportRegulatoryReport(d.template, d.period, d.version), download)}>
+          Export CSV{d.status === "draft" ? " (draft)" : ""}</Button>
+      </div>
+      {d.status === "approved" && person && (
+        <div className="actions">
+          <Input aria-label="Send to system" width="sm" value={system} onChange={(e) => setSystem(e.target.value)}
+            placeholder="System (blank: I file the export)" />
+          <ConfirmAction label="Submit report" busy={!!a.busy}
+            consequence={system.trim()
+              ? `Version ${d.version} goes to ${system.trim()} through the write-back queue, for its approver to send.`
+              : `Version ${d.version} is recorded as submitted by you, with the exported file you file.`}
+            onConfirm={() => a.run("submit", () => api.submitRegulatoryReport(d.template, d.period, person,
+              system.trim() || undefined), onDone)} />
+        </div>
+      )}
+      {d.submitted && (
+        <p className="small">Submitted by {d.submitted.by} {when(d.submitted.at)}
+          {d.submitted.via === "writeback" ? ` through the write-back queue to ${d.submitted.system}` : " as an exported file"}:
+          {" "}{d.submitted.file}, sha256 {d.submitted.sha256.slice(0, 12)}…</p>
+      )}
+      {a.error && <p className="error small">{a.error}</p>}
+    </Card>
+  );
+}
+
 export function RegulatoryReportView({ template, period, onChange }: { template: string; period: string; onChange: () => void }) {
   const [version, setVersion] = useState<number | undefined>();
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -94,6 +159,7 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
             </div>
             {a.error && <p className="error small">{a.error}</p>}
           </Card>
+          <Decide d={d} onDone={() => { r.reload(); onChange(); }} />
           {d.sections.map((s) => (
             <Card as="section" key={s.title}>
               <h2>{s.title}</h2>
@@ -140,6 +206,29 @@ export function RegulatoryList({ data, selected, onChange }: { data: RegulatoryL
           })}>Draft {t.title.toLowerCase()} for {month}</Button>
       ))}
       {a.error && <span className="error small">{a.error}</span>}
+    </div>
+  );
+}
+
+/** P7.6c: what the obligations calendar has open now, the earliest due first. */
+export function ObligationsDue() {
+  const o = useAsync(() => api.reportObligations(), []);
+  const due = Array.isArray(o.data?.calendar) ? o.data.calendar : [];
+  if (!o.data || (due.length === 0 && !(o.data.obligations ?? []).length)) return null;
+  return (
+    <div className="small">
+      <strong>Coming due</strong>
+      {due.length === 0 ? <span className="muted"> nothing open: every report due is submitted.</span> : (
+        <ul>
+          {due.map((c) => (
+            <li key={`${c.obligation}:${c.period}`}>
+              <a href={href("/reports", { report: `${c.template}:${c.period}` })}>{c.obligation}, {c.period}</a>
+              {c.regulator ? ` for ${c.regulator}` : ""}: {c.overdue ? <span className="error">overdue since {c.due}</span>
+                : `due ${c.due}, in ${c.days_left} days`}; {c.report ? `version ${c.report.version} ${c.report.status}` : "not started"}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

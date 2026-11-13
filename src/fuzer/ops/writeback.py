@@ -51,6 +51,7 @@ KINDS: dict[str, dict] = {
                            "cadence": "daily 02:00"},
     "log_entry": {"label": "Operator log entry", "approvers": ["ops_lead"], "cadence": "now"},
     "detection_feedback": {"label": "Detection feedback", "approvers": ["engineer", "ops_lead"], "cadence": "15min"},
+    "regulatory_report": {"label": "Regulatory report", "approvers": ["hse_specialist"], "cadence": "now"},
 }
 LIMIT = 50  # writes per system per run, unless its pack says otherwise
 

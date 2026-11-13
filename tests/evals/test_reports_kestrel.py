@@ -91,7 +91,7 @@ def test_the_monthly_flare_report_is_drafted_from_its_records_with_estimates_mar
 
     # The draft is review work for the HSE specialist, saying which figures rest on estimated or missing data.
     ex = conn.execute("select type, state, title, item_id from exception_record where type = 'regulatory_report' "
-                      "and key = %s", (f"{NAME}:{period}",)).fetchone()
+                      "and key = %s order by id desc limit 1", (f"{NAME}:{period}",)).fetchone()
     assert ex["state"] == "open" and ex["item_id"] == out["item_id"]
     assert "version 1 to review" in ex["title"] and "estimated or missing data" in ex["title"]
     assert conn.execute("select role from work_item where id = %s", (ex["item_id"],)).fetchone()["role"] \
@@ -137,3 +137,127 @@ def test_the_api_lists_and_shows_a_report_and_refuses_one_nobody_drafted(kestrel
         with pytest.raises(HTTPException) as e:
             ops_api.regulatory_report(template, p, None, conn)
         assert e.value.status_code == 404
+
+
+def test_a_person_approves_the_report_and_it_is_exported_and_submitted_as_kept(kestrel, tmp_path, monkeypatch):
+    """P7.6b: approval is a fixed gate an agent can't pass, a marked figure needs the reviewer's word, the export
+    says DRAFT until it is approved, and the submitted version is kept with the exact file sent."""
+    import csv
+    import hashlib
+    import io
+
+    from fuzer.core import gates
+    from fuzer.ops import writeback
+    from fuzer.sources import catalog
+    from fuzer.workflow import engine
+
+    monkeypatch.setenv("FUZER_DATA_DIR", str(tmp_path))
+    conn, pack, period = kestrel["conn"], kestrel["pack"], kestrel["period"]
+    conn.execute("delete from regulatory_report")
+    draft = reports.assemble(conn, pack, NAME, period)
+    v = draft["version"]
+
+    out = reports.export(conn, NAME, period)
+    assert out["filename"].endswith("-DRAFT.csv") and out["content"].startswith("DRAFT ")
+    rows = list(csv.reader(io.StringIO(out["content"])))
+    head = rows.index(["section", "figure", "row", "value", "unit", "basis", "record"])
+    body = rows[head + 1:]
+    assert any(r[1] == "Metered gas, KR 12-03H" and r[2] == "" and r[5] == "estimated" for r in body)
+    assert all(r[6].startswith(("record:", "point:", "case:")) for r in body if r[2] and r[6])
+
+    with pytest.raises(gates.GateRefused):
+        reports.approve(conn, NAME, period, "agent:reporter")
+    conn.rollback()
+    with pytest.raises(reports.ReportError, match="rest on estimated or missing data"):
+        reports.approve(conn, NAME, period, "hana")
+    with pytest.raises(reports.ReportError, match="no approved version"):
+        reports.submit(conn, NAME, period, "hana")
+    with pytest.raises(reports.ReportError, match="not the latest"):
+        reports.approve(conn, NAME, period, "hana", version=v + 1)
+
+    note = "The wells' estimates are the measurement system's own; the corrections follow in next month's report."
+    ok = reports.approve(conn, NAME, period, "hana", note=note)
+    assert (ok["status"], ok["approved_by"], ok["approval_note"]) == ("approved", "hana", note)
+    ex = conn.execute("select state, item_id from exception_record where type = 'regulatory_report' and key = %s "
+                      "order by id desc limit 1", (f"{NAME}:{period}",)).fetchone()
+    assert ex["state"] != "open"
+    assert conn.execute("select state from work_item where id = %s", (ex["item_id"],)).fetchone()["state"] == "done"
+    with pytest.raises(reports.ReportError, match="already approved"):
+        reports.approve(conn, NAME, period, "hana")
+    final = reports.export(conn, NAME, period)
+    assert "DRAFT" not in final["filename"] and final["content"].startswith("Monthly flare")
+    assert ["approved", "hana"] == next(r for r in csv.reader(io.StringIO(final["content"])) if r[0] == "approved")[:2]
+
+    # Sent through the write-back queue to the regulator's system: its approver's queue holds the exact file.
+    engine.set_person(conn, "hana", ["hse_specialist"])
+    catalog.add_system(conn, "regulator", "test", files=False, writeback={"accepts": ["regulatory_report"]})
+    sent = reports.submit(conn, NAME, period, "hana", system="regulator")
+    assert sent["status"] == "submitted" and sent["submitted"]["via"] == "writeback"
+    assert sent["submitted"]["sha256"] == hashlib.sha256(final["content"].encode()).hexdigest()
+    wb = writeback.get(conn, sent["submitted"]["writeback_id"])
+    assert (wb["kind"], wb["state"], wb["approver_role"]) == ("regulatory_report", "awaiting_approval", "hse_specialist")
+    assert wb["payload"]["content"] == final["content"]
+    writeback.approve(conn, wb["id"], "hana")
+    assert writeback.send(conn, wb["id"])["state"] == "sent"
+    conn.commit()
+    with pytest.raises(reports.ReportError, match="already submitted"):
+        reports.submit(conn, NAME, period, "hana")
+
+    kept = reports.get(conn, NAME, period, version=v)
+    assert kept["status"] == "submitted" and kept["submitted"]["file"] == final["filename"]
+    assert "content" not in kept["submitted"]
+    stored = conn.execute("select submitted from regulatory_report where template = %s and period = %s and version = %s",
+                          (NAME, period, v)).fetchone()["submitted"]
+    assert stored["content"] == final["content"] and stored["at"]
+    # Drafting again with the records unchanged leaves the submitted version as it is.
+    assert reports.assemble(conn, pack, NAME, period)["changed"] is False
+
+
+def test_the_obligations_calendar_drafts_ahead_and_raises_work_for_one_coming_due_with_nothing_started(kestrel):
+    """P7.6c: an obligation whose window has opened is drafted from its records; one with no draft in progress (it
+    may not be drafted ahead) raises report_due for the HSE specialist, which clears once a draft is in progress."""
+    conn, pack, yesterday = kestrel["conn"], kestrel["pack"], kestrel["yesterday"]
+    today = yesterday + timedelta(days=1)
+    last = reports.period_of(today.replace(day=1) - timedelta(days=1))  # last month, a whole month
+    in_five = (today + timedelta(days=5) - date.fromisoformat(f"{reports._shift(last, 1)}-01")).days + 1
+    conn.execute("delete from regulatory_report where period = %s", (last,))
+    conn.execute("delete from report_obligation")
+    with pytest.raises(reports.ReportError, match="no report template"):
+        reports.set_obligation(conn, "x", "nothing", "ana")
+
+    reports.set_obligation(conn, "flaring_return", NAME, "ana", regulator="the regulator", due_days=in_five,
+                           lead_days=30, draft_ahead=False)
+    [c] = reports.calendar(conn, today)
+    assert (c["period"], c["due"], c["days_left"], c["report"]) == (last, (today + timedelta(days=5)).isoformat(), 5,
+                                                                    None)
+    out = reports.run_calendar(conn, pack, today)
+    assert out["drafted"] == [] and [r["key"] for r in out["raised"]] == [f"flaring_return:{last}"]
+    ex = conn.execute("select state, title, item_id from exception_record where type = 'report_due' and key = %s",
+                      (f"flaring_return:{last}",)).fetchone()
+    assert ex["state"] == "open" and "in 5 days: not started" in ex["title"]
+    assert conn.execute("select role from work_item where id = %s", (ex["item_id"],)).fetchone()["role"] \
+        == "hse_specialist"
+    assert reports.run_calendar(conn, pack, today)["raised"][0]["new"] is False  # refreshed, not raised twice
+
+    # Allowed to draft ahead, the calendar drafts last month from its records and the work clears.
+    reports.set_obligation(conn, "flaring_return", NAME, "ana", regulator="the regulator", due_days=in_five,
+                           lead_days=30, draft_ahead=True)
+    out = reports.run_calendar(conn, pack, today)
+    assert out["drafted"] == [f"flaring_return:{last}"] and out["raised"] == []
+    assert out["cleared"] == [f"flaring_return:{last}"]
+    r = reports.get(conn, NAME, last)
+    assert r["version"] == 1 and r["coverage"]["partial"] is False and r["review"]["state"] == "open"
+
+    # Past its due date and not submitted, it is work again, overdue.
+    late = today + timedelta(days=6)
+    out = reports.run_calendar(conn, pack, late)
+    [raised] = out["raised"]
+    title = conn.execute("select title from exception_record where type = 'report_due' and key = %s and "
+                         "state = 'open'", (raised["key"],)).fetchone()["title"]
+    assert f"was due {(today + timedelta(days=5)).isoformat()}: version 1 draft, not submitted" in title
+    # Approved and submitted, it is off the calendar and its work clears.
+    reports.approve(conn, NAME, last, "hana", note="Checked against the meter tickets.")
+    reports.submit(conn, NAME, last, "hana")
+    out = reports.run_calendar(conn, pack, late)
+    assert last not in {c["period"] for c in out["due"]} and raised["key"] in out["cleared"]
+    assert reports.obligations(conn, late)["obligations"][0]["name"] == "flaring_return"

@@ -9,7 +9,7 @@ import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
 import { AgentIdle, useAct } from "./workflows/shared";
 import { Button, PageHeader , Card as UICard, Badge as UIBadge} from "../ui";
-import { RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
+import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
 const STATUS_CLASS: Record<string, string> = {
   published: "ok", "awaiting review": "key", "sent back": "warn", drafting: "warn", "needs a fix": "warn",
@@ -59,6 +59,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
         estimated or missing data is marked for the reviewer.</p>
       <Status loading={regulatory.loading && !regulatory.data} error={regulatory.error} />
       {regulatory.data && <RegulatoryList data={regulatory.data} selected={report} onChange={regulatory.reload} />}
+      <ObligationsDue />
       {template && period && (
         <RegulatoryReportView key={report} template={template} period={period} onChange={regulatory.reload} />
       )}

@@ -202,6 +202,19 @@ def _bring(conn, how: dict) -> str:
             pipeline.rebuild(conn, pack)
             conn.commit()
             landed = "a delivery and the rebuild after it, then "
+    if "obligation" in how:  # an obligation coming due in a few days with no report started (P7.6c)
+        from datetime import date
+
+        from ..graph import operations
+        from ..ops import reports
+
+        o, today = how["obligation"], date.fromisoformat(operations.as_of(conn))
+        period = reports.period_of(today.replace(day=1) - timedelta(days=1))
+        due_days = (today + timedelta(days=5) - date.fromisoformat(f"{reports._shift(period, 1)}-01")).days + 1
+        reports.set_obligation(conn, o["name"], o["template"], BY, regulator=o.get("regulator"), due_days=due_days,
+                               lead_days=30, draft_ahead=False)
+        reports.run_calendar(conn, pack, today)
+        return f"the obligations calendar, {o['name']} due in 5 days with no report started"
     if "report" in how:  # the month's regulatory report drafted from its records, for its review (P7.6)
         from datetime import date
 
