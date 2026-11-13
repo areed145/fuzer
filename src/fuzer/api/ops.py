@@ -377,6 +377,13 @@ def plant_reservoir_pressure(conn=Depends(get_conn)):
     return {"productivity": rp.productivity(conn), "material_balance": rp.material_balance(conn)}
 
 
+@router.get("/plant/ldar")
+def plant_ldar(days: int = 730, conn=Depends(get_conn)):
+    """LDAR surveys: leaks found, repeat leakers, and coverage with unsurveyed equipment unknown (#371)."""
+    from ..analysis import ldar
+    return ldar.surveys(conn, days=max(31, min(days, 1825)))
+
+
 @router.get("/plant/water-injection")
 def plant_water_injection(days: int = 730, conn=Depends(get_conn)):
     """Voidage replacement month by month and each water injector's Hall plot (#365)."""

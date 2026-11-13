@@ -13,6 +13,7 @@ import { AllocationFactor } from "./AllocationFactor";
 import { WaterInjection } from "./WaterInjection";
 import { ReservoirPressure } from "./ReservoirPressure";
 import { GasBalance } from "./GasBalance";
+import { LeakSurveys } from "./LeakSurveys";
 import { GasLiftHeading } from "./GasLiftHeading";
 import { QualityTrend } from "./QualityTrend";
 import { AlarmPerformance } from "./AlarmPerformance";
@@ -80,6 +81,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
       <WaterInjection />
       <ReservoirPressure />
       <GasBalance />
+      <LeakSurveys />
       <GasLiftHeading />
       <QualityTrend />
       <AlarmPerformance />

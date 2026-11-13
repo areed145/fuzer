@@ -52,6 +52,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`gas_balance`](#gas_balance) Daily gas balance and its closure gap | Engineering practice | Gas handled (kSm³/d); Gas export, lift gas, flare, fuel gas and vent (kSm³/d) | A daily report with the gas handled. |
 | [`productivity_index`](#productivity_index) Productivity index from a flowing survey against the static pressure before it | Engineering practice | Static bottomhole pressure (barg); Flowing bottomhole pressure (barg); Oil rate at the flowing survey (Sm³/d) | A flowing survey with a rate and a static survey on the same well shortly before it. |
 | [`material_balance`](#material_balance) One-tank material balance from static pressures and net voidage | Engineering practice | Static bottomhole pressures (barg); Allocated oil (rm³); Water injected (rm³) | The PVT voidage replacement needs, and static surveys on at least two dates. |
+| [`ldar`](#ldar) LDAR survey leaks, repeat leakers and coverage | US EPA Method 21 (determination of volatile organic compound leaks) | Component screening readings by survey (ppm) | At least one survey; equipment of a surveyed class with no reading is reported unknown. |
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
@@ -460,6 +461,18 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Run by:** `material_balance`
 - **Threshold `surveys`:** Static surveys the fit needs, on wells surveyed at least twice. (3)
 - **Worked example:** `tests/analysis/test_reservoir_pressure.py::test_material_balance_recovers_the_tank_and_states_its_assumptions`, on the fake plant
+
+## ldar
+
+**LDAR survey leaks, repeat leakers and coverage.** US EPA Method 21 (determination of volatile organic compound leaks). A screening reading at or above the leak definition is a leak (500 ppm as in 40 CFR 60 subpart OOOOa); a component found leaking again is a repeat leaker. The coverage window is this registry's own.
+
+- **Valid for:** Fugitive emission components screened by a Method 21 analyser and recorded against their tag.
+- **Needs:** At least one survey; equipment of a surveyed class with no reading is reported unknown.
+- **Run by:** `ldar_surveys`
+- **Threshold `leak`:** A screening reading at or above this is a leak. (500 ppm)
+- **Threshold `repeat`:** Surveys a component must leak in to be a repeat leaker. (2)
+- **Threshold `coverage`:** A tag screened within this long before the window's end is covered. (365 days)
+- **Worked example:** `tests/analysis/test_ldar.py::test_surveys_find_the_repeat_leaker_and_name_the_unsurveyed_as_unknown`, on the fake plant
 
 ## lead_in
 
