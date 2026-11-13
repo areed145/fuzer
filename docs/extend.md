@@ -105,6 +105,11 @@ Okan's pack adds optional sections you can copy as your data supports them: `mai
 `downtime_reasons`, `spatial_links` (link GIS features by distance), `value` (prices and rates for the
 work board's value score) and `limits`.
 
+The Network page's 3D view picks each item's shape from its ISO 14224 class, using the platform's table in
+`core/scene_shapes.yaml`. To change how a class is drawn on your asset, add a `scene_shapes` section in the same
+shape, for example `scene_shapes: {classes: {TA: column}}`. The pack is refused at init if it names a shape or a
+solid that doesn't exist.
+
 !!! tip "Test the grammar first"
     Most of the effort in a new pack is the tag and well grammar. Check it against real tag strings from
     each source before loading anything: every tag Fuzer can't parse is a record it can't link. The

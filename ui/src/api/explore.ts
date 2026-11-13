@@ -146,6 +146,31 @@ export interface GraphEdge {
   sources: string[];
 }
 
+/** A schematic scene of a facility or area (P5.16a): generic shapes on plates, laid out on the server. */
+export interface SceneShape { solid: string; size: [number, number, number]; label: string; detail?: boolean }
+export interface ScenePlate {
+  id: string; label: string; area: boolean; frame: "slab" | "lattice"; type: string | null;
+  x: number; y: number; z: number; w: number; d: number; items: number;
+}
+export interface SceneItem {
+  id: string; label: string; kind: string; description: string | null; classes: string[]; shape: string;
+  plate: string; placed: string; area?: string | null; x: number; y: number; z: number;
+}
+export interface SceneLink { id: number; src: string; dst: string; rel: string; product: string | null; path: number[][] }
+export interface Scene {
+  root: { id: string; kind: string; label: string } | null;
+  focus: string | null;
+  basis?: string;
+  rels: string[];
+  plates: ScenePlate[];
+  items: SceneItem[];
+  links: SceneLink[];
+  shapes: Record<string, SceneShape>;
+  counts: { items: number; links: number; not_drawn: number; by_layout: number; by_geometry: number; no_shape: number };
+  truncated: boolean;
+  places: { id: string; kind: string; label: string | null; parent: string | null }[];
+}
+
 export interface Subgraph {
   root?: string;
   nodes: GraphNode[];
@@ -294,4 +319,6 @@ export const exploreApi = {
   /** Every link of the given types (default: the ontology's flow view); the answer says which types it drew. */
   network: (asOf?: string, rels?: string[]) =>
     request<Subgraph & { rels: string[] }>("GET", "/network", { as_of: asOf, rels: rels?.join(",") }),
+  /** The schematic scene of a facility, an area, or the area of anything inside one (default: the main facility). */
+  scene: (at?: string, rels?: string[]) => request<Scene>("GET", "/scene", { at, rels: rels?.join(",") }),
 };

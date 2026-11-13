@@ -1,0 +1,25 @@
+/* The schematic 3D view (P5.16a): names drawn over the canvas, and its controls. */
+.scene3d { --graph-height: 640px; }
+.scene3d .graph-surface canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.scene-tags { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.scene-tag {
+  position: absolute; left: 0; top: 0; padding: 0 4px; border-radius: 3px; white-space: nowrap;
+  font: 10px ui-monospace, Menlo, Consolas, monospace; color: var(--text);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+}
+.scene-tag.on { font-size: 12px; font-weight: 600; background: var(--panel); box-shadow: 0 0 0 1px var(--accent); z-index: 1; }
+.scene-tag-plate { font: 600 11px inherit; color: var(--muted); background: none; letter-spacing: 0.02em; }
+.scene-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 0 12px; }
+.scene-controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.scene-controls .ui-input { max-width: 100%; }
+@media (max-width: 800px) {
+  .scene-controls .ui-input { min-height: 44px; }
+  .scene3d .graph-fit { min-height: 44px; min-width: 44px; }
+}
+.legend i.scene-line { width: 16px; height: 4px; border-radius: 2px; }
+.scene-tone-1 { background: var(--chart-1); }
+.scene-tone-2 { background: var(--chart-2); }
+.scene-tone-3 { background: var(--chart-3); }
+.scene-tone-4 { background: var(--chart-4); }
+.scene-tone-5 { background: var(--chart-5); }
+.scene-tone-6 { background: var(--chart-6); }

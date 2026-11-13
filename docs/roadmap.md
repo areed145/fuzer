@@ -40,7 +40,7 @@ built left to right.
 | 3 First value | P5.3, P5.1, P6.1, P7.2 | P3.5, P3.8, P3.2, P3.9 | P2.3, P2.4, P2.5 | P4.1, P4.3, first pack of P4.2 |
 | 4 Depth | P5.5, P5.11, P5.4, P5.6, P5.8, P5.9 | P3.1, P3.10, P3.6, P3.3 in shadow, P3.7 | P2.1, P2.6, P7.1 | Packs 2 to 4 of P4.2, P4.5 |
 | *Gate B* (passed 2026-11-13) | Every work type closes end to end | | | |
-| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
+| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15, P5.16 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
 | *Gate C* (passed 2026-11-13) | | | Third asset type live, no code | |
 
@@ -115,6 +115,21 @@ off-page connector, or a reading that names another sheet, goes through to that 
 to the one before. New readings place each off-page connector on the sheet; older ones take the place where the other
 sheet's number was read. The home-screen icon is in the page itself, since iOS saves a linked icon by fetching it
 again and got a letter tile.
+
+## Schematic 3D views (P5.16 #1032)
+
+An IOC engineer with a compressor trip on the board wants one picture of what that train feeds and what is behind it,
+and a field operator wants to see which jacket and which piece of kit a job is on before the boat lands. One epic in
+the work and UI lane draws a facility from generic shapes, laid out from the links Fuzer already holds. It is a
+schematic for reading flow and scenarios, not a digital twin and not to scale; where a customer has a real 3D model,
+#871 links out to their viewer.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P5.16 Schematic 3D views of flow and scenarios | A scene read on the server: each item a generic shape by ISO 14224 class (a table a bundle can override), areas as plates and jackets as lattice frames, links as pipe runs, and a deterministic layout from flow order where there is no geometry. A 3D view of the Network page, loaded on demand, with a card that opens the asset page. Then status on every shape, lit flow paths, trip and reroute scenarios, the field by latitude and longitude, and a 2D fallback. | Okan, Kestrel and Harrier each draw from the register alone. Every shape shows open work, alarms and downtime and opens its asset page. Upstream and downstream of a tripped compressor light up, a trip names what goes down with it, and a rerouted well shows old and new paths without writing anything. It holds 30 frames a second on a phone, and draws in 2D where 3D is not available. |
+
+P5.16a has landed the scene, the layout and the 3D view. Slices b to f add status, paths, scenarios, the field and the
+phone and 2D work, in that order.
 
 ## How the work is tracked
 
