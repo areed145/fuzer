@@ -26,7 +26,7 @@
 .map-frame.map-fullscreen .map { height: 100vh !important; height: 100dvh !important; border: 0; border-radius: 0; }
 .leaflet-container { font: inherit; }
 .leaflet-control-zoom a { width: 44px !important; height: 44px !important; line-height: 42px !important; font-size: 24px !important; }
-.viewer .mark .hl-ring { fill: none; stroke: var(--accent); stroke-width: 10; opacity: 0.85; animation: hl-pulse 1.6s ease-in-out infinite; }
+.viewer .mark .hl-ring { animation: hl-pulse 1.6s ease-in-out infinite; }
 .viewer .mark.hl text { fill: var(--accent); }
 @keyframes hl-pulse { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .viewer .mark .hl-ring { animation: none; } }
