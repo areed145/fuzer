@@ -5892,3 +5892,49 @@ test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away
   await page.setViewportSize({ width: 1280, height: 844 });
   await bar.waitFor({ state: "hidden" });  // the sidebar does this job on a wide screen
 });
+
+test("P5.14c Back returns to where the list was left, with its filter, and the installed app can refresh", async () => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+  // A long page, as a real list on a phone is.
+  await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { document.body.style.minHeight = "5000px"; }));
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  await page.route("**/entities/fz-pump/map", route => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/fz-pump", route => route.fulfill({ json: { fuzer_id: "fz-pump", kind: "equipment",
+    label: "Export pump P-101", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const filter = page.getByRole("textbox", { name: "Filter my work by case or step" });
+  await filter.waitFor();
+  const entries = await page.evaluate(() => history.length);
+  await filter.fill("pump");
+  assert.match(page.url(), /#\/inbox\?q=pump$/, "the filter is in the link");
+  assert.equal(await page.evaluate(() => history.length), entries, "typing doesn't add history steps");
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await page.waitForFunction(() => window.scrollY === 1500);
+
+  // A new page opens at its top; Back returns to the list where it was left, filtered as it was.
+  await page.evaluate(() => { location.hash = "#/e/fz-pump"; });
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  assert.equal(await page.evaluate(() => window.scrollY), 0);
+  await page.locator(".topbar").getByRole("button", { name: "Back", exact: true }).click();
+  await page.waitForURL(/#\/inbox\?q=pump$/);
+  assert.equal(await filter.inputValue(), "pump");
+  await page.waitForFunction(() => window.scrollY === 1500, null, { timeout: 3000 }).catch(() => assert.fail("scroll restored"));
+
+  // No reload button in the installed app, so the bar has one: it reloads this page, in place.
+  const refresh = page.locator(".topbar").getByRole("button", { name: "Refresh this page", exact: true });
+  assert.ok((await refresh.boundingBox()).height >= 44);
+  // Pressed in place (a pointer click would first scroll the button into view and move the page).
+  await Promise.all([page.waitForEvent("load"), refresh.evaluate((button) => button.click())]);
+  assert.match(page.url(), /#\/inbox\?q=pump$/);
+  await page.waitForFunction(() => window.scrollY === 1500, null, { timeout: 3000 }).catch(() => assert.fail("scroll kept over a reload"));
+});
+
+test("P5.14c In a browser tab the browser's own reload is there, so the bar draws none", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/browse`);
+  await page.locator(".topbar").waitFor();
+  assert.equal(await page.locator(".topbar .refresh-button").isVisible(), false);
+});

@@ -227,6 +227,10 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
         <a className="brand" href={href("/")}>
           <Logo />
         </a>
+        {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). It reloads this page, in place. */}
+        <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" onClick={() => location.reload()}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
+        </Button>
       </header>
       {/* On a phone the primary destinations sit at the bottom, within thumb reach (P5.14b); Menu opens the rest. */}
       <nav className={keyboard ? "bottombar keyboard-up" : "bottombar"} aria-label="Quick">

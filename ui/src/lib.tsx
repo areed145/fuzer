@@ -30,6 +30,22 @@ export function href(path: string, query?: Record<string, string | undefined>): 
   return `#${path}${qs.size ? `?${qs}` : ""}`;
 }
 
+/** A value kept in the page's link without a new history step (P5.14c): a filter typed on My work is still there when
+ * Back returns to it, and a shared link opens with it. Changes rewrite the current entry, so Back doesn't walk through
+ * each keystroke. */
+export function useRouteState(name: string): [string, (value: string) => void] {
+  const read = () => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get(name) ?? "";
+  const [value, setValue] = useState(read);
+  const set = (next: string) => {
+    setValue(next);
+    const [path, qs] = window.location.hash.split("?");
+    const params = new URLSearchParams(qs ?? "");
+    if (next) params.set(name, next); else params.delete(name);
+    history.replaceState(history.state, "", `${path || "#/"}${params.size ? `?${params}` : ""}`);
+  };
+  return [value, set];
+}
+
 export const entityHref = (id: string) => href(`/e/${encodeURIComponent(id)}`);
 
 /** Fires when data changes (e.g. after a review decision) so views can refresh. */

@@ -5,7 +5,7 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
  * pages for "what is waiting on me"; `#/field` redirects here. */
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
-import { Status, href, useAsync } from "../../lib";
+import { Status, href, useAsync, useRouteState } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
@@ -36,8 +36,9 @@ export function InboxPage() {
   const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
   // The shift handover is reached from here, not the nav (#504): a banner until the incoming lead acknowledges it.
   const handovers = useAsync(() => api.handovers(), []);
-  const [q, setQ] = useState("");
-  const [type, setType] = useState("");
+  // Kept in the link, so Back from a job returns to My work filtered as it was (P5.14c).
+  const [q, setQ] = useRouteState("q");
+  const [type, setType] = useRouteState("type");
   const [picked, setPicked] = useState<Set<number>>(new Set());
   useEffect(() => setPicked(new Set()), [person]);
   if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Pick your name to see your work">
