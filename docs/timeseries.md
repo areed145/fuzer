@@ -83,6 +83,16 @@ point, units and shared axis, the unit's other points (switched off), and the ro
 has no point for. A class with no template is grouped by what each point measures. Values come through
 `values.around`, so the window, limits and provider match the rest of the entity page.
 
+## One trend with event lanes (P5.13)
+
+The entity page's Measurements tab draws the trend view as one chart (`ui/src/TrendView.tsx`, `trendFigure.ts`): each
+template group is a panel on a shared time axis, and traces in a panel share an axis per unit. Beneath them are the
+unit's event lanes from `GET /entities/{id}/timeline?start&end` (`ops/timeline.py`): alarms, operator log entries,
+cases, notifications and work orders, and downtime and incidents. Each event names the record it came from, and
+clicking a marker opens it. Chips switch each trace, group and lane on or off; a group the template switches off is
+one chip until it is on. A limit draws only on a panel with one trace. On a phone, groups switch as a whole and only
+each panel's first unit keeps its scale; the hover reads every value.
+
 ## Operating limits, IOWs and excursions
 
 An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI

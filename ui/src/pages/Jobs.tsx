@@ -116,8 +116,7 @@ function Overview({ o }: { o: JobsOverview }) {
             {o.jobs.map((j) => (
               <tr key={j.name} className="static">
                 <td>
-                  <code>{j.name}</code>
-                  {j.description && <div className="muted small">{j.description}</div>}
+                  {j.description ? <><div>{j.description}</div><code className="muted small">{j.name}</code></> : <code>{j.name}</code>}
                 </td>
                 <td>{j.triggers.length ? j.triggers.map((t) => <Trigger key={t.name} t={t} />) : <span className="muted small">manual only</span>}</td>
                 <td>
@@ -185,11 +184,29 @@ function runKeyNames(keys: string[]): string {
   return names.join(", ");
 }
 
+/** A cron line in plain words for the patterns the jobs use; anything else is shown as written. */
+export function cronWords(cron: string): string {
+  const [minute, hour, day, month, weekday, ...rest] = cron.trim().split(/\s+/);
+  if (rest.length || weekday === undefined || day !== "*" || month !== "*") return cron;
+  const every = (field: string) => /^\*\/\d+$/.test(field) ? Number(field.slice(2)) : null;
+  const number = (field: string) => /^\d+$/.test(field);
+  const at = (h: string, m: string) => `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  if (weekday === "*") {
+    if (minute === "*" && hour === "*") return "every minute";
+    if (every(minute) && hour === "*") return `every ${every(minute)} minutes`;
+    if (number(minute) && hour === "*") return `hourly at :${minute.padStart(2, "0")}`;
+    if (number(minute) && every(hour)) return `every ${every(hour)} hours`;
+    if (number(minute) && number(hour)) return `daily at ${at(hour, minute)}`;
+  } else if (number(weekday) && number(minute) && number(hour)) return `${days[Number(weekday) % 7]}s at ${at(hour, minute)}`;
+  return cron;
+}
+
 function Trigger({ t }: { t: JobTrigger }) {
   return (
     <div className="trigger">
       <OnOff on={t.status === "on"} />
-      {t.kind === "schedule" ? <code title={t.timezone ?? undefined}>{t.cron}</code> : <span>sensor <code>{t.name}</code></span>}
+      {t.kind === "schedule" ? <span title={[t.cron, t.timezone].filter(Boolean).join(" ")}>{cronWords(t.cron ?? "")}</span> : <span>when <code>{t.name}</code> fires</span>}
     </div>
   );
 }

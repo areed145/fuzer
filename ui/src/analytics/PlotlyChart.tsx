@@ -21,7 +21,9 @@ function forWidth(spec: Spec, width: number): Spec {
 }
 
 /** A server-built figure in the page's theme: colours, fonts and colorway all come from `themed`. */
-export function PlotlyChart({ spec, label }: { spec: Spec; label: string }) {
+export function PlotlyChart({ spec, label, onPoint, bare = false }: {
+  spec: Spec; label: string; onPoint?: (customdata: unknown) => void; bare?: boolean;
+}) {
   const element = useRef<HTMLDivElement>(null);
   const theme = useTheme();
   const [error, setError] = useState("");
@@ -39,11 +41,15 @@ export function PlotlyChart({ spec, label }: { spec: Spec; label: string }) {
         const shaped = forWidth(spec, available);
         // On touch screens a drag scrolls the page; zooming stays a mouse gesture.
         const layout = themed({ ...shaped.layout, ...(matchMedia("(pointer: coarse)").matches ? { dragmode: false } : {}) });
-        return Plotly.react(node, shaped.data, layout, CONFIG);
+        return Plotly.react(node, shaped.data, layout, bare ? { ...CONFIG, displayModeBar: false } : CONFIG);
       };
       let width = node.parentElement?.clientWidth ?? 0;
       await draw(width);
       if (gone) return;
+      if (onPoint) {
+        (node as HTMLDivElement & { on?: (ev: string, fn: (e: any) => void) => void })
+          .on?.("plotly_click", (e: any) => { const d = e?.points?.[0]?.customdata; if (d) onPoint(d); });
+      }
       const observer = new ResizeObserver(() => {
         const next = node.parentElement?.clientWidth ?? 0;
         if (!gone && width !== next) {
@@ -55,7 +61,7 @@ export function PlotlyChart({ spec, label }: { spec: Spec; label: string }) {
       dispose = () => observer.disconnect();
     }).catch((failure: Error) => { if (!gone) setError(failure.message); });
     return () => { gone = true; dispose?.(); purge?.(); };
-  }, [spec, theme]);
+  }, [spec, theme, onPoint, bare]);
   return <>
     {error && <p className="error" role="alert">Chart unavailable: {error}. Use the data table below.</p>}
     <div ref={element} style={{ minHeight: spec.layout.height ?? 340 }} role="img" aria-label={label} />

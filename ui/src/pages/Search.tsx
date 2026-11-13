@@ -1,6 +1,9 @@
 import { api, type Stats } from "../api";
 import { KindBadge, Status, entityHref, fmt, href, useAsync, useDebounced } from "../lib";
-import { Button, PageHeader, Table, Input } from "../ui";
+import { Button, Disclosure, PageHeader, Table, Input } from "../ui";
+
+/** The kinds people look for by name, shown first; every other kind is one click away under "More kinds". */
+const FIRST_KINDS = ["equipment", "tag", "well", "facility", "area", "pipeline", "document", "work_order", "notification", "incident"];
 
 export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const q = query.get("q") ?? "";
@@ -11,6 +14,13 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
   const go = (next: { q?: string; kind?: string }) =>
     window.location.replace(href("/browse", { q: next.q ?? q, kind: "kind" in next ? next.kind : kind }));
 
+  const kinds = Object.entries(stats?.entities ?? {});
+  const rest = kinds.filter(([k]) => !FIRST_KINDS.includes(k));
+  const chip = ([k, n]: [string, number]) => (
+    <Button key={k} aria-pressed={kind === k} className={kind === k ? "chip on" : "chip"} onClick={() => go({ kind: k })}>
+      {k.replace(/_/g, " ")} <span className="muted">{n.toLocaleString()}</span>
+    </Button>
+  );
   return (
     <section>
       <PageHeader subtitle="Find assets and records and follow their links.">Browse</PageHeader>
@@ -26,12 +36,11 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
         <Button aria-pressed={!kind} className={!kind ? "chip on" : "chip"} onClick={() => go({ kind: undefined })}>
           all
         </Button>
-        {Object.entries(stats?.entities ?? {}).map(([k, n]) => (
-          <Button key={k} aria-pressed={kind === k} className={kind === k ? "chip on" : "chip"} onClick={() => go({ kind: k })}>
-            {k.replace("_", " ")} <span className="muted">{n.toLocaleString()}</span>
-          </Button>
-        ))}
+        {kinds.filter(([k]) => FIRST_KINDS.includes(k)).map(chip)}
       </div>
+      {rest.length > 0 && <Disclosure key={String(rest.some(([k]) => k === kind))} className="more-kinds" label={`More kinds (${rest.length})`} open={rest.some(([k]) => k === kind)}>
+        <div className="chips">{rest.map(chip)}</div>
+      </Disclosure>}
 
       <Status loading={hits.loading && !hits.data} error={hits.error} empty={hits.data?.length === 0}>
         No matches for “{q}”.
