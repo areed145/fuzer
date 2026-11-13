@@ -51,6 +51,18 @@ the quarter its normal ranges are learned on. They go on transmitters with no al
 run signal, so limits, excursions and operating modes are unchanged. Instrument health finds every
 frozen, stuck, noisy and pinned fault. Drift needs a redundant twin to find, and a gap is only a gap.
 
+Real well upsets (#904): `evals/3w/` keeps eight real instances from Petrobras's 3W Dataset (CC BY 4.0,
+its licence and attribution beside it): two of normal operation, and an abrupt rise in water cut, two
+spurious DHSV closures, a rapid productivity loss and two quick choke restrictions, each a few hours at
+1 Hz with its onset labelled. `fuzer.evals.wells3w` replays one onto a fake Okan well (`Overlay`, a source
+over any other): tree pressure as WHP, tree temperature as WHT and annulus pressure as CASP, scaled to the
+well's level, the last value held for three hours after the record ends. `score(src)` runs change
+detection as the SRE's steps detector reads (10-minute steps, 180-minute windows) and instrument health
+over each. Today it finds 5 of the 6 upsets (it misses the water cut, a slow fall over two hours), and dates
+two of them too early at that coarse step, which count as false alarms. At 1-minute steps and 60-minute windows
+it finds all 6, each within 45 minutes of its onset. Health finds all three stretches where a 3W reading is frozen in the source (one well's annulus pressure, for hours), and
+raises one noisy reading as that pressure starts moving again.
+
 ## Operating limits, IOWs and excursions
 
 An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI
