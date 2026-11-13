@@ -14,6 +14,7 @@ export function IncidentRepeats() {
   const data = useAsync(() => api.incidentRepeats(), []);
   const d = data.data;
   if (d && !d.units?.length) return null;  // none in the window (or a list that isn't this shape)
+  const once = (d?.units ?? []).filter((u) => !u.repeat);
   return (
     <Card className="incident-repeats" title="Do problems come back?">
       <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
@@ -25,7 +26,7 @@ export function IncidentRepeats() {
         </div>
         <Table density="compact" className="repeats-table phone-rows">
           <thead><tr><th>Unit</th><th>Incidents</th><th>Days between</th><th>Linked work</th></tr></thead>
-          <tbody>{d.units.map((u) => (
+          <tbody>{d.units.filter((u) => u.repeat).map((u) => (
             <tr key={u.unit_id ?? u.unit} data-unit={u.unit}>
               <td>{u.unit_id ? <a href={entityHref(u.unit_id)}>{u.unit}</a> : u.unit}
                 {u.repeat && <> <Badge tone="danger" className="repeat-badge">repeat</Badge></>}</td>
@@ -48,6 +49,12 @@ export function IncidentRepeats() {
             </tr>
           ))}</tbody>
         </Table>
+        {once.length > 0 && <Disclosure className="once-units" label={`${once.length} ${once.length === 1 ? "unit" : "units"} with one incident`}>
+          <ul className="plain small">{once.map((u) => (
+            <li key={u.unit_id ?? u.unit}>{u.unit_id ? <a href={entityHref(u.unit_id)}>{u.unit}</a> : u.unit}
+              {u.items.map((i) => <span key={i.id}> · <a href={entityHref(i.id)}>{i.start}</a> {i.description}</span>)}</li>
+          ))}</ul>
+        </Disclosure>}
         <h3>Open linked work, by age at {d.as_of}</h3>
         <div className="small repeats-ageing">
           {Object.entries(d.summary.open_by_age).map(([band, n]) => <span key={band} data-band={band}>{band}: {n}. </span>)}
