@@ -40,7 +40,7 @@ built left to right.
 | 3 First value | P5.3, P5.1, P6.1, P7.2 | P3.5, P3.8, P3.2, P3.9 | P2.3, P2.4, P2.5 | P4.1, P4.3, first pack of P4.2 |
 | 4 Depth | P5.5, P5.11, P5.4, P5.6, P5.8, P5.9 | P3.1, P3.10, P3.6, P3.3 in shadow, P3.7 | P2.1, P2.6, P7.1 | Packs 2 to 4 of P4.2, P4.5 |
 | *Gate B* | Every work type closes end to end | | | |
-| 5 Compounding | P7.3, P7.5, P7.6 | P6.3, P3.3 live, P3.4, P7.4 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
+| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13 | P6.3, P3.3 live, P3.4, P7.4 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
 | *Gate C* | | | Third asset type live, no code | |
 
@@ -49,6 +49,17 @@ and mapping problems are still raised by the loop instead of arriving on their o
 
 Landed so far: P1.1 One finding contract, P1.3 Method registry ([Methods](methods.md)) and P1.2 Detector registry
 ([Detectors](detectors.md)).
+
+## Historian views (P5.12 #967, P5.13 #968)
+
+An IOC engineer looking at a tripped compressor wants its suction and discharge pressures, temperatures, speed and
+vibration on one time axis, with the alarms, log entries, cases and work orders beside them, not a grid of one chart
+per tag. Two epics in the work and UI lane do this, P5.12 first.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P5.12 Trend templates by equipment class | A template per equipment class (ISO 14224 code, or well) names groups of measurement roles, the order they read in and which are shown first. Templates ship with the platform; a bundle adds or overrides one in its configuration. A view resolves the entity to its unit, its class, the template and the points holding each role there (P1.4). Points with no role in the template sit in an "Other points" group, off by default. | A compressor on Okan and on Kestrel opens with its pressures, temperatures, speed and vibration grouped from roles, with no tag names in code. Pumps, wells, vessels and heat exchangers have templates too. A role the template wants but the unit lacks is named, not silently dropped. A bundle override changes the view with no code change. |
+| P5.13 One trend with event lanes | One large chart with a shared time axis. Each template group is a panel, and traces in a panel share an axis per unit. Beneath them are event lanes: alarms, operator log, cases, work orders and downtime. Every trace and lane has a toggle, the defaults come from the template, and the choice is kept in the link. A crosshair reads every shown trace at one time, and an event marker opens its record. It replaces the per-tag small multiples on the entity page, and the case page shows the same chart over its event window. | Opening the compressor behind an Okan trip case shows the trip's pressures, temperatures, speed and vibration with its alarms, log entries, case and work order in lanes, at the trip time. Each trace and lane toggles, and a shared link restores the choice. Every marker links to its record, every trace names its point, unit and provider, and synthetic values are labelled. It works in light, dark and on a phone. |
 
 ## How the work is tracked
 
