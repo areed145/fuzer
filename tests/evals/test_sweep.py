@@ -27,6 +27,9 @@ def test_raises_are_scored_against_the_declared_events():
     assert s["false_alarms_per_week"] == round(2 / (59 / 7), 2)  # K-1 raised again after its window is false
     res = {"detector": "x", **s, "gates": {**sweep.GATES, "precision": 0.3}}
     assert sweep.gate(res) == ["x recall 0.5 < 1.0"]
+    loop = {**entry, "events": [{"key": ["LT-1", "LIC-1"], "from": "2025-01-10", "to": "2025-01-20"}]}
+    s = sweep.score(loop, [{"key": "LIC-1.OP", "at": datetime(2025, 1, 15)}, {"key": "LT-1", "at": datetime(2025, 1, 20)}])
+    assert (s["recall"], s["precision"]) == (1.0, 1.0)  # one cause, keyed by any of its points
     assert sweep.times({**entry, "at": ["2025-01-05"]}) == [datetime(2025, 1, 5), datetime(2025, 1, 20),
                                                             datetime(2025, 2, 3)]
 

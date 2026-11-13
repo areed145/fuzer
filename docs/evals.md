@@ -141,7 +141,8 @@ arguments its signature takes: the stretch since the previous run, or the run's 
 
 **Matching.** A raise is a new exception of one of the detector's own work types. A key held open is not raised
 again; one raised again after it cleared counts again. It is true when its key holds an event's key and the run
-falls in the event's window, and a false alarm otherwise.
+falls in the event's window, and a false alarm otherwise. An event can list several keys for one cause (a loop's
+transmitter, and its controller's measurement and output): a raise on any of them is true.
 
 **Scores.** Recall (events raised over events declared), precision (true raises over all), false alarms a week, and
 which events were missed and which raises were false. `fuzer eval --sweep` keeps each detector's scores in

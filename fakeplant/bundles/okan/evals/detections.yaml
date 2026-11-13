@@ -31,7 +31,8 @@ detectors:
     until: "2025-12-31"
     every_days: 14
     events:
-      - {key: "10LT2003", from: "2025-02-11", to: "2025-02-17"}  # the test separator's level valve sticking
+      # the test separator's level valve sticking: its transmitter, and its controller's measurement and output
+      - {key: ["10LT2003", "10LIC2003"], from: "2025-02-11", to: "2025-02-17"}
     gates: {precision: 0.5}
 
   gas_lift_instability:

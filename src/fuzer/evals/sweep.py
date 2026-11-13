@@ -94,12 +94,19 @@ def _last_id(conn) -> int:
     return conn.execute("select coalesce(max(id), 0) as n from exception_record").fetchone()["n"]
 
 
+def _keys(e: dict) -> list[str]:
+    """What an event's raise may be keyed by: one key, or several for one cause (a loop's transmitter, its controller's
+    measurement and its output)."""
+    return e["key"] if isinstance(e["key"], list) else [e["key"]]
+
+
 def score(entry: dict, raises: list[dict]) -> dict:
     """Each raise ({key, at}) matched to the declared events; recall, precision and false alarms a week."""
     events = entry.get("events", [])
     found, true, false = set(), [], []
     for r in raises:
-        hit = [i for i, e in enumerate(events) if e["key"] in r["key"] and _when(e["from"]) <= r["at"] <= _when(e["to"])]
+        hit = [i for i, e in enumerate(events) if any(k in r["key"] for k in _keys(e))
+               and _when(e["from"]) <= r["at"] <= _when(e["to"])]
         found |= set(hit)
         (true if hit else false).append(r)
     weeks = max((_when(entry["until"]) - _when(entry["since"])).days / 7, 1 / 7)
