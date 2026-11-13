@@ -4,6 +4,7 @@ import { Logo } from "./brand";
 import { href } from "./lib";
 import { Button } from "./ui";
 import { useAuth, usePermission } from "./Auth";
+import { goBack, useAppDepth } from "./appHistory";
 
 export type Badge = "work" | "review";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -121,7 +122,36 @@ export function navItemFor(section: string): { group: NavGroup; item: NavItem } 
   }
 }
 
-export function Sidebar({ section, badges, status, demoEnabled }: {
+/** Where Back goes when there is no page behind it in the app (P5.14a): a deep page goes up to the page that owns it
+ * (an entity to Browse, a task to My work), a top page goes Home. None at Home itself. */
+export function upFor(path: string[]): { to: string; label: string } | undefined {
+  const section = path[0] ?? "";
+  if (!section) return undefined;
+  const found = navItemFor(section);
+  const page = found && found.item.path ? found.item.path : found ? `/${found.item.section}` : "/";
+  if (found && !found.item.external && (path.length > 1 || section !== found.item.section) && page !== `/${path.join("/")}`)
+    return { to: href(page), label: found.item.label };
+  return { to: href("/"), label: "Home" };
+}
+
+/** The in-app Back for the installed app, where the browser's own buttons are gone. */
+export function BackButton({ path, className }: { path: string[]; className?: string }) {
+  const depth = useAppDepth();
+  const up = upFor(path);
+  if (depth === 0 && !up) return null;
+  const label = depth > 0 ? "Back" : `Back to ${up!.label}`;
+  return (
+    <Button className={["back-button", className].filter(Boolean).join(" ")} aria-label={label} title={label}
+      onClick={() => goBack(up?.to ?? href("/"))}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+      <span aria-hidden="true">Back</span>
+    </Button>
+  );
+}
+
+export function Sidebar({ section, path, badges, status, demoEnabled }: {
+  /** The whole route, for the phone top bar's Back. */
+  path: string[];
   section: string;
   badges: Record<Badge, number>;
   /** The compact status area at the foot of the sidebar (facility, counts, health). */
@@ -172,6 +202,10 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
   return (
     <>
       <header className="topbar">
+        <BackButton path={path} />
+        <a className="brand" href={href("/")}>
+          <Logo />
+        </a>
         <Button
           ref={menu}
           className="menu-button"
@@ -182,9 +216,6 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
         >
           <span aria-hidden="true">{open ? "✕" : "☰"}</span>
         </Button>
-        <a className="brand" href={href("/")}>
-          <Logo />
-        </a>
       </header>
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <aside ref={drawer} id="sidebar" className={open ? "sidebar open" : "sidebar"}>
