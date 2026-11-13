@@ -141,7 +141,8 @@ arguments its signature takes: the stretch since the previous run, or the run's 
 
 **Matching.** A raise is a new exception of one of the detector's own work types. A key held open is not raised
 again; one raised again after it cleared counts again. It is true when its key holds an event's key and the run
-falls in the event's window, and a false alarm otherwise.
+falls in the event's window, and a false alarm otherwise. An event can list several keys for one cause (a loop's
+transmitter, and its controller's measurement and output): a raise on any of them is true.
 
 **Scores.** Recall (events raised over events declared), precision (true raises over all), false alarms a week, and
 which events were missed and which raises were false. `fuzer eval --sweep` keeps each detector's scores in
@@ -149,6 +150,12 @@ which events were missed and which raises were false. `fuzer eval --sweep` keeps
 (`sweep.GATES`, or the detector's own `gates` in the file, set where a false alarm is kept as found rather than
 hidden). `tests/evals/test_sweep.py` checks Okan's cheap detectors on every change and its whole sweep (about 20 minutes)
 in the e2e tier; `test_sweep_kestrel.py` and `test_sweep_harrier.py` sweep those bundles whole on every change.
+
+**Every detector scored (P3.6c).** A window detector is scored by the replay its eval names; a work detector by the
+sweep on at least one bundle that declares events for it, unless `sweep.SCORED_ELSEWHERE` says how it is scored
+instead (the opportunity scan by the ops eval's hand calculation; the deviation review, a rule over an adopted
+operating model, by its own test). `test_every_detector_has_a_score_and_a_floor` fails for a new detector until it is
+one of these.
 
 ## Reading drawings
 

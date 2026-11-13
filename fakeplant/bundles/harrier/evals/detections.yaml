@@ -27,6 +27,13 @@ detectors:
       - {key: "today-41d", from: "today-41d", to: "today-31d"}
       - {key: "today-1d", from: "today-1d", to: "today"}
 
+  pump_trips:
+    since: "today-30d"
+    until: "today"
+    every_days: 2
+    events:
+      - {key: "A1-P-1003A", from: "today-1d", to: "today"}  # the mainline pump tripping on high vibration yesterday
+
   machine_health:
     since: "today-90d"
     until: "today"

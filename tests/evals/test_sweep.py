@@ -27,6 +27,9 @@ def test_raises_are_scored_against_the_declared_events():
     assert s["false_alarms_per_week"] == round(2 / (59 / 7), 2)  # K-1 raised again after its window is false
     res = {"detector": "x", **s, "gates": {**sweep.GATES, "precision": 0.3}}
     assert sweep.gate(res) == ["x recall 0.5 < 1.0"]
+    loop = {**entry, "events": [{"key": ["LT-1", "LIC-1"], "from": "2025-01-10", "to": "2025-01-20"}]}
+    s = sweep.score(loop, [{"key": "LIC-1.OP", "at": datetime(2025, 1, 15)}, {"key": "LT-1", "at": datetime(2025, 1, 20)}])
+    assert (s["recall"], s["precision"]) == (1.0, 1.0)  # one cause, keyed by any of its points
     assert sweep.times({**entry, "at": ["2025-01-05"]}) == [datetime(2025, 1, 5), datetime(2025, 1, 20),
                                                             datetime(2025, 2, 3)]
 
@@ -56,6 +59,26 @@ def test_each_declared_detection_names_a_registered_detector_and_its_events(bund
         for ev in e.get("events", []):
             assert set(ev) == {"key", "from", "to"} and sweep._when(ev["from"]) <= sweep._when(ev["to"]), (name, ev)
         assert set(e.get("gates") or {}) <= set(sweep.GATES), name
+
+
+@pytest.mark.unit
+def test_every_detector_has_a_score_and_a_floor():
+    """P3.6c: a window detector is scored by the replay (its eval names it; ops_eval.GATES holds the SRE's floor); a
+    work detector by the sweep on at least one bundle that declares events for it (under sweep.GATES or its own
+    floors), unless it is scored elsewhere for a stated reason. A new detector fails here until it is one of these."""
+    from fuzer.evals import ops_eval
+
+    swept = {name for b in BUNDLES.iterdir() for name, e in sweep.plan(b).items() if e.get("events")}
+    unscored = []
+    for name, d in detectors.registry().items():
+        if (d.eval or "").startswith("replay:"):
+            continue
+        if name not in swept and name not in sweep.SCORED_ELSEWHERE:
+            unscored.append(name)
+    assert not unscored, f"no bundle's evals/detections.yaml declares events for {unscored}"
+    assert ("sre", "recall") in ops_eval.GATES and sweep.GATES
+    assert ("opportunities", "worst_gain_error") in ops_eval.CEILINGS
+    assert not set(sweep.SCORED_ELSEWHERE) & swept  # scored one way, not two
 
 
 CHEAP = ["quality_drift", "well_tests", "flare_events"]  # seconds each; the whole sweep is the e2e tier's
