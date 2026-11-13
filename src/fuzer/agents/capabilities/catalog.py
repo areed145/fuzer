@@ -410,7 +410,9 @@ PERSONA_DISPOSITION = (
 # Capabilities the issue asked for that no agent has, and the source each is waiting for. Not papered over: a
 # specialist asked for one of these says it is unavailable.
 UNAVAILABLE = (
-    (_WELLS, "Reservoir pressure and model evidence; completion design", "An authoritative subsurface or well-file source."),
+    (_WELLS, "Reservoir model evidence beyond pressure surveys (aquifer, gas cap, simulation); completion design",
+     "An authoritative subsurface or well-file source; pressure surveys give productivity index and a one-tank "
+     "material balance (productivity_index, material_balance)."),
     (_FIELD, "Validated operating envelopes", "Envelopes validated by the control-system owner; alarm limits and IOWs are not that."),
     (_FIELD, "Control loop performance and tuning", "Setpoint, controller output and mode points, with loop parameters."),
     (_MAINT, "Vibration spectra (bearing defect frequencies, 1x / 2x running speed)",

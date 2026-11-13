@@ -618,3 +618,51 @@ def gas_balance(conn, since: str | None = None, until: str | None = None, days: 
         "summary": out["summary"], "verdict": out["verdict"], "episodes": out["episodes"],
         "missing_terms": out["missing_terms"], "since": out["since"], "until": out["until"], "source": out["source"],
         "note": out["note"]}, [])
+
+
+def productivity_index(conn, well: str | None = None) -> Figure:
+    """Each surveyed well's productivity index over its flowing surveys (#364), or one well's; fallen wells marked."""
+    from ..analysis import reservoir_pressure as rp
+
+    out = rp.productivity(conn, well)
+    wells = [w for w in out["wells"] if any(p["pi"] for p in w["surveys"])]
+    if not wells:
+        raise ChartError(f"no flowing survey paired with a static one for {well}" if well else out["note"])
+    data = [{"type": "scatter", "mode": "lines+markers", "name": f"{w['well']} ({w['verdict'].replace('_', ' ')})",
+             "x": [p["date"] for p in w["surveys"] if p["pi"]], "y": [p["pi"] for p in w["surveys"] if p["pi"]],
+             **({"line": {"color": "rgba(210,60,50,0.9)", "width": 3}} if w["verdict"] == "fallen" else {})}
+            for w in wells]
+    lay = layout(f"Productivity index{' ' + wells[0]['well'] if well else ''}", None, out["unit"])
+    return Figure("productivity_index", lay["title"]["text"], data, lay, {
+        "verdict": out["verdict"], "threshold": out["threshold"], "assumptions": out["assumptions"],
+        "source": out["source"], "note": out["note"],
+        "wells": [{k: w[k] for k in ("well", "first_pi", "latest_pi", "ratio", "verdict")} for w in wells]}, [])
+
+
+def material_balance(conn, since: str | None = None, until: str | None = None, days: int = 730) -> Figure:
+    """Static survey pressures against the reservoir volume taken out net of injection (#364), each well's surveys
+    joined, with the fitted slope drawn through the field's average."""
+    from collections import defaultdict
+
+    from ..analysis import reservoir_pressure as rp
+
+    out = rp.material_balance(conn, since, until, days)
+    if out["verdict"] != "fitted":
+        raise ChartError(out["note"])
+    by = defaultdict(list)
+    for s in out["surveys"]:
+        by[s["well"]].append(s)
+    data = [{"type": "scatter", "mode": "lines+markers", "name": w, "x": [s["cumulative_net_voidage_rm3"] / 1e6 for s in ss],
+             "y": [s["static_barg"] for s in ss], "text": [s["date"] for s in ss], "line": {"width": 1},
+             "marker": {"size": 6}} for w, ss in sorted(by.items())]
+    xs = [s["cumulative_net_voidage_rm3"] / 1e6 for s in out["surveys"]]
+    mx, my = sum(xs) / len(xs), sum(s["static_barg"] for s in out["surveys"]) / len(xs)
+    k = out["bar_per_million_rm3"]
+    data.append({"type": "scatter", "mode": "lines", "name": f"fit: {k} bar per million rm3 (r² {out['r2']})",
+                 "x": [min(xs), max(xs)], "y": [my - k * (min(xs) - mx), my - k * (max(xs) - mx)],
+                 "line": {"color": "rgba(30,30,30,0.9)", "width": 3, "dash": "dash"}})
+    lay = layout(f"Material balance, {out['since']} to {out['until']}", "reservoir volume taken out net of injection "
+                 "(million rm3)", "static pressure (barg)")
+    return Figure("material_balance", lay["title"]["text"], data, lay, {
+        k2: out[k2] for k2 in ("verdict", "bar_per_million_rm3", "compressible_volume_rm3_per_bar", "r2", "wells",
+                               "decline_bar_per_year", "assumptions", "pvt", "since", "until", "source", "note")}, [])

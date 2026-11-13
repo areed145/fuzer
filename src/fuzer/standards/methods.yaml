@@ -426,6 +426,29 @@ gas_balance:
     open: {value: 2, unit: "%", means: "A day whose gap is more than this share of the gas handled is open.", code: "fuzer.analysis.gas_balance:GAP_PCT"}
   vectors: [{worked: "tests/analysis/test_gas_balance.py::test_the_balance_closes_to_the_meters_except_while_the_fuel_meter_read_zero"}]
 
+productivity_index:
+  title: Productivity index from a flowing survey against the static pressure before it
+  practice: "Straight-line inflow above the bubble point (Craft and Hawkins, Applied Petroleum Reservoir Engineering): oil rate over drawdown. A fall against the well's own first index is screened; the share is this registry's own."
+  tool: productivity_index
+  inputs: [{name: Static bottomhole pressure, unit: barg}, {name: Flowing bottomhole pressure, unit: barg}, {name: Oil rate at the flowing survey, unit: "Sm³/d"}]
+  valid: Oil wells above the bubble point with static and flowing surveys at a common datum.
+  needs: A flowing survey with a rate and a static survey on the same well shortly before it.
+  thresholds:
+    pair: {value: 60, unit: "days", means: "A flowing survey pairs with the static survey at most this long before it.", code: "fuzer.analysis.reservoir_pressure:PAIR_DAYS"}
+    fallen: {value: 0.75, means: "Latest index under this share of the first: fallen.", code: "fuzer.analysis.reservoir_pressure:PI_DROP"}
+  vectors: [{worked: "tests/analysis/test_reservoir_pressure.py::test_productivity_index_from_surveys_and_the_well_that_scaled_up"}]
+
+material_balance:
+  title: One-tank material balance from static pressures and net voidage
+  practice: "Havlena and Odeh (1963) straight-line material balance, reduced to an undersaturated tank with no aquifer or gas cap: pressure falls in proportion to the reservoir volume withdrawn net of injection, the slope being the inverse of pore volume times total compressibility."
+  tool: material_balance
+  inputs: [{name: Static bottomhole pressures, unit: barg}, {name: Allocated oil, water and free gas at reservoir conditions, unit: "rm³"}, {name: Water injected, unit: "rm³"}]
+  valid: An undersaturated reservoir read as one tank, with recorded PVT and static surveys on wells surveyed more than once.
+  needs: The PVT voidage replacement needs, and static surveys on at least two dates.
+  thresholds:
+    surveys: {value: 3, means: "Static surveys the fit needs, on wells surveyed at least twice.", code: "fuzer.analysis.reservoir_pressure:MIN_SURVEYS"}
+  vectors: [{worked: "tests/analysis/test_reservoir_pressure.py::test_material_balance_recovers_the_tank_and_states_its_assumptions"}]
+
 lead_in:
   title: Process values in the hours before an event against the hours before that
   practice: A before and after comparison of each measurement's mean and extreme around the event.

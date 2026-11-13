@@ -380,3 +380,38 @@ def plot_gas_balance(since: str | None = None, until: str | None = None, days: i
     """Chart where the gas handled went each day, stacked against the gas handled, with the closure gap below."""
     from ...plots import production
     return _chart(production.gas_balance, {"since": since, "until": until, "days": days})
+
+
+@capability("wells-subsurface", kind="calc")
+def productivity_index(well: str | None = None) -> dict[str, Any]:
+    """Each surveyed well's productivity index, or one well's (#364): a flowing survey's oil rate over its drawdown
+    from the well's static survey within 60 days before, survey by survey, with the first and latest and whether it
+    fell under 0.75 times its first (a lead for damage, scale or a changing drive). Returns its assumptions."""
+    from ...analysis import reservoir_pressure as rp
+    with db.connect() as conn:
+        return _plain(rp.productivity(conn, well))
+
+
+@capability("wells-subsurface", kind="calc")
+def material_balance(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """A one-tank material balance (#364): static survey pressures against the reservoir volume taken out net of
+    water injected, fitted with one slope and each well's own level. The bar lost per million reservoir m3, the
+    compressible volume it implies (not oil in place), r squared, and the decline a year at the latest months' net
+    voidage. Unknown without recorded PVT; insufficient with too few surveys. Returns its assumptions."""
+    from ...analysis import reservoir_pressure as rp
+    with db.connect() as conn:
+        return _plain(rp.material_balance(conn, since, until, days))
+
+
+@capability("wells-subsurface", kind="plot")
+def plot_productivity_index(well: str | None = None) -> dict[str, Any]:
+    """Chart each surveyed well's productivity index over its surveys, or one well's, fallen wells marked."""
+    from ...plots import production
+    return _chart(production.productivity_index, {}, {"well": well})
+
+
+@capability("wells-subsurface", kind="plot")
+def plot_material_balance(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """Chart static pressures against reservoir volume taken out net of injection, with the fitted slope."""
+    from ...plots import production
+    return _chart(production.material_balance, {"since": since, "until": until, "days": days})

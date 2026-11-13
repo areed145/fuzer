@@ -145,7 +145,8 @@ def test_not_useful_answers_are_never_kept(conn):
 
 
 def test_lessons_go_to_the_review_queue(conn):
-    rows = conn.execute("select e.src from edge e where e.rel = 'instance_of' limit 1").fetchall()
+    rows = conn.execute("select e.src from edge e join entity_label l on l.fuzer_id = e.src "  # labelled equipment
+                        "where e.rel = 'instance_of' order by e.src limit 1").fetchall()
     equipment = rows[0]["src"]
     label = conn.execute("select label from entity_label where fuzer_id = %s", (equipment,)).fetchone()["label"]
     _answer(conn, "m-d1", f"{label} seal?", f"{label} ({equipment}) leaks at the seal.")
