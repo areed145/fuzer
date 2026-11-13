@@ -58,7 +58,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
         <a className={onboarding ? "on" : ""} href={href("/settings", { view: "onboarding" })} aria-current={onboarding ? "page" : undefined}>Onboarding</a>
         <a className={standards ? "on" : ""} href={href("/settings", { view: "standards" })} aria-current={standards ? "page" : undefined}>Standards</a>
       </nav>
-      {detection ? <Detection /> : onboarding ? <Onboarding /> : standards ? <Standards /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
+      {detection ? <Detection focus={query.get("detector")} /> : onboarding ? <Onboarding /> : standards ? <Standards /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
       <UICard className="row small">
         <label>
           Project{" "}

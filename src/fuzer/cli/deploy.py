@@ -1,4 +1,5 @@
-"""Single-instance Render runtime: API, Dagster and workflow worker on shared storage."""
+"""Render runtime: API, Dagster and workflow worker on shared storage, on one instance (role `all`) or split into a
+web service that only serves requests (role `web`) and a background worker that runs the jobs (role `worker`)."""
 
 import os
 import signal
@@ -15,26 +16,36 @@ from ..ops import pipeline
 from ..workflow import engine
 from .demo_seed import register_projects, seed
 
+ROLES = ("all", "web", "worker")
+ROLE_ENV = "FUZER_ROLE"
+SEED_LOCK = 7_709_001  # advisory lock: a web service and a worker starting together seed one after the other
 
-def commands(added: list[str] | tuple[str, ...] = ()) -> list[tuple[str, list[str]]]:
-    """The processes this instance runs. Dagster serves every project (a run per project); each project added
-    beside the first gets its own agent worker, which runs that project's workflow agent steps."""
-    port = int(os.environ.get("PORT", "10000"))
-    if not 1 <= port <= 65535:
-        raise ValueError("PORT must be between 1 and 65535")
-    tasks = [
-        ("Dagster webserver", ["dagster-webserver", "-m", "fuzer.ops.jobs",
-                               "-h", "127.0.0.1", "-p", "3000"]),
-        ("Dagster daemon", ["dagster-daemon", "run", "-m", "fuzer.ops.jobs"]),
-    ]
-    if llm.configured("agents"):
-        tasks.append(("Agent worker", ["fuzer", "work", "worker"]))  # the database's first project
-        tasks += [(f"Agent worker ({name})", ["fuzer", "--project", name, "work", "worker"]) for name in added]
-    else:
-        print("The agents provider is not configured: Ask and workflow agent steps are unavailable. "
-              "Configure its key and redeploy to start the worker.", flush=True)
-    tasks.append(("API", [sys.executable, "-m", "uvicorn", "fuzer.api:app",
-                          "--host", "0.0.0.0", "--port", str(port)]))
+
+def commands(added: list[str] | tuple[str, ...] = (), role: str = "all") -> list[tuple[str, list[str]]]:
+    """The processes this instance runs. Dagster serves every project; each project added beside the first gets its
+    own agent worker, which runs that project's workflow agent steps. Role `web` keeps only what answers a browser
+    (the API, and the Dagster webserver behind "Open in Dagster"); role `worker` keeps what does scheduled work (the
+    Dagster daemon, which starts every run on its own machine, and the agent workers)."""
+    if role not in ROLES:
+        raise ValueError(f"role must be one of {', '.join(ROLES)}")
+    tasks: list[tuple[str, list[str]]] = []
+    if role != "worker":
+        tasks.append(("Dagster webserver", ["dagster-webserver", "-m", "fuzer.ops.jobs",
+                                            "-h", "127.0.0.1", "-p", "3000"]))
+    if role != "web":
+        tasks.append(("Dagster daemon", ["dagster-daemon", "run", "-m", "fuzer.ops.jobs"]))
+        if llm.configured("agents"):
+            tasks.append(("Agent worker", ["fuzer", "work", "worker"]))  # the database's first project
+            tasks += [(f"Agent worker ({name})", ["fuzer", "--project", name, "work", "worker"]) for name in added]
+        else:
+            print("The agents provider is not configured: Ask and workflow agent steps are unavailable. "
+                  "Configure its key and redeploy to start the worker.", flush=True)
+    if role != "worker":
+        port = int(os.environ.get("PORT", "10000"))
+        if not 1 <= port <= 65535:
+            raise ValueError("PORT must be between 1 and 65535")
+        tasks.append(("API", [sys.executable, "-m", "uvicorn", "fuzer.api:app",
+                              "--host", "0.0.0.0", "--port", str(port)]))
     return tasks
 
 
@@ -230,6 +241,9 @@ def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description="Run this instance: seed its first bundle, add the rest, serve.")
     p.add_argument("--bundle", required=True,
                    help="the seed bundle this database's first project comes from (its folder, with bundle.yaml)")
+    p.add_argument("--role", choices=ROLES, default=os.environ.get(ROLE_ENV, "all"),
+                   help="all: everything on this instance; web: only the API and Dagster webserver; "
+                        "worker: only the Dagster daemon, its runs and the agent workers")
     args = p.parse_args(argv)
     if not (url := os.environ.get("FUZER_DATABASE_URL")):
         raise SystemExit("Render runtime requires FUZER_DATABASE_URL; embedded Postgres is not used")
@@ -237,21 +251,27 @@ def main(argv: list[str] | None = None) -> None:
     home.mkdir(parents=True, exist_ok=True)
     os.environ["DAGSTER_HOME"] = str(home.resolve())
     configure_dagster(home, url)
-    end_orphaned_runs()
-    with db.connect() as conn:
-        first = seed(conn, Path(args.bundle))["name"]
-        engine.load_defaults(conn)
-        added = register_projects(conn, first)
-    for name in added:
-        with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
-            engine.load_defaults(scoped)
+    if args.role != "web":  # the runs died with the machine that ran them, which is the worker's
+        end_orphaned_runs()
+    with db.connect(autocommit=True) as lock:
+        lock.execute("select pg_advisory_lock(%s)", (SEED_LOCK,))  # released when this connection closes
+        with db.connect() as conn:
+            first = seed(conn, Path(args.bundle))["name"]
+            engine.load_defaults(conn)
+            added = register_projects(conn, first)
+        for name in added:
+            with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
+                engine.load_defaults(scoped)
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
+    if args.role == "web":  # nothing here waits on the readings: the worker does them and holds its own daemon
+        print("Role web: the Dagster daemon, its runs and the agent workers run on the worker service", flush=True)
+        supervise(commands(added, "web"), stop)
+        return
     read = threading.Event()
     threading.Thread(target=read_projects, args=(added, read), name="startup-readings", daemon=True).start()
-    supervise(commands(added), stop, read)
-
+    supervise(commands(added, args.role), stop, read)
 
 if __name__ == "__main__":
     main()

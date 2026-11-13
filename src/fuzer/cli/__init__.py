@@ -213,6 +213,9 @@ def parser() -> argparse.ArgumentParser:
                     help="scan --since to --until with the rules, read it with the agentic watch and score its "
                          "proposals against the fake plant's injected events no rule caught (P3.3b; needs a model "
                          "provider and costs money; exits 1 if under half match)")
+    ev.add_argument("--promoted", action="store_true",
+                    help="score each drafted rule (P3.4) that has no score yet on the fake plant's replay over --since "
+                         "to --until: recall over the kinds of event its examples matched, precision, false alarms")
     ev.add_argument("--roles", action="store_true",
                     help="score the measurement roles proposed for each point against the fake plant's process model "
                          "(P1.4; exits 1 under 90%% right or if a wrong role was confident)")
@@ -408,6 +411,21 @@ def main(argv=None):
                      f"upsets uncaught, ${res['usd']}")
                 if not res["passes"]:
                     raise SystemExit("watch eval: under half its proposals match what no rule caught")
+            elif args.cmd == "eval" and args.promoted:
+                from ..evals import watch_eval
+
+                if not (args.since and args.until):
+                    raise SystemExit("--promoted needs --since and --until (a stretch holding the pattern's events)")
+                try:
+                    done = watch_eval.score_drafts(conn, pack, data, (args.since, args.until))
+                except ValueError as e:
+                    raise SystemExit(str(e)) from e
+                for r in done:
+                    sc = r["score"]
+                    _say(f"rule #{r['id']} {r['pattern']}: recall {sc['recall']} over {sc['events']} events, "
+                         f"precision {sc['precision']}, {sc['false_alarms_per_week']} false alarms a week")
+                if not done:
+                    _say("no unscored draft")
             elif args.cmd == "eval" and args.roles:
                 from ..evals import roles as roles_eval
 

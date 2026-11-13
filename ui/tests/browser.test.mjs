@@ -45,6 +45,9 @@ beforeEach(async () => {
       scheduler: { running: false, last_heartbeat: null }, jobs: [], sensors: [], checks: [],
       health: { summary: "No jobs configured" }, claude: null },
     "/ontology/declared": { groups: [], views: [], kinds: [], relations: [] },
+    "/settings/detection/promotions": { proposals: [], patterns: [], rules: [], unreviewed: 0 },
+    "/work/performance/detectors": { detectors: [], confirmed: 0, by_origin: {}, min_closed: 5, noisy: 0.5 },
+    "/work/performance/skills": { skills: [], specialists: [], min_rated: 5 },
   };
   await page.route("**/*", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -5721,4 +5724,78 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   // The chart redraws to the new width a moment after the resize, so wait for it rather than measuring at once.
   await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 10_000 })
     .catch(() => assert.fail("no sideways scroll"));
+});
+
+test("P3.4b a watch proposal on Detection is confirmed, its pattern drafted and the draft published with a reason", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
+  await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
+  await page.route("**/settings", (route) => route.fulfill({ json: setupSettings }));
+  await page.route("**/settings/detectors**", (route) => route.fulfill({ json:
+    { project: "okan", classes: [{ code: "CO", name: "Compressors", units: 4 }], trust_levels: {}, detectors: [], providers: [] } }));
+  const rule = { id: 7, pattern: "CO:discharge_temperature:high", status: "draft",
+    spec: { role: "discharge_temperature", class: "CO", direction: "high", z: 5.2, minutes: 50, baseline_days: 7 },
+    examples: [{ id: 1 }, { id: 2 }, { id: 3 }], drafted_by: "agent:watch", drafted_at: "2026-11-13T10:00:00",
+    score: { recall: 1, precision: 0.5, false_alarms_per_week: 0.4, events: 1, detected: 1, since: "2025-07-16T00:00",
+      until: "2025-07-17T00:00", kinds: [] },
+    published_by: null, published_at: null, retired_by: null, retired_at: null, reason: null };
+  const proposal = { id: 4, subject: "20-TT-2301", start: "2024-06-11T12:00:00", end: "2024-06-11T15:00:00",
+    since: "2024-06-11T00:00:00", until: "2024-06-12T00:00:00", why: "discharge temperature climbing with no change in load",
+    ruled_out: "load change", cited: true, model: "scripted", run_at: "2026-11-13T09:00:00", area_name: "Compression",
+    verdict: null, verdict_by: null, verdict_at: null, pattern: null, event_kind: null };
+  const writes = [];
+  await page.route("**/settings/detection/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "GET") {
+      writes.push({ path, body: route.request().postDataJSON() });
+      return route.fulfill({ json: {} });
+    }
+    return route.fulfill({ json: { unreviewed: 1, proposals: [proposal], rules: [rule], patterns: [{
+      pattern: rule.pattern, role: "discharge_temperature", class: "CO", direction: "high", confirmed: 3, needed: 3,
+      ready: true, smallest_z: 6.5, shortest_minutes: 100, rule }] } });
+  });
+  await page.goto(`${url}/#/settings?view=detection`);
+  await page.getByText("discharge temperature climbing with no change in load", { exact: false }).waitFor();
+  await page.getByText("Ruled out: load change", { exact: true }).waitFor();
+  await page.getByText("Compressors: discharge temperature rising", { exact: false }).first().waitFor();
+  await page.getByText("Replay: recall 100% (1 of 1 events)", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByText("Confirmed. It counts towards its pattern's rule.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByText("Give a short reason", { exact: false }).waitFor();  // a reason first
+  await page.getByLabel("Reason for the rule on Compressors: discharge temperature rising").fill("precedes every trip");
+  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByText("Published. It runs with the other detectors from the next scan.", { exact: true }).waitFor();
+  assert.deepEqual(writes.map((w) => w.path), ["/settings/detection/proposals/4/verdict", "/settings/detection/rules/7/publish"]);
+  assert.equal(writes[0].body.real, true);
+  assert.equal(writes[1].body.reason, "precedes every trip");
+});
+
+test("P7.4 Work performance shows by detector and by skill which earn their keep, with the tuning or change to open", async () => {
+  await page.route("**/work/performance", (route) => route.fulfill({ json: { weeks: [], queues: [], types: [], compliance: null, rounds: [] } }));
+  await page.route("**/work/performance/detectors", (route) => route.fulfill({ json: { confirmed: 5, min_closed: 5, noisy: 0.5,
+    by_origin: { deterministic: { cases: 4, share: 0.8 }, agentic: { cases: 1, share: 0.2 }, external: { cases: 0, share: 0 },
+      unknown: { cases: 0, share: 0 } },
+    detectors: [{ detector: "drifts", title: "A slow climb in what wears and fouls", kind: "statistical", kind_label: "Statistical",
+      cases: 6, closed: 6, real: 1, false_alarm: 3, duplicate: 2, data_problem: 0, noise: 5, confirmed_rate: 1 / 6,
+      false_alarm_rate: 0.5, noise_rate: 5 / 6, hours_to_case: 2.5, value_confirmed_usd: 120000, valued: 1,
+      by_origin: { deterministic: 1, agentic: 0, external: 0, unknown: 0 }, verdict: "needs_tuning", item_ids: [11, 12],
+      tuning_case: 91 }] } }));
+  await page.route("**/work/performance/skills", (route) => route.fulfill({ json: { min_rated: 5, specialists: [
+    { specialist: "maintenance-integrity", steps: 9, cases: 5, cost_usd: 2, cost_per_case: 0.4 }],
+    skills: [{ skill: "maintenance-integrity/compression", name: "compression", owner: "maintenance-integrity", briefs: 5,
+      brief_cases: 5, brief_usd: 2, brief_cost_per_case: 0.4, followed: { yes: 1, partly: 1, no: 2 },
+      rated: { useful: 1, not_useful: 2 }, followed_rate: 0.25, useful_rate: 0.333, verdicts: 7, short: 5,
+      verdict: "needs_change", edits: { published: 1, live_version: 1, live_since: "2026-11-01T00:00:00", waiting: 2,
+        review_case: 77 } }] } }));
+  await page.goto(`${url}/#/performance?by=detector`);
+  await page.getByText("A slow climb in what wears and fouls", { exact: true }).waitFor();
+  await page.getByText("Needs tuning", { exact: true }).waitFor();
+  await page.getByText("rule 80%, agent 20%", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Tuning proposed" }).getAttribute("href"), "#/cases/91");
+  await page.goto(`${url}/#/performance?by=skill`);
+  await page.getByText("Needs a change", { exact: true }).waitFor();
+  await page.getByText("5 of 7 fell short", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Review change v2" }).getAttribute("href"), "#/cases/77");
+  await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
 });

@@ -101,6 +101,21 @@ disk, and set these environment values (or sync the Blueprint):
 | `FUZER_GITHUB_ISSUES_TOKEN` | Optional: a fine-grained GitHub token for this repository with Issues: read and write. With it, a crash in any process (supervisor, API, workers, Dagster), a 500 and a failed Dagster run open an `auto-report` issue, deduplicated by fingerprint (`fuzer.core.bugreports`) |
 | `FUZER_GITHUB_ISSUES_REPO` | The repository those issues go to, as `owner/name` |
 
+### Jobs on their own service (optional)
+
+By default one service runs everything (`FUZER_ROLE` unset, or `all`), so every scheduled run shares the web
+service's CPU with page requests. To keep them apart, run the same image twice against the same database:
+
+| Service | `FUZER_ROLE` | Runs |
+|---|---|---|
+| Web service | `web` | The API and the Dagster webserver behind "Open in Dagster" |
+| Background worker | `worker` | The Dagster daemon, every run it starts, the agent workers and the startup readings |
+
+Both need `FUZER_DATABASE_URL` and the same provider keys. Dagster's run, event and schedule storage is in
+Postgres, so the Jobs page and run history work from either service. Run output (compute logs) is written where the
+run happened, on the worker; give the worker the persistent disk if those logs should survive a deploy. Both
+services seed at start, one after the other (an advisory lock).
+
 Remove stale `FUZER_PROJECT`, `FUZER_PACK`, `FUZER_DATA_DIR`, `FUZER_TIMESERIES` or other asset-specific
 overrides: each deploy registers the `--bundle` facility as the database's first project from its seed bundle,
 and its pack, exports folder and time-series provider come from the project (P1.6). A leftover

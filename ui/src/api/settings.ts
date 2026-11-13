@@ -240,7 +240,42 @@ export interface TuningProposal {
   before: { noise: number; real: number }; after: { noise: number; real: number }; missed: number[];
 }
 
+/** A watch proposal (P3.3) with a person's verdict on it (P3.4). */
+export interface WatchProposal {
+  id: number; subject: string | null; start: string | null; end: string | null; since: string; until: string;
+  why: string; ruled_out: string | null; cited: boolean; model: string | null; run_at: string; area_name: string | null;
+  verdict: "confirmed" | "rejected" | null; verdict_by: string | null; verdict_at: string | null;
+  pattern: string | null; event_kind: string | null;
+}
+
+/** A rule drafted from a pattern of confirmed proposals, scored on replay where the asset has a fake plant's events. */
+export interface PromotedRule {
+  id: number; pattern: string; status: "draft" | "published" | "retired";
+  spec: { role: string; class: string; direction: "high" | "low"; z: number; minutes: number; baseline_days: number };
+  examples: { id: number; start: string | null; end: string | null; shift_z: number | null }[];
+  score: { recall: number | null; precision: number | null; false_alarms_per_week: number | null; events: number;
+    detected: number; since: string; until: string; kinds: string[] } | null;
+  drafted_by: string; drafted_at: string; published_by: string | null; published_at: string | null;
+  retired_by: string | null; retired_at: string | null; reason: string | null;
+}
+
+export interface WatchPattern {
+  pattern: string; role: string; class: string; direction: "high" | "low"; confirmed: number; needed: number;
+  ready: boolean; smallest_z: number | null; shortest_minutes: number | null; rule: PromotedRule | null;
+}
+
+export interface Promotions { proposals: WatchProposal[]; patterns: WatchPattern[]; rules: PromotedRule[]; unreviewed: number }
+
 export const detectionApi = {
+  promotions: () => request<Promotions>("GET", "/settings/detection/promotions"),
+  judgeProposal: (id: number, real: boolean, by: string) =>
+    request<WatchProposal>("PUT", `/settings/detection/proposals/${id}/verdict`, undefined, { real, by }),
+  draftRule: (pattern: string, by: string) =>
+    request<PromotedRule>("POST", `/settings/detection/patterns/${encodeURIComponent(pattern)}/draft`, undefined, { by }),
+  publishRule: (id: number, by: string, reason: string) =>
+    request<PromotedRule>("PUT", `/settings/detection/rules/${id}/publish`, undefined, { by, reason }),
+  retireRule: (id: number, by: string, reason: string) =>
+    request<PromotedRule>("PUT", `/settings/detection/rules/${id}/retire`, undefined, { by, reason }),
   detectors: () =>
     request<{ project: string | null; classes: EquipmentClass[]; detectors: DetectorRow[]; providers: ProviderRow[];
       trust_levels: Record<Trust, string> }>("GET", "/settings/detectors"),

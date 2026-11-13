@@ -202,6 +202,73 @@ def detector_tuning_set_aside(exception_id: int, a: TuningAside, conn=Depends(ge
     return out
 
 
+# ---- promote confirmed anomalies to rules (P3.4b, #951) ------------------------------------------------------------
+
+def _promote(fn, *a, **k):
+    from ..ops import promote
+
+    try:
+        return fn(*a, **k)
+    except promote.PromoteError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.get("/settings/detection/promotions")
+def promotions(conn=Depends(get_conn)):
+    """The watch's latest proposals with their verdicts, the patterns confirmed ones read into, and the rules drafted
+    from them."""
+    from ..ops import promote
+
+    return promote.promotions(conn)
+
+
+class VerdictIn(BaseModel):
+    real: bool
+    by: str = "anonymous"
+
+
+@router.put("/settings/detection/proposals/{proposal_id}/verdict")
+def proposal_verdict(proposal_id: int, v: VerdictIn, conn=Depends(get_conn)):
+    """A person confirms a watch proposal real, or rejects it. A confirmed one is read into its pattern."""
+    from ..ops import promote
+
+    return _promote(promote.confirm, conn, proposal_id, v.real, v.by)
+
+
+class DraftIn(BaseModel):
+    by: str = "anonymous"
+
+
+@router.post("/settings/detection/patterns/{pattern}/draft")
+def pattern_draft(pattern: str, d: DraftIn, conn=Depends(get_conn)):
+    """Draft a rule for a pattern with enough confirmed proposals. It is unscored until the replay scores it
+    (`fuzer eval --promoted`)."""
+    from ..ops import promote
+
+    return _promote(promote.draft, conn, pattern, d.by)
+
+
+class RuleIn(BaseModel):
+    by: str = "anonymous"
+    reason: str = Field(min_length=3)
+
+
+@router.put("/settings/detection/rules/{rule_id}/publish")
+def rule_publish(rule_id: int, r: RuleIn, conn=Depends(get_conn)):
+    """A person publishes a drafted rule, with a reason: from then on it runs as the promoted_rules detector."""
+    from ..ops import promote
+
+    return _promote(promote.publish, conn, rule_id, r.by, r.reason)
+
+
+@router.put("/settings/detection/rules/{rule_id}/retire")
+def rule_retire(rule_id: int, r: RuleIn, conn=Depends(get_conn)):
+    """Retire a drafted or published rule, with a reason. Its pattern can then be drafted again."""
+    from ..ops import promote
+
+    return _promote(promote.retire, conn, rule_id, r.by, r.reason)
+
+
 # --- human gates (P5.10, #619) -------------------------------------------------------------------------------------
 
 class GateIn(BaseModel):
