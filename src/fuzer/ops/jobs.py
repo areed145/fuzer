@@ -27,6 +27,7 @@ settings llm.model and llm.effort, the day close the setting daily_report.close_
 
 import json
 import os
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -854,12 +855,23 @@ def load_seen(cursor: str | None) -> dict[str, float]:
 
 
 @dg.run_failure_sensor(default_status=dg.DefaultSensorStatus.RUNNING,
-                       description="Posts failed runs to FUZER_ALERT_WEBHOOK, and to GitHub issues, when they are set.")
+                       description="Posts failed runs to FUZER_ALERT_WEBHOOK, and to GitHub issues, when they are set; a "
+                                   "scheduled run a deploy interrupted is not a failure and is not posted.")
 def alert_on_failure(context: dg.RunFailureSensorContext):
     from ..core import bugreports
     from ..sources import alerts
+    from . import stops
 
     run = context.dagster_run
+    event = context.failure_event
+    record = context.instance.get_run_record_by_id(run.run_id)
+    ended = (record and record.end_time) or time.time()  # when it failed, not when this sensor got to it
+    # Only a scheduled run: its schedule starts it again. A run started by hand or by a sensor isn't restarted, so
+    # its interruption is still posted.
+    if "dagster/schedule_name" in run.tags and stops.interrupted_by_stop(event.message or "", ended):
+        context.log.info(f"Run {run.run_id[:8]} of {run.job_name} was interrupted by a deploy; its schedule starts it "
+                         "again, so it isn't reported as a failure")
+        return
     message = run_failed_text(run.job_name, run.run_id, context.failure_event.message or "",
                                   run.tags.get(PROJECT_TAG, "") or run.tags.get(PROJECTS_TAG, ""))
     context.log.error(message)

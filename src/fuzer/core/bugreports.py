@@ -214,6 +214,7 @@ class Reporter:
 
 
 reporter = Reporter()
+STOP_SIGNALS = frozenset({"DagsterExecutionInterruptedError"})  # by name: core never imports Dagster
 _installed = False
 
 
@@ -226,7 +227,8 @@ def install() -> None:
     previous_sys, previous_thread = sys.excepthook, threading.excepthook
 
     def process_hook(kind, value, tb):
-        if not isinstance(value, (KeyboardInterrupt, SystemExit)):
+        # A process told to stop (Ctrl-C, SIGTERM as Dagster raises it on a deploy) didn't fail.
+        if not isinstance(value, (KeyboardInterrupt, SystemExit)) and type(value).__name__ not in STOP_SIGNALS:
             reporter.report(value, "process exited", wait=True)
         previous_sys(kind, value, tb)
 
