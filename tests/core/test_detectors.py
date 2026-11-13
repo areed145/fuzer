@@ -32,7 +32,8 @@ def test_a_detector_says_what_it_is_what_it_raises_and_where_it_is_scored(d):
 @pytest.mark.unit
 def test_the_window_detectors_are_the_registry_not_a_fixed_list():
     names = [d.name for d in detectors.window()]
-    assert names == ["excursions", "stops", "steps", "drifts", "instruments", "models", "hydraulics", "multivariate"]
+    assert names == ["excursions", "stops", "steps", "drifts", "instruments", "models", "hydraulics", "multivariate",
+                     "promoted_rules"]  # and the rules people published from the watch (P3.4)
     assert {f"sre:{n}" for n in names} < set(replay.DETECTORS) and not hasattr(sre, "DETECTORS")
 
 

@@ -164,11 +164,38 @@ def _covered(p: dict, ev: dict) -> bool:
     return False
 
 
+def _explained(conn, ev: dict) -> list[dict]:
+    """The unexplained stretches on equipment a detection already covers in their time, or next to it in the plant
+    model (one of its train, what it is part of) (P3.4): a rule caught it, so there is nothing for the watch to add."""
+    from ..analysis import limits
+    from ..graph.topology import topology
+
+    if not ev["detections"] or not ev["unexplained_stretches"]:
+        return []
+    pts = {p["id"] for s in ev["unexplained_stretches"] for p in s["points"]} | {d["point_id"] for d in ev["detections"]}
+    unit, adj = limits.units(conn, list(pts)), topology(conn)
+    out = []
+    for s in ev["unexplained_stretches"]:
+        on = {unit.get(p["id"]) for p in s["points"]} - {None}
+        on |= {n for u in on for n in adj.get(u, ())}
+        a, b = _t(s["start"]), _t(s["end"]) or _t(s["start"])
+        for d in ev["detections"]:
+            da, db = _t(d["start"]), _t(d["end"]) or _t(d["start"])
+            if unit.get(d["point_id"]) in on and a and da and da <= b and a <= db:
+                out.append(s)
+                break
+    return out
+
+
 def propose(conn, area: dict, since: datetime, until: datetime, ask, src=None) -> tuple[list[dict], float]:
-    """The model's proposals for one area and window that no detection covers, and what asking cost."""
+    """The model's proposals for one area and window that no detection covers, and what asking cost. The model is
+    asked only when a stretch the area's model can't explain is left once those a detection covers are set aside:
+    the rest of the evidence is read beside one, never alone."""
     ev = evidence(conn, area, since, until, src)
-    if not any(ev[k] for k in ("unexplained_stretches", "detections", "alarms", "log", "notifications")):
-        return [], 0.0  # nothing happened to read: no question asked
+    covered = _explained(conn, ev)
+    ev["unexplained_stretches"] = [s for s in ev["unexplained_stretches"] if s not in covered]
+    if not ev["unexplained_stretches"]:
+        return [], 0.0  # nothing unexplained, or a detection covers it: no question asked
     r = ask(PROMPT.format(area=ev["area"], since=ev["since"], until=ev["until"], evidence=json.dumps(ev, indent=1)))
     usd = float((r.get("usage") or {}).get("cost_usd") or 0.0)
     shown, out = _ids(ev), []
@@ -183,13 +210,25 @@ def propose(conn, area: dict, since: datetime, until: datetime, ask, src=None) -
     return out, usd
 
 
+def keep(conn, p: dict, since: datetime, until: datetime, model: str | None = None) -> dict:
+    """Keep one proposal in shadow."""
+    row = conn.execute(
+        """
+        insert into watch_proposal (area, since, until, subject, start, "end", why, ruled_out, evidence, cited, mode, model)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'shadow', %s) returning id
+        """, (p["area"], since, until, p.get("subject"), p.get("start"), p.get("end"), p["why"], p.get("ruled_out"),
+              json.dumps(p.get("evidence") or []), bool(p.get("cited")), model)).fetchone()
+    return {**p, "id": row["id"]}
+
+
 def model_ask(prompt: str) -> dict:
     """The configured agents provider, asked once."""
     client = llm.client("agents")
     name = settings.get(None, "agents.model")
     msg = llm.call(client, {"model": name, "max_tokens": MAX_TOKENS,
                             "messages": [{"role": "user", "content": prompt}]}, scope="agents")
-    return {"answer": llm._text(msg.content), "model": name,
+    text = "\n".join(b.text for b in msg.content if getattr(b, "type", None) == "text")  # thinking blocks carry none
+    return {"answer": text, "model": name,
             "usage": llm.cost_report(name, llm.usage(msg), scope="agents")}
 
 
@@ -212,24 +251,21 @@ def watch(conn, pack=None, since: str | None = None, until: str | None = None, a
         ask = model_ask
     b = datetime.fromisoformat(until) if until else datetime.now().replace(minute=0, second=0, microsecond=0)
     a = datetime.fromisoformat(since) if since else b - timedelta(days=1)
-    cap, spent, kept, skipped = float(settings.get(conn, "watch.max_usd")), 0.0, [], []
+    cap, spent, kept, skipped, calls = float(settings.get(conn, "watch.max_usd")), 0.0, [], [], []
+
+    def counted(prompt: str) -> dict:  # each question asked, so a run says how many it spent on
+        calls.append(prompt)
+        return ask(prompt)
+
     for area in areas(conn, int(settings.get(conn, "watch.max_areas"))):
         if spent >= cap:
             skipped.append(area["label"])
             continue
-        props, usd = propose(conn, area, a, b, ask, src)
+        props, usd = propose(conn, area, a, b, counted, src)
         spent += usd
-        for p in props:
-            row = conn.execute(
-                """
-                insert into watch_proposal (area, since, until, subject, start, "end", why, ruled_out, evidence, cited,
-                                            mode, model)
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'shadow', %s) returning id
-                """, (p["area"], a, b, p["subject"], p["start"], p["end"], p["why"], p["ruled_out"],
-                      json.dumps(p["evidence"]), p["cited"], getattr(ask, "model", None))).fetchone()
-            kept.append({**p, "id": row["id"]})
+        kept += [keep(conn, p, a, b, getattr(ask, "model", None)) for p in props]
     conn.commit()
     return {"status": "shadow", "since": _iso(a), "until": _iso(b), "proposals": kept, "usd": round(spent, 4),
-            "skipped": skipped,
+            "skipped": skipped, "asked": len(calls),
             "note": "Shadow: proposals are kept and scored, not routed." + (
                 f" {len(skipped)} areas not read: the run's spend cap was reached." if skipped else "")}

@@ -165,3 +165,62 @@ def store(conn, res: dict) -> None:
     conn.execute("insert into ops_eval (detector, since, until, scores) values (%s, %s, %s, %s)",
                  (KEY, res["since"], res["until"], json.dumps(res, default=str)))
     conn.commit()
+
+
+def judge(conn, data_dir, since: str, until: str, by: str = "replay") -> dict:
+    """Confirm or reject the proposals kept over [since, until] that have no verdict, by the bundle's events (P3.4): one
+    matching an upset is confirmed, with the event's kind; one matching none is rejected."""
+    from ..ops import promote
+
+    spec = process_model.read(Path(data_dir) / "process_model.json")
+    a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
+    events = [e for e in replay.truth(spec, a - replay.TAIL, b + replay.TAIL) if e["upset"]]
+    rows = [dict(r) for r in conn.execute(
+        "select * from watch_proposal where verdict is null and since >= %s and until <= %s order by id", (a, b))]
+    confirmed, rejected = [], []
+    for p in resolve(conn, [{**r, "start": _t(r["start"]), "end": _t(r["end"]), "since": _t(r["since"]),
+                             "until": _t(r["until"])} for r in rows]):
+        hits = [e for e in events if matches(spec, p, e)]  # the most specific: on the fewest units (the machine, not its train)
+        hit = min(hits, key=lambda e: (len(e["own"]), e["start"])) if hits else None
+        promote.confirm(conn, p["id"], hit is not None, by, event_kind=hit["kind"] if hit else None)
+        (confirmed if hit else rejected).append(p["id"])
+    return {"confirmed": confirmed, "rejected": rejected}
+
+
+def rule_score(conn, pack, spec: dict, window: tuple[str, str], data_dir, kinds: set[str], src=None) -> dict:
+    """A promoted rule (P3.4) on the bundle's replay over `window`: recall over the event kinds its examples matched
+    (all upsets when none is known), precision and false alarms a week."""
+    from ..ops import promote
+
+    def fn(conn, pack, a, b, src):
+        return [d | {"detector": "promoted_rules"} for d in promote.apply(conn, spec, a, b, src)]
+
+    fn.__name__ = "promoted_rule"
+    res = replay.run(conn, pack, fn, window[0], window[1], data_dir=data_dir, src=src, learn_days=None)
+    by = {k: v for k, v in res["by_kind"].items() if not kinds or k in kinds}
+    events, found = sum(v["events"] for v in by.values()), sum(v["detected"] for v in by.values())
+    return {"since": window[0], "until": window[1], "kinds": sorted(kinds), "events": events, "detected": found,
+            "recall": round(found / events, 3) if events else None, "precision": res["precision"],
+            "false_alarms_per_week": res["false_alarms_per_week"], "detections": res["detections"]}
+
+
+def rule_scorer(conn, pack, data_dir, window: tuple[str, str], src=None):
+    """What `promote.draft` takes to score a draft on the bundle's replay over `window`; None without a process model."""
+    if not data_dir or not (Path(data_dir) / "process_model.json").is_file():
+        return None
+    return lambda spec, kinds: rule_score(conn, pack, spec, window, data_dir, kinds, src)
+
+
+def score_drafts(conn, pack, data_dir, window: tuple[str, str], src=None) -> list[dict]:
+    """Score each drafted rule that has no score yet on the bundle's replay over `window` (drafts made on the Detection
+    page are unscored: the replay is an eval, run from the command line)."""
+    from ..ops import promote
+
+    scorer = rule_scorer(conn, pack, data_dir, window, src)
+    if scorer is None:
+        raise ValueError("no process_model.json in the data folder: a draft is scored against a fake plant's events")
+    out = []
+    for r in conn.execute("select * from promoted_rule where status = 'draft' and score is null order by id").fetchall():
+        kinds = {e.get("event_kind") for e in r["examples"] or [] if e.get("event_kind")}
+        out.append(promote.rescore(conn, r["id"], scorer(r["spec"], kinds)))
+    return out
