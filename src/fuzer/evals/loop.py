@@ -104,6 +104,31 @@ def _bundle(conn) -> Path:
     return Path(folder)
 
 
+def _skill_falls_short(conn, skill: str) -> str:
+    """Two decided cases whose brief from `skill` the person did not follow, then the specialist's draft (a stand-in
+    for the model: the live playbook with one line added) as the agent worker writes it."""
+    import json
+
+    from psycopg.types.json import Jsonb
+
+    from ..agents import skill_drafts, skill_versions
+
+    for i in (1, 2):
+        with conn.transaction():
+            item = conn.execute("insert into work_item (type, title, subjects, state, created_by) values ('records_gap', "
+                                "%s, '{}', 'done', %s) returning id", (f"Loop eval: a case {skill} briefed ({i})", BY)
+                                ).fetchone()["id"]
+            conn.execute("insert into work_event (item_id, kind, actor, data) values (%s, 'brief_verdict', %s, %s)",
+                         (item, IOC, Jsonb({"pack": skill, "followed": "no", "note": "the brief missed the cause"})))
+    playbook = skill_versions.live(conn, skill)["playbook"] + "\n\nCheck the cause the last two briefs missed.\n"
+    said = json.dumps({"playbook": playbook, "questions": [{"question": "What did the briefs miss?",
+                                                             "must_mention": ["cause"]}], "why": "Two briefs missed it."})
+    out = skill_drafts.prepare(conn, skill, lambda q: {"answer": f"```json\n{said}\n```", "usage": {}})
+    if "missing" in out:
+        raise Step(f"no draft for {skill}: {out['missing']}")
+    return f"two briefs from {skill} not followed, and its specialist's draft"
+
+
 def _bring(conn, how: dict) -> str:
     """Run what brings a type in, as production runs it. Returns what ran, in words."""
     from ..core import detectors
@@ -131,6 +156,8 @@ def _bring(conn, how: dict) -> str:
             pipeline.rebuild(conn, pack)
             conn.commit()
             landed = "a delivery and the rebuild after it, then "
+    if "skill" in how:  # a skill falls short twice (briefs not followed), and its specialist drafts a change
+        return _skill_falls_short(conn, how["skill"])
     if "round" in how:  # an operator takes a reading on a round, on the phone
         from ..ops import rounds
 
@@ -419,6 +446,10 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
                 row = {**found, "raised": True, "about_source": _source_of(conn, found)}
                 out["arrived"] = what
                 return f"{what} raised it about the {row['about_source'] or found['key']} source"
+            if how.get("about") == "skill":  # a drafted change to a skill (P6.4c): about a skill, not an asset
+                row = {**found, "raised": True, "about_skill": found["key"]}
+                out["arrived"] = what
+                return f"{what} raised it about {found['key']}"
             if how.get("about") == "model":  # work about the project's operating model (P8.2): a deviation
                 row = {**found, "raised": True, "about_model": found["key"]}
                 out["arrived"] = what
@@ -437,6 +468,8 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
         return f"synthetic: raised by the loop about {ref}"
 
     def match():
+        if "about_skill" in row:  # it names a skill's draft version, not an asset or a source
+            return f"matched the skill draft {row['about_skill']}"
         if "about_model" in row:  # it names a deviation from the operating model, not an asset or a source
             return f"matched the operating model's {row['about_model']}"
         if "about_source" in row:  # work about a source names one of the project's sources, not an asset

@@ -11,6 +11,7 @@ live version is marked rolled back and the one live before it, or the shipped fo
     draft(conn, path, playbook, by, cases, questions, note)  a new draft version; it cannot name a tool the
                                                      skill's agents do not have
     publish(conn, path, version, by)                 a person makes a draft live
+    set_aside(conn, path, version, by, note)         a person turns a draft down
     rollback(conn, path, by)                         a person takes the live version back one step
     roots(conn=None)                                 the folder each skill with a live published version loads from
 
@@ -122,7 +123,30 @@ def publish(conn, path: str, version: int, by: str, evaluation: dict | None = No
                      "eval = coalesce(%s::jsonb, eval) where skill = %s and version = %s",
                      (by, Jsonb(evaluation) if evaluation is not None else None, s.path, version))
     _forget()
+    _reviewed(conn, s.path, version, by, "the draft was published")
     return live(conn, path) | {"skill": s.path}
+
+
+def set_aside(conn, path: str, version: int, by: str, note: str | None = None) -> dict:
+    """A person turns a draft down; it stays in the skill's history as refused, with their note."""
+    s = _skill(path)
+    _person(by, "sets a draft aside")
+    with conn.transaction():
+        r = conn.execute("update skill_version set status = 'refused', note = concat_ws(' ', note, %s::text) "
+                         "where skill = %s and version = %s and status = 'draft' returning version",
+                         (f"(set aside by {by}{': ' + note if note else ''})", s.path, version)).fetchone()
+        if r is None:
+            raise ValueError(f"{s.path} has no draft version {version}")
+    _reviewed(conn, s.path, version, by, f"the draft was set aside{': ' + note if note else ''}")
+    return {"skill": s.path, "version": version, "status": "refused"}
+
+
+def _reviewed(conn, path: str, version: int, by: str, reason: str) -> None:
+    """The draft's work for the skill's owner (P6.4c), cleared now a person has decided it."""
+    from ..ops import skill_review
+
+    skill_review.close_review(conn, path, version, by, reason)
+    conn.commit()
 
 
 def _forget() -> None:
