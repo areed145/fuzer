@@ -1264,7 +1264,41 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "ptw_permits.csv", permits)
     _write_csv(out / "ptw_isolations.csv", isolations)
     _write_csv(out / "rounds_points.csv", _rounds(equipment))
-    _write_csv(out / "pi_points.csv", points)
+    # Control loops (#355): the DCS loop list and each loop's PV, SP, OP and MODE points. Three are healthy; three carry
+    # the stories. The test separator's level valve sticks from 10 to 17 February 2025 (the level limit-cycles, the
+    # output ramps while the level jumps); the oil export flow controller runs out of valve while pump B's
+    # recirculation passes (its output pinned at 100 % and the flow short of setpoint); and the lift gas header's
+    # pressure controller is left in manual after the 18 November 2025 upset. Synthetic, like everything here.
+    loop_defs = [  # tag, description, controlled item, unit, sp, op, op_swing, gain, action, story
+        ("10-LIC-2002", "LP Production Separator Level Control", "10-V-2002", "%", 50.0, 45.0, 8.0, 0.4, "direct", None),
+        ("10-PIC-2001", "HP Production Separator Pressure Control", "10-V-2001", "barg", 12.0, 55.0, 6.0, 0.05,
+         "direct", None),
+        ("10-LIC-2003", "Test Separator Level Control", "10-V-2003", "%", 45.0, 40.0, 6.0, 0.4, "direct",
+         {"kind": "stiction", "start": "2025-02-10T00:00", "end": "2025-02-17T00:00", "period": 60, "amplitude": 4.0,
+          "op_amplitude": 5.0}),
+        ("10-FIC-1001", "Oil Export Flow Control", "10-V-2004", "m3/h", 380.0, 72.0, 8.0, 2.0, "reverse",
+         {"kind": "saturate", "points": [["2025-10-20T00:00", 0], ["2025-11-04T00:00", 36], ["2025-12-09T08:00", 38],
+                                         ["2025-12-09T14:00", 0]]}),
+        ("20-PIC-3003", "Lift Gas Header Pressure Control", "20-V-2002", "barg", 98.0, 60.0, 12.0, 0.25, "reverse",
+         {"kind": "manual", "start": "2025-11-18T06:00"}),
+        ("20-LIC-2400", "Glycol Contactor Level Control", "20-V-2400", "%", 40.0, 35.0, 6.0, 0.4, "direct", None),
+    ]
+    loops, loop_points, loop_rows = [], {}, []  # kept apart from `points` so the other stories' draws don't move
+    for ltag, ldesc, item, uom, *_ in loop_defs:
+        area, func, num = ltag.split("-")
+        stem = f"OKA_PP.{area}{func}{num}" if area == "10" else f"OK_GGCP:{ltag}"
+        names = {r: f"{stem}.{r.upper()}" for r in ("pv", "sp", "op", "mode")}
+        for r, d, u in (("pv", "Process Value", uom), ("sp", "Setpoint", uom), ("op", "Controller Output", "%"),
+                        ("mode", "Mode (1 AUTO, 0 MAN)", "")):
+            loop_rows.append({"tag": names[r], "descriptor": f"{ldesc} {d}", "engunits": u, "pointsource": "OPC"})
+            loop_points[names[r]] = [ltag, r]
+        loops.append({"loop_tag": ltag, "description": ldesc, "controlled_item": item, "controller": "PID",
+                      "final_element": f"{area}-{func[0]}V-{num}", "eng_units": uom,
+                      **{f"{r}_point": names[r] for r in names}})
+    _write_csv(out / "dcs_loops.csv", loops)
+    (out / "answer_keys" / "control_loops.json").write_text(json.dumps(
+        {d[0]: (d[9] or {}).get("kind", "healthy") for d in loop_defs}, indent=1))
+    _write_csv(out / "pi_points.csv", points + loop_rows)
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
     _write_csv(out / "ec_downtime.csv", downtime)
     _write_csv(out / "sap_maintenance_plans.csv", plans)
@@ -1472,7 +1506,12 @@ def generate(out, seed: int = 11) -> dict:
     # How the fake historian makes process values move together (fuzer.sources.process_model); not a source.
     # Typical levels of the satellite headers' flows, which the historian draws rather than models.
     model["levels"] = [["ST1 Lift Gas Header Flow", 720.0], ["ST2 Lift Gas Header Flow", 440.0]]
-    (out / "process_model.json").write_text(json.dumps(model))
+    # The control loops (#355) join the model as it's written: the limits and instrument faults above don't see them.
+    loop_units = {ltag: {"type": "loop", "sp": sp, "op": op, "op_swing": swing, "gain": gain, "pv_noise": 0.01 * sp}
+                  for ltag, _, _, _, sp, op, swing, gain, _, _ in loop_defs}
+    (out / "process_model.json").write_text(json.dumps({
+        **model, "units": {**model["units"], **loop_units}, "points": {**model["points"], **loop_points},
+        "events": model["events"] + [{"unit": d[0], **d[9]} for d in loop_defs if d[9]]}))
     # Instrument faults and interface outages over the model (#868): fuzer.sources.instruments applies them, and the
     # file is their answer key. Off alarmed and IOW points, and away from the quarter the limits are learned on.
     core = lambda t: "".join(m.groups()) if (m := re.search(r"(\d\d)[-_.]?([A-Z]+)[-_]?(\d{4})", t)) else None

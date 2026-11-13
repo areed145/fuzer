@@ -60,7 +60,8 @@ def test_a_cycling_level_is_a_loop_candidate_until_it_stops(conn):
     out = detectors.run(conn, PACK, "loop_oscillation", until="2025-02-14T00:00")
     assert not out["errors"], out
     points = [r["point"] for r in out["raised"]]
-    assert any(p.endswith("LT2003.PV") for p in points) and len(points) <= 3, points  # the one cycling, not the field
+    own = [p for p in points if "LIC2003" in p]  # the sticking loop's own PV and OP (#355) cycle with its level
+    assert any(p.endswith("LT2003.PV") for p in points) and len(points) - len(own) <= 3, points  # not the field
     x = conn.execute("select * from exception_record where type = 'loop_candidate' and state = 'open' and key like "
                      "'%%LT2003.PV'").fetchone()
     assert "loop candidate" in x["title"] and "every 60" in x["title"] and x["item_id"]
