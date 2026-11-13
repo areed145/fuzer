@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .fuzer/
 data/
+!evals/3w/data/
 *.egg-info/
 node_modules/
 ui/dist/
