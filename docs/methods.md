@@ -54,6 +54,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`material_balance`](#material_balance) One-tank material balance from static pressures and net voidage | Engineering practice | Static bottomhole pressures (barg); Allocated oil (rm³); Water injected (rm³) | The PVT voidage replacement needs, and static surveys on at least two dates. |
 | [`ldar`](#ldar) LDAR survey leaks, repeat leakers and coverage | US EPA Method 21 (determination of volatile organic compound leaks) | Component screening readings by survey (ppm) | At least one survey; equipment of a surveyed class with no reading is reported unknown. |
 | [`ili_strength`](#ili_strength) ILI anomaly growth between runs and remaining strength against MOP | ASME B31G (modified, 0.85 dL); ASME B31.8 design factors | Anomaly depth (% of wall); Anomaly length (mm); Wall thickness (mm); Outside diameter (mm); SMYS of the API 5L grade (MPa); Maximum operating pressure (barg) | ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade. |
+| [`co2_corrosion`](#co2_corrosion) CO2 corrosion rate predicted against measured, per line | de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections | Produced water temperature (degC); Gas CO2 (% mol); Gas H2S (ppmv); Maximum operating pressure (barg); CML wall thickness readings (mm) | Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison. |
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
@@ -487,6 +488,17 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `depth_limit`:** An anomaly this deep (% of wall) crosses the screen whatever its pressure. (80 %)
 - **Threshold `tool_tolerance`:** Growth (% of wall) under this between two runs may be tool sizing, and is said so. (10 %)
 - **Test vector:** 49 % deep, 131 mm long on 610 x 15.9 mm API 5L X65: modified B31G at a 517 MPa flow stress fails at 220.7 bar. (`failure_pressure`)
+
+## co2_corrosion
+
+**CO2 corrosion rate predicted against measured, per line.** de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections. log10(V mm/y) = 5.8 - 1710/T + 0.67 log10(fCO2), T the produced water's temperature at the line's sample point, fCO2 the CO2 partial pressure at the line's MOP times the fugacity coefficient; above the scaling temperature the rate is cut by the scale factor. The rate is uninhibited and water-wet, an upper bound. The out-of-step ratio is this registry's own screening choice; the sweet/sour boundary follows the common pCO2/pH2S rule of thumb.
+
+- **Valid for:** Carbon steel production lines carrying produced water with CO2, where pCO2/pH2S is 500 or more. pH, chloride, bicarbonate and iron are reported, not modelled.
+- **Needs:** Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison.
+- **Run by:** `co2_corrosion_screen`
+- **Threshold `out_of_step`:** A line whose measured share of its prediction is over this many times its peers' median corrodes out of step. (2)
+- **Threshold `sour`:** pCO2/pH2S under this: H2S takes part, and the CO2 model gives no prediction. (500)
+- **Test vector:** 55 degC water at 71 bara with 2.1 % mol CO2: pCO2 1.49 bar, fugacity 0.83, below the scaling temperature, 4.46 mm/y uninhibited. (`predicted_rate`)
 
 ## lead_in
 

@@ -438,7 +438,7 @@ asset pack's catalogs as defaults; codes found in neither are reported by the
 | Hierarchy | FLOCs, PI AF | ISA-95 site / area / unit, ISO 14224 trees, org units |
 | Network (nodes + edges) | EC allocation, P&ID piping | Pipeline and gathering networks, electrical single-lines, cause & effect matrices and trip logic (input -> trips -> output) |
 | Time-series metadata | PI points, AF attributes | ADX tables, SCADA, OPC UA nodes |
-| Measurements (sparse, landed) | Well tests, LIMS results, inspection thickness readings (CMLs), LDAR survey readings, pressure surveys, monthly injection | Vibration routes, other emissions surveys |
+| Measurements (sparse, landed) | Well tests, LIMS results, produced water chemistry by line, inspection thickness readings (CMLs), LDAR survey readings, pressure surveys, monthly injection | Vibration routes, other emissions surveys |
 | Limits (per point, dated) | PI AF limit traits, DCS alarm exports, IOW registers | Safe operating limits, trip setpoints from cause & effect, equipment design envelopes |
 | Events (time + text + references) | Logs, downtime, notifications, DAY001, DCS alarm and event journals | Teams threads, SCADA event logs |
 | Cases (records with a workflow) | Notifications, work orders | Management of change, permits to work, isolations, HAZOP / LOPA actions, inspection findings |

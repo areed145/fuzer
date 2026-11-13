@@ -1269,6 +1269,35 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "ec_downtime.csv", downtime)
     _write_csv(out / "sap_maintenance_plans.csv", plans)
     _write_csv(out / "lims_results.csv", lab)
+    # Produced water chemistry (#368): each quarter the lab samples the water at every in-service production line's
+    # arrival end, with pH and temperature read in the field. Story: J03's flowline (the wet one above) carries the
+    # same water as its peers at the same temperature, so a CO2 model predicts it no worse, yet it loses wall many
+    # times faster than they do: what differs is the line (it runs wetter), not the water's chemistry.
+    wq_rng = random.Random(seed + 59)
+    water = []
+    for f in lines:
+        pr = f["properties"]
+        if pr["status"] != "in service" or not pr["service"].startswith("production"):
+            continue
+        trunk = "trunkline" in pr["service"]
+        temp = wq_rng.uniform(40, 48) if trunk else wq_rng.uniform(50, 62)
+        day, n = date(2024, 1, 10) + timedelta(days=wq_rng.randint(0, 20)), 0
+        while day < date.fromisoformat(AS_OF):
+            for analyte, unit, v, method in [
+                    ("ph", "pH", 6.1 + wq_rng.gauss(0, 0.08), "field pH meter"),
+                    ("sample_temperature", "degC", temp + wq_rng.gauss(0, 1.2), "field thermometer"),
+                    ("chloride", "mg/L", 17500 + wq_rng.gauss(0, 700), "Mohr titration"),
+                    ("bicarbonate", "mg/L", 850 + wq_rng.gauss(0, 40), "titration, APHA 2320"),
+                    ("iron", "mg/L", 1.2 + wq_rng.gauss(0, 0.1), "ICP-OES")]:
+                water.append({"sample_id": f"W{day:%y%m%d}-{pr['line_id'][-3:]}", "line_id": pr["line_id"],
+                              "sample_point": "arrival end", "sampled_at": f"{day.isoformat()}T10:{n % 60:02d}:00",
+                              "analyte": analyte, "result": f"{v:.3g}" if abs(v) < 100 else f"{v:.0f}", "unit": unit,
+                              "method": method})
+            day, n = day + timedelta(days=91 + wq_rng.randint(-5, 5)), n + 1
+    _write_csv(out / "lims_water_chemistry.csv", water)
+    (out / "answer_keys" / "co2_corrosion.json").write_text(json.dumps(
+        {"out_of_step": wet_line, "why": "the wet flowline: same water and temperature as its peers, far faster wall loss"},
+        indent=1))
     # LDAR surveys (#371): each quarter a contractor screens the fugitive emission components (flanges, valve packing,
     # seals, connectors) on the pumps, compressors, vessels, exchangers and turbines of the PP and GGCP with a Method 21
     # analyser; the satellites and NWP aren't in the programme, so their equipment is unsurveyed. A component leaks now

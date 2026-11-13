@@ -3,4 +3,5 @@
 # fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
 fuzer_source_pack: 1
 system: {name: lims}
-datasets: [lims_results]
+datasets: [lims_results, lims_water_chemistry]
+optional: [lims_water_chemistry]

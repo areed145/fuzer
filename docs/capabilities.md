@@ -215,7 +215,7 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Production & Surveillance | 80 |
 | Wells & Subsurface | 71 |
 | Field Operations & Facilities | 88 |
-| Maintenance & Integrity | 80 |
+| Maintenance & Integrity | 82 |
 | Work Management & Supply Chain | 36 |
 | HSE & Incident Management | 50 |
 | Asset Performance & Reporting | 50 |
@@ -392,7 +392,7 @@ Used by every agent or by several specialists.
 | `detections` | query | since?, detector?, limit? | What the SRE's scheduled scans found in the process data (#96), newest first: the point and unit, detector (excursions outside limits, unit stops, steps, drifts, bad instruments, equipment against its curve), what it found (key), start and end (null = still going) and evidence. |
 | `plot_instrument_health` | plot | ref, since?, until? | Chart a point's or a unit's readings with the stretches instrument_health flags shaded (noisy, frozen or stuck, out of range, apart from its redundant twin). |
 
-## Maintenance & Integrity (6)
+## Maintenance & Integrity (8)
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
@@ -402,6 +402,8 @@ Used by every agent or by several specialists.
 | `plot_peers` | plot | ref | Chart the units of one equipment class (or a unit's class) by failures per year, outliers marked. |
 | `ili_anomalies` | calc | line? | In-line inspection anomalies (#366) per line, or one line: each run, and each metal loss anomaly of the latest run matched to the previous run by type and station (within 1.5 m), with its growth (% of wall and mm a year), its modified ASME B31G remaining strength against the MOP (ERF = MOP over the safe pressure at the class location's design factor) now and at its growth rate 5 years on, and the screen (exceeds_now, exceeds_within_5_years at ERF 1 or 80 % of wall, no_strength, within_screen). |
 | `plot_ili_anomalies` | plot | line? | Chart ILI metal loss depth along a line for each run, the anomalies crossing the screen ringed. |
+| `co2_corrosion_screen` | calc | until?, days? | CO2 corrosion screening (#368): for each line with produced water chemistry, the de Waard-Milliams uninhibited, water-wet CO2 corrosion rate at the water's temperature and the line's MOP (gas CO2 from the line's own samples or the field's), against the rate its CMLs measure. |
+| `plot_co2_corrosion` | plot | until?, days? | Chart each line's predicted CO2 corrosion rate beside its measured CML rate, the lines out of step marked. |
 
 ## HSE & Incident Management (1)
 
