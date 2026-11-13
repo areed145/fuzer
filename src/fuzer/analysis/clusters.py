@@ -15,7 +15,9 @@
 """
 
 import itertools
-from datetime import datetime
+import re
+import warnings
+from datetime import datetime, timedelta
 
 import numpy as np
 
@@ -272,3 +274,77 @@ def spe(conn, scope, train: tuple[str, str], test: tuple[str, str], step: int = 
                      f"{train[1]}; squared prediction error over its {quantile}th percentile for {min_minutes} min or more",
                      [p["id"] for p in pts][:20], unit="anomalous stretches"),
             "components": int(pca.n_components_), "limit": round(limit, 2), "anomalies": spans}
+
+
+
+def _measure(point: str) -> str:
+    """What a point measures, to compare it with its peers: the suffix after the last dot (WHP, CHOKE, QGAS), or for
+    a historian's PV the instrument letters of its tag (FT, PT, LT)."""
+    tail = point.rsplit(".", 1)
+    if len(tail) == 2 and tail[1].upper() != "PV":
+        return tail[1].upper()
+    m = re.search(r"([A-Z]{2,4})-?\d", tail[0].rsplit(":", 1)[-1].rsplit(".", 1)[-1])
+    return m.group(1) if m else tail[0]
+
+
+def drifts(conn, scope, since: str, until: str, days: int = 90, step: int = 360, src=None, min_change: float = 0.1,
+           min_z: float = 4.0, limit: int = 8) -> list[dict]:
+    """The points that have drifted on their own: over [since, until] each point's level against where it sat in the
+    first month of the `days` before, as a share of that level, set against its peers measuring the same thing in the
+    scope. A drift the peers share (a field declining, a season) is not one; a choke plugging, a pump losing head or
+    a choke trimmed month by month is. Most of the change in one day is a step
+    (a choke moved, a pump swapped), not a drift. It must already show in the week before the window, so a sudden upset (which
+    the multivariate model reads) is not taken for a drift. One held flat between moves (a choke or setpoint set by hand
+    a few times) is marked `stepwise`. The largest departures first."""
+    from . import signals, studies
+
+    pts = studies.points(conn, scope)
+    b0, b1 = datetime.fromisoformat(since), datetime.fromisoformat(until)
+    a0 = b0 - timedelta(days=days)
+    times, X = studies.matrix(pts, a0, b1, step, src)
+    if not len(times) or not pts:
+        return []
+    per_day = max(1, 1440 // step)
+    in_base = times < np.datetime64(a0 + timedelta(days=max(7, days // 3)), "m")
+    in_win = times >= np.datetime64(b0, "m")
+    in_week = (times >= np.datetime64(b0 - timedelta(days=7), "m")) & ~in_win
+    rows = []
+    for j, p in enumerate(pts):
+        v = X[:, j]
+        base, win, week = v[in_base], v[in_win], v[in_week]
+        if np.isnan(base).mean() > 0.5 or np.isnan(win).all() or np.isnan(week).all():
+            continue
+        level = float(np.nanmedian(base))
+        if abs(level) < 1e-3:
+            continue
+        now, before = float(np.nanmean(win)), float(np.nanmedian(week))
+        n = len(v) // per_day
+        with warnings.catch_warnings():  # a day with no values is a gap, skipped below
+            warnings.simplefilter("ignore", RuntimeWarning)
+            daily = np.nanmean(v[:n * per_day].reshape(n, per_day), axis=1)
+        daily = daily[~np.isnan(daily) & (np.abs(daily) > abs(level) / 10)]  # days shut in say nothing of a drift
+        smooth = np.array([np.median(daily[max(0, i - 5):i + 6]) for i in range(len(daily))])  # nor do a few days
+        steps = np.abs(np.diff(smooth))                                                         # of upset
+        step = bool(len(steps)) and steps.max() > abs(now - level) / 2  # most of it in one day: a choke moved
+        moves = np.abs(np.diff(daily))
+        held = bool(len(moves)) and float((moves <= 1e-4 * abs(level)).mean()) >= 0.8  # a setpoint, moved by hand
+        rows.append((p, level, now, (now - level) / abs(level), (before - level) / abs(level), step, held))
+    by: dict[str, list[float]] = {}
+    for p, _, _, rel, _, _, _ in rows:
+        by.setdefault(_measure(p["point"]), []).append(rel)
+    out = []
+    for p, level, now, rel, before, step, held in rows:
+        if step:
+            continue
+        peers = by[_measure(p["point"])]
+        m = float(np.median(peers)) if len(peers) >= 3 else 0.0
+        s = max(signals.spread(np.array(peers)) if len(peers) >= 3 else 0.0, 0.01)
+        own = rel - m
+        if abs(own) < min_change or abs(own) / s < min_z or np.sign(before - m) != np.sign(own) \
+                or abs(before - m) < abs(own) / 6:
+            continue
+        out.append({"point_id": p["id"], "point": p["point"], "baseline": round(level, 3), "now": round(now, 3),
+                    "change": round(rel, 3), "peers_change": round(m, 3), "peers": len(peers) - 1, "stepwise": held,
+                    "since": str(times[0])[:10]})
+    out.sort(key=lambda d: -abs(d["change"] - d["peers_change"]))
+    return out[:limit]

@@ -6,6 +6,9 @@ what it ruled out.
   - the stretches its own PCA model of the week before can't explain (`clusters.spe`), with the points contributing
     most. These are read at a lower bar than the multivariate detector's, since the watch looks at what fell short
     of it.
+  - the points that have drifted on their own over the months before (`clusters.drifts`, `DRIFT_DAYS`): against
+    where they sat at the start and against their peers measuring the same thing, so a choke plugging or a pump losing
+    head over weeks shows though the week's model has learned it as normal (P3.3c).
   - the detections already made on its points, and the open exceptions on its plant, so it can leave those alone.
   - the alarms that sounded and the operator log entries about it (`around`).
   - the maintenance notifications raised about it.
@@ -31,6 +34,7 @@ from . import around
 SPE_QUANTILE = 99.0  # the multivariate detector's bar is 99.9: the watch reads below it
 SPE_MINUTES = 30
 TRAIN_DAYS = 7
+DRIFT_DAYS = 90  # how far back a drift is measured from
 MAX_EACH = 15  # of each kind of evidence, so one noisy area doesn't fill the question
 MAX_TOKENS = 2000
 OFF = "No model provider is configured, so the agentic watch is off. Nothing else changes."
@@ -38,10 +42,15 @@ OFF = "No model provider is configured, so the agentic watch is off. Nothing els
 PROMPT = """You are watching one process area of an oil and gas facility, as an experienced process engineer scanning
 the day. Below is what happened in it over the window: stretches its own multivariate model could not explain (with the
 points contributing most), detections already made, open exceptions, alarms, operator log entries and maintenance
-notifications. Each item has an id.
+notifications, and points that have drifted on their own over the months before (with where they started, where they
+are now and how far their peers moved). Each item has an id.
 
 Propose what looks unusual that no detection or open exception already covers: an equipment problem developing, an
-instrument going bad, a process change nobody recorded. For each, say why it is unusual, cite the ids of the evidence
+instrument going bad, a process change nobody recorded. A drift may be slow degradation (fouling, wear, a plugging
+choke, a pump losing head) or a deliberate change (a choke moved, a setpoint changed); say which and why: a drift marked
+stepwise (held flat between a few moves) or whose own log entries record the change (a choke opened or closed, a
+setpoint moved) was deliberate, not a problem, and may explain the drifts beside it. For a
+drift, the start is when it began. For each, say why it is unusual, cite the ids of the evidence
 it rests on (only ids given below), and say what you ruled out (normal operation, a planned change, a known cause).
 Propose nothing when nothing is unusual: a quiet day is the common case, and every proposal costs a person's time.
 Never give an operating instruction.
@@ -108,6 +117,15 @@ def evidence(conn, area: dict, since: datetime, until: datetime, src=None) -> di
         from detection d left join entity_label l on l.fuzer_id = d.point_id
         where d.point_id = any(%s) and d.start < %s and coalesce(d."end", d.start) >= %s order by d.start limit %s
         """, (points, until, since, MAX_EACH))]
+    drifts = [{"id": d["point_id"], "name": d["point"], "since": d["since"], "baseline": d["baseline"], "now": d["now"],
+               "change": d["change"], "peers_change": d["peers_change"], "peers": d["peers"], "stepwise": d["stepwise"]}
+              for d in clusters.drifts(conn, area["id"], _iso(since), _iso(until), days=DRIFT_DAYS, src=src)][:MAX_EACH]
+    if drifts:  # what the operators wrote about each drifting point's equipment over the drift: a choke they moved
+        owner = {r["dst"]: r["src"] for r in conn.execute(
+            "select src, dst from edge where dst = any(%s) and rel = 'has_timeseries'", ([d["id"] for d in drifts],))}
+        for d in drifts:
+            d["logged"] = [{"id": e["id"], "at": e["at"], "text": e["text"]} for e in around.log(
+                conn, {owner.get(d["id"], d["id"])}, since - timedelta(days=DRIFT_DAYS), until)][-3:]
     open_x = [{"id": f"exception:{x['id']}", "type": x["type"], "title": x["title"]} for x in conn.execute(
         "select id, type, title from exception_record where state = 'open' and subjects && %s order by id limit %s",
         (list(tags | set(points)), MAX_EACH))]
@@ -119,7 +137,7 @@ def evidence(conn, area: dict, since: datetime, until: datetime, src=None) -> di
              for n in records._rows(conn, "notification", "created", since.date().isoformat(), _iso(until), "concerns")
              if tags & set(n["subjects"])][:MAX_EACH]
     return {"area": area["label"], "since": _iso(since), "until": _iso(until), "unexplained_stretches": spe,
-            "detections": dets, "open_exceptions": open_x, "alarms": alarms, "log": log, "notifications": notes}
+            "drifts": drifts, "detections": dets, "open_exceptions": open_x, "alarms": alarms, "log": log, "notifications": notes}
 
 
 def _ids(ev: dict) -> set[str]:
@@ -128,6 +146,8 @@ def _ids(ev: dict) -> set[str]:
         out |= {str(x["id"]) for x in ev[k]}
     for s in ev["unexplained_stretches"]:
         out |= {p["id"] for p in s["points"]} | {p["name"] for p in s["points"]}
+    out |= {d["id"] for d in ev.get("drifts", [])} | {d["name"] for d in ev.get("drifts", [])}
+    out |= {str(e["id"]) for d in ev.get("drifts", []) for e in d.get("logged", [])}
     out |= {d["point"] for d in ev["detections"]} | {a["point"] for a in ev["alarms"]}
     return out
 
@@ -187,15 +207,27 @@ def _explained(conn, ev: dict) -> list[dict]:
     return out
 
 
+def _undetected(conn, ev: dict) -> list[dict]:
+    """The drifts on equipment no detection in the window is on: one a rule already raised is not the watch's."""
+    from ..analysis import limits
+
+    if not ev["drifts"] or not ev["detections"]:
+        return ev["drifts"]
+    unit = limits.units(conn, [d["id"] for d in ev["drifts"]] + [d["point_id"] for d in ev["detections"]])
+    caught = {unit.get(d["point_id"]) for d in ev["detections"]} - {None}
+    return [d for d in ev["drifts"] if unit.get(d["id"]) not in caught]
+
+
 def propose(conn, area: dict, since: datetime, until: datetime, ask, src=None) -> tuple[list[dict], float]:
     """The model's proposals for one area and window that no detection covers, and what asking cost. The model is
-    asked only when a stretch the area's model can't explain is left once those a detection covers are set aside:
-    the rest of the evidence is read beside one, never alone."""
+    asked only when a stretch the area's model can't explain, or a drift not set by hand (`stepwise`), is left once those a detection covers are
+    set aside: the rest of the evidence is read beside one, never alone."""
     ev = evidence(conn, area, since, until, src)
     covered = _explained(conn, ev)
     ev["unexplained_stretches"] = [s for s in ev["unexplained_stretches"] if s not in covered]
-    if not ev["unexplained_stretches"]:
-        return [], 0.0  # nothing unexplained, or a detection covers it: no question asked
+    ev["drifts"] = _undetected(conn, ev)
+    if not ev["unexplained_stretches"] and all(d["stepwise"] for d in ev["drifts"]):
+        return [], 0.0  # nothing unexplained or drifting, or a detection covers it: no question asked
     r = ask(PROMPT.format(area=ev["area"], since=ev["since"], until=ev["until"], evidence=json.dumps(ev, indent=1)))
     usd = float((r.get("usage") or {}).get("cost_usd") or 0.0)
     shown, out = _ids(ev), []

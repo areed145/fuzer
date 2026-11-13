@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-13",
+  "kind": "watch",
+  "model": null,
+  "bundle": "okan",
+  "since": "2025-08-20T00:00",
+  "until": "2025-08-22T00:00",
+  "usd": 0.4548,
+  "upsets": 3,
+  "caught": 1,
+  "uncaught": 2,
+  "proposals": 3,
+  "matched_uncaught": 1,
+  "matched_caught": 0,
+  "false_proposals": 2,
+  "matched": 0.333,
+  "precision": 0.333,
+  "recall": 0.5,
+  "cited": 1.0,
+  "passes": false,
+  "uncaught_examples": [
+    "OK-J12-02 choke_wear 2025-01-15 00:00",
+    "OK-NWP-G3 choke_wear 2025-08-01 00:00"
+  ],
+  "false_examples": [
+    "OK-J07-05 (OK_J07_05.GLIR, WHP, WHT) 2025-05-22 00:00",
+    "OK_J10_03.WHP 2025-05-22 00:00"
+  ]
+}
