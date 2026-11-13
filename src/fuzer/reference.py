@@ -221,9 +221,10 @@ def eval_results_md() -> str:
     all_runs = runs.load()
     asst = [r for r in all_runs if r["kind"] == "assistant"]
     ops = [r for r in all_runs if r["kind"] == "ops"]
+    pk = [r for r in all_runs if r["kind"] == "packs"]
     out = ["# Eval results", "", HEADER.format(what="the recorded runs in `evals/runs/`"),
-           "Record a run with `fuzer eval --agents --record` or `fuzer eval --ops --full --live --record` (both "
-           "cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
+           "Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record` or "
+           "`fuzer eval --ops --full --live --record` (all cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
            "[assistant eval](assistant-eval.md).", ""]
     if asst:
         out += ["## Operations assistant", "",
@@ -247,6 +248,25 @@ def eval_results_md() -> str:
                            f"{_cell(_missing(q.get('missing')))} | {q['citations']} | "
                            f"{', '.join(q.get('charts') or [])} | {q.get('tool_calls') or ''} | {q['seconds']:.0f} s | "
                            f"${q['cost_usd']:.2f} |")
+        out.append("")
+    if pk:
+        from .evals import packs_eval
+
+        latest = {r["bundle"]: r for r in pk}  # the latest run on each bundle
+        out += ["## Specialist packs", "",
+                "Each pack's answer keys for a bundle (`evals/<pack>.yaml` in it), asked with `fuzer eval --packs`. A "
+                f"pack passes with facts named at least {packs_eval.PASS['mentions']:.0%}, every answer routed to the "
+                "specialists its key expects and no plant-operating instruction.", "",
+                "| Run | Bundle | Pack | Questions | Facts named | Routed | Safe | Cost / answer | Passed |",
+                "|---|---|---|---|---|---|---|---|---|"]
+        for b, r in sorted(latest.items()):
+            for path, s in sorted(r["packs"].items()):
+                out.append(f"| {r['date']} | {b} | `{path}` | {s['questions']} | {_pct(s.get('mentions'))} | "
+                           f"{_pct(s.get('routed'))} | {_pct(s.get('safe'))} | "
+                           f"{'' if s.get('cost_per_answer_usd') is None else '$' + format(s['cost_per_answer_usd'], '.2f')} | "
+                           f"{'yes' if s['passed'] else 'no: ' + _cell('; '.join(s['short']))} |")
+            out += [f"| {r['date']} | {b} | `{path}` | | | | | | not applicable: {_cell(why)} |"
+                    for path, why in sorted(r.get("not_applicable", {}).items())]
         out.append("")
     if ops:
         out += ["## Operations loop", "",
