@@ -534,3 +534,54 @@ def gas_lift_screen(conn, days: int = 3, until: str | None = None, limit: int = 
     return Figure("gas_lift_screen", lay["title"]["text"], data, lay, {
         "summary": out["summary"], "thresholds": out["thresholds"], "window": out["window"], "note": out["note"],
         "heading": [w["well"] for w in out["wells"] if w["verdict"] == "heading"]}, [w["well_id"] for w in wells][:10])
+
+
+def voidage_replacement(conn, since: str | None = None, until: str | None = None, days: int = 730) -> Figure:
+    """Water injected against the reservoir volume produced each month (#365), as bars in reservoir m3, with the
+    month's voidage replacement ratio and its running total on the right. A window with no injection has no chart."""
+    from ..analysis import water_injection as wi
+
+    out = wi.voidage(conn, since, until, days)
+    if out["verdict"] in ("no_injection", "no_daily_report", "unknown"):
+        raise ChartError(out["note"])
+    months = out["months"]
+    x = [m["month"] for m in months]
+    data = [{"type": "bar", "name": "produced (reservoir m3)", "x": x, "y": [m["voidage_rm3"] for m in months],
+             "marker": {"color": "rgba(150,150,150,0.45)"}},
+            {"type": "bar", "name": "injected (reservoir m3)", "x": x, "y": [m["injected_rm3"] for m in months],
+             "marker": {"color": "rgba(60,130,200,0.8)"}},
+            {"type": "scatter", "mode": "lines+markers", "name": "ratio", "x": x, "y": [m["vrr"] for m in months],
+             "yaxis": "y2", "line": {"color": "rgba(210,90,40,0.95)"}},
+            {"type": "scatter", "mode": "lines", "name": "running ratio", "x": x,
+             "y": [m["cumulative_vrr"] for m in months], "yaxis": "y2", "line": {"dash": "dot", "color": "rgba(210,90,40,0.6)"}},
+            {"type": "scatter", "mode": "lines", "name": "ratio of 1", "x": [x[0], x[-1]], "y": [1, 1], "yaxis": "y2",
+             "line": {"width": 1, "color": "rgba(40,150,90,0.6)"}, "hoverinfo": "skip"}]
+    lay = layout(f"Voidage replacement, {out['since']} to {out['until']} ({out['verdict'].replace('_', ' ')})", None,
+                 "reservoir m3")
+    lay["barmode"] = "group"
+    lay["yaxis2"] = {"title": {"text": "ratio"}, "overlaying": "y", "side": "right", "showgrid": False, "rangemode": "tozero"}
+    return Figure("voidage_replacement", lay["title"]["text"], data, lay, {
+        k: out[k] for k in ("summary", "verdict", "since", "until", "pvt", "thresholds", "source", "note")}, [])
+
+
+def hall_plot(conn, well: str | None = None, since: str | None = None, until: str | None = None,
+              days: int = 730) -> Figure:
+    """Each injector's Hall plot (#365), or one injector's: cumulative wellhead pressure x days on against cumulative
+    water. A line that bends up is harder to inject into; one that bends down, easier."""
+    from ..analysis import water_injection as wi
+
+    out = wi.hall(conn, since, until, days, well)
+    if not out["injectors"]:
+        raise ChartError(f"no water injection recorded for {well}" if well else out["note"])
+    tone = {"rising": "rgba(210,60,50,0.9)", "falling": "rgba(230,150,40,0.9)"}
+    data = [{"type": "scatter", "mode": "lines+markers", "name": f"{i['well']} ({i['verdict'].replace('_', ' ')})",
+             "x": [p["cumulative_water_sm3"] for p in i["points"]], "y": [p["cumulative_bar_days"] for p in i["points"]],
+             "text": [p["month"] for p in i["points"]], **({"line": {"color": tone[i["verdict"]]}} if i["verdict"] in tone else {})}
+            for i in out["injectors"]]
+    lay = layout(f"Hall plot{' ' + out['injectors'][0]['well'] if well else ''}, {out['since']} to {out['until']}",
+                 "cumulative water injected (Sm3)", "cumulative wellhead pressure x days (bar d)")
+    return Figure("hall_plot", lay["title"]["text"], data, lay, {
+        "verdict": out["verdict"], "since": out["since"], "until": out["until"], "thresholds": out["thresholds"],
+        "source": out["source"], "note": out["note"],
+        "injectors": [{k: i[k] for k in ("well", "months", "early_slope", "late_slope", "slope_ratio", "verdict", "reads")}
+                      for i in out["injectors"]]}, [])

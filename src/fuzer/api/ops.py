@@ -363,6 +363,14 @@ def plant_allocation_factor(days: int = 365, conn=Depends(get_conn)):
     return well_test_factor.trend(conn, days=max(31, min(days, 1825)))
 
 
+@router.get("/plant/water-injection")
+def plant_water_injection(days: int = 730, conn=Depends(get_conn)):
+    """Voidage replacement month by month and each water injector's Hall plot (#365)."""
+    from ..analysis import water_injection as wi
+    days = max(62, min(days, 1825))
+    return {"voidage": wi.voidage(conn, days=days), "hall": wi.hall(conn, days=days)}
+
+
 @router.get("/plant/gas-lift-stability")
 def plant_gas_lift_stability(days: int = 3, conn=Depends(get_conn)):
     """Gas lifted wells whose casing pressure heads, or whose lift gas or wellhead pressure cycles (#341)."""

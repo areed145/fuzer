@@ -321,3 +321,42 @@ def plot_gor_trend(well: str) -> dict[str, Any]:
     """Chart one well's GOR over its tests, with its first and latest levels when it climbed."""
     from ...plots import production
     return _chart(production.gor_trend, {}, {"well": well})
+
+
+@capability("wells-subsurface", kind="calc")
+def voidage_replacement(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """Water injected against the reservoir volume produced, month by month (#365): oil times its formation volume
+    factor plus produced water plus free gas (GOR above the solution GOR), with water cut and GOR from each well's
+    latest test within 120 days. The ratio, its running total since injection started, and a verdict on the latest 3
+    months (under 0.9 under-replacing, over 1.1 over-injecting). No recorded PVT means the ratio is unknown; a window
+    with no injection says so instead of a ratio of zero. Screening only: the injection target stays with engineers."""
+    from ...analysis import water_injection
+    with db.connect() as conn:
+        return _plain(water_injection.voidage(conn, since, until, days))
+
+
+@capability("wells-subsurface", kind="calc")
+def injector_hall(well: str | None = None, since: str | None = None, until: str | None = None,
+                  days: int = 730) -> dict[str, Any]:
+    """Each water injector's Hall plot, or one injector's (#365): cumulative wellhead pressure x days on against
+    cumulative water, and the latest 3 months' slope over the first half's. Rising (over 1.25 times) reads plugging or
+    skin; falling (under 0.8 times) a fracture opening or channelling. Wellhead pressure, so read each injector
+    against itself."""
+    from ...analysis import water_injection
+    with db.connect() as conn:
+        return _plain(water_injection.hall(conn, since, until, days, well))
+
+
+@capability("wells-subsurface", kind="plot")
+def plot_voidage_replacement(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """Chart water injected against produced reservoir volume each month, with the ratio and its running total."""
+    from ...plots import production
+    return _chart(production.voidage_replacement, {"since": since, "until": until, "days": days})
+
+
+@capability("wells-subsurface", kind="plot")
+def plot_hall(well: str | None = None, since: str | None = None, until: str | None = None,
+              days: int = 730) -> dict[str, Any]:
+    """Chart each injector's Hall plot, or one injector's, with the injectors whose slope bent marked."""
+    from ...plots import production
+    return _chart(production.hall_plot, {"since": since, "until": until, "days": days}, {"well": well})

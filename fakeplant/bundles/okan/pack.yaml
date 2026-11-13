@@ -19,10 +19,10 @@ tag_grammar:
   loop_digits: [3, 5]
   function_codes: [P, V, K, E, GT, PT, TT, LT, FT, VT, ST, PDT, JT, HCV, FIC, LIC, PIC, TIC, XV, PSV, ZSC, ZT]
 
-# Wells by site and slot: OK-J07-03 (jacket 07, slot 03), OK-NWP-05, gas producer OK-NWP-G2.
+# Wells by site and slot: OK-J07-03 (jacket 07, slot 03), OK-NWP-05, gas producer OK-NWP-G2, water injector OK-NWP-W1.
 # Sources write them OKAN_J07_03 (EC), OK_J07_03.WHP (PI), OKAN-WELL-OKJ07-03 (SAP).
 well_grammar:
-  pattern: 'OK(?:AN)?[-_\s]?(?P<site>J\d{2}|NWP)[-_\s]?(?P<num>G\d|\d{2})'
+  pattern: 'OK(?:AN)?[-_\s]?(?P<site>J\d{2}|NWP)[-_\s]?(?P<num>[GW]\d|\d{2})'
   key: 'OK-{site}-{num}'
 
 # Names people use instead of codes.

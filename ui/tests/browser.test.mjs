@@ -4482,6 +4482,10 @@ const GL_NONE = { window: ["", ""], days: 3, source: "", note: "", wells: [], su
 const AF_NONE = { since: "", until: "", note: "", verdict: "no_daily_report", flags: [], months: [], summary: { months: 0 } };
 const WELLS_NONE = { wells_screened: 0, patterns: [], source: "", note: "", thresholds: { water_cut_step_points: 15,
   gor_rise: 1.3, stale_days: 90 }, staleness: null };
+const WI_NONE = {
+  voidage: { since: "", until: "", note: "No water injection recorded in the window.", missing_pvt: [], verdict: "no_injection",
+    months: [], summary: { months: 0 }, thresholds: { vrr_low: 0.9, vrr_high: 1.1, months: 3, test_days: 120 } },
+  hall: { since: "", until: "", note: "", verdict: "no_injection", thresholds: { months: 3, rise: 1.25, fall: 0.8 }, injectors: [] } };
 const WE_NONE = { since: "", until: "", by: "quarter", source: "", note: "", periods: [],
   thresholds: { repeat_days: 30, min_orders: 5 }, summary: {} };
 const BURN_NONE = { since: "", until: "", source: "", note: "", months: [], summary: { created: 0, closed: 0,
@@ -4520,6 +4524,7 @@ test("How the plant is running compares each KPI with the period before and show
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
@@ -4575,6 +4580,7 @@ test("Wells under their own forecast are listed with the field line, and thin we
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
@@ -4613,6 +4619,7 @@ test("Cost of unreliability shows each part with its currency and never adds an 
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
@@ -4662,6 +4669,7 @@ test("Interventions show their gain net of decline, and unknown where a side has
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: {
     since: "2024-01-01", until: "2025-12-31", source: "downtime records and well tests",
@@ -4714,6 +4722,7 @@ test("Across assets compares granted fields on the same KPIs and names the ones 
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
@@ -4754,6 +4763,7 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: {
     reconciliation: { since: "2024-12-31", until: "2025-12-31", tolerance_pct: 1, sources: {
       operational: "daily allocated production (EC DAY001 daily reports)", accounting: "production accounting" },
@@ -4863,6 +4873,7 @@ test("The backlog burn shows created against closed and the lag, leaving out ord
   await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: {
     since: "2025-01-01", until: "2025-12-31", source: "SAP work orders", note: "The lag covers only orders raised for a notification.",
     months: [m("2025-11", 11, 5, 29), m("2025-12", 6, 3, 32)],
@@ -4902,6 +4913,7 @@ test("The well screen shows water cut steps, GOR climbs and stale tests, with cu
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
   await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
@@ -4953,6 +4965,7 @@ test("Allocated oil against well tests shows the monthly factor, its flags and t
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
   const m = (month, factor, raw, days, out, age) => ({ month, days, days_left_out: out,
     left_out: { facility_or_tag_downtime: out, field_trip: 0 }, allocated_sm3: 0, offered_sm3: 0, factor,
@@ -4996,6 +5009,7 @@ test("Gas lift heading lists the heading wells with their cycle and the signals 
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
   await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
@@ -5039,6 +5053,7 @@ test("Separator and export quality shows each analyte against itself, gaps and d
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
   await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
   await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
@@ -5116,6 +5131,7 @@ test("Alarm performance shows the rate, floods and bad actors with their cases, 
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
   await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
   await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
@@ -5169,6 +5185,7 @@ test("Schedule compliance and repeat repairs per quarter, with too little data s
   await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
   await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: {
     since: "2024-01-01", until: "2025-12-31", by: "quarter", source: "SAP work orders", note: "Measures the records, not people or crews.",
     thresholds: { repeat_days: 30, min_orders: 5 },
@@ -5189,4 +5206,60 @@ test("Schedule compliance and repeat repairs per quarter, with too little data s
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+test("Water injection: voidage replacement and the Hall slope per injector, and no injection said, not zero (#365)", async () => {
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    kpis: [], unknown: [], note: "" } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
+      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+  await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
+    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+  await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
+    left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
+    note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
+      net_gain_sm3d: null } } }));
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
+  await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
+  await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
+  await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
+  await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
+  await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
+  let none = false;
+  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: none ? WI_NONE : {
+    voidage: { since: "2024-01-01", until: "2025-12-31", note: "Injection over produced reservoir volume.", missing_pvt: [],
+      verdict: "under_replacing", thresholds: { vrr_low: 0.9, vrr_high: 1.1, months: 3, test_days: 120 },
+      summary: { months: 3, months_injecting: 2, latest_vrr: 0.62, cumulative_vrr: 0.5, injectors: ["OK-NWP-W1", "OK-NWP-W2"] },
+      months: [
+        { month: "2024-06", oil_sm3: 230000, injected_sm3: 0, voidage_rm3: 440000, injected_rm3: 0, vrr: null, cumulative_vrr: null,
+          injectors: [], status: "no_injection" },
+        { month: "2025-11", oil_sm3: 227000, injected_sm3: 307851, voidage_rm3: 503049, injected_rm3: 314008, vrr: 0.624,
+          cumulative_vrr: 0.499, injectors: ["OK-NWP-W1", "OK-NWP-W2"], status: "injecting" },
+        { month: "2025-12", oil_sm3: 224000, injected_sm3: 303031, voidage_rm3: 503819, injected_rm3: 309092, vrr: 0.613,
+          cumulative_vrr: 0.504, injectors: ["OK-NWP-W1", "OK-NWP-W2"], status: "injecting" }] },
+    hall: { since: "2024-01-01", until: "2025-12-31", note: "Wellhead pressure.", verdict: "flagged",
+      thresholds: { months: 3, rise: 1.25, fall: 0.8 },
+      injectors: [
+        { well: "OK-NWP-W1", months: 18, early_slope: 0.0246, late_slope: 0.0246, slope_ratio: 1, verdict: "steady", reads: "taking water as it did" },
+        { well: "OK-NWP-W2", months: 16, early_slope: 0.0218, late_slope: 0.0337, slope_ratio: 1.55, verdict: "rising",
+          reads: "harder to inject: plugging or skin build-up near the well" }] } } }));
+  await page.goto(`${url}/#/scorecard`);
+  const card = page.locator(".water-injection");
+  await card.locator(".wi-summary").getByText("0.62 over the latest 3 months, 0.5 since injection started", { exact: false }).waitFor();
+  await card.locator(".wi-verdict").getByText("under-replacing").waitFor();
+  await card.locator('tr[data-well="OK-NWP-W2"]').getByText("rising").waitFor();
+  await card.locator('tr[data-well="OK-NWP-W2"]').getByText("plugging", { exact: false }).waitFor();
+  assert.equal(await card.locator('tr[data-month="2024-06"]').count(), 0);  // a month with no injection has no ratio row
+  await card.locator('tr[data-month="2025-12"] td[data-label="Ratio"]').getByText("0.613").waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  none = true;
+  await page.reload();
+  await page.locator(".water-injection .wi-none").getByText("No water injection recorded", { exact: false }).waitFor();
+  assert.equal(await page.locator(".water-injection .wi-summary").count(), 0);
 });

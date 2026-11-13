@@ -10,6 +10,7 @@ import { BacklogBurn } from "./BacklogBurn";
 import { WorkExecution } from "./WorkExecution";
 import { WellScreen } from "./WellScreen";
 import { AllocationFactor } from "./AllocationFactor";
+import { WaterInjection } from "./WaterInjection";
 import { GasLiftHeading } from "./GasLiftHeading";
 import { QualityTrend } from "./QualityTrend";
 import { AlarmPerformance } from "./AlarmPerformance";
@@ -74,6 +75,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
       <WellsAgainstForecast />
       <WellScreen />
       <AllocationFactor />
+      <WaterInjection />
       <GasLiftHeading />
       <QualityTrend />
       <AlarmPerformance />
