@@ -71,6 +71,8 @@ def test_a_process_change_goes_live_on_two_assets_and_one_rolls_back(kestrel_db)
         s = there["standing"]
         assert (s["version"], s["current"], s["applied"]) == (2, True, True), s
         assert s["unnamed"] == 0 and out["applied"]["overwritten"] == []
+    engine.load_defaults(conn)  # as every start of the API does: the shipped process doesn't come back over it
+    assert FAST in _process(conn, "iow_breach")
     kestrel = _in(conn, "kestrel")["standing"]  # its named shift times survive the rollout
     assert kestrel["verdict"] == "justified" and [d["key"] for d in kestrel["deviations"]] == ["handover.shift_times"]
 
