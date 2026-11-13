@@ -51,7 +51,7 @@ def window(conn, item_id: int) -> tuple[datetime, datetime, list[str]] | None:
             list(dict.fromkeys(s for r in rows for s in r["subjects"] or [])))
 
 
-def alarms(conn, mine: set[str], a: datetime, b: datetime, src=None) -> list[dict]:
+def alarms(conn, mine: set[str], a: datetime, b: datetime, src=None, limit: int = MAX_ROWS) -> list[dict]:
     """The alarms that sounded in [a, b] on points standing for one of `mine`."""
     from ..analysis import limits
     from ..core.pack import resolve
@@ -64,10 +64,10 @@ def alarms(conn, mine: set[str], a: datetime, b: datetime, src=None) -> list[dic
     out = [x for x in limits.excursions(conn, resolve(conn), near, a, b, STEP, src) if x["basis"] == "alarm"]
     return [{"point_id": x["point_id"], "point": x["point"], "type": x["limit_type"], "level": x.get("level"),
              "limit": x["limit_value"], "peak": x["peak"], "start": x["start"].isoformat(timespec="minutes"),
-             "end": x["end"].isoformat(timespec="minutes") if x["end"] else None} for x in out][:MAX_ROWS]
+             "end": x["end"].isoformat(timespec="minutes") if x["end"] else None} for x in out][:limit]
 
 
-def log(conn, mine: set[str], a: datetime, b: datetime) -> list[dict]:
+def log(conn, mine: set[str], a: datetime, b: datetime, limit: int = MAX_ROWS) -> list[dict]:
     """The operator log entries written in [a, b] that mention one of `mine` (or what stands for one)."""
     rows = conn.execute(
         """
@@ -84,7 +84,7 @@ def log(conn, mine: set[str], a: datetime, b: datetime) -> list[dict]:
         """, (a.isoformat(timespec="minutes"), b.isoformat(timespec="minutes"))).fetchall()
     stands = anchor_map(conn, list({m for r in rows for m in r["mentions"]}))
     return [{"id": r["id"], "at": r["at"], "author": r["author"], "text": r["text"]} for r in rows
-            if any(stands.get(m, set()) & mine for m in r["mentions"])][:MAX_ROWS]
+            if any(stands.get(m, set()) & mine for m in r["mentions"])][:limit]
 
 
 def context(conn, item_id: int, src=None) -> dict:
