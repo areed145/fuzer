@@ -63,3 +63,17 @@ suggested mapping keys it on meter and day and lands the readings on each tag an
 | `journal.py` | The DCS alarm and event journal (#859): ALARM, ACK, RTN, SHELVE, SUPPRESS and STATE events from the process model against the DCS alarm export, with chattering, shelving, state-based suppression and first-out alarms on trips |
 | `instruments.py` | Instrument faults and interface outages over the process model (#868): frozen, stuck, noisy, pinned, drifting and bad readings and RTU outages, written as `instrument_faults.json`, which is also their answer key |
 | `text.py` | Messy maintenance and log text (#890): authors' styles, duplicate and misfiled notifications, orders closed without a confirmation, with the answer key `answer_keys/records_text.json` |
+| `calibration.py` | Checks a process model's design point against the Peng-Robinson equation of state (`thermo`, a dev dependency): the gas analysis against gas at its dew point in the inlet separator, each compressor stage's discharge temperature as a polytropic efficiency on its own gas, Fuzer's real-gas calcs, map heads, each train's power balance, and gas wells against their header and hydrate temperature (#858) |
+
+## Design-point calibration
+
+`calibration.report` checks that Okan's hand-set design point hangs together physically (`tests/sources/test_design_point.py`).
+It found three things, now fixed: the gas producers' wellheads (80 barg) sat below the 88 barg lift gas header they
+flow into, so their reservoir pressure is now 140 barg (100 barg at the wellhead); the inlet gas analysis (relative
+density 0.68) was too light to be the gas leaving a 6.5 barg separator at 35.5 degC, which is about 0.746 (molar mass
+21.6) when fitted to be at its dew point there; and every stage used the same temperature exponent (0.27), which on
+that gas meant 0.68 to 0.74 polytropic efficiency, so each stage now has its own (0.242, 0.257, 0.262: 0.77 on the gas
+it takes after its scrubber). Still open: the compressor maps' design heads (205, 155, 180 kJ/kg) are about 1.5 times
+what the stages do (134, 102, 118), and the gas turbines' duty was set to match them, so a train's stages absorb about
+3,000 kW at design flow against 4,900 kW from its turbine. Fuzer's Schultz efficiency on an ideal k reads the 1st
+stage's gas about 0.04 high.

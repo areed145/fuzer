@@ -61,6 +61,8 @@ dev = [
     "pytest-xdist>=3.6",
     "pytest-randomly>=3.15",
     "ruff==0.16.9",
+    # Equations of state for checking the fake plants' design points (fakeplant/calibration.py); tests only.
+    "thermo>=0.6,<0.7",
 ]
 docs = [
     "mkdocs-material>=9.8.0",

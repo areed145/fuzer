@@ -29,6 +29,9 @@ TAG = re.compile(r"(\d\d)-?([A-Z]+)-?(\d{4})([A-Z]?)\b")
 STAGES = {1: (6.0, 18.0), 2: (17.0, 38.0), 3: (37.0, 92.0)}
 # Each stage's design point per train: actual inlet flow (Am3/h) and polytropic head (kJ/kg) at rated speed.
 STAGE_DESIGN = {1: (3900.0, 205.0), 2: (1500.0, 155.0), 3: (720.0, 180.0)}
+# Each stage's temperature exponent, (k - 1) / (k eta_p): the gas each stage takes (the inlet separator's, less what its
+# scrubber drops) compressed at a polytropic efficiency of 0.77, on Peng-Robinson (fakeplant/calibration.py).
+T_EXPONENT = {1: 0.242, 2: 0.257, 3: 0.262}
 SURGE = 0.62  # surge flow as a share of design flow at rated speed
 CONTROL_LINE = 1.10  # the anti-surge controller holds flow 10 % above surge
 HEADER = {"10": "header:20", "30": "header:30", "40": "header:40", "50": "header:20"}
@@ -46,7 +49,9 @@ def _days(t: str, d: float) -> str:
 
 
 SG = 0.9  # produced liquid through the choke
-P_RES, C_GAS = 120.0, 40 / 600  # gas producers: reservoir pressure (barg) and drawdown per kSm3/d
+# gas producers: reservoir pressure (barg) and drawdown per kSm3/d; the wellhead (100 barg at 600 kSm3/d) is above the
+# 88 barg lift gas header they flow into (fakeplant/calibration.py)
+P_RES, C_GAS = 140.0, 40 / 600
 
 
 def choke_opening(c: dict, cv: float) -> float:
@@ -83,7 +88,8 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
                 q_d = (maps or {}).get(tag, {}).get("q_design") or STAGE_DESIGN[stage][0]
                 units[tag] = {"type": "compressor", "train": train, "stage": stage, "p_suction": ps, "p_discharge": pd,
                               "vibration": 2.2, "cooler_before": f"20-E-2{stage - 1}50{s}" if stage > 1 else None,
-                              "q_design": q_d, "q_surge": round(q_d * SURGE, 0), "control_line": CONTROL_LINE}
+                              "q_design": q_d, "q_surge": round(q_d * SURGE, 0), "control_line": CONTROL_LINE,
+                              "t_exponent": T_EXPONENT[stage]}
             elif func == "GT":
                 g = (oem or {}).get(next((e["model"] for e in equipment if e["floc"].endswith(f"-{area}-GT{loop}{s}")), ""), {})
                 units[tag] = {"type": "gas_turbine", "train": train, "iso_kw": g.get("iso_kw", 5670.0),
