@@ -102,9 +102,46 @@ export interface Conformance {
   current: { model: string; version: number };
 }
 
+export interface ModelVersion {
+  name: string;
+  version: number;
+  base_version?: number;
+  state: "proposed" | "approved" | "rejected" | "published";
+  summary: string;
+  changes?: { part: string; key: string; change: string }[];
+  proposed_by: string;
+  proposed_at?: string;
+  test_run?: { project: string; at: string; problems: string[];
+    summary: { cases: number; process_changed: number; met_before: number; met_after: number } } | null;
+  reviewed_by?: string | null;
+  review_note?: string | null;
+  published_by?: string | null;
+}
+
+export interface ModelRollout {
+  id: number;
+  project: string;
+  name: string;
+  version: number;
+  from_name: string;
+  from_version: number;
+  state: "live" | "superseded" | "rolled_back";
+  by: string;
+  at: string;
+  rolled_back_by?: string | null;
+  rollback_reason?: string | null;
+}
+
+export interface ModelVersions {
+  versions: ModelVersion[];
+  latest: number;
+  rollouts: ModelRollout[];
+}
+
 export const settingsApi = {
   onboarding: () => request<Onboarding>("GET", "/onboarding"),
   conformance: (days = 28) => request<Conformance>("GET", `/standards/conformance?days=${days}`),
+  modelVersions: () => request<ModelVersions>("GET", "/standards/versions"),
   gatePolicy: () => request<GatePolicy>("GET", "/settings/gates"),
   setGate: (kind: string, by: string, def: number | null, byCriticality: Record<string, number | null>) =>
     request<GatePolicy["confidence"][number]>("PUT", `/settings/gates/${kind}`, undefined,

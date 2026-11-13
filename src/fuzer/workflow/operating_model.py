@@ -259,16 +259,26 @@ def _bundle_model(conn) -> dict:
     return ref
 
 
-def _package_for(ref: dict) -> dict:
-    if (ref["name"], ref["version"]) != (STANDARD_NAME, STANDARD_VERSION):
-        raise OperatingModelError(f"operating model {ref['name']} v{ref['version']} isn't held here: only "
-                                  f"{STANDARD_NAME} v{STANDARD_VERSION} ships; apply a package folder instead")
-    return standard()
+def _package_for(ref: dict, conn=None) -> dict:
+    """The package a reference names: the built-in standard, or a version published through change control (P8.3)."""
+    if (ref["name"], ref["version"]) == (STANDARD_NAME, STANDARD_VERSION):
+        return standard()
+    if conn is not None:
+        from . import model_changes
+
+        if (pkg := model_changes.package(conn, ref["name"], ref["version"], published=True)) is not None:
+            return pkg
+    raise OperatingModelError(f"operating model {ref['name']} v{ref['version']} isn't held here: "
+                              f"{STANDARD_NAME} v{STANDARD_VERSION} ships, and later versions are published through "
+                              "change control")
 
 
 def conformance_package(conn) -> dict:
-    """The package this project is held to: the operating model its bundle follows."""
-    return _package_for(_bundle_model(conn))
+    """The package this project is held to: the version last rolled out to it (P8.3), else the operating model its
+    bundle follows."""
+    from . import model_changes
+
+    return _package_for(model_changes.following(conn, _project(conn)) or _bundle_model(conn), conn)
 
 
 def adopt(conn, by: str) -> dict:
@@ -279,7 +289,7 @@ def adopt(conn, by: str) -> dict:
     from . import definitions
 
     ref = _bundle_model(conn)
-    pkg = _package_for(ref)
+    pkg = _package_for(ref, conn)
     definitions.load_defaults(conn)
     done = apply(conn, pkg, by)
     project = _project(conn)

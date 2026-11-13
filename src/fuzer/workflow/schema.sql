@@ -289,3 +289,42 @@ create table if not exists operating_model_deviation (
     primary key (project, part, key)
 );
 alter table operating_model_deviation add column if not exists review_by date;  -- P8.2: when it is next reviewed
+
+-- Versions of an operating model beyond the one that ships (P8.3, workflow/model_changes.py): proposed, test-run on
+-- closed cases, reviewed by someone other than its author, published. Shared, since one standard serves every asset.
+create table if not exists fuzer.operating_model_version (
+    name         text not null,
+    version      int not null,
+    base_version int not null,
+    package      jsonb not null,
+    digest       text not null,
+    changes      jsonb not null default '[]',
+    summary      text not null,
+    state        text not null default 'proposed' check (state in ('proposed', 'approved', 'rejected', 'published')),
+    proposed_by  text not null,
+    proposed_at  timestamptz not null default now(),
+    test_run     jsonb,
+    reviewed_by  text,
+    reviewed_at  timestamptz,
+    review_note  text,
+    published_by text,
+    published_at timestamptz,
+    primary key (name, version)
+);
+
+-- Each asset's rollouts of a published version, with the version it ran before so it can roll back (P8.3).
+create table if not exists fuzer.operating_model_rollout (
+    id              bigserial primary key,
+    project         text not null,
+    name            text not null,
+    version         int not null,
+    from_name       text not null,
+    from_version    int not null,
+    state           text not null default 'live' check (state in ('live', 'superseded', 'rolled_back')),
+    by              text not null,
+    at              timestamptz not null default now(),
+    rolled_back_by  text,
+    rolled_back_at  timestamptz,
+    rollback_reason text
+);
+create index if not exists operating_model_rollout_project on fuzer.operating_model_rollout (project, id desc);

@@ -132,6 +132,21 @@ def parser() -> argparse.ArgumentParser:
     om.add_argument("--version", type=int, default=1, help="with export: the model's version")
     om.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is applying it (default: $USER)")
 
+    mc = sub.add_parser("model-change", help="change control for the standard (P8.3): propose, promote, test-run, "
+                        "review, publish, rollout, rollback, versions, history")
+    mc.add_argument("action", choices=["propose", "promote", "test-run", "review", "publish", "rollout", "rollback",
+                                       "versions", "history"])
+    mc.add_argument("--version", type=int, help="with test-run, review, publish and rollout: the version")
+    mc.add_argument("--changes", help="with propose: a JSON file of {part: {key: value, or null to remove}}")
+    mc.add_argument("--part", help="with promote: the part of this project's deviation")
+    mc.add_argument("--key", help="with promote: the key of this project's deviation")
+    mc.add_argument("--summary", help="with propose and promote: what it changes and why")
+    mc.add_argument("--approve", action="store_true", help="with review: approve (default: reject)")
+    mc.add_argument("--note", help="with review: why")
+    mc.add_argument("--target", help="with rollout, rollback and history: the project (default: this one)")
+    mc.add_argument("--reason", help="with rollback: why")
+    mc.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is acting (default: $USER)")
+
     sub.add_parser("onboarding", help="the onboarding journey (P8.4): each step ready, blocked or to do, and what "
                    "each gap prevents")
 
@@ -420,6 +435,8 @@ def main(argv=None):
                            else standards.fleet(None, args.days))
                 else:
                     _print(om.applied(conn))
+            elif args.cmd == "model-change":
+                _model_change(conn, args)
             elif args.cmd == "onboarding":
                 from ..api import onboarding
 
@@ -605,6 +622,31 @@ def _projects(conn, args) -> None:
         _print(cfg if args.action == "show" else projects.save(conn, name, cfg, args.by))
     except projects.ProjectError as e:
         raise SystemExit(str(e)) from None
+
+
+def _model_change(conn, args) -> None:
+    from ..core import projects
+    from ..workflow import model_changes as mc
+
+    target = args.target or projects.current(conn)
+    if args.action == "propose":
+        _print(mc.propose(conn, json.loads(Path(args.changes).read_text()), args.summary or "", args.by))
+    elif args.action == "promote":
+        _print(mc.promote(conn, args.part, args.key, args.summary or "", args.by))
+    elif args.action == "test-run":
+        _print(mc.test_run(conn, "standard", args.version))
+    elif args.action == "review":
+        _print(mc.review(conn, "standard", args.version, args.by, args.approve, args.note or ""))
+    elif args.action == "publish":
+        _print(mc.publish(conn, "standard", args.version, args.by))
+    elif args.action == "rollout":
+        _print(mc.rollout(conn, target, "standard", args.version, args.by))
+    elif args.action == "rollback":
+        _print(mc.rollback(conn, target, args.by, args.reason or ""))
+    elif args.action == "versions":
+        _print(mc.versions(conn))
+    else:
+        _print(mc.history(conn, args.target))
 
 
 def _settings(conn, args) -> None:
