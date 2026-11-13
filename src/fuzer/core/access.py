@@ -258,6 +258,10 @@ def accounts(conn):
         for r in conn.execute("select project, area from access_area_grant where account_id = %s order by project, area",
                               (row["id"],)):
             row["areas"].setdefault(r["project"], []).append(r["area"])
+        row["groups"] = {}
+        for r in conn.execute("select project, grp from access_group_grant where account_id = %s order by project, grp",
+                              (row["id"],)):
+            row["groups"].setdefault(r["project"], []).append(r["grp"])
         row["actor"] = ACTOR_PREFIX + row["id"]
     return rows
 
@@ -366,3 +370,120 @@ def may_act_on(conn, person: Principal, subjects: list[str]) -> bool:
     if not granted:
         return True
     return not subjects or within(conn, subjects, granted)
+
+
+# Restricted documents (R.5, #29). An owner restricts a document class (a document's doc_type: oem_manual, procedure,
+# ...) to a named group in one project and puts people in groups. Someone outside a class's group can't see its
+# documents or their sections on any surface: the API answers 404 for them and leaves them out of every list, and
+# the assistant's tools leave them out of what the model sees. Owners see everything. Local trusted mode (no
+# signed-in person) is not filtered.
+DOCUMENT_KINDS = ("document", "document_section")
+REFERENCE_KEYS = ("fuzer_id", "id", "src", "dst", "document", "doc", "entity", "ref", "subject")
+
+
+def _project(conn, project: str | None) -> str | None:
+    from . import db
+
+    return project or db.scope().project or _default_project(conn)
+
+
+def document_groups(conn, project: str | None = None) -> dict[str, str]:
+    """The restricted document classes in `project`, each with the group that may see it."""
+    return {r["doc_type"]: r["grp"] for r in conn.execute(
+        "select doc_type, grp from access_document_group where project = %s order by doc_type",
+        (_project(conn, project),))}
+
+
+def _names(values, what: str) -> list[str]:
+    out = sorted({str(v).strip() for v in values if str(v).strip()})
+    if any(len(v) > 80 for v in out):
+        raise AccessError(f"A {what} name is at most 80 characters")
+    return out
+
+
+def set_document_groups(conn, by: Principal, project: str, classes: dict[str, str]):
+    """Restrict document classes in one project to groups (owners only); a class left out is open again."""
+    if not by.enabled or not by.owner:
+        raise AccessError("Only an owner can restrict documents")
+    wanted = {str(t).strip(): str(g).strip() for t, g in sorted(classes.items()) if str(t).strip()}
+    if any(not g for g in wanted.values()):
+        raise AccessError("Each restricted document class needs a group")
+    _names(wanted, "document class")
+    _names(wanted.values(), "group")
+    conn.execute("delete from access_document_group where project = %s", (project,))
+    for doc_type, grp in wanted.items():
+        conn.execute("insert into access_document_group (project, doc_type, grp) values (%s, %s, %s)",
+                     (project, doc_type, grp))
+    event(conn, by.actor, "document_groups_set", project=project, classes=wanted)
+    conn.commit()
+
+
+def groups(conn, account_id: str, project: str | None = None) -> list[str]:
+    """The groups an account is in, in `project`."""
+    return [r["grp"] for r in conn.execute(
+        "select grp from access_group_grant where account_id = %s and project = %s order by grp",
+        (account_id, _project(conn, project)))]
+
+
+def set_groups(conn, by: Principal, account_id: str, project: str, names: list[str]):
+    """Put an account in groups in one project (owners only; [] takes it out of all of them)."""
+    if not by.enabled or not by.owner:
+        raise AccessError("Only an owner can grant application access")
+    if conn.execute("select 1 from access_account where id = %s", (account_id,)).fetchone() is None:
+        raise AccessError("Unknown account")
+    wanted = _names(names, "group")
+    conn.execute("delete from access_group_grant where account_id = %s and project = %s", (account_id, project))
+    for grp in wanted:
+        conn.execute("insert into access_group_grant (account_id, project, grp) values (%s, %s, %s)",
+                     (account_id, project, grp))
+    event(conn, by.actor, "groups_set", account_id=account_id, project=project, groups=wanted)
+    conn.commit()
+
+
+def hidden_documents(conn, person: Principal | None, project: str | None = None) -> frozenset[str]:
+    """The documents and document sections `person` may not see in `project` (`conn` runs for it): those of a
+    restricted class whose group they are not in, with any ids merged into them. Empty for an owner, for no person
+    (trusted local mode) and when nothing is restricted."""
+    if person is None or person.owner:
+        return frozenset()
+    project = _project(conn, project)
+    restricted = document_groups(conn, project)
+    if not restricted:
+        return frozenset()
+    mine = set(groups(conn, person.id, project))
+    classes = sorted(t for t, g in restricted.items() if g not in mine)
+    if not classes:
+        return frozenset()
+    rows = conn.execute(
+        """
+        with docs as (
+            select g.fuzer_id from golden g join entity e on e.fuzer_id = g.fuzer_id and e.kind = 'document'
+            where g.field = 'doc_type' and g.value #>> '{}' = any(%(classes)s)
+        ), sections as (
+            select x.src as fuzer_id from edge x join docs d on d.fuzer_id = x.dst
+                join entity s on s.fuzer_id = x.src and s.kind = 'document_section'
+            where x.rel = 'part_of'
+        ), ids as (select fuzer_id from docs union select fuzer_id from sections)
+        select fuzer_id from ids union select e.fuzer_id from entity e join ids on e.merged_into = ids.fuzer_id
+        """, {"classes": classes}).fetchall()
+    return frozenset(r["fuzer_id"] for r in rows)
+
+
+def refers_to(value, hidden: frozenset[str]) -> bool:
+    """Whether a record (a dict) names a hidden document by one of its reference keys."""
+    return isinstance(value, dict) and any(isinstance(value.get(k), str) and value[k] in hidden
+                                           for k in REFERENCE_KEYS)
+
+
+def scrub(value, hidden: frozenset[str]):
+    """`value` without the records that name a hidden document: list items (records or bare ids) are dropped,
+    nested anywhere. A top-level record that is itself a hidden document is the caller's to refuse."""
+    if not hidden:
+        return value
+    if isinstance(value, dict):
+        return {k: scrub(v, hidden) for k, v in value.items()}
+    if isinstance(value, list):
+        return [scrub(v, hidden) for v in value
+                if not refers_to(v, hidden) and not (isinstance(v, str) and v in hidden)]
+    return value
+

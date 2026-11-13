@@ -239,6 +239,65 @@ def areas_update(account_id: str, project: str, body: AreaGrants, request: Reque
     return {"ok": True}
 
 
+class Groups(BaseModel):
+    groups: list[str] = Field(max_length=100)
+
+
+@router.put("/accounts/{account_id}/projects/{project}/groups")
+def groups_update(account_id: str, project: str, body: Groups, request: Request):
+    """Put an account in groups in one project (owners only); a group sees the document classes restricted to it."""
+    person = _owner(request)
+    csrf_check(request, person)
+    try:
+        with db.connect() as conn:
+            projects.scope(conn, project)
+            access.set_groups(conn, person, account_id, project, body.groups)
+    except projects.ProjectError as e:
+        raise HTTPException(404, str(e)) from None
+    except access.AccessError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True}
+
+
+def _document_scope(project: str):
+    with db.connect() as conn:
+        try:
+            return projects.scope(conn, project)
+        except projects.ProjectError as e:
+            raise HTTPException(404, str(e)) from None
+
+
+@router.get("/projects/{project}/document-groups")
+def document_groups(project: str, request: Request):
+    """The document classes restricted to a group in one project, and every class its register holds with how
+    many documents (owners only)."""
+    _owner(request)
+    with db.use(_document_scope(project)), db.connect() as conn:
+        classes = conn.execute(
+            "select g.value #>> '{}' as doc_type, count(*) as documents from golden g "
+            "join entity e on e.fuzer_id = g.fuzer_id and e.kind = 'document' and e.merged_into is null "
+            "where g.field = 'doc_type' group by 1 order by 1").fetchall()
+        return {"restricted": access.document_groups(conn, project), "classes": classes}
+
+
+class DocumentGroups(BaseModel):
+    restricted: dict[str, str] = Field(max_length=200)
+
+
+@router.put("/projects/{project}/document-groups")
+def document_groups_update(project: str, body: DocumentGroups, request: Request):
+    """Restrict document classes in one project to groups (owners only); a class left out is open again."""
+    person = _owner(request)
+    csrf_check(request, person)
+    _document_scope(project)
+    try:
+        with db.connect() as conn:
+            access.set_document_groups(conn, person, project, body.restricted)
+    except access.AccessError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True}
+
+
 @router.get("/audit")
 def audit_export(request: Request, project: str | None = None, since: datetime | None = None,
                  until: datetime | None = None, format: Literal["json", "csv"] = "json",

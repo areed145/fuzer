@@ -490,3 +490,30 @@ def loop_health(conn, days: int = 7, until: str | None = None) -> Figure:
                                                                     "saturated_pct", "error_pct", "period_min")}
                                                  for m in out["loops"]], "note": out["note"]},
         [m["id"] for m in out["loops"] if m["flags"]][:10])
+
+
+def valve_stiction(conn, ref: str, days: int = 1, until: str | None = None) -> Figure:
+    """Valve stiction (#357): a loop's process value against its controller output over the window, with the
+    cross-correlation verdict. A sticking valve draws a parallelogram, the output ramping while the value holds and
+    then jumps; a tuning cycle draws an ellipse."""
+    from ..analysis import calcs, control_loops, loops, stiction
+
+    try:
+        s = control_loops.series(conn, ref, days, until, loops.STEP_MINUTES)
+        verdict = stiction.stiction(conn, ref, max(days, 1), until)["loops"][0]
+    except calcs.CalcError as e:
+        raise ChartError(str(e)) from e
+    auto = [i for i in range(len(s["times"])) if s["mode"][i] >= 0.5]
+    if not auto:
+        raise ChartError(f"{s['loop']} was in manual all through that window")
+    data = [{"type": "scatter", "mode": "lines+markers", "name": s["loop"], "x": [rnd(s["op"][i]) for i in auto],
+             "y": [rnd(s["pv"][i]) for i in auto], "text": [s["times"][i] for i in auto],
+             "marker": {"size": 4, "color": list(range(len(auto))), "colorscale": "Viridis"},
+             "line": {"width": 1, "color": "rgba(120,120,120,0.4)"}}]
+    lay = layout(f"{s['loop']} value against output, {s['since'][:10]} to {s['until'][:10]}",
+                 "controller output (%)", f"process value ({s['unit']})" if s["unit"] else "process value")
+    return Figure("valve_stiction", lay["title"]["text"], data, lay, {
+        "verdict": verdict["verdict"], "why": verdict.get("why"), "r0_share": verdict.get("r0_share"),
+        "period_min": verdict.get("period_min"), "caveat": verdict.get("caveat"), "valve": verdict.get("valve"),
+        "synthetic": s["synthetic"], "method": "Horch (1999) cross-correlation of controller output and process value",
+        "note": "A suspicion for the instrument technician to confirm in the field, not a diagnosis."}, [s["id"]])

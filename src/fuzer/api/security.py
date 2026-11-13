@@ -168,6 +168,7 @@ class AuthenticatedRoute(APIRoute):
                 request.state.conversation_id = conversation_id
                 request.state.task_ids = task_ids
             await run_in_threadpool(self._ownership, request, person)
+            hidden = await run_in_threadpool(self._hidden, request, person)
             limit = await run_in_threadpool(settings.get, None, "access.api_concurrency")
             if _active >= limit:
                 raise HTTPException(429, "The server is busy. Wait briefly and try again.", headers={"Retry-After": "2"})
@@ -175,7 +176,8 @@ class AuthenticatedRoute(APIRoute):
             token = current.set(person)
             mutation = mutating.set(unsafe)
             try:
-                return await handler(request)
+                response = await handler(request)
+                return _scrubbed(response, hidden) if hidden else response
             finally:
                 current.reset(token)
                 mutating.reset(mutation)
@@ -229,6 +231,15 @@ class AuthenticatedRoute(APIRoute):
                     self._task(conn, person, task_id)
 
     @staticmethod
+    def _hidden(request: Request, person: access.Principal) -> frozenset[str]:
+        """The restricted documents this person may not see here (R.5, #29); a route naming one answers 404."""
+        with db.connect() as conn:
+            hidden = access.hidden_documents(conn, person)
+        if hidden and any(isinstance(v, str) and v in hidden for v in request.path_params.values()):
+            raise HTTPException(404, "Not found")
+        return hidden
+
+    @staticmethod
     def _project_access(person: access.Principal):
         with db.connect() as conn:
             if db.scope().project not in access.projects_for(conn, person):
@@ -280,6 +291,20 @@ AREA_REFUSAL = ("This work is on plant outside your areas. You can still read it
                 "or hand it to its area's queue.")
 PROJECT_HEADER = "x-fuzer-project"
 PROJECT_QUERY = "fuzer_project"  # links the browser opens itself (a document, a full-size figure) can't send headers
+
+
+def _scrubbed(response, hidden: frozenset[str]):
+    """A JSON response without the restricted documents in it; a response that is one of them answers 404."""
+    if not isinstance(response, JSONResponse) and getattr(response, "media_type", None) != "application/json":
+        return response
+    body = getattr(response, "body", None)
+    if body is None:  # a streamed response: not JSON this route builds
+        return response
+    data = json.loads(body)
+    if access.refers_to(data, hidden):
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    headers = {k: v for k, v in response.headers.items() if k.lower() not in ("content-length", "content-type")}
+    return JSONResponse(access.scrub(data, hidden), status_code=response.status_code, headers=headers)
 
 
 def requested_project(request) -> str | None:
