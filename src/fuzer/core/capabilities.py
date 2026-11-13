@@ -40,20 +40,32 @@ def _bound(cap: Capability) -> Capability:
     return cap
 
 
+ANONYMOUS = "local:anonymous"  # a local MCP server or CLI assistant run without --as: sees no restricted documents
+_served_as: str | None = None
+
+
+def serve_as(actor: str | None) -> None:
+    """Who this process's tools answer for when no signed-in person is asking (ASKER): the local MCP server and the
+    CLI assistant call it once at start with an account (`user:<id>`) or ANONYMOUS."""
+    global _served_as
+    _served_as = actor
+
+
 def guarded(fn: Callable) -> Callable:
-    """`fn` as the surfaces serve it: while a signed-in person is asking (ASKER), its result leaves out the restricted
-    documents they may not see (R.5, #29), and a result that is one of them is refused as not found."""
+    """`fn` as the surfaces serve it: while a signed-in person is asking (ASKER), or the process serves as someone
+    (serve_as), its result leaves out the restricted documents they may not see (R.5, #29), and a result that is one
+    of them is refused as not found. With neither, as for the workflow's own agent steps, it is unfiltered."""
 
     @functools.wraps(fn)
     def tool(*args, **kwargs):
         out = fn(*args, **kwargs)
-        asker = ASKER.get()
-        if not asker or not asker.startswith("user:"):
+        asker = ASKER.get() or _served_as
+        if not asker:
             return out
         from . import access, db
 
         with db.connect() as conn:
-            hidden = access.hidden_documents(conn, access.principal(conn, asker.removeprefix("user:")))
+            hidden = access.hidden_for(conn, asker)
         if access.refers_to(out, hidden):
             return {"error": "nothing found; try the search tool"}
         return access.scrub(out, hidden)

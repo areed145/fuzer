@@ -134,6 +134,7 @@ run the MCP server for AI agents (stdio by default)
 | `--http` | serve streamable HTTP instead of stdio |
 | `--host` |  |
 | `--port` |  |
+| `--as` | answer as this account (its id or user:<id>), seeing the restricted documents its groups see; without it, restricted documents are left out |
 
 ## `fuzer jobs`
 
@@ -153,6 +154,7 @@ ask the operations assistant one question
 | `--model` | orchestrator model (default: the setting agents.model); specialists use agents.specialist_model |
 | `--effort` (low / medium / high / xhigh / max) | orchestrator effort (default: the setting agents.effort); specialists use agents.specialist_effort |
 | `--json` | print the answer, tools used and cost as JSON |
+| `--as` | answer as this account (its id or user:<id>), seeing the restricted documents its groups see; without it, restricted documents are left out |
 
 ## `fuzer chat`
 
@@ -163,6 +165,7 @@ talk to the operations assistant (follow-up questions keep the context)
 | `--model` | orchestrator model (default: the setting agents.model); specialists use agents.specialist_model |
 | `--effort` (low / medium / high / xhigh / max) | orchestrator effort (default: the setting agents.effort); specialists use agents.specialist_effort |
 | `--json` | print the answer, tools used and cost as JSON |
+| `--as` | answer as this account (its id or user:<id>), seeing the restricted documents its groups see; without it, restricted documents are left out |
 
 ## `fuzer work`
 

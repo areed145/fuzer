@@ -99,12 +99,13 @@ Someone outside a class's group can't see its documents, their sections, or ids 
 
 - **API:** every route that names one by path answers 404, including the file download. Every JSON response leaves out the records that name one, at the access boundary in `api/security.py`. A response that is one of them answers 404.
 - **Assistant:** each tool is served guarded (`core/capabilities.py`). While a signed-in person asks, the model never sees those documents in a tool result.
+- **Local MCP and the CLI assistant:** `fuzer mcp`, `fuzer ask` and `fuzer chat` answer as the account given with `--as`, and see what its groups see. Without `--as`, or with an unknown or disabled account, they leave every restricted document out.
+- **The workflow's own agent steps:** these run as no person and are not filtered. A case they write to is visible to everyone who can see the case.
 
 Owners see everything. A class with no restriction is open to everyone who can read the project, as before.
 
 Not yet covered:
 
-- **Trusted local mode and local MCP** have no signed-in person and are not filtered.
 - **Shared text written before the restriction** may still hold content from these documents: an asset brief, an assistant memory, or a case note. Records citing the documents are dropped, but text that quotes them without an id is not.
 - **Teams threads** are not a source yet, so there is nothing to restrict.
 
