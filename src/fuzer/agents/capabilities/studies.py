@@ -52,7 +52,9 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
                        "compressor_trip", "protection", "seal_gas", "lube_oil", "surge_events", "gas_performance",
                        "power_balance", "exhaust_spread", "hot_section", "engine_cylinders", "remaining_life",
                        "failed_starts", "test_check",
-                       "deferment_attribution", "vessel_loading", "corrosion_circuit"], ref: str,
+                       "deferment_attribution", "vessel_loading", "corrosion_circuit", "allocation_factor",
+                       "meter_agreement", "pm_interval", "spares_coverage", "inspection_plan", "loop_oscillation",
+                       "contactor_foaming", "treated_gas", "regenerator", "chiller"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
          breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
     """One diagnostic check as a number against what it should be: {value, expected, deviation,
@@ -112,7 +114,16 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     offer at their tested rates against its standing rating in its own units, now and 90 days before (overloaded,
     near_capacity). corrosion_circuit (pipeline): the lines in its service, each with its API 570 rate, remaining
     life and next inspection date (retire_soon, inspection_overdue, localised); min_required_mm replaces the
-    assumed retirement thickness. The plot_* chart of the same name shows the fit."""
+    assumed retirement thickness. allocation_factor (flow meter): its volume against what the wells upstream offer
+    at their tests. meter_agreement (flow meter): its ratio to the nearest other meter on the stream now against
+    before (meter_drift). pm_interval (tag or class): the class's PM interval against its Weibull life
+    (interval_too_long, random_failures, early_life, insufficient_failures). spares_coverage (machine or class):
+    critical machines whose spares aren't held. inspection_plan (vessel, exchanger, piping): its condition
+    inspection against the interval its wall supports. loop_oscillation (PI point or loop): a cycling control loop.
+    contactor_foaming (contactor): differential pressure against its clean level (foaming, fouling). treated_gas
+    (contactor): the treated gas analyser against its window. regenerator (reboiler): its temperature against its
+    window. chiller (chilled separator): its temperature against the dew point window. The plot_* chart of the
+    same name shows the fit."""
     from ...analysis import calcs
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)

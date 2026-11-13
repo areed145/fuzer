@@ -19,7 +19,12 @@ Head falling below the curve month by month at the same flow means internal wear
 impeller): quote `head_vs_curve_by_month` and the month it started. Running far from the BEP
 (outside the preferred region) shortens seal and bearing life; say how much time was spent there.
 `equipment_curves(ref)` gives the curve itself; `calc("pump_curve", ref)` the latest month's head
-against the curve as one number (`head_loss` at 5 % below).
+against the curve as one number (`head_loss` at 5 % below). With no flow or pressure points to plot, read the
+pump's notifications and work history: a recorded "below its curve" or a planned impeller or wear ring check is
+the curve evidence there is, so quote it (impeller wear) rather than saying the curve can't be checked.
+
+**If it trips.** For a running machine's trip, name its standby or spare by tag (for B1-P-0001B, the A machine),
+say whether that standby is available now and why not, and what the procedure says happens to the line.
 
 - **Where it runs** (pumps, `calc("pump_bep", ref)`): flow against the best efficiency point. Time below the
   minimum stable flow (`low_flow`) causes recirculation, which kills seals and bearings: it explains

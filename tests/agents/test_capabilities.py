@@ -167,3 +167,15 @@ def test_catalogue_is_current():
     assert doc.read_text() == capabilities.catalogue()
     assert sum(1 for line in doc.read_text().splitlines() if line.startswith("| `") and "|---" not in line) == \
         len(capabilities.REGISTRY) + len(calcs.CHECKS) + len(capabilities.SKILL_CATALOG)
+
+
+def test_the_calc_tool_offers_every_check_an_agent_runs():
+    """A check registered for agents but missing from the tool's enum is one a playbook names and Claude can't call
+    (meter_agreement and pm_interval were, so the specialist reported them unavailable)."""
+    import typing
+
+    from fuzer.agents.capabilities.studies import calc
+
+    fn = getattr(calc, "__wrapped__", calc)
+    offered = set(typing.get_args(inspect.signature(fn).parameters["check"].annotation))
+    assert offered == {k for k, v in calcs.CHECKS.items() if v["used_by"].get("agent") == "calc"}

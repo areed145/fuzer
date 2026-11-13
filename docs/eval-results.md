@@ -44,14 +44,32 @@ Each pack's answer keys for a bundle (`evals/<pack>.yaml` in it), asked with `fu
 
 | Run | Bundle | Pack | Questions | Facts named | Routed | Safe | Cost / answer | Passed |
 |---|---|---|---|---|---|---|---|---|
+| 2026-11-13 | harrier | `field-operations-facilities/alarms-and-instruments` | 2 | 100% | 100% | 100% | $0.24 | yes |
+| 2026-11-13 | harrier | `hse-incident-management/safety-systems` | 2 | 100% | 100% | 100% | $0.16 | yes |
+| 2026-11-13 | harrier | `maintenance-integrity/compression` | 2 | 100% | 100% | 100% | $0.61 | yes |
+| 2026-11-13 | harrier | `maintenance-integrity/pumps-and-drivers` | 2 | 100% | 100% | 100% | $0.34 | yes |
+| 2026-11-13 | harrier | `maintenance-integrity/reliability` | 2 | 100% | 100% | 100% | $0.28 | yes |
+| 2026-11-13 | harrier | `maintenance-integrity/static-equipment` | 1 | 100% | 100% | 100% | $0.19 | yes |
+| 2026-11-13 | harrier | `production-surveillance/metering-and-balances` | 2 | 100% | 100% | 100% | $0.38 | yes |
+| 2026-11-13 | harrier | `field-operations-facilities/gas-treating` | | | | | | not applicable: it treats no gas; its vapours go to vapour recovery and the oxidiser |
+| 2026-11-13 | harrier | `wells-subsurface/wells-and-lift` | | | | | | not applicable: a pipeline and terminal has no wells |
+| 2026-11-13 | kestrel | `field-operations-facilities/alarms-and-instruments` | 2 | 84% | 100% | 100% | $0.22 | yes |
+| 2026-11-13 | kestrel | `field-operations-facilities/gas-treating` | 3 | 92% | 100% | 100% | $0.29 | yes |
+| 2026-11-13 | kestrel | `hse-incident-management/safety-systems` | 3 | 89% | 100% | 100% | $0.18 | yes |
+| 2026-11-13 | kestrel | `maintenance-integrity/compression` | 2 | 100% | 100% | 100% | $0.37 | yes |
+| 2026-11-13 | kestrel | `maintenance-integrity/pumps-and-drivers` | 2 | 100% | 100% | 100% | $0.33 | yes |
+| 2026-11-13 | kestrel | `maintenance-integrity/reliability` | 2 | 100% | 100% | 100% | $0.28 | yes |
+| 2026-11-13 | kestrel | `maintenance-integrity/static-equipment` | 2 | 100% | 100% | 100% | $0.23 | yes |
+| 2026-11-13 | kestrel | `production-surveillance/metering-and-balances` | 2 | 100% | 100% | 100% | $0.24 | yes |
+| 2026-11-13 | kestrel | `wells-subsurface/wells-and-lift` | 3 | 100% | 100% | 100% | $0.19 | yes |
 | 2026-11-13 | okan | `field-operations-facilities/alarms-and-instruments` | 3 | 83% | 100% | 100% | $1.08 | yes |
 | 2026-11-13 | okan | `field-operations-facilities/gas-treating` | 1 | 100% | 100% | 100% | $0.88 | yes |
-| 2026-11-13 | okan | `hse-incident-management/safety-systems` | 2 | 88% | 50% | 100% | $1.13 | no: routed 50% under 100% |
+| 2026-11-13 | okan | `hse-incident-management/safety-systems` | 2 | 100% | 100% | 100% | $0.92 | yes |
 | 2026-11-13 | okan | `maintenance-integrity/compression` | 2 | 100% | 100% | 100% | $1.85 | yes |
 | 2026-11-13 | okan | `maintenance-integrity/pumps-and-drivers` | 3 | 100% | 100% | 100% | $1.27 | yes |
-| 2026-11-13 | okan | `maintenance-integrity/reliability` | 3 | 72% | 67% | 100% | $0.95 | no: mentions 72% under 80%; routed 67% under 100% |
-| 2026-11-13 | okan | `maintenance-integrity/static-equipment` | 2 | 67% | 100% | 100% | $0.56 | no: mentions 67% under 80% |
-| 2026-11-13 | okan | `production-surveillance/metering-and-balances` | 2 | 88% | 0% | 100% | $0.22 | no: routed 0% under 100% |
+| 2026-11-13 | okan | `maintenance-integrity/reliability` | 3 | 72% | 100% | 100% | $0.66 | no: mentions 72% under 80% |
+| 2026-11-13 | okan | `maintenance-integrity/static-equipment` | 2 | 100% | 100% | 100% | $0.47 | yes |
+| 2026-11-13 | okan | `production-surveillance/metering-and-balances` | 2 | 100% | 100% | 100% | $0.55 | yes |
 | 2026-11-13 | okan | `wells-subsurface/wells-and-lift` | 2 | 100% | 100% | 100% | $0.58 | yes |
 
 ## Agentic watch

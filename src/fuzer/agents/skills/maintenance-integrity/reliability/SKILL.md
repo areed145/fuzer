@@ -50,7 +50,8 @@ A repeat failure is the same failure mode on the same unit more than once in the
    interval against its Weibull characteristic life (eta): `random_failures` and `early_life` mean a fixed interval
    won't help (condition monitoring for random failures; for early life, repair and installation quality, which
    say in those words), `interval_too_long` that wear-out failures come before the
-   PM; `fails_before_pm_pct` is the share expected to fail first. `insufficient_failures` is unknown, not fine.
+   PM; `fails_before_pm_pct` is the share expected to fail first. `insufficient_failures` is unknown, not fine: say
+   there are too few failures to test the interval, in those words, before any other evidence.
    Quote the characteristic life (eta) with its number and unit beside the PM interval, and name the failure
    pattern in words (early life, random, wear-out) rather than only its code, so the reader sees why the interval
    does or doesn't fit.
