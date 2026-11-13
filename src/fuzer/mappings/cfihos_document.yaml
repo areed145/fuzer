@@ -1,0 +1,17 @@
+# CFIHOS handover document register (#63): datasheets, drawings and manuals the contractor hands over, one row per
+# revision, keyed as the document management system keys a revision ("<number> rev <revision>").
+source: cfihos
+record_type: document
+shape: records
+dataset: cfihos_document
+key: [document_number, document_revision_code]
+entity:
+  kind: document
+  key: {template: "{document_number} rev {document_revision_code}"}
+  fields:
+    - [doc_number, {from: document_number}]
+    - [revision, {from: document_revision_code}]
+    - [title, {from: document_title}]
+    - [doc_type, {from: document_type_code}]
+    - [status, {from: document_status_code}]
+    - [description, {from: document_title}]

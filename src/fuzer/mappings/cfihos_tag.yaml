@@ -1,0 +1,14 @@
+# CFIHOS handover tag register (#63): the tags an EPC contractor hands over, each with its CFIHOS tag class name. The
+# class is read into the site's taxonomy (ISO 14224) when the graph is rebuilt, so a tag the tag grammar can't
+# classify (a function code the pack doesn't map) still gets its class from the handover.
+source: cfihos
+record_type: tag
+shape: records
+dataset: cfihos_tag
+key: tag_number
+entity:
+  kind: tag
+  key: {from: tag_number, as: tag}
+  fields:
+    - [description, {from: tag_description}]
+    - [cfihos_class, {from: tag_class_name}]

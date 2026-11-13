@@ -1,0 +1,11 @@
+# CFIHOS handover tag-document references (#63): which tags each handed-over document revision covers.
+source: cfihos
+record_type: tag_document
+shape: network
+dataset: cfihos_tag_document
+key: [document_number, document_revision_code, tag_number]
+links:
+  - rel: applies_to
+    from: {kind: document, template: "{document_number} rev {document_revision_code}"}
+    to: {kind: tag, from: tag_number, as: tag}
+    props: {basis: {template: "CFIHOS handover"}}

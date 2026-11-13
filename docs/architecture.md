@@ -81,6 +81,7 @@ From the mapping files in `src/fuzer/mappings` (source → entity kind). Claude'
 flowchart LR
   src_accounting[/"accounting"/]
   src_adx[/"adx"/]
+  src_cfihos[/"cfihos"/]
   src_cms[/"cms"/]
   src_dcs[/"dcs"/]
   src_drilling[/"drilling"/]
@@ -127,6 +128,7 @@ flowchart LR
   kind_round_point(["round_point"])
   kind_safeguard(["safeguard"])
   kind_step_test(["step_test"])
+  kind_tag(["tag"])
   kind_timeseries(["timeseries"])
   kind_vibration_spectrum(["vibration_spectrum"])
   kind_well(["well"])
@@ -136,6 +138,9 @@ flowchart LR
   src_accounting --> kind_accounting_volume
   src_accounting --> kind_ledger_entry
   src_adx --> kind_timeseries
+  src_cfihos --> kind_document
+  src_cfihos --> kind_equipment
+  src_cfihos --> kind_tag
   src_cms --> kind_vibration_spectrum
   src_dcs --> kind_control_loop
   src_dcs --> kind_step_test
