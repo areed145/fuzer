@@ -259,11 +259,16 @@ def work_skill_draft(d: SkillDraft, conn=Depends(get_conn)):
 
 @router.post("/work/skills/publish")
 def work_skill_publish(a: SkillAct, conn=Depends(get_conn)):
-    from ..agents import skill_versions
+    """A person publishes a draft behind the eval gate (P6.4d): the pack's eval and the draft's questions are asked of
+    the live version and the draft, and a draft that scores lower is refused (409) with both scores."""
+    from ..agents import skill_gate
 
     if a.version is None:
         raise HTTPException(422, "say which version to publish")
-    return _skill_call(skill_versions.publish, conn, a.skill, a.version, a.by)
+    try:
+        return _skill_call(skill_gate.publish, conn, a.skill, a.version, a.by)
+    except skill_gate.GateRefused as e:
+        raise HTTPException(409, {"refused": str(e), **e.result}) from None
 
 
 @router.post("/work/skills/rollback")
