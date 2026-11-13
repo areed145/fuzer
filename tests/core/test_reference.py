@@ -33,7 +33,8 @@ def test_a_recorded_watch_run_is_kept_per_window_and_shown(monkeypatch, tmp_path
            "passes": False, "uncaught_examples": ["10-P-1001A head_loss 2025-01-01 00:00"], "notes": ["dropped"]}
     a = runs.save(runs.watch(res, "m"), day="2026-11-13", runs=tmp_path)
     b = runs.save(runs.watch({**res, "since": "2025-08-20T00:00"}, "m"), day="2026-11-13", runs=tmp_path)
-    assert a != b and "notes" not in runs.load(tmp_path)[0]
+    again = runs.save(runs.watch(res, "m"), day="2026-11-13", runs=tmp_path)
+    assert len({a, b, again}) == 3 and "notes" not in runs.load(tmp_path)[0]  # a rerun keeps the first
     monkeypatch.setattr(runs, "load", lambda: [runs.watch(res, "m") | {"date": "2026-11-13"}])
     page = reference.eval_results_md()
     assert "| 2026-11-13 | okan | 2025-01-13 to 2025-01-15 | m | 4 (1) | 4 | 0 | 0% | 0% | $0.26 | no |" in page

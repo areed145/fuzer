@@ -86,3 +86,39 @@ def test_a_provider_reply_with_a_thinking_block_reads_as_its_text(monkeypatch):
     monkeypatch.setattr(llm, "cost_report", lambda name, usage, scope: {"cost_usd": 0})
     monkeypatch.setattr(settings, "get", lambda conn, key: "a-model")
     assert watch.model_ask("why?")["answer"] == '{"proposals": []}'
+
+
+def test_what_a_point_measures_is_its_suffix_or_its_tags_instrument_letters():
+    from fuzer.analysis.clusters import _measure
+
+    assert _measure("OK_NWP_G3.QGAS") == "QGAS" and _measure("OK_J12_02.choke") == "CHOKE"
+    assert _measure("OKA_PP.10FT1001A.PV") == "FT" and _measure("OK_GGCP:20-TT-2350A.PV") == "TT"
+
+
+@pytest.mark.integration
+def test_the_watch_is_shown_a_choke_plugging_over_weeks_and_not_the_fields_decline(okan_db):
+    # P3.3c: OK-NWP-G3's choke plugs with scale through August 2025: its gas rate falls a sixth at the same choke while
+    # the other gas wells hold. The week's model learns that as normal; against its peers and three months back it
+    # stands out. The oil wells' pressures declining together, and chokes moved in one step, are not drifts.
+    from fuzer.analysis import clusters
+
+    conn = okan_db.conn
+    a, b = "2025-08-20T00:00", "2025-08-22T00:00"
+    nwp = next(x for x in watch.areas(conn) if x["label"] == "OKAN-50")
+    found = clusters.drifts(conn, nwp["id"], a, b)
+    g3 = next(d for d in found if d["point"] == "OK_NWP_G3.QGAS")
+    assert g3["change"] < -0.1 and abs(g3["peers_change"]) < 0.02 and g3["peers"] == 2
+    assert not [d for d in found if d["point"].endswith(".WHP")]  # the wells' pressures fall together
+    ev = watch.evidence(conn, nwp, watch._t(a), watch._t(b))
+    assert "OK_NWP_G3.QGAS" in {d["name"] for d in ev["drifts"]} and g3["point_id"] in watch._ids(ev)
+
+    seen = []
+
+    def ask(prompt):
+        seen.append(json.loads(prompt.split("Evidence:\n", 1)[1]))
+        d = seen[-1]["drifts"][0] if seen[-1]["drifts"] else None
+        props = [{"subject": d["name"], "start": d["since"], "why": "falling at the same choke", "evidence": [d["id"]]}] if d else []
+        return {"answer": "```json\n" + json.dumps({"proposals": props}) + "\n```", "usage": {"cost_usd": 0.0}}
+
+    props, _ = watch.propose(conn, nwp, watch._t(a), watch._t(b), ask)
+    assert seen and any(p["subject"] == "OK_NWP_G3.QGAS" and p["cited"] for p in props)  # asked on the drift alone

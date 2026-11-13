@@ -158,6 +158,16 @@ alarms, the operator log and the maintenance notifications, each with an id to c
 unusual, cites its evidence and says what it ruled out. A proposal on something a detection already covers is
 dropped, and one that cites an id it wasn't shown is marked uncited.
 
+**Slow drifts (P3.3c).** A week's model learns a drift of weeks as normal, so the watch is also shown the points that
+have drifted on their own (`clusters.drifts`). Each point's level over the window is compared with where it sat in the
+first month of the 90 days before, as a share of that level. That change is set against its peers that measure the
+same thing in the area: the same suffix, or for a historian PV the same instrument letters. A drift the peers share,
+such as a field's pressures declining together, is not counted. Neither is a change made mostly in one day, such as a
+choke moved or a pump swapped, nor days shut in. The drift must already show in the week before the window, so a
+sudden upset is left to the multivariate model. The model is asked when a stretch or a drift is left once what a
+detection covers is set aside. On Okan this shows OK-NWP-G3's gas rate falling a sixth at the same choke through
+August 2025, while the other gas wells hold.
+
 In wave 4 it runs in shadow: proposals are kept in `watch_proposal` and scored on replay (P3.3b), never routed, so
 no exception and no case come from it. Each run has a spend cap (`watch.max_usd`) and reads up to `watch.max_areas`
 areas. With no model provider configured the watch is off and says so, and nothing else changes. Live mode, where a
