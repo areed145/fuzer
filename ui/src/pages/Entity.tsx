@@ -703,7 +703,7 @@ function SparesCard({ id }: { id: string }) {
 /** A well's trajectory and completion by depth (#61), when its survey or completion is loaded. */
 function DepthCard({ id }: { id: string }) {
   const d = useAsync(() => api.depths(id), [id]);
-  if (!d.data || (!d.data.trajectory.length && !d.data.components.length)) return null;
+  if (!d.data?.trajectory?.length && !d.data?.components?.length) return null;
   return (
     <UICard as="section">
       <h2>Trajectory and completion <span className="muted small">by measured and true vertical depth</span></h2>
@@ -717,8 +717,8 @@ const km = (m: unknown) => (typeof m === "number" ? (m / 1000).toFixed(3) : "");
 /** A pipeline's segments and what in-line inspection found on it, by station (#61). */
 function AlongCard({ id }: { id: string }) {
   const a = useAsync(() => api.along(id), [id]);
-  if (!a.data || (!a.data.segments.length && !a.data.features.length)) return null;
-  const { segments, features } = a.data;
+  if (!a.data?.segments?.length && !a.data?.features?.length) return null;
+  const { segments = [], features = [] } = a.data ?? {};
   const seg = Object.fromEntries(segments.map((s) => [s.id, s.label]));
   return (
     <UICard as="section">
