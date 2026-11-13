@@ -11,7 +11,7 @@ def test_the_journey_says_what_is_ready_blocked_and_what_each_gap_prevents(harri
     engine.load_defaults(harrier_db)
     j = onboarding.journey(harrier_db)
     steps = {s["key"]: s for s in j["steps"]}
-    assert list(steps) == ["bundle", "sources", "source_packs", "operating_model", "context", "roster", "loop"]
+    assert list(steps) == ["bundle", "sources", "source_packs", "operating_model", "context", "roster", "go_live", "loop"]
     assert j["project"] == "harrier" and steps["bundle"]["status"] == "ready" and steps["bundle"]["facility"] == "HRPT"
     sources = steps["sources"]
     assert sources["status"] == "ready" and sources["loaded"] >= 25 and sources["held"] == 0
@@ -31,3 +31,35 @@ def test_the_journey_says_what_is_ready_blocked_and_what_each_gap_prevents(harri
     om.adopt(harrier_db, by="test")
     after = {s["key"]: s for s in onboarding.journey(harrier_db)["steps"]}
     assert after["operating_model"]["status"] == "ready" and after["operating_model"]["unnamed"] == 0
+
+
+def test_go_live_says_what_a_shift_needs_without_testing_or_calling_anything(harrier_db, monkeypatch):
+    """R.4: references and settings only. Unconfigured sign-in and no owner block a shift; alerts, links and a spend
+    cap are to do; set, the step is ready and says set is not tested."""
+    from fuzer.core import settings
+
+    for name in ("FUZER_MICROSOFT_CLIENT_ID", "FUZER_MICROSOFT_CLIENT_SECRET", "FUZER_PUBLIC_URL",
+                 "FUZER_ALERT_WEBHOOK", "RENDER"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("FUZER_AUTH_MODE", "microsoft")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-only-not-a-real-key")
+    settings.set(harrier_db, "agents.case_cap_usd", 0, by="test", reason="no cap", project_name="harrier")
+    live = {s["key"]: s for s in onboarding.journey(harrier_db)["steps"]}["go_live"]
+    whats = {g["what"] for g in live["gaps"]}
+    assert live["status"] == "blocked" and all(g["prevents"] and g["link"] for g in live["gaps"])
+    assert {"Microsoft sign-in isn't configured", "no owner", "no failed-run alert channel",
+            "notifications have no link back", "agent spend per case has no cap"} <= whats
+
+    monkeypatch.setenv("FUZER_MICROSOFT_CLIENT_ID", "test-client")
+    monkeypatch.setenv("FUZER_MICROSOFT_CLIENT_SECRET", "test-only-not-a-real-secret")
+    monkeypatch.setenv("FUZER_PUBLIC_URL", "https://fuzer.example.com")
+    monkeypatch.setenv("FUZER_ALERT_WEBHOOK", "https://hooks.example.com/test")
+    harrier_db.execute("insert into access_account (id, tenant_id, object_id, display_name, enabled, owner) "
+                       "values ('golive', gen_random_uuid()::text, gen_random_uuid()::text, 'Owner', true, true)")
+    settings.set(harrier_db, "notify.app_url", "https://fuzer.example.com", by="test", reason="links",
+                 project_name="harrier")
+    settings.set(harrier_db, "agents.case_cap_usd", 2.0, by="test", reason="cap", project_name="harrier")
+    live = {s["key"]: s for s in onboarding.journey(harrier_db)["steps"]}["go_live"]
+    assert live["status"] == "ready" and live["gaps"] == [] and "not tested" in live["summary"]
+    harrier_db.execute("delete from access_account where id = 'golive'")
+    harrier_db.commit()

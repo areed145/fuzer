@@ -389,6 +389,32 @@ backlog_health:
     ageing_age: {value: 90, unit: "days", means: "The age past which an open order counts as ageing.", code: "fuzer.analysis.backlog:AGEING_DAYS"}
   vectors: [{worked: "tests/analysis/test_backlog.py::test_backlog_health_flags_and_ranks"}]
 
+voidage_replacement:
+  title: Water injected against the reservoir volume produced
+  practice: "Voidage replacement ratio as reservoir engineers screen waterfloods (Craig, The Reservoir Engineering Aspects of Waterflooding, SPE Monograph 3): injected water times its formation volume factor over produced oil, water and free gas at reservoir conditions. The formation volume factors and solution GOR are the field's own PVT."
+  tool: voidage_replacement
+  inputs: [{name: Allocated oil, unit: "Sm³"}, {name: Water injected, unit: "Sm³"}, {name: Well tests (oil rate, water cut, GOR), unit: "Sm³/d, %, Sm³/Sm³"}, {name: Formation volume factors and solution GOR, unit: "rm³/Sm³, Sm³/Sm³"}]
+  valid: Fields with water injection and producing oil wells with tests. Free gas from the producing GOR above the solution GOR; gas injection and aquifer influx are not counted.
+  needs: A daily report, injection records and the four PVT values; without PVT the ratio is unknown, and with no injection there is no ratio.
+  thresholds:
+    under: {value: 0.9, means: "The latest months' ratio below this: the field is under-replacing what it produces.", code: "fuzer.analysis.water_injection:VRR_LOW"}
+    over: {value: 1.1, means: "Above this: injecting more than it produces.", code: "fuzer.analysis.water_injection:VRR_HIGH"}
+    months: {value: 3, unit: "months", means: "The latest months with injection the verdict reads.", code: "fuzer.analysis.water_injection:VRR_MONTHS"}
+  vectors: [{worked: "tests/analysis/test_water_injection.py::test_voidage_replacement_reads_injection_against_produced_reservoir_volume"}]
+
+hall_plot:
+  title: An injector's Hall plot slope against its own earlier slope
+  practice: "Hall (1963), Analyze Injection Well Performance: cumulative pressure x time against cumulative injection is a straight line while the well takes water the same way; it bends up with plugging or skin and down with fracturing or channelling. Read here at the wellhead, so each injector against itself."
+  tool: injector_hall
+  inputs: [{name: Monthly water injected, unit: "Sm³"}, {name: Days on injection, unit: days}, {name: Average wellhead injection pressure, unit: barg}]
+  valid: Water injectors with monthly injection records carrying a wellhead pressure.
+  needs: Twice the comparison months of injection.
+  thresholds:
+    months: {value: 3, unit: "months", means: "The latest months whose slope is set against the first half of the injector's history.", code: "fuzer.analysis.water_injection:HALL_MONTHS"}
+    rise: {value: 1.25, means: "Latest slope over the earlier one above this: harder to inject (plugging or skin).", code: "fuzer.analysis.water_injection:HALL_RISE"}
+    fall: {value: 0.8, means: "Below this: easier to inject (a fracture opening or channelling).", code: "fuzer.analysis.water_injection:HALL_FALL"}
+  vectors: [{worked: "tests/analysis/test_water_injection.py::test_the_plugging_injector_bends_its_hall_plot"}]
+
 lead_in:
   title: Process values in the hours before an event against the hours before that
   practice: A before and after comparison of each measurement's mean and extreme around the event.

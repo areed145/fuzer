@@ -57,7 +57,8 @@ def test_mapping_reads_one_row_into_several_quantities():
 def test_measurements_land_on_wells_tags_and_pipelines(conn):
     assert conn.stats["measurements"] > 20000 and conn.stats["unresolved_measurements"] == {}
     kinds = {r["kind"] for r in conn.execute("select distinct e.kind from measurement m join entity e using (fuzer_id)")}
-    assert kinds == {"well", "tag", "pipeline", "allocation_node"}  # sales points and manifolds have ratings
+    # sales points and manifolds have ratings; the field has its PVT study (#365)
+    assert kinds == {"well", "tag", "pipeline", "allocation_node", "facility"}
     # Older surveys reported in inches are stored in mm, with what the source said kept.
     old = conn.execute("select value, unit, reported from measurement where quantity = 'wall_thickness' "
                        "and at < '2021-01-01' limit 1").fetchone()

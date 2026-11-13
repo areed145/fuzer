@@ -282,6 +282,10 @@ ASSISTANT_QUESTIONS = [
 
 
 UNEXPLAINED_FLARE = "2025-11-08"
+# Reservoir fluid properties at reservoir conditions, from the field's PVT study (#365): formation volume factors in
+# reservoir m3 per standard m3, and the gas dissolved in the oil.
+PVT = [("oil_fvf", 1.28, "rm3/Sm3"), ("water_fvf", 1.02, "rm3/Sm3"), ("gas_fvf", 0.0052, "rm3/Sm3"),
+       ("solution_gor", 95, "Sm3/Sm3")]
 
 
 def well_name(site: str, num: str) -> str:
@@ -777,6 +781,41 @@ def generate(out, seed: int = 11) -> dict:
         if d["report_date"] == UNEXPLAINED_FLARE:
             d["flare_ksm3"] = "210"
 
+    # Water injection (#365): three NWP water injectors come on through the second half of 2024, so the first half has
+    # no injection at all. EC reports each injector's month (volume, days on, average wellhead pressure) and DAY001
+    # the field's daily total. Story: OK-NWP-W2 plugs from June 2025: its wellhead pressure climbs while it takes less
+    # water, which bends its Hall plot upward. Own random stream, so nothing drawn above moves.
+    irng = random.Random(seed + 37)
+    injectors = [("OK-NWP-W1", date(2024, 7, 1), 3900.0, 96.0), ("OK-NWP-W2", date(2024, 8, 15), 4200.0, 92.0),
+                 ("OK-NWP-W3", date(2024, 10, 1), 3700.0, 101.0)]
+    plug_from = date(2025, 6, 1)
+    injection, inj_day = [], {}
+    for name, start, rate, whp in injectors:
+        floc.append({"floc": f"{FIELD}-WELL-OKNWP-{name.rsplit('-', 1)[1]}", "parent": f"{FIELD}-50",
+                     "description": f"Well {name} (water injector)"})
+        month: dict[str, list[tuple[float, float]]] = {}
+        for i in range(730):
+            day = t0 + timedelta(days=i)
+            if day < start:
+                continue
+            down = irng.random() < 0.04  # a pump trip or a well intervention
+            q, p = rate * irng.uniform(0.94, 1.06), whp + irng.uniform(-2.5, 2.5)
+            if name == "OK-NWP-W2" and day >= plug_from:
+                k = (day - plug_from).days
+                q, p = q * max(0.55, 1 - 0.0016 * k), p + 0.07 * k
+            q = 0.0 if down else q
+            inj_day[day.isoformat()] = inj_day.get(day.isoformat(), 0.0) + q
+            month.setdefault(day.isoformat()[:7], []).append((q, p))
+        for m, days in month.items():
+            on = [(q, p) for q, p in days if q > 0]
+            injection.append({"record_id": f"INJ-{name}-{m}", "well": name, "month": f"{m}-01",
+                              "water_inj_sm3": f"{sum(q for q, _ in on):.0f}", "on_days": str(len(on)),
+                              "whp_barg": f"{sum(p for _, p in on) / len(on):.1f}" if on else ""})
+    for d in daily:
+        d["water_inj_sm3"] = f"{inj_day.get(d['report_date'], 0.0):.0f}"
+    injection_truth = {"injectors": [n for n, *_ in injectors], "first_injection": injectors[0][1].isoformat(),
+                       "plugging": {"well": "OK-NWP-W2", "from": plug_from.isoformat()}}
+
     # ---- open work, maintenance plans, well tests (as of AS_OF) --------------------------------------
     brng = random.Random(seed + 7)
     has_order = {o["qmnum"] for o in orders if o["qmnum"]}
@@ -1034,6 +1073,13 @@ def generate(out, seed: int = 11) -> dict:
                            "properties": {"well_name": w["name"], "well_type": w["type"], "lift_type": w["lift"],
                                           "status": "producing", "latitude": lat, "longitude": lon}})
         spatial_truth.append({"src": w["name"], "rel": "located_at", "dst": f"{FIELD}-{w['area']}"})
+    for slot, (name, *_) in enumerate(injectors, start=1):  # the water injectors (#365) sit apart from the producers
+        x, y = place["50"]
+        lon, lat = round(x - 6.0e-5 * slot, 6), round(y - 4.0e-5, 6)
+        well_feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                           "properties": {"well_name": name, "well_type": "water injector", "lift_type": "",
+                                          "status": "injecting", "latitude": lat, "longitude": lon}})
+        spatial_truth.append({"src": name, "rel": "located_at", "dst": f"{FIELD}-50"})
 
     # ---- P&ID drawings --------------------------------------------------------------------------------
     sheets, pid_truth, to_draw = [], {}, []
@@ -1206,6 +1252,11 @@ def generate(out, seed: int = 11) -> dict:
     capacity_truth = capacity.constrain(daily, measured)  # the limits bind in the history, not beside it
     _write_csv(out / "ec_day001.csv", daily)
     for name, rows in capacity.registers(seed).items():
+        if name == "design_basis":  # the reservoir fluid properties from the PVT study, for voidage (#365)
+            rows = [{**r, "facility": ""} for r in rows] + [
+                {"reading_id": f"PVT-{FIELD}-{q}", "tag": "", "node": "", "quantity": q, "value": str(v), "unit": u,
+                 "effective": "2019-03-01", "method": "pvt study", "doc_ref": "OKA-RES-PVT-2019", "facility": FIELD}
+                for q, v, u in PVT]
         _write_csv(out / f"{name}.csv", rows)
     for name, rows in accounts.ledger(daily, FIELD, seed).items():  # the books, after the limits bind (#372)
         _write_csv(out / f"{name}.csv", rows)
@@ -1237,6 +1288,8 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
     (out / "answer_keys" / "work.json").write_text(json.dumps(work_truth, indent=1))
+    (out / "answer_keys" / "injection.json").write_text(json.dumps(injection_truth, indent=1))
+    _write_csv(out / "ec_injection.csv", injection)
     (out / "answer_keys" / "assistant.json").write_text(
         json.dumps(ASSISTANT_QUESTIONS, indent=1).replace("{wet_line}", wet_line).replace("{j1202_choke}", tag_j1202))
     (out / "answer_keys" / "assistant_memory.json").write_text(json.dumps(MEMORY_QUESTIONS, indent=1))
