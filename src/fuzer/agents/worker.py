@@ -155,13 +155,29 @@ def idle_brief(conn, ask=None) -> dict | None:
         return None
 
 
+def idle_skill_draft(conn, ask=None) -> dict | None:
+    """With no agent step or brief to write, draft a change to a skill that fell short (P6.4c), when
+    `agents.skill_drafts` is on."""
+    from . import skill_drafts
+
+    if not settings.get(conn, "agents.skill_drafts"):
+        return None
+    try:
+        return skill_drafts.next_one(conn, ask)
+    except Exception as e:  # a draft never stops the worker
+        conn.rollback()
+        log.warning("skill draft failed: %s", e)
+        return None
+
+
 def run(connect: Callable, agents: dict[str, Agent], worker: str | None = None, poll: float = 5.0,
         stop: Callable[[], bool] = lambda: False, ask=None) -> None:
-    """Keep running agent steps; with none, write a pending case brief; sleep `poll` seconds when there is neither."""
+    """Keep running agent steps; with none, write a pending case brief, then a skill draft; sleep `poll` seconds when there is neither."""
     worker = worker or default_worker()
     with connect() as conn:
         while not stop():
-            if run_once(conn, agents, worker) is None and idle_brief(conn, ask) is None:
+            if run_once(conn, agents, worker) is None and idle_brief(conn, ask) is None \
+                    and idle_skill_draft(conn, ask) is None:
                 time.sleep(poll)
 
 

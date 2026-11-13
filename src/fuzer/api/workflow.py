@@ -228,6 +228,7 @@ class SkillAct(BaseModel):
     skill: str
     by: str
     version: int | None = None
+    note: str | None = None
 
 
 def _skill_call(fn, *args):
@@ -271,6 +272,25 @@ def work_skill_rollback(a: SkillAct, conn=Depends(get_conn)):
     from ..agents import skill_versions
 
     return _skill_call(skill_versions.rollback, conn, a.skill, a.by)
+
+
+@router.post("/work/skills/set-aside")
+def work_skill_set_aside(a: SkillAct, conn=Depends(get_conn)):
+    """A person turns a draft down; its work for the skill's owner clears."""
+    from ..agents import skill_versions
+
+    if a.version is None:
+        raise HTTPException(422, "say which version to set aside")
+    return _skill_call(skill_versions.set_aside, conn, a.skill, a.version, a.by, a.note)
+
+
+@router.get("/work/skills/due")
+def work_skills_due(conn=Depends(get_conn)):
+    """Skills due a drafted change: fallen short often enough since their live version, with no draft waiting."""
+    from ..agents import skill_drafts
+
+    return [{k: v for k, v in s.items() if k != "shortfalls"} | {"shortfalls": len(s["shortfalls"])}
+            for s in skill_drafts.due(conn)]
 
 
 @router.post("/work/items/{item_id}/comment")

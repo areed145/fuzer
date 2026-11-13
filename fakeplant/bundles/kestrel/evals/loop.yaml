@@ -57,3 +57,5 @@ arrive:
   deviation_review_due: {deviation: {part: settings, key: handover.shift_times, owner: ops_lead, review_by: "today-1d",
                                      reason: "Kestrel's crews hand over at 07:00 and 19:00 local, not 06:00 and 18:00"},
                          detector: deviation_reviews, about: model}
+  # The compression pack's briefs not followed twice: its specialist drafts a change to the playbook (P6.4c)
+  skill_change: {skill: maintenance-integrity/compression, about: skill}
