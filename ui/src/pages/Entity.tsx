@@ -75,7 +75,7 @@ const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1]
 
 type EntityTab = "overview" | "trends" | "connections" | "documents" | "record" | "graph";
 const TAB_LABELS: Record<EntityTab, string> = {
-  overview: "Overview", trends: "Measurements", connections: "Connections", documents: "Documents", record: "Record",
+  overview: "Overview", trends: "Timeline", connections: "Connections", documents: "Documents", record: "Record",
   graph: "Graph",
 };
 const NO_TRENDS = ["document", "document_section", "log_entry"];
@@ -84,8 +84,10 @@ const MAINTAINED = ["tag", "equipment", "equipment_model", "equipment_class"];
 /** The views this kind of record has, in order. Each view loads only its own data. */
 function entityTabs(e: EntityDetail): EntityTab[] {
   const trends = !NO_TRENDS.includes(e.kind) && e.kind !== "timeseries";
-  const documents = [...MAINTAINED, "area"].includes(e.kind);
-  return ["overview", ...(trends ? ["trends" as const] : []), "connections",
+  // Connections is the flow diagram, so only a record on the flow network has it; its links are on Graph.
+  const flow = e.edges.some((x) => x.rel === "flows_to");
+  const documents = [...MAINTAINED, "area", "well", "facility", "pipeline"].includes(e.kind);
+  return ["overview", ...(trends ? ["trends" as const] : []), ...(flow ? ["connections" as const] : []),
     ...(documents ? ["documents" as const] : []), "record", "graph"];
 }
 
@@ -110,7 +112,6 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
   const tabs = entityTabs(e);
   const view: EntityTab = tabs.includes(tab as EntityTab) ? (tab as EntityTab) : "overview";
-  const hasFlow = e.edges.some((x) => x.rel === "flows_to");
   const fid = e.fuzer_id;
   // Assets people work on open on their work and history; any other record opens on its values.
   const operated = ["tag", "equipment", "well", "facility", "area"].includes(e.kind);
@@ -146,6 +147,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
       {view === "graph" && (
         <Suspense fallback={<Status loading />}>
           <EntityGraph id={fid} asOf={asOf || undefined} />
+          <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
         </Suspense>
       )}
 
@@ -168,7 +170,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
                    rel="noreferrer">Open document</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
-                <p className="error small">This revision is superseded; see "Superseded by" under Connections.</p>
+                <p className="error small">This revision is superseded; see "Superseded by" under Graph.</p>
               )}
               <iframe
                 className="doc-file"
@@ -192,6 +194,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             <Related about={{ subject: fid }} incidents={false} /></>
           )}
           {MAINTAINED.includes(e.kind) && <MaintenanceCard id={fid} />}
+          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={fid} />}
           {[...MAINTAINED, "well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
           {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={fid} />}
           {e.kind !== "event" && <Events id={fid} />}
@@ -216,16 +219,14 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
       {view === "connections" && (
         <>
-          <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
-          {hasFlow && <Trace id={fid} label={e.label ?? fid} kind={e.kind} asOf={asOf || undefined} />}
-          {e.kind !== "document" && <LinkedDrawings id={fid} />}
+          <Trace id={fid} label={e.label ?? fid} kind={e.kind} asOf={asOf || undefined} />
         </>
       )}
 
       {view === "documents" && (
         <>
+          <LinkedDrawings id={fid} />
           <KnowledgeCard id={fid} />
-          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={fid} />}
         </>
       )}
 
