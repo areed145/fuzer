@@ -40,7 +40,7 @@ def test_every_degradation_level_is_drawn(truth):
 
 def test_off_page_connectors_pair_up_across_sheets(truth):
     ends = [(s, o) for s, k in truth.items() for o in k["offpage"]]
-    assert len(ends) == 8
+    assert len(ends) == 12  # the surge drum to each export pump, and the inlet separator to each train
     for sheet, o in ends:
         other = truth[o["sheet"]]["offpage"]
         back = [x for x in other if x["line"] == o["line"] and x["sheet"] == sheet]

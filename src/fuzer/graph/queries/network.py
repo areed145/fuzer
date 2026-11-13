@@ -201,11 +201,11 @@ def flow_disagreements(conn, area_of, depth: int = 12) -> list[dict]:
     piped = set(pipes) | {b for bs in pipes.values() for b in bs}
     area = {x: area_of(label[x]) for x in label}
     drawn_areas = {area[x] for x in piped if area[x]}
-    names = lambda layers: " → ".join(", ".join(label[x] for x in layer) for layer in layers)
+    names = lambda layers: " → ".join(", ".join(sorted(label[x] for x in layer)) for layer in layers)
 
     def item(kind, a, b, path, flow_systems):
         return {"kind": kind, "from": label[a], "to": label[b], "from_id": a, "to_id": b, "area": area[a],
-                "drawn_path": [[label[x] for x in layer] for layer in path], "drawn": names(path),
+                "drawn_path": [sorted(label[x] for x in layer) for layer in path], "drawn": names(path),
                 "on_drawings": b in piped, "sheets": sorted(sheets.get(a, set()) | sheets.get(b, set())),
                 "systems": flow_systems}
 
