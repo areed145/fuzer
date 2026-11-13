@@ -1,0 +1,16 @@
+# Produced water chemistry (#368): one row per sample and analyte, taken at a line's sample point (a flowline's
+# arrival end, a trunkline's receiver). pH and temperature are measured in the field when the sample is drawn; the
+# ions in the laboratory. The water a line carries, and the temperature it carries it at, are what a CO2 corrosion
+# screen reads.
+source: lims
+record_type: water_analysis
+shape: measurements
+dataset: lims_water_chemistry
+key: [sample_id, analyte]
+measurements:
+  of: {kind: pipeline, from: line_id}
+  at: sampled_at
+  method: {from: method}
+  location: sample_point
+  values:
+    - {quantity: {from: analyte}, from: result, unit: {from: unit}}

@@ -482,6 +482,23 @@ ili_strength:
       expect: 220.70015
       says: "49 % deep, 131 mm long on 610 x 15.9 mm API 5L X65: modified B31G at a 517 MPa flow stress fails at 220.7 bar."
 
+co2_corrosion:
+  title: CO2 corrosion rate predicted against measured, per line
+  standard: "de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections"
+  practice: "log10(V mm/y) = 5.8 - 1710/T + 0.67 log10(fCO2), T the produced water's temperature at the line's sample point, fCO2 the CO2 partial pressure at the line's MOP times the fugacity coefficient; above the scaling temperature the rate is cut by the scale factor. The rate is uninhibited and water-wet, an upper bound. The out-of-step ratio is this registry's own screening choice; the sweet/sour boundary follows the common pCO2/pH2S rule of thumb."
+  tool: co2_corrosion_screen
+  inputs: [{name: Produced water temperature, unit: degC}, {name: Gas CO2, unit: "% mol"}, {name: Gas H2S, unit: ppmv}, {name: Maximum operating pressure, unit: barg}, {name: CML wall thickness readings, unit: mm}]
+  valid: Carbon steel production lines carrying produced water with CO2, where pCO2/pH2S is 500 or more. pH, chloride, bicarbonate and iron are reported, not modelled.
+  needs: Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison.
+  thresholds:
+    out_of_step: {value: 2, means: "A line whose measured share of its prediction is over this many times its peers' median corrodes out of step.", code: "fuzer.analysis.co2_corrosion:OUTLIER_RATIO"}
+    sour: {value: 500, means: "pCO2/pH2S under this: H2S takes part, and the CO2 model gives no prediction.", code: "fuzer.analysis.co2_corrosion:SOUR_RATIO"}
+  vectors:
+    - kernel: fuzer.analysis.co2_corrosion:predicted_rate
+      args: [55.0, 71.0, 2.1]
+      expect: {rate_mm_per_year: 4.46391, pco2_bar: 1.491, scale_factor: 1.0}
+      says: "55 degC water at 71 bara with 2.1 % mol CO2: pCO2 1.49 bar, fugacity 0.83, below the scaling temperature, 4.46 mm/y uninhibited."
+
 lead_in:
   title: Process values in the hours before an event against the hours before that
   practice: A before and after comparison of each measurement's mean and extreme around the event.

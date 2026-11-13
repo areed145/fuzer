@@ -272,3 +272,22 @@ def plot_ili_anomalies(line: str | None = None) -> dict[str, Any]:
     """Chart ILI metal loss depth along a line for each run, the anomalies crossing the screen ringed."""
     from ...plots import maintenance
     return _chart(maintenance.ili_anomalies, {"line": line})
+
+
+@capability("maintenance-integrity", kind="calc")
+def co2_corrosion_screen(until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """CO2 corrosion screening (#368): for each line with produced water chemistry, the de Waard-Milliams
+    uninhibited, water-wet CO2 corrosion rate at the water's temperature and the line's MOP (gas CO2 from the line's
+    own samples or the field's), against the rate its CMLs measure. Flags out_of_step (its measured share of the
+    prediction over 2 times the peers' median) and above_prediction; no prediction where pCO2/pH2S is under 500
+    (H2S takes part) or temperature, MOP or gas CO2 is missing. A screening model, not an integrity verdict."""
+    from ...analysis import co2_corrosion
+    with db.connect() as conn:
+        return _plain(co2_corrosion.screen(conn, until, max(90, min(days, 1825))))
+
+
+@capability("maintenance-integrity", kind="plot")
+def plot_co2_corrosion(until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart each line's predicted CO2 corrosion rate beside its measured CML rate, the lines out of step marked."""
+    from ...plots import maintenance
+    return _chart(maintenance.co2_corrosion, {"until": until, "days": max(90, min(days, 1825))})

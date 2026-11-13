@@ -428,3 +428,29 @@ def ili_anomalies(conn, line: str | None = None) -> Figure:
         "anomalies": [{k: a.get(k) for k in ("feature", "station_m", "depth_pct", "rate_pct_per_year", "erf",
                                                "projected_erf", "screen")} for a in ln["anomalies"]],
         "method": out["method"], "source": out["source"], "note": out["note"]}, [a["id"] for a in flagged][:10])
+
+
+def co2_corrosion(conn, until: str | None = None, days: int = 365) -> Figure:
+    """CO2 corrosion screening (#368): each line's uninhibited predicted rate against its measured CML rate, on a log
+    scale, the lines out of step with their peers marked."""
+    from ..analysis import co2_corrosion as cc
+
+    out = cc.screen(conn, until, days)
+    rows = [x for x in out["lines"] if x["predicted_mm_per_year"] is not None and x["measured_mm_per_year"] is not None]
+    if not rows:
+        raise ChartError(out["note"] if not out["lines"] else "no line has both a prediction and a measured CML rate")
+    x = [r["line"] for r in rows]
+    flagged = [r for r in rows if r["flag"] in ("out_of_step", "above_prediction")]
+    data = [{"type": "bar", "name": "predicted, uninhibited (mm/y)", "x": x,
+             "y": [r["predicted_mm_per_year"] for r in rows], "marker": {"color": "rgba(150,150,150,0.6)"}},
+            {"type": "bar", "name": "measured CML rate (mm/y)", "x": x, "y": [r["measured_mm_per_year"] for r in rows],
+             "marker": {"color": ["rgba(210,60,50,0.9)" if r in flagged else "rgba(40,110,190,0.9)" for r in rows]}}]
+    lay = layout(f"CO2 corrosion: predicted against measured, {out['since']} to {out['until']}", None, "mm/y")
+    lay["barmode"] = "group"
+    lay["yaxis"]["type"] = "log"
+    return Figure("co2_corrosion", lay["title"]["text"], data, lay, {
+        "verdict": out["verdict"], "summary": out["summary"], "typical_ratio": out["typical_ratio"],
+        "lines": [{k: r.get(k) for k in ("line", "predicted_mm_per_year", "measured_mm_per_year",
+                                         "measured_over_predicted", "flag")} for r in rows],
+        "method": out["method"], "source": out["source"], "note": out["note"]},
+        [rec for r in flagged for rec in r["records"]][:10])
