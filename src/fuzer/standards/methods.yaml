@@ -640,6 +640,21 @@ loop_health:
   vectors:
     - {worked: "tests/analysis/test_control_loops.py::test_each_planted_fault_ranks_at_the_top_of_the_worklist"}
 
+valve_stiction:
+  title: Valve stiction from controller output against process value (cross-correlation test)
+  practice: "Horch, A. (1999), A simple method for detection of stiction in control valves, Control Engineering Practice 7: on a loop cycling in auto, the cross-correlation of controller output and process value is odd (zero at lag 0, peaks of opposite sign either side) when a sticking valve drives the cycle, and even (strongest at lag 0) when tuning or an outside disturbance does. Stated for self-regulating loops (flow, pressure); on an integrating loop (level) it is a weaker indication. The share thresholds are this registry's own screening choices."
+  tool: valve_stiction
+  inputs: [{name: Process value, unit: each loop's own}, {name: Controller output, unit: "%"}, {name: Mode (1 auto, 0 manual), unit: "-"}]
+  valid: Loops on the DCS loop list in auto most of the window whose process value cycles regularly (loop_oscillation).
+  needs: A day or more of 5-minute readings covering at least four cycles.
+  thresholds:
+    odd_max: {value: 0.3, means: "|r(0)| under this share of the strongest correlation within half a period, with peaks of opposite sign either side: a suspected sticking valve.", code: "fuzer.analysis.stiction:ODD_MAX"}
+    even_min: {value: 0.7, means: "|r(0)| over this share: tuning or a disturbance; between the two, inconclusive.", code: "fuzer.analysis.stiction:EVEN_MIN"}
+    min_auto: {value: 90, unit: "%", means: "Share of the window in auto below which the test isn't run.", code: "fuzer.analysis.stiction:MIN_AUTO_PCT"}
+  vectors:
+    - {worked: "tests/analysis/test_stiction.py::test_a_sticking_valve_reads_odd_and_a_tuning_cycle_reads_even"}
+    - {worked: "tests/analysis/test_stiction.py::test_the_sticky_level_valve_is_found_and_the_healthy_loops_are_not"}
+
 contactor_foaming:
   title: Contactor differential pressure against its clean level (foaming and fouling)
   practice: "GPSA Engineering Data Book (hydrocarbon treating and dehydration): foaming shows first as a sudden rise in column differential pressure, with carryover and off-spec gas; a slow climb is fouling or damaged packing."

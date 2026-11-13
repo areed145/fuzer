@@ -284,3 +284,36 @@ def plot_loop_health(days: int = 7, until: str | None = None) -> dict[str, Any]:
     """Chart the control loop health ranking, worst on top, each loop's score split into what makes it up."""
     from ...plots import general
     return _chart(general.loop_health, {"days": max(1, min(days, 31)), "until": until})
+
+
+@capability("field-operations-facilities", kind="calc")
+def valve_stiction(ref: str | None = None, days: int = 3, until: str | None = None) -> dict[str, Any]:
+    """Valve stiction check (#357): for each loop on the DCS loop list (or the one named, e.g. 10-LIC-2003) in auto
+    over the `days` up to `until` whose value cycles regularly, Horch's cross-correlation of controller output against
+    process value: odd (near zero at lag 0, peaks of opposite sign either side) reads as a sticking valve, even as
+    tuning or a disturbance. A suspected valve carries `route`: Maintenance & Integrity, for an instrument technician
+    to confirm in the field (a valve travel or bump test). A suspicion, not a diagnosis, a tuning change or a work
+    order; retuning can't fix a sticking valve. Read-only."""
+    from ...analysis import calcs, stiction
+    from .catalog import AGENT_BY_ID
+    mi = AGENT_BY_ID["maintenance-integrity"]
+    with db.connect() as conn:
+        try:
+            out = stiction.stiction(conn, ref, max(1, min(days, 14)), until)
+        except calcs.CalcError as e:
+            return {"error": str(e), **e.refusal()}
+    for m in out["loops"]:
+        if m["verdict"] == "stiction_suspected":
+            m["route"] = {"agent": mi.id, "label": mi.label,
+                          "why": f"{m.get('valve') or m['loop'] + ' valve'} is suspected of sticking: a field check "
+                                 "for an instrument technician (valve travel or bump test), not a tuning change."}
+    return _plain(out)
+
+
+@capability("field-operations-facilities", kind="plot")
+def plot_valve_stiction(ref: str, days: int = 1, until: str | None = None) -> dict[str, Any]:
+    """Chart a loop's process value against its controller output over the window, with the stiction verdict: a
+    sticking valve draws a parallelogram (the output moves, the value doesn't, then it jumps); a tuning cycle an
+    ellipse."""
+    from ...plots import general
+    return _chart(general.valve_stiction, {"ref": ref, "days": max(1, min(days, 14)), "until": until})

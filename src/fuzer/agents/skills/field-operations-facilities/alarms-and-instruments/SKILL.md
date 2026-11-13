@@ -23,6 +23,12 @@ the generator behaves, not the plant.
    threshold. `control_loop(ref)` reads one loop's PV, SP, OP and mode together; `plot_loop_health(days, until)`
    charts the ranking. A loop in manual or out of valve isn't a tuning problem: say what the record shows and who
    owns it.
+
+   **Is the valve sticking?** For a loop that cycles, `valve_stiction(ref, days, until)` reads its output against its
+   value: odd cross-correlation suggests a sticking valve, even suggests tuning or a disturbance. A suspected valve
+   comes with `route` to Maintenance & Integrity: name it as a field check for the instrument technician (valve
+   travel or bump test), because retuning can't fix it. On a level loop the test is weaker, and its `caveat` says so.
+   `plot_valve_stiction(ref, days, until)` draws value against output.
 5. **When did it change?** `detect_changes(ref)` dates steps, drifts and jitter changes. `plot_changes(ref)` marks them.
 6. **Limits and headroom.** `limits(ref)` gives alarm limits, IOWs and learned ranges with excursions while the unit
    runs. `capacity_headroom(ref)` shows the nearest limit, and `plot_operating_window(ref, since, until)` the minutes
