@@ -1,0 +1,83 @@
+# What each work detector should raise on Kestrel, for the sweep scorer (P3.6, #844). The format is Okan's
+# (fakeplant/bundles/okan/evals/detections.yaml). Kestrel's history is relative to today, as its data is; the events
+# are its process model's (exports/process_model.json) and its deliveries.
+detectors:
+  quality_drift:
+    since: "today-90d"
+    until: "today"
+    every_days: 3
+    events:
+      - {key: "Sales gas", from: "today-2d", to: "today"}  # water content climbing over the last three weekly samples
+
+  flare_events:
+    since: "today-90d"
+    until: "today"
+    every_days: 1
+    events:  # the flare at each train B1 trip, matched to its downtime
+      - {key: "H1-V-8001", from: "today-1d", to: "today"}
+
+  loop_oscillation:
+    since: "today-90d"
+    until: "today"
+    every_days: 3
+    events:
+      - {key: "D1.TT4006", from: "today-3d", to: "today"}  # D1-E-4006's temperature cycling every two hours
+
+  alarm_performance:
+    since: "today-90d"
+    until: "today"
+    every_days: 3
+    events:  # a drift that leaves an alarm standing; no flood (its 28 alarmed tags never reach 10 in 10 minutes)
+      - {key: "C1.AT3011", from: "today-44d", to: "today"}  # the dry gas water analyser drifting up
+    # C1.TT3008 already stands at the start of the history, before the heater's injected sag (today-46d), so its one
+    # raise is kept as a false alarm and the sag behind it is not scored
+    gates: {precision: 0.5}
+
+  compressor_trips:
+    since: "today-90d"
+    until: "today"
+    every_days: 7
+    events:  # train B1's trips, each raised by the next run after it
+      - {key: "today-96d", from: "today-96d", to: "today-86d"}
+      - {key: "today-60d", from: "today-60d", to: "today-50d"}
+      - {key: "today-35d", from: "today-35d", to: "today-25d"}
+      - {key: "today-1d", from: "today-1d", to: "today"}
+
+  machine_health:
+    since: "today-90d"
+    until: "today"
+    every_days: 15
+    events:
+      - {key: "B1-K-2001", from: "today-20d", to: "today"}  # a valve leaking on throw 3, then cylinder 5 misfiring
+
+  bypass_overdue:
+    since: "today-30d"
+    until: "today"
+    every_days: 3
+    events:
+      - {key: "BYP-KR-031", from: "today-30d", to: "today"}  # the suction scrubber's HH level trip, still bypassed
+
+  unrecorded_changes:
+    since: "today-30d"
+    until: "today"
+    every_days: 3
+    events:
+      - {key: "B1LT2005", from: "today-3d", to: "today"}  # its HH alarm moved with no change record
+
+  # The entries below land the next delivery in Kestrel's history first; what they land stays, so they come last.
+  well_tests:
+    deliver: {path: deliveries/well-test, datasets: [ec_well_tests], incremental: true, rebuild: true}
+    since: "today-30d"
+    until: "today"
+    every_days: 3
+    events:
+      - {key: "KR 12-03H", from: "today-1d", to: "today"}  # water cut up from 2.5 to 14 % on yesterday's test
+
+  records_gaps:
+    deliver: {path: deliveries/unlogged-stop, datasets: [ec_downtime], rebuild: true}
+    since: "today"
+    until: "today"
+    events:
+      - {key: "fz-downtime", from: "today", to: "today"}  # a stop no log entry or notification mentions
+
+  gas_lift_instability: {not_here: "its wells flow on their own; none is on gas lift"}
