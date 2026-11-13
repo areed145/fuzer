@@ -248,3 +248,20 @@ def safeguard_status(ref: str | None = None, system: bool = True) -> dict[str, A
             "changes": safeguards.changes(conn, subjects, system=system),
             "not_held": "Fuzer holds no safety requirements specification, PFD calculation or proof test procedure; "
                         "a demand rate is read against the rate on the register only."})
+
+
+@capability("field-operations-facilities", kind="query")
+def control_loop(ref: str | None = None, days: int = 3, until: str | None = None) -> dict[str, Any]:
+    """Control loops from the DCS loop list (#355). With no ref, every loop with the item it holds and its PV, SP, OP
+    and mode points. With a loop's controller tag (e.g. 10-LIC-2003), its four points read together over the `days`
+    up to `until` (5-minute grid): the values a loop health or stiction check reads. synthetic says when the values
+    are a fake plant's. Read-only: nothing is written to the historian or the DCS."""
+    from ...analysis import calcs
+    from ...analysis import control_loops as cl
+    with db.connect() as conn:
+        if not ref:
+            return _plain({"loops": [{k: v for k, v in x.items() if k != "_series"} for x in cl.loops(conn)]})
+        try:
+            return _plain(cl.series(conn, ref, max(1, min(days, 14)), until))
+        except calcs.CalcError as e:
+            return {"error": str(e), **e.refusal()}

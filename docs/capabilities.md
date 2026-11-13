@@ -214,7 +214,7 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Orchestrator | 23 |
 | Production & Surveillance | 80 |
 | Wells & Subsurface | 71 |
-| Field Operations & Facilities | 88 |
+| Field Operations & Facilities | 89 |
 | Maintenance & Integrity | 84 |
 | Work Management & Supply Chain | 36 |
 | HSE & Incident Management | 50 |
@@ -382,10 +382,11 @@ Used by every agent or by several specialists.
 | `plot_productivity_index` | plot | well? | Chart each surveyed well's productivity index over its surveys, or one well's, fallen wells marked. |
 | `plot_material_balance` | plot | since?, until?, days? | Chart static pressures against reservoir volume taken out net of injection, with the fitted slope. |
 
-## Field Operations & Facilities (5)
+## Field Operations & Facilities (6)
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
+| `control_loop` | query | ref?, days?, until? | Control loops from the DCS loop list (#355). |
 | `equipment_changes` | query | since? | Equipment removals and installs (swaps) across the facility, newest first. |
 | `troubleshooting_brief` | query | ref | Start here when troubleshooting. |
 | `instrument_health` | calc | ref, since?, until? | Can the readings be trusted? On a PI point, or every point on a unit: frozen (no change while the unit runs), stuck (jitter collapsed), noisy (hunting: jitter several times its usual), out of range, and redundant transmitters (A / B) drifting apart. |
