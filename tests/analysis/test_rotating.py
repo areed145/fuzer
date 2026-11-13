@@ -102,7 +102,7 @@ def test_a_fouling_gas_turbine_burns_more_fuel_than_its_curves_expect_until_wash
     assert clean["flag"] is None and abs(clean["excess_pct"]) < 1.5 and clean["unit"] == "kJ/kWh"
     fouled = rotating.heat_rate(conn, k, until="2025-11-10T00:00")
     assert fouled["flag"] == "heat_rate_high" and fouled["excess_pct"] > 5 and fouled["trend_pct_per_week"] > 0
-    assert fouled["value"] > fouled["expected"] and "LHV" in fouled["basis"] and 60 < fouled["load_pct"] <= 100
+    assert fouled["value"] > fouled["expected"] and "LHV" in fouled["basis"] and 50 < fouled["load_pct"] <= 100
     washed = rotating.heat_rate(conn, k, until="2025-12-01T00:00")
     assert washed["flag"] is None and washed["excess_pct"] < 3
     assert rotating.heat_rate(conn, fid(conn, "20-GT-2000A"), until="2025-11-10T00:00")["flag"] is None

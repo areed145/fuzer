@@ -27,8 +27,12 @@ TAG = re.compile(r"(\d\d)-?([A-Z]+)-?(\d{4})([A-Z]?)\b")
 
 # Compression: stage -> (suction, discharge) barg; the 3rd stage feeds the lift gas header.
 STAGES = {1: (6.0, 18.0), 2: (17.0, 38.0), 3: (37.0, 92.0)}
-# Each stage's design point per train: actual inlet flow (Am3/h) and polytropic head (kJ/kg) at rated speed.
-STAGE_DESIGN = {1: (3900.0, 205.0), 2: (1500.0, 155.0), 3: (720.0, 180.0)}
+# Each stage's design point per train: actual inlet flow (Am3/h) and polytropic head (kJ/kg) at rated speed, the head
+# its gas takes from suction to discharge pressure on Peng-Robinson (fakeplant/calibration.py).
+STAGE_DESIGN = {1: (3900.0, 134.0), 2: (1500.0, 102.0), 3: (720.0, 118.0)}
+# Each train's gas turbine runs at this share of its ISO output at design flow: the stages' gas power over a 0.93
+# mechanical and gearbox efficiency (fakeplant/calibration.py).
+GT_DUTY = 0.57
 # Each stage's temperature exponent, (k - 1) / (k eta_p): the gas each stage takes (the inlet separator's, less what its
 # scrubber drops) compressed at a polytropic efficiency of 0.77, on Peng-Robinson (fakeplant/calibration.py).
 T_EXPONENT = {1: 0.242, 2: 0.257, 3: 0.262}
@@ -94,7 +98,7 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
                 g = (oem or {}).get(next((e["model"] for e in equipment if e["floc"].endswith(f"-{area}-GT{loop}{s}")), ""), {})
                 units[tag] = {"type": "gas_turbine", "train": train, "iso_kw": g.get("iso_kw", 5670.0),
                               "iso_heat_rate": g.get("iso_heat_rate", 11300.0), "lhv": g.get("lhv", 36.0),
-                              "duty": 0.86}
+                              "duty": GT_DUTY}
             elif func == "E":
                 units[tag] = {"type": "cooler", "train": train}
             elif func == "V":

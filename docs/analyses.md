@@ -287,8 +287,8 @@ restricted by about 35% in August until the bean change.
 - **`surge(stage)`** (`rotating.py`, #474): a centrifugal stage against its own OEM map (vendors issue a map
   per machine, loaded from `oem_compressor_maps` by SAP equipment number). Surge margin is Q / Q surge − 1, from
   the suction flow and the surge flow at the driver's speed. The check also gives the share of running time the
-  anti-surge valve is open, head against the map at the same flow and speed, and the same stage's flow on the
-  other trains. It flags `near_surge` when the last week's 5th percentile margin is under 5 %, and `recycling`
+  anti-surge valve is open, head against the map at the same flow and speed (on the gas analysis's real-gas
+  properties, else an ideal gas), and the same stage's flow on the other trains. It flags `near_surge` when the last week's 5th percentile margin is under 5 %, and `recycling`
   when the valve is open more than 30 % of the time. On Okan, train C is starved of gas from mid-October 2025.
   Its 1st stage, 20-K-2100C, runs on its anti-surge valve at about 10 % margin and dips toward surge on December's
   load swings, while trains A and B run 1.8 times its flow. The Solar C40 stages have no map, and the check says
