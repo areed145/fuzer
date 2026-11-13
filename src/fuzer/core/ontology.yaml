@@ -134,6 +134,13 @@ kinds:
     group: Maintenance
     colour: "#6b8fa3"
     description: A point an operator reads or checks on a round, with its limits.
+  vibration_spectrum:
+    label: Vibration spectrum
+    group: Maintenance
+    colour: "#7d8fb3"
+    description: >-
+      A condition-monitoring spectrum taken at a measurement point on a machine (a bearing, in a direction), with the
+      running speed, the bearing's geometry from the point's setup, and the spectrum's peaks.
   allocation_node:
     label: Allocation node
     group: Production
@@ -343,8 +350,8 @@ relations:
   checks:
     label: checks
     view: maintenance
-    description: A round point and the equipment it reads or checks.
-    from: [round_point]
+    description: A round point, or a condition-monitoring spectrum, and the equipment it reads or checks.
+    from: [round_point, vibration_spectrum]
     to: [tag, equipment, area, facility]
   flows_to:
     label: flows to

@@ -454,3 +454,41 @@ def co2_corrosion(conn, until: str | None = None, days: int = 365) -> Figure:
                                          "measured_over_predicted", "flag")} for r in rows],
         "method": out["method"], "source": out["source"], "note": out["note"]},
         [rec for r in flagged for rec in r["records"]][:10])
+
+
+def vibration_spectrum(conn, tag: str, point: str | None = None) -> Figure:
+    """A measurement point's latest condition-monitoring spectrum (#367) with its fault frequencies marked: 1x, 2x and
+    the bearing defect frequencies and their harmonics, the indications in the summary."""
+    from ..analysis import vibration_spectra as vs
+
+    out = vs.spectra(conn, tag)
+    pts = [p for p in out["points"] if not point or p["point"].lower() == point.lower()]
+    if not pts:
+        raise ChartError(out["note"] if not out["points"] else f"no spectrum at {point} on {tag}")
+    p = pts[0]
+    f = conn.execute("select value #>> '{}' as v from golden where fuzer_id = %s and field = 'peaks'",
+                     (p["spectrum"],)).fetchone()
+    peaks = vs.parse_peaks(f["v"] if f else None)
+    xs, ys = [], []
+    for hz, a in peaks:  # stems
+        xs += [hz, hz, None]
+        ys += [0, a, None]
+    data = [{"type": "scatter", "mode": "lines", "name": f"spectrum {p['latest']} ({p['unit'] or 'mm/s'})",
+             "x": xs, "y": ys, "line": {"color": "rgba(40,110,190,0.9)", "width": 2}}]
+    top = max((a for _, a in peaks), default=1.0)
+    colours = {"1x": "rgba(90,90,90,0.7)", "2x": "rgba(90,90,90,0.5)", "bpfo": "rgba(210,60,50,0.8)",
+               "bpfi": "rgba(230,150,40,0.8)", "bsf": "rgba(140,80,170,0.8)", "ftf": "rgba(40,150,90,0.8)"}
+    markers, shapes = [], []
+    for name, hz in p["frequencies"].items():
+        for h in ((1,) if name in ("1x", "2x") else (1, 2, 3)):
+            shapes.append({"type": "line", "x0": h * hz, "x1": h * hz, "y0": 0, "y1": top * 1.1,
+                           "line": {"dash": "dot" if h > 1 else "dash", "color": colours[name], "width": 1}})
+            markers.append({"name": name, "harmonic": h, "hz": round(h * hz, 1)})
+    lay = layout(f"Spectrum, {p['tag']} {p['point']}, {p['latest']}", "frequency (Hz)", f"amplitude ({p['unit'] or 'mm/s'})")
+    lay["shapes"] = shapes
+    lay["xaxis"]["range"] = [0, max(max((hz for hz, _ in peaks), default=0), 3.3 * p["frequencies"].get("bpfi", 0)) * 1.05]
+    return Figure("vibration_spectrum", lay["title"]["text"], data, lay, {
+        "tag": p["tag"], "point": p["point"], "date": p["latest"], "rpm": p["rpm"], "overall": p["overall"],
+        "bearing": p["bearing"], "frequencies": p["frequencies"], "markers": markers,
+        "indications": [{k: i.get(k) for k in ("fault", "reads", "hz", "amplitude", "harmonics", "since")}
+                        for i in p["indications"]], "note": out["note"]}, [p["spectrum"]])

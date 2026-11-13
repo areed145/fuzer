@@ -166,7 +166,7 @@ AGENT_CATALOG = (
         (MAINTENANCE_COORDINATOR, RELIABILITY_ENGINEER, INSPECTION_SPECIALIST, INTEGRITY_ENGINEER),
         ("Linked work orders, incidents, PM/inspection records, and measured condition data where available.",),
         ("Ranked evidence summaries with data dates, units, and explicit coverage gaps.",),
-        ("OEM curves cover only the models loaded, so `equipment_curves` decides whether a curve comparison is possible; vibration is overall mm/s from PI, with no spectra; no inferred inspection status.",),
+        ("OEM curves cover only the models loaded, so `equipment_curves` decides whether a curve comparison is possible; vibration is overall mm/s from PI, with spectra only where the condition-monitoring route takes them (`vibration_spectra`); no inferred inspection status.",),
         ("Maintenance execution, deferral, integrity acceptance, and shutdown decisions require accountable human approval.",),
     ),
     AgentDefinition(
@@ -415,8 +415,9 @@ UNAVAILABLE = (
      "material balance (productivity_index, material_balance)."),
     (_FIELD, "Validated operating envelopes", "Envelopes validated by the control-system owner; alarm limits and IOWs are not that."),
     (_FIELD, "Control loop performance and tuning", "Setpoint, controller output and mode points, with loop parameters."),
-    (_MAINT, "Vibration spectra (bearing defect frequencies, 1x / 2x running speed)",
-     "A condition-monitoring source with spectra or waveforms and bearing geometry; overall vibration is checked."),
+    (_MAINT, "Vibration waveform analysis (envelope demodulation, time waveform) and machines off the spectra route",
+     "Time waveforms from the condition-monitoring system; route spectra with bearing geometry are read against fault "
+     "frequencies (vibration_spectra)."),
     (_MAINT, "Curve and map comparison for machines without OEM data",
      "OEM pump curves for those models and compressor maps for those machines (a datasheet Claude reads counts)."),
     (_WORK, "Schedule-conflict and crew resource analysis", "A planning system with crews, calendars and resource loading."),

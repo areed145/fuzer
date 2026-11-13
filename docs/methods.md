@@ -55,6 +55,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`ldar`](#ldar) LDAR survey leaks, repeat leakers and coverage | US EPA Method 21 (determination of volatile organic compound leaks) | Component screening readings by survey (ppm) | At least one survey; equipment of a surveyed class with no reading is reported unknown. |
 | [`ili_strength`](#ili_strength) ILI anomaly growth between runs and remaining strength against MOP | ASME B31G (modified, 0.85 dL); ASME B31.8 design factors | Anomaly depth (% of wall); Anomaly length (mm); Wall thickness (mm); Outside diameter (mm); SMYS of the API 5L grade (MPa); Maximum operating pressure (barg) | ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade. |
 | [`co2_corrosion`](#co2_corrosion) CO2 corrosion rate predicted against measured, per line | de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections | Produced water temperature (degC); Gas CO2 (% mol); Gas H2S (ppmv); Maximum operating pressure (barg); CML wall thickness readings (mm) | Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison. |
+| [`vibration_spectra`](#vibration_spectra) Vibration spectrum against fault frequencies (bearing defects, 1x, 2x) | ISO 13373-3 (vibration condition monitoring: diagnostics); rolling element bearing defect frequencies from bearing geometry | Spectrum peak table (mm/s RMS); Running speed (rpm); Bearing geometry (elements (mm) | Condition-monitoring spectra with running speed; bearing frequencies need the bearing geometry. |
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
@@ -499,6 +500,20 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `out_of_step`:** A line whose measured share of its prediction is over this many times its peers' median corrodes out of step. (2)
 - **Threshold `sour`:** pCO2/pH2S under this: H2S takes part, and the CO2 model gives no prediction. (500)
 - **Test vector:** 55 degC water at 71 bara with 2.1 % mol CO2: pCO2 1.49 bar, fugacity 0.83, below the scaling temperature, 4.46 mm/y uninhibited. (`predicted_rate`)
+
+## vibration_spectra
+
+**Vibration spectrum against fault frequencies (bearing defects, 1x, 2x).** ISO 13373-3 (vibration condition monitoring: diagnostics); rolling element bearing defect frequencies from bearing geometry. BPFO = n/2 fr (1 - d/D cos a), BPFI = n/2 fr (1 + d/D cos a), BSF = D/(2d) fr (1 - (d/D cos a)^2), FTF = fr/2 (1 - d/D cos a). A bearing defect is indicated when two of its first three harmonics stand above the floor, not counting a harmonic on a whole order of running speed; 2x high against 1x reads misalignment, 1x dominant reads unbalance. The amplitudes and ratios are this registry's own screening choices.
+
+- **Valid for:** Rolling element bearings on machines a route collector measures, with the bearing's geometry in the point setup.
+- **Needs:** Condition-monitoring spectra with running speed; bearing frequencies need the bearing geometry.
+- **Run by:** `vibration_spectra`
+- **Threshold `tolerance`:** A peak within this share of a fault frequency sits on it. (1.5 %)
+- **Threshold `amplitude`:** A peak under this is the spectrum's floor. (0.1 mm/s)
+- **Threshold `harmonics`:** Of the first three harmonics of a bearing frequency, this many must show. (2)
+- **Threshold `misalignment`:** 2x over this share of 1x reads misalignment. (0.5)
+- **Threshold `unbalance`:** 1x over this share of the overall level reads unbalance. (0.9)
+- **Test vector:** 8 balls of 23.8 mm on a 100 mm pitch at 3000 rpm: BPFO 4 x 50 x 0.762 = 152.4 Hz, BPFI 247.6 Hz, cage 19.05 Hz. (`bearing_frequencies`)
 
 ## lead_in
 
