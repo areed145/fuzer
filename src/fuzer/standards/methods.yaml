@@ -472,10 +472,10 @@ ili_strength:
   valid: External or internal metal loss on carbon steel line pipe sized by an in-line inspection tool, on a segment with a recorded grade, wall and class location.
   needs: ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade.
   thresholds:
-    match: {value: 1.5, unit: "m", means: "An anomaly of the same type within this distance in the next run is the same anomaly.", code: "fuzer.analysis.ili:MATCH_M"}
+    match: {value: 1.5, means: "An anomaly of the same type within this many metres in the next run is the same anomaly.", code: "fuzer.analysis.ili:MATCH_M"}
     horizon: {value: 5, unit: "years", means: "Growth is projected this far ahead of the latest run.", code: "fuzer.analysis.ili:HORIZON_YEARS"}
-    depth_limit: {value: 80, unit: "% of wall", means: "An anomaly this deep crosses the screen whatever its pressure.", code: "fuzer.analysis.ili:DEPTH_LIMIT"}
-    tool_tolerance: {value: 10, unit: "% of wall", means: "Growth under this between two runs may be tool sizing, and is said so.", code: "fuzer.analysis.ili:TOLERANCE_PCT"}
+    depth_limit: {value: 80, unit: "%", means: "An anomaly this deep (% of wall) crosses the screen whatever its pressure.", code: "fuzer.analysis.ili:DEPTH_LIMIT"}
+    tool_tolerance: {value: 10, unit: "%", means: "Growth (% of wall) under this between two runs may be tool sizing, and is said so.", code: "fuzer.analysis.ili:TOLERANCE_PCT"}
   vectors:
     - kernel: fuzer.analysis.ili:failure_pressure
       args: [49, 131, 15.9, 610.0, 448]

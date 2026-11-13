@@ -482,10 +482,10 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Valid for:** External or internal metal loss on carbon steel line pipe sized by an in-line inspection tool, on a segment with a recorded grade, wall and class location.
 - **Needs:** ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade.
 - **Run by:** `ili_anomalies`
-- **Threshold `match`:** An anomaly of the same type within this distance in the next run is the same anomaly. (1.5 m)
+- **Threshold `match`:** An anomaly of the same type within this many metres in the next run is the same anomaly. (1.5)
 - **Threshold `horizon`:** Growth is projected this far ahead of the latest run. (5 years)
-- **Threshold `depth_limit`:** An anomaly this deep crosses the screen whatever its pressure. (80 % of wall)
-- **Threshold `tool_tolerance`:** Growth under this between two runs may be tool sizing, and is said so. (10 % of wall)
+- **Threshold `depth_limit`:** An anomaly this deep (% of wall) crosses the screen whatever its pressure. (80 %)
+- **Threshold `tool_tolerance`:** Growth (% of wall) under this between two runs may be tool sizing, and is said so. (10 %)
 - **Test vector:** 49 % deep, 131 mm long on 610 x 15.9 mm API 5L X65: modified B31G at a 517 MPa flow stress fails at 220.7 bar. (`failure_pressure`)
 
 ## lead_in
