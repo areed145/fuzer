@@ -1,6 +1,7 @@
 """REST API: search, entity detail, lookup, flow tracing, the review queue and the work engine."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -45,6 +46,8 @@ async def lifespan(app):
     # Bring an older database up to date (idempotent), as every CLI command does; otherwise pages
     # that read newer tables fail on a database made by an earlier version.
     access.mode()
+    # A request opens several short connections (session, permissions, the route's own): reuse them.
+    db.pool(int(os.environ.get("FUZER_DB_POOL", "8")))
     if access.configured():
         access.public_url()
     with db.connect() as conn:
@@ -57,7 +60,10 @@ async def lifespan(app):
         access.seed(conn)
         source_catalog.ensure(conn)
         conn.commit()
-    yield
+    try:
+        yield
+    finally:
+        db.pool(0)
 
 
 app = FastAPI(title="fuzer", version="0.1.0", lifespan=lifespan,
