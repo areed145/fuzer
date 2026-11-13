@@ -34,9 +34,9 @@ def test_every_source_loads(setup):
         "(select 1 from measurement m where m.record = r.source || ':' || r.record_type || ':' || r.source_key) "
         "and not exists (select 1 from equipment_curve m where m.record = r.source || ':' || r.record_type || ':' "
         "|| r.source_key) and not exists (select 1 from point_limit m where m.record = r.source || ':' || "
-        "r.record_type || ':' || r.source_key) group by 1, 2").fetchall()
+        "r.record_type || ':' || r.source_key) and r.record_type <> 'alarm_event' group by 1, 2").fetchall()
     # Every record became (part of) an entity, measurements, curve points or limits; but the IOW planted
-    # on a tag that doesn't exist.
+    # on a tag that doesn't exist. The DCS alarm journal's events stay source records the alarm analyses read (#859).
     assert unread == [{"source": "iow", "record_type": "window", "n": 1}], unread
 
 

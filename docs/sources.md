@@ -478,11 +478,11 @@ identities, history, review and the graph stay as they are.
 | PI AF | JSON export of element tree + attributes, or PI Web API | |
 | PI points | CSV point list, or PI Web API; ADX series catalog | |
 | Energy Components | JSON of network nodes and dated edges | EC database views |
-| P&IDs | Smart: tag list. Text PDF: extracted text. Image: flagged `needs_ocr` | DEXPI parsing, OCR (Azure Document Intelligence), Claude vision, line tracing |
+| P&IDs | Smart: tag list, or a DEXPI 1.x XML file (`dexpi` in the manifest entry). Text PDF: extracted text. Image: flagged `needs_ocr` | DEXPI 2 connections, OCR (Azure Document Intelligence), Claude vision, line tracing |
 | Operator logs | CSV of entries | Claude for hard mentions and event extraction |
 | EC DAY001 daily reports | CSV of DAY001 rows | Comments read by Claude into links and events |
 | EC downtime / deferment | CSV: `downtime` with reason codes, lost oil, comments | EC database views |
-| DCS alarms, IOW registers | CSV exports landed as point limits | DCS and AF limit traits read live |
+| DCS alarms, IOW registers | CSV exports landed as point limits; the DCS alarm and event journal (`dcs_alarm_journal`) as events the alarm analyses count | DCS and AF limit traits read live |
 | Lab, well tests, inspection | LIMS results, EC well tests, CML readings as measurements | |
 | GIS | GeoJSON wells, facilities, pipelines | Feature services |
 | Production accounting, cost ledger | CSV of monthly accounted volumes (`acct_volumes`) and booked cost by element and currency (`acct_cost_ledger`); reconciled against DAY001 (analysis/accounting.py) | Accounting system views; sales and nominations |
@@ -490,10 +490,14 @@ identities, history, review and the graph stay as they are.
 | Teams channels | (planned) | Selected channels via Microsoft Graph; thread summaries and links |
 
 ## Piping from P&IDs
-Smart P&IDs carry piping (DEXPI-style from / to / line number) and the Claude
+Smart P&IDs carry piping (from / to / line number) and the Claude
 drawing reader returns connections read off scans; both become directional
 `pipes_to` links between tags, kept apart from Energy Components' `flows_to`
-(allocation). The Network page switches between the two, flow traces can
+(allocation). A smart sheet can come as the DEXPI XML a P&ID tool exports (`sources/dexpi.py`, #858): the
+manifest entry names the file (`"dexpi": "pid/<sheet>.xml"`) and the sheet's area, and the reader takes the tags
+(equipment, piping components, instrumentation functions), positions and line numbers, and turns each piping
+segment into hops between tagged items: a nozzle stands for its equipment, an off-page connector for the item it
+names. Kestrel's flare and sales metering sheet ships this way. The Network page switches between the two, flow traces can
 follow either, and a comparison lists EC flows with no piping path on the P&IDs
 and piping between EC nodes with no EC flow path (API and a Dagster check).
 
