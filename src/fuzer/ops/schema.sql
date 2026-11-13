@@ -521,3 +521,23 @@ create table if not exists round_reading (
     exception_id  bigint,                        -- what an out-of-limit reading or a failed check raised
     unique (run_id, point)
 );
+
+-- The agentic watch (P3.3a, ops/watch.py): what the watch agent proposed for an area over a window, that no detector
+-- raised. In shadow (wave 4) a proposal is kept and scored, never routed.
+create table if not exists watch_proposal (
+    id         bigserial primary key,
+    area       text not null,                  -- the process area's fuzer id
+    since      timestamp not null,
+    until      timestamp not null,
+    subject    text,                           -- what it is about, as the evidence names it
+    start      timestamp,
+    "end"      timestamp,
+    why        text not null,                  -- why it is unusual
+    ruled_out  text,                           -- what it ruled out
+    evidence   jsonb not null default '[]',    -- the ids it cites (points, detections, log entries, notifications)
+    cited      boolean not null default false, -- whether every id it cites was in what it was shown
+    mode       text not null default 'shadow',
+    model      text,
+    run_at     timestamptz not null default now()
+);
+create index if not exists watch_proposal_window on watch_proposal (since, until);

@@ -149,6 +149,20 @@ missing-data and escalation cases. Offline tests prove what reaches each agent, 
 Then run `uv run pytest tests/agents` and `uv run python -m fuzer.agents.capabilities > docs/capabilities.md`.
 Add new analysis only when current data and validation support it.
 
+## The agentic watch (in shadow)
+
+`ops/watch.py` (P3.3a, #931) is an agent that reads one process area at a time, the way an engineer scans the day,
+and proposes what looks unusual that no detector raised. It is shown the stretches the area's own multivariate model
+can't explain (read below the multivariate detector's bar), the detections and open exceptions already there, the
+alarms, the operator log and the maintenance notifications, each with an id to cite. Each proposal says why it is
+unusual, cites its evidence and says what it ruled out. A proposal on something a detection already covers is
+dropped, and one that cites an id it wasn't shown is marked uncited.
+
+In wave 4 it runs in shadow: proposals are kept in `watch_proposal` and scored on replay (P3.3b), never routed, so
+no exception and no case come from it. Each run has a spend cap (`watch.max_usd`) and reads up to `watch.max_areas`
+areas. With no model provider configured the watch is off and says so, and nothing else changes. Live mode, where a
+proposal becomes an agentic finding that always goes to a person for triage, is wave 5.
+
 ## Views and agent tools
 
 **Charts:**

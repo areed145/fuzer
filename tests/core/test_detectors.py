@@ -17,7 +17,8 @@ REGISTRY = detectors.registry()
 @pytest.mark.unit
 @pytest.mark.parametrize("d", REGISTRY.values(), ids=list(REGISTRY))
 def test_a_detector_says_what_it_is_what_it_raises_and_where_it_is_scored(d):
-    assert d.title and d.kind in detectors.KINDS and d.cadence in detectors.CADENCES and d.raises
+    assert d.title and d.kind in detectors.KINDS and d.cadence in detectors.CADENCES
+    assert d.raises or d.kind == detectors.AGENTIC, "a detector names the work it raises (an agent in shadow raises none)"
     assert all(k in settings.REGISTRY for k in d.params), "a detector's parameters are registered settings"
     kind, _, where = (d.eval or "").partition(":")
     assert kind in ("replay", "test"), "a detector names its eval"

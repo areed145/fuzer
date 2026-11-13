@@ -82,6 +82,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `sre.handoff.min_detections` | int | `3` | ≥ 1 | Detections an upset needs before it is handed off (a lone detection is evidence, not an upset worth a person's time). |
 | `sre.handoff.max_diagnoses` | int | `10` | 0 to 100 | Upsets the assistant diagnoses per hand-off run. |
 | `sre.handoff.max_usd` | float | `5.0` | ≥ 0 | Claude spend cap per hand-off run (USD). |
+| `watch.max_usd` | float | `2.0` | ≥ 0 | Model spend cap per agentic watch run, all areas (USD). |
+| `watch.max_areas` | int | `12` | 0 to 200 | Process areas the agentic watch reads per run. |
 | `sre.step_minutes` | int | `10` | 1 to 60 | Minutes between the values the detectors read. |
 | `sre.lookback_hours` | int | `24` | 1 to 168 | Hours before the window that a step is judged against. |
 | `sre.learned_minutes` | int | `60` | ≥ 0 | Minutes a value must stay outside a learned normal range (one no source set) to count. |
