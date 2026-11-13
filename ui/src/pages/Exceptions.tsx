@@ -267,13 +267,14 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
   if (!r) return check.error ? <p className="small error">Readiness not checked: {check.error}</p> : null;
   const warned = r.warnings?.length ? <ul className="plain small ready-warnings" aria-label="Before you send it">
     {r.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul> : null;
+  const confirm = r.checks.some((c) => c.confirm);  // needs a permit, none to check it against (#742)
   return <>{warned}{r.ready
-    ? <p className="small ready-note"><Badge tone="ok">ready</Badge>{" "}
+    ? <p className="small ready-note">{confirm ? <Badge tone="warn">check permit</Badge> : <Badge tone="ok">ready</Badge>}{" "}
       {[...r.checks.flatMap((c) => (c.centers ?? []).filter((w) => w.crew != null)
         .map((w) => `${w.description ?? w.label}: ${w.busy} of ${w.crew} busy.`)),
         ...r.checks.flatMap((c) => (c.permits ?? []).filter((p) => p.valid).slice(0, 1)
           .map((p) => `Permit ${p.label} (${p.type ?? "permit"}) valid to ${p.valid_to ?? "?"}.`)),
-        ...r.checks.filter((c) => !c.checked).map((c) => c.note)].filter(Boolean).join(" ")}</p>
+        ...r.checks.filter((c) => !c.checked && !c.confirm).map((c) => c.note)].filter(Boolean).join(" ")}</p>
     : <div className="small ready-note" role="status"><Badge tone="warn">not ready</Badge>
       <ul className="plain">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>}</>;
 }

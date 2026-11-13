@@ -24,6 +24,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`proof_test_overdue`](#proof_test_overdue) A safeguard past its proof test interval | Rule | Once a day | `proof_test_overdue` | Any asset with the inputs |
 | [`safeguard_demands`](#safeguard_demands) A safeguard failed on demand or was demanded more than designed | Rule | Once a day | `safeguard_demand` | Any asset with the inputs |
 | [`unrecorded_changes`](#unrecorded_changes) An alarm or IOW limit changed with no change record | Rule | Once a day | `unrecorded_change` | Any asset with the inputs |
+| [`temporary_moc_overdue`](#temporary_moc_overdue) A temporary MOC still open past its end date | Rule | Once a day | `temporary_moc_overdue` | Any asset with the inputs |
 | [`loop_oscillation`](#loop_oscillation) A measurement cycling as a hunting control loop does | Statistical | Once a day | `loop_candidate` | Any asset with the inputs |
 | [`well_tests`](#well_tests) A well test overdue, or a water cut or GOR shift on the latest test | Rule | Once a day | `well_test_review` | well |
 | [`gas_lift_instability`](#gas_lift_instability) A gas-lifted well heading: its casing pressure surging regularly | Statistical | Once a day | `gas_lift_instability` | well |
@@ -256,6 +257,16 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `unrecorded_change`
 - **Needs:** change records
 - **Scored by:** `tests/evals/test_safeguards_kestrel.py::test_a_limit_changed_with_no_change_record_is_a_question_until_one_turns_up`, on the fake plant
+
+## temporary_moc_overdue
+
+**A temporary MOC still open past its end date.** Each temporary change record open past its end date raised as `temporary_moc_overdue` for the engineer, with its owner on the finding (keyed by the change); open ones closed or extended since are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `temporary_moc_overdue`
+- **Needs:** temporary change records
+- **Scored by:** `tests/evals/test_safeguards_kestrel.py::test_a_temporary_moc_past_its_end_date_is_work_until_it_closes`, on the fake plant
 
 ## loop_oscillation
 

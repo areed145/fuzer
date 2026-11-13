@@ -195,8 +195,16 @@ function HandOver({ job, person, onChange }: { job: FieldJob; person: string; on
 }
 
 /** The permit to work a job runs under, with its isolations, and whether it may start (P5.11a). */
-function PermitPanel({ permit }: { permit: FieldPermit }) {
+function PermitPanel({ permit, inHand, onInHand }: { permit: FieldPermit; inHand: boolean; onInHand: (v: boolean) => void }) {
   const p = permit.permit;
+  if (permit.unchecked) return (  // no permit records to check this against (#742): confirm one in hand, kept on the case
+    <div className="field-permit">
+      <h3 className="small">Permit to work <Badge tone="warn">check permit</Badge></h3>
+      <p className="small">{permit.note}</p>
+      <label className="small"><input type="checkbox" checked={inHand} onChange={(e) => onInHand(e.target.checked)} />
+        {" "}Permit in hand</label>
+    </div>
+  );
   return (
     <div className="field-permit">
       <h3 className="small">Permit to work {permit.blocked
@@ -225,6 +233,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
   const [problem, setProblem] = useState<string | null>(null);
   const [kept, setKept] = useState(false);
   const [why, setWhy] = useState("");
+  const [inHand, setInHand] = useState(false);
   const blocked = !!job.permit?.blocked;
   const dictate = useDictation((t) => setNote((n) => (n.trim() ? `${n.trim()} ${t}` : t)));
   const reading: FieldReading | undefined = value.trim() ? { value: Number(value), unit: unit.trim(), what: what.trim() || null } : undefined;
@@ -234,7 +243,9 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
     setProblem(null);
     // Clear only the note that went: words typed while the request was in flight stay.
     const override = status === "on_site" && blocked ? why.trim() || undefined : undefined;
-    return run(SAID[status], () => sendReport({ exception_id: job.id, by: person, status, note: sent || undefined, reading, photos, override }),
+    const permit_in_hand = status === "on_site" && job.permit?.unchecked ? inHand : undefined;
+    return run(SAID[status], () => sendReport({ exception_id: job.id, by: person, status, note: sent || undefined, reading, photos, override,
+      permit_in_hand }),
       (how) => {
         setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]);
         setKept(how === "queued");
@@ -281,7 +292,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
       </div>}
       {!!job.warnings?.length && <ul className="plain small field-warnings" aria-label="Before you start">
         {job.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul>}
-      {job.permit && <PermitPanel permit={job.permit} />}
+      {job.permit && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
       {(job.checklist?.length ?? 0) > 0 && <div>
         <h3 className="small">Checks before restart</h3>
         <ol className="small">{job.checklist!.map((c) => <li key={c}>{c}</li>)}</ol>

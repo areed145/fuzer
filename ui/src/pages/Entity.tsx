@@ -6,6 +6,7 @@ import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
 import { NotThisRecord, SameAs } from "./masterdata/Curation";
 import { AssetContextCard } from "./masterdata/Context";
+import { caseHref } from "./workflows/shared";
 
 const EntityMapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));
 const LiveFigure = lazy(() => import("../analytics/LiveFigure").then((m) => ({ default: m.LiveFigure })));
@@ -238,6 +239,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             <Fields e={e} />
             <Records e={e} />
           </div>}
+          <LineageCard id={fid} />
           {["tag", "equipment", "well"].includes(e.kind) && <AssetContextCard id={fid} />}
           {!NO_TRENDS.includes(e.kind) && e.kind !== "timeseries" && <MemoryCard id={fid} />}
           <HistoryCard id={fid} />
@@ -716,6 +718,100 @@ function KnowledgeCard({ id }: { id: string }) {
                 <span className="small"><Highlighted text={r.snippet} /></span>
                 {r.why && <span className="muted small">{r.why}</span>}
               </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </UICard>
+  );
+}
+
+const RULE_SAYS: Record<string, string> = { priority: "by system priority", review: "by a reviewer",
+  derived: "worked out from other values" };
+
+/** Where this came from (#875): the systems behind the record and how each record was matched, the rule behind its
+ * values, reviewer choices and fixes, merges and splits, and the work and write-backs that touched it. */
+function LineageCard({ id }: { id: string }) {
+  const l = useAsync(() => api.lineage(id), [id]);
+  if (!l.data) return <Status loading={l.loading} error={l.error} onRetry={l.reload} />;
+  const d = l.data;
+  const rules = Object.entries(d.rules).map(([r, n]) => `${n} ${RULE_SAYS[r] ?? r}`).join(", ");
+  return (
+    <UICard as="section">
+      <h2>Where this came from <span className="muted small">the systems, choices and work behind this record</span></h2>
+      <h3>Systems</h3>
+      {!d.systems.length && <p className="muted">No source system's record is matched to this one.</p>}
+      <Table headingCase="verbatim">
+        <thead><tr><th>System</th><th>Records, and how each was matched</th><th>Values it supplies</th></tr></thead>
+        <tbody>
+          {d.systems.map((s) => (
+            <tr key={s.source}>
+              <td><SourceBadge source={s.source} /></td>
+              <td className="small">
+                {s.records.map((r) => (
+                  <div key={r.record}><code>{sourceKey(s.source, r.key)}</code> <span className="muted">
+                    {r.record_type.replace(/_/g, " ")} · {r.matched_by}{r.confidence < 1 ? ` (${r.confidence})` : ""}</span></div>
+                ))}
+                {!s.records.length && <span className="muted">none matched</span>}
+              </td>
+              <td className="small">{s.chosen_fields.map(fieldLabel).join(", ") || <span className="muted">none chosen</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+      {rules && <p className="small muted">Values chosen {rules}. {d.note}</p>}
+      {(d.reviewed.length > 0 || d.fixes.length > 0) && <>
+        <h3>Reviewer choices</h3>
+        <ul className="small">
+          {d.reviewed.map((r) => (
+            <li key={`r-${r.field}`}><b>{fieldLabel(r.field)}</b>: {fmt(r.value)}{" "}
+              <span className="muted">chosen by {r.by ?? "a reviewer"}{r.at ? `, ${timestamp(r.at)}` : ""}</span></li>
+          ))}
+          {d.fixes.map((f, i) => (
+            <li key={`f-${i}`}><b>{fieldLabel(f.field)}</b>: {fmt(f.old_value)} → {fmt(f.new_value)}{" "}
+              <span className="muted">fixed by {f.by}, {timestamp(f.at)}{f.reason ? `: ${f.reason}` : ""}</span></li>
+          ))}
+        </ul>
+      </>}
+      {(d.identity.length > 0 || d.pins.length > 0) && <>
+        <h3>Merges and splits</h3>
+        <ul className="small">
+          {d.identity.map((x, i) => (
+            <li key={`i-${i}`}>
+              {x.event === "merge" ? "Merged in " : "Split off from "}
+              <a href={entityHref(x.other)}>{x.other_label ?? x.other}</a>{" "}
+              <span className="muted">{timestamp(x.at)}</span>
+            </li>
+          ))}
+          {d.pins.map((p, i) => (
+            <li key={`p-${i}`}>
+              <code>{p.left_ref}</code> {p.rule === "must" ? "is the same item as" : "is not the same item as"}{" "}
+              <code>{p.right_ref}</code>{" "}
+              <span className="muted">by {p.by ?? "a steward"}, {timestamp(p.at)}{p.reason ? `: ${p.reason}` : ""}</span>
+            </li>
+          ))}
+        </ul>
+      </>}
+      <h3>Work and write-backs</h3>
+      {!d.work.count && <p className="muted small">No work has been about this record.</p>}
+      {d.work.count > 0 && (
+        <ul className="small">
+          {d.work.recent.map((w) => (
+            <li key={w.id}><a href={caseHref(w.id)}>{w.title}</a> <span className="muted">{w.state} · {timestamp(w.created_at)}</span></li>
+          ))}
+          {d.work.count > d.work.recent.length && (
+            <li className="muted">and {d.work.count - d.work.recent.length} earlier</li>
+          )}
+        </ul>
+      )}
+      {d.writebacks.length > 0 && (
+        <ul className="small">
+          {d.writebacks.map((w) => (
+            <li key={w.id}>
+              <SourceBadge source={w.system} /> {w.kind.replace(/_/g, " ")} {w.record ? <code>{w.record}</code> : null}{" "}
+              <span className="muted">{w.state}{w.approved_by ? `, approved by ${w.approved_by}` : ""}
+                {w.confirmed_at ? `, confirmed ${timestamp(w.confirmed_at)}` : ""}</span>{" "}
+              <a href={caseHref(w.item_id)}>case</a>
             </li>
           ))}
         </ul>

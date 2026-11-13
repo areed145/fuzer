@@ -167,11 +167,18 @@ def permits(conn, subjects: list[str], job: int | None = None, now: datetime | N
     """Permits to work on a job's location, each with its isolations. Ready unless the job's work type needs a permit
     and none is issued and in date with every isolation in place."""
     base = {"check": "permits", "label": "Permit"}
-    if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
-        return {**base, "ready": True, "blockers": [], "permits": [], "checked": False, "needed": False,
-                "note": "No permit-to-work records are loaded, so no permit to check."}
-    now = now or datetime.now(UTC)
     needed, kind = _needs_permit(conn, job)
+    if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
+        # No permit system loaded (#742, decided 13 Nov 2026): work that needs a permit says so and asks for one in
+        # hand, recorded on the case; nothing is refused, since there is nothing to check it against.
+        out = {**base, "ready": True, "blockers": [], "permits": [], "checked": False, "needed": needed,
+               "note": "No permit-to-work records are loaded, so no permit to check."}
+        if needed:
+            out["confirm"] = True
+            out["warnings"] = [f"Check permit: this {kind.replace('_', ' ')} work needs a permit, and Fuzer has no "
+                               "permit records to check: confirm one is in hand."]
+        return out
+    now = now or datetime.now(UTC)
     rows = conn.execute(
         """
         select p.fuzer_id as id, pl.label, c.dst as location, ll.label as location_label,
@@ -249,7 +256,11 @@ def _simops(conn, subjects: list[str], job: int | None = None) -> dict:
 def mocs(conn, subjects: list[str], job: int | None = None) -> dict:
     """Open management-of-change records on the job's equipment or where it is installed: a warning for whoever sends
     or does the work that a change is proposed or in hand there, never a blocker. Read from whatever MOC records are
-    loaded (an open MOC in the register, method `moc_open`); silent when there are none."""
+    loaded: an open MOC in the register (method `moc_open`), and open change records with what their stage says
+    (#755): a temporary change past its end date, or one implemented before its pre-startup safety review. Silent when
+    there are none."""
+    from . import safeguards
+
     base = {"check": "moc", "label": "MOC", "ready": True, "blockers": []}
     rows = conn.execute(
         """
@@ -265,6 +276,12 @@ def mocs(conn, subjects: list[str], job: int | None = None) -> dict:
              for r in rows]
     warnings = [f"Open MOC {f['moc']} on {f['asset'] or 'this equipment'}: "
                 + (f["description"] or f"proposes {f['change']}").rstrip(".") for f in found]
+    for c in safeguards.changes(conn, subjects) if subjects else []:
+        st = safeguards.stage(c)
+        found.append({"moc": c["label"], "asset": ", ".join(c["about_labels"]) or None, "change": c["change_type"],
+                      "description": c["title"], "since": (c["opened"] or "")[:10] or None, "state": c["state"],
+                      "work_orders": c["work_orders"], **st})
+        warnings.append(safeguards.change_warning(c))
     return {**base, "checked": True, "mocs": found, "warnings": warnings,
             "note": None if found else "No open MOC on this equipment."}
 

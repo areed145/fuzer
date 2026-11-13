@@ -245,6 +245,25 @@ export type KindIn = Partial<Pick<KindDef, "name" | "label" | "description" | "g
 
 export type RelationIn = Partial<Pick<RelationDef, "name" | "label" | "description" | "view" | "dated" | "from_kinds" | "to_kinds" | "status">>;
 
+/** Where an entity's values came from (#875). */
+export interface Lineage {
+  fuzer_id: string;
+  kind: string;
+  merged_into: string | null;
+  systems: { source: string; chosen_fields: string[];
+             records: { record: string; record_type: string; key: string; matched_by: string; confidence: number }[] }[];
+  rules: Record<string, number>;
+  reviewed: { field: string; value: unknown; by: string | null; at: string | null }[];
+  fixes: { field: string; old_value: unknown; new_value: unknown; by: string; at: string; reason: string | null }[];
+  pins: { left_ref: string; right_ref: string; rule: "must" | "cannot"; by: string | null; at: string; reason: string | null }[];
+  identity: { event: "merge" | "split"; other: string; other_label: string | null; at: string }[];
+  work: { count: number; recent: { id: number; type: string; title: string; state: string; created_at: string;
+                                   closed_at: string | null }[] };
+  writebacks: { id: number; system: string; kind: string; record: string | null; action: string; state: string;
+                approved_by: string | null; approved_at: string | null; confirmed_at: string | null; item_id: number }[];
+  note: string;
+}
+
 export const exploreApi = {
   stats: () => request<Stats>("GET", "/stats"),
   entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`),
@@ -256,6 +275,7 @@ export const exploreApi = {
   history: (id: string) =>
     request<{ record: string; at: string; change: string; fields: Record<string, { from: unknown; to: unknown }> }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/history`, { limit: 20 }),
+  lineage: (id: string) => request<Lineage>("GET", `/entities/${encodeURIComponent(id)}/lineage`),
   spares: (id: string) =>
     request<{ fuzer_id: string; label: string; description: string; mpn: string; stock: number; bin: string;
               used_by: number; documents: { id: string; label: string }[] }[]>(

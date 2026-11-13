@@ -489,8 +489,14 @@ def changes(conn, subjects: list[str] | None = None, *, system: bool = False, op
                max(case when g.field = 'state' then g.value #>> '{}' end) as state,
                max(case when g.field = 'opened' then g.value #>> '{}' end) as opened,
                max(case when g.field = 'closes' then g.value #>> '{}' end) as closes,
+               max(case when g.field = 'change_class' then g.value #>> '{}' end) as change_class,
+               max(case when g.field = 'pssr' then g.value #>> '{}' end) as pssr,
+               max(case when g.field = 'owner' then g.value #>> '{}' end) as owner,
                (select coalesce(array_agg(e.dst order by e.dst), '{}') from edge e
-                where e.src = c.fuzer_id and e.rel = 'concerns' and e.valid_to is null) as about
+                where e.src = c.fuzer_id and e.rel = 'concerns' and e.valid_to is null) as about,
+               (select coalesce(array_agg(coalesce(wl.label, e.dst) order by e.dst), '{}') from edge e
+                left join entity_label wl on wl.fuzer_id = e.dst
+                where e.src = c.fuzer_id and e.rel = 'carried_out_by' and e.valid_to is null) as work_orders
         from entity c
         left join entity_label cl on cl.fuzer_id = c.fuzer_id
         left join golden g on g.fuzer_id = c.fuzer_id
@@ -499,8 +505,46 @@ def changes(conn, subjects: list[str] | None = None, *, system: bool = False, op
                and e.rel = 'concerns' and e.valid_to is null and e.dst = any(%(near)s)))
         group by c.fuzer_id, cl.label order by cl.label
         """, {"near": near}).fetchall()
-    return [{**dict(r), "about": list(r["about"]), "about_labels": _names(conn, list(r["about"]))} for r in rows
+    return [{**dict(r), "about": list(r["about"]), "about_labels": _names(conn, list(r["about"])),
+             "work_orders": list(r["work_orders"])} for r in rows
             if not open_only or (r["state"] or "").lower() not in CLOSED_CHANGE]
+
+
+# ---- a change's stage (#755): its pre-startup review, and a temporary change past its end ----------------------------
+
+PAST_IMPLEMENTATION = ("implemented", "pre-startup review", "pssr", "commissioned")
+
+
+def stage(c: dict, now: datetime | None = None) -> dict:
+    """What a change record's stage says to someone working on what it is about: a temporary change still open past
+    the date it must close by (`expired`, with the days), or one implemented with its pre-startup safety review not
+    done (`pssr_pending`). Read only from fields the MOC system gives; a field it doesn't give says nothing."""
+    now = clock.aware(now) if now else datetime.now(UTC)
+    state = (c.get("state") or "").lower()
+    closes = _when(c.get("closes"))
+    temporary = (c.get("change_class") or "").lower() == "temporary"
+    expired = temporary and state not in CLOSED_CHANGE and closes is not None and closes < now
+    pending = state in PAST_IMPLEMENTATION and (c.get("pssr") or "").lower() in ("pending", "not done", "open", "no")
+    return {"temporary": temporary, "expired": expired,
+            "overdue_days": round((now - closes).total_seconds() / 86400, 1) if expired else None,
+            "pssr_pending": pending}
+
+
+def change_warning(c: dict, now: datetime | None = None) -> str:
+    """One line for dispatch and the phone about an open change record on the job's equipment."""
+    st = stage(c, now)
+    on = ", ".join(c.get("about_labels") or []) or "this equipment"
+    title = (c.get("title") or "").rstrip(".")
+    if st["expired"]:
+        line = f"Temporary MOC {c['label']} on {on} is past its end date ({str(c['closes'])[:10]}) and still in place: {title}"
+    elif st["pssr_pending"]:
+        line = f"MOC {c['label']} on {on} is implemented but its pre-startup safety review is not done: {title}"
+    else:
+        kind = "Temporary MOC" if st["temporary"] else "Open MOC"
+        line = f"{kind} {c['label']} on {on} ({c.get('state') or 'open'}): {title}"
+    if c.get("work_orders"):
+        line += f". Carried out by work order {', '.join(c['work_orders'])}"
+    return line
 
 
 def _case_subjects(conn, item_id: int) -> list[str]:
@@ -624,3 +668,61 @@ def watch_changes(conn, by: str = "agent:safeguards", now: datetime | None = Non
         cleared.append(key)
     conn.commit()
     return {"unrecorded": len(found_rows), "raised": raised, "cleared": cleared, "errors": errors}
+
+
+# ---- a temporary change past its end date (#755) -----------------------------------------------------------------
+
+def _temporary_type():
+    from ..core.exceptions import TYPES, exception_type
+
+    return TYPES.get("temporary_moc_overdue") or exception_type(
+        "temporary_moc_overdue", "Temporary MOC overdue", role="role:engineer", audience=("ioc",), joins=False,
+        description="A temporary management of change still open past the date it was approved to end. Restore the "
+                    "original, make the change permanent under its own MOC, or extend it with its risk reviewed. It "
+                    "clears when the change is closed or its end date moves out.")
+
+
+TEMPORARY_TYPE = _temporary_type().name
+
+
+@detectors.register("temporary_moc_overdue", title="A temporary MOC still open past its end date",
+                    kind=detectors.RULE, cadence="daily", raises=(TEMPORARY_TYPE,),
+                    needs={"temporary change records": lambda conn, pack: conn.execute(
+                        "select 1 from golden g join entity c on c.fuzer_id = g.fuzer_id and c.kind = 'change' "
+                        "where g.field = 'change_class' limit 1").fetchone() is not None},
+                    eval="test:tests/evals/test_safeguards_kestrel.py::"
+                         "test_a_temporary_moc_past_its_end_date_is_work_until_it_closes",
+                    found=lambda out: len(out["raised"]))
+def watch_temporary(conn, by: str = "agent:safeguards", now: datetime | None = None) -> dict:
+    """Each temporary change record open past its end date raised as `temporary_moc_overdue` for the engineer, with
+    its owner on the finding (keyed by the change); open ones closed or extended since are cleared."""
+    from ..core import work
+    from ..core.exceptions import ExceptionError, clear_exception, raise_exception
+
+    now = clock.aware(now) if now else datetime.now(UTC)
+    held = [r["key"] for r in conn.execute(
+        "select key from exception_record where type = %s and state = 'open'", (TEMPORARY_TYPE,))]
+    late = [(c, st) for c in changes(conn) if (st := stage(c, now))["expired"]]
+    raised, cleared, errors = [], [], []
+    for c, st in late:
+        on = ", ".join(c["about_labels"]) or "the plant"
+        found = Finding(
+            "safeguards.temporary_moc_overdue", DETERMINISTIC, method="Change records read against each temporary "
+            "change's end date", start=c["closes"], data={"change": c["label"], "overdue_days": st["overdue_days"]},
+            items=(fact("Change", f"{c['label']}: {c['title']}"), fact("Type", c["change_type"]),
+                   fact("State", c["state"]), fact("About", on), at("Opened", c["opened"]), at("Should end", c["closes"]),
+                   fact("Overdue", st["overdue_days"], "days"), fact("Owner", c["owner"] or "none on file"),
+                   fact("Work orders", ", ".join(c["work_orders"]) or "none on file")))
+        try:
+            x = raise_exception(conn, TEMPORARY_TYPE, c["label"], f"Temporary MOC {c['label']} on {on} still open, "
+                                f"{st['overdue_days']:g} days past its end date", by, source="safeguards",
+                                refs=[c["id"], *c["about"]], priority=0.7, finding=found)
+        except (work.WorkError, ExceptionError) as e:
+            errors.append(f"{c['label']}: {e}")
+            continue
+        raised.append({"change": c["label"], "exception_id": x["id"], "item_id": x["item_id"], "new": x["raised"]})
+    for key in set(held) - {c["label"] for c, _ in late}:
+        clear_exception(conn, TEMPORARY_TYPE, key, by, reason="the change is closed or no longer past its end date")
+        cleared.append(key)
+    conn.commit()
+    return {"overdue": len(late), "raised": raised, "cleared": cleared, "errors": errors}

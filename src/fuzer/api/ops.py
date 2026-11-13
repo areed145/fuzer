@@ -586,6 +586,7 @@ class FieldReport(BaseModel):
     client_id: str | None = None           # a report the phone kept offline: applied once (P5.3c)
     at: str | None = None                  # when it was made, on the phone
     override: str | None = None            # why it starts without a valid permit (P5.11a): required when it has none
+    permit_in_hand: bool | None = None     # confirmed on site where no permit records are loaded (#742): kept, never required
 
 
 def _loaded_types() -> None:
@@ -752,7 +753,8 @@ def exception_report(exception_id: int, r: FieldReport, conn=Depends(get_conn)):
     """A field operator reports back: on site, done, could not do (with why), or a note."""
     from ..ops import exceptions
     return _exception_call(conn, exceptions.report, exception_id, r.by, r.status, r.note, reading=r.reading,
-                           photos=r.photos, client_id=r.client_id, at=r.at, override=r.override)
+                           photos=r.photos, client_id=r.client_id, at=r.at, override=r.override,
+                           permit_in_hand=r.permit_in_hand)
 
 
 @router.get("/exceptions/{exception_id}/photos/{photo_id}")
