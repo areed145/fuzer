@@ -1,6 +1,7 @@
 # SAP work orders, with the site activity code as an ISO 14224 maintenance activity. status: CRTD / REL open,
 # TECO done; basic_finish is the due date; revision names the turnaround (shutdown) the work is planned for;
-# arbpl is the work center (crew) that does it.
+# arbpl is the work center (crew) that does it; confirmation is what the technician wrote on closing it (blank
+# when nothing was).
 source: sap
 record_type: work_order
 shape: events
@@ -20,6 +21,7 @@ entity:
     - cost
     - currency  # SAP WAERS when the export carries it; absent, the cost is in an unknown currency (#335)
     - text
+    - confirmation
     - [description, {from: text, default: "", keep: true}]
 links:
   - rel: concerns

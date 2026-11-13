@@ -62,3 +62,4 @@ suggested mapping keys it on meter and day and lands the readings on each tag an
 | `lake.py` | Tables as lake-style Parquet folders |
 | `journal.py` | The DCS alarm and event journal (#859): ALARM, ACK, RTN, SHELVE, SUPPRESS and STATE events from the process model against the DCS alarm export, with chattering, shelving, state-based suppression and first-out alarms on trips |
 | `instruments.py` | Instrument faults and interface outages over the process model (#868): frozen, stuck, noisy, pinned, drifting and bad readings and RTU outages, written as `instrument_faults.json`, which is also their answer key |
+| `text.py` | Messy maintenance and log text (#890): authors' styles, duplicate and misfiled notifications, orders closed without a confirmation, with the answer key `answer_keys/records_text.json` |

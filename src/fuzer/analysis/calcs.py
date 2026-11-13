@@ -486,7 +486,19 @@ def failures(conn, fid: str, until: str | None = None) -> tuple[str, dict[str, l
     out: dict[str, list[date]] = {}
     for r in rows:
         out.setdefault(r["unit"], []).append(date.fromisoformat(r["created"][:10]))
-    return e["label"] or fid, {u: sorted(d) for u, d in out.items()}
+    return e["label"] or fid, {u: _once(sorted(d)) for u, d in out.items()}
+
+
+def _once(days: list[date]) -> list[date]:
+    """One failure for notifications on the same unit within a few days of each other: the same fault raised
+    twice (record_quality's duplicates) would otherwise read as a failure a day after a failure."""
+    from .record_quality import DUPLICATE_DAYS
+
+    kept: list[date] = []
+    for d in days:
+        if not kept or (d - kept[-1]).days > DUPLICATE_DAYS:
+            kept.append(d)
+    return kept
 
 
 def weibull(tbf: list[float]) -> dict:
