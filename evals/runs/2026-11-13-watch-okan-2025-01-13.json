@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-13",
+  "kind": "watch",
+  "model": null,
+  "bundle": "okan",
+  "since": "2025-01-13T00:00",
+  "until": "2025-01-15T00:00",
+  "usd": 0.2622,
+  "upsets": 4,
+  "caught": 3,
+  "uncaught": 1,
+  "proposals": 4,
+  "matched_uncaught": 0,
+  "matched_caught": 0,
+  "false_proposals": 4,
+  "matched": 0.0,
+  "precision": 0.0,
+  "recall": 0.0,
+  "cited": 1.0,
+  "passes": false,
+  "uncaught_examples": [
+    "10-P-1001A head_loss 2025-01-01 00:00"
+  ],
+  "false_examples": [
+    "64FT3001.PV / OKJ-04 gas lift (OK_J04_01.CASP, OK_J04_02.WHP) 2025-01-13 10:20",
+    "OK_J06_05 2025-01-13 20:40",
+    "OK_GGCP:20-LT-2301A.PV / 20-PT-2101B.PV / 20-LT-2400.PV 2025-01-14 03:00",
+    "OK_J05_01.CASP / OK_J05_02.CASP / OK_J05_01.WHP 2025-01-14 05:00"
+  ]
+}

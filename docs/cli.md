@@ -298,7 +298,7 @@ score search, document links, section failure modes and log reading
 | `--memory` | score the assistant's memory with assistant_memory.json: learn from teaching answers, then ask later questions (Claude; costs money; removes what it stored) |
 | `--domain` | with --agents: only the questions in this domain (repeatable), e.g. --domain charts |
 | `--out` | with --agents or --packs: also write the full results (answers) to this JSON file |
-| `--record` | with --agents, --packs or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |
+| `--record` | with --agents, --packs, --watch or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |
 | `--ops` | replay history through the operations detectors and score them against the fake plant's injected events (exits 1 if recall fell since the last run of the same period) |
 | `--detector` | with --ops: the detector to replay (default: limits) |
 | `--full` | with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) and fail if a score is under its floor or fell since the last run |

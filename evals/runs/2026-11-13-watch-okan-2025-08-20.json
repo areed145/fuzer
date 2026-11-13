@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-13",
+  "kind": "watch",
+  "model": null,
+  "bundle": "okan",
+  "since": "2025-08-20T00:00",
+  "until": "2025-08-22T00:00",
+  "usd": 0.2228,
+  "upsets": 3,
+  "caught": 1,
+  "uncaught": 2,
+  "proposals": 4,
+  "matched_uncaught": 0,
+  "matched_caught": 0,
+  "false_proposals": 4,
+  "matched": 0.0,
+  "precision": 0.0,
+  "recall": 0.0,
+  "cited": 1.0,
+  "passes": false,
+  "uncaught_examples": [
+    "OK-J12-02 choke_wear 2025-01-15 00:00",
+    "OK-NWP-G3 choke_wear 2025-08-01 00:00"
+  ],
+  "false_examples": [
+    "OK_GGCP:20-PT-2100C.PV / OK_GGCP:20-FT-3001.PV 2025-08-20 01:00",
+    "OK_GGCP:20-FT-2105B.PV / 20-FT-2205B.PV / 20-PT-2002.PV (possibly 2nd stage compressor) 2025-08-21 06:20",
+    "OK_NWP_08.WHP / OK_NWP_07.CASP / OK_NWP_05.CASP 2025-08-21 12:10",
+    "OKJ-08 wellhead pressures (OK_J08_02.WHP, OK_J08_04.WHP, OK_J08_05.WHP) 2025-08-21 13:30"
+  ]
+}

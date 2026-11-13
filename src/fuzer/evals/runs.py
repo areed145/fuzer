@@ -1,5 +1,5 @@
 """Recorded eval runs (#134): `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --ops --full --record` and
-`fuzer pid-score --record` write a
+`fuzer eval --watch --record` and `fuzer pid-score --record` write a
 run's scores (no answers) to evals/runs/, and docs/eval-results.md is generated from them, so the baselines
 are committed with the code that made them.
 """
@@ -40,10 +40,21 @@ def packs(res: dict, models: dict | None = None) -> dict:
                       for p, s in res["packs"].items()}}
 
 
+WATCH = ("upsets", "caught", "uncaught", "proposals", "matched_uncaught", "matched_caught", "false_proposals", "matched",
+         "precision", "recall", "cited", "passes", "uncaught_examples", "false_examples")
+
+
+def watch(res: dict, model: str | None) -> dict:
+    """An agentic watch eval run (P3.3) on one bundle's window: what it proposed against what no rule caught."""
+    return {"kind": "watch", "model": model, "bundle": res["bundle"], "since": res["since"], "until": res["until"],
+            "usd": res.get("usd"), **{k: res.get(k) for k in WATCH}}
+
+
 def save(run: dict, day: str | None = None, runs: Path = RUNS) -> Path:
     runs.mkdir(parents=True, exist_ok=True)
     run = {"date": day or date.today().isoformat(), **run}
-    path = runs / f"{run['date']}-{run['kind']}{'-' + run['bundle'] if run.get('bundle') else ''}.json"
+    window = f"-{run['since'][:10]}" if run["kind"] == "watch" else ""  # a day may score several windows
+    path = runs / f"{run['date']}-{run['kind']}{'-' + run['bundle'] if run.get('bundle') else ''}{window}.json"
     path.write_text(json.dumps(run, indent=2, default=str) + "\n")
     return path
 

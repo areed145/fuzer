@@ -22,3 +22,19 @@ def test_eval_results_show_a_missed_fact_with_alternatives(monkeypatch):
                         "citations": 3, "charts": [], "tool_calls": 4, "seconds": 60, "cost_usd": 0.5}]}
     monkeypatch.setattr(runs, "load", lambda: [run])
     assert "| MTBF or mean time between failures, 20-K-2200B |" in reference.eval_results_md()
+
+
+def test_a_recorded_watch_run_is_kept_per_window_and_shown(monkeypatch, tmp_path):
+    # P3.3: `fuzer eval --watch --record` keeps each window's scores; eval-results shows what the watch missed.
+    from fuzer.evals import runs
+
+    res = {"bundle": "okan", "since": "2025-01-13T00:00", "until": "2025-01-15T00:00", "usd": 0.26, "upsets": 4,
+           "caught": 3, "uncaught": 1, "proposals": 4, "matched_uncaught": 0, "precision": 0.0, "recall": 0.0,
+           "passes": False, "uncaught_examples": ["10-P-1001A head_loss 2025-01-01 00:00"], "notes": ["dropped"]}
+    a = runs.save(runs.watch(res, "m"), day="2026-11-13", runs=tmp_path)
+    b = runs.save(runs.watch({**res, "since": "2025-08-20T00:00"}, "m"), day="2026-11-13", runs=tmp_path)
+    assert a != b and "notes" not in runs.load(tmp_path)[0]
+    monkeypatch.setattr(runs, "load", lambda: [runs.watch(res, "m") | {"date": "2026-11-13"}])
+    page = reference.eval_results_md()
+    assert "| 2026-11-13 | okan | 2025-01-13 to 2025-01-15 | m | 4 (1) | 4 | 0 | 0% | 0% | $0.26 | no |" in page
+    assert "10-P-1001A head_loss" in page
