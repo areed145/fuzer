@@ -9,6 +9,8 @@ export interface QueuedReport {
   reading?: FieldReading; photos?: string[];
   /** Why it starts without a valid permit (P5.11a). */
   override?: string;
+  /** A permit confirmed in hand where none could be checked (#742). */
+  permit_in_hand?: boolean;
 }
 type Jobs = { person: string; jobs: FieldJob[]; coming_up: PlanItem[]; offline?: { since: string } };
 
@@ -59,7 +61,8 @@ export async function sendReport(r: Omit<QueuedReport, "client_id" | "at">): Pro
 }
 
 const post = (q: QueuedReport) => api.fieldReport(q.exception_id, q.by, q.status, q.note,
-  { reading: q.reading, photos: q.photos, client_id: q.client_id, at: q.at, override: q.override });
+  { reading: q.reading, photos: q.photos, client_id: q.client_id, at: q.at, override: q.override,
+    permit_in_hand: q.permit_in_hand });
 
 let flushing = false;
 /** Send what waited, oldest first. A report the server refuses is dropped and its reason returned, so the operator

@@ -1,6 +1,8 @@
 # Management of change records (P3.9b, #764): each change, what kind it is (bypass, limit, setpoint, equipment,
 # procedure), its state (open, approved, implemented, closed, cancelled), the tag it is about, and when it opened and
-# must close. A change is open until it is closed or cancelled. Re-rates and derates are in moc_register.
+# must close. A change is open until it is closed or cancelled. Re-rates and derates are in moc_register. Where the
+# MOC system carries them (#755): whether the change is permanent, temporary or emergency, whether its pre-startup
+# safety review is done, who owns it, and the work order that carries it out.
 source: moc
 record_type: change
 shape: records
@@ -14,7 +16,13 @@ entity:
     - state
     - opened
     - closes
+    - change_class
+    - pssr
+    - owner
 links:
   - rel: concerns
     when: tag
     to: {kind: tag, from: tag, as: tag}
+  - rel: carried_out_by
+    when: work_order
+    to: {kind: work_order, from: work_order}

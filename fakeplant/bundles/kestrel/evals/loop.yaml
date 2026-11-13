@@ -53,6 +53,8 @@ arrive:
   alarm_bad_actor: {detector: alarm_performance}
   # The scrubber's high-high level alarm, changed three days ago with no change record on file around it
   unrecorded_change: {detector: unrecorded_changes}
+  # The temporary clamp-on meter on the lean amine circulation, five days past the end date its MOC was approved to
+  temporary_moc_overdue: {detector: temporary_moc_overdue}
   # The crews' 07:00 and 19:00 handover, a named deviation from the standard whose review date has passed
   deviation_review_due: {deviation: {part: settings, key: handover.shift_times, owner: ops_lead, review_by: "today-1d",
                                      reason: "Kestrel's crews hand over at 07:00 and 19:00 local, not 06:00 and 18:00"},

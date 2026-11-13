@@ -1,2 +1,3 @@
-moc_no,title,change_type,state,tag,opened,closes
-MOC-OK-0311,Recalibrate the train B 2nd stage vibration probes after the bearing change,instrument,closed,20-VT-2200B,today-300d 09:00,today-280d 17:00
+moc_no,title,change_type,state,tag,opened,closes,change_class,pssr,owner,work_order
+MOC-OK-0311,Recalibrate the train B 2nd stage vibration probes after the bearing change,instrument,closed,20-VT-2200B,today-300d 09:00,today-280d 17:00,permanent,done,Instrument Engineer,
+MOC-OK-0326,Temporary portable temperature gauge on the train B 2nd stage discharge while its transmitter is replaced,instrument,implemented,20-TT-2200B,today-40d 09:00,today-4d 17:00,temporary,done,Instrument Engineer,

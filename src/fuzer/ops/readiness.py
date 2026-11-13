@@ -187,6 +187,17 @@ _NO_PERMITS = {"check": "permits", "label": "Permit", "ready": True, "blockers":
                "needed": False, "note": "No permit-to-work records are loaded, so no permit to check."}
 
 
+def _no_permits(needed: bool, kind: str | None) -> dict:
+    """No permit system loaded (#742, decided 13 Nov 2026): work that needs a permit says so and asks for one in hand,
+    recorded on the case; nothing is refused, since there is nothing to check it against."""
+    out = {**_NO_PERMITS, "needed": needed}
+    if needed:
+        out["confirm"] = True
+        out["warnings"] = [f"Check permit: this {(kind or 'listed').replace('_', ' ')} work needs a permit, and Fuzer "
+                           "has no permit records to check: confirm one is in hand."]
+    return out
+
+
 def _permit_kinds(conn) -> set[str]:
     from ..core import settings
 
@@ -225,9 +236,9 @@ def _read_permits(rows: list[dict], needed: bool, kind: str | None, now: datetim
 def permits(conn, subjects: list[str], job: int | None = None, now: datetime | None = None) -> dict:
     """Permits to work on a job's location, each with its isolations. Ready unless the job's work type needs a permit
     and none is issued and in date with every isolation in place."""
-    if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
-        return dict(_NO_PERMITS)
     needed, kind = _needs_permit(conn, job)
+    if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
+        return _no_permits(needed, kind)
     rows = conn.execute(_PERMITS, (_locations(conn, subjects),)).fetchall()
     return _read_permits(rows, needed, kind, now or datetime.now(UTC))
 
@@ -249,9 +260,10 @@ def locations_many(conn, subjects: dict[int, list[str]]) -> dict[int, set[str]]:
 def permits_many(conn, jobs: dict[int, tuple[str, list[str]]], places: dict[int, set[str]] | None = None,
                  now: datetime | None = None) -> dict[int, dict]:
     """`permits` for many jobs ({exception id: (its type, its subjects)}) in three queries instead of four each."""
+    kinds = _permit_kinds(conn)
     if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
-        return {job: dict(_NO_PERMITS) for job in jobs}
-    now, kinds = now or datetime.now(UTC), _permit_kinds(conn)
+        return {job: _no_permits(type in kinds, type) for job, (type, _) in jobs.items()}
+    now = now or datetime.now(UTC)
     places = places if places is not None else locations_many(conn, {j: ss for j, (_, ss) in jobs.items()})
     rows = conn.execute(_PERMITS, (sorted(set().union(*places.values())) if places else [],)).fetchall()
     return {job: _read_permits([r for r in rows if r["location"] in places[job]], type in kinds, type, now)
@@ -291,13 +303,21 @@ _MOCS = """
 """
 
 
-def _read_mocs(rows: list[dict]) -> dict:
+def _read_mocs(rows: list[dict], changes: list[dict] = ()) -> dict:
     found = [{"moc": r["moc"] or r["record"].rsplit(":", 1)[-1], "asset": r["asset"],
               "change": f"{r['quantity'].replace('_', ' ')} {_n(r['value'])} {r['unit'] or ''}".strip(),
               "description": (r["payload"] or {}).get("description"), "since": r["at"].date().isoformat()}
              for r in rows]
     warnings = [f"Open MOC {f['moc']} on {f['asset'] or 'this equipment'}: "
                 + (f["description"] or f"proposes {f['change']}").rstrip(".") for f in found]
+    from . import safeguards
+
+    for c in changes:  # open change records, with what their stage says (#755)
+        st = safeguards.stage(c)
+        found.append({"moc": c["label"], "asset": ", ".join(c["about_labels"]) or None, "change": c["change_type"],
+                      "description": c["title"], "since": (c["opened"] or "")[:10] or None, "state": c["state"],
+                      "work_orders": c["work_orders"], **st})
+        warnings.append(safeguards.change_warning(c))
     return {"check": "moc", "label": "MOC", "ready": True, "blockers": [], "checked": True, "mocs": found,
             "warnings": warnings, "note": None if found else "No open MOC on this equipment."}
 
@@ -305,14 +325,29 @@ def _read_mocs(rows: list[dict]) -> dict:
 def mocs(conn, subjects: list[str], job: int | None = None) -> dict:
     """Open management-of-change records on the job's equipment or where it is installed: a warning for whoever sends
     or does the work that a change is proposed or in hand there, never a blocker. Read from whatever MOC records are
-    loaded (an open MOC in the register, method `moc_open`); silent when there are none."""
-    return _read_mocs(conn.execute(_MOCS, (_locations(conn, subjects),)).fetchall())
+    loaded: an open MOC in the register (method `moc_open`), and open change records with what their stage says
+    (#755): a temporary change past its end date, or one implemented before its pre-startup safety review. Silent when
+    there are none."""
+    near = _locations(conn, subjects)
+    return _read_mocs(conn.execute(_MOCS, (near,)).fetchall(), _changes_on(conn, set(near)))
+
+
+def _changes_on(conn, near: set[str], every: list[dict] | None = None) -> list[dict]:
+    from . import safeguards
+
+    if not near:
+        return []
+    return [c for c in (safeguards.changes(conn) if every is None else every) if set(c["about"]) & near]
 
 
 def mocs_many(conn, places: dict[int, set[str]]) -> dict[int, dict]:
     """`mocs` for many jobs, from their places (`locations_many`), in one query."""
+    from . import safeguards
+
     rows = conn.execute(_MOCS, (sorted(set().union(*places.values())) if places else [],)).fetchall()
-    return {job: _read_mocs([r for r in rows if r["fuzer_id"] in near]) for job, near in places.items()}
+    every = safeguards.changes(conn) if places else []
+    return {job: _read_mocs([r for r in rows if r["fuzer_id"] in near], _changes_on(conn, near, every))
+            for job, near in places.items()}
 
 
 CHECKS = (_spares, crew, permits, _simops, mocs)
