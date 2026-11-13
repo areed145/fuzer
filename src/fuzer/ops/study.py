@@ -107,6 +107,11 @@ def run(conn, pack, sid: int) -> dict:
     return get(conn, sid)
 
 
+def queued(conn) -> bool:
+    """A study is waiting for the background job (its schedule starts a run only then)."""
+    return conn.execute("select 1 from study where status = 'queued' limit 1").fetchone() is not None
+
+
 def run_queued(conn, pack, limit: int = 5) -> dict:
     """The background job: run the oldest queued studies."""
     done = []

@@ -120,17 +120,19 @@ def _add(conn, key: str, person: str, kind: str, item_id, token_id, text: str, n
     return 1 if row else 0
 
 
+DUE_SOON = (
+    "select t.id as token_id, t.item_id, t.assignee, t.due_at, t.name from work_token t where t.state = 'waiting' "
+    "and t.kind = 'user' and t.assignee is not null and t.due_at > %(now)s and t.due_at <= %(until)s "
+    "union all select null, i.id, i.assignee, i.due, null from work_item i where i.state not in ('done', 'cancelled') "
+    "and i.assignee is not null and i.due > %(now)s and i.due <= %(until)s "
+    "and not exists (select 1 from work_process p where p.item_id = i.id)")
+
+
 def _due_soon(conn, now: datetime, cache: dict) -> int:
     minutes = settings.get(conn, "work.due_soon_minutes")
     if not minutes:
         return 0
-    rows = conn.execute(
-        "select t.id as token_id, t.item_id, t.assignee, t.due_at, t.name from work_token t where t.state = 'waiting' "
-        "and t.kind = 'user' and t.assignee is not null and t.due_at > %(now)s and t.due_at <= %(until)s "
-        "union all select null, i.id, i.assignee, i.due, null from work_item i where i.state not in ('done', 'cancelled') "
-        "and i.assignee is not null and i.due > %(now)s and i.due <= %(until)s "
-        "and not exists (select 1 from work_process p where p.item_id = i.id)",
-        {"now": now, "until": now + timedelta(minutes=minutes)}).fetchall()
+    rows = conn.execute(DUE_SOON, {"now": now, "until": now + timedelta(minutes=minutes)}).fetchall()
     made = 0
     for r in rows:
         title = _title(conn, r["item_id"], cache)
@@ -165,6 +167,25 @@ def scan(conn, now: datetime | None = None) -> dict:
     conn.execute("update work_notify_cursor set last_event = %s where id = 1", (top,))
     conn.commit()
     return {"events": len(events), "notified": made, "due_soon": due, **send(conn, now)}
+
+
+def pending(conn, now: datetime | None = None) -> bool:
+    """Whether `scan` has anything to do: its first scan of the project, an event since the last one, a step coming
+    due, or a message waiting to be sent. The one-minute schedule starts a run only then; it reads and locks
+    nothing, so it can say yes for work a running scan is already doing."""
+    now = now or utcnow()
+    cur = conn.execute("select last_event from work_notify_cursor where id = 1").fetchone()
+    if cur is None:
+        return True
+    if conn.execute("select 1 from work_event where id > %s and kind = any(%s) limit 1",
+                    (cur["last_event"], list(EVENTS))).fetchone():
+        return True
+    if conn.execute("select 1 from work_notification where delivery in ('queued', 'held') limit 1").fetchone():
+        return True
+    minutes = settings.get(conn, "work.due_soon_minutes")
+    return bool(minutes) and conn.execute(
+        f"select 1 from ({DUE_SOON}) d limit 1", {"now": now, "until": now + timedelta(minutes=minutes)}
+    ).fetchone() is not None
 
 
 def mine(conn, person: str, limit: int = 30) -> dict:

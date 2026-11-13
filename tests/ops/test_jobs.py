@@ -161,3 +161,62 @@ def test_runs_execute_in_one_process():
     """A run's steps share its process: a step subprocess per run doubled memory on the deployed instance."""
     for job in jobs.defs.resolve_all_job_defs():
         assert job.executor_def.name == dg.in_process_executor.name, job.name
+
+
+def _requested(fuzer, job_name: str) -> list[str]:
+    from datetime import datetime
+
+    schedule = next(s for s in jobs.schedules if s.job_name == job_name)
+    with dg.instance_for_test() as instance, dg.build_schedule_context(
+            instance=instance, resources={"fuzer": fuzer},
+            scheduled_execution_time=datetime(2026, 1, 1, 2, tzinfo=UTC)) as ctx:
+        return [r.tags[jobs.PROJECT_TAG] for r in schedule.evaluate_tick(ctx).run_requests or []]
+
+
+def test_minute_schedules_start_a_run_only_when_something_is_due(fuzer):
+    """Each run is a new Python process: the notify, write-back and studies schedules ask the project first."""
+    from fuzer.workflow import notify
+
+    with fuzer.connect() as conn:
+        conn.execute("delete from work_notify_cursor")
+        conn.commit()
+    assert _requested(fuzer, "work_notify") == ["okan"]  # the first scan sets where notifying starts
+    with fuzer.connect() as conn:
+        notify.scan(conn)
+        assert not notify.pending(conn)
+    assert _requested(fuzer, "work_notify") == []
+    with fuzer.connect() as conn:
+        conn.execute("insert into work_notification (key, person, kind, text, link, channel, delivery) "
+                     "values ('t:1', 'ana', 'assigned', 'Yours.', '#/work', 'email', 'queued')")
+        conn.commit()
+    assert _requested(fuzer, "work_notify") == ["okan"]  # a message is waiting to be sent
+    with fuzer.connect() as conn:
+        conn.execute("delete from work_notification where key = 't:1'")
+        conn.commit()
+
+    assert _requested(fuzer, "writeback_run") == []
+    with fuzer.connect() as conn:
+        conn.execute("insert into writeback (system, kind, idem_key, state, drafted_by, due_at) "
+                     "values ('sap', 'notification', 't:1', 'approved', 'tests', now() - interval '1 minute')")
+        conn.commit()
+    assert _requested(fuzer, "writeback_run") == ["okan"]
+    with fuzer.connect() as conn:
+        conn.execute("delete from writeback where idem_key = 't:1'")
+        conn.commit()
+
+    assert _requested(fuzer, "studies_job") == []
+    with fuzer.connect() as conn:
+        conn.execute("insert into study (kind, params, created_by) values ('correlate', '{}', 'tests')")
+        conn.commit()
+    assert _requested(fuzer, "studies_job") == ["okan"]
+    with fuzer.connect() as conn:
+        conn.execute("delete from study where created_by = 'tests'")
+        conn.commit()
+    assert _requested(fuzer, "work_tick") == ["okan"]  # jobs without a check run every tick
+
+
+def test_a_failed_due_check_starts_the_run(fuzer):
+    def broken(conn):
+        raise RuntimeError("no such table")
+
+    assert jobs.has_work(fuzer, "okan", broken)
