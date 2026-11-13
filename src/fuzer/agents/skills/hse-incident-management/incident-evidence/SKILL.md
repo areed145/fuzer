@@ -1,6 +1,6 @@
 ---
 name: incident-evidence
-description: Organize recorded incident, event and corrective-work evidence for accountable HSE review - timelines, investigation records, corrective-action status, past lessons and recorded flare - without making safety or compliance decisions.
+description: Organize recorded incident, event and corrective-work evidence for accountable HSE review - timelines, investigation records, corrective-action status, past lessons and recorded flare and the gas balance - without making safety or compliance decisions.
 ---
 
 # Incident evidence for HSE review
@@ -25,8 +25,11 @@ Use only recorded evidence:
    incident that came back after linked work was recorded closed, and the age of open linked orders. Say that linked
    work is a proxy (an order raised for the incident's notification, or a corrective order on the unit soon after),
    not an action register, and that a repeat after closed work is a lead for review, not a failed action.
-6. `plot_flare(since, until)` shows recorded daily flare from DAY001 with an estimated CO2 per barrel. It is
-   evidence for a review, not an emissions inventory or a compliance figure.
+6. `plot_flare(since, until)` shows recorded daily flare from DAY001, with fuel gas and vent beside it when the
+   report carries them, and an estimated CO2 per barrel for the flare. It is evidence for a review, not an emissions
+   inventory or a compliance figure. `gas_balance()` (and `plot_gas_balance()`) sets the gas handled against export,
+   lift gas, flare, fuel and vent each day and always quotes the closure gap: an open stretch with a term reading
+   zero points at that meter, and a term the report doesn't carry is named, never taken as zero.
    To explain flare spikes, use `flare_attribution()` (and `plot_flare_attribution()`): each episode above the
    flare's own baseline with the downtime, log entries and detections around it, or its cause unknown, and how much
    of the flare over the baseline the records explain. Causes are matched by time, so call them leads, not proven
