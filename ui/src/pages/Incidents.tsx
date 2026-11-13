@@ -20,15 +20,18 @@ export function IncidentsPage() {
         No incidents yet.
       </Status>
       {list.data && list.data.total > 0 && (
-        <>
-          <p className="small">
-            {list.data.total.toLocaleString()} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}
-          </p>
+        <UICard as="section">
+          <h2>
+            Latest{" "}
+            <span className="muted small">
+              {list.data.total.toLocaleString()} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}
+            </span>
+          </h2>
           <IncidentList items={list.data.items.slice(0, LATEST)} all={list.data.items} />
           {list.data.items.length > LATEST && <Disclosure className="more-incidents" label={`Show ${list.data.items.length - LATEST} earlier incidents`}>
             <IncidentList items={list.data.items.slice(LATEST)} all={list.data.items} />
           </Disclosure>}
-        </>
+        </UICard>
       )}
       <IncidentRepeats />
       <FlareAttribution />
@@ -41,7 +44,7 @@ export function IncidentList({ items, all = items }: { items: Incident[]; all?: 
   // The same event grouped on more than one unit (#402): same start, same description.
   const twins = (i: Incident) => all.filter((o) => o.id !== i.id && o.start === i.start && o.description === i.description);
   return (
-    <ul className="timeline card">
+    <ul className="timeline">
       {items.map((i) => (
         <li key={i.id}>
           <span className="when">{i.start}</span>

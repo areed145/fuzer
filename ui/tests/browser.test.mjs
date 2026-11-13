@@ -1388,6 +1388,30 @@ test("an event grouped on two units says which unit each incident is on and link
   assert.equal(await first.getByRole("link", { name: "20-V-2101C", exact: true }).getAttribute("href"), "#/e/fz-incident-000000000002");
 });
 
+test("incident lists sit inside one titled card with padding, on the Incidents page and an asset's page", async () => {
+  const id = "fz-equipment-0123456789ab";
+  const inc = { id: "fz-incident-000000000001", description: "Level alarm on 10-V-2004", unit: "10-V-2004", start: "2025-12-30",
+    end: "2025-12-30", signals: 1, events: 1, downtime_records: 0, notifications: 0, lost_oil_sm3: 0 };
+  await page.route("**/incidents?*", (route) => route.fulfill({ json: { total: 1, items: [inc] } }));
+  await page.route("**/feedback/briefs", (route) => route.fulfill({ json: { incidents: 0, rated: 0, ratings: 0, items: [] } }));
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}/incidents?*`, (route) => route.fulfill({ json: { total: 1, items: [inc] } }));
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "equipment", label: "10-V-2004",
+    golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const path of ["/#/incidents", `/#/e/${id}`]) {
+    await page.goto(`${url}${path}`);
+    const row = page.locator(".timeline li").first();
+    await row.waitFor();
+    const card = page.locator(".card", { has: page.locator(".timeline") }).last();
+    assert.equal(await card.locator(".timeline").count(), 1, `${path}: the list is drawn once, inside a card`);
+    assert.equal(await card.locator("h2").count(), 1, `${path}: the card carries its own heading`);
+    const [c, r] = [await card.boundingBox(), await row.boundingBox()];
+    assert.ok(r.x - c.x >= 12, `${path}: rows are padded from the card edge`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+});
+
 test("the map fits the field's wells and platforms, not the export line, and says when base tiles fail (#398)", async () => {
   const pt = (id, kind, lon, lat) => ({ type: "Feature", id, geometry: { type: "Point", coordinates: [lon, lat] }, properties: { kind, label: id } });
   await page.route("**/map", (route) => route.fulfill({ json: { type: "FeatureCollection", features: [
