@@ -317,6 +317,32 @@ def loop_high_rate(ref: str, start: str, end: str, step_seconds: int = 1) -> dic
 
 
 @capability("field-operations-facilities", kind="calc")
+def loop_tuning(test: str) -> dict[str, Any]:
+    """Process model fit and suggested tuning range from a step test (#359), by the test's id (e.g. ST-2025-001) or a
+    loop's tag for its latest test: the response read every second, a first order plus dead time model (gain, time
+    constant, dead time) with its fit quality (R-squared, whether it settled), the SIMC PI range from tight to smooth in
+    the DCS's own % per % against the settings in force at the test, and, where the settings changed after it, a
+    before and after comparison (compare_periods on the value, and the setpoint error's spread). Each suggestion
+    carries its method, data window and assumptions. A range to inform the control-system owner, never a change:
+    changes are theirs under management of change, and nothing is written to a controller."""
+    from ...analysis import calcs
+    from ...analysis import loop_tuning as lt
+    with db.connect() as conn:
+        try:
+            return _plain(lt.tuning(conn, test))
+        except calcs.CalcError as e:
+            return {"error": str(e), **e.refusal()}
+
+
+@capability("field-operations-facilities", kind="plot")
+def plot_step_fit(test: str) -> dict[str, Any]:
+    """Chart a step test's response read every second against the fitted first order plus dead time model, with the
+    output step beneath: how well the model the tuning range rests on fits."""
+    from ...plots import general
+    return _chart(general.step_fit, {"test": test})
+
+
+@capability("field-operations-facilities", kind="calc")
 def valve_stiction(ref: str | None = None, days: int = 3, until: str | None = None) -> dict[str, Any]:
     """Valve stiction check (#357): for each loop on the DCS loop list (or the one named, e.g. 10-LIC-2003) in auto
     over the `days` up to `until` whose value cycles regularly, Horch's cross-correlation of controller output against

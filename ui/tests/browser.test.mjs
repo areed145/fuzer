@@ -5721,7 +5721,9 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   await page.setViewportSize({ width: 390, height: 900 });
   await card.getByRole("button", { name: "Driver", exact: true }).waitFor();
   assert.equal(await card.getByRole("button", { name: "Speed · GT-1", exact: true }).isVisible(), false);
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "no sideways scroll");
+  // The chart redraws to the new width a moment after the resize, so wait for it rather than measuring at once.
+  await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 10_000 })
+    .catch(() => assert.fail("no sideways scroll"));
 });
 
 test("P3.4b a watch proposal on Detection is confirmed, its pattern drafted and the draft published with a reason", async () => {

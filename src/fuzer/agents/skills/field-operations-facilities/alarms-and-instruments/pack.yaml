@@ -2,15 +2,16 @@
 # trusted, and whether a control loop is cycling. SKILL.md is its playbook; this file names what the playbook relies on, so a missing or
 # renamed piece fails the pack conformance test (tests/agents/test_specialist_packs.py) instead of an answer on a case.
 # Loop health and the stiction check read the DCS loop list's output, setpoint and mode (#355-#357); controller settings,
-# step tests and high-rate reads (#358) feed the model fits that come next.
+# step tests and high-rate reads (#358) feed the model fits and tuning ranges (#359).
 title: Control loops and alarms
 owner: field-operations-facilities    # the agent that loads this pack
 classes: [IP, VA, CL]                 # input devices, valves, control logic (standards/iso14224.yaml)
 tools: [calc, instrument_health, plot_instrument_health, alarm_analysis, plot_alarms, detect_changes, plot_changes, limits,
         capacity_headroom, plot_operating_window, loop_health, plot_loop_health, control_loop,
-        valve_stiction, plot_valve_stiction, controller_settings, loop_high_rate]
-charts: [plot_instrument_health, plot_alarms, plot_changes, plot_operating_window, plot_loop_health, plot_valve_stiction]
-methods: [alarm_performance, instrument_health, loop_oscillation, loop_health, valve_stiction]   # all but loop_oscillation run by their own tools
+        valve_stiction, plot_valve_stiction, controller_settings, loop_high_rate,
+        loop_tuning, plot_step_fit]
+charts: [plot_instrument_health, plot_alarms, plot_changes, plot_operating_window, plot_loop_health, plot_valve_stiction, plot_step_fit]
+methods: [alarm_performance, instrument_health, loop_oscillation, loop_health, valve_stiction, loop_tuning]   # all but loop_oscillation run by their own tools
 detectors: [instruments, excursions, steps]
 roles: [pressure, differential_pressure, temperature, flow, level, valve_position, composition]
 eval: alarms-and-instruments          # each bundle's answer keys: evals/alarms-and-instruments.yaml in the bundle

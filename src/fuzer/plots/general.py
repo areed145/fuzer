@@ -517,3 +517,37 @@ def valve_stiction(conn, ref: str, days: int = 1, until: str | None = None) -> F
         "period_min": verdict.get("period_min"), "caveat": verdict.get("caveat"), "valve": verdict.get("valve"),
         "synthetic": s["synthetic"], "method": "Horch (1999) cross-correlation of controller output and process value",
         "note": "A suspicion for the instrument technician to confirm in the field, not a diagnosis."}, [s["id"]])
+
+
+def step_fit(conn, test: str) -> Figure:
+    """A step test (#359): the value read every second against the fitted first order plus dead time model, and the
+    output step on a second axis."""
+    from ..analysis import calcs, control_loops, loop_tuning
+
+    try:
+        got = loop_tuning.tuning(conn, test)
+        hr = control_loops.high_rate(conn, got["loop_id"], got["window"]["since"], got["window"]["until"],
+                                     got["window"]["sample_s"])
+    except calcs.CalcError as e:
+        raise ChartError(str(e)) from e
+    t = loop_tuning._seconds(hr["times"])
+    step_at = float(t[hr["times"].index(got["window"]["step_at"])]) if got["window"]["step_at"] in hr["times"] else 0.0
+    m = got["model"]
+    before = [v for x, v in zip(t, hr["pv"]) if x < step_at]
+    base = sum(before) / len(before)
+    model = base + loop_tuning.fopdt(t - step_at, m["gain"], m["tau_s"], m["dead_s"], m["step"])
+    data = [{"type": "scatter", "mode": "lines", "name": "value (every second)", "x": hr["times"], "y": hr["pv"],
+             "line": {"width": 1, "color": "rgba(40,110,190,0.6)"}},
+            {"type": "scatter", "mode": "lines", "name": "fitted model", "x": hr["times"],
+             "y": [rnd(v) for v in model], "line": {"width": 2, "color": "rgba(210,60,50,0.9)"}},
+            {"type": "scatter", "mode": "lines", "name": "controller output (%)", "x": hr["times"], "y": hr["op"],
+             "yaxis": "y2", "line": {"width": 1, "shape": "hv", "color": "rgba(120,120,120,0.8)"}}]
+    lay = layout(f"{got['loop']} step test {got['test']}: response and fitted model", None,
+                 f"process value ({got['unit']})" if got["unit"] else "process value")
+    lay["yaxis2"] = {"title": {"text": "controller output (%)"}, "overlaying": "y", "side": "right"}
+    return Figure("step_fit", lay["title"]["text"], data, lay, {
+        "model": {k: m[k] for k in ("gain", "gain_unit", "tau_s", "dead_s", "gain_pct_per_pct")},
+        "fit_quality": got["fit_quality"], "suggested": got["suggested"], "why_no_suggestion": got["why_no_suggestion"],
+        "window": got["window"], "method": got["method"], "synthetic": got["synthetic"], "boundary": got["boundary"]},
+        [got["loop_id"]])
+

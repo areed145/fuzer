@@ -1292,8 +1292,10 @@ def generate(out, seed: int = 11) -> dict:
                         ("mode", "Mode (1 AUTO, 0 MAN)", "")):
             loop_rows.append({"tag": names[r], "descriptor": f"{ldesc} {d}", "engunits": u, "pointsource": "OPC"})
             loop_points[names[r]] = [ltag, r]
+        span = {"%": (0, 100), "barg": (0, 25) if ltag == "10-PIC-2001" else (0, 150), "m3/h": (0, 600)}[uom]
         loops.append({"loop_tag": ltag, "description": ldesc, "controlled_item": item, "controller": "PID",
                       "final_element": f"{area}-{func[0]}V-{num}", "eng_units": uom,
+                      "pv_range_low": span[0], "pv_range_high": span[1],
                       **{f"{r}_point": names[r] for r in names}})
     _write_csv(out / "dcs_loops.csv", loops)
     # Controller settings and step tests (#358). The DCS configuration export holds each loop's PID settings with the
@@ -1549,7 +1551,8 @@ def generate(out, seed: int = 11) -> dict:
                   for ltag, _, _, _, sp, op, swing, gain, _, _ in loop_defs}
     (out / "process_model.json").write_text(json.dumps({
         **model, "units": {**model["units"], **loop_units}, "points": {**model["points"], **loop_points},
-        "events": model["events"] + [{"unit": d[0], **d[9]} for d in loop_defs if d[9]] + step_events}))
+        "events": model["events"] + [{"unit": d[0], **d[9]} for d in loop_defs if d[9]] + step_events
+        + [{"unit": "10-FIC-1001", "kind": "retune", "at": "2025-06-12T14:00:00", "pv_noise_scale": 0.5}]}))
     # Instrument faults and interface outages over the model (#868): fuzer.sources.instruments applies them, and the
     # file is their answer key. Off alarmed and IOW points, and away from the quarter the limits are learned on.
     core = lambda t: "".join(m.groups()) if (m := re.search(r"(\d\d)[-_.]?([A-Z]+)[-_]?(\d{4})", t)) else None

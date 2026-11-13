@@ -1,5 +1,5 @@
 import "../styles/events.css";
-import { Button, PageHeader, Card as UICard, Badge as UIBadge, Empty } from "../ui";
+import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -7,6 +7,9 @@ import { TrendGrid } from "../Trend";
 import { loadPerson } from "../work";
 import { IncidentRepeats } from "./IncidentRepeats";
 import { FlareAttribution } from "./FlareAttribution";
+
+/** The latest incidents are on the page; earlier ones are one click away. */
+const LATEST = 8;
 
 export function IncidentsPage() {
   const list = useAsync(() => api.incidents(), []);
@@ -16,24 +19,27 @@ export function IncidentsPage() {
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.total === 0}>
         No incidents yet.
       </Status>
-      <RatingProgress />
-      <IncidentRepeats />
-      <FlareAttribution />
       {list.data && list.data.total > 0 && (
         <>
           <p className="small">
             {list.data.total.toLocaleString()} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}
           </p>
-          <IncidentList items={list.data.items} />
+          <IncidentList items={list.data.items.slice(0, LATEST)} all={list.data.items} />
+          {list.data.items.length > LATEST && <Disclosure className="more-incidents" label={`Show ${list.data.items.length - LATEST} earlier incidents`}>
+            <IncidentList items={list.data.items.slice(LATEST)} all={list.data.items} />
+          </Disclosure>}
         </>
       )}
+      <IncidentRepeats />
+      <FlareAttribution />
+      <RatingProgress />
     </section>
   );
 }
 
-export function IncidentList({ items }: { items: Incident[] }) {
+export function IncidentList({ items, all = items }: { items: Incident[]; all?: Incident[] }) {
   // The same event grouped on more than one unit (#402): same start, same description.
-  const twins = (i: Incident) => items.filter((o) => o.id !== i.id && o.start === i.start && o.description === i.description);
+  const twins = (i: Incident) => all.filter((o) => o.id !== i.id && o.start === i.start && o.description === i.description);
   return (
     <ul className="timeline card">
       {items.map((i) => (

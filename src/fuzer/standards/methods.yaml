@@ -640,6 +640,20 @@ loop_health:
   vectors:
     - {worked: "tests/analysis/test_control_loops.py::test_each_planted_fault_ranks_at_the_top_of_the_worklist"}
 
+loop_tuning:
+  title: Step test model fit (first order plus dead time) and SIMC PI tuning range
+  practice: "Skogestad, S. (2003), Simple analytic rules for model reduction and PID controller tuning, Journal of Process Control 13: for a first order plus dead time process (gain K, time constant tau, dead time theta), a PI controller with Kc = tau / (K (tau_c + theta)) and Ti = min(tau, 4 (tau_c + theta)); tau_c = theta for tight control, larger for smoother, more robust control. The model is fitted by least squares to an open-loop step response read at a high rate, the dead time searched over the samples. Using tau_c from theta to 3 theta as the range, and the R-squared floor, are this registry's own choices."
+  tool: loop_tuning
+  inputs: [{name: Process value (high rate), unit: each loop's own}, {name: Controller output, unit: "%"}, {name: Process value span, unit: each loop's own}]
+  valid: Self-regulating loops with an open-loop step test on record, read at the test's sample rate, that settled within the test.
+  needs: The step test's window read every few seconds (a bounded high-rate read), and the value's span from the loop list for a gain in % per %.
+  thresholds:
+    r2_min: {value: 0.9, means: "R-squared of the fit over the test window below which no range is suggested.", code: "fuzer.analysis.loop_tuning:R2_MIN"}
+    compare_days: {value: 7, unit: days, means: "Days either side of a setting change for the before and after comparison.", code: "fuzer.analysis.loop_tuning:COMPARE_DAYS"}
+  vectors:
+    - {worked: "tests/analysis/test_loop_tuning.py::test_a_fit_recovers_a_known_model_and_simc_gives_a_range"}
+    - {worked: "tests/analysis/test_loop_tuning.py::test_each_step_test_recovers_its_known_model"}
+
 valve_stiction:
   title: Valve stiction from controller output against process value (cross-correlation test)
   practice: "Horch, A. (1999), A simple method for detection of stiction in control valves, Control Engineering Practice 7: on a loop cycling in auto, the cross-correlation of controller output and process value is odd (zero at lag 0, peaks of opposite sign either side) when a sticking valve drives the cycle, and even (strongest at lag 0) when tuning or an outside disturbance does. Stated for self-regulating loops (flow, pressure); on an integrating loop (level) it is a weaker indication. The share thresholds are this registry's own screening choices."
