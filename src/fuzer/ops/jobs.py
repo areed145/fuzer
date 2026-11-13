@@ -540,10 +540,13 @@ def studies_job():
 @dg.op(description="Tell owners about stale or broken sources, and close what cleared (#225).")
 def source_health_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from ..core import detectors, events
-    with fuzer.connect() as conn:
+
+    def work(conn, say) -> None:
         out = detectors.run(conn, None, "source_health")
         conn.commit()
-        context.log.info(f"source health: {out}, events: {events.deliver(conn)}")
+        say(f"source health: {out}, events: {events.deliver(conn)}")
+
+    in_each_project(context, fuzer, work)
 
 
 @dg.job(description="Source health: stale data, failed or held loads, failing checks -> exceptions, cases and alerts.")
@@ -582,10 +585,13 @@ DETECT = {name: _tier_job(name) for name in ("5min", "30min", "hourly", "6h", "d
 def providers_poll_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from ..core import events
     from ..sources import providers
-    with fuzer.connect() as conn:
+
+    def work(conn, say) -> None:
         out = providers.poll(conn, fuzer.folder())
-        context.log.info(f"providers: {out}, events: {events.deliver(conn)}")
+        say(f"providers: {out}, events: {events.deliver(conn)}")
         conn.commit()
+
+    in_each_project(context, fuzer, work)
 
 
 @dg.job(description="Detection providers: polled alert tables read when changed -> findings joined to cases.")
@@ -638,7 +644,7 @@ def per_project(job, cron: str, status: dg.DefaultScheduleStatus, due=None) -> d
 
 def together(job, cron: str, status: dg.DefaultScheduleStatus) -> dg.ScheduleDefinition:
     """A schedule that starts the job once for every project together: its op takes them in turn (in_each_project).
-    For the light jobs that run every few minutes, where a process per project per tick cost more than the work;
+    For the light jobs that run every hour or more often, where a process per project per tick cost more than the work;
     the long ones keep a run per project, so one project's rebuild neither waits for nor hides another's."""
     @dg.schedule(name=f"{job.name}_schedule", job=job, cron_schedule=cron, execution_timezone=TZ,
                  default_status=status, required_resource_keys={"fuzer"})
@@ -703,9 +709,9 @@ schedules = [
     per_project(sre_scan, "0 */6 * * *", RUNNING),
     per_project(studies_job, "*/5 * * * *", RUNNING, _studies_due),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
-    per_project(source_health, "*/30 * * * *", RUNNING),
-    per_project(providers_poll, "*/15 * * * *", RUNNING),
-    *((together if name in ("5min", "30min") else per_project)(job, CADENCE_CRON[name], RUNNING)
+    together(source_health, "*/30 * * * *", RUNNING),
+    together(providers_poll, "*/15 * * * *", RUNNING),
+    *((together if name in ("5min", "30min", "hourly") else per_project)(job, CADENCE_CRON[name], RUNNING)
       for name, job in DETECT.items()),
 ]
 
