@@ -34,6 +34,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`watch`](#watch) What looks unusual in a process area that no detector raised (agentic, in shadow) | Agentic | Once a day |  | Any asset with the inputs |
 | [`repeat_leaks`](#repeat_leaks) A leak repair that does not hold: leaking in consecutive LDAR surveys | Rule | Once a day | `repeat_leak` | Any asset with the inputs |
 | [`gas_balance_gaps`](#gas_balance_gaps) The daily gas balance staying open for days: a meter likely off | Rule | Once a day | `gas_balance_gap` | Any asset with the inputs |
+| [`promoted_rules`](#promoted_rules) A rule drafted from confirmed watch findings and published by a person | Rule | Every 6 hours | `upset` | Any asset with the inputs |
 
 ## excursions
 
@@ -362,3 +363,14 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `gas_balance_gap`
 - **Needs:** fuel gas on the daily report
 - **Scored by:** `tests/ops/test_emissions.py::test_a_gas_balance_open_for_days_is_work_until_it_closes`, on the fake plant
+
+## promoted_rules
+
+**A rule drafted from confirmed watch findings and published by a person.** Each rule a person published from a pattern of confirmed watch findings: points of one measurement role on one equipment class whose value moves past the rule's threshold against the week before, in its direction.
+
+- **Kind:** Rule
+- **Runs:** Every 6 hours
+- **Raises:** `upset`
+- **Needs:** a published rule
+- **Setting `watch.promote_after`:** Confirmed watch proposals of one pattern before the watch drafts a deterministic rule for it (default 3)
+- **Scored by:** the replay harness, `fuzer eval --ops --detector sre:promoted_rules`

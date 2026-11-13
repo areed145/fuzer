@@ -81,6 +81,47 @@ def _purchase_orders(materials: list[dict]) -> list[dict]:
     return out
 
 
+def _lead_times(materials: list[dict]) -> None:
+    """Each material's planned delivery time in days (SAP MARC-PLIFZ, #362): a week for common seals and gaskets, up to
+    a few months for bearing sets from some makers. Deterministic, added to the material rows."""
+    for n, m in enumerate(materials):
+        m["plifz"] = str(7 + (n * 11) % 35 + (45 if "Bearing set" in m["description"] and n % 3 == 0 else 0))
+
+
+def _reservations(orders: list[dict], bom: list[dict], materials: list[dict], pos: list[dict]) -> tuple[list, dict]:
+    """SAP reservations (RESB, #362): the parts the BOM lists for an open work order, reserved against it for the day
+    the job starts (dated from the day it is generated). Two are planted for the late-arrival check: a part whose
+    open purchase order is due after the job needs it, and a part with none in stock, nothing on order and a planned
+    delivery time longer than the time left. The answer key names them."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    by_mat = {m["matnr"]: m for m in materials}
+    po_due = {p["matnr"]: p for p in pos if p["status"] == "open"}
+    parts: dict[str, list[str]] = {}
+    for b in bom:
+        parts.setdefault(b["equnr"], []).append(b["matnr"])
+    open_orders = [o for o in orders if o["status"] in ("CRTD", "REL") and parts.get(o["equnr"])]
+    out, key, late, short = [], {}, None, None
+    for n, o in enumerate(open_orders[:40]):
+        for m in parts[o["equnr"]]:
+            mat, need = by_mat[m], today + timedelta(days=14 + (n * 3) % 28)
+            if late is None and m in po_due:  # the order lands five days after the job needs it
+                due = date.fromisoformat(po_due[m]["delivery_date"])
+                if due - timedelta(days=5) > today:
+                    need, late = due - timedelta(days=5), (o["aufnr"], m)
+            elif (short is None and mat["stock"] == "0" and m not in po_due
+                  and int(mat["plifz"]) > 21):  # none in stock, nothing on order, and too far off to arrive in time
+                need, short = today + timedelta(days=10), (o["aufnr"], m)
+            out.append({"rsnum": f"{len(out) + 1:010d}", "rspos": "0001", "aufnr": o["aufnr"], "matnr": m,
+                        "quantity": "1", "need_date": need.isoformat(), "status": "open"})
+    if late:
+        key["late_order"] = {"work_order": late[0], "material": late[1]}
+    if short:
+        key["not_on_order"] = {"work_order": short[0], "material": short[1]}
+    return out, key
+
+
 WORK_CENTERS = [  # SAP work centers (P5.5b): the crews work orders are planned against
     {"arbpl": "MECH", "description": "Mechanical maintenance crew", "crew_size": "6", "shift": "days"},
     {"arbpl": "INST", "description": "Instrument technicians", "crew_size": "2", "shift": "days"},

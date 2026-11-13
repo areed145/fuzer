@@ -2,6 +2,7 @@ import os
 import signal
 import threading
 from contextlib import nullcontext
+from types import SimpleNamespace
 
 import pytest
 
@@ -151,7 +152,7 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
     monkeypatch.setenv("FUZER_DATABASE_URL", "postgresql://unused/test")
     monkeypatch.setenv("FUZER_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
-    monkeypatch.setattr(deploy.db, "connect", lambda: nullcontext(object()))
+    monkeypatch.setattr(deploy.db, "connect", lambda **kw: nullcontext(SimpleNamespace(execute=lambda *a: calls.append("lock") if kw else None)))
     monkeypatch.setattr(deploy, "configure_dagster", lambda home, url: calls.append("dagster"))
     monkeypatch.setattr(deploy, "end_orphaned_runs", lambda: calls.append("end orphans"))
     monkeypatch.setattr(deploy, "seed", lambda conn, bundle: calls.append("seed") or {"name": "first"})
@@ -159,7 +160,7 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
     monkeypatch.setattr(deploy.engine, "load_defaults", lambda conn: None)
     monkeypatch.setattr(deploy.projects, "use", lambda conn, name: nullcontext())
     monkeypatch.setattr(deploy.signal, "signal", lambda *args: None)
-    monkeypatch.setattr(deploy, "commands", lambda added: [])
+    monkeypatch.setattr(deploy, "commands", lambda added, role: [role])
 
     class Thread:
         def __init__(self, *, target, args, name, daemon):
@@ -171,9 +172,30 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
             calls.append("background readers")
 
     monkeypatch.setattr(deploy.threading, "Thread", Thread)
-    monkeypatch.setattr(deploy, "supervise", lambda tasks, stop, ready: calls.append("serve"))
+    monkeypatch.setattr(deploy, "supervise", lambda tasks, stop, ready=None: calls.append(f"serve {tasks[0]}"))
+    monkeypatch.delenv(deploy.ROLE_ENV, raising=False)
     deploy.main(["--bundle", str(tmp_path)])
-    assert calls == ["dagster", "end orphans", "seed", "background readers", "serve"]
+    assert calls == ["dagster", "end orphans", "lock", "seed", "background readers", "serve all"]
+    # Split: the worker ends the runs its old machine left and does the readings; the web service does neither.
+    calls.clear()
+    deploy.main(["--bundle", str(tmp_path), "--role", "worker"])
+    assert calls == ["dagster", "end orphans", "lock", "seed", "background readers", "serve worker"]
+    calls.clear()
+    monkeypatch.setenv(deploy.ROLE_ENV, "web")
+    deploy.main(["--bundle", str(tmp_path)])
+    assert calls == ["dagster", "lock", "seed", "serve web"]
+
+
+def test_a_split_deployment_runs_each_process_on_one_service(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-real-key")
+    web = [name for name, _ in deploy.commands(["kestrel"], "web")]
+    monkeypatch.delenv("PORT", raising=False)  # a background worker is given no port
+    worker = [name for name, _ in deploy.commands(["kestrel"], "worker")]
+    assert web == ["Dagster webserver", "API"]
+    assert worker == ["Dagster daemon", "Agent worker", "Agent worker (kestrel)"]
+    assert sorted(web + worker) == sorted(name for name, _ in deploy.commands(["kestrel"]))
+    with pytest.raises(ValueError):
+        deploy.commands(role="api")
 
 
 def test_dagster_url_searches_only_the_dagster_schema():

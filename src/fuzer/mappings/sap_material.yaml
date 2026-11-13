@@ -12,3 +12,4 @@ entity:
     - mpn
     - bin
     - [stock, {from: stock, as: number, keep: true}]
+    - [lead_time_days, {from: plifz, as: number}]  # planned delivery time (MARC-PLIFZ), where the export has it (#362)

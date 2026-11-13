@@ -172,6 +172,56 @@ upsets and the share fully cited. They are kept in `ops_eval` as `shadow:watch` 
 tests the wiring with a scripted model; a live score needs a provider key and is run by hand with
 `fuzer eval --watch --since ... --until ...`.
 
+**From confirmed findings to a rule (P3.4).** A person confirms or rejects a proposal; on replay the fake plant's events
+do (`watch_eval.judge`). A confirmed proposal is read into a pattern: the measurement role of the point it names, its
+equipment class and which way the value moved against the week before, with how far and for how long. Once
+`watch.promote_after` proposals of one pattern are confirmed, `ops/promote.py` drafts a deterministic rule: points of
+that role on that class whose average over a fitted duration moves past a fitted threshold (0.8 of the smallest confirmed
+shift), scored on the bundle's replay. A person, never an agent, publishes it, and it runs as the `promoted_rules`
+window detector in the SRE scan. The watch then leaves alone a stretch on equipment a detection covers (or one of its
+train), so once the rule catches the pattern the question isn't asked and nothing is spent. On Okan,
+`tests/ops/test_promote.py` takes 20-K-2300A's discharge temperature climbing before its 2024 trips to a published rule
+that catches the held-out July 2025 trip. The alarm limits catch that climb too, so on a full scan the watch already
+leaves it alone: the test shows the promotion with the rule as the only detector.
+
+On the Detection page (Settings), **Watch findings and promoted rules** lists the latest proposals with Confirm and
+Reject, the patterns with how many are confirmed against how many are needed and a Draft button once there are enough,
+and each rule with its fit, its replay score and who drafted, published or retired it. Publishing or retiring takes a
+reason, and the server refuses an agent either. A draft made on the page is unscored, because the replay is an eval:
+`fuzer eval --promoted --since … --until …` scores each unscored draft on the bundle and the page shows it. A person's
+verdict names no event kind, so that score counts every upset in the window, not only the pattern's kind. On a real asset
+there is no replay, and the reviewer has the confirmed examples and the fit to go on.
+
+## How detection and agents are performing
+
+Work performance (`#/performance`) has a **By detector** view (P7.4a, `ops/earning.py`). Each case is put down to the
+registered detector behind it, the same way the close-outs on the Detection page are (`ops/tuning.py`). Per detector
+it shows:
+
+- the cases raised and how many are closed out, with their confirmed and false-alarm rates;
+- the median hours from the start of what was found to the case opening;
+- the value at stake on the cases confirmed as a real problem, where a case carries one;
+- whether the confirmed cases were found by a rule, an agent or another system.
+
+A detector is **earning its keep** when most of its close-outs are confirmed. It **needs tuning** when at least
+`earning.MIN_CLOSED` (5) cases are closed out and half or more of them are false alarms or duplicates. Below five
+close-outs the view says there are too few to tell. Each count opens its cases. **Tuning proposed** opens the case of
+a tuning proposal open for the detector (P6.3b); otherwise **Tune** opens the detector on the Detection page. A case whose finding records no origin counts as "not recorded". On a bundle, cases raised from
+replayed history open at the wall-clock time, so hours to case means something only on live data.
+
+The **By skill** view (P7.4b, `agents/earning.py`) covers each skill a specialist owns. Shared skills are loaded by
+every agent, so nothing counts against them. Per skill it shows:
+
+- the case briefs its pack wrote and their agent cost per case;
+- how far the person who decided followed each brief's proposal (the latest verdict: yes, partly or no);
+- how engineers rated the assistant answers its specialist worked on. As with the shortfalls (P6.4a), an answer counts
+  against every skill its specialists own;
+- its published versions, and a drafted change waiting for review, linked to the case that holds the review.
+
+A skill **needs a change** when at least `MIN_RATED` (5) of its briefs and answers have a verdict and half or more fell
+short. It is **earning its keep** under a quarter. Below it, a card gives each specialist's agent steps, the cases they
+were on and the spend per case, from the ledgers (P4.4).
+
 ## Views and agent tools
 
 **Charts:**

@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { api, type Closeouts, type DetectorCloseouts, type DetectorParam, type DetectorRow, type EquipmentClass, type ProviderRow, type Trust, type TuningProposal } from "../api";
+import {
+  api, type Closeouts, type DetectorCloseouts, type DetectorParam, type DetectorRow, type EquipmentClass, type PromotedRule,
+  type ProviderRow, type Trust, type TuningProposal, type WatchPattern, type WatchProposal,
+} from "../api";
 import { Status, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Field, Input, Select, Table } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Empty, Field, Input, Select, Table } from "../ui";
 
 const when = (at: string | null | undefined) => (at ? at.slice(0, 16).replace("T", " ") : "");
 const show = (v: unknown) =>
@@ -65,9 +68,9 @@ function ClassRates({ d, classes }: { d: DetectorRow; classes: EquipmentClass[] 
 
 /** The detectors on this asset: on or off, whether they apply, their last run and replay score, and their
  * thresholds, with a value for one equipment class where the detector reads one. */
-export function Detection() {
+export function Detection({ focus }: { focus?: string | null } = {}) {
   const list = useAsync(() => api.detectors(), []);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(focus ?? null);
   const person = loadPerson() || "anonymous";
   const saved = () => { list.reload(); notifyChanged(); };
   const proposals = useAsync(() => api.tuningProposals(), []);
@@ -103,6 +106,7 @@ export function Detection() {
         </tbody>
       </Table>
     </Card>}
+    {list.data && <Promotions classes={list.data.classes} person={person} saved={saved} />}
   </>;
 }
 
@@ -134,6 +138,121 @@ function Proposal({ p, person, decided }: { p: TuningProposal; person: string; d
         onClick={() => act("Setting aside", () => api.setTuningAside(p.id, person, reason))}>Set aside</Button>
     </div>
     <ActionStatus busy={busy} error={error} />
+  </div>;
+}
+
+/** What the agentic watch proposed (P3.3) and the rules drafted from what people confirmed (P3.4): confirm or reject
+ * each proposal; a pattern confirmed often enough can be drafted as a rule, and a person publishes or retires it. */
+function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; person: string; saved: () => void }) {
+  const got = useAsync(() => api.promotions(), []);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState("");
+  const reload = () => { got.reload(); saved(); };
+  const act = async (label: string, fn: () => Promise<unknown>, after: string) => {
+    setError(null);
+    setDone("");
+    setBusy(label);
+    try {
+      await fn();
+      setDone(after);
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const label = (p: { class: string; role: string; direction: string }) =>
+    `${classes.find((x) => x.code === p.class)?.name ?? p.class}: ${p.role.replace(/_/g, " ")} ${p.direction === "high" ? "rising" : "falling"}`;
+  const d = got.data;
+  return <Card title="Watch findings and promoted rules">
+    <Status loading={got.loading && !d} error={got.error} />
+    {d && <>
+      <h3>Proposals{d.unreviewed ? ` (${d.unreviewed} to review)` : ""}</h3>
+      {d.proposals.length === 0 ? <Empty>The watch has proposed nothing yet.</Empty> :
+        <Table variant="settings">
+          <thead><tr><th>When</th><th>Area</th><th>About</th><th>Why it is unusual</th><th>Verdict</th></tr></thead>
+          <tbody>{d.proposals.map((p) => <ProposalLine key={p.id} p={p} busy={!!busy}
+            judge={(real) => act(real ? "Confirming" : "Rejecting", () => api.judgeProposal(p.id, real, person),
+              real ? "Confirmed. It counts towards its pattern's rule." : "Rejected.")} />)}</tbody>
+        </Table>}
+      <h3>Patterns</h3>
+      {d.patterns.length === 0 ? <Empty>No confirmed proposal yet.</Empty> :
+        <Table variant="settings">
+          <thead><tr><th>Pattern</th><th>Confirmed</th><th>Smallest shift</th><th>Rule</th></tr></thead>
+          <tbody>{d.patterns.map((p) => <PatternLine key={p.pattern} p={p} name={label(p)} busy={!!busy}
+            draft={() => act("Drafting", () => api.draftRule(p.pattern, person),
+              "Drafted. Review it below; it runs only once published.")} />)}</tbody>
+        </Table>}
+      <ActionStatus busy={busy} error={error}>{done}</ActionStatus>
+      <h3>Rules</h3>
+      {d.rules.length === 0 ? <Empty>No rule drafted yet.</Empty> :
+        d.rules.map((r) => <RuleLine key={r.id} r={r} name={label(r.spec)} person={person} saved={reload} />)}
+    </>}
+  </Card>;
+}
+
+function ProposalLine({ p, busy, judge }: { p: WatchProposal; busy: boolean; judge: (real: boolean) => void }) {
+  return <tr>
+    <td>{when(p.start ?? p.since)}{p.end && <div className="muted small">to {when(p.end)}</div>}</td>
+    <td>{p.area_name ?? "—"}</td>
+    <td>{p.subject ?? "—"}{!p.cited && <div className="small"><Badge tone="warn">Cites what it wasn't shown</Badge></div>}</td>
+    <td>{p.why}{p.ruled_out && <div className="muted small">Ruled out: {p.ruled_out}</div>}</td>
+    <td>{p.verdict
+      ? <span><Badge tone={p.verdict === "confirmed" ? "ok" : "muted"}>{p.verdict === "confirmed" ? "Confirmed" : "Rejected"}</Badge>
+        <div className="muted small">{p.verdict_by}, {when(p.verdict_at)}</div></span>
+      : <div className="row small">
+        <Button size="sm" disabled={busy} onClick={() => judge(true)}>Confirm</Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => judge(false)}>Reject</Button>
+      </div>}</td>
+  </tr>;
+}
+
+function PatternLine({ p, name, busy, draft }: { p: WatchPattern; name: string; busy: boolean; draft: () => void }) {
+  return <tr>
+    <td>{name}</td>
+    <td>{p.confirmed} of {p.needed} needed</td>
+    <td>{p.smallest_z === null ? "—" : `${p.smallest_z.toFixed(1)} × the week's spread`}
+      {p.shortest_minutes ? <div className="muted small">for {p.shortest_minutes} min at the shortest</div> : null}</td>
+    <td>{p.rule ? <Badge tone={p.rule.status === "published" ? "ok" : undefined}>
+      {p.rule.status === "published" ? "Published" : "Drafted"}</Badge>
+      : <Button size="sm" disabled={busy || !p.ready}
+        title={p.ready ? undefined : `${p.needed - p.confirmed} more confirmed before a rule is drafted`}
+        onClick={draft}>Draft a rule</Button>}</td>
+  </tr>;
+}
+
+function RuleLine({ r, name, person, saved }: { r: PromotedRule; name: string; person: string; saved: () => void }) {
+  const c = useChange(saved);
+  const s = r.score;
+  const live = r.status !== "retired";
+  return <div className="setting-param">
+    <p><b>{name}</b>{" "}
+      <Badge tone={r.status === "published" ? "ok" : r.status === "retired" ? "muted" : undefined}>
+        {r.status === "published" ? "Published" : r.status === "retired" ? "Retired" : "Draft"}</Badge></p>
+    <p className="small">Average over {r.spec.minutes} min moving {r.spec.direction === "high" ? "above" : "below"} the
+      week before by {r.spec.z} × its spread · fitted on {r.examples.length} confirmed proposals</p>
+    <p className="small">{s
+      ? <>Replay: recall {pct(s.recall)} ({s.detected} of {s.events} events), precision {pct(s.precision)},
+        {" "}{s.false_alarms_per_week ?? "—"} false alarms a week <span className="muted">({s.since.slice(0, 10)} to {s.until.slice(0, 10)})</span></>
+      : <span className="muted">Not replayed yet</span>}
+      <span className="muted"> · drafted by {r.drafted_by}, {when(r.drafted_at)}
+        {r.published_by && ` · published by ${r.published_by}, ${when(r.published_at)}`}
+        {r.retired_by && ` · retired by ${r.retired_by}, ${when(r.retired_at)}`}
+        {r.reason && ` · "${r.reason}"`}</span></p>
+
+    {live && <div className="row small">
+      <Input aria-label={`Reason for the rule on ${name}`} className="grow" placeholder="reason for the change"
+        value={c.reason} onChange={(e) => c.setReason(e.target.value)} />
+      {r.status === "draft" && <Button variant="primary" disabled={!!c.busy}
+        onClick={() => c.run("Publishing", (why) => api.publishRule(r.id, person, why),
+          "Published. It runs with the other detectors from the next scan.")}>Publish</Button>}
+      <Button variant={r.status === "published" ? "danger" : "secondary"} disabled={!!c.busy}
+        onClick={() => c.run("Retiring", (why) => api.retireRule(r.id, person, why),
+          r.status === "published" ? "Retired. It stops from the next scan; its detections stay." : "Retired.")}>Retire</Button>
+    </div>}
+    <ActionStatus busy={c.busy} error={c.error}>{c.done}</ActionStatus>
   </div>;
 }
 
