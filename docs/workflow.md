@@ -429,7 +429,7 @@ Times are in the project's timezone.
 | `report_calendar` | 05:00 | Each regulatory report drafted as its obligation's window opens, and `report_due` work for one coming due with no draft, or past due and not submitted |
 | `detector_tuning` | 04:30 | A tuning proposal for each detector whose closed cases on one class are mostly false alarms and duplicates (see below) |
 | `providers_poll` | every 15 minutes | Each polled detection provider's alert table, read when it has changed |
-| `alert_on_failure` sensor | on any failed run | Posts it to the alert webhook (`alerts.webhook`) with its project and a link to the run |
+| `alert_on_failure` sensor | on any failed run | Posts it to the alert webhook (`alerts.webhook`) with its project and a link to the run. A scheduled run a deploy interrupted (ended around a stop the instance recorded, `ops/stops.py`) is not a failure: its schedule starts it again, so it is not posted. A run started by hand or by a sensor is posted either way |
 | `alert_on_tick_failure` sensor | every 5 minutes | Posts a sensor or schedule whose latest evaluation failed, once per failure; it starts no run, so nothing else would say. The Jobs page turns red and names it |
 
 Asset checks: on the register (review backlog, PI points attached, tags in SAP, downtime reason codes, document

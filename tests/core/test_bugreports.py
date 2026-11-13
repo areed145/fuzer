@@ -152,3 +152,22 @@ def test_a_server_error_is_reported(monkeypatch):
     response = TestClient(app, raise_server_exceptions=False).get("/broken")
     assert response.status_code == 500
     assert sent == [(ValueError, "GET /broken")]
+
+
+def test_a_process_told_to_stop_is_not_reported(gh, monkeypatch):
+    """A Dagster process stopped by a deploy raises DagsterExecutionInterruptedError from its SIGTERM handler (#833);
+    that is a stop, not a crash. A real error in the same process is still reported."""
+    import sys
+    import threading
+
+    from dagster._core.errors import DagsterExecutionInterruptedError
+
+    sent = []
+    monkeypatch.setattr(bugreports.reporter, "report", lambda value, where, **k: sent.append((type(value), where)))
+    monkeypatch.setattr(bugreports, "_installed", False)
+    monkeypatch.setattr(sys, "excepthook", lambda *a: None)
+    monkeypatch.setattr(threading, "excepthook", lambda a: None)
+    bugreports.install()
+    for err in (DagsterExecutionInterruptedError(), KeyboardInterrupt(), ValueError("it broke")):
+        sys.excepthook(type(err), err, None)
+    assert sent == [(ValueError, "process exited")]
