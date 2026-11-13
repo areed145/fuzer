@@ -50,10 +50,12 @@ def test_a_compressor_opens_on_its_template_groups(okan):
     driver = [t for t in groups["driver"]["traces"] if t["on"]["relation"] == "driver"]
     assert driver and all(t["role"] in ("speed", "power", "running_status") for t in driver)
     assert any(t["on"]["relation"] == "upstream" for t in groups["pressures"]["traces"])
-    # every trace carries its values, point, units and the axis it shares
+    # every trace carries its values, point, units and the axis it shares; a template group's traces start as it does,
+    # and a landed reading (tests) only when one falls in the window, which moves with the latest incident
     for g in v["groups"]:
         for t in g["traces"]:
-            assert t["values"] and t["point"] and t["axis"] and t["show"] == g["show"]
+            assert t["values"] and t["point"] and t["axis"]
+            assert t["show"] == (g["show"] and bool(t["inside"]) if g["key"] == "tests" else g["show"])
     assert v["provider"] and v["centre"] and v["step_minutes"]
     assert not v["missing"], v["missing"]
 
