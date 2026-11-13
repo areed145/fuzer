@@ -97,6 +97,15 @@ def test_study_defaults_match_the_constants_they_replace():
         studies._window("2025-01-01", "2025-01-02", 100)  # 100 points x 145 steps
 
 
+def test_the_anthropic_key_can_live_under_a_fuzer_name(monkeypatch):
+    """A host that reserves ANTHROPIC_API_KEY can hold the key as FUZER_ANTHROPIC_API_KEY; the usual name still wins."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("FUZER_ANTHROPIC_API_KEY", "fallback")
+    assert settings.secret(None, "agents.api_key") == "fallback"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "usual")
+    assert settings.secret(None, "llm.api_key") == "usual"
+
+
 def test_secrets_are_references_and_sources_read_settings(monkeypatch):
     """#132: PI and ADX are configured through settings (the old variables still work for a release);
     a secret setting holds where the secret is kept, and secret() reads it from there."""

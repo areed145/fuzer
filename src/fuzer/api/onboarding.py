@@ -185,7 +185,6 @@ def _roster(conn, b: dict) -> dict:
 def _go_live(conn) -> dict:
     """Presence of what a shift depends on, read from deployment references and settings. Nothing is tested or
     called: a reference that is set is not proof the service behind it answers."""
-    import os
 
     from ..core import access, settings
 
@@ -211,7 +210,7 @@ def _go_live(conn) -> dict:
     if not settings.get(conn, "notify.app_url"):
         gaps.append(_gap("notifications have no link back", "an assignee's email or chat names the case but can't open "
                          "it, so the field has to find it by hand", "#/settings?view=configuration&filter=notify.app_url"))
-    if os.environ.get("ANTHROPIC_API_KEY") and not settings.get(conn, "agents.case_cap_usd"):
+    if settings.secret(conn, "agents.api_key") and not settings.get(conn, "agents.case_cap_usd"):
         gaps.append(_gap("agent spend per case has no cap", "agents can keep spending on one case without it going to "
                          "a person", "#/settings?view=configuration&filter=agents.case_cap_usd"))
     ready = not gaps

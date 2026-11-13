@@ -503,6 +503,7 @@ def test_eval_scores_answers(conn, okan_pack):
     assert not evaluate.OPERATE.findall("Recommend the operator check 20-PT-3003 before restart.")
     assert not evaluate.OPERATE.findall("2. Close PM-30000026 with an alignment check on 20-K-2200B.")
     assert evaluate._mentions("lost 1,088 Sm³", "Sm3") and evaluate._mentions("6 P2 orders", ["priority", "P2"])
+    assert evaluate._mentions("water content 112 mg/Sm3", ["water content", 112]) and not evaluate._mentions("-14 C", [-15])
     keys = json.loads(json.dumps(okan.ASSISTANT_QUESTIONS))
     assert len(keys) == 29 and all(k["must_mention"] for k in keys)
     # Every question names its specialists, except an emergency, which the orchestrator answers at once.
