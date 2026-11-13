@@ -92,3 +92,4 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .gate-list { display: grid; gap: 8px; margin: 0; padding: 0; }
 .gate-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; }
 .gate-list li > .small { grid-column: 2; color: var(--muted); }
+.more-kinds { margin: -4px 0 12px; }

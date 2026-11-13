@@ -1,0 +1,16 @@
+/* One trend with event lanes (TrendView.tsx): chips per group above one chart. */
+.trend-view-chips .chips { align-items: center; margin: 4px 0; gap: 2px 14px; }
+.trend-view-group { min-width: 9em; text-align: left; }
+.trend-view-chips .chip .dot { display: inline-block; width: 8px; height: 8px; margin-right: 2px; border-radius: 50%; }
+.trend-view-chips .dot.c1 { background: var(--chart-1); }
+.trend-view-chips .dot.c2 { background: var(--chart-2); }
+.trend-view-chips .dot.c3 { background: var(--chart-3); }
+.trend-view-chips .dot.c4 { background: var(--chart-4); }
+.trend-view-chips .dot.c5 { background: var(--chart-5); }
+.trend-view-chips .dot.c6 { background: var(--chart-6); }
+@media (max-width: 640px) {
+  .trend-view-group { min-width: 0; }
+  .trend-view-chips .chips { display: inline-flex; gap: 2px 10px; margin: 2px 12px 2px 0; }
+  /* On a phone a group is switched as a whole; single traces are a desk job. */
+  .trend-view-chips .chip:not(.trend-view-group):not(.lane) { display: none; }
+}

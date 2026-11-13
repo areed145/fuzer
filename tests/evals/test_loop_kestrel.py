@@ -4,7 +4,7 @@ Okan's process model for the whole module it is used in, and Kestrel's detectors
 from fuzer.evals import loop
 
 
-def test_every_type_of_work_on_kestrel_completes_the_loop(kestrel_db):
+def test_every_type_of_work_on_kestrel_completes_the_loop(kestrel_db, field_jobs_kept):
     """The same loop on the second bundle, stood up from its seed bundle as a deployment would be."""
     res = loop.run(kestrel_db)
     assert len(res["types"]) >= 7 and not res["failed"], "\n".join(res["failed"])
@@ -27,3 +27,9 @@ def test_every_type_of_work_on_kestrel_completes_the_loop(kestrel_db):
     # a revised smart P&ID export: an alarm table that disagrees with the DCS, and a line only one side shows
     assert not {"drawing_disagreement", "drawing_line_to_confirm"} & set(res["synthetic"]), arrived
     assert res["synthetic"] == ["curve_to_confirm"], res["synthetic"]  # no Kestrel datasheet has a curve to read
+    # the field's done goes back to SAP through the write-back queue: a named planner approves it, it goes in SAP's
+    # batch, and SAP's confirm releases the case (#751); work no system raised says it has nowhere to go
+    assert done["sap_notification"]["steps"]["write_back"].startswith("complete SAP "), done["sap_notification"]
+    assert "approved by loop-planner, sent through sap_pm, confirmed" in done["sap_notification"]["steps"]["write_back"]
+    assert done["upset"]["steps"]["write_back"] == "no source to write back to"
+    field_jobs_kept("kestrel", res)  # its field jobs, rendered at 390 px like Okan's

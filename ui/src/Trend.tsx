@@ -6,7 +6,7 @@ import "./styles/trends.css";
 import { useState } from "react";
 import { api, type MeasurementSeries } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
-import { Button, Table, Input , Card as UICard, Disclosure } from "./ui";
+import { Table, Card as UICard, Disclosure } from "./ui";
 
 /** One operating limit on a point (#101): an alarm limit from its source, one side of an integrity
  * operating window, or the normal range learned from history when no source gives one. */
@@ -136,62 +136,6 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
         </Table>
       </Disclosure>
     </figure>
-  );
-}
-
-const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
-const label = (h: number) => `${h / 24} d`;
-const local = (iso: string) => iso.slice(0, 16);
-
-/** Trends on an entity's page: a timeseries' own values, or the points linked straight to a tag or well.
- * Pick a window, step earlier / later, or jump to a time. The default window is centred on the latest
- * incident on the tag or well. */
-export function TrendCard({ id, direct = false }: { id: string; direct?: boolean }) {
-  const [hours, setHours] = useState(72);
-  const [at, setAt] = useState<string | undefined>(undefined);
-  const before = Math.round((hours * 2) / 3);
-  const v = useAsync(() => api.values(id, at, before, hours - before, direct), [id, at, hours, direct]);
-  const d = v.data;
-  const one = d?.series.length === 1 ? d.series[0] : undefined;
-  const shift = (sign: number) =>
-    d && setAt(local(new Date(Date.parse(d.centre + "Z") + (sign * hours * 3600 * 1000) / 2).toISOString()));
-  return (
-    <UICard  as="section">
-      <h2>
-        {direct ? "Process values" : "Trend"}{" "}
-        {d && (
-          <span className="muted small">
-            {d.provider === "synthetic" ? "synthetic values: no PI / ADX connection configured"
-              : `from ${d.provider.toUpperCase()}`} · every {d.step_minutes} min
-            {d.upsets.length > 0 && " · shaded: the 12 h leading into each incident"}
-          </span>
-        )}
-      </h2>
-      <div className="row trend-controls">
-        {WINDOWS.map((h) => (
-          <Button key={h} variant={h === hours ? "primary" : "secondary"} size="sm" onClick={() => setHours(h)}>{label(h)}</Button>
-        ))}
-        <span className="spacer" />
-        <Button size="sm" onClick={() => shift(-1)} disabled={!d}>← Earlier</Button>
-        <Input type="datetime-local" aria-label="Centre the window on" value={d ? local(d.centre) : ""}
-               onChange={(e) => e.target.value && setAt(e.target.value)} />
-        <Button size="sm" onClick={() => shift(1)} disabled={!d}>Later →</Button>
-        <Button variant="link" size="sm" onClick={() => setAt(undefined)} disabled={at === undefined}>Latest incident</Button>
-      </div>
-      <Status loading={v.loading && !d} error={v.error ?? d?.error} empty={!!d && d.series.length === 0}>
-        No values between {d?.start.replace("T", " ")} and {d?.end.replace("T", " ")}
-        {d?.errors?.length ? `: ${d.errors[0]}` : "."}
-      </Status>
-      {one && (
-        <>
-          <Trend s={one} upsets={d!.upsets} wide />
-          <p className="small">
-            min {one.min} · max {one.max} · mean {one.mean} · last {one.last} {one.uom}
-          </p>
-        </>
-      )}
-      {d && d.series.length > 1 && <TrendGrid series={d.series} upsets={d.upsets} />}
-    </UICard>
   );
 }
 

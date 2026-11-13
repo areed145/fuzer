@@ -135,6 +135,40 @@ def test_a_failure_goes_back_to_the_approver_and_is_never_retried_on_its_own(con
     assert wb.get(conn, row["id"])["state"] == "sent"
 
 
+def test_sap_pm_completes_the_notification_once_and_hands_back_its_refusal(conn):
+    """#751: SAP PM takes a close-out through its notification service; its success confirms and releases the case,
+    a resend changes nothing in SAP, and a notification SAP doesn't hold goes back to the approver with SAP's word."""
+    from psycopg.types.json import Jsonb
+
+    from fuzer.evals.mock_sap import MockSapPm
+
+    with MockSapPm({"10004711": "OSNO"}) as sap:
+        conn.execute("update source_system set writeback = %s where name = 'sap'",
+                     (Jsonb({"adapter": "sap_pm", "url": sap.url}),))
+        row = queued(conn, record="10004711", status="NOCO", text="Completed in the field by kim: seal replaced.")
+        wb.approve(conn, row["id"], "pat", now=T0)
+        conn.commit()
+        wb.run(conn, T0 + timedelta(minutes=13))
+        done = wb.get(conn, row["id"])
+        assert done["state"] == "confirmed", done["error"]
+        assert sap.notifications["10004711"] == {"status": "NOCO", "texts": ["Completed in the field by kim: seal replaced."]}
+        assert conn.execute("select state from work_item where id = %s", (row["item_id"],)).fetchone()["state"] == "done"
+        assert sap.requests[-1]["key"] == done["idem_key"]
+        wb._sap_pm(conn, {**done, "state": "approved"})  # a resend with the same key
+        assert len(sap.notifications["10004711"]["texts"]) == 1
+
+        lost = queued(conn, record="10009999", status="NOCO", text="Done")
+        wb.approve(conn, lost["id"], "pat", now=T0)
+        conn.commit()
+        wb.run(conn, T0 + timedelta(minutes=13))
+        failed = wb.get(conn, lost["id"])
+        assert failed["state"] == "failed" and "notification 10009999 does not exist" in failed["error"]
+    conn.execute("update source_system set writeback = null where name = 'sap'")
+    conn.commit()
+    with pytest.raises(wb.WritebackError, match="needs the service's url"):
+        wb.validate_policy({"adapter": "sap_pm"})
+
+
 def test_cadence_and_the_limit_per_run(conn):
     assert wb.next_send("now", T0) == T0
     assert wb.next_send("daily 02:00", T0) == datetime(2026, 11, 13, 2, 0, tzinfo=UTC)

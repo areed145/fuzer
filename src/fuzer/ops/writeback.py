@@ -21,6 +21,8 @@ Each system declares what it accepts, who may approve, its cadence and its adapt
 source_system, from its source pack), over the defaults agreed for the operating model: safety notifications at
 once, maintenance records in batches every 15 minutes, master data daily, with a limit on writes per run. A system
 that accepts no writes through an API gets the `export` adapter: the queue writes an export file for its owner.
+SAP PM takes close-outs through its notification service (`sap_pm`, at the `url` its `writeback` block names): a
+completion completes the notification, a follow-up creates one, and SAP's answer confirms it (#751).
 """
 
 import json
@@ -78,12 +80,12 @@ def policy(conn, system: str) -> dict:
 
     demo = settings.get(conn, "closeout.apply_to_exports")  # the demo stands in for SAP by editing its export
     return {"system": system, "kinds": kinds, "adapter": declared.get("adapter") or ("demo_csv" if demo else "export"),
-            "limit": int(declared.get("limit") or LIMIT)}
+            "limit": int(declared.get("limit") or LIMIT), "url": declared.get("url")}
 
 
 def validate_policy(value) -> dict | None:
     """A pack's `writeback` block, checked: accepts (kinds), approvers, kinds.<k>.{approvers, cadence}, adapter,
-    limit."""
+    limit, url (where an adapter that calls a service sends)."""
     if value in (None, {}):
         return None
     if not isinstance(value, dict):
@@ -98,6 +100,8 @@ def validate_policy(value) -> dict | None:
             parse_cadence(own["cadence"])
     if value.get("adapter") not in (None, *ADAPTERS):
         raise WritebackError(f"writeback adapter is one of {', '.join(ADAPTERS)}")
+    if value.get("adapter") in URL_ADAPTERS and not str(value.get("url") or "").startswith(("http://", "https://")):
+        raise WritebackError(f"writeback adapter {value['adapter']} needs the service's url (http or https)")
     return value
 
 
@@ -358,7 +362,40 @@ def _demo_csv(conn, row: dict) -> str | None:
     return "confirmed"
 
 
-ADAPTERS = {"export": _export, "demo_csv": _demo_csv}
+def _sap_pm(conn, row: dict) -> str | None:
+    """SAP PM's notification service: a close-out's completion completes the notification with the field's note and
+    its closed status, a follow-up creates a notification referring to it. The request carries the row's key, so SAP
+    applies a resend once. SAP's success confirms it; anything else goes back to the approver with SAP's message.
+    Other kinds go to the owner in the export file. Credentials for a real SAP are not wired yet."""
+    import httpx
+
+    _check_approved(row)
+    if row["action"] not in ("complete", "follow_up"):
+        return _export(conn, row)
+    url = (policy(conn, row["system"])["url"] or "").rstrip("/")
+    if not url:
+        raise RuntimeError(f"{row['system']} has no SAP PM url in its writeback block")
+    p = row["payload"]
+    if row["action"] == "complete":
+        path, body = f"/notifications/{row['record']}/complete", {"status": p.get("status"), "text": p.get("text")}
+    else:
+        path, body = "/notifications", {k: p.get(k) for k in ("short_text", "text", "status", "notif_type", "priority")}
+        body["reference"] = row["record"]
+    try:
+        r = httpx.post(url + path, json=body, headers={"Idempotency-Key": row["idem_key"]}, timeout=30)
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"SAP PM didn't answer: {e}") from e
+    if r.status_code >= 400:
+        raise RuntimeError(f"SAP PM answered {r.status_code}: {r.text[:300]}")
+    answer = r.json()
+    if p.get("closeout_id"):
+        conn.execute("update source_closeout set state = 'sent', applied_at = now(), applied_note = %s where id = %s",
+                     (f"SAP notification {answer.get('notification')} is {answer.get('status')}", p["closeout_id"]))
+    return "confirmed"
+
+
+ADAPTERS = {"export": _export, "demo_csv": _demo_csv, "sap_pm": _sap_pm}
+URL_ADAPTERS = {"sap_pm"}
 
 
 def send(conn, wid: int, by: str = "system") -> dict:
@@ -379,7 +416,7 @@ def send(conn, wid: int, by: str = "system") -> dict:
     events.publish(conn, "writeback.sent", f"writeback:{wid}", {"id": wid, "system": row["system"], "kind": row["kind"],
                                                                 "record": row["record"], "approved_by": row["approved_by"]})
     if out == "confirmed":
-        return confirm(conn, wid, "system", "applied to its export")
+        return confirm(conn, wid, "system", "applied to its export" if adapter is _demo_csv else "it answered success")
     return row
 
 

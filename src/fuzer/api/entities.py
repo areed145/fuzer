@@ -112,6 +112,39 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
                          direct=direct, pack=deps.pack())
 
 
+@router.get("/entities/{fuzer_id}/trend-view")
+def entity_trend_view(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
+                      conn=Depends(get_conn)):
+    """An entity's process values grouped by its equipment class's trend template (P5.12): each group a panel, each
+    trace a measurement role on the unit or a neighbour, with the roles it expects and lacks."""
+    from ..analysis import trend_view
+
+    return trend_view.view(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
+                           pack=deps.pack())
+
+
+@router.get("/entities/{fuzer_id}/timeline")
+def entity_timeline(fuzer_id: str, start: str, end: str, conn=Depends(get_conn)):
+    """What happened on an entity's unit in a window, one lane per kind (P5.13a): alarms, operator log, cases,
+    notifications and work orders, downtime and incidents, each event with the record it came from."""
+    from datetime import datetime, timedelta
+
+    from ..ops import timeline
+
+    try:
+        a, b = datetime.fromisoformat(start), datetime.fromisoformat(end)
+    except ValueError as e:
+        raise HTTPException(400, "start and end are ISO times") from e
+    if b - a > timedelta(days=31):
+        raise HTTPException(400, "a timeline window is at most 31 days")
+    out = timeline.lanes(conn, fuzer_id, start, end)
+    if out.get("error") == "unknown entity":
+        raise HTTPException(404, f"no entity {fuzer_id}")
+    if "error" in out:
+        raise HTTPException(400, out["error"])
+    return out
+
+
 @router.get("/entities/{fuzer_id}/limits")
 def entity_limits(fuzer_id: str, at: str | None = None, conn=Depends(get_conn)):
     """Operating limits on a point or on every point of a unit: alarm limits by source, IOWs, the learned

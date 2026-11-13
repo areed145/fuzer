@@ -1,33 +1,10 @@
 """The loop acceptance eval (P1.7): every type of work on a bundle goes arrive to counted, and a type that can't
 says at which step and why."""
 
-import json
-import os
-from datetime import date, datetime
-from decimal import Decimal
-from pathlib import Path
-
 from fuzer.evals import loop
 
-# Each field type's job as the loop eval gave it to the phone, which the browser test renders at 390 px.
-# FUZER_WRITE_FIXTURES=1 rewrites it from an Okan run.
-JOBS = Path(__file__).resolve().parents[2] / "ui" / "tests" / "fixtures" / "loop-field-jobs.json"
 
-
-def _json(x):
-    return x.isoformat() if isinstance(x, (date, datetime)) else float(x) if isinstance(x, Decimal) else str(x)
-
-
-OPTIONAL_ITEM = {"unit"}  # core.findings.Item: a unit is written only when the value has one
-
-
-def _shape(job: dict) -> dict:
-    return {"keys": sorted(job), "finding": sorted(job["finding"]),
-            "item": sorted({k for i in job["finding"]["items"] for k in i} - OPTIONAL_ITEM),
-            "asset": sorted({k for a in job["assets"] for k in a})}
-
-
-def test_every_type_of_work_on_okan_completes_the_loop(okan_db):
+def test_every_type_of_work_on_okan_completes_the_loop(okan_db, field_jobs_kept):
     res = loop.run(okan_db.conn)
     done = {r["type"]: r for r in res["types"]}
     assert {"upset", "iow_breach", "sap_notification", "machine_trip", "machine_health", "records_gap",
@@ -59,13 +36,12 @@ def test_every_type_of_work_on_okan_completes_the_loop(okan_db):
     assert done["sap_notification"]["steps"]["triage"] == "on the board, to dispatch"
     assert done["source_issue"]["steps"]["field"].startswith("skipped")  # data work stays at the desk
 
-    jobs = {r["type"]: r["job"] for r in res["types"] if "job" in r}
-    if os.environ.get("FUZER_WRITE_FIXTURES"):
-        JOBS.write_text(json.dumps(jobs, indent=1, sort_keys=True, default=_json) + "\n")
-    kept = json.loads(JOBS.read_text())
-    assert sorted(kept) == sorted(jobs), "ui/tests/fixtures/loop-field-jobs.json is stale: FUZER_WRITE_FIXTURES=1"
-    assert {t: _shape(j) for t, j in kept.items()} == {t: _shape(j) for t, j in jobs.items()}, \
-        "the field job changed shape: rewrite the fixture with FUZER_WRITE_FIXTURES=1 and check the 390 px test"
+    # the field's done goes back to SAP through the write-back queue: a named planner approves it, it goes in SAP's
+    # batch, and SAP's confirm releases the case (#751); work no system raised says it has nowhere to go
+    assert done["sap_notification"]["steps"]["write_back"].startswith("complete SAP "), done["sap_notification"]
+    assert "approved by loop-planner, sent through sap_pm, confirmed" in done["sap_notification"]["steps"]["write_back"]
+    assert done["upset"]["steps"]["write_back"] == "no source to write back to"
+    field_jobs_kept("okan", res)  # the phone renders each at 390 px (ui/tests/fixtures/loop-field-jobs.json)
 
 
 def test_a_type_that_cannot_complete_says_at_which_step(okan_db, monkeypatch):
