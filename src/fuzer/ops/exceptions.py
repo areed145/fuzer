@@ -826,8 +826,7 @@ def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
     """The open exceptions whose case is with this person (the case, or its open person step), most urgent first,
     then the ones waiting unclaimed in their roles' queues (`queued`, for them to take), each with where to go, what
     was seen, what happened at the asset lately and the field log. `brief` leaves out everything looked up per job
-    (assets, findings, history, permit), for a reader that only counts and names them: someone holding every role
-    has a hundred jobs, and the lookups are a dozen queries each."""
+    (assets, findings, history, permit), for a reader that only counts and names them."""
     rows = conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role, coalesce(t.due_at, w.due) as due,
@@ -854,37 +853,87 @@ def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
     if brief:
         return [{**r, "label": known[r["type"]].label if r["type"] in known else r["type"].replace("_", " "),
                  "handover": _handover_for(r, person)} for r in rows]
+    # Everything below is looked up for all the jobs at once: someone holding every role has a hundred of them, and
+    # a dozen queries each took half a minute on the deployed server.
+    from . import readiness
+
+    ids, items = [r["id"] for r in rows], sorted({r["item_id"] for r in rows})
+    cases: dict[int, list[dict]] = {}
+    for x in conn.execute("select * from exception_record where item_id = any(%s) "
+                          "order by item_id, joined_to nulls first, first_seen", (items,)):
+        cases.setdefault(x["item_id"], []).append(x)
+    subjects = {r["id"]: list(dict.fromkeys(x for src in cases.get(r["item_id"], []) for x in src["subjects"]))
+                or r["subjects"] for r in rows}
+    named = _assets(conn, list(dict.fromkeys(
+        [x for ss in subjects.values() for x in ss]
+        + [x for r in rows for src in [r, *cases.get(r["item_id"], [])] for x in findings.asset_ids(src["evidence"])])))
+    asset = {a["fuzer_id"]: a for a in named}
+    names = {a["fuzer_id"]: a["label"] for a in named if a["label"]}
+
+    def finding(x: dict) -> dict:
+        return findings.shown(x["evidence"], x["source"], x["subjects"], x["value_usd"], names)
+
+    def label(type: str) -> str:
+        return known[type].label if type in known else type.replace("_", " ")
+
+    history: dict[int, list[dict]] = {}
+    for h in conn.execute(
+            """
+            select e.id as job, h.id, h.title, h.state, h.first_seen from exception_record e
+            cross join lateral (select id, title, state, first_seen from exception_record h
+                                where h.id <> e.id and h.subjects && e.subjects and h.item_id is distinct from e.item_id
+                                  and h.first_seen > now() - interval '90 days'
+                                order by h.first_seen desc limit 5) h
+            where e.id = any(%s) order by e.id, h.first_seen desc
+            """, (ids,)):
+        history.setdefault(h.pop("job"), []).append(h)
+    # Who sent each job to this person (see _sent), and who sent a process to the field (see _asked)
+    sent = {x.pop("item_id"): x for x in conn.execute(
+        """
+        select distinct on (item_id) item_id, actor as by, at, data->>'reason' as reason from work_event
+        where item_id = any(%(i)s) and ((kind = 'handed_off' and actor <> %(p)s
+                                         and (data->>'to' = %(p)s or data->>'to' like 'role:%%'))
+                                        or (kind = 'created' and (data->>'assignee' = %(p)s
+                                            or (actor <> %(p)s and actor not like 'agent:%%'))))
+        order by item_id, id desc
+        """, {"i": items, "p": person})}
+    asked = {x.pop("item_id"): x for x in conn.execute(
+        "select distinct on (item_id) item_id, actor as by, at from work_event where item_id = any(%s) "
+        "and kind = 'completed' and coalesce(data->'data'->>'field_ask', '') <> '' order by item_id, id desc",
+        ([r["item_id"] for r in rows if r["ask"] and r["task_role"] == "operator"],))}
+    places = readiness.locations_many(conn, subjects)
+    permits = readiness.permits_many(conn, {r["id"]: (r["type"], subjects[r["id"]]) for r in rows}, places)
+    mocs = readiness.mocs_many(conn, places)
     for r in rows:
         # Their own step (a Field check, in the operator role) can be opened; another role's step handed to them
         # (an engineer's Triage) can't: they report back from here and it returns to whoever sent it.
         r["own_step"] = bool(r["task_id"]) and r["task_role"] in roles
-        sent = _sent(conn, r["item_id"], person)
+        by = sent.get(r["item_id"])
         if r["ask"] and r["task_role"] == "operator":  # what the IOC asked when it sent the process to the field
-            sent = _asked(conn, r["item_id"]) or {"by": None, "at": None}
-            sent = {**sent, "reason": r["ask"]}
-        history = conn.execute(
-            "select id, title, state, first_seen from exception_record where id <> %s and subjects && %s "
-            "and item_id is distinct from %s and first_seen > now() - interval '90 days' "
-            "order by first_seen desc limit 5",
-            (r["id"], r["subjects"], r["item_id"])).fetchall() if r["subjects"] else []
-        t = known.get(r["type"])
-        sources = on_case(conn, r["item_id"])
-        subjects = list(dict.fromkeys(x for src in sources for x in src["subjects"])) or r["subjects"]
-        on = conn.execute("select * from exception_record where item_id = %s and state = 'open' "
-                          "order by joined_to nulls first, first_seen", (r["item_id"],)).fetchall()
-        shown = dict(zip([x["id"] for x in on], _findings(conn, on), strict=True))
-        mine = shown.get(r["id"]) or _findings(conn, [r])[0]
+            by = {**(asked.get(r["item_id"]) or {"by": None, "at": None}), "reason": r["ask"]}
+        on_this = cases.get(r["item_id"], [])
+        sources = [{**{k: x[k] for k in ("id", "type", "key", "title", "source", "state", "value_usd", "first_seen",
+                                         "last_seen", "joined_to", "subjects")},
+                    "label": label(x["type"]), "finding": finding(x)} for x in on_this]
+        shown = {x["id"]: finding(x) for x in on_this if x["state"] == "open"}
         # The checks before the work (a compressor trip's restart checklist), from every source on the case
         checklist = list(dict.fromkeys(c for f in shown.values() for c in f["checks"]))
-        out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, subjects),
+        out.append({**r, "label": label(r["type"]), "assets": [asset[s] for s in _last_first(subjects[r["id"]])],
                     "checklist": checklist,
                     "sources": sources if len(sources) > 1 else [],
-                    "finding": mine, "history": history, "field": r["evidence"].get("field", []),
-                    "sent": sent, "permit": _permit(conn, subjects, r["id"]),
-                    "warnings": _warnings(conn, subjects, r["id"]),
+                    "finding": shown.get(r["id"]) or finding(r), "history": history.get(r["id"], []),
+                    "field": r["evidence"].get("field", []),
+                    "sent": by, "permit": _permit_shown(permits[r["id"]]),
+                    "warnings": mocs[r["id"]]["warnings"],
                     "handover": _handover_for(r, person)})
     return out
 
+
+
+def _last_first(ids: list[str]) -> list[str]:
+    """Each id once, in the order `_assets` gives them: by where each last appears."""
+    order = {f: i for i, f in enumerate(ids)}
+    return sorted(order, key=order.__getitem__)
 
 
 def _handover_for(row: dict, person: str) -> dict | None:
@@ -971,7 +1020,10 @@ def _permit(conn, subjects: list[str], exception_id: int) -> dict | None:
     whether starting is blocked. None when no permit records are loaded."""
     from . import readiness
 
-    p = readiness.permits(conn, subjects, exception_id)
+    return _permit_shown(readiness.permits(conn, subjects, exception_id))
+
+
+def _permit_shown(p: dict) -> dict | None:
     if not p["checked"]:
         return None
     shown = next((x for x in p["permits"] if x["valid"]), p["permits"][0] if p["permits"] else None)
