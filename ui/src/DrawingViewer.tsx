@@ -58,7 +58,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
     <UICard as="section" className="drawing-card">
       <div className="drawing-head">
         <h2>{title ?? "Drawing"}</h2>
-        <p className="muted small">{source}</p>
+        <div className="drawing-source muted small">{source}</div>
       </div>
       <div className="row drawing-zoom">
         <div className="tabs">

@@ -11,6 +11,7 @@ import { appDepth } from "./appHistory";
 import { projectUrl } from "./authState";
 import { entityHref, useAsync } from "./lib";
 import { MARK_STATUS, MarkShape } from "./DrawingViewer";
+import { Button } from "./ui";
 
 type View = { s: number; x: number; y: number };
 type Pick = { kind: "mark"; i: number } | { kind: "off"; i: number };
@@ -68,7 +69,7 @@ export function DrawingFullscreen({ id, ring }: { id: string; ring: string[] }) 
     <div className="drawing-full" role="dialog" aria-modal="true" aria-label={g ? `P&ID ${g.sheet}` : "P&ID"}>
       {g ? <Sheet key={id} g={g} ring={ring} /> : (
         <div className="drawing-full-bar">
-          <button type="button" className="df-btn" aria-label="Close drawing" onClick={closeDrawing}>{CLOSE}</button>
+          <Button variant="ghost" className="df-btn" aria-label="Close drawing" onClick={closeDrawing}>{CLOSE}</Button>
           <span className="df-title">{d.loading ? "Loading the drawing…" : "This drawing couldn't be opened."}</span>
         </div>
       )}
@@ -227,16 +228,16 @@ function Sheet({ g, ring }: { g: Drawing; ring: string[] }) {
   return (
     <>
       <div className="drawing-full-bar df-ui">
-        <button type="button" className="df-btn" aria-label="Close drawing" onClick={closeDrawing}>{CLOSE}</button>
+        <Button variant="ghost" className="df-btn" aria-label="Close drawing" onClick={closeDrawing}>{CLOSE}</Button>
         <span className="df-title">
           <span className="mono">{g.sheet}</span>
           {g.title && <span className="muted"> · {g.title}</span>}
         </span>
         <div className="df-zoom" role="group" aria-label="Zoom">
-          <button type="button" className="df-btn" aria-label="Zoom out" onClick={() => step(1 / 1.4)}>−</button>
-          <button type="button" className="df-btn" aria-label="Zoom in" onClick={() => step(1.4)}>+</button>
-          <button type="button" className="df-btn df-text" aria-pressed={!zoomed} onClick={toFit}>Fit</button>
-          {ringed >= 0 && <button type="button" className="df-btn df-text" onClick={find}>Find</button>}
+          <Button variant="ghost" className="df-btn" aria-label="Zoom out" onClick={() => step(1 / 1.4)}>−</Button>
+          <Button variant="ghost" className="df-btn" aria-label="Zoom in" onClick={() => step(1.4)}>+</Button>
+          <Button variant="ghost" className="df-btn df-text" aria-pressed={!zoomed} onClick={toFit}>Fit</Button>
+          {ringed >= 0 && <Button variant="ghost" className="df-btn df-text" onClick={find}>Find</Button>}
         </div>
       </div>
       <div className="drawing-full-stage" ref={stage} tabIndex={0} onKeyDown={keys}
@@ -270,14 +271,14 @@ function Sheet({ g, ring }: { g: Drawing; ring: string[] }) {
                 : <div className="muted small">That sheet isn't in the register.</div>}
             </>
           )}
-          <button type="button" className="df-btn df-dismiss" aria-label="Dismiss" onClick={() => setPick(undefined)}>{CLOSE}</button>
+          <Button variant="ghost" className="df-btn df-dismiss" aria-label="Dismiss" onClick={() => setPick(undefined)}>{CLOSE}</Button>
         </div>
       ) : links.length > 0 && (
         <nav className="drawing-full-links df-ui" aria-label="Connected sheets">
           {links.map((l) => (
-            <button key={l.id} type="button" className="df-chip" onClick={() => openDrawing(l.id)}>
+            <Button key={l.id} variant="ghost" className="df-chip" onClick={() => openDrawing(l.id)}>
               {l.direction === "from" ? "← " : l.direction === "to" ? "→ " : ""}<span className="mono">{l.sheet}</span>
-            </button>
+            </Button>
           ))}
         </nav>
       )}
@@ -313,7 +314,7 @@ function MarkPick({ m }: { m: DrawingMark }) {
 function SheetActions({ id, sheet }: { id: string; sheet: string }) {
   return (
     <div className="row">
-      <button type="button" className="ui-button ui-button-primary ui-button-md" onClick={() => openDrawing(id)}>Go to {sheet}</button>
+      <Button variant="primary" onClick={() => openDrawing(id)}>Go to {sheet}</Button>
       <a className="ui-button ui-button-secondary ui-button-md" href={entityHref(id)}>Sheet page</a>
     </div>
   );
