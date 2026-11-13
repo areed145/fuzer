@@ -363,6 +363,13 @@ def plant_allocation_factor(days: int = 365, conn=Depends(get_conn)):
     return well_test_factor.trend(conn, days=max(31, min(days, 1825)))
 
 
+@router.get("/plant/gas-balance")
+def plant_gas_balance(days: int = 365, conn=Depends(get_conn)):
+    """The daily gas balance with its closure gap and the stretches it stayed open (#369)."""
+    from ..analysis import gas_balance as gb
+    return gb.daily(conn, days=max(7, min(days, 1825)))
+
+
 @router.get("/plant/water-injection")
 def plant_water_injection(days: int = 730, conn=Depends(get_conn)):
     """Voidage replacement month by month and each water injector's Hall plot (#365)."""

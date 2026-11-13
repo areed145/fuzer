@@ -299,6 +299,20 @@ export interface WaterInjection {
   };
 }
 
+/** The daily gas balance (#369): gas handled against where it went, and the closure gap, always shown. */
+export interface GasBalance {
+  since: string; until: string; note: string; source?: string; threshold_pct: number;
+  verdict: "closes" | "closes_with_episodes" | "open" | "unknown" | "no_daily_report";
+  missing_terms: string[];
+  days: { date: string; gas_in_ksm3: number | null; export: number | null; "lift gas": number | null;
+    flare: number | null; fuel: number | null; vent: number | null; gap_ksm3: number | null; gap_pct: number | null;
+    open: boolean | null }[];
+  episodes: { start: string; end: string; days: number; median_gap_pct: number; gap_ksm3: number;
+    direction: "unaccounted" | "over_accounted"; terms_reading_zero: string[] }[];
+  summary: { days: number; days_said?: number; days_open?: number; median_gap_pct?: number | null; episodes?: number;
+    gas_in_ksm3?: number; gap_ksm3?: number };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -312,6 +326,7 @@ export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
   workExecution: () => request<WorkExecution>("GET", "/plant/work-execution"),
   waterInjection: () => request<WaterInjection>("GET", "/plant/water-injection"),
+  gasBalance: () => request<GasBalance>("GET", "/plant/gas-balance"),
   incidentFlare: () => request<FlareReview>("GET", "/incidents/flare"),
   plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
   gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),

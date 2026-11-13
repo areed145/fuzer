@@ -282,6 +282,7 @@ ASSISTANT_QUESTIONS = [
 
 
 UNEXPLAINED_FLARE = "2025-11-08"
+FUEL_METER_FAILED = ("2025-09-15", "2025-10-08")  # the GGCP fuel gas meter reads zero (#369)
 # Reservoir fluid properties at reservoir conditions, from the field's PVT study (#365): formation volume factors in
 # reservoir m3 per standard m3, and the gas dissolved in the oil.
 PVT = [("oil_fvf", 1.28, "rm3/Sm3"), ("water_fvf", 1.02, "rm3/Sm3"), ("gas_fvf", 0.0052, "rm3/Sm3"),
@@ -816,6 +817,23 @@ def generate(out, seed: int = 11) -> dict:
     injection_truth = {"injectors": [n for n, *_ in injectors], "first_injection": injectors[0][1].isoformat(),
                        "plugging": {"well": "OK-NWP-W2", "from": plug_from.isoformat()}}
 
+    # Fuel and vent gas (#369): the compression trains burn fuel gas in proportion to the gas they handle, and a little
+    # gas is vented (seals, tank breathing). Lift gas is what is left once export, flare, fuel and vent are taken from the
+    # gas handled, read on its own meter, so the balance closes to that meter's scatter. Story: the GGCP fuel gas meter
+    # fails and reads zero from FUEL_METER_FAILED[0] to FUEL_METER_FAILED[1]; the trains kept burning fuel, so the
+    # balance opens by the fuel those days. Own random stream, so nothing drawn above moves.
+    grng = random.Random(seed + 41)
+    for d in daily:
+        gas = float(d["gas_ksm3"])
+        fuel = gas * grng.uniform(0.056, 0.064)
+        vent = grng.uniform(3.0, 8.0)
+        lift = (gas - float(d["gas_export_ksm3"]) - float(d["flare_ksm3"]) - fuel - vent) * grng.uniform(0.992, 1.008)
+        failed = FUEL_METER_FAILED[0] <= d["report_date"] <= FUEL_METER_FAILED[1]
+        d["lift_gas_ksm3"] = f"{lift:.0f}"
+        d["fuel_gas_ksm3"] = "0" if failed else f"{fuel:.0f}"
+        d["vent_ksm3"] = f"{vent:.1f}"
+    gas_truth = {"fuel_meter_failed": list(FUEL_METER_FAILED), "meter_scatter_pct": 0.8}
+
     # ---- open work, maintenance plans, well tests (as of AS_OF) --------------------------------------
     brng = random.Random(seed + 7)
     has_order = {o["qmnum"] for o in orders if o["qmnum"]}
@@ -1289,6 +1307,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
     (out / "answer_keys" / "work.json").write_text(json.dumps(work_truth, indent=1))
     (out / "answer_keys" / "injection.json").write_text(json.dumps(injection_truth, indent=1))
+    (out / "answer_keys" / "gas_balance.json").write_text(json.dumps(gas_truth, indent=1))
     _write_csv(out / "ec_injection.csv", injection)
     (out / "answer_keys" / "assistant.json").write_text(
         json.dumps(ASSISTANT_QUESTIONS, indent=1).replace("{wet_line}", wet_line).replace("{j1202_choke}", tag_j1202))

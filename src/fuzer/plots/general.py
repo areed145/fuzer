@@ -365,7 +365,8 @@ CO2_T_PER_KSM3_FLARED = 2.0  # tonnes CO2 per kSm3 gas flared (combustion of a t
 
 
 def flare(conn, since: str, until: str) -> Figure:
-    """Daily flare and lift gas from DAY001, and the flare's CO2 per barrel of oil (an estimate)."""
+    """Daily flare from DAY001, with fuel gas and vent beside it when the report carries them (#369), and the flare's
+    CO2 per barrel of oil (an estimate)."""
     from ..graph import operations
 
     days = sorted(operations._rows(conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
@@ -377,10 +378,17 @@ def flare(conn, since: str, until: str) -> Figure:
     oil = [operations._num(d["f"].get("oil_sm3")) for d in days]
     intensity = [round(f * CO2_T_PER_KSM3_FLARED * 1000 / (o * 6.2898), 2) if o > 0 else None for f, o in zip(fl, oil)]
     top, bottom = stacked(2, 0.1)
+    from ..analysis.gas_balance import _f
+    fuel = [_f(d["f"].get("fuel_gas_ksm3")) for d in days]
+    vent = [_f(d["f"].get("vent_ksm3")) for d in days]
+    has_fuel, has_vent = any(v is not None for v in fuel), any(v is not None for v in vent)
     data = [{"type": "bar", "name": "flare (kSm3/d)", "x": x, "y": fl, "yaxis": "y"},
+            *([{"type": "bar", "name": "fuel (kSm3/d)", "x": x, "y": fuel, "yaxis": "y"}] if has_fuel else []),
+            *([{"type": "bar", "name": "vent (kSm3/d)", "x": x, "y": vent, "yaxis": "y"}] if has_vent else []),
             {"type": "scatter", "mode": "lines", "name": "flare CO2 (kg per bbl oil)", "x": x, "y": intensity, "yaxis": "y2",
              "xaxis": "x2"}]
-    lay = layout(f"Flare and its CO2 intensity {since} to {until}")
+    lay = layout(f"Flare{', fuel and vent' if has_fuel or has_vent else ''} and the flare's CO2 intensity {since} to {until}")
+    lay["barmode"] = "group"
     lay["yaxis"] = {"domain": top, "title": {"text": "kSm3/d"}}
     lay["yaxis2"] = {"domain": bottom, "anchor": "x2", "title": {"text": "kg CO2 / bbl"}}
     lay["xaxis2"] = {"anchor": "y2", "matches": "x"}
@@ -388,7 +396,13 @@ def flare(conn, since: str, until: str) -> Figure:
     return Figure("flare", lay["title"]["text"], data, lay, {
         "days": len(days), "flare_ksm3": round(sum(fl)), "co2_t": round(sum(fl) * CO2_T_PER_KSM3_FLARED),
         "co2_kg_per_bbl_median": round(sorted(vals)[len(vals) // 2], 2) if vals else None,
-        "note": f"CO2 estimated at {CO2_T_PER_KSM3_FLARED} t per kSm3 flared; fuel gas and venting aren't in DAY001"},
+        "fuel_ksm3": round(sum(v for v in fuel if v)) if has_fuel else None,
+        "vent_ksm3": round(sum(v for v in vent if v), 1) if has_vent else None,
+        "note": f"CO2 estimated at {CO2_T_PER_KSM3_FLARED} t per kSm3 flared, for the flare only. "
+                + ("Fuel gas and vent are the report's own volumes; " if has_fuel or has_vent else "")
+                + ("" if has_fuel and has_vent else "the report carries no "
+                   + " or ".join(n for n, h in (("fuel gas", has_fuel), ("vent", has_vent)) if not h) + "; ")
+                + "a closing gas balance is plot gas_balance. Evidence only, not an emissions inventory."},
         [d["id"] for d in days][:5])
 
 
