@@ -555,10 +555,10 @@ def step_fit(conn, test: str) -> Figure:
 def crew_load(conn, as_of: str | None = None, weeks: int = 26) -> Figure:
     """Crew load (#361): each work center's planned hours per week ahead as bars, its weekly capacity as a line."""
     from ..analysis import calcs
-    from ..analysis import crew_load as cl
+    from ..analysis import crew_load as crew
 
     try:
-        out = cl.load(conn, as_of, weeks)
+        out = crew.load(conn, as_of, weeks)
     except calcs.CalcError as e:
         raise ChartError(str(e)) from e
     shown = [c for c in out["centers"] if c["weekly"]]
