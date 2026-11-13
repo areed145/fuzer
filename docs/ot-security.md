@@ -59,6 +59,19 @@ There is no conduit from Fuzer into the control zone. Values reach Fuzer only th
 already operates as the boundary to Levels 0 to 2. The write-back queue has conduits to business systems and nowhere
 else; historian annotations are written through the historian's business-facing interface, never to point values.
 
+## The audit record (D9)
+
+An owner exports one project's audit record for a time window from `GET /auth/audit` (JSON or CSV) or
+`fuzer audit export`. There is no separate audit table: `core/audit.py` reads every table that names who did
+something (a `by`, `actor` or `<verb>_by` column) from the project's own schema, with the shared access events,
+settings, project row and cover filtered to that project. Each row says whether its source keeps every change (work
+events, write-back events, source and ontology audits, setting history, access events, gate decisions) or only the
+latest (a decision column is overwritten when someone decides again). Account-private assistant conversations are
+left out, and `GET /auth/audit/coverage` lists every exclusion with its reason. Sign-ins and account changes are
+deployment-wide: they join the record of each project the account can open, and accounts granted nowhere yet are in
+the database's first project. Every export is itself an access event. `tests/core/test_audit.py` fails when a new
+actor column joins the schema without a time column or an exclusion.
+
 ## What this means for the code today
 
 These hold now and are checked by `tests/architecture/test_read_write_paths.py`:

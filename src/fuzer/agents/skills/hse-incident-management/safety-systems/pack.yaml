@@ -1,0 +1,15 @@
+# The safety systems and relief specialist pack (P4.2e, pack 5, #850): whether each safeguard still gives the protection
+# it claims - in service (bypasses), tested (proof tests against their interval) and demanded no more than its risk
+# assessment assumed (the demand log) - and where flare gas came from (the relief paths into the flare system), on
+# IEC 61511, API 520 and 521 and API 14C, by name. SKILL.md is its playbook; this file names what the playbook relies
+# on, so a missing or renamed piece fails the pack conformance test (tests/agents/test_specialist_packs.py).
+title: Safety systems and relief
+owner: hse-incident-management        # the agent that loads this pack
+classes: [VA, IP, FG]                 # ISO 14224: valves (relief, shutdown), input devices (trip transmitters), fire and gas
+tools: [flare_attribution, plot_flare_attribution, safeguard_status]
+charts: [plot_flare_attribution]
+methods: [demand_rate, flare_relief, proof_test]
+detectors: [bypass_overdue, flare_events, proof_test_overdue, safeguard_demands]
+roles: [flare_flow]
+briefs: [bypass_overdue, proof_test_overdue, safeguard_demand]
+eval: safety-systems                  # each bundle's answer keys: evals/safety-systems.yaml in the bundle

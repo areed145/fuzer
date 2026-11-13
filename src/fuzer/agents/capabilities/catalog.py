@@ -373,6 +373,15 @@ SKILL_CATALOG = (
         "Source-linked timelines, corrective-work status and evidence gaps for accountable review.",
         "No compliance finding, barrier assurance or emergency advice; escalates to accountable people."),
     SkillDefinition(
+        f"{_HSE}/safety-systems", (_HSE,),
+        (HSE_SPECIALIST, INCIDENT_INVESTIGATOR, EMERGENCY_LEAD),
+        "The safeguard register (proof test interval and last test, designed demand rate), the bypass register, the "
+        "demand log, change records, and the flare flow with the piping into the flare system.",
+        "Each safeguard's bypasses, proof test status and demands against its designed rate, the most serious first, "
+        "and the equipment and devices relieving into the flare during an episode.",
+        "Advises; removing a bypass, a test interval, a trip setting or any change to the safety instrumented system "
+        "is the accountable engineer's decision under management of change. No SIL verification or relief sizing."),
+    SkillDefinition(
         f"{_ASSET}/operations-summary", (_ASSET,),
         (ASSET_MANAGER, OPERATIONS_REPORTER, ACCOUNTING_SPECIALIST),
         "The cited daily report plus production, deferment, constraints, reliability and work summaries.",

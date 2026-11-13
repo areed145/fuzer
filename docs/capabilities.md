@@ -39,10 +39,10 @@ Every persona has one owner and at least one skill.
 | Work Scheduler | Work Management & Supply Chain | work-orders, turnarounds, job-readiness |
 | Supply Chain Specialist | Work Management & Supply Chain | turnarounds, job-readiness |
 | Logistics Coordinator | Work Management & Supply Chain | job-readiness |
-| HSE Specialist | HSE & Incident Management | incident-evidence |
+| HSE Specialist | HSE & Incident Management | incident-evidence, safety-systems |
 | Environmental / Regulatory Specialist | HSE & Incident Management | incident-evidence |
-| Incident Investigator | HSE & Incident Management | incident-evidence |
-| Emergency Response Lead | HSE & Incident Management | incident-evidence |
+| Incident Investigator | HSE & Incident Management | incident-evidence, safety-systems |
+| Emergency Response Lead | HSE & Incident Management | incident-evidence, safety-systems |
 | Asset Manager | Asset Performance & Reporting | operations-summary |
 | Operations Reporter | Asset Performance & Reporting | operations-summary |
 | Commercial / Production Accounting Specialist | Asset Performance & Reporting | operations-summary |
@@ -79,6 +79,7 @@ Tools are read from each `SKILL.md`. A shared skill is loaded by every agent, ea
 | `work-management-supply-chain/turnarounds` | Work Management & Supply Chain | Maintenance & Integrity | Work Planner; Work Scheduler; Supply Chain Specialist | Turnaround (TAR / shutdown) scope - work planned for the revision, shutdown-only inspections and PM due before or around it, bad actors that should be added, long-lead spares to order, and scope gaps. | `deferment_pareto`, `maintenance_history`, `turnaround_scope` | SAP work orders with a revision, shutdown-only plans, bad actors and stock. | Turnaround scope, what is missing from it and out-of-stock spares for scoped units. | Findings inform people who approve priorities, schedules and commitments; nothing here commits anything. |
 | `work-management-supply-chain/job-readiness` | Work Management & Supply Chain | none | Work Planner; Work Scheduler; Supply Chain Specialist; Logistics Coordinator | Job and turnaround readiness from recorded evidence - scope, dates, spares and stock per job, and what is missing or unknown about materials, resources, schedule conflicts and logistics. | `bad_actors`, `maintenance_compliance`, `maintenance_history`, `plot_backlog`, `spare_parts`, `turnaround_scope`, `value_score`, `work_order_backlog` | Work orders, their dates and turnaround revision, and BOM spares with stock on hand. | Per job, what is recorded as ready and what is missing or unknown (materials, dates, resources, logistics). | A stock count is not a reservation; crew, vendor, transport and access status stay unknown. Findings inform people who approve priorities, schedules and commitments; nothing here commits anything. |
 | `hse-incident-management/incident-evidence` | HSE & Incident Management | none | HSE Specialist; Environmental / Regulatory Specialist; Incident Investigator; Emergency Response Lead | Organize recorded incident, event and corrective-work evidence for accountable HSE review - timelines, investigation records, corrective-action status, past lessons and recorded flare - without making safety or compliance decisions. | `alarm_analysis`, `compare_periods`, `downtime`, `flare_attribution`, `get_events`, `get_incidents`, `get_upsets`, `incident_detail`, `incident_repeats`, `lessons_learned`, `maintenance_history`, `plot_flare`, `plot_flare_attribution`, `plot_incident`, `plot_incident_repeats`, `plot_propagation`, `plot_state_timeline`, `record_history`, `similar_cases`, `trip_analysis`, `upset_detail` | Incidents, events, upsets, linked work and lessons; flare from EC DAY001. No HSE system of record. | Source-linked timelines, corrective-work status and evidence gaps for accountable review. | No compliance finding, barrier assurance or emergency advice; escalates to accountable people. |
+| `hse-incident-management/safety-systems` | HSE & Incident Management | none | HSE Specialist; Incident Investigator; Emergency Response Lead | Safety systems and relief - whether each trip, interlock and shutdown is in service, proof tested within its interval and demanded no more than designed, and which equipment relieved into the flare during an episode, for any plant with a safeguard register (ISO 14224 classes VA, IP, FG). | `flare_attribution`, `plot_flare_attribution`, `safeguard_status` | The safeguard register (proof test interval and last test, designed demand rate), the bypass register, the demand log, change records, and the flare flow with the piping into the flare system. | Each safeguard's bypasses, proof test status and demands against its designed rate, the most serious first, and the equipment and devices relieving into the flare during an episode. | Advises; removing a bypass, a test interval, a trip setting or any change to the safety instrumented system is the accountable engineer's decision under management of change. No SIL verification or relief sizing. |
 | `asset-performance-reporting/operations-summary` | Asset Performance & Reporting | none | Asset Manager; Operations Reporter; Commercial / Production Accounting Specialist | Produce cited cross-domain operational summaries from the linked production and work records Fuzer actually has. | `accounting_reconciliation`, `bad_actors`, `compare_periods`, `deferment_pareto`, `get_daily_ops_report`, `kpi_scorecard`, `maintenance_compliance`, `opportunities`, `plot_accounting_reconciliation`, `plot_backlog`, `plot_bad_actors`, `plot_compliance`, `plot_kpi_scorecard`, `plot_loss_waterfall`, `plot_score_breakdown`, `production_constraints`, `production_summary`, `turnaround_scope`, `unit_cost`, `value_score`, `well_performance`, `work_order_backlog` | The cited daily report plus production, deferment, constraints, reliability and work summaries. | Dated cross-domain KPIs, trade-offs and opportunities with units, windows and unknowns. | Internal evidence only: not an approved decision, an external report or accounting reconciliation. |
 | `shared/charts` | Shared | every agent | all | When and how to put interactive charts in an answer - which plot tool fits which question, how to read and cite a chart's summary, and when (rarely) to look at the image. | `look_at_figure`, `plot_backlog`, `plot_bad_actors`, `plot_bar`, `plot_changes`, `plot_choke`, `plot_compliance`, `plot_correlation`, `plot_custom`, `plot_decline`, `plot_distribution`, `plot_gas_lift_allocation`, `plot_gas_lift_curve`, `plot_incident`, `plot_instrument_health`, `plot_measurements`, `plot_pump_curve`, `plot_reliability`, `plot_trend`, `plot_vibration`, `plot_wall_thickness`, `plot_water_diagnostic`, `plot_xy` | Whichever records each plot tool reads. | Interactive figures with their markers and a sentence on what each shows. | Says when a chart rests on synthetic data; an agent calls only the plot tools in its own list. |
 | `shared/analysis` | Shared | every agent | Data Scientist / Operations Research Analyst | Reusable analysis methods - comparing periods, detecting changes, correlation, clustering and kept studies - with the assumptions, data sufficiency and uncertainty to state with each result. | `cluster_entities`, `cluster_events`, `cluster_modes`, `compare_periods`, `correlate`, `correlation_matrix`, `detect_changes`, `get_study`, `plot_correlation`, `start_study`, `trace_flow` | PI process values, detected upsets and well tests; results depend on the time-series source. | Correlations, clusters and period comparisons with assumptions, sample size and uncertainty. | Correlation is not cause. Findings on synthetic values show how the generator works, not plant physics. |
@@ -108,6 +109,17 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Measurement roles:** `differential_pressure`, `composition`, `temperature`, `outlet_temperature`, `vibration`, `bearing_temperature`, `discharge_temperature`
 - **Charts:** `plot_operating_window`, `plot_trend`
 - **Eval:** 5 questions with answer keys across 3 bundles
+
+### Safety systems and relief
+
+- **Skill:** `hse-incident-management/safety-systems`, loaded by HSE & Incident Management
+- **Equipment classes (ISO 14224):** VA, IP, FG
+- **Methods:** `demand_rate` (IEC 61511-1 16.2.9), `flare_relief` (Engineering practice), `proof_test` (IEC 61511-1 16.3)
+- **Detectors:** `bypass_overdue`, `flare_events`, `proof_test_overdue`, `safeguard_demands`
+- **Briefs:** `bypass_overdue`, `proof_test_overdue`, `safeguard_demand`
+- **Measurement roles:** `flare_flow`
+- **Charts:** `plot_flare_attribution`
+- **Eval:** 7 questions with answer keys across 3 bundles
 
 ### Compression
 
@@ -200,13 +212,13 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Orchestrator | 23 |
 | Production & Surveillance | 78 |
 | Wells & Subsurface | 67 |
-| Field Operations & Facilities | 87 |
-| Maintenance & Integrity | 75 |
+| Field Operations & Facilities | 88 |
+| Maintenance & Integrity | 76 |
 | Work Management & Supply Chain | 36 |
-| HSE & Incident Management | 45 |
+| HSE & Incident Management | 46 |
 | Asset Performance & Reporting | 50 |
 
-## Shared (123)
+## Shared (124)
 
 Used by every agent or by several specialists.
 
@@ -254,6 +266,7 @@ Used by every agent or by several specialists.
 | `gas_lift_network` | query | ref?, since?, limit? | The gas lift network: compression -> lift gas headers -> jacket gas lift manifolds (some through another jacket) -> gas lifted wells. |
 | `kpi_scorecard` | calc | until?, days? | How the plant is running (#353): production efficiency, deferred oil, flare, corrective backlog, preventive work on time, failures and repeat failures for the `days` ending on `until` (YYYY-MM-DD; default the latest daily report) against the same length before. |
 | `accounting_reconciliation` | calc | since?, until?, days? | Operational against accounting volumes (#372): each month's daily allocated oil and gas (EC DAY001) summed over the accounting period, against what production accounting closed on the custody meters. |
+| `safeguard_status` | query | ref?, system? | Safeguards on an item, or across the plant with no ref (P4.2e): each bypass in place (overdue or not, under which change), each proof test against its interval (IEC 61511-1 16.3: overdue, or none on file), each safeguard demanded in the last year against the rate it was designed for (over it, or failed on a demand; spurious trips listed, not counted) and the open change records. |
 | `plot_trend` | plot | refs, at?, hours_before?, hours_after? | Chart process values (PI / ADX) on stacked panels sharing time, with incident lead-ins shaded. |
 | `plot_measurements` | plot | ref, quantity?, since?, until? | Chart landed measurements over time on a well, tag, equipment or pipeline (well tests, lab results, wall thickness): a panel per quantity, a line per location. |
 | `plot_xy` | plot | x, y, at?, hours_before?, hours_after? | Chart one PI point against another at the same times (operating envelope), coloured by time, with a straight-line fit and r. |

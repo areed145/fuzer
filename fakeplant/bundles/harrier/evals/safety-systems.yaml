@@ -1,0 +1,8 @@
+# Answer keys for the safety systems and relief specialist pack's eval on this bundle (P4.2e), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+- question: Is crude tank A E1-T-5001A still protected by its high-high level shutdown?
+  must_mention: [SG-HR-001, [bypass, bypassed], [overdue, expired]]
+  specialists: [hse-incident-management]
+- question: Which safeguards on the VRU compressor G1-K-7001 need attention?
+  must_mention: [SG-HR-002, [twice, "2", two], SG-HR-004, [proof test, tested]]
+  specialists: [hse-incident-management]

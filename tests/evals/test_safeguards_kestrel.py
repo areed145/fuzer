@@ -207,3 +207,15 @@ def test_a_safeguard_demanded_more_than_designed_is_work_for_the_engineer(kestre
         conn.execute("update golden set value = to_jsonb('worked'::text) where fuzer_id = %s and field = 'outcome'",
                      (dem,))
         conn.commit()
+
+
+def test_the_specialist_sees_all_three_checks_on_an_item(kestrel_db):
+    """P4.2e: the safety systems pack's tool on the compressor: its scrubber's trip bypassed (same train) and overdue
+    for its test, and its vibration trip demanded more than designed."""
+    from fuzer.agents.capabilities.operations import safeguard_status
+
+    got = safeguard_status("B1-K-2001")
+    assert [b["label"] for b in got["bypasses"]] == ["BYP-KR-031"]
+    assert [p["label"] for p in got["proof_tests_overdue"]] == ["SG-KR-003"]
+    assert [(d["label"], d["over"]) for d in got["demands"]] == [("SG-KR-002", True), ("SG-KR-004", False)]
+    assert len(safeguard_status()["proof_tests_overdue"]) == 2 and "error" in safeguard_status("no-such-thing")

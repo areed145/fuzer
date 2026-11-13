@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -114,6 +115,15 @@ def parser() -> argparse.ArgumentParser:
     st.add_argument("--project", default=None, help="set or reset for this project (default: all projects)")
     st.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is changing it (default: $USER)")
     st.add_argument("--reason", default=None, help="why, kept in the history")
+
+    au = sub.add_parser("audit", help="the project's audit record (R.5): export a window, or show what it covers")
+    au.add_argument("action", choices=["export", "coverage"])
+    au.add_argument("--since", type=_when, default=None, help="start of the window, ISO date or time (default: "
+                    "30 days before --until)")
+    au.add_argument("--until", type=_when, default=None, help="end of the window, exclusive (default: now)")
+    au.add_argument("--format", choices=["csv", "json"], default="csv", help="default csv")
+    au.add_argument("--out", type=Path, default=None, help="write here instead of standard output")
+    au.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is exporting (default: $USER); the export is itself recorded")
 
     om = sub.add_parser("operating-model", help="the operating model as a package (P8.1): export, apply, adopt, "
                         "deviations, conformance, name a deviation")
@@ -429,6 +439,8 @@ def main(argv=None):
                 _projects(conn, args)
             elif args.cmd == "settings":
                 _settings(conn, args)
+            elif args.cmd == "audit":
+                _audit(conn, args)
             elif args.cmd == "operating-model":
                 from ..workflow import operating_model as om
 
@@ -642,6 +654,39 @@ def _projects(conn, args) -> None:
         _print(cfg if args.action == "show" else projects.save(conn, name, cfg, args.by))
     except projects.ProjectError as e:
         raise SystemExit(str(e)) from None
+
+
+def _when(value: str):
+    from datetime import UTC, datetime
+
+    t = datetime.fromisoformat(value)
+    return t.replace(tzinfo=UTC) if t.tzinfo is None else t
+
+
+def _audit(conn, args) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from ..core import access, audit
+
+    if args.action == "coverage":
+        _print(audit.coverage(conn))
+        return
+    project = projects.current(conn)
+    until = args.until or datetime.now(UTC)
+    since = args.since or until - timedelta(days=30)
+    try:
+        rows = audit.record(conn, project, since, until)
+    except audit.AuditError as e:
+        raise SystemExit(str(e)) from None
+    text = audit.to_csv(rows) if args.format == "csv" else json.dumps(rows, default=str, indent=1)
+    access.event(conn, f"cli:{args.by}", "audit_exported", project=project, since=since.isoformat(),
+                 until=until.isoformat(), rows=len(rows), format=args.format)
+    conn.commit()
+    if args.out:
+        args.out.write_text(text)
+        print(f"{len(rows)} audit records for {project} written to {args.out}", file=sys.stderr)
+    else:
+        sys.stdout.write(text)
 
 
 def _model_change(conn, args) -> None:

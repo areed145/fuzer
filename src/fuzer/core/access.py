@@ -102,8 +102,10 @@ def digest(token: str) -> str:
 
 
 def event(conn, actor: str, action: str, **data):
-    conn.execute("insert into access_event (actor, action, data) values (%s, %s, %s)",
-                 (actor, action, Jsonb(data)))
+    """An access event for the audit record (R.5). One naming a `project` is that project's; one without (a sign-in,
+    an account change) is deployment-wide and joins the record of each project its people can open."""
+    conn.execute("insert into access_event (actor, action, data, project) values (%s, %s, %s, %s)",
+                 (actor, action, Jsonb(data), data.get("project")))
 
 
 def seed(conn):

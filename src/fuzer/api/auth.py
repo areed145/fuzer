@@ -3,9 +3,11 @@
 import logging
 import secrets
 from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 from requests.exceptions import RequestException
@@ -212,3 +214,54 @@ def project_roles_update(account_id: str, project: str, body: ProjectRoles, requ
     except access.AccessError as e:
         raise HTTPException(400, str(e)) from e
     return {"ok": True}
+
+
+@router.get("/audit")
+def audit_export(request: Request, project: str | None = None, since: datetime | None = None,
+                 until: datetime | None = None, format: Literal["json", "csv"] = "json",
+                 limit: int = Query(10000, ge=1, le=100000)):
+    """One project's audit record for a window (owners only; default the last 30 days of the request's project).
+    The export itself is recorded."""
+    from ..core import audit
+
+    person = _owner(request)
+    until = _aware(until) or datetime.now(UTC)
+    since = _aware(since) or until - timedelta(days=30)
+    with db.connect() as conn:
+        project = project or projects.current(conn)
+        try:
+            scope = projects.scope(conn, project)
+        except projects.ProjectError as e:
+            raise HTTPException(404, str(e)) from None
+    with db.use(scope), db.connect() as conn:
+        try:
+            rows = audit.record(conn, project, since, until, limit)
+        except audit.AuditError as e:
+            raise HTTPException(400, str(e)) from None
+        access.event(conn, person.actor, "audit_exported", project=project, since=since.isoformat(),
+                     until=until.isoformat(), rows=len(rows), format=format)
+        conn.commit()
+    if format == "csv":
+        name = f"fuzer-audit-{project}-{since:%Y%m%d}-{until:%Y%m%d}.csv"
+        return Response(audit.to_csv(rows), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    return {"project": project, "since": since, "until": until, "rows": rows}
+
+
+@router.get("/audit/coverage")
+def audit_coverage(request: Request, project: str | None = None):
+    """Which records the audit reads, which keep every change, and which are left out and why (owners only)."""
+    from ..core import audit
+
+    _owner(request)
+    with db.connect() as conn:
+        try:
+            scope = projects.scope(conn, project or projects.current(conn))
+        except projects.ProjectError as e:
+            raise HTTPException(404, str(e)) from None
+    with db.use(scope), db.connect() as conn:
+        return audit.coverage(conn)
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    return value.replace(tzinfo=UTC) if value is not None and value.tzinfo is None else value
