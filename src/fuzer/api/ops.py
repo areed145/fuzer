@@ -380,6 +380,13 @@ def plant_reservoir_pressure(conn=Depends(get_conn)):
     return {"productivity": rp.productivity(conn), "material_balance": rp.material_balance(conn)}
 
 
+@router.get("/plant/vibration-spectra")
+def plant_vibration_spectra(tag: str | None = None, conn=Depends(get_conn)):
+    """Condition-monitoring spectra read against their fault frequencies, per measurement point (#367)."""
+    from ..analysis import vibration_spectra as vs
+    return vs.spectra(conn, tag)
+
+
 @router.get("/plant/co2-corrosion")
 def plant_co2_corrosion(days: int = 365, conn=Depends(get_conn)):
     """CO2 corrosion screening: predicted against measured corrosion rate per line (#368)."""

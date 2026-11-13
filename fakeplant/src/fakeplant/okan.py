@@ -1338,6 +1338,43 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "inspection_readings.csv", readings)
     _write_csv(out / "ldar_surveys.csv", ldar)
     (out / "answer_keys" / "ldar.json").write_text(json.dumps(ldar_truth, indent=1))
+    # Condition-monitoring spectra (#367): each month a route collector takes a velocity spectrum at the drive end and
+    # non-drive end bearings of every pump, exported as the peak table with the point's bearing setup (deep groove ball
+    # bearings, 8 balls of 23.8 mm on a 100 mm pitch circle). Running speed, its harmonics and the impeller's vane pass
+    # are always there. Story: after the May 2025 seal leak on 10-P-1001B, product got into the bearing housing; from
+    # August its NDE bearing shows an outer race defect, growing at the ball pass frequency outer race and its
+    # harmonics, while the overall level barely moves.
+    crng = random.Random(seed + 61)
+    pumps = sorted({f"{p[1]}-P-{p[2][1:]}" for p in (e["floc"].split("-") for e in equipment)
+                    if len(p) == 3 and p[2].startswith("P")})
+    geo = {"bearing": "6313 deep groove ball", "rolling_elements": 8, "element_diameter_mm": 23.8,
+           "pitch_diameter_mm": 100.0, "contact_angle_deg": 0}
+    spectra, cms_truth = [], {"tag": "10-P-1001B", "point": "NDE bearing horizontal", "defect": "bpfo",
+                              "first": "2025-08", "bpfo_order": round(4 * (1 - 23.8 / 100), 3)}
+    month = date(2024, 7, 1)
+    while month < date.fromisoformat(AS_OF):
+        for tag in pumps:
+            rpm = 2975 + crng.uniform(-6, 6)
+            fr = rpm / 60
+            for point in ("DE bearing horizontal", "NDE bearing horizontal"):
+                when = month + timedelta(days=crng.randint(3, 12))
+                peaks = {fr: crng.uniform(0.7, 1.3), 2 * fr: crng.uniform(0.15, 0.3), 3 * fr: crng.uniform(0.05, 0.15),
+                         6 * fr: crng.uniform(0.25, 0.5)}  # 1x, 2x, 3x and the six-vane impeller's vane pass
+                for _ in range(4):  # the floor's own bumps, away from the machine's frequencies
+                    peaks[crng.uniform(20, 900)] = crng.uniform(0.02, 0.08)
+                if tag == cms_truth["tag"] and point == cms_truth["point"] and when >= date(2025, 8, 1):
+                    grow = 1 + (when - date(2025, 8, 1)).days / 30
+                    bpfo = cms_truth["bpfo_order"] * fr
+                    for h, share in ((1, 1.0), (2, 0.55), (3, 0.3)):
+                        peaks[h * bpfo] = 0.2 * grow * share + crng.uniform(0, 0.03)
+                overall = math.sqrt(sum(a * a for a in peaks.values()) + 0.8)  # with the broadband floor
+                spectra.append({"spectrum_id": f"CMS-{tag}-{'DE' if point.startswith('DE') else 'NDE'}-{when:%Y%m%d}",
+                                "tag": tag, "point": point, "measured_at": f"{when.isoformat()}T10:00:00",
+                                "rpm": f"{rpm:.0f}", "unit": "mm/s RMS", "overall": f"{overall:.2f}", **geo,
+                                "peaks": ";".join(f"{f:.1f}:{a:.3f}" for f, a in sorted(peaks.items()))})
+        month = (month + timedelta(days=32)).replace(day=1)
+    _write_csv(out / "cms_spectra.csv", spectra)
+    (out / "answer_keys" / "vibration_spectra.json").write_text(json.dumps(cms_truth, indent=1))
     _write_csv(out / "oem_curves.csv", curve_rows)
     _write_csv(out / "oem_compressor_maps.csv", map_rows)
     # Limits are set from the process model without its stories; AF gets its limit traits before it's written.

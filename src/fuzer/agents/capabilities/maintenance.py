@@ -291,3 +291,33 @@ def plot_co2_corrosion(until: str | None = None, days: int = 365) -> dict[str, A
     """Chart each line's predicted CO2 corrosion rate beside its measured CML rate, the lines out of step marked."""
     from ...plots import maintenance
     return _chart(maintenance.co2_corrosion, {"until": until, "days": max(90, min(days, 1825))})
+
+
+@capability("maintenance-integrity", kind="calc")
+def vibration_spectra(tag: str | None = None) -> dict[str, Any]:
+    """Condition-monitoring vibration spectra (#367), for every measurement point or one machine's: its latest spectrum
+    read against its fault frequencies (1x, 2x, and the bearing defect frequencies BPFO, BPFI, BSF and FTF from the
+    bearing's geometry), the peaks on them, and the indications with the date each first showed and its amplitude
+    trend: a bearing defect when 2 of its first three harmonics stand above 0.1 mm/s, misalignment when 2x is over
+    half of 1x, unbalance when 1x is over 0.9 of the overall level. Fault indications for the reliability engineer to
+    confirm, not a diagnosis."""
+    from ...analysis import vibration_spectra as vs
+    with db.connect() as conn:
+        fid = None
+        if tag:
+            fid, err = _resolve(conn, tag)
+            if err:
+                return err
+        return _plain(vs.spectra(conn, fid))
+
+
+@capability("maintenance-integrity", kind="plot")
+def plot_vibration_spectrum(tag: str, point: str | None = None) -> dict[str, Any]:
+    """Chart a machine's latest vibration spectrum at a point (the one with an indication first), with 1x, 2x and the
+    bearing defect frequencies and their harmonics marked."""
+    from ...plots import maintenance
+    with db.connect() as conn:
+        fid, err = _resolve(conn, tag)
+        if err:
+            return err
+    return _chart(maintenance.vibration_spectrum, {"tag": fid, "point": point})
