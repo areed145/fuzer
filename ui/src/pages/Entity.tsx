@@ -733,7 +733,7 @@ const RULE_SAYS: Record<string, string> = { priority: "by system priority", revi
  * values, reviewer choices and fixes, merges and splits, and the work and write-backs that touched it. */
 function LineageCard({ id }: { id: string }) {
   const l = useAsync(() => api.lineage(id), [id]);
-  if (!l.data) return <Status loading={l.loading} error={l.error} onRetry={l.reload} />;
+  if (!l.data?.systems) return <Status loading={l.loading} error={l.error} onRetry={l.reload} />;
   const d = l.data;
   const rules = Object.entries(d.rules).map(([r, n]) => `${n} ${RULE_SAYS[r] ?? r}`).join(", ");
   return (

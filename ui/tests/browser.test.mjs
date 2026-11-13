@@ -1686,6 +1686,9 @@ test("an asset says what is known, what is missing and what each gap holds back;
       kinds: ["class_guide"], basis: ["it applies to its equipment class"] }] } }));
   const answers = [];
   await page.route("**/entities/tag-e5002/placement", (route) => { answers.push(route.request().postDataJSON()); return route.fulfill({ json: { accepted: true } }); });
+  await page.route("**/entities/tag-e5002/lineage", (route) => route.fulfill({ json: { fuzer_id: "tag-e5002", kind: "tag",
+    merged_into: null, systems: [], rules: {}, reviewed: [], fixes: [], pins: [], identity: [], work: { count: 0, recent: [] },
+    writebacks: [], note: "" } }));
   await page.goto(`${url}/#/e/tag-e5002?tab=record`);
   const panel = page.locator(".asset-context");
   await panel.getByText("Holds back Process excursions; IOW breaches; excursion and IOW cases. 89% of heat exchangers have it.").waitFor();
@@ -3239,6 +3242,11 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
       longitude: { value: 5.2, source: "gis", rule: "priority" }, geometry: { value: { type: "Point" }, source: "gis", rule: "priority" } },
     values: {}, keys: [], edge_counts: {}, edges: Array.from({ length: 24 }, (_, i) => edge(i + 1)),
     records: [{ source: "pi_af", record_type: "element", source_key: "OKAN\\20 OK_GGCP\\20-K-2300A", method: "singleton", confidence: 1 }] } }));
+  await page.route(`**/entities/${id}/lineage`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "well", merged_into: null,
+    systems: [{ source: "pi_af", chosen_fields: ["isa95_level"], records: [{ record: "pi_af:element:OKAN\\20 OK_GGCP\\20-K-2300A",
+      record_type: "element", key: "OKAN\\20 OK_GGCP\\20-K-2300A", matched_by: "singleton", confidence: 1 }] }],
+    rules: { priority: 4 }, reviewed: [{ field: "isa95_level", value: "unit", by: "steward-sam", at: "2026-11-12T10:00:00Z" }], fixes: [],
+    pins: [], identity: [], work: { count: 0, recent: [] }, writebacks: [], note: "Each value's own records are under why? on Values." } }));
   await page.goto(`${url}/#/e/${id}`);
   // An asset opens on its work and process values; what the register holds about it is one view away.
   await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
@@ -3248,7 +3256,10 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   await page.getByRole("link", { name: "Record", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
-  await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).waitFor();
+  // where it came from (#875): the system behind it, how its record was matched, and the reviewer's choice
+  await page.getByRole("heading", { name: /Where this came from/ }).waitFor();
+  await page.getByText("chosen by steward-sam", { exact: false }).waitFor();
+  await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).first().waitFor();
   await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
   // The links list sits with the graph; Connections is the flow diagram, which a well off the flow network lacks.
   await page.getByRole("link", { name: "Graph", exact: true }).click();
