@@ -52,6 +52,9 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `work.due_soon_minutes` | int | `60` | 0 to 1440 | Tell the person holding a step this many minutes before it is due (0: never). |
 | `intake.sap_notifications` | bool | `True` |  | Raise open SAP notifications with no work order as exceptions for the IOC to dispatch, on each register refresh. |
 | `closeout.apply_to_exports` | bool | `False` |  | Demo: apply a close-out sent back to a source system (an SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it. |
+| `tuning.noise_rate` | float | `0.5` | 0.05 to 1 | A detector whose closed cases on one equipment class are this share false alarms and duplicates or more gets a tuning proposal (P6.3). |
+| `tuning.min_cases` | int | `5` | 2 to 500 | Closed cases a detector needs on one equipment class before its noise rate can raise a tuning proposal. |
+| `tuning.max_windows` | int | `12` | 1 to 200 | Windows of history a tuning proposal replays for each value it tries, newest cases first; caps what one proposal reads from the historian. |
 | `closeout.recheck_days` | int | `30` |  | Days after a real problem is closed out to ask whoever closed it whether the fix held; the same failure on the same asset inside this window reopens the case as a repeat. |
 | `readiness.permit_types` | str | `` |  | Work types (exception types, comma-separated) that need a valid permit to work, with its isolations in place, on the job's location before they are dispatched or started in the field; empty by default, since an upset or IOW breach is first a look, not hands-on work. The dispatch card and the phone show permits for every job (P5.5c, P5.11a). |
 | `stewardship.bulk_accept_at` | float | `0.0` | 0 to 1 | Offer to accept, in one step, Claude's master data proposals at or above this confidence (0: never; set it once the proposal evals show they hold at that level). |

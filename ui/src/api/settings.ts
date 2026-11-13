@@ -205,6 +205,7 @@ export interface DetectorRow {
   eval: string | null;
   settings: DetectorParam[];
   closeouts: DetectorCloseouts;
+  version?: number;
 }
 
 /** How the cases a detector or provider raised were closed out (P3.8b). */
@@ -232,6 +233,13 @@ export interface ProviderRow {
 
 export interface EquipmentClass { code: string; name: string; units: number }
 
+/** A quieter value proposed for a noisy detector, replayed on its closed cases (P6.3). */
+export interface TuningProposal {
+  id: number; item_id: number | null; title: string; detector: string; param: string; class: string | null;
+  current: number; proposed: number; cases: number; windows: number; noise_rate: number;
+  before: { noise: number; real: number }; after: { noise: number; real: number }; missed: number[];
+}
+
 export const detectionApi = {
   detectors: () =>
     request<{ project: string | null; classes: EquipmentClass[]; detectors: DetectorRow[]; providers: ProviderRow[];
@@ -241,6 +249,11 @@ export const detectionApi = {
       { trust, class: cls, by, reason }),
   switchDetector: (name: string, on: boolean, by: string, reason: string) =>
     request<unknown>("PUT", `/settings/detectors/${encodeURIComponent(name)}/on`, undefined, { on, by, reason }),
+  tuningProposals: () => request<TuningProposal[]>("GET", "/settings/detectors/tuning"),
+  acceptTuning: (id: number, by: string, note?: string) =>
+    request<unknown>("POST", `/settings/detectors/tuning/${id}/accept`, undefined, { by, note: note ?? null }),
+  setTuningAside: (id: number, by: string, reason: string) =>
+    request<unknown>("POST", `/settings/detectors/tuning/${id}/set-aside`, undefined, { by, reason }),
   tuneDetector: (name: string, key: string, change: { value?: unknown; class?: string | null; reset?: boolean }, by: string, reason: string) =>
     request<unknown>("PUT", `/settings/detectors/${encodeURIComponent(name)}/params/${encodeURIComponent(key)}`, undefined,
       { ...change, by, reason }),

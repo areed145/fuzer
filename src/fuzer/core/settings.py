@@ -151,6 +151,12 @@ register(
     Setting("closeout.apply_to_exports", "bool", False, "Demo: apply a close-out sent back to a source system (an "
             "SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it",
             "Work"),
+    Setting("tuning.noise_rate", "float", 0.5, "A detector whose closed cases on one equipment class are this share "
+            "false alarms and duplicates or more gets a tuning proposal (P6.3)", "Work", min=0.05, max=1),
+    Setting("tuning.min_cases", "int", 5, "Closed cases a detector needs on one equipment class before its noise "
+            "rate can raise a tuning proposal", "Work", min=2, max=500),
+    Setting("tuning.max_windows", "int", 12, "Windows of history a tuning proposal replays for each value it tries, "
+            "newest cases first; caps what one proposal reads from the historian", "Work", min=1, max=200),
     Setting("closeout.recheck_days", "int", 30, "Days after a real problem is closed out to ask whoever closed it "
             "whether the fix held; the same failure on the same asset inside this window reopens the case as a repeat",
             "Work"),
@@ -525,7 +531,8 @@ def history(conn, key: str, limit: int = 50) -> list[dict]:
 
 @dataclass
 class Overrides:
-    """Settings for a test, without a database: `with settings.Overrides({"sre.handoff.max_usd": 1}):`."""
+    """Settings for a test, or a value tried without writing it (a tuning proposal's replay, P6.3), read in this process
+    only: `with settings.Overrides({"sre.handoff.max_usd": 1}):`."""
 
     values: dict = field(default_factory=dict)
 

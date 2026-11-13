@@ -175,7 +175,8 @@ def _running(conn, pack, pts, a, b, src) -> tuple[dict[str, np.ndarray], dict[st
 @detectors.register("steps", title="A measurement stepping on a running unit",
                     kind=STATISTICAL, cadence="6h",
                     raises=("upset",), window=True, eval="replay:sre:steps",
-                    needs={"historian points": POINTS}, params=("signals.step_z", "sre.lookback_hours", "sre.step_minutes"))
+                    needs={"historian points": POINTS}, params=("signals.step_z", "sre.lookback_hours", "sre.step_minutes"),
+                    quieter={"signals.step_z": "up"})
 def steps(conn, pack, since, until, src) -> list[dict]:
     """A point stepping to a new level while its unit runs either side, judged against how it moved the day
     before."""
@@ -212,7 +213,7 @@ def _daily(since, until) -> bool:
                     roles=("vibration", "bearing_temperature", "discharge_temperature", "outlet_temperature",
                            "differential_pressure"),
                     needs={"historian points": POINTS}, params=("sre.drift_rise", "signals.drift_z"),
-                    by_class=("sre.drift_rise",))
+                    by_class=("sre.drift_rise",), quieter={"sre.drift_rise": "up", "signals.drift_z": "up"})
 def drifts(conn, pack, since, until, src) -> list[dict]:
     """Vibration, bearing and discharge temperatures, cooler outlets and differential pressures climbing over the
     last month and still climbing."""
