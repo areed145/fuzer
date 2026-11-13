@@ -1,0 +1,7 @@
+# Depth logs (#901): one record per log curve (gamma ray, resistivity, ...) from a LAS file, holding its samples by
+# measured depth. The records are kept as source records, not entities: graph/positions.py places each sample at
+# its true vertical depth by the well's survey, and the well's page draws the curve beside its trajectory. The
+# well_logs dataset is read by its own reader (sources/ingest.py, from well_logs.json), so no dataset is named here.
+source: drilling
+record_type: log_curve
+shape: records

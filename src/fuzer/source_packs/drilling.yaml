@@ -1,7 +1,7 @@
-# Drilling and completions: directional surveys and completion components by measured depth (#61).
+# Drilling and completions: directional surveys, completion components and depth logs by measured depth (#61, #901).
 # A built-in source pack (P1.5): the datasets name built-in mapping files and readers, assembled by
 # fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
 fuzer_source_pack: 1
 system: {name: drilling}
-datasets: [well_surveys, witsml_trajectories, well_completions]
-optional: [well_surveys, witsml_trajectories, well_completions]
+datasets: [well_surveys, witsml_trajectories, well_completions, well_logs]
+optional: [well_surveys, witsml_trajectories, well_completions, well_logs]

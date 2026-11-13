@@ -10,7 +10,8 @@ coordinates.
   range holds it (`found_on`, its station in the link's props), and features and segments go on the map along their
   line's route. A feature whose station no segment holds stays on its line, and the stats count it.
 - min_curvature() / well(): a well's directional survey (CSV or WITSML stations, kept as source records) as its
-  trajectory, and its completion components by measured and true vertical depth.
+  trajectory, its completion components by measured and true vertical depth, and its depth logs (LAS curves, #901)
+  with the true vertical depth of each sample.
 """
 
 import math
@@ -241,10 +242,25 @@ def well(conn, fuzer_id: str) -> dict:
                            "top_tvd_m": tvd_at(trajectory, top) if top is not None else None,
                            "base_tvd_m": tvd_at(trajectory, base) if base is not None else None})
     components.sort(key=lambda c: (c["top_md_m"] if c["top_md_m"] is not None else 1e9, -(c["size_mm"] or 0)))  # outer first
+    logs = _logs(conn, keys, trajectory) if keys else []
     summary = {}
     if trajectory:
         last = trajectory[-1]
         summary = {"td_md_m": last["md_m"], "td_tvd_m": last["tvd_m"], "max_inclination_deg": max(
             s["inclination_deg"] for s in trajectory), "displacement_m": round(math.hypot(last["north_m"], last["east_m"]), 1),
             "max_dls_deg_30m": max(s["dls_deg_30m"] for s in trajectory)}
-    return {"trajectory": trajectory, "components": components, "summary": summary}
+    return {"trajectory": trajectory, "components": components, "logs": logs, "summary": summary}
+
+
+def _logs(conn, keys: set[str], trajectory: list[dict]) -> list[dict]:
+    """The well's depth log curves (LAS, #901): each curve's samples by measured depth, with the true vertical depth
+    the survey gives each one (None below the last station, or with no survey)."""
+    out = []
+    for r in conn.execute("select source_key, payload from source_record where record_type = 'log_curve' "
+                          "and payload->>'well' = any(%s) order by source_key", (list(keys),)):
+        p = r["payload"]
+        mds = p.get("md_m") or []
+        out.append({"key": r["source_key"], "curve": p.get("curve"), "unit": p.get("unit"),
+                    "description": p.get("description"), "file": p.get("file"), "md_m": mds,
+                    "values": p.get("values") or [], "tvd_m": [tvd_at(trajectory, md) for md in mds]})
+    return out

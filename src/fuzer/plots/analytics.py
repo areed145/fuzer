@@ -291,9 +291,13 @@ def turnaround_progress(schedule: dict | None, revision: str | None, notice: str
     )
 
 
+LOG_TRACKS = 2  # depth log curves drawn beside the section (#901)
+
+
 def well_trajectory(depths: dict, label: str, notice: str) -> Figure:
     """A well's vertical section (#61): true vertical depth against distance out from the wellhead along the hole,
-    from its directional survey, with each completion component drawn over its measured depth range."""
+    from its directional survey, with each completion component drawn over its measured depth range, and its first
+    depth log curves (LAS, #901) in tracks beside it on the same depth axis."""
     traj, comps, s = depths["trajectory"], depths["components"], depths["summary"]
     out = [round((t["north_m"] ** 2 + t["east_m"] ** 2) ** 0.5, 1) for t in traj]
     data = []
@@ -323,13 +327,26 @@ def well_trajectory(depths: dict, label: str, notice: str) -> Figure:
             data.append({"type": "scatter", "mode": "lines+markers", "name": "Completion components", "x": xs, "y": ys,
                          "text": names, "line": {"width": 6}, "marker": {"size": 5},
                          "hovertemplate": "%{text}: TVD %{y:,.0f} m<extra></extra>"})
+    logs = [lg for lg in depths.get("logs") or [] if any(t is not None for t in lg["tvd_m"])][:LOG_TRACKS]
+    tracks = {}
+    for n, lg in enumerate(logs, 2):  # a track per depth log curve, beside the section, sharing its depth axis
+        pts = [(v, t) for v, t in zip(lg["values"], lg["tvd_m"]) if t is not None and v is not None]
+        data.append({"type": "scatter", "mode": "lines", "name": f"{lg['curve']} ({lg['unit']})", "xaxis": f"x{n}",
+                     "x": [v for v, _ in pts], "y": [t for _, t in pts], "line": {"width": 1},
+                     "hovertemplate": f"{lg['curve']} %{{x:,.1f}} {lg['unit']} at TVD %{{y:,.0f}} m<extra></extra>"})
+        width = 0.4 / len(logs)
+        start = 0.6 + (n - 2) * width
+        tracks[f"xaxis{n}"] = {"domain": [round(start + 0.03, 3), round(start + width, 3)], "anchor": "y",
+                               "title": {"text": f"{lg['curve']} ({lg['unit']})"},
+                               **({"type": "log"} if lg["unit"].lower() in ("ohmm", "ohm.m") else {})}
     headline = (f"Drilled to {s['td_md_m']:,.0f} m along the hole, {s['td_tvd_m']:,.0f} m true vertical depth, "
                 f"{s['displacement_m']:,.0f} m out from the wellhead." if s else "No directional survey is loaded for this well.")
     rows = [[str(c["description"] or c["label"]), _number(c["top_md_m"]), _number(c["base_md_m"]), _number(c["top_tvd_m"]),
              _number(c["base_tvd_m"]), _number(c["size_mm"])] for c in comps]
     return Figure(
         kind="well-trajectory", title=f"{label}: trajectory and completion", data=data,
-        layout=layout("", height=HEIGHT + 60, xaxis={"title": {"text": "Distance out from the wellhead (m)"}},
+        layout=layout("", height=HEIGHT + 60, xaxis={"title": {"text": "Distance out from the wellhead (m)"},
+                                                     **({"domain": [0, 0.56]} if tracks else {})}, **tracks,
                       yaxis={"title": {"text": "True vertical depth (m)"}, "autorange": "reversed"},
                       margin={"t": 24, "r": 16, "b": 60, "l": 64}, legend={"orientation": "h", "x": 0, "y": 1.12, "font": {"size": 11}}),
         summary={
@@ -339,7 +356,9 @@ def well_trajectory(depths: dict, label: str, notice: str) -> Figure:
                       {"label": "True vertical depth", "value": _number(s["td_tvd_m"]), "unit": "m"},
                       {"label": "Maximum inclination", "value": _number(s["max_inclination_deg"]), "unit": "°"},
                       {"label": "Worst dogleg", "value": _number(s["max_dls_deg_30m"]), "unit": "°/30 m"}] if s else [],
-            "notes": ["Depths are below the first survey station (the tie-in), not below sea level."] if traj else [],
+            "notes": (["Depths are below the first survey station (the tie-in), not below sea level."] if traj else [])
+            + [f"{lg['curve']} ({lg['description'] or lg['unit']}) from {lg['file']}, {len(lg['md_m'])} samples by "
+               "measured depth, placed at true vertical depth by the survey." for lg in logs],
             "warnings": [f"{c['description'] or c['label']} is below the last survey station: its true vertical depth "
                          "is not known." for c in comps if c["base_md_m"] is not None and c["base_tvd_m"] is None],
             "tables": [{"title": f"Completion components · {len(comps)}", "note": "Outermost first at each top depth.",

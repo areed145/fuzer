@@ -109,6 +109,24 @@ def _witsml(path: Path):
         yield "drilling", "survey_station", key, payload
 
 
+def _well_logs(path: Path):
+    """LAS depth logs (#901): well_logs.json lists each log file ({well?, file}); every curve but depth becomes one
+    log_curve record holding its depths and values, so a log doesn't fill the store with a row per sample."""
+    from . import las
+
+    for item in json.loads(path.read_text()):
+        file = (path.parent / item["file"]).resolve()
+        log = las.read(file)
+        well = (item.get("well") or log["well"].get("WELL") or "").strip()
+        for c in log["curves"][1:]:
+            rows = [r for r in log["rows"] if r[c["mnemonic"]] is not None]
+            yield "drilling", "log_curve", f"{Path(item['file']).stem}-{c['mnemonic']}", {
+                "well": well, "curve": c["mnemonic"], "unit": c["unit"], "description": c["description"],
+                "md_m": [r["md_m"] for r in rows], "values": [r[c["mnemonic"]] for r in rows],
+                "file": item["file"], "format": f"las {log['version']}",
+                "sha256": hashlib.sha256(file.read_bytes()).hexdigest()}
+
+
 class Reader(NamedTuple):
     """A nested export read by its own loader: its file, the field naming files it references (fingerprints
     cover those too), the loader, and the source and record types its records land as."""
@@ -126,6 +144,7 @@ READERS = {
     "documents": Reader("documents.json", "file", _documents, "edms", ("document", "section")),
     "teams_threads": Reader("teams_threads.json", None, _teams, "teams", ("thread",)),
     "witsml_trajectories": Reader("witsml_trajectories.xml", None, _witsml, "drilling", ("survey_station",)),
+    "well_logs": Reader("well_logs.json", "file", _well_logs, "drilling", ("log_curve",)),
 }
 FILES = READERS  # the name before #225
 

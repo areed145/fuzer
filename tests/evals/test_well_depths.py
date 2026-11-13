@@ -52,7 +52,7 @@ def test_the_well_figure_draws_the_section_and_lists_the_completion(kestrel_db):
     fig = analytics.live(conn, pack, "well-trajectory", well, well=well)
     s = fig["summary"]
     assert s["headline"].startswith("Drilled to 4,600 m along the hole")
-    assert [t["name"] for t in fig["spec"]["data"]] == ["Hole (survey)", "Completion components"]
+    assert [t["name"] for t in fig["spec"]["data"]][:2] == ["Hole (survey)", "Completion components"]
     [table] = s["tables"]
     assert table["rows"][0][:3] == ["surface casing", "0", "610"] and len(table["rows"]) == 12
     assert s["warnings"] == []
@@ -72,3 +72,52 @@ def test_a_witsml_trajectory_reads_in_metres_and_degrees_whatever_its_units(tmp_
                                       '<md uom="furlong">1</md></trajectoryStation></trajectory></trajectorys>')
     with pytest.raises(ValueError, match="furlong"):
         list(witsml.read(tmp_path / "bad.xml"))
+
+
+def test_a_wells_depth_log_sits_beside_its_trajectory_by_true_vertical_depth(kestrel_db):
+    conn = kestrel_db
+    w = positions.well(conn, _id(conn, "KR 12-03H"))
+    gr = next(lg for lg in w["logs"] if lg["curve"] == "GR")
+    assert gr["unit"] == "GAPI" and gr["md_m"][0] == 600.0 and gr["md_m"][-1] == 4600.0 and len(gr["values"]) == 2001
+    rt = next(lg for lg in w["logs"] if lg["curve"] == "RT")
+    assert rt["md_m"][0] == 606.0  # the resistivity tool's first readings were null and are left out
+    # in the lateral, the hole stays in the target sand: low gamma ray at landing depth
+    land = w["summary"]["td_tvd_m"]
+    lateral = [v for v, t in zip(gr["values"], gr["tvd_m"]) if t is not None and abs(t - land) < 3]
+    assert lateral and sum(lateral) / len(lateral) < 50
+    assert positions.well(conn, _id(conn, "KR 12-04H"))["logs"] == []  # no log loaded for its twin
+
+
+def test_the_well_figure_draws_the_gamma_ray_track_beside_the_section(kestrel_db):
+    from fuzer.core import pack as packs
+    from fuzer.plots import analytics
+
+    conn = kestrel_db
+    well = _id(conn, "KR 12-03H")
+    fig = analytics.live(conn, packs.current_pack(conn), "well-trajectory", well, well=well)
+    names = [t["name"] for t in fig["spec"]["data"]]
+    assert names[:2] == ["Hole (survey)", "Completion components"] and "GR (GAPI)" in names
+    lay = fig["spec"]["layout"]
+    assert lay["xaxis"]["domain"] == [0, 0.56] and lay["xaxis3"]["type"] == "log"  # resistivity on a log scale
+    assert any("KR12-03H_lwd.las" in n for n in fig["summary"]["notes"])
+
+
+def test_a_witsml_2_trajectory_reads_as_the_same_stations_as_its_1_4_1_twin(tmp_path):
+    from fuzer.resources import BUNDLES
+    from fuzer.sources import witsml
+
+    old = [p for w, _, p in witsml.read(BUNDLES / "kestrel" / "exports" / "witsml_trajectories.xml")
+           if w == "KR 12-04H"]
+    v2 = "http://www.energistics.org/energyml/data/witsmlv2"
+    stations = "".join(
+        f'<TrajectoryStation uid="s{i}"><Md uom="m" datum="KB">{p["md_m"]}</Md>'
+        f'<TypeTrajStation>{p["tool"] or "MWD"}</TypeTrajStation><Incl uom="dega">{p["inclination_deg"]}</Incl>'
+        f'<Azi uom="dega">{p["azimuth_deg"]}</Azi></TrajectoryStation>' for i, p in enumerate(old))
+    (tmp_path / "t2.xml").write_text(
+        f'<Trajectory xmlns="{v2}" xmlns:eml="http://www.energistics.org/energyml/data/commonv2" uuid="u-1" '
+        f'schemaVersion="2.0"><eml:Citation><eml:Title>survey</eml:Title></eml:Citation>'
+        f'<Wellbore><eml:Title>KR 12-04H</eml:Title></Wellbore>{stations}</Trajectory>')
+    new = list(witsml.read(tmp_path / "t2.xml"))
+    assert {w for w, _, _ in new} == {"KR 12-04H"} and new[0][2]["format"] == "witsml 2.0"
+    assert [(p["md_m"], p["inclination_deg"], p["azimuth_deg"]) for _, _, p in new] == \
+        [(p["md_m"], p["inclination_deg"], p["azimuth_deg"]) for p in old]
