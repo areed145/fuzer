@@ -25,6 +25,7 @@ bundle, and the schedules' timezone from the first project's (default UTC); the 
 settings llm.model and llm.effort, the day close the setting daily_report.close_cron (#131).
 """
 
+import hashlib
 import json
 import os
 import time
@@ -477,6 +478,18 @@ def report_calendar():
     report_calendar_op()
 
 
+@dg.op(description="Retention (R.5d): ended sessions and access events past their settings.")
+def retention_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from ..core import retention as kept
+    with fuzer.connect() as conn:
+        context.log.info(f"retention: {kept.run(conn)}")
+
+
+@dg.job(description="Retention: delete ended sessions and access events past audit.retention_days.")
+def retention():
+    retention_op()
+
+
 @dg.op(description="Agentic SRE (#96): detect upsets in the process data since the last run.")
 def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSettings) -> None:
     from ..workflow import engine
@@ -707,6 +720,7 @@ schedules = [
     together(closeout_sweep, "*/5 * * * *", RUNNING),
     per_project(detector_tuning, "30 4 * * *", RUNNING),
     per_project(report_calendar, "0 5 * * *", RUNNING),
+    per_project(retention, "15 3 * * *", RUNNING),
     per_project(sre_scan, "0 */6 * * *", RUNNING),
     per_project(studies_job, "*/5 * * * *", RUNNING, _studies_due),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
@@ -724,6 +738,11 @@ def due(cron: str, since: float, now: float, tz: str = TZ) -> bool:
     for t in cron_string_iterator(since, cron, tz):
         return t.timestamp() <= now
     return False
+
+
+def _names(names: list[str], most: int = 8) -> str:
+    """A few names for a run tag, with how many more there are."""
+    return ",".join(names[:most]) + (f" and {len(names) - most} more" if len(names) > most else "")
 
 
 @dg.sensor(job=refresh_all, minimum_interval_seconds=60, default_status=dg.DefaultSensorStatus.RUNNING,
@@ -774,10 +793,13 @@ def new_exports(context: dg.SensorEvaluationContext, fuzer: Fuzer):
         cursor[project] = current
         changed = sorted(name for name, sig in current.items() if seen.get(project, {}).get(name) != sig)
         if changed:
+            # Dagster keeps the run key and each tag in an indexed column (idx_run_tags), which refuses a row over
+            # about 2.7 kB: the key is a digest of the changed signatures, and the tag names at most a few datasets.
+            marks = json.dumps({"project": project, **{n: current[n] for n in changed}}, sort_keys=True)
             requests.append(dg.RunRequest(
-                run_key=json.dumps({"project": project, **{n: current[n] for n in changed}}, sort_keys=True),
+                run_key=f"{project}:{hashlib.sha256(marks.encode()).hexdigest()}",
                 asset_selection=[dg.AssetKey(n) for n in changed] + [register.key],
-                tags={"changed_exports": ",".join(changed), **project_tags(project)},
+                tags={"changed_exports": _names(changed), **project_tags(project)},
             ))
     if not requests:
         return dg.SkipReason(f"no changed exports in {', '.join(folders)}")
@@ -901,7 +923,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes, unmapped_site_codes,
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, detector_tuning, report_calendar, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, detector_tuning, report_calendar, retention, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure, alert_on_tick_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

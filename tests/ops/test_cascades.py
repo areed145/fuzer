@@ -32,7 +32,8 @@ def _by_first(conn, unit, detector):
 
 def test_related_upsets_are_scored_by_time_links_and_history(conn):
     """The lift gas excursion on 67-FT-3001 at 11:40 and the step on the wells it feeds at 12:00 arrive as two upsets
-    and two cases: the step is its likely knock-on, a pump on another system is coincident."""
+    and two cases: the step is its likely knock-on; an export pump stopping two hours on is connected only far
+    down the oil path, so it ranks well below the lift gas excursion."""
     gas = _by_first(conn, "67-FT-3001", "excursions")
     wells = _by_first(conn, "OK-J12-01", "steps")
     out = cascades.related(conn, gas)
@@ -41,7 +42,10 @@ def test_related_upsets_are_scored_by_time_links_and_history(conn):
     assert step["work_item_id"]
     assert out["related"] == sorted(out["related"], key=lambda r: -r["score"])
     assert all(r["role"] in cascades.ROLE_WORDS for r in out["related"])
-    assert any(r["role"] == "coincident" and r["hops"] is None for r in cascades.related(conn, wells, 24)["related"])
+    from_wells = cascades.related(conn, wells, 24)["related"]
+    pump = next(r for r in from_wells if r["signature"] == "a stop on 10-P-1001C")
+    lift_gas = next(r for r in from_wells if r["id"] == gas)
+    assert pump["hops"] >= 6 and pump["score"] < lift_gas["score"] / 2
     back = cascades.related(conn, wells)
     assert next(r for r in back["related"] if r["id"] == gas)["role"] == "likely_cause"
 

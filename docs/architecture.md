@@ -219,6 +219,7 @@ flowchart TD
 | `closeout_sweep` | `*/5 * * * *` | Close-out: ask whether a fix held when its re-check is due; reopen a case whose problem returned. |
 | `detector_tuning` | `30 4 * * *` | Tuning: a quieter value proposed, replayed on its closed cases, for a detector whose noise passed its threshold. |
 | `report_calendar` | `0 5 * * *` | Obligations: each regulatory report drafted ahead of its due date, and work for one coming due. |
+| `retention` | `15 3 * * *` | Retention: delete ended sessions and access events past audit.retention_days. |
 | `sre_scan` | `0 */6 * * *` | SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off. |
 | `studies_job` | `*/5 * * * *` | Big correlation and clustering studies, queued from the API or an agent. |
 | `day_close` | `0 7 * * *` | Daily operations report: facts from the day's records, a new version when they change, the ops lead's review in the workflow (the reporter agent drafts it). |
@@ -603,6 +604,7 @@ Database, settings, projects and packs, Claude calls, tags and units: used by ev
     - `access_document_group`
     - `access_event`
     - `access_group_grant`
+    - `access_login`
     - `access_membership`
     - `access_project_grant`
     - `access_role`
@@ -640,5 +642,5 @@ Database, settings, projects and packs, Claude calls, tags and units: used by ev
     - `schema_version`
     - `setting`
     - `setting_history`
-- **Settings:** `access.session_hours`, `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
+- **Settings:** `access.session_hours`, `assistant.retention_days`, `audit.retention_days`, `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
 - **Tests:** [`tests/core`](https://github.com/areed145/fuzer/tree/main/tests/core)

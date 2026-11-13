@@ -78,6 +78,10 @@ def test_sensor_runs_only_changed_exports(fuzer):
     keys = {k.path[-1] for k in first.run_requests[0].asset_selection}
     present = {n for n in jobs.ingest.export_names() if jobs.ingest.dataset(Path(fuzer.data_dir), n)}
     assert keys == present | {"register"}  # first look: everything there is new
+    # Dagster indexes the run key and each tag (idx_run_tags) and refuses a row over about 2.7 kB, which a first look
+    # at a full bundle's signatures went past on the deployed site.
+    req = first.run_requests[0]
+    assert all(len(v) < 500 for v in [req.run_key, *req.tags.values()])
 
     ctx = dg.build_sensor_context(cursor=first.cursor, resources={"fuzer": fuzer})
     assert isinstance(jobs.new_exports(ctx), dg.SkipReason)  # nothing changed

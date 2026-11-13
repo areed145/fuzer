@@ -494,6 +494,9 @@ def changes(conn, subjects: list[str] | None = None, *, system: bool = False, op
                max(case when g.field = 'owner' then g.value #>> '{}' end) as owner,
                (select coalesce(array_agg(e.dst order by e.dst), '{}') from edge e
                 where e.src = c.fuzer_id and e.rel = 'concerns' and e.valid_to is null) as about,
+               (select coalesce(array_agg(coalesce(al.label, e.dst) order by e.dst), '{}') from edge e
+                left join entity_label al on al.fuzer_id = e.dst
+                where e.src = c.fuzer_id and e.rel = 'concerns' and e.valid_to is null) as about_labels,
                (select coalesce(array_agg(coalesce(wl.label, e.dst) order by e.dst), '{}') from edge e
                 left join entity_label wl on wl.fuzer_id = e.dst
                 where e.src = c.fuzer_id and e.rel = 'carried_out_by' and e.valid_to is null) as work_orders
@@ -505,7 +508,7 @@ def changes(conn, subjects: list[str] | None = None, *, system: bool = False, op
                and e.rel = 'concerns' and e.valid_to is null and e.dst = any(%(near)s)))
         group by c.fuzer_id, cl.label order by cl.label
         """, {"near": near}).fetchall()
-    return [{**dict(r), "about": list(r["about"]), "about_labels": _names(conn, list(r["about"])),
+    return [{**dict(r), "about": list(r["about"]), "about_labels": list(r["about_labels"]),
              "work_orders": list(r["work_orders"])} for r in rows
             if not open_only or (r["state"] or "").lower() not in CLOSED_CHANGE]
 

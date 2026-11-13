@@ -130,6 +130,13 @@ LOOSE = {
            ("PT", 3003, "ST2 Lift Gas Header Pressure", "barg")],
     "50": [("FT", 3001, "NWP Gas Export Meter", "kSm3/d"), ("XV", 3100, "NWP EGP Export ESDV", "%")],
 }
+# The lines into each export meter (the flow network's next node after the plant), by the sheet the meter is on:
+# the line list carries them, so the drawn piping reaches the meter Energy Components allocates through.
+EXPORT_METER_RUNS = {
+    "10-1": [(f"10-P-1001{t}", "10-FT-3001", 12) for t in "ABC"],
+    "20-1": [(f"20-E-2350{t}", "20-FT-3001", 16) for t in "ABC"],
+    "50-1": [("50-V-2001", "50-FT-3001", 10)],
+}
 JACKET_ITEMS = [("FT", 3001, "Gas Lift Supply Meter", "kSm3/d"), ("PT", 3002, "Production Header Pressure", "barg"),
                 ("XV", 3100, "Jacket ESDV", "%")]
 # SAP ABC indicator by function: A safety / production critical, B production impact, C the rest.
@@ -1128,7 +1135,10 @@ def generate(out, seed: int = 11) -> dict:
     offpage: dict[str, list[dict]] = {}
 
     runs = [("10-1", "10-V-2004", "10-2", "10-P-1001A", 16), ("20-1", "20-V-2001", "20-A", "20-V-2101A", 12),
-            ("20-1", "20-V-2001", "20-B", "20-V-2101B", 12), ("20-1", "20-V-2001", "20-C", "20-V-2101C", 12)]
+            ("20-1", "20-V-2001", "20-B", "20-V-2101B", 12), ("20-1", "20-V-2001", "20-C", "20-V-2101C", 12),
+            # the export pumps run in parallel: the surge drum feeds each of them (added last, so earlier lines keep
+            # their numbers)
+            ("10-1", "10-V-2004", "10-2", "10-P-1001B", 16), ("10-1", "10-V-2004", "10-2", "10-P-1001C", 16)]
     for k, (a_key, a, b_key, b, size) in enumerate(runs):
         line = f'{size}"-P-{a_key[:2]}{950 + k}-A1A'
         offpage.setdefault(a_key, []).append({"tag": a, "direction": "to", "sheet": sheet_no[b_key], "other": b,
@@ -1147,7 +1157,13 @@ def generate(out, seed: int = 11) -> dict:
         eq = [t.canonical for t in tags if t.func in ("P", "K", "E", "V")]  # a turbine drives by shaft, not pipe
         conns = [{"from": a, "to": b, "line": f'{rng.choice([6, 8, 10])}"-P-{area}{100 + i * 10 + k}-A1'}
                  for k, (a, b) in enumerate(itertools.pairwise(eq))]
+        # members of one typical (10-P-1001A/B/C) run side by side, not into each other (the line numbers drawn
+        # for them are still picked, so every later sheet keeps its own)
+        conns = [c for c in conns if c["from"].rstrip("ABC") != c["to"].rstrip("ABC")]
         line_list += [{"line": c["line"], "from_tag": c["from"], "to_tag": c["to"], "sheet": sheet["sheet"]} for c in conns]
+        # each export meter sits on the header its area's export leaves by, at the foot of the sheet that holds it
+        line_list += [{"line": f'{size}"-P-{area}{3001 + n}-A1', "from_tag": a, "to_tag": b, "sheet": sheet["sheet"]}
+                      for n, (a, b, size) in enumerate(EXPORT_METER_RUNS.get(key, []))]
         if fmt == "smart":
             sheet["tags"] = [t.canonical for t in tags]
             sheet["connections"] = conns

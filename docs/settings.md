@@ -167,6 +167,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | Setting | Type | Default | Range | What it is |
 |---|---|---|---|---|
 | `access.session_hours` | int | `8` | 1 to 24 | Absolute signed-in session lifetime in hours. |
+| `audit.retention_days` | int | `0` | ≥ 0 | Days access events (sign-ins, permission changes, audit exports) are kept for the audit record; the work's own history stays with the work (0: keep every one). |
 | `access.api_concurrency` | int | `8` | 1 to 32 | Maximum simultaneous authenticated API requests per server process (one more waits a few seconds for a place); bounds memory pressure on the single-instance demo, not a commercial quota. |
 
 ## Detection

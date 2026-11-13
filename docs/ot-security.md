@@ -72,6 +72,25 @@ deployment-wide: they join the record of each project the account can open, and 
 the database's first project. Every export is itself an access event. `tests/core/test_audit.py` fails when a new
 actor column joins the schema without a time column or an exclusion.
 
+Owners download the same export from Settings, Users (Audit record): a project and a window, CSV or JSON, with the
+list of which records keep every change, which keep only the latest, and which are left out and why.
+
+## Retention
+
+How long Fuzer keeps what it records about people is a setting each, with these defaults (`core/retention.py`):
+
+| What | Setting | Default |
+|---|---|---|
+| Sign-in sessions | `access.session_hours` | A session ends 8 h after sign-in; ended sessions and unfinished sign-ins are deleted daily |
+| Access events (sign-ins, permission changes, audit exports) | `audit.retention_days` | 0: every one kept |
+| Assistant conversations, with their answers and images | `assistant.retention_days` | 0: kept until their owner deletes them |
+
+The daily `retention` job (03:15) applies the first two and records what it deleted as an access event; the assistant
+purges its own conversations past their setting, at most hourly while it runs. The audit record's
+other sources are the work's own history (case events, write-backs, settings, source and model changes); they stay as
+long as the work they belong to, and the audit retention never deletes them. Set `audit.retention_days` to the
+period the operator's records policy names (2555 for seven years, say) before a pilot.
+
 ## Area grants (D7)
 
 An owner can narrow an account, in one project, to areas of the register (an area or facility):

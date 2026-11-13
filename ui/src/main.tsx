@@ -30,6 +30,7 @@ import { TeamsPage } from "./pages/workflows/Teams";
 import { Identity } from "./Identity";
 import { AreaNavigation, BackButton, Breadcrumbs, Sidebar } from "./nav";
 import { startAppHistory } from "./appHistory";
+import { DrawingFullscreen } from "./DrawingFullscreen";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
 import { InvestigationPage } from "./pages/Investigation";
@@ -223,6 +224,9 @@ function App() {
           <RouteFocus routeKey={routeKey} previousRoute={previousRoute} />
         </Suspense>
       </main>
+      {query.get("drawing") && (
+        <DrawingFullscreen id={query.get("drawing")!} ring={(query.get("ring") ?? "").split(",").filter(Boolean)} />
+      )}
     </div>
   );
 }
