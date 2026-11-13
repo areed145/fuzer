@@ -1,6 +1,6 @@
 import { projectUrl } from "../authState";
 import "../styles/entity.css";
-import { Bar, Button, ButtonLink, PageHeader, Table, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
+import { Bar, Button, ButtonLink, PageHeader, Table, Tabs, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
 import { Suspense, lazy, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
@@ -62,10 +62,31 @@ const REL_LABELS: Record<string, [string, string]> = {
   supersedes: ["Supersedes", "Superseded by"],
   uses_part: ["Spare parts", "Used by"],
   includes: ["Includes", "Part of incident"],
+  drives: ["Drives", "Driven by"],
+  pipes_to: ["Piped to", "Piped from"],
+  lift_gas_to: ["Lift gas to", "Lift gas from"],
 };
-const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
+/** A relation the list above doesn't name reads as words, never as its key: "tested_by" in is "Tested by (from)". */
+const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1]
+  ?? `${e.rel.charAt(0).toUpperCase()}${e.rel.slice(1).replaceAll("_", " ")} (${e.direction === "out" ? "to" : "from"})`;
 
-export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
+type EntityTab = "overview" | "trends" | "connections" | "documents" | "record" | "graph";
+const TAB_LABELS: Record<EntityTab, string> = {
+  overview: "Overview", trends: "Measurements", connections: "Connections", documents: "Documents", record: "Record",
+  graph: "Graph",
+};
+const NO_TRENDS = ["document", "document_section", "log_entry"];
+const MAINTAINED = ["tag", "equipment", "equipment_model", "equipment_class"];
+
+/** The views this kind of record has, in order. Each view loads only its own data. */
+function entityTabs(e: EntityDetail): EntityTab[] {
+  const trends = !NO_TRENDS.includes(e.kind) && e.kind !== "timeseries";
+  const documents = [...MAINTAINED, "area"].includes(e.kind);
+  return ["overview", ...(trends ? ["trends" as const] : []), "connections",
+    ...(documents ? ["documents" as const] : []), "record", "graph"];
+}
+
+export function Entity({ id, tab }: { id: string; tab: string }) {
   const [asOf, setAsOf] = useState("");
   const ent = useAsync(() => api.entity(id, asOf || undefined), [id, asOf]);
 
@@ -84,19 +105,23 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
     );
   }
 
+  const tabs = entityTabs(e);
+  const view: EntityTab = tabs.includes(tab as EntityTab) ? (tab as EntityTab) : "overview";
   const hasFlow = e.edges.some((x) => x.rel === "flows_to");
+  const fid = e.fuzer_id;
+  // Assets people work on open on their work and history; any other record opens on its values.
+  const operated = ["tag", "equipment", "well", "facility", "area"].includes(e.kind);
+  const description = e.golden.description ? fmt(e.golden.description.value) : undefined;
 
   return (
     <article className="entity">
       <header className="entity-head">
         <div>
-          <PageHeader className="mono">{e.label ?? e.fuzer_id}</PageHeader>
+          <PageHeader className="mono" subtitle={description}>{e.label ?? fid}</PageHeader>
           <div className="row">
             <KindBadge kind={e.kind} />
-            <span className="muted mono small">{e.fuzer_id}</span>
-            <WatchButton target={e.fuzer_id} label="asset" />
-            <a className="small" href={href("/ask", { subject: e.fuzer_id })}>Ask about this asset</a>
-            {e.golden.description && <span>{fmt(e.golden.description.value)}</span>}
+            <WatchButton target={fid} label="asset" />
+            <a className="small" href={href("/ask", { subject: fid })}>Ask about this asset</a>
           </div>
         </div>
         <label className="asof">
@@ -110,32 +135,22 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
         </label>
       </header>
 
-      <div className="tabs page-tabs">
-        <a className={tab === "details" ? "on" : ""} href={href(`/e/${encodeURIComponent(id)}`)}>
-          Details
-        </a>
-        <a className={tab === "graph" ? "on" : ""} href={href(`/e/${encodeURIComponent(id)}`, { tab: "graph" })}>
-          Graph
-        </a>
-      </div>
+      <Tabs className="page-tabs" label="Views of this record" items={tabs.map((t) => ({
+        key: t, label: TAB_LABELS[t], current: t === view,
+        href: href(`/e/${encodeURIComponent(id)}`, t === "overview" ? undefined : { tab: t }),
+      }))} />
 
-      {tab === "graph" ? (
+      {view === "graph" && (
         <Suspense fallback={<Status loading />}>
-          <EntityGraph id={e.fuzer_id} asOf={asOf || undefined} />
+          <EntityGraph id={fid} asOf={asOf || undefined} />
         </Suspense>
-      ) : (
+      )}
+
+      {view === "overview" && (
         <>
-          <div className="grid">
-            <Fields e={e} />
-            <Records e={e} />
-          </div>
-          {["tag", "equipment", "well"].includes(e.kind) && <AssetContextCard id={e.fuzer_id} />}
-          {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
-          <Suspense fallback={null}>
-            <EntityMap id={e.fuzer_id} />
-          </Suspense>
-          {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={e.fuzer_id} />}
-          {e.kind !== "document" && <LinkedDrawings id={e.fuzer_id} />}
+          {operated && <WorkHere id={fid} area={e.kind === "area"} />}
+          {e.kind === "incident" && <IncidentDetail id={fid} />}
+          {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
           {e.kind === "document" && e.golden.doc_type && (
             <UICard  as="section">
               <div className="row spread">
@@ -146,16 +161,16 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
                     {fmt(e.golden.status?.value)}
                   </span>
                 </h2>
-                <ButtonLink href={projectUrl(`/documents/${encodeURIComponent(e.fuzer_id)}/file`)} target="_blank"
+                <ButtonLink href={projectUrl(`/documents/${encodeURIComponent(fid)}/file`)} target="_blank"
                    rel="noreferrer">Open document</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
-                <p className="error small">This revision is superseded; see "Superseded by" below.</p>
+                <p className="error small">This revision is superseded; see "Superseded by" under Connections.</p>
               )}
               <iframe
                 className="doc-file"
                 title={fmt(e.golden.title?.value)}
-                src={projectUrl(`/documents/${encodeURIComponent(e.fuzer_id)}/file`)}
+                src={projectUrl(`/documents/${encodeURIComponent(fid)}/file`)}
               />
             </UICard>
           )}
@@ -168,43 +183,64 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
               <p className="section-text">{fmt(e.golden.text?.value)}</p>
             </UICard>
           )}
-          {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
-            <MaintenanceCard id={e.fuzer_id} />
+          {e.kind === "timeseries" && <TrendCard id={fid} />}
+          {e.kind !== "timeseries" && (e.edge_counts["out:has_timeseries"] ?? 0) > 0 && <TrendCard id={fid} direct />}
+          {MAINTAINED.includes(e.kind) && (
+            <><IncidentsCard id={fid} />
+            <Related about={{ subject: fid }} incidents={false} /></>
           )}
-          {e.kind === "incident" && <IncidentDetail id={e.fuzer_id} />}
-          {e.kind === "timeseries" && <TrendCard id={e.fuzer_id} />}
-          {e.kind !== "timeseries" && (e.edge_counts["out:has_timeseries"] ?? 0) > 0 && (
-            <TrendCard id={e.fuzer_id} direct />
-          )}
-          {!["timeseries", "document", "document_section", "log_entry"].includes(e.kind) && <MeasurementsCard id={e.fuzer_id} />}
-          {["tag", "equipment", "equipment_model", "equipment_class", "area"].includes(e.kind) && (
-            <KnowledgeCard id={e.fuzer_id} />
-          )}
-          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={e.fuzer_id} />}
-          {["pipeline", "pipeline_segment"].includes(e.kind) && <AlongCard id={e.fuzer_id} />}
-          {e.kind === "well" && <DepthCard id={e.fuzer_id} />}
-          {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
-            <><IncidentsCard id={e.fuzer_id} />
-            <Related about={{ subject: e.fuzer_id }} incidents={false} /></>
-          )}
-          {["tag", "equipment", "equipment_model", "equipment_class", "well", "facility"].includes(e.kind) && (
-            <DowntimeCard id={e.fuzer_id} />
-          )}
-          {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={e.fuzer_id} />}
-          {["tag", "equipment", "well", "facility", "area"].includes(e.kind) && (
-            <WorkHere id={e.fuzer_id} area={e.kind === "area"} />
-          )}
-          {e.kind !== "event" && <Events id={e.fuzer_id} />}
-          {!["timeseries", "document", "document_section", "log_entry"].includes(e.kind) && <MemoryCard id={e.fuzer_id} />}
+          {MAINTAINED.includes(e.kind) && <MaintenanceCard id={fid} />}
+          {[...MAINTAINED, "well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
+          {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={fid} />}
+          {e.kind !== "event" && <Events id={fid} />}
+          {!operated && <div className="grid">
+            <Fields e={e} />
+            <Records e={e} />
+          </div>}
+        </>
+      )}
+
+      {view === "trends" && (
+        <>
+          <MeasurementsCard id={fid} />
+          {["pipeline", "pipeline_segment"].includes(e.kind) && <AlongCard id={fid} />}
+          {e.kind === "well" && <DepthCard id={fid} />}
+        </>
+      )}
+
+      {view === "connections" && (
+        <>
           <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
-          <HistoryCard id={e.fuzer_id} />
+          {hasFlow && <Trace id={fid} asOf={asOf || undefined} />}
+          <Suspense fallback={null}>
+            <EntityMap id={fid} />
+          </Suspense>
+          {e.kind !== "document" && <LinkedDrawings id={fid} />}
+        </>
+      )}
+
+      {view === "documents" && (
+        <>
+          <KnowledgeCard id={fid} />
+          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={fid} />}
+        </>
+      )}
+
+      {view === "record" && (
+        <>
+          {operated && <div className="grid">
+            <Fields e={e} />
+            <Records e={e} />
+          </div>}
+          {["tag", "equipment", "well"].includes(e.kind) && <AssetContextCard id={fid} />}
+          {!NO_TRENDS.includes(e.kind) && e.kind !== "timeseries" && <MemoryCard id={fid} />}
+          <HistoryCard id={fid} />
         </>
       )}
     </article>
   );
 }
 
-/** The P&ID sheets that show this entity, with its marks ringed; a picker when there are several. */
 function LinkedDrawings({ id }: { id: string }) {
   const d = useAsync(() => api.entityDrawings(id), [id]);
   const [pick, setPick] = useState<string>();
@@ -307,6 +343,7 @@ function Records({ e }: { e: EntityDetail }) {
   return (
     <UICard  as="section">
       <h2>Source records</h2>
+      <div className="mono small">Register ID {e.fuzer_id}</div>
       {!e.records.length && <p>No direct source records are linked. This may be a derived record; inspect Values and Links for supporting provenance.</p>}
       <Table variant="list">
         <tbody>
@@ -402,9 +439,15 @@ function LinkList({ items }: { items: Edge[] }) {
   );
 }
 
+const TRACE_DEPTH = 2;  // what feeds it and what feeds those; the rest of the network on request
+
 function Trace({ id, asOf }: { id: string; asOf?: string }) {
   const [direction, setDirection] = useState<"up" | "down">("up");
   const rows = useAsync(() => api.trace(id, direction, asOf), [id, direction, asOf]);
+  const [all, setAll] = useState(false);
+  const near = rows.data?.filter((r) => r.depth <= TRACE_DEPTH) ?? [];
+  const shown = all ? rows.data ?? [] : near;
+  const more = (rows.data?.length ?? 0) - near.length;
   return (
     <UICard  as="section">
       <div className="row spread">
@@ -422,7 +465,7 @@ function Trace({ id, asOf }: { id: string; asOf?: string }) {
         Nothing {direction}stream{asOf ? " on this date" : ""}.
       </Status>
       <ul className="trace">
-        {rows.data?.map((r) => (
+        {shown.map((r) => (
           <li key={`${r.fuzer_id}-${r.depth}`} style={{ paddingLeft: `${(r.depth - 1) * 20}px` }}>
             <span className="muted">{direction === "up" ? "↑" : "↓"}</span>
             <a href={entityHref(r.fuzer_id)} className="mono">
@@ -433,6 +476,9 @@ function Trace({ id, asOf }: { id: string; asOf?: string }) {
           </li>
         ))}
       </ul>
+      {more > 0 && <Button variant="link" onClick={() => setAll(!all)}>
+        {all ? "Show nearest only" : `Show all ${rows.data!.length}`}
+      </Button>}
     </UICard>
   );
 }

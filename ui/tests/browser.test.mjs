@@ -1682,7 +1682,7 @@ test("an asset says what is known, what is missing and what each gap holds back;
       kinds: ["class_guide"], basis: ["it applies to its equipment class"] }] } }));
   const answers = [];
   await page.route("**/entities/tag-e5002/placement", (route) => { answers.push(route.request().postDataJSON()); return route.fulfill({ json: { accepted: true } }); });
-  await page.goto(`${url}/#/e/tag-e5002`);
+  await page.goto(`${url}/#/e/tag-e5002?tab=record`);
   const panel = page.locator(".asset-context");
   await panel.getByText("Holds back Process excursions; IOW breaches; excursion and IOW cases. 89% of heat exchangers have it.").waitFor();
   await panel.getByText("57% of what heat exchangers usually have").waitFor();
@@ -3186,9 +3186,18 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
     values: {}, keys: [], edge_counts: {}, edges: Array.from({ length: 24 }, (_, i) => edge(i + 1)),
     records: [{ source: "pi_af", record_type: "element", source_key: "OKAN\\20 OK_GGCP\\20-K-2300A", method: "singleton", confidence: 1 }] } }));
   await page.goto(`${url}/#/e/${id}`);
+  // An asset opens on its work and process values; what the register holds about it is one view away.
+  await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
+  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
+    ["Overview", "Measurements", "Connections", "Record", "Graph"]);
+  assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
+  await page.getByRole("link", { name: "Record", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
   await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).waitFor();
+  await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
+  await page.getByRole("link", { name: "Connections", exact: true }).click();
+  await page.getByRole("link", { name: "WT-1", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
   await page.getByRole("button", { name: "Show all 24", exact: true }).click();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 24);
