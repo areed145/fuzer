@@ -21,6 +21,7 @@ from ..graph import (
     lessons,
     llm_links,
     measurements,
+    positions,
     queries,
     roles,
     spatial,
@@ -184,6 +185,7 @@ def rebuild(conn, pack: Pack) -> dict:
     stats["located"] = spatial.index(conn)
     if pack.spatial_links:
         stats["spatial_links"] = spatial.link(conn, pack.spatial_links)
+    stats |= positions.build(conn)  # features to the segment their station falls in, along the line's route (#61)
     lap("spatial")
 
     # Incidents group signals that are only linked once the graph exists.

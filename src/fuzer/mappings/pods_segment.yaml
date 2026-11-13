@@ -1,0 +1,23 @@
+# PODS-style route segments (#61): a line cut into stretches by station, each with its own wall, grade and class
+# location. Stations are metres along the line from its start (chainage), as PODS and in-line inspection read them,
+# never map distance; positions.py places each segment on the line's GIS route by its stations.
+source: gis
+record_type: pipeline_segment
+shape: records
+dataset: pods_segments
+key: segment_id
+entity:
+  kind: pipeline_segment
+  fields:
+    - [description, name]
+    - [station_from_m, {from: station_from_m, as: number}]
+    - [station_to_m, {from: station_to_m, as: number}]
+    - [wall_thickness_mm, {from: wall_thickness_mm, as: number}]
+    - grade
+    - class_location
+    - from_valve
+    - to_valve
+links:
+  - rel: part_of
+    when: line_id
+    to: {kind: pipeline, from: line_id}
