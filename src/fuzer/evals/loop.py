@@ -202,6 +202,15 @@ def _bring(conn, how: dict) -> str:
             pipeline.rebuild(conn, pack)
             conn.commit()
             landed = "a delivery and the rebuild after it, then "
+    if "report" in how:  # the month's regulatory report drafted from its records, for its review (P7.6)
+        from datetime import date
+
+        from ..graph import operations
+        from ..ops import reports
+
+        period = reports.period_of(date.fromisoformat(operations.as_of(conn)) - timedelta(days=1))
+        reports.assemble(conn, pack, how["report"], period, by="agent:reporter")
+        return f"drafting the {reports.TEMPLATES[how['report']].title.lower()} for {period}"
     if "tuning" in how:  # a detector made noisy, its cases closed as false alarms, then the tuning job (P6.3)
         return _noisy(conn, pack, how["tuning"])
     if "skill" in how:  # a skill falls short twice (briefs not followed), and its specialist drafts a change
@@ -502,6 +511,10 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
                 row = {**found, "raised": True, "about_detector": found["key"]}
                 out["arrived"] = what
                 return f"{what} raised it about {found['key']}"
+            if how.get("about") == "report":  # a regulatory report's review (P7.6): about a report, not an asset
+                row = {**found, "raised": True, "about_report": found["key"]}
+                out["arrived"] = what
+                return f"{what} raised it about the {found['key']} report"
             if how.get("about") == "model":  # work about the project's operating model (P8.2): a deviation
                 row = {**found, "raised": True, "about_model": found["key"]}
                 out["arrived"] = what
@@ -524,6 +537,8 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
             return f"matched the skill draft {row['about_skill']}"
         if "about_detector" in row:  # it names a detector, a parameter and a class
             return f"matched the detector setting {row['about_detector']}"
+        if "about_report" in row:  # it names a report template and period
+            return f"matched the report {row['about_report']}"
         if "about_model" in row:  # it names a deviation from the operating model, not an asset or a source
             return f"matched the operating model's {row['about_model']}"
         if "about_source" in row:  # work about a source names one of the project's sources, not an asset

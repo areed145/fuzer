@@ -416,6 +416,51 @@ export interface DailyReport {
   production_day: string | null;
 }
 
+/** P7.6: a regulatory report's figure, with its basis and the rows (readings, days, cases) it is made of. */
+export type ReportBasis = "measured" | "estimated" | "missing";
+export interface ReportRow {
+  label: string;
+  value: number | null;
+  unit?: string;
+  basis: ReportBasis;
+  /** record:<measurement record>, point:<id>@<day> or case:<work item> */
+  ref: string | null;
+  text?: string;
+  readings?: number;
+}
+export interface ReportFigure {
+  key: string;
+  label: string;
+  value: number | null;
+  unit: string | null;
+  basis: ReportBasis;
+  note: string | null;
+  flags: string[];
+  rows: ReportRow[];
+  subject?: string;
+}
+export interface RegulatoryReport {
+  id: number;
+  template: string;
+  title: string;
+  period: string;
+  version: number;
+  versions: number[];
+  status: string;
+  sections: { title: string; note?: string; figures: ReportFigure[] }[];
+  marked: { key: string; label: string; basis: ReportBasis; flags: string[] }[];
+  coverage: { since: string; through: string; partial: boolean; label: string };
+  drafted_by: string;
+  item_id: number | null;
+  created_at: string;
+  review: { id: number; state: string; item_id: number | null; case_state: string | null; assignee: string | null } | null;
+}
+export interface RegulatoryListing {
+  templates: { name: string; title: string; period: string; role: string; description: string }[];
+  reports: { template: string; title: string; period: string; version: number; status: string; marked: number;
+    coverage: RegulatoryReport["coverage"]; item_id: number | null; created_at: string }[];
+}
+
 export type DailyStatus = "drafting" | "awaiting review" | "sent back" | "published" | "needs a fix" | "no review" | string;
 
 export interface DailyReview {
@@ -493,6 +538,12 @@ export const investigateApi = {
   dailyReports: () => request<{ day: string; version: number; drafted_by: string; ok: boolean; item_id: number | null;
     status: DailyStatus }[]>("GET", "/reports/daily"),
   dailyReport: (day: string, version?: number) => request<DailyReport>("GET", `/reports/daily/${day}`, { version }),
+  regulatoryReports: () => request<RegulatoryListing>("GET", "/reports/regulatory"),
+  regulatoryReport: (template: string, period: string, version?: number) =>
+    request<RegulatoryReport>("GET", `/reports/regulatory/${encodeURIComponent(template)}/${period}`, { version }),
+  draftRegulatoryReport: (template: string, period: string, by: string) =>
+    request<{ version: number; changed: boolean; item_id: number | null }>(
+      "POST", `/reports/regulatory/${encodeURIComponent(template)}/${period}/draft`, undefined, { by }),
   studies: () => request<Study[]>("GET", "/studies"),
   study: (id: number) => request<Study>("GET", `/studies/${id}`),
   startStudy: (kind: string, params: Record<string, unknown>, by: string) =>

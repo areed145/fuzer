@@ -44,6 +44,7 @@ TIMES = {
     ("daily_ops_report", "drafted_by"): "created_at",
     ("exception_record", "shelved_by"): "updated_at",
     ("plan_item", "moved_by"): "updated_at",
+    ("regulatory_report", "drafted_by"): "created_at",
     ("round_run", "taken_by"): "closed_at",
     ("shift_handover", "created_by"): "drafted_at",
 }

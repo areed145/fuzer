@@ -1620,6 +1620,28 @@ Daily operations reports (#98): one row per version of a production day's report
 | `item_id` | bigint |  |
 | `created_at` | timestamptz |  |
 
+### `regulatory_report`
+
+Regulatory and emissions reports (P7.6, #954): one row per version of a template's report for a period. A new version when its figures change (a late or corrected record); each figure keeps the rows it is made of and their basis (measured, estimated, missing). Approval and submission are recorded on the version they were for.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `template` | text |  |
+| `period` | text | YYYY-MM |
+| `version` | integer |  |
+| `status` | text | draft \| approved \| submitted |
+| `sections` | jsonb | [{title, figures: [{key, label, value, unit, basis, rows}]}] |
+| `marked` | jsonb | the figures resting on estimated or missing data |
+| `coverage` | jsonb | since, through, partial |
+| `fingerprint` | text |  |
+| `drafted_by` | text |  |
+| `item_id` | bigint, | the review case |
+| `approved_by` | text |  |
+| `approved_at` | timestamptz |  |
+| `submitted` | jsonb, | how it went out, by whom and when |
+| `created_at` | timestamptz |  |
+
 ### `opportunity`
 
 The opportunity scan (#102): gains left on the table, one row per opportunity under a stable key. A decided one (rejected, accepted, project) isn't raised again unless its evidence or gain changes materially.

@@ -287,6 +287,40 @@ test("a report waiting on an agent no worker has claimed says the agent worker m
   assert.equal(await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).count(), 0);
 });
 
+test("P7.6 a regulatory report marks figures on estimated or missing data and drills each figure to its records", async () => {
+  const report = { id: 1, template: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "2026-11",
+    version: 2, versions: [1, 2], status: "draft", drafted_by: "agent:reporter", item_id: 27, created_at: "2026-11-13T10:00:00Z",
+    coverage: { since: "2026-11-01", through: "2026-11-12", partial: true, label: "November 2026" },
+    marked: [{ key: "meter:w", label: "Metered gas, KR 12-03H", basis: "estimated", flags: ["1 estimated: 2026-11-12"] }],
+    review: { id: 3, state: "open", item_id: 27, case_state: "open", assignee: null },
+    sections: [
+      { title: "Metered gas", figures: [{ key: "meter:w", label: "Metered gas, KR 12-03H", value: 1390.0, unit: "kSm3",
+        basis: "estimated", note: null, flags: ["1 estimated: 2026-11-12"], subject: "fz-well-1", rows: [
+          { label: "2026-11-11", value: 725.2, basis: "measured", ref: "record:measurement:daily_volume:KR12-03H>2026-11-11" },
+          { label: "2026-11-12", value: 664.8, basis: "estimated", ref: "record:measurement:daily_volume:KR12-03H>2026-11-12" }] }] },
+      { title: "Flare events", figures: [{ key: "flare_events", label: "Flare episodes", value: 1, unit: null, basis: "measured",
+        note: null, flags: [], rows: [{ label: "2026-11-12 03:20 to 07:00 at H1-V-8001", value: 82.7, unit: "kSm3", basis: "measured",
+          ref: "case:26", text: "About 82.7 kSm3 over its baseline, an estimate; cause unknown" }] }] },
+    ] };
+  await page.route("**/reports/daily", route => route.fulfill({ json: [] }));
+  await page.route("**/reports/regulatory", route => route.fulfill({ json: {
+    templates: [{ name: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "month", role: "role:hse_specialist",
+      description: "" }],
+    reports: [{ template: "flare_emissions_monthly", title: report.title, period: "2026-11", version: 2, status: "draft", marked: 1,
+      coverage: report.coverage, item_id: 27, created_at: report.created_at }] } }));
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11*", route => route.fulfill({ json: report }));
+  await page.goto(`${url}/#/reports?report=flare_emissions_monthly:2026-11`);
+  await page.getByRole("heading", { name: "Monthly flare and emissions report, November 2026" }).waitFor();
+  await page.getByText("1 figure on estimated or missing data").waitFor();
+  await page.getByText("the month is not over", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "review case (open)" }).getAttribute("href"), "#/cases/27");
+  await page.getByRole("cell", { name: "▸ Metered gas, KR 12-03H" }).click();
+  assert.equal(await page.getByRole("link", { name: "KR12-03H>2026-11-12" }).getAttribute("href"), "#/e/fz-well-1");
+  await page.getByRole("cell", { name: "▸ Flare episodes" }).click();
+  assert.equal(await page.getByRole("link", { name: "case 26" }).getAttribute("href"), "#/cases/26");
+  await page.getByText("cause unknown", { exact: false }).waitFor();
+});
+
 test("a case's process diagram opens on the waiting step at a readable size, the whole process a click away (#406)", async () => {
   const xml = readFileSync(new URL("../../src/fuzer/workflow/definitions/upset.bpmn", import.meta.url), "utf8");
   const step = { id: 3, process_id: 1, element: "triage", name: "Triage", kind: "user", state: "waiting", flow: null, role: "engineer",

@@ -146,6 +146,42 @@ def daily_report_day(day: str, version: int | None = None, conn=Depends(get_conn
     return out
 
 
+class ReportDraft(BaseModel):
+    by: str = "agent:reporter"
+
+
+@router.get("/reports/regulatory")
+def regulatory_reports(limit: int = 50, conn=Depends(get_conn)):
+    """The regulatory report templates, and each report drafted, newest period first (P7.6)."""
+    from ..ops import reports
+    return reports.listing(conn, min(limit, 500))
+
+
+@router.get("/reports/regulatory/{template}/{period}")
+def regulatory_report(template: str, period: str, version: int | None = None, conn=Depends(get_conn)):
+    """One version of a regulatory report (the latest by default): its sections, each figure with its basis and the
+    rows it is made of, the figures marked as resting on estimated or missing data, and its review."""
+    from ..ops import reports
+    try:
+        out = reports.get(conn, template, period, version)
+    except reports.ReportError as e:
+        raise HTTPException(404, str(e)) from e
+    if out is None:
+        raise HTTPException(404, f"no {template} report for {period}")
+    return out
+
+
+@router.post("/reports/regulatory/{template}/{period}/draft")
+def regulatory_report_draft(template: str, period: str, body: ReportDraft, conn=Depends(get_conn)):
+    """Draft the report from its records now: a new version when its figures changed, and its review case."""
+    from ..ops import reports
+    try:
+        return reports.assemble(conn, deps.pack(), template, period, by=body.by)
+    except reports.ReportError as e:
+        conn.rollback()
+        raise HTTPException(404 if "template" in str(e) else 400, str(e)) from e
+
+
 @router.get("/opportunities")
 def opportunity_list(status: str | None = "open", limit: int = 100, conn=Depends(get_conn)):
     """Opportunities from the daily scan (#102)."""

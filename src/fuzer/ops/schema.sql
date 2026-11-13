@@ -177,6 +177,28 @@ create table if not exists daily_ops_report (
     unique (day, version)
 );
 
+-- Regulatory and emissions reports (P7.6, #954): one row per version of a template's report for a period. A new
+-- version when its figures change (a late or corrected record); each figure keeps the rows it is made of and their
+-- basis (measured, estimated, missing). Approval and submission are recorded on the version they were for.
+create table if not exists regulatory_report (
+    id           bigserial primary key,
+    template     text not null,
+    period       text not null,                 -- YYYY-MM
+    version      integer not null,
+    status       text not null default 'draft', -- draft | approved | submitted
+    sections     jsonb not null,                -- [{title, figures: [{key, label, value, unit, basis, rows}]}]
+    marked       jsonb not null default '[]',   -- the figures resting on estimated or missing data
+    coverage     jsonb not null,                -- since, through, partial
+    fingerprint  text not null,
+    drafted_by   text not null,
+    item_id      bigint,                        -- the review case
+    approved_by  text,
+    approved_at  timestamptz,
+    submitted    jsonb,                         -- how it went out, by whom and when
+    created_at   timestamptz not null default now(),
+    unique (template, period, version)
+);
+
 -- The opportunity scan (#102): gains left on the table, one row per opportunity under a stable key. A decided
 -- one (rejected, accepted, project) isn't raised again unless its evidence or gain changes materially.
 create table if not exists opportunity (
