@@ -15,7 +15,7 @@ import { fieldJobs } from "../../fieldOffline";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
  * A field job's card carries its case's step, so that case is not counted twice. */
-export function myWorkCounts(d: WorkInbox, jobs: FieldJob[]) {
+export function myWorkCounts(d: WorkInbox, jobs: Pick<FieldJob, "item_id" | "queued">[]) {
   const onCard = new Set(jobs.map((j) => j.item_id).filter((id): id is number => id != null));
   const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
   return {

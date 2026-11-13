@@ -649,12 +649,14 @@ def exception_suppression_end(suppression_id: int, m: SuppressionEnd, conn=Depen
 
 
 @router.get("/exceptions/field")
-def exception_field_jobs(person: str, conn=Depends(get_conn)):
+def exception_field_jobs(person: str, brief: bool = False, conn=Depends(get_conn)):
     """A field operator's dispatched jobs (where to go, what was seen, the asset's recent history, the field log)
-    and what they are planned onto over the next two weeks."""
+    and what they are planned onto over the next two weeks. `brief` gives each job without what is looked up per
+    job, for a page that only counts them."""
     from ..ops import exceptions, plan
     _loaded_types()
-    return {"person": person, "jobs": exceptions.field_jobs(conn, person), "coming_up": plan.coming_up(conn, person)}
+    return {"person": person, "jobs": exceptions.field_jobs(conn, person, brief),
+            "coming_up": plan.coming_up(conn, person)}
 
 
 @router.post("/exceptions/{exception_id}/dispatch")

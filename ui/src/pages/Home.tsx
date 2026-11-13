@@ -271,12 +271,10 @@ function SourceHealthPanel() {
   );
 }
 
+/** The scheduler's health in a line. The summary the sidebar already reads, not the full Jobs overview: that
+ * builds every job's run history, took half a minute on a cold server and held the page's other requests. */
 function JobsHealthPanel() {
-  const jobs = useAsync(() => api.jobs(), []);
-  const failedRuns = jobs.data?.jobs.flatMap((job) => job.recent_runs
-    .filter((run) => run.status === "FAILURE")
-    .map((run) => ({ ...run, job: job.name }))).slice(0, 3) ?? [];
-  const failedChecks = jobs.data?.checks.filter((check) => check.level === "fail") ?? [];
+  const jobs = useAsync(() => api.jobsHealth(), []);
   return (
     <div className="home-subsection">
       <div className="row spread">
@@ -284,25 +282,10 @@ function JobsHealthPanel() {
         <a href={href("/jobs")}>Job health</a>
       </div>
       <Status loading={jobs.loading && !jobs.data} error={jobs.error} onRetry={jobs.reload} />
-      {jobs.data && (
-        <>
-          {jobs.data.available && <p className="small">{jobs.data.health.summary}</p>}
-          {!jobs.data.available ? <Empty className="small">Scheduler history unavailable.</Empty>
-          : failedRuns.length > 0 || failedChecks.length > 0 ? (
-            <ul className="home-list">
-              {failedRuns.map((run) => (
-                <li key={run.run_id}>
-                  <a href={href(`/jobs/run/${run.run_id}`)}>{run.job}</a>
-                  <span className="muted small">Run failed · started {timestamp(run.start)}</span>
-                </li>
-              ))}
-              {failedChecks.slice(0, 3).map((check) => (
-                <li key={`${check.asset}-${check.name}`} className="error small">{check.asset}: {check.name}</li>
-              ))}
-            </ul>
-          ) : <Empty className="small">No failures in recent runs or checks.</Empty>}
-        </>
-      )}
+      {jobs.data && (!jobs.data.available ? <Empty className="small">Scheduler history unavailable.</Empty>
+        : jobs.data.failed_runs_24h > 0 || jobs.data.failing_checks > 0
+          ? <p className="small error">{jobs.data.summary}</p>
+          : <Empty className="small">No failures in recent runs or checks.</Empty>)}
     </div>
   );
 }

@@ -86,6 +86,9 @@ function stylesheet(scale = 1) {
     { selector: "edge[color]", style: { "line-color": "data(color)", "target-arrow-color": "data(color)", opacity: 0.85 } },
     { selector: "edge.labeled, edge:selected, edge.hover, edge.near", style: { label: "data(label)" } },
     { selector: "edge[?ended]", style: { "line-style": "dashed" } },
+    // The flow diagram draws two networks together: piping read from drawings, and allocation flow (dashed).
+    { selector: "edge.piping", style: { width: 2, "line-color": t.text, "target-arrow-color": t.text, opacity: 0.8 } },
+    { selector: "edge.allocation", style: { "line-style": "dashed" } },
     {
       selector: "edge:selected, edge.hover, edge.near",
       style: { "line-color": t.accent, "target-arrow-color": t.accent, opacity: 1, color: t.text },

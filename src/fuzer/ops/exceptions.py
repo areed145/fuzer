@@ -822,10 +822,12 @@ def _assets(conn, ids: list[str]) -> list[dict]:
     return sorted(rows, key=lambda r: order[r["fuzer_id"]])
 
 
-def field_jobs(conn, person: str) -> list[dict]:
+def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
     """The open exceptions whose case is with this person (the case, or its open person step), most urgent first,
     then the ones waiting unclaimed in their roles' queues (`queued`, for them to take), each with where to go, what
-    was seen, what happened at the asset lately and the field log."""
+    was seen, what happened at the asset lately and the field log. `brief` leaves out everything looked up per job
+    (assets, findings, history, permit), for a reader that only counts and names them: someone holding every role
+    has a hundred jobs, and the lookups are a dozen queries each."""
     rows = conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role, coalesce(t.due_at, w.due) as due,
@@ -849,6 +851,9 @@ def field_jobs(conn, person: str) -> list[dict]:
                  coalesce(t.due_at, w.due) nulls last, e.value_usd desc nulls last, e.priority desc nulls last
         """, {"p": person, "roles": (roles := work.roles_of(conn, person))}).fetchall()
     out, known = [], types(conn)
+    if brief:
+        return [{**r, "label": known[r["type"]].label if r["type"] in known else r["type"].replace("_", " "),
+                 "handover": _handover_for(r, person)} for r in rows]
     for r in rows:
         # Their own step (a Field check, in the operator role) can be opened; another role's step handed to them
         # (an engineer's Triage) can't: they report back from here and it returns to whoever sent it.
