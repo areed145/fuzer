@@ -625,6 +625,21 @@ loop_oscillation:
     - {kernel: "fuzer.analysis.loops:regularity", args: [[10, 10, 10, 11, 9]], expect: 5.2705, says: "Half periods of 10, 10, 10, 11 and 9 samples: periods average 20 with a spread of 1.26, so r = 20 / 3.79 = 5.27, a regular cycle."}
     - {worked: "tests/analysis/test_loops.py::test_the_test_separator_level_cycles_while_its_valve_sticks"}
 
+loop_health:
+  title: Control loop health ranking (time in manual, output saturation, setpoint error, oscillation)
+  practice: "Per loop on the DCS loop list over the window: the share of time in manual, the share of time in auto with the output within 1 % of a limit, the mean absolute setpoint error in auto as a share of the setpoint, and the loop_oscillation regularity on the process value. Score = % manual + % saturated + 10 x error % (at most 100) + 50 for a regular oscillation. The flags and the score are this registry's own screening choices, after the usual loop performance monitoring measures (time in normal mode, valve saturation, error)."
+  tool: loop_health
+  inputs: [{name: Process value, unit: each loop's own}, {name: Setpoint, unit: each loop's own}, {name: Controller output, unit: "%"}, {name: Mode (1 auto, 0 manual), unit: "-"}]
+  valid: Loops on the DCS loop list whose PV, SP, OP and mode points are on the historian.
+  needs: A day or more of 5-minute readings on all four points.
+  thresholds:
+    manual: {value: 5, unit: "%", means: "Share of the window in manual from which a loop is flagged.", code: "fuzer.analysis.control_loops:MANUAL_PCT"}
+    saturated: {value: 10, unit: "%", means: "Share of the time in auto with the output at a limit from which a loop is flagged out of valve.", code: "fuzer.analysis.control_loops:SATURATED_PCT"}
+    setpoint_error: {value: 2, unit: "%", means: "Mean absolute setpoint error in auto, as a share of the setpoint, from which a loop is flagged.", code: "fuzer.analysis.control_loops:ERROR_PCT"}
+    oscillation: {value: 50, means: "What a regular oscillation adds to the score.", code: "fuzer.analysis.control_loops:OSCILLATION_SCORE"}
+  vectors:
+    - {worked: "tests/analysis/test_control_loops.py::test_each_planted_fault_ranks_at_the_top_of_the_worklist"}
+
 contactor_foaming:
   title: Contactor differential pressure against its clean level (foaming and fouling)
   practice: "GPSA Engineering Data Book (hydrocarbon treating and dehydration): foaming shows first as a sudden rise in column differential pressure, with carryover and off-spec gas; a slow climb is fouling or damaged packing."
