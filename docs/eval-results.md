@@ -1,7 +1,7 @@
 # Eval results
 
 Generated from the recorded runs in `evals/runs/`; don't edit by hand (`uv run python -m fuzer.reference`).
-Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record` or `fuzer eval --ops --full --live --record` (all cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: [assistant eval](assistant-eval.md).
+Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or `fuzer eval --ops --full --live --record` (all cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: [assistant eval](assistant-eval.md).
 
 ## Operations assistant
 
@@ -53,6 +53,15 @@ Each pack's answer keys for a bundle (`evals/<pack>.yaml` in it), asked with `fu
 | 2026-11-13 | okan | `maintenance-integrity/static-equipment` | 2 | 67% | 100% | 100% | $0.56 | no: mentions 67% under 80% |
 | 2026-11-13 | okan | `production-surveillance/metering-and-balances` | 2 | 88% | 0% | 100% | $0.22 | no: routed 0% under 100% |
 | 2026-11-13 | okan | `wells-subsurface/wells-and-lift` | 2 | 100% | 100% | 100% | $0.58 | yes |
+
+## Agentic watch
+
+The watch (P3.3) reads a window a day at a time and proposes what the rules missed, scored against the fake plant's upsets that no rule caught, with `fuzer eval --watch`. A run passes when at least 50% of its proposals match an upset no rule caught.
+
+| Run | Bundle | Window | Model | Upsets (uncaught) | Proposals | On what no rule caught | Precision | Recall | Cost | Passed | Missed |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-13 | okan | 2025-08-20 to 2025-08-22 |  | 3 (2) | 4 | 0 | 0% | 0% | $0.22 | no | OK-J12-02 choke_wear 2025-01-15 00:00; OK-NWP-G3 choke_wear 2025-08-01 00:00 |
+| 2026-11-13 | okan | 2025-01-13 to 2025-01-15 |  | 4 (1) | 4 | 0 | 0% | 0% | $0.26 | no | 10-P-1001A head_loss 2025-01-01 00:00 |
 
 ## Operations loop
 

@@ -219,8 +219,9 @@ def eval_results_md() -> str:
     asst = [r for r in all_runs if r["kind"] == "assistant"]
     ops = [r for r in all_runs if r["kind"] == "ops"]
     pk = [r for r in all_runs if r["kind"] == "packs"]
+    wa = [r for r in all_runs if r["kind"] == "watch"]
     out = ["# Eval results", "", HEADER.format(what="the recorded runs in `evals/runs/`"),
-           "Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record` or "
+           "Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or "
            "`fuzer eval --ops --full --live --record` (all cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
            "[assistant eval](assistant-eval.md).", ""]
     if asst:
@@ -264,6 +265,22 @@ def eval_results_md() -> str:
                            f"{'yes' if s['passed'] else 'no: ' + _cell('; '.join(s['short']))} |")
             out += [f"| {r['date']} | {b} | `{path}` | | | | | | not applicable: {_cell(why)} |"
                     for path, why in sorted(r.get("not_applicable", {}).items())]
+        out.append("")
+    if wa:
+        from .evals import watch_eval
+
+        out += ["## Agentic watch", "",
+                "The watch (P3.3) reads a window a day at a time and proposes what the rules missed, scored against the "
+                "fake plant's upsets that no rule caught, with `fuzer eval --watch`. A run passes when at least "
+                f"{watch_eval.BAR:.0%} of its proposals match an upset no rule caught.", "",
+                "| Run | Bundle | Window | Model | Upsets (uncaught) | Proposals | On what no rule caught | Precision "
+                "| Recall | Cost | Passed | Missed |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+        for r in reversed(wa):
+            out.append(f"| {r['date']} | {r['bundle']} | {r['since'][:10]} to {r['until'][:10]} | {r.get('model') or ''} "
+                       f"| {r['upsets']} ({r['uncaught']}) | {r['proposals']} | {r['matched_uncaught']} | "
+                       f"{_pct(r.get('precision'))} | {_pct(r.get('recall'))} | "
+                       f"{'' if r.get('usd') is None else '$' + format(r['usd'], '.2f')} | {'yes' if r['passes'] else 'no'} "
+                       f"| {_cell('; '.join(r.get('uncaught_examples') or []))} |")
         out.append("")
     if ops:
         out += ["## Operations loop", "",
