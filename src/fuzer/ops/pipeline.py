@@ -167,6 +167,9 @@ def rebuild(conn, pack: Pack) -> dict:
     from ..graph import placement
 
     stats["placement"] = placement.apply(conn, pack)  # where new items sit (P2.1d)
+    from ..graph import products
+
+    stats |= products.build(conn)  # what each flow edge carries (P2.7, #205)
     lap("graph")
     endpoint = edges.resolver({**assigned, **d_assigned}, key_index)
     # the drawings' equipment data and alarm and trip tables (#475), from the cached readings

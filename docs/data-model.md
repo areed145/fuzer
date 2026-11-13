@@ -101,6 +101,14 @@ Energy Components network edges carry a `service`. Lift gas edges become `lift_g
 from production `flows_to`, so a production trace never wanders into the lift gas system. The mapping
 language's `when` / `unless` can test a column's value for this. Network nodes with a `site` are
 `located_at` it (a jacket's production and gas lift manifolds sit on the jacket).
+- **What each edge carries** (P2.7, #205, `graph/products.py`). Every `flows_to` and `lift_gas_to` edge has
+  `props.product` (gas, liquid, multiphase, water or lift_gas) and `props.product_basis`, re-worked after every
+  rebuild. A source's `service` is taken as it says. Otherwise the product is worked out from the nodes' process
+  types: what leaves a well is what the well makes, what feeds a compressor or flare is gas and a tank or pump is
+  liquid, a manifold, header, meter, compressor, tank or sales point passes its product on both ways, and a
+  separator fed only gas puts out gas while one whose outlets are all liquid takes liquid in. A separator outlet
+  nothing explains is left without a product instead of guessed (seven edges on Okan, none on Kestrel). The link
+  types stay apart; a traversal that follows a product across separators is later work.
 - **Okan's layout.** GGCP compression feeds the GGCP lift gas header, which feeds the ST1 and ST2
   headers and NWP. Each jacket belongs to its nearest hub. It is piped through a neighbouring jacket
   when that saves a lot of pipe, so its lift gas and oil pass through that jacket's manifolds. Each gas
