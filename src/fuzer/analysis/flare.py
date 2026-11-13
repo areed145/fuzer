@@ -9,6 +9,10 @@ knows a field, a flare system or a permit.
   - On the daily reports: a day whose flare is `DAY_SPIKE` times the median of the `DAY_BASE` days before it.
 - `attribute(conn, start, end)`: the downtime events overlapping the episode, the log entries in it that speak of
   flaring, and other detections that started in it. An episode with none is reported with its cause unknown.
+- `relief(conn, e)`: where the gas came from (API 521). The relief and vent paths into the flare system are read from
+  the piping: each valve or line piped into the flare's area from another, and the item it relieves. An item whose
+  pressure rose by `RISE` or more over the hours before the episode is named as a likely source, with its devices. It
+  says which equipment was relieving, not why: the records above are the why (P4.2e, #850).
 - The `flare_events` detector raises each episode as `flare_event` for the HSE specialist, with the records it was
   matched to as evidence. It is evidence only: not an emissions inventory, and not a compliance finding.
 """
@@ -27,6 +31,9 @@ DAY_SPIKE = 1.5  # a day's flare over the median of the days before it
 DAY_BASE = 30
 PAD = timedelta(hours=1)  # records this close to an episode's ends belong to it
 DAYS = 3
+RISE = 0.05  # a relieved item's pressure up this share over the hours before an episode
+BEFORE = timedelta(hours=6)
+RELIEF_ROLES = ("pressure", "discharge_pressure")  # the pressure a relief or vent path off an item answers to
 FLARING = re.compile(r"\bflar(e|ed|es|ing)\b", re.IGNORECASE)
 
 
@@ -156,15 +163,85 @@ def attribute(conn, start: str, end: str, skip: str | None = None) -> list[dict]
     return got
 
 
+def paths(conn, asset: str, plant=None) -> list[dict]:
+    """The relief and vent paths into the flare system `asset` belongs to: each device piped into the flare's area
+    from outside it, with the item it relieves (what is piped into the device, else what it is part of)."""
+    from ..graph import structure
+
+    p = plant or structure.load(conn)
+    area = p.area.get(asset)
+    pred: dict[str, set[str]] = {}
+    for r in conn.execute("select src, dst from edge where rel = 'pipes_to' and valid_to is null"):
+        pred.setdefault(r["dst"], set()).add(r["src"])
+    part = {r["src"]: r["dst"] for r in conn.execute(
+        "select src, dst from edge where rel in ('part_of', 'installed_at') and valid_to is null order by rel desc")}
+    inside, todo, out = {asset}, [asset], []
+    while todo:
+        for x in sorted(pred.get(todo.pop(), ())):
+            if x in inside:
+                continue
+            if area is not None and p.area.get(x) == area:
+                inside.add(x)
+                todo.append(x)
+                continue
+            inside.add(x)
+            ups = sorted(pred.get(x, ())) or ([part[x]] if x in part else [])
+            for u in ups:
+                out.append({"device": x, "device_label": p.label(x), "relieves": u, "relieves_label": p.label(u)})
+    return sorted(out, key=lambda d: (d["relieves_label"] or "", d["device_label"] or ""))
+
+
+def relief(conn, e: dict, src=None, plant=None) -> list[dict]:
+    """The items relieving into the flare during episode `e` (from a flare flow point): each one's pressure before
+    the episode and its peak in it, where that rose by `RISE` or more, the largest rise first."""
+    from ..sources import timeseries
+    from .calcs import read
+
+    if e.get("source") != "point":
+        return []
+    by: dict[str, list[dict]] = {}
+    for d in paths(conn, e["subject"], plant):
+        by.setdefault(d["relieves"], []).append(d)
+    if not by:
+        return []
+    roles = conn.execute("select point_id, asset, role from measurement_role where asset = any(%s) and role = any(%s)",
+                         (list(by), list(RELIEF_ROLES))).fetchall()
+    pts = {r["point_id"]: pt for r in roles if (pt := timeseries._point(conn, r["point_id"]))}
+    if not pts:
+        return []
+    a, b = datetime.fromisoformat(e["start"]), datetime.fromisoformat(e["end"])
+    vals = read(pts, a - BEFORE, b, STEP_MINUTES, src or timeseries.provider())
+    out = []
+    for r in roles:
+        if r["point_id"] not in pts:
+            continue
+        series = sorted(vals[r["point_id"]].items())
+        before = [v for t, v in series if v is not None and t[:16] < e["start"]]
+        during = [v for t, v in series if v is not None and t[:16] >= e["start"]]
+        if not before or not during:
+            continue
+        base, peak = median(before), max(during)
+        if base > 0 and peak >= base * (1 + RISE):
+            ds = by[r["asset"]]
+            out.append({"item": r["asset"], "label": ds[0]["relieves_label"], "point": pts[r["point_id"]]["point"],
+                        "role": r["role"], "before": round(base, 2), "peak": round(peak, 2),
+                        "uom": pts[r["point_id"]].get("uom"), "rise_pct": round((peak / base - 1) * 100, 1),
+                        "devices": [d["device_label"] for d in ds]})
+    return sorted(out, key=lambda x: -x["rise_pct"])
+
+
 def events(conn, until: str | None = None, days: int = DAYS, src=None) -> list[dict]:
     """The flare episodes in the `days` up to `until`, each with the records it was matched to, the latest first."""
+    from ..graph import structure
     from .calcs import window_of
 
     start, end = window_of(conn, days, until)
-    out = []
+    out, plant = [], None
     for e in _from_points(conn, start, end, src) + _from_reports(conn, start, end):
         causes = attribute(conn, e["start"], e["end"], skip=EVENT_TYPE)
-        out.append({**e, "causes": causes, "attributed": bool(causes)})
+        if e["source"] == "point" and plant is None:
+            plant = structure.load(conn)
+        out.append({**e, "causes": causes, "attributed": bool(causes), "relief": relief(conn, e, src, plant)})
     return sorted(out, key=lambda e: e["start"], reverse=True)
 
 
@@ -204,10 +281,15 @@ def watch(conn, until: str | None = None, days: int = DAYS, by: str = "agent:fla
     for e in found_rows:
         unit = f" {e['volume_unit']}" if e["volume_unit"] else ""
         causes = tuple(fact(f"{_KIND[c['kind']]}, {c['at'].replace('T', ' ')}", c["text"]) for c in e["causes"][:8])
+        relieving = tuple(fact(f"Relieving: {x['label']}", f"{x['point']} up from {x['before']:g} to {x['peak']:g} "
+                                                           f"{x['uom'] or ''}".strip() + f" ({x['rise_pct']:g} %), "
+                                                           f"through {', '.join(x['devices'])}")
+                          for x in e["relief"][:4])
         found = Finding(
             "flare.event", DETERMINISTIC, method="A flare above its own baseline, matched to the records around it",
             start=e["start"], end=e["end"],
             data={"attributed": e["attributed"], "causes": [{"kind": c["kind"], "id": c["id"]} for c in e["causes"]],
+                  "relief": [{"item": x["item"], "rise_pct": x["rise_pct"]} for x in e["relief"]],
                   "volume": e["volume"], "peak": e["peak"]},
             items=(fact("Flare", e["label"]), fact("Measured by", e["point"] or "the daily report's flare volume"),
                    at("From", e["start"]), at("To", e["end"]),
@@ -215,7 +297,7 @@ def watch(conn, until: str | None = None, days: int = DAYS, by: str = "agent:fla
                    fact("Baseline", f"{e['baseline']:g} {e['uom'] or ''}".strip()),
                    fact("Volume over the baseline, an estimate", f"{e['volume']:g}{unit}"),
                    fact("Cause", None if e["attributed"] else "unknown: no downtime, log entry or detection matches"),
-                   *causes,
+                   *relieving, *causes,
                    fact("What this is", "Evidence for the flaring report, not an emissions inventory or a compliance "
                                         "finding."),
                    fact("Data", "synthetic values from the fake plant, not plant data"
