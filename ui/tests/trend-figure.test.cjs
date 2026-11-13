@@ -10,7 +10,7 @@ const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/trendFig
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(code, { exports: exportsObject, Date, Math, Set, Map, Object, JSON });
-const { buildFigure, defaults, fromQuery, names, panels, toQuery, traceName } = exportsObject;
+const { buildFigure, defaults, drawn, fromQuery, names, panels, reading, short, toQuery, traceName } = exportsObject;
 
 const vals = [["2024-07-24T10:00", 1], ["2024-07-24T11:00", 2]];
 const trace = (id, axis, extra = {}) => ({ id, point: `P.${id}`, description: null, uom: axis, axis, show: true, values: vals,
@@ -65,7 +65,7 @@ test("switching a group off removes its panel; a lone trace draws its limits", (
   assert.equal(f.data.filter((d) => d.mode === "lines" && d.yaxis === "y").length, 1);
   assert.equal(f.layout.shapes.filter((s) => s.type === "line").length, 1);
   assert.deepEqual(plain(f.layout.yaxis2.categoryarray), ["Alarms"]);
-  assert.ok(f.layout.annotations.some((a) => a.text.includes("Lube oil")));
+  assert.ok(f.layout.legend.title.text.includes("Lube oil")); // each panel's key is titled with it
 });
 
 test("two traces that would read the same are told apart by what differs in their descriptions", () => {
@@ -100,4 +100,34 @@ test("a landed reading draws as steps with a marker per reading, its method in t
   assert.ok(d.hovertemplate.includes("%{text}"));
   const [plainLine] = buildFigure(view, null, new Set(["suction"]), palette).data;
   assert.equal(plainLine.mode, "lines");
+});
+
+test("each trace is named in its panel's key with its last value, and no panel carries more than two value axes", () => {
+  const four = { ...view, groups: [{ key: "v", label: "Vibration", show: true, traces: [
+    trace("a", "mm/s"), trace("b", "um"), trace("c", "mm"), trace("d", "degc", { last: 101.13, uom: "degC" })] }], other: [] };
+  assert.deepEqual(plain(drawn(panels(four, defaults(four))).map((g) => [g.label, g.traces.map((t) => t.id)])),
+                   [["Vibration", ["a", "b"]], ["Vibration, continued", ["c", "d"]]]);
+  const f = buildFigure(four, null, defaults(four), palette);
+  assert.equal(f.layout.yaxis3.domain[1] < f.layout.yaxis.domain[0], true); // the third unit starts a panel of its own
+  assert.equal(Object.keys(f.layout).filter((k) => /^yaxis\d*$/.test(k) && f.layout[k].anchor === "free").length, 0);
+  const d = f.data.find((t) => t.name.startsWith("d"));
+  assert.equal(d.legend, "legend2");
+  assert.ok(d.name.includes("<b>101</b> degC"), d.name);
+  assert.equal(f.layout.legend2.title.text, "<b>Vibration, continued</b>");
+  assert.equal(reading(1234.5), "1,235");
+  assert.equal(reading(0.01234), "0.012");
+});
+
+test("the incident's lead-in is labelled on the chart", () => {
+  const f = buildFigure(view, timeline, defaults(view), palette);
+  assert.ok(f.layout.annotations.some((a) => a.text === "12 h before the incident"));
+});
+
+test("on a phone each panel's key is a list, one trace a line, with long names cut", () => {
+  const f = buildFigure(view, null, defaults(view), palette, true);
+  assert.equal(f.layout.legend.orientation, "v");
+  assert.equal(f.layout.legend.title.side, "top");
+  assert.equal(buildFigure(view, null, defaults(view), palette).layout.legend.orientation, "h");
+  assert.equal(short("Journal Bearing Temperature · 20-K-2001", true), "Journal Bearing Temperature ·…");
+  assert.equal(short("Journal Bearing Temperature · 20-K-2001", false), "Journal Bearing Temperature · 20-K-2001");
 });

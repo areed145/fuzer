@@ -13,4 +13,10 @@
   .trend-view-chips .chips { display: inline-flex; gap: 2px 10px; margin: 2px 12px 2px 0; }
   /* On a phone a group is switched as a whole; single traces are a desk job. */
   .trend-view-chips .chip:not(.trend-view-group):not(.lane) { display: none; }
+  /* One control row (P5.15a): it scrolls sideways rather than taking the first screen. */
+  .trend-view .trend-controls { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .trend-view .trend-controls > * { flex: none; }
+  .trend-view .trend-controls .spacer { display: none; }
 }
+/* A panel's key names its traces; clicking it does nothing, the chips above switch them. */
+.trend-view .js-plotly-plot [class$="titletoggle"], .trend-view .js-plotly-plot .legendtoggle { pointer-events: none; }
