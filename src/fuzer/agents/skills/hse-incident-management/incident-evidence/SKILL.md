@@ -36,13 +36,18 @@ Use only recorded evidence:
    To explain flare spikes, use `flare_attribution()` (and `plot_flare_attribution()`): each episode above the
    flare's own baseline with the downtime, log entries and detections around it, or its cause unknown, and how much
    of the flare over the baseline the records explain. Causes are matched by time, so call them leads, not proven
-   causes; an open `flare_event` from the detector is the same episode. No permit limit is loaded: never say a flare
-   was within or over one.
+   causes; an open `flare_event` from the detector is the same episode. A flare limit comes only from the permit
+   register: say a flare was within or over one only as `permit_conditions()` sets it out.
+   For permits and obligations, use `permit_conditions()`: each condition in force on the register with its owner and
+   next due date, and per period the recorded figure beside the limit as the register writes it. Quote the condition
+   as written. A condition with no limit on record shows its values with no limit inferred; one not mapped to a
+   recorded value, or with none in the window, is unknown, never compliant. Say "the record exceeds the limit as
+   written", not "the site is in breach": compliance is the owner's call.
 
 Report the record IDs and event dates, distinguish event time from observation time, and state when incident,
 corrective-action, or source coverage is incomplete. Do not infer a hazard, barrier state, exposure, compliance
 status, regulatory obligation, or effectiveness of a corrective action from missing or indirect evidence.
 
-Fuzer has no hazard or barrier register, permits, regulatory obligations or emergency response plans. When asked
+Fuzer has no hazard or barrier register or emergency response plans, and permits only as the site's register gives them. When asked
 for one, say it is unavailable and who holds it. This skill supports evidence organization only. Escalate safety-critical judgments, regulatory interpretation,
 and emergency response to accountable people and approved procedures. Do not give response instructions.

@@ -3194,14 +3194,15 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   // An asset opens on its work and process values; what the register holds about it is one view away.
   await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
   assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
-    ["Overview", "Measurements", "Connections", "Record", "Graph"]);
+    ["Overview", "Timeline", "Documents", "Record", "Graph"]);
   assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
   await page.getByRole("link", { name: "Record", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
   await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).waitFor();
   await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
-  await page.getByRole("link", { name: "Connections", exact: true }).click();
+  // The links list sits with the graph; Connections is the flow diagram, which a well off the flow network lacks.
+  await page.getByRole("link", { name: "Graph", exact: true }).click();
   await page.getByRole("link", { name: "WT-1", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
   await page.getByRole("button", { name: "Show all 24", exact: true }).click();
@@ -5726,6 +5727,65 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
     .catch(() => assert.fail("no sideways scroll"));
 });
 
+test("P5.14a The installed app has its own Back, never leaves the app, and resumes the last page", async () => {
+  // Opened from the home screen: standalone display, no browser back button.
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+  await page.route("**/entities/fz-pump/map", route => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/fz-pump", route => route.fulfill({ json: { fuzer_id: "fz-pump", kind: "equipment",
+    label: "Export pump P-101", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const manifest = await (await fetch(`${url}/assets/manifest.webmanifest`)).json();
+  assert.equal(manifest.display, "standalone");
+  assert.ok(manifest.icons.some(i => i.purpose === "maskable"));
+  assert.equal(await page.goto(`${url}/#/e/fz-pump`).then(() => page.locator("html").getAttribute("class")), "installed");
+
+  // Opened from a link, nothing is behind it: Back goes up to the page that owns it, then Home, not out of the app.
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  const back = page.locator(".topbar").getByRole("button", { name: /^Back/ });
+  // The bar redraws a moment after the route changes, so wait for the label rather than read it at once.
+  const backReads = (label) => page.locator(".topbar").getByRole("button", { name: label, exact: true }).waitFor();
+  await backReads("Back to Browse");
+  const box = await back.boundingBox();
+  assert.ok(box.height >= 44 && box.width >= 44, "Back is big enough for a gloved thumb");
+  const entries = await page.evaluate(() => history.length);
+  await back.click();
+  await page.waitForURL(/#\/browse$/);
+  assert.equal(await page.evaluate(() => history.length), entries, "going up replaces, so there's no loop");
+  await backReads("Back to Home");
+
+  // Pages opened inside the app go back the way they came, and a redirect is not a step of its own.
+  await page.evaluate(() => { location.hash = "#/e/fz-pump"; });
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  await page.evaluate(() => { location.hash = "#/field"; });  // My jobs redirects to My work
+  await page.waitForURL(/#\/inbox$/);
+  await backReads("Back");
+  await back.click();
+  await page.waitForURL(/#\/e\/fz-pump$/);
+  await back.click();
+  await page.waitForURL(/#\/browse$/);
+  await backReads("Back to Home");
+  await back.click();
+  await page.waitForURL(/#\/$/);
+  await back.waitFor({ state: "detached" });  // Home has nothing to go back to
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+  // A cold launch (iOS discards the app in the background) opens the last page from the last 12 hours.
+  await page.evaluate(() => localStorage.setItem("fuzer.lastRoute", JSON.stringify({ hash: "#/e/fz-pump", at: Date.now() - 60_000 })));
+  await page.goto(`${url}/`);
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  assert.match(page.url(), /#\/e\/fz-pump$/);
+  await page.evaluate(() => localStorage.setItem("fuzer.lastRoute", JSON.stringify({ hash: "#/e/fz-pump", at: Date.now() - 13 * 3600_000 })));
+  await page.goto(`${url}/`);
+  await page.waitForTimeout(300);
+  assert.doesNotMatch(page.url(), /#\/e\//, "yesterday's page is not resumed");
+});
+
+test("P5.14a In a browser tab on a desktop the shell is unchanged: no in-app Back beside the browser's own", async () => {
+  await page.goto(`${url}/#/browse`);
+  await page.getByRole("navigation", { name: "Main" }).waitFor();
+  assert.equal(await page.locator(".back-button").evaluateAll(els => els.filter(e => e.getClientRects().length).length), 0);
+});
+
 test("P3.4b a watch proposal on Detection is confirmed, its pattern drafted and the draft published with a reason", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
     user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
@@ -5798,4 +5858,37 @@ test("P7.4 Work performance shows by detector and by skill which earn their keep
   await page.getByText("5 of 7 fell short", { exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: "Review change v2" }).getAttribute("href"), "#/cases/77");
   await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
+});
+
+test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away at the bottom", async () => {
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 2 }, queue: { total: 0 } } } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/browse`);
+  const bar = page.getByRole("navigation", { name: "Quick", exact: true });
+  await bar.waitFor();
+  const targets = bar.locator(":scope > a, :scope > button");
+  assert.deepEqual(await targets.evaluateAll(els => els.map(e => e.lastElementChild.textContent.trim())), ["Home", "My work", "Explore", "Investigate", "Menu"]);
+  for (const box of await targets.evaluateAll(els => els.map(e => e.getBoundingClientRect().toJSON())))
+    assert.ok(box.height >= 44 && box.width >= 44, "every tab is big enough for a gloved thumb");
+  const barBox = await bar.boundingBox();
+  assert.equal(Math.round(barBox.y + barBox.height), 844, "the bar sits on the bottom edge");
+  assert.equal(await bar.locator('a[aria-current="page"]').innerText(), "Explore");
+
+  // My work says how much is waiting and opens the operator's own list, not All work.
+  const mine = bar.getByRole("link", { name: "My work, 2 workflow steps waiting on you", exact: true });
+  await mine.click();
+  await page.waitForURL(/#\/inbox$/);
+  await bar.locator('a[aria-current="page"]', { hasText: "My work" }).waitFor();
+
+  // Menu opens the drawer with everything else, and the page's foot clears the bar.
+  await bar.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.waitForFunction(() => document.getElementById("sidebar").getBoundingClientRect().x === 0);
+  await page.keyboard.press("Escape");
+  assert.ok(await page.locator("main").evaluate(m => parseFloat(getComputedStyle(m).paddingBottom)) >= barBox.height);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+  await page.setViewportSize({ width: 1280, height: 844 });
+  await bar.waitFor({ state: "hidden" });  // the sidebar does this job on a wide screen
 });

@@ -265,14 +265,14 @@ def test_a_specialist_with_no_source_says_so_and_escalates(conn, okan_pack):
     specialist = _system(fake, "organize recorded incident evidence")
     system = json.dumps(specialist["system"])
     assert "No compliance determination" in system and "Escalate safety-critical judgments" in system
-    assert "environmental and regulatory sources are not configured" in system
+    assert "no compliance determination is made from them" in system  # the register informs, never decides (#370)
     tools = {t["name"] for t in specialist["tools"]}
     assert "get_incidents" in tools and "production_summary" not in tools and "calc" not in tools
     assert "turnarounds" not in json.dumps(specialist.get("tools"))  # another domain's skill isn't on offer
 
     orchestrator = _system(fake, "operations assistant")
     assert "Not for:" in json.dumps(orchestrator["system"]) and "Never make operating" in json.dumps(orchestrator["system"])
-    case = next(c for c in okan.ASSISTANT_QUESTIONS if c["domain"] == "missing data: regulatory")
+    case = next(c for c in okan.ASSISTANT_QUESTIONS if c["domain"] == "regulatory")
     scored = evaluate.score_answer(case, out)
     assert scored["mentions"] == 1 and scored["routed"] and not scored["operating_instructions"]
     escalation = next(c for c in okan.ASSISTANT_QUESTIONS if c["domain"] == "escalation")

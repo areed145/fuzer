@@ -188,7 +188,7 @@ def parser() -> argparse.ArgumentParser:
                     help="with --agents: only the questions in this domain (repeatable), e.g. --domain charts")
     ev.add_argument("--out", default=None, help="with --agents or --packs: also write the full results (answers) to this JSON file")
     ev.add_argument("--record", action="store_true",
-                    help="with --agents, --packs or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md")
+                    help="with --agents, --packs, --watch or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md")
     ev.add_argument("--ops", action="store_true",
                     help="replay history through the operations detectors and score them against the fake "
                          "plant's injected events (exits 1 if recall fell since the last run of the same period)")
@@ -409,6 +409,11 @@ def main(argv=None):
                 _say(f"{res['proposals']} proposals, {res['matched_uncaught']} on what no rule caught "
                      f"(matched {res['matched']}), precision {res['precision']}, {res['uncaught']} of {res['upsets']} "
                      f"upsets uncaught, ${res['usd']}")
+                if args.record:
+                    from ..core import settings
+                    from ..evals import runs
+
+                    _say(f"recorded {runs.save(runs.watch(res, settings.get(conn, 'agents.model')))}")
                 if not res["passes"]:
                     raise SystemExit("watch eval: under half its proposals match what no rule caught")
             elif args.cmd == "eval" and args.promoted:

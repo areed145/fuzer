@@ -533,6 +533,13 @@ def test_scheduled_jobs_run_once_per_project_in_its_own_schema(serving, tmp_path
                 runs = tick.evaluate_tick(ctx).run_requests
             assert [r.tags[jobs.PROJECTS_TAG] for r in runs] == ["kestrel,okan"]
             assert jobs.PROJECT_TAG not in runs[0].tags
+            # So do the other light ones: source health, the provider poll and the detectors up to hourly.
+            for name in ("source_health", "providers_poll", "detect_hourly"):
+                light = next(s for s in jobs.schedules if s.job_name == name)
+                with dg.build_schedule_context(instance=instance, resources={"fuzer": fuzer},
+                                               scheduled_execution_time=at) as ctx:
+                    runs = light.evaluate_tick(ctx).run_requests
+                assert [r.tags[jobs.PROJECTS_TAG] for r in runs] == ["kestrel,okan"], name
 
         scope = db.scope()
         done = jobs.work_tick.execute_in_process(resources={"fuzer": fuzer}, tags={jobs.PROJECTS_TAG: "kestrel,okan"})

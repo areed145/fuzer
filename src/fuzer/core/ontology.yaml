@@ -220,6 +220,11 @@ kinds:
     group: Events
     colour: "#d6455d"
     description: A trip, start, changeover, shut-in, choke change, alarm, leak or instrument fault, read from operator logs by Claude.
+  permit_condition:
+    label: Permit condition
+    group: Documents
+    colour: "#5d8a66"
+    description: A condition of a regulatory permit from the register, its owner, when it falls due and the limit as written.
   incident:
     label: Incident
     group: Events
@@ -488,8 +493,8 @@ relations:
   applies_to:
     label: applies to
     view: knowledge
-    description: A document or section and the models, classes, tags or wells it applies to.
-    from: [document, document_section]
+    description: A document, section or permit condition and the models, classes, tags, wells or facilities it applies to.
+    from: [document, document_section, permit_condition]
     to: []
   supersedes:
     label: supersedes

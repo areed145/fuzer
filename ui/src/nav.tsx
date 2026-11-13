@@ -4,6 +4,7 @@ import { Logo } from "./brand";
 import { href } from "./lib";
 import { Button } from "./ui";
 import { useAuth, usePermission } from "./Auth";
+import { goBack, useAppDepth } from "./appHistory";
 
 export type Badge = "work" | "review";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -121,7 +122,56 @@ export function navItemFor(section: string): { group: NavGroup; item: NavItem } 
   }
 }
 
-export function Sidebar({ section, badges, status, demoEnabled }: {
+/** Where Back goes when there is no page behind it in the app (P5.14a): a deep page goes up to the page that owns it
+ * (an entity to Browse, a task to My work), a top page goes Home. None at Home itself. */
+export function upFor(path: string[]): { to: string; label: string } | undefined {
+  const section = path[0] ?? "";
+  if (!section) return undefined;
+  const found = navItemFor(section);
+  const page = found && found.item.path ? found.item.path : found ? `/${found.item.section}` : "/";
+  if (found && !found.item.external && (path.length > 1 || section !== found.item.section) && page !== `/${path.join("/")}`)
+    return { to: href(page), label: found.item.label };
+  return { to: href("/"), label: "Home" };
+}
+
+/** The in-app Back for the installed app, where the browser's own buttons are gone. */
+export function BackButton({ path, className }: { path: string[]; className?: string }) {
+  const depth = useAppDepth();
+  const up = upFor(path);
+  if (depth === 0 && !up) return null;
+  const label = depth > 0 ? "Back" : `Back to ${up!.label}`;
+  return (
+    <Button className={["back-button", className].filter(Boolean).join(" ")} aria-label={label} title={label}
+      onClick={() => goBack(up?.to ?? href("/"))}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+      <span aria-hidden="true">Back</span>
+    </Button>
+  );
+}
+
+/** The phone's bottom bar: the primary destinations a dispatched operator reaches for, in this order. Same pages and
+ * access rules as the sidebar; the drawer behind Menu still holds all of them. */
+const BOTTOM: { group: string; tab?: string; section?: string }[] = [
+  { group: "Home" }, { group: "Work", tab: "My work", section: "inbox" }, { group: "Explore" }, { group: "Investigate" },
+];
+
+/** True while the on-screen keyboard is up (the visual viewport shrinks well below the window), so the bottom bar
+ * gets out of the way of what's being typed. */
+function useKeyboardUp() {
+  const [up, setUp] = useState(false);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const check = () => setUp(viewport.height < window.innerHeight * 0.75);
+    viewport.addEventListener("resize", check);
+    return () => viewport.removeEventListener("resize", check);
+  }, []);
+  return up;
+}
+
+export function Sidebar({ section, path, badges, status, demoEnabled }: {
+  /** The whole route, for the phone top bar's Back. */
+  path: string[];
   section: string;
   badges: Record<Badge, number>;
   /** The compact status area at the foot of the sidebar (facility, counts, health). */
@@ -130,6 +180,7 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
 }) {
   const allowed = useNavigationAccess();
   const [open, setOpen] = useState(false);
+  const keyboard = useKeyboardUp();
   const drawer = useRef<HTMLElement>(null);
   const menu = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -172,6 +223,32 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
   return (
     <>
       <header className="topbar">
+        <BackButton path={path} />
+        <a className="brand" href={href("/")}>
+          <Logo />
+        </a>
+      </header>
+      {/* On a phone the primary destinations sit at the bottom, within thumb reach (P5.14b); Menu opens the rest. */}
+      <nav className={keyboard ? "bottombar keyboard-up" : "bottombar"} aria-label="Quick">
+        {BOTTOM.map(({ group: label, tab, section: first }) => {
+          const group = NAV.find((g) => g.label === label);
+          if (!group || !allowed(group)) return null;
+          const item = group.items.find((entry) => entry.section === first && allowed(entry)) ?? group.items.find(allowed);
+          if (!item) return null;
+          const on = group.items.some((entry) => isActive(entry, section));
+          const count = group.items.reduce((n, entry) => n + (entry.badge === "work" ? badges.work : 0), 0);
+          const name = tab ?? group.label;
+          return (
+            <a key={label} href={href(item.path ?? `/${item.section}`)} className={on ? "on" : undefined}
+              aria-current={on ? "page" : undefined} aria-label={count > 0 ? `${name}, ${BADGE_WORDS.work(count)}` : undefined}>
+              <span className="tab-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d={group.icon} /></svg>
+                {count > 0 && <span className="count" aria-hidden="true">{count}</span>}
+              </span>
+              <span>{name}</span>
+            </a>
+          );
+        })}
         <Button
           ref={menu}
           className="menu-button"
@@ -180,12 +257,10 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
           aria-label={open ? "Close menu" : "Open menu"}
           onClick={() => setOpen(!open)}
         >
-          <span aria-hidden="true">{open ? "✕" : "☰"}</span>
+          <span className="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></span>
+          <span>Menu</span>
         </Button>
-        <a className="brand" href={href("/")}>
-          <Logo />
-        </a>
-      </header>
+      </nav>
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <aside ref={drawer} id="sidebar" className={open ? "sidebar open" : "sidebar"}>
         {open && <Button className="drawer-close" onClick={() => setOpen(false)}>Close menu</Button>}

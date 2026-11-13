@@ -133,9 +133,8 @@ def architecture_md() -> str:
            "## Components", "", "```mermaid", "flowchart LR",
            '  systems[("Source systems<br>SAP, PI, EC, P&IDs, logs")] --> c_sources',
            '  app(["The app (ui/)"])', "  c_api --> app"]
-    for p, (title, _, _) in COMPONENTS.items():
-        n = sum(1 for f in (PKG / p).rglob("*.py") if f.name != "__init__.py")
-        out.append(f'  c_{p}["{title}<br><small>fuzer.{p}, {n} module{"s" if n != 1 else ""}</small>"]')
+    # no module counts or lists: nearly every change adds a module, and a line every PR rewrites conflicts on merge
+    out += [f'  c_{p}["{title}<br><small>fuzer.{p}</small>"]' for p, (title, _, _) in COMPONENTS.items()]
     for p in COMPONENTS:
         out += [f"  c_{d} --> c_{p}" for d in sorted(deps[p]) if d != "core"]
     out += [f'  click c_{p} "{GITHUB}src/fuzer/{p}"' for p in COMPONENTS]
@@ -185,16 +184,14 @@ def architecture_md() -> str:
     by_agent = {a: len(names) for a, names in capabilities.tools_by_agent().items() if names}  # loads the tools
     out += ["## Each component", ""]
     for p, (title, purpose, page) in COMPONENTS.items():
-        mods = sorted(str(f.relative_to(PKG / p))[:-3].replace("/", ".") for f in (PKG / p).rglob("*.py")
-                      if f.name != "__init__.py")
         tests = (PKG.parent.parent / "tests" / p).exists()
         out += [f"### {title}", "", f"{purpose} More in [{page[:-3].replace('-', ' ')}]({page}).", "",
-                f"- **Code:** [`src/fuzer/{p}`]({GITHUB}src/fuzer/{p}): {', '.join(f'`{m}`' for m in mods)}",
+                f"- **Code:** [`src/fuzer/{p}`]({GITHUB}src/fuzer/{p})",
                 f"- **Uses:** {', '.join(sorted(deps[p])) or 'nothing else in fuzer'}"]
         if writes[p]:
-            out.append(f"- **Writes:** {', '.join(f'`{t}`' for t in writes[p])} ([schema](schema.md))")
-        if owns := owned_tables(p):
-            out.append(f"- **Owns:** {', '.join(f'`{t}`' for t in owns)} (its `schema.sql`)")
+            out += ["- **Writes** ([schema](schema.md)):"] + [f"    - `{t}`" for t in writes[p]]  # one a line, so two
+        if owns := owned_tables(p):                                                         # new tables both merge
+            out += ["- **Owns** (its `schema.sql`):"] + [f"    - `{t}`" for t in sorted(owns)]
         if reads[p]:
             out.append(f"- **Settings:** {', '.join(f'`{k}`' for k in reads[p])} ([settings](settings.md))")
         if p == "agents":
@@ -222,8 +219,9 @@ def eval_results_md() -> str:
     asst = [r for r in all_runs if r["kind"] == "assistant"]
     ops = [r for r in all_runs if r["kind"] == "ops"]
     pk = [r for r in all_runs if r["kind"] == "packs"]
+    wa = [r for r in all_runs if r["kind"] == "watch"]
     out = ["# Eval results", "", HEADER.format(what="the recorded runs in `evals/runs/`"),
-           "Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record` or "
+           "Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or "
            "`fuzer eval --ops --full --live --record` (all cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
            "[assistant eval](assistant-eval.md).", ""]
     if asst:
@@ -267,6 +265,22 @@ def eval_results_md() -> str:
                            f"{'yes' if s['passed'] else 'no: ' + _cell('; '.join(s['short']))} |")
             out += [f"| {r['date']} | {b} | `{path}` | | | | | | not applicable: {_cell(why)} |"
                     for path, why in sorted(r.get("not_applicable", {}).items())]
+        out.append("")
+    if wa:
+        from .evals import watch_eval
+
+        out += ["## Agentic watch", "",
+                "The watch (P3.3) reads a window a day at a time and proposes what the rules missed, scored against the "
+                "fake plant's upsets that no rule caught, with `fuzer eval --watch`. A run passes when at least "
+                f"{watch_eval.BAR:.0%} of its proposals match an upset no rule caught.", "",
+                "| Run | Bundle | Window | Model | Upsets (uncaught) | Proposals | On what no rule caught | Precision "
+                "| Recall | Cost | Passed | Missed |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+        for r in reversed(wa):
+            out.append(f"| {r['date']} | {r['bundle']} | {r['since'][:10]} to {r['until'][:10]} | {r.get('model') or ''} "
+                       f"| {r['upsets']} ({r['uncaught']}) | {r['proposals']} | {r['matched_uncaught']} | "
+                       f"{_pct(r.get('precision'))} | {_pct(r.get('recall'))} | "
+                       f"{'' if r.get('usd') is None else '$' + format(r['usd'], '.2f')} | {'yes' if r['passes'] else 'no'} "
+                       f"| {_cell('; '.join(r.get('uncaught_examples') or []))} |")
         out.append("")
     if ops:
         out += ["## Operations loop", "",
