@@ -15,8 +15,8 @@ def _area(label):
 
 def _flow_questions(conn) -> dict[str, dict]:
     return {r["payload"]["tag"]: {"id": r["id"], **r["payload"]} for r in conn.execute(
-        "select id, payload from review_item where kind = 'pid_mismatch' and status = 'open' "
-        "and payload->>'check' = 'flow'")}
+        "select id, payload from review_item where kind = 'pid_mismatch' and status <> 'stale' "
+        "and payload->>'check' = 'flow'")}  # open, or decided by the answer test (any order)
 
 
 def test_the_lp_separator_flow_link_skips_what_the_drawings_show(okan_db):
