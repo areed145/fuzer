@@ -296,8 +296,10 @@ def definitions(conn, process_key: str | None = None) -> list[dict]:
         """, {"k": process_key}).fetchall()
 
 def load_defaults(conn, directory: Path = DEFINITIONS_DIR) -> list[dict]:
-    """Import and publish the starting processes (definitions/*.bpmn) when they differ from what is published,
-    and their task forms (definitions/*.form) when they differ from the latest version."""
+    """Import and publish the starting processes (definitions/*.bpmn) the first time each shipped file is seen, and
+    their task forms (definitions/*.form) when they differ from the latest version. A shipped file already imported
+    once is left alone, so a process published since (an edit, or an operating model rolled out, P8.3) stays live
+    across restarts; a changed shipped file is imported and published again."""
     for f in sorted(directory.glob("*.form")):
         schema = json.loads(f.read_text())
         if (current := form(conn, schema["id"])) is None or current["schema"] != schema:
@@ -309,9 +311,9 @@ def load_defaults(conn, directory: Path = DEFINITIONS_DIR) -> list[dict]:
     for f in files:
         xml = f.read_text()
         keys = list(bpmn.parse(xml))
-        current = conn.execute("select count(*) as n from work_definition where state = 'published' and "
-                               "process_key = any(%s) and xml = %s", (keys, xml)).fetchone()["n"]
-        if current == len(keys):
+        seen = conn.execute("select count(distinct process_key) as n from work_definition where "
+                            "process_key = any(%s) and xml = %s", (keys, xml)).fetchone()["n"]
+        if seen == len(keys):
             continue
         for row in import_bpmn(conn, xml, SYSTEM):
             out.append(publish(conn, row["id"], SYSTEM) | {"process_key": row["process_key"]})
