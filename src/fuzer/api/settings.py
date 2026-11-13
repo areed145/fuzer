@@ -68,15 +68,15 @@ def settings_history(key: str, limit: int = 50, conn=Depends(get_conn)):
 
 @router.get("/settings/detectors")
 def detectors_list(conn=Depends(get_conn)):
-    """Every detector on this asset: on or off, whether it applies, its parameters and class values, last run and
-    replay score; and the asset's equipment classes a value can be set for."""
-    from ..ops import disposition
+    """Every detector on this asset: on or off, whether it applies, its parameters and class values, last run, replay
+    score and how its cases closed out, per equipment class too (P6.3a); and the asset's equipment classes a value can
+    be set for."""
+    from ..ops import disposition, tuning
     from ..sources import providers
 
     p = settings.project()
-    rates = disposition.rates(conn)
-    rows = [{**d, "closeouts": disposition.quality([r for (t, _), r in rates.items() if t in d["raises"]])}
-            for d in detectors.listing(conn, pack(), p)]
+    rates, per = disposition.rates(conn), tuning.closeouts(conn)
+    rows = [{**d, "closeouts": per.get(d["name"]) or tuning.empty()} for d in detectors.listing(conn, pack(), p)]
     outside = [{"system": x["system"], "name": x["name"], "label": x["label"], "type": x["type"], "enabled": x["enabled"],
                 "trust": providers.trust_rules(conn, x["system"], x["name"]),
                 "closeouts": disposition.quality([r for k, r in rates.items() if k == (x["type"], x["system"])])}
