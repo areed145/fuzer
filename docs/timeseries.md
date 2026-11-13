@@ -63,6 +63,15 @@ two of them too early at that coarse step, which count as false alarms. At 1-min
 it finds all 6, each within 45 minutes of its onset. Health finds all three stretches where a 3W reading is frozen in the source (one well's annulus pressure, for hours), and
 raises one noisy reading as that pressure starts moving again.
 
+A real rig's faults (#904): `evals/pronto/` keeps the three labelled days of the PRONTO benchmark from
+Cranfield's three-phase flow facility (CC BY 4.0, its licence and attribution beside it): an air blockage,
+three air leakages, two diverted flows and slugging, one row a second with the rig's alarms, 17 process
+readings and a label. `fuzer.evals.pronto` runs change detection over every reading but the air and water
+flow in, which the operators set by hand: a change in normal running within 15 minutes after they move
+one is explained. The tests last minutes, so it reads 1-minute medians in 20-minute windows. Today it
+finds 6 of the 8 fault onsets, a median 6 minutes in, with no unexplained change in 3.3 hours of normal
+running. It misses the air blockage, which starts 6 minutes into its day, and the second bout of slugging.
+
 ## Operating limits, IOWs and excursions
 
 An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI
