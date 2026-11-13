@@ -3472,6 +3472,71 @@ test("on a phone the ontology graph takes the full width, its panel sits below, 
   assert.ok(scroll <= 390, `page scrolls sideways (${scroll}px)`);
 });
 
+test("P5.16a the Network page draws a facility in 3D: a shape opens its card and asset page, and only this view loads three", async () => {
+  const shape = (solid, size, label) => ({ solid, size, label });
+  const item = (id, shape, x, z, extra = {}) => ({ id, label: id, kind: "tag", description: `${id} description`, classes: ["VE"],
+    shape, plate: "A1", placed: "flow order", x, y: 0, z, ...extra });
+  const scene = {
+    root: { id: "A1", kind: "area", label: "AREA-1" }, focus: null, rels: ["flows_to", "pipes_to"],
+    plates: [{ id: "A1", label: "AREA-1", area: true, frame: "lattice", type: "wellhead jacket", x: 0, y: 0, z: 0, w: 28, d: 13, items: 3 }],
+    items: [item("V-1", "separator", 6, 5.25), item("K-1", "compressor", 14, 5.25, { classes: ["CO.CE"] }), item("E-1", "exchanger", 22, 5.25)],
+    links: [{ id: 1, src: "V-1", dst: "K-1", rel: "pipes_to", product: null, path: [[6, 1, 5.25], [14, 1, 5.25]] },
+      { id: 2, src: "V-1", dst: "E-1", rel: "flows_to", product: "gas", path: [[6, 1, 5.25], [6, 9, 5.25], [22, 9, 5.25], [22, 1, 5.25]] }],
+    shapes: { separator: shape("capsule_h", [5.6, 2.2, 2.2], "Separator"), compressor: shape("box", [3.6, 2.4, 2.6], "Compressor"),
+      exchanger: shape("cylinder_h", [4.6, 1.4, 1.4], "Heat exchanger") },
+    counts: { items: 3, links: 2, not_drawn: 4, by_layout: 3, by_geometry: 0, no_shape: 0 }, truncated: false,
+    places: [{ id: "F", kind: "facility", label: "FAC", parent: null }, { id: "A1", kind: "area", label: "AREA-1", parent: "F" },
+      { id: "A2", kind: "area", label: "AREA-2", parent: "F" }],
+  };
+  const asked = [], scripts = [];
+  page.on("request", (r) => { if (/\/assets\/.*\.js$/.test(r.url())) scripts.push(r.url()); });
+  await page.route("**/scene*", (route) => {
+    asked.push(new URL(route.request().url()).searchParams.get("at"));
+    return route.fulfill({ json: scene });
+  });
+  await page.route("**/network*", (route) => route.fulfill({ json: { rels: [], nodes: [], edges: [], truncated: false } }));
+
+  // The diagram is still the default view, and it doesn't carry the 3D library.
+  await page.goto(`${url}/#/network`);
+  await page.getByRole("navigation", { name: "Views of the network" }).getByRole("link", { name: "3D" }).waitFor();
+  assert.equal(scripts.some((u) => /Scene3D/.test(u)), false);
+
+  await page.getByRole("navigation", { name: "Views of the network" }).getByRole("link", { name: "3D" }).click();
+  const canvas = page.locator("[data-scene-items]");
+  await canvas.waitFor();
+  assert.equal(await canvas.getAttribute("data-scene-items"), "3");
+  assert.equal(scripts.some((u) => /Scene3D/.test(u)), true);
+  assert.match(await page.getByTestId("scene-basis").textContent(), /not to scale: 3 items placed from 2 links, 4 valves and instruments/);
+  assert.equal(await page.getByLabel("Facility or area to draw").inputValue(), "A1");
+
+  // A click on a shape opens its card, with the way to its asset page; the pick is kept in the link.
+  const at = await canvas.evaluate((el) => el.screenOf("K-1"));
+  await page.mouse.click(at.x, at.y);
+  await page.waitForFunction(() => location.hash.includes("node=K-1"));
+  const card = page.locator(".graph-panel");
+  await card.getByRole("heading", { name: "K-1" }).waitFor();
+  assert.match(await card.textContent(), /Compressor \(ISO 14224 CO\.CE\)\. Placed by: flow order/);
+  assert.equal(await card.getByRole("link", { name: "Open" }).getAttribute("href"), "#/e/K-1");
+
+  // Find picks an item by name, and Show asks for another area.
+  await page.getByLabel("Find an item in the drawing").selectOption("E-1");
+  await card.getByRole("heading", { name: "E-1" }).waitFor();
+  await page.getByLabel("Facility or area to draw").selectOption("A2");
+  await page.waitForFunction(() => location.hash.includes("at=A2") && !location.hash.includes("node="));
+  assert.equal(asked.at(-1), "A2");
+
+  // On a phone the drawing takes the width and its controls are thumb-sized.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/network?view=3d&at=A1&node=V-1`);
+  await page.locator("[data-scene-items]").waitFor();
+  await page.locator(".graph-panel").getByRole("heading", { name: "V-1" }).waitFor();
+  const box = await page.locator(".scene3d").boundingBox();
+  assert.ok(box.width > 330 && box.x + box.width <= 390);
+  for (const control of [page.getByLabel("Facility or area to draw"), page.getByRole("button", { name: "Fit" })]) {
+    assert.ok((await control.boundingBox()).height >= 44);
+  }
+});
+
 test("one network draws several link types together, filtered by link type and kind of thing", async () => {
   const nodes = [
     { id: "W1", kind: "well", label: "W1" }, { id: "MAN", kind: "allocation_node", label: "MAN" },

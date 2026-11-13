@@ -52,7 +52,9 @@ are this same thing, the flow trace, the map, process values, measurements and l
 ![Measurements on well OK-J12-02: two years of well tests with trends](assets/screens/well-measurements.png){ loading=lazy }
 
 **Map** shows located wells, platforms and pipelines; **Network** shows Energy Components allocation, gas
-lift and P&ID piping as of a date; **Ontology** shows the data model itself, with circles sized by how many
+lift and P&ID piping as of a date, and its **3D** view draws a facility or an area as generic shapes (vessels as
+cylinders, machines as blocks, jackets on lattice frames) with the links as pipe runs. It is a schematic laid out from
+flow order, not a model of the plant: click a shape for its card and asset page. **Ontology** shows the data model itself, with circles sized by how many
 entities of each kind are loaded.
 
 ![The Ontology graph](assets/screens/ontology.png){ loading=lazy }

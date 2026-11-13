@@ -36,6 +36,19 @@ def network(rels: str | None = None, rel: str | None = None, as_of: date | None 
     return queries.network(conn, wanted or None, as_of)
 
 
+@router.get("/scene")
+def scene(at: str | None = None, rels: str | None = None, conn=Depends(get_conn)):
+    """A schematic scene of a facility or area (P5.16a): its items as generic shapes on plates and the links between
+    them as pipe runs. `at` is a facility, an area or anything inside one; `rels` as for the network."""
+    from ..graph import scene as scenes
+
+    wanted = [r for r in (rels or "").split(",") if r]
+    unknown = sorted(set(wanted) - {r["name"] for r in ontology.relations(conn)})
+    if unknown:
+        raise HTTPException(422, f"unknown link type: {', '.join(unknown)}")
+    return scenes.scene(conn, at, wanted or None, deps.pack())
+
+
 @router.get("/network/compare")
 def network_compare(conn=Depends(get_conn)):
     return queries.compare_networks(conn)

@@ -1,0 +1,71 @@
+# Schematic shapes (P5.16): the generic solid each kind of thing is drawn as in the 3D view of a facility. Not a model
+# of the plant: sizes are schematic, in the scene's own units (a layout cell is 8 wide), never real dimensions.
+#
+# `shapes` names each shape: its `solid` (one the viewer can draw: capsule_v, capsule_h, cylinder_v, cylinder_h, box,
+# sphere, well), its `size` as [along the flow, height, across] and a `label` for its card. Shapes differ by form, not
+# colour: colour is kept for what a link carries and for status. `detail: true` marks small things (valves,
+# instruments) drawn only when a link ends on them.
+# An item's shape is the first of: its ISO 14224 class (`classes`, the full code before its parent's), its process
+# type from the source (`types`), its kind in the register (`kinds`), else `item`.
+# `frames` says how an area's plate is held up, by a word in the area's own type; any other area is a slab.
+# Nothing here names a facility or a tag. A bundle adds or replaces entries under `scene_shapes:` in its pack.yaml,
+# in this same shape.
+
+shapes:
+  vessel: {solid: capsule_v, size: [2.2, 4.6, 2.2], label: Vessel}
+  separator: {solid: capsule_h, size: [5.6, 2.2, 2.2], label: Separator}
+  drum: {solid: capsule_h, size: [4.2, 1.8, 1.8], label: Drum}
+  column: {solid: capsule_v, size: [2.0, 7.5, 2.0], label: Column}
+  exchanger: {solid: cylinder_h, size: [4.6, 1.4, 1.4], label: Heat exchanger}
+  compressor: {solid: box, size: [3.6, 2.4, 2.6], label: Compressor}
+  pump: {solid: box, size: [2.4, 1.4, 1.6], label: Pump}
+  driver: {solid: box, size: [3.0, 1.8, 1.8], label: Driver}
+  tank: {solid: cylinder_v, size: [5.0, 3.6, 5.0], label: Tank}
+  well: {solid: well, size: [1.2, 2.4, 1.2], label: Well}
+  manifold: {solid: cylinder_h, size: [5.0, 0.9, 0.9], label: Manifold or header}
+  flare: {solid: cylinder_v, size: [0.6, 9.0, 0.6], label: Flare}
+  outlet: {solid: box, size: [1.6, 1.6, 1.6], label: Sales or delivery point}
+  valve: {solid: sphere, size: [0.9, 0.9, 0.9], label: Valve, detail: true}
+  instrument: {solid: sphere, size: [0.7, 0.7, 0.7], label: Meter or instrument, detail: true}
+  node: {solid: sphere, size: [1.2, 1.2, 1.2], label: Flow node}
+  item: {solid: box, size: [1.6, 1.6, 1.6], label: Other}
+
+classes:
+  CO: compressor
+  PU: pump
+  GT: driver
+  EM: driver
+  CE: driver
+  ST: driver
+  HE: exchanger
+  VE: vessel
+  VE.SE: separator
+  VE.DR: drum
+  VE.CO: column
+  TA: tank
+  VA: valve
+  IP: instrument
+  WE: well
+  XT: well
+
+types:
+  well: well
+  separator: separator
+  compressor: compressor
+  pump: pump
+  tank: tank
+  manifold: manifold
+  header: manifold
+  meter: instrument
+  valve: valve
+  flare: flare
+  sales_point: outlet
+  station: outlet
+
+kinds:
+  well: well
+  allocation_node: node
+
+frames:
+  jacket: lattice
+  platform: lattice
