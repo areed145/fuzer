@@ -287,6 +287,7 @@ score search, document links, section failure modes and log reading
 | `--full` | with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) and fail if a score is under its floor or fell since the last run |
 | `--live` | with --full: diagnose with the real Claude (costs money) |
 | `--loop` | drive every type of work arrive to counted and say which step failed for which type (P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails) |
+| `--sweep` | run each work detector over the bundle's history and score its raises against the events its evals/detections.yaml declares (P3.6a; writes cases, so run it on a scratch copy; exits 1 if a score is under its floor); --detector picks one |
 | `--roles` | score the measurement roles proposed for each point against the fake plant's process model (P1.4; exits 1 under 90%% right or if a wrong role was confident) |
 | `--since` | with --ops: start (default: 28 days before --until) |
 | `--until` | with --ops: end (default: the latest daily report) |
