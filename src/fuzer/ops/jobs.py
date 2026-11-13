@@ -396,6 +396,20 @@ def closeout_sweep():
     closeout_sweep_op()
 
 
+@dg.op(description="Tuning proposals for detectors whose cases keep closing as false alarms or duplicates (P6.3).")
+def detector_tuning_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from . import tuning
+    with fuzer.connect() as conn:
+        out = tuning.propose(conn, fuzer.pack_for(conn))
+        context.log.info(f"tuning: {[{k: p[k] for k in ('detector', 'param', 'class', 'proposed')} for p in out]}")
+        conn.commit()
+
+
+@dg.job(description="Tuning: a quieter value proposed, replayed on its closed cases, for a detector whose noise passed its threshold.")
+def detector_tuning():
+    detector_tuning_op()
+
+
 @dg.op(description="Agentic SRE (#96): detect upsets in the process data since the last run.")
 def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSettings) -> None:
     from ..workflow import engine
@@ -568,6 +582,7 @@ schedules = [
     per_project(work_notify, "* * * * *", RUNNING),
     per_project(writeback_run, "* * * * *", RUNNING),
     per_project(closeout_sweep, "*/5 * * * *", RUNNING),
+    per_project(detector_tuning, "30 4 * * *", RUNNING),
     per_project(sre_scan, "0 */6 * * *", RUNNING),
     per_project(studies_job, "*/5 * * * *", RUNNING),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
@@ -750,7 +765,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes, unmapped_site_codes,
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, detector_tuning, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure, alert_on_tick_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

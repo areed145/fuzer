@@ -29,7 +29,7 @@ not run and not raised synthetically.
 """
 
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -129,6 +129,52 @@ def _skill_falls_short(conn, skill: str) -> str:
     return f"two briefs from {skill} not followed, and its specialist's draft"
 
 
+def _noisy(conn, pack, t: dict) -> str:
+    """A window detector made noisy on this asset (P6.3): its quieter parameter set to `value`, each detection it then
+    raises over [since, until] that it does not raise at its usual value a case the IOC closes as a false alarm, then
+    the tuning job as its schedule runs it. The value is put back after, so the work that runs later sees the detector
+    as it was."""
+    from psycopg.types.json import Jsonb
+
+    from ..core import detectors, settings
+    from ..ops import disposition, routing, tuning
+    from ..sources.relative_dates import resolve_all
+    from ..sources.timeseries import provider
+
+    t = resolve_all({"t": t})["t"]
+    d = detectors.get(t["detector"])
+    param, p = next(iter(d.quieter)), settings.project()
+    since, until = (datetime.fromisoformat(str(t[k])) for k in ("since", "until"))
+    src, windows = provider(), []
+    while since < until:
+        windows.append((since, min(since + timedelta(hours=6), until)))
+        since += timedelta(hours=6)
+    usual = {(f["point_id"], f["start"]) for a, b in windows for f in d.fn(conn, pack, a, b, src)}
+    settings.set(conn, param, t["value"], by=BY, reason="loop eval: made noisy", project_name=p)
+    try:
+        found = [f for a, b in windows for f in d.fn(conn, pack, a, b, src)
+                 if (f["point_id"], f["start"]) not in usual][: t.get("cases", 12)]
+        for f in found:
+            item = routing.open_task(conn, "upset", f"Loop eval: {d.name} on {f['point']}", BY,
+                                     key=f"loop:noisy:{d.name}:{f['point_id']}:{f['start'].isoformat()}")["id"]
+            conn.execute("insert into exception_record (type, key, title, source, state, subjects, evidence, "
+                         "item_id) values ('upset', %s, %s, %s, 'closed', %s, %s, %s)",
+                         (f"loop:noisy:{item}", f"Loop eval: {d.name} on {f['point']}", BY,
+                          [x for x in (f.get("unit_id"), f.get("point_id")) if x],
+                          Jsonb({"finding": {"detector": f"sre.{d.name}", "start": f["start"].isoformat()}}), item))
+            disposition.record(conn, pack, item, IOC, "false_alarm", note="Nothing wrong on site (loop eval).")
+        conn.commit()
+        if "min_cases" in t:  # a bundle whose quiet history holds few such cases
+            settings.set(conn, "tuning.min_cases", t["min_cases"], by=BY, reason="loop eval", project_name=p)
+        made = tuning.propose(conn, pack)
+    finally:
+        settings.reset(conn, param, by=BY, reason="loop eval: put back", project_name=p)
+        if "min_cases" in t:
+            settings.reset(conn, "tuning.min_cases", by=BY, reason="loop eval: put back", project_name=p)
+    return f"{len(found)} {d.name} cases closed as false alarms at {param} {t['value']}, then the tuning job " \
+           f"({len(made)} proposal{'s' if len(made) != 1 else ''})"
+
+
 def _bring(conn, how: dict) -> str:
     """Run what brings a type in, as production runs it. Returns what ran, in words."""
     from ..core import detectors
@@ -156,6 +202,8 @@ def _bring(conn, how: dict) -> str:
             pipeline.rebuild(conn, pack)
             conn.commit()
             landed = "a delivery and the rebuild after it, then "
+    if "tuning" in how:  # a detector made noisy, its cases closed as false alarms, then the tuning job (P6.3)
+        return _noisy(conn, pack, how["tuning"])
     if "skill" in how:  # a skill falls short twice (briefs not followed), and its specialist drafts a change
         return _skill_falls_short(conn, how["skill"])
     if "round" in how:  # an operator takes a reading on a round, on the phone
@@ -450,6 +498,10 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
                 row = {**found, "raised": True, "about_skill": found["key"]}
                 out["arrived"] = what
                 return f"{what} raised it about {found['key']}"
+            if how.get("about") == "detector":  # a tuning proposal (P6.3): about a detector's parameter, not an asset
+                row = {**found, "raised": True, "about_detector": found["key"]}
+                out["arrived"] = what
+                return f"{what} raised it about {found['key']}"
             if how.get("about") == "model":  # work about the project's operating model (P8.2): a deviation
                 row = {**found, "raised": True, "about_model": found["key"]}
                 out["arrived"] = what
@@ -470,6 +522,8 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
     def match():
         if "about_skill" in row:  # it names a skill's draft version, not an asset or a source
             return f"matched the skill draft {row['about_skill']}"
+        if "about_detector" in row:  # it names a detector, a parameter and a class
+            return f"matched the detector setting {row['about_detector']}"
         if "about_model" in row:  # it names a deviation from the operating model, not an asset or a source
             return f"matched the operating model's {row['about_model']}"
         if "about_source" in row:  # work about a source names one of the project's sources, not an asset
