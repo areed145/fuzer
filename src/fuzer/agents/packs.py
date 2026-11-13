@@ -52,6 +52,16 @@ def shipped() -> list[str]:
     return sorted(p.parent.relative_to(SKILLS).as_posix() for p in SKILLS.rglob(MANIFEST))
 
 
+def summary(path: str) -> str:
+    """What a pack covers, as its playbook's description says it (the SKILL.md front matter), else its title."""
+    text = (SKILLS / path / "SKILL.md").read_text() if (SKILLS / path / "SKILL.md").is_file() else ""
+    if text.startswith("---"):
+        meta = yaml.safe_load(text.split("---", 2)[1]) or {}
+        if meta.get("description"):
+            return str(meta["description"]).strip()
+    return str((yaml.safe_load((SKILLS / path / MANIFEST).read_text()) or {}).get("title") or path)
+
+
 def not_applicable() -> dict[str, dict[str, str]]:
     """The packs each shipped bundle says can't apply to its asset, with why: {bundle: {pack path: reason}} (#826)."""
     from ..core import bundles

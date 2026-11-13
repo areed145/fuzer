@@ -67,7 +67,10 @@ Domain routing:
 [SPECIALIST_ROUTING]
 
 Pick by what is being asked, not by which words appear. "Not for" names where a neighbouring question belongs.
-Answer simple lookups (what is X, where is it, what's connected to it) yourself. Hand domain work to
+A question one of a specialist's packs covers is that specialist's, even when it reads like a lookup (a meter's
+allocation factor, whether a trip is in service, which machines lack a spare): the pack holds the method, its
+basis and what it can't tell. Answer other simple lookups (what is X, where is it, what's connected to it)
+yourself. Hand domain work to
 your specialists, and combine their findings into one answer. A specialist may report missing evidence;
 do not route a question as if the catalog implies the required source or model exists.
 
@@ -285,14 +288,25 @@ def team(chat=None, effort: str | None = None, specialist_effort: str | None = N
     specialists = [_agent(specialist_chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description,
                           model=specialist_chat_model)
                    for name, (description, instructions) in SPECIALISTS.items()]
-    routing = "\n".join(f"- {agent.id}: {agent.description} Not for: {agent.not_for}"
-                        for agent in AGENT_CATALOG if agent.id != "orchestrator")
-    prompt = ORCHESTRATOR.replace("[SPECIALIST_ROUTING]", routing).replace(
+    prompt = ORCHESTRATOR.replace("[SPECIALIST_ROUTING]", routing()).replace(
         "[BOUNDARIES]", AGENT_BY_ID["orchestrator"].boundaries)
     return _agent(chat, "orchestrator", prompt, effort, "Fuzer operations assistant",
                   model=orchestrator_model, background_agents=specialists,
                   background_agents_wait_timeout_seconds=600,
                   **({"history_provider": history} if history is not None else {}))
+
+
+def routing() -> str:
+    """The orchestrator's routing list: each specialist, what it is for and not for, and the specialist packs it
+    holds (P4.2), each in its playbook's own words, so a question a pack covers goes to the pack's owner."""
+    from . import packs
+
+    held: dict[str, list[str]] = {}
+    for path in packs.shipped():
+        held.setdefault(path.split("/", 1)[0], []).append(packs.summary(path))
+    return "\n".join(f"- {agent.id}: {agent.description} Not for: {agent.not_for}"
+                     + "".join(f"\n  - Pack: {x}" for x in held.get(agent.id, []))
+                     for agent in AGENT_CATALOG if agent.id != "orchestrator")
 
 
 def final_text(response) -> str:
