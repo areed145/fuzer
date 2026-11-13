@@ -198,6 +198,23 @@ create table if not exists regulatory_report (
     created_at   timestamptz not null default now(),
     unique (template, period, version)
 );
+alter table regulatory_report add column if not exists approval_note text;
+
+-- The obligations calendar (P7.6c): each report a regulator expects, per period, its due date as days after the
+-- period ends, and how far ahead the report process starts.
+create table if not exists report_obligation (
+    name         text primary key,
+    template     text not null,
+    regulator    text,
+    due_days     integer not null default 15,   -- 15: due on the 15th of the month after the period
+    lead_days    integer not null default 10,   -- the process starts this many days before it is due
+    draft_ahead  boolean not null default true, -- the calendar drafts it from its records when its window opens
+    starts       date not null,                 -- the first due date it counts; periods due before it are not owed
+    active       boolean not null default true,
+    note         text,
+    updated_by   text not null,
+    updated_at   timestamptz not null default now()
+);
 
 -- The opportunity scan (#102): gains left on the table, one row per opportunity under a stable key. A decided
 -- one (rejected, accepted, project) isn't raised again unless its evidence or gain changes materially.

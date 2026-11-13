@@ -410,6 +410,20 @@ def detector_tuning():
     detector_tuning_op()
 
 
+@dg.op(description="The obligations calendar (P7.6c): reports drafted as their windows open, and work for one coming due.")
+def report_calendar_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from . import reports
+    with fuzer.connect() as conn:
+        out = reports.run_calendar(conn, fuzer.pack_for(conn))
+        context.log.info(f"report calendar: drafted {out['drafted']}, raised {[r['key'] for r in out['raised']]}, "
+                         f"cleared {out['cleared']}, errors {out['errors']}")
+
+
+@dg.job(description="Obligations: each regulatory report drafted ahead of its due date, and work for one coming due.")
+def report_calendar():
+    report_calendar_op()
+
+
 @dg.op(description="Agentic SRE (#96): detect upsets in the process data since the last run.")
 def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSettings) -> None:
     from ..workflow import engine
@@ -583,6 +597,7 @@ schedules = [
     per_project(writeback_run, "* * * * *", RUNNING),
     per_project(closeout_sweep, "*/5 * * * *", RUNNING),
     per_project(detector_tuning, "30 4 * * *", RUNNING),
+    per_project(report_calendar, "0 5 * * *", RUNNING),
     per_project(sre_scan, "0 */6 * * *", RUNNING),
     per_project(studies_job, "*/5 * * * *", RUNNING),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
@@ -765,7 +780,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes, unmapped_site_codes,
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, detector_tuning, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, detector_tuning, report_calendar, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure, alert_on_tick_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

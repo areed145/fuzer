@@ -321,6 +321,47 @@ test("P7.6 a regulatory report marks figures on estimated or missing data and dr
   await page.getByText("cause unknown", { exact: false }).waitFor();
 });
 
+test("P7.6b a marked report is approved by a person with their reason, then exported", async () => {
+  const report = { id: 1, template: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "2026-11",
+    version: 1, versions: [1], status: "draft", drafted_by: "agent:reporter", item_id: 27, created_at: "2026-11-13T10:00:00Z",
+    approved_by: null, approved_at: null, approval_note: null, submitted: null,
+    coverage: { since: "2026-11-01", through: "2026-11-12", partial: true, label: "November 2026" },
+    marked: [{ key: "meter:w", label: "Metered gas, KR 12-03H", basis: "estimated", flags: ["1 estimated: 2026-11-12"] }],
+    review: { id: 3, state: "open", item_id: 27, case_state: "open", assignee: null }, sections: [] };
+  let approved = null, exported = 0;
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "Hana"));
+  await page.route("**/reports/daily", route => route.fulfill({ json: [] }));
+  await page.route("**/reports/regulatory", route => route.fulfill({ json: { templates: [], reports: [] } }));
+  await page.route("**/reports/obligations", route => route.fulfill({ json: { obligations: [{ name: "flaring_return" }], calendar: [
+    { obligation: "flaring_return", template: "flare_emissions_monthly", regulator: "the regulator", period: "2026-10", due: "2026-11-15",
+      opens: "2026-11-05", overdue: false, days_left: 2, report: null, draft_ahead: false }] } }));
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11/approve", route => {
+    approved = route.request().postDataJSON();
+    return route.fulfill({ json: { status: "approved" } });
+  });
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11/export*", route => {
+    exported++;
+    return route.fulfill({ json: { filename: "r-DRAFT.csv", content: "DRAFT x", sha256: "ab" } });
+  });
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11?*", route => route.fulfill({ json: report }));
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11", route => route.fulfill({ json: report }));
+  await page.goto(`${url}/#/reports?report=flare_emissions_monthly:2026-11`);
+  const approve = page.getByRole("button", { name: "Approve report", exact: true });
+  await approve.waitFor();
+  await page.getByText("for the regulator: due 2026-11-15, in 2 days; not started", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "flaring_return, 2026-10" }).getAttribute("href"),
+    "#/reports?report=flare_emissions_monthly%3A2026-10");
+  assert.equal(await approve.isDisabled(), true);  // a marked figure needs the approver's reason first
+  await page.getByRole("textbox", { name: "Why it can go as it is" }).fill("The estimates are the system's own.");
+  await approve.click();
+  await page.getByRole("button", { name: "Confirm Approve report" }).click();
+  for (let i = 0; i < 50 && !approved; i++) await page.waitForTimeout(50);
+  assert.deepEqual(approved, { by: "Hana", version: 1, note: "The estimates are the system's own." });
+  await page.getByRole("button", { name: "Export CSV (draft)" }).click();
+  for (let i = 0; i < 50 && !exported; i++) await page.waitForTimeout(50);
+  assert.equal(exported, 1);
+});
+
 test("a case's process diagram opens on the waiting step at a readable size, the whole process a click away (#406)", async () => {
   const xml = readFileSync(new URL("../../src/fuzer/workflow/definitions/upset.bpmn", import.meta.url), "utf8");
   const step = { id: 3, process_id: 1, element: "triage", name: "Triage", kind: "user", state: "waiting", flow: null, role: "engineer",
