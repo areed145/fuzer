@@ -26,6 +26,13 @@ BUILTINS = {
     "ai_user": ("Use configured AI services", ["read", "ai"]),
 }
 ACTOR_PREFIX = "user:"
+# The demo account (D.1): a fixed, non-Microsoft account for demonstrations and automated checks of a deployment.
+# It exists only while FUZER_DEMO_TOKEN is set, can never own or configure, and audits as `user:demo`.
+DEMO_ID = "demo"
+DEMO_TENANT = "fuzer-demo"  # never a UUID, so no Microsoft identity can collide with it
+DEMO_NAME = "Demo account"
+DEMO_DENIED = frozenset({"configure"})
+DEMO_SESSION_HOURS = 12
 
 
 class AccessError(ValueError):
@@ -143,9 +150,12 @@ def principal(conn, account_id: str, csrf: str = "", project: str | None = None)
         roles = conn.execute(
             "select r.name, r.permissions from access_membership m join access_role r on r.name = m.role "
             "where m.account_id = %s order by r.name", (account_id,)).fetchall()
-    return Principal(row["id"], row["display_name"], row["enabled"], row["owner"],
-                     tuple(r["name"] for r in roles),
-                     frozenset(p for r in roles for p in r["permissions"]), csrf, project)
+    permissions = frozenset(p for r in roles for p in r["permissions"])
+    owner = row["owner"]
+    if row["id"] == DEMO_ID:  # whatever an owner grants it, the demo account never owns or configures
+        owner, permissions = False, permissions - DEMO_DENIED
+    return Principal(row["id"], row["display_name"], row["enabled"], owner,
+                     tuple(r["name"] for r in roles), permissions, csrf, project)
 
 
 def project_roles(conn, account_id: str) -> dict[str, list[str]]:
@@ -230,9 +240,67 @@ def sign_in(conn, claims: dict) -> tuple[Principal, str]:
     return principal(conn, account_id, csrf), token
 
 
+def demo_enabled() -> bool:
+    """The demo sign-in is on only while the deployment holds a long FUZER_DEMO_TOKEN."""
+    return len(os.environ.get("FUZER_DEMO_TOKEN", "")) >= 32
+
+
+def demo_projects(conn) -> list[str]:
+    """The stored projects the demo account is granted: those named in FUZER_DEMO_PROJECTS, else every one."""
+    from . import projects
+
+    stored = projects.stored(conn)
+    value = os.environ.get("FUZER_DEMO_PROJECTS")
+    if value is None:
+        return stored
+    wanted = {n.strip() for n in value.split(",") if n.strip()}
+    return [n for n in stored if n in wanted]
+
+
+def demo_sign_in(conn, token: str) -> tuple[Principal, str]:
+    """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN. The account is created enabled with the
+    operator role in the demo projects (demo_projects); an owner can disable it or change its roles on Users, and a
+    disabled demo account stays signed out. It never owns or configures (see principal)."""
+    expected = os.environ.get("FUZER_DEMO_TOKEN", "")
+    if not demo_enabled() or not hmac.compare_digest(token.encode(), expected.encode()):
+        raise AccessError("Demo sign-in is not available")
+    created = conn.execute(
+        "insert into access_account (id, tenant_id, object_id, display_name, enabled, owner) "
+        "values (%s, %s, %s, %s, true, false) on conflict (id) do nothing returning id",
+        (DEMO_ID, DEMO_TENANT, DEMO_ID, DEMO_NAME)).fetchone()
+    if created:
+        first = _default_project(conn)
+        granted = demo_projects(conn)
+        for name in granted:
+            if name == first:
+                conn.execute("insert into access_membership (account_id, role) values (%s, 'operator') "
+                             "on conflict do nothing", (DEMO_ID,))
+            else:
+                conn.execute("insert into access_project_grant (account_id, project, role) "
+                             "values (%s, %s, 'operator') on conflict do nothing", (DEMO_ID, name))
+        conn.execute("insert into work_person (name, roles) values (%s, '{}') on conflict do nothing",
+                     (ACTOR_PREFIX + DEMO_ID,))
+        event(conn, ACTOR_PREFIX + DEMO_ID, "demo_account_created", projects=granted, roles=["operator"])
+    conn.execute("update access_account set owner = false where id = %s and owner", (DEMO_ID,))
+    if not conn.execute("select enabled from access_account where id = %s", (DEMO_ID,)).fetchone()["enabled"]:
+        conn.commit()
+        raise AccessError("The demo account is disabled. An owner can enable it on Users.")
+    session_token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+    hours = min(settings.get(conn, "access.session_hours"), DEMO_SESSION_HOURS)
+    conn.execute("delete from access_session where expires_at <= now()")
+    conn.execute(
+        "insert into access_session (token_hash, account_id, csrf, expires_at) "
+        "values (%s, %s, %s, now() + %s * interval '1 hour')", (digest(session_token), DEMO_ID, csrf, hours))
+    event(conn, ACTOR_PREFIX + DEMO_ID, "signed_in", method="demo_token")
+    conn.commit()
+    return principal(conn, DEMO_ID, csrf), session_token
+
+
 def session(conn, token: str) -> Principal | None:
     row = conn.execute("select account_id, csrf from access_session where token_hash = %s and expires_at > now()",
                        (digest(token),)).fetchone()
+    if row and row["account_id"] == DEMO_ID and not demo_enabled():
+        return None  # removing FUZER_DEMO_TOKEN signs the demo account out everywhere, not just at next sign-in
     return principal(conn, row["account_id"], row["csrf"]) if row else None
 
 
@@ -240,6 +308,8 @@ def bootstrap(conn, person: Principal, token: str):
     expected = os.environ.get("FUZER_OWNER_BOOTSTRAP_TOKEN", "")
     if len(expected) < 32 or not hmac.compare_digest(token.encode(), expected.encode()):
         raise AccessError("Invalid owner setup code")
+    if person.id == DEMO_ID:
+        raise AccessError("The demo account cannot become an owner")
     conn.execute("select pg_advisory_xact_lock(hashtext('access:owners'))")
     if conn.execute("select 1 from access_account where owner").fetchone():
         raise AccessError("An owner already exists; ask that owner to grant access")
@@ -275,6 +345,8 @@ def update_account(conn, by: Principal, account_id: str, *, enabled: bool, owner
         raise AccessError("Unknown account")
     if owner and not enabled:
         raise AccessError("An owner must be enabled")
+    if owner and account_id == DEMO_ID:
+        raise AccessError("The demo account cannot be an owner")
     if current["owner"] and not owner:
         n = conn.execute("select count(*) as n from access_account where owner and enabled").fetchone()["n"]
         if n <= 1:

@@ -25,6 +25,8 @@ services:
         sync: false
       - key: FUZER_OWNER_BOOTSTRAP_TOKEN
         generateValue: true
+      - key: FUZER_DEMO_TOKEN  # optional demo account for demos and automated checks; unset = off
+        sync: false
       - key: DAGSTER_HOME
         value: /var/lib/fuzer/dagster
       - key: ANTHROPIC_API_KEY
