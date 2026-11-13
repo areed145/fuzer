@@ -61,6 +61,8 @@ export interface TraceRow {
   valid_to: string | null;
   kind: string;
   label: string | null;
+  /** The step before it on the path from the asset the trace started at. */
+  parent: string | null;
 }
 
 export interface GeoFeature {
@@ -249,8 +251,8 @@ export const exploreApi = {
   search: (q: string, kind?: string) => request<SearchHit[]>("GET", "/entities", { q, kind, limit: 200 }),
   entity: (id: string, asOf?: string) =>
     request<EntityDetail>("GET", `/entities/${encodeURIComponent(id)}`, { as_of: asOf }),
-  trace: (id: string, direction: "up" | "down", asOf?: string) =>
-    request<TraceRow[]>("GET", `/entities/${encodeURIComponent(id)}/trace`, { direction, as_of: asOf }),
+  trace: (id: string, direction: "up" | "down", asOf?: string, depth?: number) =>
+    request<TraceRow[]>("GET", `/entities/${encodeURIComponent(id)}/trace`, { direction, as_of: asOf, depth }),
   history: (id: string) =>
     request<{ record: string; at: string; change: string; fields: Record<string, { from: unknown; to: unknown }> }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/history`, { limit: 20 }),

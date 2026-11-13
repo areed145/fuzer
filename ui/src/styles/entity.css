@@ -25,3 +25,4 @@ ul.others li { display: flex; gap: 6px; align-items: center; }
 .dates { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .quote { color: var(--muted); font-style: italic; font-size: 12px; }
 .sources { margin-left: auto; display: flex; gap: 4px; }
+.entity .page-tabs { margin-bottom: 16px; }

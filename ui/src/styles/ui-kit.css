@@ -21,7 +21,11 @@
 .ui-button-danger { background: var(--danger); color: var(--accent-text); border-color: var(--danger); }
 .ui-button:hover:not(:disabled) { border-color: var(--accent); }
 .ui-button:disabled { opacity: .5; cursor: default; }
-.ui-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.ui-card { background: var(--panel); border: 1px solid transparent; border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
+:root[data-theme="dark"] .ui-card { border-color: var(--line); }
+/* A card's heading is a small label with an accent tick, so the content below carries the weight. */
+.ui-card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding-left: 10px; border-left: 3px solid var(--accent); }
+.ui-card h2 small, .ui-card h2 .small { text-transform: none; letter-spacing: 0; }
 .ui-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .ui-card-header h2 { margin: 0; }
 .ui-table-wrap { max-width: 100%; overflow-x: auto; }
