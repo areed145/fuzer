@@ -42,7 +42,7 @@ built left to right.
 | *Gate B* (passed 2026-11-13) | Every work type closes end to end | | | |
 | 5 Compounding | P7.3, P7.5, P7.6 | P6.3, P3.3 live, P3.4, P7.4 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
-| *Gate C* | | | Third asset type live, no code | |
+| *Gate C* (passed 2026-11-13) | | | Third asset type live, no code | |
 
 Gate A was signed off on 2026-11-12. One gap is logged for Phase 2: in the loop eval, steward questions and source
 and mapping problems are still raised by the loop instead of arriving on their own (#747).
@@ -51,6 +51,12 @@ Gate B was signed off on 2026-11-13, with one gap logged: write-back is proven i
 close step doesn't go through the write-back queue yet (#751). The loop closes every work type on Okan (40), Kestrel
 (36) and Harrier (34), and the field leg's jobs pass at 390 px; only Okan's field jobs are rendered on a phone so far
 (#963).
+
+Gate C was signed off on 2026-11-13. Harrier, a crude pipeline and terminal with no wells, adopts standard v1 with no
+deviations and closes every work type that applies in the loop eval. It carries no code of its own; standing it up
+found five platform gaps, each fixed for every asset (#821, #827: far-off dates, packs with no wells, pump trips, adopt
+on a new project, and the fake plant's pump vibration). One gap is logged: the deploy test covers only a copy of one
+bundle, and Harrier on the Render instance is not yet confirmed (#962).
 
 Landed so far: P1.1 One finding contract, P1.3 Method registry ([Methods](methods.md)) and P1.2 Detector registry
 ([Detectors](detectors.md)).
