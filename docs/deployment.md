@@ -230,6 +230,76 @@ Repository changes, opening a PR and merging do not themselves verify a live Ren
 deployment. Before sharing a deployed revision, verify fresh-session login and approval,
 owner administration, desktop/mobile Okan navigation, and rejected unauthorized writes.
 
+## Backup and restore
+
+Everything a shift would miss lives in `fuzer-db`:
+
+- every project's schema (`public` for the first project, `proj_<name>` for the others), with its register, cases, work, decisions and readings;
+- the shared `fuzer` schema, with accounts, grants, settings and access events;
+- the `dagster` schema, with run history and schedules.
+
+The persistent disk holds only Dagster run output, which is pruned after 14 days. The synthetic exports come with the image. So a recovery is a database recovery.
+
+### What Render keeps
+
+| What | Kept | How it is restored |
+|---|---|---|
+| Point-in-time recovery of `fuzer-db` | Last 3 days on a Hobby workspace, 7 on Pro or higher. None on the Free database plan. | Render creates a **new** database as it was at a time you pick, at least 10 minutes ago. The original is left as it is. |
+| Logical exports of `fuzer-db` | 7 days. Made on demand from the database's Recovery page, never automatically. | `pg_restore` into an **empty** database. |
+| Persistent disk snapshots | Daily, kept 7 days. | Whole-disk restore from the service's Disk page. It is not needed for Fuzer data. |
+
+Nothing is copied off Render. A copy older than 7 days, or one that survives losing the Render account, would need a scheduled `pg_dump` to outside storage. That is a paid service and isn't set up.
+
+### What a restore loses
+
+A restore loses everything written after the restore point:
+
+- decisions, case notes and closed work;
+- settings changes, sign-ins and grant changes;
+- Dagster run history.
+
+Before you retire the original database, export its audit record since the restore point. That list is what the shift has to redo:
+
+```bash
+FUZER_DATABASE_URL='<original database external URL>' \
+  uv run fuzer audit export --since <restore point, UTC> --format csv --out lost-since-restore.csv
+```
+
+Rows marked `latest only` show a record's latest state, not every change to it ([the audit record](ot-security.md)).
+
+### Restoring at a shift-safe time
+
+1. **Agree a window with the IOC lead.** Use a gap between shifts. Tell the outgoing shift that the board is about to go stale, and tell them when to stop recording decisions.
+2. **Pick the restore point.** Choose the last time before the bad deploy, bad import or lost data. Render's Events tab and the audit record of the current database show when that happened.
+3. **Create the recovery database.** In Render, open `fuzer-db`, then Recovery, then Restore, and choose the point. Keep the existing settings so the plan and allow list match.
+4. **Check the recovery database before switching.** Run the commands below against its external URL. `fuzer projects list` should name every project. The audit record should end just before the restore point:
+
+   ```bash
+   FUZER_DATABASE_URL='<recovery database external URL>' uv run fuzer projects list
+   FUZER_DATABASE_URL='<recovery database external URL>' \
+     uv run fuzer audit export --since <restore point minus a day> --format csv | tail -5
+   ```
+
+5. **Export what will be lost** from the original database (the command above).
+6. **Switch the service.** Set `FUZER_DATABASE_URL` on the `fuzer` web service to the recovery database's *internal* URL, then redeploy. `render.yaml` reads the URL from the database named `fuzer-db`. Until `fromDatabase.name` is changed to the recovery database in a merged PR, a Blueprint sync points the service back at the original. Don't sync in between.
+7. **Confirm the service is back.** The startup log should show `already initialized`, not a fresh load. Then check `/health`, sign-in, and the Board for the last decision before the restore point.
+8. **Hand over.** Give the shift `lost-since-restore.csv` to redo. Suspend the original database, and delete it once the shift has finished with it.
+
+To restore from a logical export instead, create an empty Postgres 16 database and run `pg_restore --no-owner -d '<its external URL>' <export folder>`. Then carry on from step 4. Never restore an export into a database that already holds Fuzer data.
+
+### Rehearsal
+
+A local rehearsal on 13 Nov 2026 used Postgres 16 and the Okan register (117 tables in `public`, 286,126 rows):
+
+1. Recorded a settings change as `user:ioc-lead`.
+2. Took a `pg_dump -Fd` backup (5.2 MB, under a second).
+3. Recorded a second change.
+4. Restored into an empty database with `pg_restore --no-owner` (about a second).
+
+Row counts in `public` matched. The restored `fuzer` schema had every row from before the backup and none from after it. On the restored database, `fuzer audit export` showed the first change and not the second. On the original, the same export over the window since the backup listed exactly the second change, which is the one a restore would lose. `fuzer projects list` worked on the restored database.
+
+A rehearsal of point-in-time recovery on Render itself hasn't been run. The recovery database is billed while it exists.
+
 ## Performance
 
 Okan is the only supported synthetic project and test fixture. Use
