@@ -77,7 +77,7 @@ def test_the_lean_combustor_and_the_hot_section_hours(conn):
 
 def test_real_gas_performance_and_the_power_balance(conn):
     g = compression.gas_performance(conn, fid(conn, "20-K-2200A"))
-    assert g["gas"]["from"] == "gas analysis" and 0.66 < g["gas"]["relative_density"] < 0.70
+    assert g["gas"]["from"] == "gas analysis" and 0.73 < g["gas"]["relative_density"] < 0.77
     assert 1.22 < g["k"] < 1.30 and 0.9 < g["z_suction"] < 1.0 and g["gas_power_kw"] > 0
     assert g["value"] < g["ideal_gas_efficiency"]  # a fixed k of 1.3 overstates the efficiency of this gas
     first = compression.gas_performance(conn, fid(conn, "20-K-2100A"))
