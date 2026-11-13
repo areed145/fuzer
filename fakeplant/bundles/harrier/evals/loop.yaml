@@ -57,3 +57,5 @@ arrive:
                          detector: deviation_reviews, about: model}
   # The compression pack's briefs not followed twice: its specialist drafts a change to the playbook (P6.4c)
   skill_change: {skill: maintenance-integrity/compression, about: skill}
+  repeat_leak: {not_here: "no LDAR survey export: the site runs no leak survey programme in its data"}
+  gas_balance_gap: {not_here: "its daily report carries no fuel gas, so its gas balance has nothing to close"}

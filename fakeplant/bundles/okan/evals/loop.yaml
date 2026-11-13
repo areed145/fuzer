@@ -82,3 +82,7 @@ arrive:
                          detector: deviation_reviews, about: model}
   # The compression pack's briefs not followed twice: its specialist drafts a change to the playbook (P6.4c)
   skill_change: {skill: maintenance-integrity/compression, about: skill}
+  # 20-K-2300A's dry gas seal vent leaking in three LDAR surveys running (the LDAR source pack's detector)
+  repeat_leak: {detector: repeat_leaks}
+  # The GGCP fuel gas meter reading zero from 15 September 2025: the gas balance open by the fuel those days
+  gas_balance_gap: {detector: gas_balance_gaps, now: "2025-10-01"}

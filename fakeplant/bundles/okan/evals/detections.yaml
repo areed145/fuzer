@@ -113,6 +113,20 @@ detectors:
       - {key: "fz-downtime", from: "2025-12-31", to: "2025-12-31"}   # 40-V-2002's trip: no log entry, no notification
       - {key: "fz-log_entry", from: "2025-12-31", to: "2025-12-31"}  # OK-J09-02 shut in per the log: no downtime
 
+  repeat_leaks:  # the LDAR pack's detector, read after each quarterly survey
+    since: "2024-02-15"
+    until: "2025-12-31"
+    at: ["2024-05-16", "2024-08-15", "2024-11-14", "2025-02-13", "2025-05-15", "2025-08-14", "2025-11-13"]
+    events:
+      - {key: "20-K-2300A dry gas seal vent", from: "2025-08-13", to: "2025-12-31"}  # leaking three surveys running
+
+  gas_balance_gaps:  # the daily report's balance, read each week
+    since: "2025-06-01"
+    until: "2025-12-31"
+    every_days: 7
+    events:
+      - {key: "gas balance · 2025-09-15", from: "2025-09-17", to: "2025-10-09"}  # the GGCP fuel gas meter reading zero
+
   # The entries below land the next delivery in Okan's history first; what they land stays, so they come last.
   source_health:
     deliver: {path: deliveries/thin-delivery, datasets: [moc_register]}

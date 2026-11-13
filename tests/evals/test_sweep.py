@@ -81,7 +81,7 @@ def test_every_detector_has_a_score_and_a_floor():
     assert not set(sweep.SCORED_ELSEWHERE) & swept  # scored one way, not two
 
 
-CHEAP = ["quality_drift", "well_tests", "flare_events"]  # seconds each; the whole sweep is the e2e tier's
+CHEAP = ["quality_drift", "well_tests", "flare_events", "repeat_leaks", "gas_balance_gaps"]  # seconds each; the whole sweep is the e2e tier's
 
 
 @pytest.mark.integration
