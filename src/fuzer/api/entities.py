@@ -288,6 +288,13 @@ def entity_downtime(fuzer_id: str, since: str | None = None, until: str | None =
     return queries.downtime(conn, fuzer_id, since, until, min(limit, 1000))
 
 
+@router.get("/entities/{fuzer_id}/status")
+def entity_status(fuzer_id: str, conn=Depends(get_conn)):
+    """How the entity is doing right now: open work on it, its newest downtime and incident, a well's latest test."""
+    from ..ops import exceptions
+    return {"open_work": len(exceptions.listing(conn, subject=fuzer_id, limit=1000)), **queries.status(conn, fuzer_id)}
+
+
 @router.get("/incidents")
 def all_incidents(since: str | None = None, until: str | None = None, limit: int = 50, conn=Depends(get_conn)):
     return queries.incidents(conn, None, since, until, min(limit, 1000))

@@ -3180,6 +3180,31 @@ test("an asset's page shows the open exceptions about it and the work planned on
   await page.getByRole("link", { name: "Replace P-101 seal" }).waitFor();
 });
 
+test("an asset's page opens with one line on how it is doing right now", async () => {
+  const id = "fz-well-0123456789ab";
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "well", label: "OK-J07-03",
+    golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  const status = { open_work: 2,
+    downtime: { id: "fz-downtime-1", start: "2026-11-10T10:00", end: null, reason: "Gas lift valve failure", open: true },
+    incident: { id: "fz-incident-1", start: "2026-10-02", description: "Trip", total: 3 },
+    well_test: { at: "2026-11-01", values: [{ quantity: "water_cut", value: 53.7, unit: "%" },
+      { quantity: "oil_rate", value: 40.2, unit: "Sm3/d" }, { quantity: "wellhead_pressure", value: 23.6, unit: "barg" }] } };
+  await page.route(`**/entities/${id}/status`, (route) => route.fulfill({ json: status }));
+  await page.goto(`${url}/#/e/${id}`);
+  const line = page.getByRole("status", { name: "Status now" });
+  await line.getByText("Down", { exact: true }).waitFor();
+  assert.match(await line.innerText(), /since 2026-11-10: Gas lift valve failure/);
+  assert.match(await line.innerText(), /2 open exceptions/);
+  assert.match(await line.innerText(), /Last incident 2026-10-02 of 3/);
+  assert.match(await line.innerText(), /Last test 2026-11-01: oil rate 40.2 Sm3\/d · water cut 53.7 %/);
+  // With nothing open it says so, and claims nothing it has no record of.
+  status.downtime.open = false; status.downtime.end = "2026-11-11T10:00"; status.open_work = 0;
+  await page.reload();
+  await line.getByText("No downtime open").waitFor();
+  await line.getByText("No open exceptions").waitFor();
+});
+
 test("an entity page reads labels, PI AF paths and long relations as a person would (#392, #400, #401)", async () => {
   const id = "fz-well-0123456789ab";
   const edge = (i) => ({ direction: "in", rel: "tested", other: `fz-well_test-${String(i).padStart(12, "0")}`, other_kind: "well_test",

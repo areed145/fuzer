@@ -80,3 +80,14 @@ def test_api(conn):
     assert client.get("/downtime/ranking", params={"by": "reason"}).status_code == 200
     assert client.get("/downtime", params={"limit": 3}).json()["recent"][0]["start"]
     assert client.get("/downtime/ranking", params={"by": "nonsense"}).status_code == 422
+
+
+def test_status_gives_the_newest_downtime_incident_and_well_test(conn):
+    """The entity page's status line: a well's latest test and downtime, a compressor's newest incident."""
+    well = queries.status(conn, fid(conn, "OK-J07-03"))
+    newest = queries.downtime(conn, fid(conn, "OK-J07-03"), limit=1)["recent"][0]
+    assert well["downtime"]["id"] == newest["id"] and well["downtime"]["open"] == (not newest["end"])
+    assert well["well_test"]["at"] and {v["quantity"] for v in well["well_test"]["values"]} >= {"oil_rate"}
+    compressor = queries.status(conn, fid(conn, "20-K-2200B"))
+    assert compressor["well_test"] is None
+    assert compressor["incident"]["total"] == queries.incidents(conn, fid(conn, "20-K-2200B"))["total"] > 0

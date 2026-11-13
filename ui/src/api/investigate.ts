@@ -526,6 +526,7 @@ export const investigateApi = {
   events: (id: string) => request<FuzerEvent[]>("GET", `/entities/${encodeURIComponent(id)}/events`, { limit: 200 }),
   maintenance: (id: string) =>
     request<Maintenance>("GET", `/entities/${encodeURIComponent(id)}/maintenance`, { limit: 25 }),
+  entityStatus: (id: string) => request<EntityStatus>("GET", `/entities/${encodeURIComponent(id)}/status`),
   downtime: (id?: string, since?: string) =>
     request<Downtime>("GET", id ? `/entities/${encodeURIComponent(id)}/downtime` : "/downtime", { since, limit: 25 }),
   downtimeRanking: (by: "tag" | "class" | "reason", since?: string) =>
@@ -616,3 +617,11 @@ export const investigateApi = {
   deleteConversation: (id: string) =>
     request<{ deleted: string }>("DELETE", `/assistant/conversations/${encodeURIComponent(id)}`),
 };
+
+/** How an entity is doing right now (the status line on its page). */
+export interface EntityStatus {
+  open_work: number;
+  downtime: { id: string; start: string | null; end: string | null; reason: string | null; open: boolean } | null;
+  incident: { id: string; start: string | null; description: string | null; total: number } | null;
+  well_test: { at: string; values: { quantity: string; value: number; unit: string | null }[] } | null;
+}
