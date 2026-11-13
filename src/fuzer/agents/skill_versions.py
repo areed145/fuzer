@@ -14,11 +14,13 @@ live version is marked rolled back and the one live before it, or the shipped fo
     set_aside(conn, path, version, by, note)         a person turns a draft down
     rollback(conn, path, by)                         a person takes the live version back one step
     roots(conn=None)                                 the folder each skill with a live published version loads from
+    trying(path, playbook)                           agents built inside load this playbook (the eval gate's candidate)
 
 A version changes the playbook (SKILL.md) only. The pack manifest, its tools, methods and roles stay as shipped, so a
 playbook change cannot give an agent a tool, and conformance (packs.conformance) still holds against the shipped pack.
 """
 
+import contextlib
 import hashlib
 import logging
 import os
@@ -107,6 +109,18 @@ def draft(conn, path: str, playbook: str, by: str, cases: list | None = None, qu
     return {"skill": s.path, **_row(row)}
 
 
+def check_publish(conn, path: str, version: int, by: str) -> None:
+    """Refuse a publish before anything is spent on it: not a person, or not a draft."""
+    s = _skill(path)
+    _person(by, "publishes a skill version")
+    cur = conn.execute("select status from skill_version where skill = %s and version = %s",
+                       (s.path, version)).fetchone()
+    if cur is None:
+        raise ValueError(f"{s.path} has no version {version}")
+    if cur["status"] != "draft":
+        raise ValueError(f"version {version} is {cur['status']}, not a draft")
+
+
 def publish(conn, path: str, version: int, by: str, evaluation: dict | None = None) -> dict:
     """A person makes a draft live; the version live before it is retired."""
     s = _skill(path)
@@ -192,10 +206,29 @@ _read: tuple[float, dict] | None = None
 CACHE_SECONDS = 10  # building a team builds every agent; read the live versions once for all of them
 
 
+_trying: dict[str, Path] = {}
+
+
+@contextlib.contextmanager
+def trying(path: str, playbook: str):
+    """Agents built inside load `playbook` for `path` instead of its live version: how the eval gate (P6.4d) asks the
+    candidate the same questions as the live version. Nothing is stored."""
+    s = _skill(path)
+    _trying[s.path] = _folder(s.path, playbook)
+    try:
+        yield
+    finally:
+        _trying.pop(s.path, None)
+
+
 def roots(conn=None) -> dict[str, Path]:
     """The folder each skill with a live published version loads from; a skill not listed loads as shipped. With no
     connection and no database configured, nothing is published (an import, a unit test). Without a connection the
-    answer may be up to CACHE_SECONDS old."""
+    answer may be up to CACHE_SECONDS old. A playbook being tried (`trying`) wins."""
+    return {**_published(conn), **_trying}
+
+
+def _published(conn=None) -> dict[str, Path]:
     global _read
     if conn is None:
         from ..core import db
@@ -206,7 +239,7 @@ def roots(conn=None) -> dict[str, Path]:
             return _read[1]
         try:
             with db.connect() as c:
-                out = roots(c)
+                out = _published(c)
         except Exception:
             log.warning("could not read published skill versions; agents load the shipped skills", exc_info=True)
             return {}
