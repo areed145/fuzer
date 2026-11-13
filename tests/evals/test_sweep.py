@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from fuzer.core import detectors
+from fuzer.core import clock, detectors
 from fuzer.evals import sweep
 
 BUNDLES = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles"
@@ -39,7 +39,7 @@ def test_a_detector_gets_the_time_arguments_its_signature_takes():
     assert sweep._args(lambda conn, pack, start, end: 0, a, b)["end"] == "2025-01-08T00:00"
     assert sweep._args(lambda conn, until=None: 0, a, b) == {"until": "2025-01-08T00:00"}
     assert sweep._args(lambda conn, pack, at=None: 0, a, b) == {"at": "2025-01-08"}
-    assert sweep._args(lambda conn, now=None: 0, a, b) == {"now": b}
+    assert sweep._args(lambda conn, now=None: 0, a, b) == {"now": clock.aware(b)}
     assert sweep._args(lambda conn: 0, a, b) == {}
 
 

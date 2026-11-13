@@ -3,10 +3,13 @@ schedule runs it, and its raises scored against the events the bundle injected f
 starts missing what it should find, or finds what is not there, fails the check.
 
 Each bundle declares, in `evals/detections.yaml`, per detector: the stretch to sweep (`since`, `until`, `every_days`;
-dates may be relative, `today-30d`; or `at: [dates]`), the events it should raise (`events: [{key, from, to}]`: a raise whose key holds
-`key`, made by a run between `from` and `to`), or `not_here: "<why>"` when it can't arise on the bundle's asset type.
+dates may be relative, `today-30d`; or `at: [dates]`), the events it should raise (`events: [{key, from, to}]`: a
+raise whose key holds `key`, made by a run between `from` and `to`), or `not_here: "<why>"` when it can't arise on the bundle's asset
+type. `deliver: {path, datasets, incremental, rebuild}` lands the next delivery in the bundle's history first, for a
+detector that reads what it brings; such entries come last in the file, since what they land stays.
 
-- A raise is a new exception of one of the detector's own work types (a key raised again after it was cleared counts
+- A raise is a new exception of one of the detector's own work types (or those its entry lists under `types`, for a
+  detector that raises some work no injected event defines) (a key raised again after it was cleared counts
   again; one held open does not). It is true when it matches an event, a false alarm when it matches none.
 - `recall` is the events raised over the events declared; `precision` the true raises over every raise; false alarms
   a week over the swept stretch.
@@ -23,6 +26,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
+
+from ..core import clock
 
 FILE = "detections.yaml"
 GATES = {"recall": 1.0, "precision": 0.5}  # the floors a swept detector keeps unless its entry sets its own
@@ -69,7 +74,7 @@ def _args(fn, prev: datetime, t: datetime) -> dict:
     if "at" in p:
         return {"at": t.date().isoformat()}
     if "now" in p:
-        return {"now": t}
+        return {"now": clock.aware(t)}  # a date without a zone is the plant's wall clock
     return {}
 
 
@@ -101,26 +106,42 @@ def score(entry: dict, raises: list[dict]) -> dict:
             "false_alarms": [{"key": r["key"], "at": r["at"].isoformat(timespec="minutes")} for r in false[:20]]}
 
 
-def run_one(conn, pack, name: str, entry: dict, say=None) -> dict:
-    """Sweep one detector over its stretch and score it."""
+def land(conn, pack, bundle: Path, how: dict) -> None:
+    """The next delivery in the bundle's history (`deliver: {path, datasets, incremental, rebuild}`), landed as the
+    source's load takes it, for a detector that reads what it brings (a bypass register, a changed limit)."""
+    from ..ops import pipeline
+    from ..sources import ingest
+
+    ingest.ingest(conn, Path(bundle) / how["path"], how.get("datasets") or None, snapshot=not how.get("incremental"),
+                  trigger="sensor")
+    conn.commit()
+    if how.get("rebuild"):
+        pipeline.rebuild(conn, pack)
+        conn.commit()
+
+
+def run_one(conn, pack, name: str, entry: dict, say=None, bundle: Path | None = None) -> dict:
+    """Sweep one detector over its stretch and score it, first landing the delivery it names (from `bundle`)."""
     from ..core import detectors
 
     say = say or (lambda msg: None)
     d = detectors.get(name)
     if "not_here" in entry:
         return {"detector": name, "not_here": entry["not_here"]}
+    after = _last_id(conn)  # a load runs some detectors itself (the source checks): what it raises counts at the first run
+    if "deliver" in entry:
+        land(conn, pack, bundle, entry["deliver"])
     ts = times(entry)
     raises, prev = [], _when(entry["since"]) - timedelta(days=entry.get("every_days", 7))
     for t in ts:
-        after = _last_id(conn)
         out = detectors.run(conn, pack, name, **_args(d.fn, prev, t))
         if isinstance(out, dict) and out.get("status") in (detectors.OFF, detectors.NOT_APPLICABLE):
             return {"detector": name, "status": out["status"], "note": out.get("note")}
         conn.commit()
-        new = _new(conn, d.raises, after)
+        new = _new(conn, tuple(entry.get("types") or d.raises), after)
         raises += [{**r, "at": t} for r in new]
         say(f"{name} {t:%Y-%m-%d}: {len(new)} raised")
-        prev = t
+        prev, after = t, _last_id(conn)
     s = score(entry, raises)
     return {"detector": name, "since": _when(entry["since"]).isoformat(timespec="minutes"),
             "until": _when(entry["until"]).isoformat(timespec="minutes"), "runs": len(ts), **s,
@@ -129,7 +150,7 @@ def run_one(conn, pack, name: str, entry: dict, say=None) -> dict:
 
 def run(conn, pack, bundle: Path, only: list[str] | None = None, say=None) -> dict[str, dict]:
     """Sweep every detector the bundle declares (or `only` those)."""
-    return {name: run_one(conn, pack, name, entry, say) for name, entry in plan(bundle).items()
+    return {name: run_one(conn, pack, name, entry, say, bundle) for name, entry in plan(bundle).items()
             if not only or name in only}
 
 
