@@ -1,0 +1,10 @@
+# DCS alarm and event journal (#859): one row per event on an alarm, as the alarm summary printer logs it. ALARM when
+# it sounds, ACK when the console operator acknowledges it, RTN when it returns to normal, SHELVE / UNSHELVE and
+# SUPPRESS / UNSUPPRESS when it is set aside. The rows are kept as source records, not entities: the alarm analyses
+# read them (fuzer.analysis.alarm_journal), and an alarm stays configuration on its point (dcs_alarm.yaml).
+source: dcs
+record_type: alarm_event
+shape: events
+dataset: dcs_alarm_journal
+key: event_id
+watermark: timestamp

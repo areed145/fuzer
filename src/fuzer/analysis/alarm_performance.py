@@ -1,7 +1,8 @@
 """Alarm performance as improvement work (P3.10a, #840): the alarm system measured against ISA-18.2 and EEMUA 191, with
-what it finds raised for the alarm owner, never a live alarm list or anything to acknowledge. The alarms are each
-point going past an enabled alarm limit while its unit runs (`limits.excursions` on the alarm basis), the same
-source as `alarms.alarm_analysis`, so nothing here knows a field, a console or a tag.
+what it finds raised for the alarm owner, never a live alarm list or anything to acknowledge. The alarms are the DCS
+alarm and event journal's where one covers the window (#859), else each point going past an enabled alarm limit while
+its unit runs (`limits.excursions` on the alarm basis): the same source as `alarms.alarm_analysis`
+(`alarm_journal.sounded`), so nothing here knows a field, a console or a tag.
 
 - `review(conn, pack, until, days)`: over the window,
   - floods: more than the flood rate (`alarms.flood_per_10min`, EEMUA 191: 10 in 10 minutes) starting within any 10
@@ -9,8 +10,8 @@ source as `alarms.alarm_analysis`, so nothing here knows a field, a console or a
   - standing: an alarm still on at the end of the window that has been on for `alarms.standing_hours` or more, one
     per point (its limits together).
   - repeating: a point alarming `REPEATS` times or more in the window, the chattering and fleeting alarms an operator
-    learns to ignore (a historian at 10 minute resolution can't see the one minute chatter of the standards, so the
-    count over the window stands in for it).
+    learns to ignore (without a journal, a historian at 10 minute resolution can't see the one minute chatter of the
+    standards, so the count over the window stands in for it).
 - The `alarm_performance` detector raises a flood as one `alarm_flood` case with its top contributors (not one case
   per alarm), and a standing or repeating point as one `alarm_bad_actor` case: rationalize the alarm, fix the
   instrument or review the setpoint. A bad actor already raised stays quiet while it goes on; once a person closes
@@ -31,11 +32,10 @@ DAYS = 2
 
 
 def _alarms(conn, pack, start: datetime, end: datetime, src=None) -> list[dict]:
-    from . import limits
+    from .alarm_journal import sounded
     from .alarms import _scope_points
 
-    return [x for x in limits.excursions(conn, pack, _scope_points(conn, None), start, end, 10, src)
-            if x["basis"] == "alarm"]
+    return sounded(conn, pack, _scope_points(conn, None), start, end, src)[0]
 
 
 def _dt(v) -> datetime:
