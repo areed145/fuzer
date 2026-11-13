@@ -63,10 +63,17 @@ def coverage(conn, fid: str, until: str | None = None, limit: int = 20) -> dict:
         """
         select t.id as tag, coalesce(l.label, t.id) as label, upper(nullif(c.value #>> '{}', '')) as criticality,
                (select coalesce(jsonb_agg(distinct jsonb_build_object(
-                    'id', b.dst, 'label', coalesce(ml.label, b.dst), 'stock', (s.value #>> '{}')::numeric)), '[]')
+                    'id', b.dst, 'label', coalesce(ml.label, b.dst), 'stock', (s.value #>> '{}')::numeric,
+                    'lead_time_days', (lt.value #>> '{}')::numeric,
+                    'due', (select min(pd.value #>> '{}') from edge o
+                            join golden pd on pd.fuzer_id = o.src and pd.field = 'delivery_date'
+                            left join golden ps on ps.fuzer_id = o.src and ps.field = 'status'
+                            where o.rel = 'orders' and o.dst = b.dst
+                              and coalesce(ps.value #>> '{}', 'open') = 'open'))), '[]')
                 from edge i join edge b on b.src = i.src and b.rel = 'uses_part'
                 left join entity_label ml on ml.fuzer_id = b.dst
                 left join golden s on s.fuzer_id = b.dst and s.field = 'stock'
+                left join golden lt on lt.fuzer_id = b.dst and lt.field = 'lead_time_days'
                 where i.dst = t.id and i.rel = 'installed_at' and i.valid_to is null) as parts,
                (select count(distinct n.fuzer_id) from edge x
                 join entity n on n.fuzer_id = x.src and n.kind = 'notification'
@@ -85,6 +92,9 @@ def coverage(conn, fid: str, until: str | None = None, limit: int = 20) -> dict:
         units.append({"unit": r["label"], "id": r["tag"], "criticality": r["criticality"] or "not assessed",
                       "failures": r["failures"], "parts": len(parts),
                       "out_of_stock": [p["label"] for p in out],
+                      # #362: for each part out, the open order's delivery date on record, or the planned delivery time
+                      "out_of_stock_detail": [{"part": p["label"], "on_order_due": p.get("due"),
+                                               "lead_time_days": p.get("lead_time_days")} for p in out],
                       "unknown_stock": sum(1 for p in parts if p["stock"] is None),
                       "status": "unknown" if not parts else "uncovered" if out else "covered"})
     units = rank(units)
@@ -96,7 +106,9 @@ def coverage(conn, fid: str, until: str | None = None, limit: int = 20) -> dict:
                   f"{len(units)} units with a bill of materials; ranked by criticality, then failure notifications "
                   f"since {since}", [fid, *[u["id"] for u in units[:5]]], unit="A-critical units with a part out "
                   "of stock", units=units[:limit], considered=len(units), **counts,
-                  note="One or more on the shelf, not enough: minimum stock and lead times are not in the records. "
-                       "A stock count is not a reservation; ordering stays with supply chain.",
+                  note="One or more on the shelf, not enough: minimum stock is not in the records. A part out of stock "
+                       "names the open order's delivery date where one is on record, else the material's planned "
+                       "delivery time where SAP holds it. A stock count is not a reservation; ordering stays with "
+                       "supply chain.",
                   failure_days=FAILURE_DAYS, uncovered_share_pct=_r(counts["uncovered"] / len(checked) * 100, 1)
                   if checked else None)

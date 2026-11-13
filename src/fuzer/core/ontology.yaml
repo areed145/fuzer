@@ -315,6 +315,12 @@ relations:
     description: Equipment and the spare parts it takes.
     from: [equipment]
     to: [material]
+  reserves:
+    label: reserves
+    view: maintenance
+    description: A work order and a material reserved for it, with the quantity and the date the job needs it.
+    from: [work_order]
+    to: [material]
   orders:
     label: orders
     view: classes

@@ -41,8 +41,10 @@ from .common import (
     Tag,
     _add_days,
     _add_hours,
+    _lead_times,
     _permits,
     _purchase_orders,
+    _reservations,
     _rounds,
     _spares,
     _work_center,
@@ -1256,9 +1258,14 @@ def generate(out, seed: int = 11) -> dict:
         messy_text.apply(notifications, orders, logs, log_truth, background, equipment, seed + 53), indent=1))
     _write_csv(out / "sap_notifications.csv", notifications)
     _write_csv(out / "sap_work_orders.csv", orders)
+    _lead_times(materials)
     _write_csv(out / "sap_materials.csv", materials)
     _write_csv(out / "sap_bom.csv", bom)
-    _write_csv(out / "sap_purchase_orders.csv", _purchase_orders(materials))
+    pos = _purchase_orders(materials)
+    _write_csv(out / "sap_purchase_orders.csv", pos)
+    reservations, reservation_key = _reservations(orders, bom, materials, pos)
+    _write_csv(out / "sap_reservations.csv", reservations)
+    (out / "answer_keys" / "material_readiness.json").write_text(json.dumps(reservation_key, indent=1))
     _write_csv(out / "sap_work_centers.csv", WORK_CENTERS)
     permits, isolations = _permits(equipment)
     _write_csv(out / "ptw_permits.csv", permits)

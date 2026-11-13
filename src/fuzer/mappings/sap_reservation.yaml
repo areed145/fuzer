@@ -1,0 +1,17 @@
+# SAP reservations (RESB, #362): a material reserved for a work order, how many, and the date the job needs it (the
+# requirement date). One link per reservation line, from the order to the material; no entity of its own. A
+# reservation says what a job needs and when, not that the part is there: stock and open purchase orders say that.
+source: sap
+record_type: reservation
+shape: network
+dataset: sap_reservations
+key: [rsnum, rspos]
+links:
+  - rel: reserves
+    from: {ref: "sap:work_order:{aufnr}"}
+    to: {kind: material, from: matnr}
+    props:
+      quantity: {from: quantity, as: number}
+      need_date: {from: need_date}
+      reservation: {from: rsnum}
+      status: {from: status}
