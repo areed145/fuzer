@@ -5859,3 +5859,36 @@ test("P7.4 Work performance shows by detector and by skill which earn their keep
   assert.equal(await page.getByRole("link", { name: "Review change v2" }).getAttribute("href"), "#/cases/77");
   await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
 });
+
+test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away at the bottom", async () => {
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 2 }, queue: { total: 0 } } } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/browse`);
+  const bar = page.getByRole("navigation", { name: "Quick", exact: true });
+  await bar.waitFor();
+  const targets = bar.locator(":scope > a, :scope > button");
+  assert.deepEqual(await targets.evaluateAll(els => els.map(e => e.lastElementChild.textContent.trim())), ["Home", "My work", "Explore", "Investigate", "Menu"]);
+  for (const box of await targets.evaluateAll(els => els.map(e => e.getBoundingClientRect().toJSON())))
+    assert.ok(box.height >= 44 && box.width >= 44, "every tab is big enough for a gloved thumb");
+  const barBox = await bar.boundingBox();
+  assert.equal(Math.round(barBox.y + barBox.height), 844, "the bar sits on the bottom edge");
+  assert.equal(await bar.locator('a[aria-current="page"]').innerText(), "Explore");
+
+  // My work says how much is waiting and opens the operator's own list, not All work.
+  const mine = bar.getByRole("link", { name: "My work, 2 workflow steps waiting on you", exact: true });
+  await mine.click();
+  await page.waitForURL(/#\/inbox$/);
+  await bar.locator('a[aria-current="page"]', { hasText: "My work" }).waitFor();
+
+  // Menu opens the drawer with everything else, and the page's foot clears the bar.
+  await bar.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.waitForFunction(() => document.getElementById("sidebar").getBoundingClientRect().x === 0);
+  await page.keyboard.press("Escape");
+  assert.ok(await page.locator("main").evaluate(m => parseFloat(getComputedStyle(m).paddingBottom)) >= barBox.height);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+  await page.setViewportSize({ width: 1280, height: 844 });
+  await bar.waitFor({ state: "hidden" });  // the sidebar does this job on a wide screen
+});
