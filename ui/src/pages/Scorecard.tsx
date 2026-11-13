@@ -11,6 +11,7 @@ import { WorkExecution } from "./WorkExecution";
 import { WellScreen } from "./WellScreen";
 import { AllocationFactor } from "./AllocationFactor";
 import { WaterInjection } from "./WaterInjection";
+import { ReservoirPressure } from "./ReservoirPressure";
 import { GasBalance } from "./GasBalance";
 import { GasLiftHeading } from "./GasLiftHeading";
 import { QualityTrend } from "./QualityTrend";
@@ -77,6 +78,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
       <WellScreen />
       <AllocationFactor />
       <WaterInjection />
+      <ReservoirPressure />
       <GasBalance />
       <GasLiftHeading />
       <QualityTrend />

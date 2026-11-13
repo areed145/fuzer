@@ -370,6 +370,13 @@ def plant_gas_balance(days: int = 365, conn=Depends(get_conn)):
     return gb.daily(conn, days=max(7, min(days, 1825)))
 
 
+@router.get("/plant/reservoir-pressure")
+def plant_reservoir_pressure(conn=Depends(get_conn)):
+    """Productivity index per surveyed well and the one-tank material balance, with their assumptions (#364)."""
+    from ..analysis import reservoir_pressure as rp
+    return {"productivity": rp.productivity(conn), "material_balance": rp.material_balance(conn)}
+
+
 @router.get("/plant/water-injection")
 def plant_water_injection(days: int = 730, conn=Depends(get_conn)):
     """Voidage replacement month by month and each water injector's Hall plot (#365)."""

@@ -1,7 +1,7 @@
 # Eval results
 
 Generated from the recorded runs in `evals/runs/`; don't edit by hand (`uv run python -m fuzer.reference`).
-Record a run with `fuzer eval --agents --record` or `fuzer eval --ops --full --live --record` (both cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: [assistant eval](assistant-eval.md).
+Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record` or `fuzer eval --ops --full --live --record` (all cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: [assistant eval](assistant-eval.md).
 
 ## Operations assistant
 

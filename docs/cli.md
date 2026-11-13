@@ -293,12 +293,14 @@ score search, document links, section failure modes and log reading
 | `--agents` | also ask the operations assistant the questions in assistant.json (Claude; costs money) |
 | `--memory` | score the assistant's memory with assistant_memory.json: learn from teaching answers, then ask later questions (Claude; costs money; removes what it stored) |
 | `--domain` | with --agents: only the questions in this domain (repeatable), e.g. --domain charts |
-| `--out` | with --agents: also write the full results (answers) to this JSON file |
-| `--record` | with --agents or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |
+| `--out` | with --agents or --packs: also write the full results (answers) to this JSON file |
+| `--record` | with --agents, --packs or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |
 | `--ops` | replay history through the operations detectors and score them against the fake plant's injected events (exits 1 if recall fell since the last run of the same period) |
 | `--detector` | with --ops: the detector to replay (default: limits) |
 | `--full` | with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) and fail if a score is under its floor or fell since the last run |
 | `--live` | with --full: diagnose with the real Claude (costs money) |
+| `--packs` | ask each specialist pack's questions for this project's bundle and say which packs pass (P4.2; Claude; costs money; exits 1 if any pack falls short); --specialist picks packs |
+| `--specialist` | with --packs: only this pack, by skill path (repeatable) |
 | `--loop` | drive every type of work arrive to counted and say which step failed for which type (P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails) |
 | `--sweep` | run each work detector over the bundle's history and score its raises against the events its evals/detections.yaml declares (P3.6a; writes cases, so run it on a scratch copy; exits 1 if a score is under its floor); --detector picks one |
 | `--roles` | score the measurement roles proposed for each point against the fake plant's process model (P1.4; exits 1 under 90%% right or if a wrong role was confident) |

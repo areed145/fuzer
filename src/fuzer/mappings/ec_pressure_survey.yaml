@@ -1,0 +1,14 @@
+# Well pressure surveys: a static (shut-in) survey gives the reservoir pressure around the well, a flowing survey the
+# bottomhole pressure at the oil rate it was flowing at. Both are corrected to the field datum by the survey.
+source: ec
+record_type: pressure_survey
+shape: measurements
+dataset: ec_pressure_surveys
+key: survey_id
+measurements:
+  of: {kind: well, from: well, as: well}
+  at: survey_date
+  method: {template: "{kind} pressure survey"}
+  values:
+    - {quantity: {template: "{kind}_bottomhole_pressure"}, from: pressure_barg, unit: barg}
+    - {quantity: survey_oil_rate, from: oil_sm3d, unit: Sm3/d}

@@ -50,6 +50,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`voidage_replacement`](#voidage_replacement) Water injected against the reservoir volume produced | Engineering practice | Allocated oil (Sm³); Water injected (Sm³); Well tests (oil rate (Sm³/d, %, Sm³/Sm³); Formation volume factors and solution GOR (rm³/Sm³, Sm³/Sm³) | A daily report, injection records and the four PVT values; without PVT the ratio is unknown, and with no injection there is no ratio. |
 | [`hall_plot`](#hall_plot) An injector's Hall plot slope against its own earlier slope | Engineering practice | Monthly water injected (Sm³); Days on injection (days); Average wellhead injection pressure (barg) | Twice the comparison months of injection. |
 | [`gas_balance`](#gas_balance) Daily gas balance and its closure gap | Engineering practice | Gas handled (kSm³/d); Gas export, lift gas, flare, fuel gas and vent (kSm³/d) | A daily report with the gas handled. |
+| [`productivity_index`](#productivity_index) Productivity index from a flowing survey against the static pressure before it | Engineering practice | Static bottomhole pressure (barg); Flowing bottomhole pressure (barg); Oil rate at the flowing survey (Sm³/d) | A flowing survey with a rate and a static survey on the same well shortly before it. |
+| [`material_balance`](#material_balance) One-tank material balance from static pressures and net voidage | Engineering practice | Static bottomhole pressures (barg); Allocated oil (rm³); Water injected (rm³) | The PVT voidage replacement needs, and static surveys on at least two dates. |
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
@@ -437,6 +439,27 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Run by:** `gas_balance`
 - **Threshold `open`:** A day whose gap is more than this share of the gas handled is open. (2 %)
 - **Worked example:** `tests/analysis/test_gas_balance.py::test_the_balance_closes_to_the_meters_except_while_the_fuel_meter_read_zero`, on the fake plant
+
+## productivity_index
+
+**Productivity index from a flowing survey against the static pressure before it.** Engineering practice. Straight-line inflow above the bubble point (Craft and Hawkins, Applied Petroleum Reservoir Engineering): oil rate over drawdown. A fall against the well's own first index is screened; the share is this registry's own.
+
+- **Valid for:** Oil wells above the bubble point with static and flowing surveys at a common datum.
+- **Needs:** A flowing survey with a rate and a static survey on the same well shortly before it.
+- **Run by:** `productivity_index`
+- **Threshold `pair`:** A flowing survey pairs with the static survey at most this long before it. (60 days)
+- **Threshold `fallen`:** Latest index under this share of the first: fallen. (0.75)
+- **Worked example:** `tests/analysis/test_reservoir_pressure.py::test_productivity_index_from_surveys_and_the_well_that_scaled_up`, on the fake plant
+
+## material_balance
+
+**One-tank material balance from static pressures and net voidage.** Engineering practice. Havlena and Odeh (1963) straight-line material balance, reduced to an undersaturated tank with no aquifer or gas cap: pressure falls in proportion to the reservoir volume withdrawn net of injection, the slope being the inverse of pore volume times total compressibility.
+
+- **Valid for:** An undersaturated reservoir read as one tank, with recorded PVT and static surveys on wells surveyed more than once.
+- **Needs:** The PVT voidage replacement needs, and static surveys on at least two dates.
+- **Run by:** `material_balance`
+- **Threshold `surveys`:** Static surveys the fit needs, on wells surveyed at least twice. (3)
+- **Worked example:** `tests/analysis/test_reservoir_pressure.py::test_material_balance_recovers_the_tank_and_states_its_assumptions`, on the fake plant
 
 ## lead_in
 

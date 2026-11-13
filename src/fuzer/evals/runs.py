@@ -1,4 +1,4 @@
-"""Recorded eval runs (#134): `fuzer eval --agents --record`, `fuzer eval --ops --full --record` and
+"""Recorded eval runs (#134): `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --ops --full --record` and
 `fuzer pid-score --record` write a
 run's scores (no answers) to evals/runs/, and docs/eval-results.md is generated from them, so the baselines
 are committed with the code that made them.
@@ -31,10 +31,19 @@ def pids(res: dict, model: str | None) -> dict:
     return {"kind": "pids", "model": model, **{k: res.get(k) for k in ("elements", "by_level", "sheets", "sheets_read")}}
 
 
+def packs(res: dict, models: dict | None = None) -> dict:
+    """A specialist pack eval run (P4.2) on one bundle: each pack's summary and per-question scores, no answers."""
+    return {"kind": "packs", **(models or {}), "bundle": res["bundle"], "passed": res["passed"], "asked": res["asked"],
+            "not_applicable": res["not_applicable"],
+            "packs": {p: {**{k: v for k, v in s.items() if k != "results"},
+                          "results": [{k: r.get(k) for k in KEEP} for r in s.get("results") or []]}
+                      for p, s in res["packs"].items()}}
+
+
 def save(run: dict, day: str | None = None, runs: Path = RUNS) -> Path:
     runs.mkdir(parents=True, exist_ok=True)
     run = {"date": day or date.today().isoformat(), **run}
-    path = runs / f"{run['date']}-{run['kind']}.json"
+    path = runs / f"{run['date']}-{run['kind']}{'-' + run['bundle'] if run.get('bundle') else ''}.json"
     path.write_text(json.dumps(run, indent=2, default=str) + "\n")
     return path
 

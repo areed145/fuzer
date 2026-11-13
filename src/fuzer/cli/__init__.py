@@ -178,9 +178,9 @@ def parser() -> argparse.ArgumentParser:
                          "ask later questions (Claude; costs money; removes what it stored)")
     ev.add_argument("--domain", action="append", default=None,
                     help="with --agents: only the questions in this domain (repeatable), e.g. --domain charts")
-    ev.add_argument("--out", default=None, help="with --agents: also write the full results (answers) to this JSON file")
+    ev.add_argument("--out", default=None, help="with --agents or --packs: also write the full results (answers) to this JSON file")
     ev.add_argument("--record", action="store_true",
-                    help="with --agents or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md")
+                    help="with --agents, --packs or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md")
     ev.add_argument("--ops", action="store_true",
                     help="replay history through the operations detectors and score them against the fake "
                          "plant's injected events (exits 1 if recall fell since the last run of the same period)")
@@ -189,6 +189,11 @@ def parser() -> argparse.ArgumentParser:
                     help="with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) "
                          "and fail if a score is under its floor or fell since the last run")
     ev.add_argument("--live", action="store_true", help="with --full: diagnose with the real Claude (costs money)")
+    ev.add_argument("--packs", action="store_true",
+                    help="ask each specialist pack's questions for this project's bundle and say which packs pass "
+                         "(P4.2; Claude; costs money; exits 1 if any pack falls short); --specialist picks packs")
+    ev.add_argument("--specialist", action="append", default=None,
+                    help="with --packs: only this pack, by skill path (repeatable)")
     ev.add_argument("--loop", action="store_true",
                     help="drive every type of work arrive to counted and say which step failed for which type "
                          "(P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails)")
@@ -348,6 +353,8 @@ def main(argv=None):
                     raise SystemExit("P&ID benchmark failed: " + "; ".join(bad))
             elif args.cmd == "eval" and args.ops:
                 _ops_eval(conn, pack, args, data)
+            elif args.cmd == "eval" and args.packs:
+                _packs_eval(conn, args)
             elif args.cmd == "eval" and args.loop:
                 from ..evals import loop
 
@@ -558,6 +565,31 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
     _print({**res, **check})
     if check["recall_dropped"]:
         raise SystemExit(f"Recall fell since the last run: {', '.join(check['recall_dropped'])}")
+
+
+def _packs_eval(conn, args) -> None:
+    """`fuzer eval --packs`: each specialist pack's answer keys for this project's bundle, asked and scored (P4.2)."""
+    from ..core import settings
+    from ..core.pack import resolve
+    from ..evals import packs_eval, runs
+
+    bundle = resolve(conn).name
+    try:
+        res = packs_eval.score(bundle, args.specialist, say=_say)
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+    for path, why in res["not_applicable"].items():
+        _say(f"{path}: not applicable on {bundle} ({why})")
+    for path, p in res["packs"].items():
+        _say(f"{path}: {'passed' if p['passed'] else 'short: ' + '; '.join(p['short'])}")
+    if args.record:
+        m = {k: settings.get(conn, f"agents.{k}") for k in ("model", "effort", "specialist_effort")}
+        _say(f"recorded {runs.save(runs.packs(res, m))}")
+    if args.out:
+        Path(args.out).write_text(json.dumps(res, indent=2, default=str))
+    _say(f"{res['passed']} of {res['asked']} packs passed on {bundle}")
+    if res["passed"] < res["asked"]:
+        raise SystemExit("pack eval failed")
 
 
 def _assistant(args) -> None:
