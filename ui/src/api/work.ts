@@ -1049,6 +1049,7 @@ export interface DetectorEarning {
   noise: number; confirmed_rate: number | null; false_alarm_rate: number | null; noise_rate: number | null;
   hours_to_case: number | null; value_confirmed_usd: number | null; valued: number;
   by_origin: Record<FindingOrigin, number>; verdict: "earning" | "needs_tuning" | "mixed" | "too_few"; item_ids: number[];
+  tuning_case: number | null;
 }
 
 export interface DetectorPerformance {

@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 
 from fuzer.core import db, work
 from fuzer.core.pack import load_pack
-from fuzer.ops import disposition, earning
+from fuzer.ops import disposition, earning, tuning
 
 PACK = load_pack("okan")
 NOW = datetime.now(UTC)
@@ -55,6 +55,9 @@ def test_each_detector_shows_whether_it_earns_its_keep(conn):
             _case(conn, f"d{i}", "sre.drifts", how, origin=None if how == "real" else "deterministic")
         _case(conn, "x0", "sre.excursions", "real", origin="external")
         _case(conn, "x1", "sre.excursions")  # still open
+        tune = work.open_case(conn, "manual", "Tune drifts", by="fuzer")["id"]  # a tuning proposal for drifts (P6.3b)
+        conn.execute("insert into exception_record (type, key, title, evidence, item_id) values (%s, 'drifts', 'x', "
+                     "%s, %s)", (tuning.TUNING, Jsonb({"detector": "drifts"}), tune))
         conn.commit()
 
         got = earning.detectors(conn)
@@ -66,8 +69,10 @@ def test_each_detector_shows_whether_it_earns_its_keep(conn):
         assert steps["by_origin"] == {"deterministic": 4, "agentic": 1, "external": 0, "unknown": 0}
         assert 2.5 <= steps["hours_to_case"] <= 3.6, steps["hours_to_case"]  # the median of 1 to 5 hours, and the 2
         assert steps["title"] and steps["kind"] == "statistical" and len(steps["item_ids"]) == 6
+        assert steps["tuning_case"] is None
 
         assert (drifts["noise"], drifts["closed"], drifts["verdict"]) == (5, 6, "needs_tuning")
+        assert drifts["tuning_case"] == tune
         assert drifts["by_origin"]["unknown"] == 1 and drifts["value_confirmed_usd"] is None
         assert (exc["cases"], exc["closed"], exc["verdict"]) == (2, 1, "too_few")
 

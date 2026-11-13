@@ -14,7 +14,7 @@ P7.4a, per detector. Each case is put down to the registered detector behind it,
 
 A detector earns its keep when what it raises is mostly confirmed. It **needs tuning** when at least `MIN_CLOSED` of
 its cases are closed out and the noise rate (false alarms and duplicates) is `NOISY` or more. Too few close-outs say
-nothing yet.
+nothing yet. A tuning proposal open for the detector (P6.3b) is linked by its case (`tuning_case`).
 
     detectors(conn)    per registered detector that raised a case, the most cases first; and the share of confirmed
                        cases by origin across them all
@@ -89,6 +89,11 @@ def detectors(conn) -> dict:
                      "value_confirmed_usd": round(sum(valued), 2) if valued else None, "valued": len(valued),
                      "by_origin": found, "verdict": verdict(t),
                      "item_ids": sorted(c["item_id"] for c in cs)})
+    tuning_cases = {r["detector"]: r["item_id"] for r in conn.execute(
+        "select evidence ->> 'detector' as detector, min(item_id) as item_id from exception_record "
+        "where type = %s and state = 'open' and item_id is not null group by 1", (tuning.TUNING,))}
+    for r in rows:
+        r["tuning_case"] = tuning_cases.get(r["detector"])
     rows.sort(key=lambda r: (-r["cases"], r["detector"]))
     total = sum(origins.values())
     return {"detectors": rows, "confirmed": total,

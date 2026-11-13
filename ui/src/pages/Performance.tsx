@@ -132,7 +132,9 @@ function Detectors() {
             {r.real > r.valued && r.valued ? <span className="small muted"> on {r.valued} of {r.real}</span> : null}</td>
           <td data-label="Found by" className="small">{(Object.keys(ORIGIN) as FindingOrigin[])
             .filter((o) => r.by_origin[o]).map((o) => `${ORIGIN[o]} ${r.by_origin[o]}`).join(" · ") || "–"}</td>
-          <td><a href={href("/settings", { view: "detection", detector: r.detector })}>Tune</a></td>
+          <td>{r.tuning_case
+            ? <a href={href(`/cases/${r.tuning_case}`)}>Tuning proposed</a>
+            : <a href={href("/settings", { view: "detection", detector: r.detector })}>Tune</a>}</td>
         </tr>)}</tbody>
       </Table>
     </> : <Empty>No case has been put down to a detector yet.</Empty>)}

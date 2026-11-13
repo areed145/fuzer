@@ -205,8 +205,8 @@ it shows:
 
 A detector is **earning its keep** when most of its close-outs are confirmed. It **needs tuning** when at least
 `earning.MIN_CLOSED` (5) cases are closed out and half or more of them are false alarms or duplicates. Below five
-close-outs the view says there are too few to tell. Each count opens its cases, and **Tune** opens the detector on the
-Detection page. A case whose finding records no origin counts as "not recorded". On a bundle, cases raised from
+close-outs the view says there are too few to tell. Each count opens its cases. **Tuning proposed** opens the case of
+a tuning proposal open for the detector (P6.3b); otherwise **Tune** opens the detector on the Detection page. A case whose finding records no origin counts as "not recorded". On a bundle, cases raised from
 replayed history open at the wall-clock time, so hours to case means something only on live data.
 
 The **By skill** view (P7.4b, `agents/earning.py`) covers each skill a specialist owns. Shared skills are loaded by
