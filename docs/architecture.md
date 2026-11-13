@@ -97,6 +97,7 @@ flowchart LR
   src_pi_af[/"pi_af"/]
   src_pid[/"pid"/]
   src_ptw[/"ptw"/]
+  src_regulatory[/"regulatory"/]
   src_rounds[/"rounds"/]
   src_safeguards[/"safeguards"/]
   src_sap[/"sap"/]
@@ -119,6 +120,7 @@ flowchart LR
   kind_material(["material"])
   kind_notification(["notification"])
   kind_permit(["permit"])
+  kind_permit_condition(["permit_condition"])
   kind_pipeline(["pipeline"])
   kind_pipeline_feature(["pipeline_feature"])
   kind_pipeline_segment(["pipeline_segment"])
@@ -165,6 +167,7 @@ flowchart LR
   src_pid --> kind_document
   src_ptw --> kind_isolation
   src_ptw --> kind_permit
+  src_regulatory --> kind_permit_condition
   src_rounds --> kind_round_point
   src_safeguards --> kind_bypass
   src_safeguards --> kind_demand
@@ -536,7 +539,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
     - `assistant_message`
     - `skill_version`
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 50, field-operations-facilities 97, hse-incident-management 50, maintenance-integrity 85, orchestrator 23, production-surveillance 80, wells-subsurface 73, work-management-supply-chain 37 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 50, field-operations-facilities 97, hse-incident-management 51, maintenance-integrity 86, orchestrator 23, production-surveillance 80, wells-subsurface 73, work-management-supply-chain 39 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals

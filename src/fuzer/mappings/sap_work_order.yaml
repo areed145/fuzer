@@ -22,6 +22,8 @@ entity:
     - currency  # SAP WAERS when the export carries it; absent, the cost is in an unknown currency (#335)
     - text
     - confirmation
+    - [planned_hours, {from: arbei, as: number}]  # planned work over the order's operations (ARBEI), where exported (#361)
+    - [people, {from: anzzl, as: number}]  # how many people the work takes at once (ANZZL)
     - [description, {from: text, default: "", keep: true}]
 links:
   - rel: concerns
