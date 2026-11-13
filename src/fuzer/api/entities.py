@@ -112,6 +112,17 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
                          direct=direct, pack=deps.pack())
 
 
+@router.get("/entities/{fuzer_id}/trend-view")
+def entity_trend_view(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
+                      conn=Depends(get_conn)):
+    """An entity's process values grouped by its equipment class's trend template (P5.12): each group a panel, each
+    trace a measurement role on the unit or a neighbour, with the roles it expects and lacks."""
+    from ..analysis import trend_view
+
+    return trend_view.view(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
+                           pack=deps.pack())
+
+
 @router.get("/entities/{fuzer_id}/limits")
 def entity_limits(fuzer_id: str, at: str | None = None, conn=Depends(get_conn)):
     """Operating limits on a point or on every point of a unit: alarm limits by source, IOWs, the learned
