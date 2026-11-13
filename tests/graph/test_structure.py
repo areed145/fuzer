@@ -26,10 +26,11 @@ def test_okan_compression_trains_from_its_line_list(okan_db):
     assert t["known"] and _labels(p, t["members"]) == [
         "20-V-2101B", "20-K-2100B", "20-E-2150B", "20-V-2201B", "20-K-2200B", "20-E-2250B", "20-V-2301B",
         "20-K-2300B", "20-E-2350B", "20-GT-2000B"]
-    assert _labels(p, t["shared"]) == ["20-V-2001"] and _labels(p, t["machines"]) == [
+    assert _labels(p, t["shared"]) == ["20-FT-3001", "20-V-2001"] and _labels(p, t["machines"]) == [
         "20-K-2100B", "20-K-2200B", "20-K-2300B"]
     assert structure.train(conn, _fid(conn, "20-GT-2000B"), p)["key"] == t["key"]  # a driver is in what it drives
     assert not structure.train(conn, _fid(conn, "20-V-2001"), p)["known"]  # the header every train shares
+    assert not structure.train(conn, _fid(conn, "20-FT-3001"), p)["known"]  # and the export meter they all feed
 
     s = structure.stage(conn, k, p)
     assert s["order"] == 2 and p.label(s["scrubber"]) == "20-V-2201B" and p.label(s["cooler_before"]) == "20-E-2150B"
