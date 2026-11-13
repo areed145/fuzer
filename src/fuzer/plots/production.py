@@ -585,3 +585,36 @@ def hall_plot(conn, well: str | None = None, since: str | None = None, until: st
         "source": out["source"], "note": out["note"],
         "injectors": [{k: i[k] for k in ("well", "months", "early_slope", "late_slope", "slope_ratio", "verdict", "reads")}
                       for i in out["injectors"]]}, [])
+
+
+def gas_balance(conn, since: str | None = None, until: str | None = None, days: int = 365) -> Figure:
+    """The daily gas balance (#369): where the gas handled went (export, lift gas, flare, fuel, vent) stacked against
+    the gas handled, and the closure gap below it with the open band, so the gap is never hidden."""
+    from ..analysis import gas_balance as gb
+
+    out = gb.daily(conn, since, until, days)
+    rows = [r for r in out["days"] if r["gap_pct"] is not None]
+    if not rows:
+        raise ChartError(out["note"] if out["verdict"] == "no_daily_report" else "no day with gas handled in that window")
+    x = [r["date"] for r in rows]
+    top, bottom = stacked(2, 0.1)
+    data = [{"type": "bar", "name": f"{name} (kSm3/d)", "x": x, "y": [r[name] for r in rows], "yaxis": "y"}
+            for _, name in gb.OUT if name not in out["missing_terms"]]
+    data += [{"type": "scatter", "mode": "lines", "name": "gas handled (kSm3/d)", "x": x,
+              "y": [r["gas_in_ksm3"] for r in rows], "yaxis": "y", "line": {"color": "rgba(30,30,30,0.85)"}},
+             {"type": "bar", "name": "gap (% of gas handled)", "x": x, "y": [r["gap_pct"] for r in rows], "yaxis": "y2",
+              "xaxis": "x2", "marker": {"color": ["rgba(210,60,50,0.85)" if r["open"] else "rgba(150,150,150,0.6)"
+                                                  for r in rows]}},
+             {"type": "scatter", "mode": "lines", "name": f"open past ±{out['threshold_pct']:g} %",
+              "x": x + x[::-1], "y": [out["threshold_pct"]] * len(x) + [-out["threshold_pct"]] * len(x),
+              "fill": "toself", "fillcolor": "rgba(40,150,90,0.08)", "line": {"width": 0}, "yaxis": "y2", "xaxis": "x2",
+              "hoverinfo": "skip"}]
+    lay = layout(f"Gas balance, {out['since']} to {out['until']} ({out['verdict'].replace('_', ' ')})")
+    lay["barmode"] = "stack"
+    lay["yaxis"] = {"domain": top, "title": {"text": "kSm3/d"}}
+    lay["yaxis2"] = {"domain": bottom, "anchor": "x2", "title": {"text": "gap %"}}
+    lay["xaxis2"] = {"anchor": "y2", "matches": "x"}
+    return Figure("gas_balance", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "verdict": out["verdict"], "episodes": out["episodes"],
+        "missing_terms": out["missing_terms"], "since": out["since"], "until": out["until"], "source": out["source"],
+        "note": out["note"]}, [])

@@ -18,6 +18,8 @@ entity:
     - [gas_export_ksm3, {from: gas_export_ksm3, as: number}]
     - [lift_gas_ksm3, {from: lift_gas_ksm3, as: number}]
     - [flare_ksm3, {from: flare_ksm3, as: number}]
+    - [fuel_gas_ksm3, {from: fuel_gas_ksm3, as: number}]
+    - [vent_ksm3, {from: vent_ksm3, as: number}]
 links:
   - rel: reports_on
     when: facility

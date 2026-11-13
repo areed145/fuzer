@@ -213,7 +213,8 @@ def plot_loss_waterfall(since: str, until: str) -> dict[str, Any]:
 
 @capability("production-surveillance", "hse-incident-management", "asset-performance-reporting", kind="plot")
 def plot_flare(since: str, until: str) -> dict[str, Any]:
-    """Chart daily flare from DAY001 and its CO2 per barrel of oil (an estimate)."""
+    """Chart daily flare from DAY001, with fuel gas and vent beside it when the report carries them, and the flare's
+    CO2 per barrel of oil (an estimate). For the closing balance, use plot_gas_balance."""
     from ...plots import general
     return _chart(general.flare, {"since": since, "until": until})
 
@@ -360,3 +361,22 @@ def plot_hall(well: str | None = None, since: str | None = None, until: str | No
     """Chart each injector's Hall plot, or one injector's, with the injectors whose slope bent marked."""
     from ...plots import production
     return _chart(production.hall_plot, {"since": since, "until": until, "days": days}, {"well": well})
+
+
+@capability("hse-incident-management", "production-surveillance", kind="calc")
+def gas_balance(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """The daily gas balance (#369): gas handled against export, lift gas, flare, fuel and vent from the daily report,
+    with the closure gap every day in kSm3 and as a share of gas handled. A day is open past 2 % of gas handled; the
+    stretches it stayed open are listed with any term reading zero meanwhile, which points at that meter. A term the
+    report doesn't carry isn't taken as zero: the gap includes it and the response names it. Evidence only, not an
+    emissions inventory."""
+    from ...analysis import gas_balance as gb
+    with db.connect() as conn:
+        return _plain(gb.daily(conn, since, until, days))
+
+
+@capability("hse-incident-management", "production-surveillance", kind="plot")
+def plot_gas_balance(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart where the gas handled went each day, stacked against the gas handled, with the closure gap below."""
+    from ...plots import production
+    return _chart(production.gas_balance, {"since": since, "until": until, "days": days})

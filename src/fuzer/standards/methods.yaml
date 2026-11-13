@@ -415,6 +415,17 @@ hall_plot:
     fall: {value: 0.8, means: "Below this: easier to inject (a fracture opening or channelling).", code: "fuzer.analysis.water_injection:HALL_FALL"}
   vectors: [{worked: "tests/analysis/test_water_injection.py::test_the_plugging_injector_bends_its_hall_plot"}]
 
+gas_balance:
+  title: Daily gas balance and its closure gap
+  practice: "A facility gas balance as production accounting reads it (API MPMS Chapter 20.1 allocation practice): gas handled against export, lift gas, flare, fuel and vent, the remainder being the closure gap. The open band is this registry's own."
+  tool: gas_balance
+  inputs: [{name: Gas handled, unit: "kSm³/d"}, {name: "Gas export, lift gas, flare, fuel gas and vent", unit: "kSm³/d"}]
+  valid: Facilities whose daily report carries the gas handled and its outlets; a term the report doesn't carry stays in the gap and is named.
+  needs: A daily report with the gas handled.
+  thresholds:
+    open: {value: 2, unit: "%", means: "A day whose gap is more than this share of the gas handled is open.", code: "fuzer.analysis.gas_balance:GAP_PCT"}
+  vectors: [{worked: "tests/analysis/test_gas_balance.py::test_the_balance_closes_to_the_meters_except_while_the_fuel_meter_read_zero"}]
+
 lead_in:
   title: Process values in the hours before an event against the hours before that
   practice: A before and after comparison of each measurement's mean and extreme around the event.
