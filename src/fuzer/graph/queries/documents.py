@@ -128,7 +128,7 @@ def _squash(text: str) -> str:
 
 
 def _sheet_links(marks: list[dict], docs: dict[str, str], here: str) -> None:
-    """A reading that names another drawing (an off-page connector's "TO OKAN-20-PID-004", a reference to another
+    """A reading that names another drawing (an off-page connector's "TO <drawing number>", a reference to another
     sheet) opens that drawing: it gets the sheet and its document."""
     sheets = sorted(((_squash(k), k) for k in docs if k != here), key=lambda x: -len(x[0]))
     for m in marks:
