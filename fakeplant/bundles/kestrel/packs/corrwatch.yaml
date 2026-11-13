@@ -17,6 +17,8 @@ connections:
     path: fakeplant/bundles/kestrel/corrwatch
   secrets: {}
   enabled: true
+  class: business                # a vendor's surveillance service, outside the control system
+  direction: write               # it reads the alerts and writes back the approved feedback
 exception_types:
 - name: corrosion_alert
   label: Corrosion surveillance alert

@@ -17,12 +17,34 @@ WHERE = ("location", "connector", "key", "watermark")
 CATALOG = ("load_mode", "drift_policy", "duplicates", "status", "schedule", "expected_hours", "owner", "notes")
 SYSTEM_FIELDS = ("kind", "description", "owner", "steward", "timezone", "encoding", "decimal", "date_format", "rank",
                  "enabled", "notes", "webhook_secret", "closeout", "closeout_role", "writeback")
-CONNECTION_FIELDS = ("name", "type", "config", "secrets", "enabled")
+CONNECTION_FIELDS = ("name", "type", "config", "secrets", "enabled", "class", "direction")
+# Every connection's class and direction (D4, docs/ot-security.md): a control or control-adjacent system is only read.
+CLASSES = ("control", "control_adjacent", "business")
+DIRECTIONS = ("read", "write")
+READ_ONLY = ("control", "control_adjacent")
+CONTROL_KINDS = ("historian",)  # systems of these kinds sit next to the control system unless a connection says else
 DATASET_FIELDS = ("connection_id", "record_type", "reader", *WHERE, *CATALOG)
 
 
 class CatalogError(ValueError):
     pass
+
+
+def zone_default(kind: str | None) -> str:
+    """The class a connection to a system of this kind takes when none is given: control-adjacent for a historian or
+    a DCS export, business otherwise."""
+    return "control_adjacent" if kind in CONTROL_KINDS else "business"
+
+
+def check_zone(cls: str | None, direction: str | None) -> None:
+    """A connection's class and direction are known ones, and a control or control-adjacent one is only read (D4)."""
+    if cls not in CLASSES:
+        raise CatalogError(f"a connection's class is one of {', '.join(CLASSES)}, not {cls!r}")
+    if direction not in DIRECTIONS:
+        raise CatalogError(f"a connection's direction is read or write, not {direction!r}")
+    if cls in READ_ONLY and direction != "read":
+        raise CatalogError(f"a {cls.replace('_', '-')} connection can only be read: Fuzer never writes to the control "
+                           "system or what sits next to it")
 
 
 def _audit(conn, by: str, obj: str, row: dict | None, action: str, old: dict | None = None, new: dict | None = None,

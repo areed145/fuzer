@@ -98,12 +98,39 @@ def _variant(tmp_path, **changes) -> Path:
     ({"detectors": ["nobody_wrote_this"]}, "detectors nobody registered: nobody_wrote_this"),
     ({"exception_rules": [{"name": "x", "dataset": "elsewhere", "type": "short_gas_day", "when": {}}]},
      "reads dataset 'elsewhere'"),
+    ({"connections": [{"name": "export", "type": "folder", "config": {"path": "x"}}]},
+     "doesn't declare its class (control, control_adjacent or business) and direction"),  # D4
+    ({"connections": [{"name": "export", "type": "folder", "config": {"path": "x"}, "class": "control_adjacent",
+                       "direction": "write"}]}, "can only be read"),
 ])
 def test_a_pack_that_breaks_the_contract_is_named_and_writes_nothing(project, tmp_path, changes, problem):
     with project("kestrel") as conn:
         report = packs.conformance(conn, _variant(tmp_path, **changes))
         assert any(problem in p for p in report["problems"]), report["problems"]
         assert conn.execute("select count(*) as n from source_system where name = 'measurement'").fetchone()["n"] == 0
+
+
+def test_a_connection_says_its_class_and_direction_and_never_writes_toward_control(project):
+    """D4 (docs/ot-security.md): a connection's class defaults by its system's kind, its direction to read, and a
+    control or control-adjacent connection can't be made to write."""
+    from fuzer.sources import catalog
+    from fuzer.sources._catalog_common import CatalogError
+
+    with project("kestrel") as conn:
+        catalog.add_system(conn, "plant_historian", "test", kind="historian", files=False)
+        catalog.add_system(conn, "planner", "test", kind="planning", files=False)
+        h = catalog.add_connection(conn, "plant_historian", "web", "folder", "test", {"path": str(SHIPPED)})
+        p = catalog.add_connection(conn, "planner", "export", "folder", "test", {"path": str(SHIPPED)},
+                                   direction="write")
+        assert (h["class"], h["direction"]) == ("control_adjacent", "read")
+        assert (p["class"], p["direction"]) == ("business", "write")
+        with pytest.raises(CatalogError, match="can only be read"):
+            catalog.update_connection(conn, h["id"], "test", direction="write")
+        with pytest.raises(CatalogError, match="class is one of"):
+            catalog.add_connection(conn, "planner", "odd", "folder", "test", {"path": str(SHIPPED)}, cls="dmz")
+        exported = yaml.safe_load(catalog.export_pack(conn, "planner"))
+        assert {(c["class"], c["direction"]) for c in exported["connections"]} == {("business", "write")}
+        conn.rollback()
 
 
 # ---- the built-in sources as packs (P1.5b) ------------------------------------------------------
