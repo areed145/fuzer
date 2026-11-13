@@ -740,7 +740,7 @@ function LineageCard({ id }: { id: string }) {
     <UICard as="section">
       <h2>Where this came from <span className="muted small">the systems, choices and work behind this record</span></h2>
       <h3>Systems</h3>
-      {!d.systems.length && <p className="muted">No source system's record is matched to this one.</p>}
+      {!d.systems.length && <p>No source system's record is matched to this one.</p>}
       <Table headingCase="verbatim">
         <thead><tr><th>System</th><th>Records, and how each was matched</th><th>Values it supplies</th></tr></thead>
         <tbody>
@@ -759,7 +759,7 @@ function LineageCard({ id }: { id: string }) {
           ))}
         </tbody>
       </Table>
-      {rules && <p className="small muted">Values chosen {rules}. {d.note}</p>}
+      {rules && <p className="small">Values chosen {rules}. {d.note}</p>}
       {(d.reviewed.length > 0 || d.fixes.length > 0) && <>
         <h3>Reviewer choices</h3>
         <ul className="small">
@@ -793,7 +793,7 @@ function LineageCard({ id }: { id: string }) {
         </ul>
       </>}
       <h3>Work and write-backs</h3>
-      {!d.work.count && <p className="muted small">No work has been about this record.</p>}
+      {!d.work.count && <p className="small">No work has been about this record.</p>}
       {d.work.count > 0 && (
         <ul className="small">
           {d.work.recent.map((w) => (
