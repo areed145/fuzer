@@ -278,8 +278,10 @@ ASSISTANT_QUESTIONS = [
      "must_mention": ["40-V-2002", "OK-J09-02", ["tolerance", "within", "12 h"]], "specialists": ["field-operations-facilities"]},
     {"domain": "reporting", "question": "Summarize 2025 production, losses and the work backlog for the asset manager, "
      "with dates and gaps.", "must_mention": ["Sm3", "%", "overdue"], "specialists": ["asset-performance-reporting"]},
-    {"domain": "missing data: regulatory", "question": "Are we compliant with our flaring permit?",
-     "must_mention": [["not available", "unavailable", "no permit", "does not have", "doesn't have", "not configured"]],
+    # The permit register (#370) sets the flared volume beside the consent as written; whether that is compliance
+    # stays with its owner, so the answer names the limit's words or who decides.
+    {"domain": "regulatory", "question": "Are we compliant with our flaring permit?",
+     "must_mention": [["as written", "accountable", "owner"]],
      "specialists": ["hse-incident-management"]},
     {"domain": "missing data: logistics", "question": "Are the crews, vendors and transport ready for the next "
      "turnaround?", "must_mention": ["OK-TAR-2026", ["unknown", "not available", "unavailable", "no crew", "does not have",
@@ -1421,6 +1423,47 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "inspection_readings.csv", readings)
     _write_csv(out / "ldar_surveys.csv", ldar)
     (out / "answer_keys" / "ldar.json").write_text(json.dumps(ldar_truth, indent=1))
+    # The permit and obligation register (#370): the conditions of the field's environmental permits as the
+    # environmental advisor keeps them, each with its owner, when it falls due and, where the permit states one, the
+    # quantity and limit as written. Story: the produced water discharge permit caps oil in water at the HP separator
+    # at 29 mg/L as a monthly mean and 42 mg/L in any sample, and after OK-J03-02's water breakthrough in June 2025 the
+    # samples run near 47 mg/L. The dew point condition states no figure, the annual report and the flare meter
+    # commitment name no measured quantity: the record can't be set beside them.
+    env, adv = "OK-ENV-PW-2023", "Environmental Advisor"
+    conditions = [
+        {"condition_id": "PC-OK-01", "permit": env, "tag": "10-V-2001", "quantity": "oil_in_water", "limit_value": "29",
+         "limit_type": "max", "unit": "mg/L", "basis": "period_mean", "frequency": "monthly", "report_due_days": "15",
+         "text": "Oil in produced water discharged from the HP separator shall not exceed 29 mg/L as a monthly average."},
+        {"condition_id": "PC-OK-02", "permit": env, "tag": "10-V-2001", "quantity": "oil_in_water", "limit_value": "42",
+         "limit_type": "max", "unit": "mg/L", "basis": "each_sample", "frequency": "monthly", "report_due_days": "15",
+         "text": "No single sample of HP separator produced water discharged shall exceed 42 mg/L oil in water."},
+        {"condition_id": "PC-OK-03", "permit": env, "tag": "30-V-2002", "quantity": "oil_in_water", "limit_value": "29",
+         "limit_type": "max", "unit": "mg/L", "basis": "period_mean", "frequency": "monthly", "report_due_days": "15",
+         "text": "Oil in produced water discharged at satellite ST1 shall not exceed 29 mg/L as a monthly average."},
+        {"condition_id": "PC-OK-04", "permit": "OK-ENV-GAS-2022", "tag": "20-V-2400", "quantity": "h2s",
+         "limit_value": "30", "limit_type": "max", "unit": "ppm(v)", "basis": "each_sample", "frequency": "monthly",
+         "report_due_days": "15", "text": "Hydrogen sulphide in the dry gas shall not exceed 30 ppm by volume."},
+        {"condition_id": "PC-OK-05", "permit": "OK-ENV-FLR-2021", "facility": FIELD, "quantity": "flare_ksm3",
+         "limit_value": "3000", "limit_type": "max", "unit": "", "basis": "period_sum", "frequency": "monthly",
+         "report_due_days": "10",
+         "text": "Gas flared at the field shall not exceed 3,000 thousand standard cubic metres in any calendar month."},
+        {"condition_id": "PC-OK-06", "permit": "OK-ENV-GAS-2022", "tag": "20-V-2400", "quantity": "water_dewpoint",
+         "limit_value": "", "limit_type": "", "unit": "degC", "basis": "each_sample", "frequency": "monthly",
+         "report_due_days": "15",
+         "text": "The dry gas water dew point shall be kept below the hydrate temperature at export conditions."},
+        {"condition_id": "PC-OK-07", "permit": env, "facility": FIELD, "quantity": "", "limit_value": "",
+         "limit_type": "", "unit": "", "basis": "", "frequency": "annual", "report_due_days": "90",
+         "text": "An annual environmental performance report shall be submitted within 90 days of the year's end."},
+        {"condition_id": "PC-OK-08", "permit": "OK-ENV-FLR-2021", "facility": FIELD, "quantity": "", "limit_value": "",
+         "limit_type": "", "unit": "", "basis": "", "frequency": "once", "due_date": "2025-09-30",
+         "text": "A flare gas meter shall be installed on the GGCP flare by 30 September 2025."}]
+    for c in conditions:
+        c.update({"owner": adv, "regulator": "Okan Environmental Authority", "status": "in force",
+                  "tag": c.get("tag", ""), "well": "", "facility": c.get("facility", ""), "due_date": c.get("due_date", "")})
+    _write_csv(out / "regulatory_conditions.csv", conditions)
+    (out / "answer_keys" / "permit_conditions.json").write_text(json.dumps(
+        {"exceeded": ["PC-OK-01", "PC-OK-02"], "within": ["PC-OK-03", "PC-OK-04"], "no_limit": ["PC-OK-06"],
+         "unknown": ["PC-OK-07", "PC-OK-08"], "flare": "PC-OK-05", "breakthrough": breakthrough.isoformat()}, indent=1))
     # Condition-monitoring spectra (#367): each month a route collector takes a velocity spectrum at the drive end and
     # non-drive end bearings of every pump, exported as the peak table with the point's bearing setup (deep groove ball
     # bearings, 8 balls of 23.8 mm on a 100 mm pitch circle). Running speed, its harmonics and the impeller's vane pass

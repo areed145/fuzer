@@ -419,3 +419,20 @@ def plot_ldar_leaks(since: str | None = None, until: str | None = None, days: in
     """Chart the leaks each LDAR survey found, repeat leakers marked, with the share of components leaking."""
     from ...plots import troubleshooting
     return _chart(troubleshooting.ldar_leaks, {"since": since, "until": until, "days": days})
+
+
+@capability("hse-incident-management", kind="calc")
+def permit_conditions(as_of: str | None = None, months: int = 12, ref: str | None = None) -> dict[str, Any]:
+    """Permit conditions (#370): each regulatory permit condition in force on the register (or those of one permit,
+    one condition, or on one tag, well or facility), with its owner and next due date, and per period over the
+    `months` the recorded figure (the samples' maximum, mean or total, as the condition states) beside the limit as
+    the register writes it: within, exceeded, or no limit on record. A condition not mapped to a recorded value, or
+    with none in the window, is unknown, never compliant; no limit is ever inferred. Compliance decisions stay with the
+    accountable owner."""
+    from ...analysis import calcs
+    from ...analysis import permit_conditions as pc
+    with db.connect() as conn:
+        try:
+            return _plain(pc.conditions(conn, as_of, max(1, min(months, 36)), ref))
+        except calcs.CalcError as e:
+            return {"error": str(e), **e.refusal()}

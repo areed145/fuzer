@@ -449,6 +449,15 @@ material_balance:
     surveys: {value: 3, means: "Static surveys the fit needs, on wells surveyed at least twice.", code: "fuzer.analysis.reservoir_pressure:MIN_SURVEYS"}
   vectors: [{worked: "tests/analysis/test_reservoir_pressure.py::test_material_balance_recovers_the_tank_and_states_its_assumptions"}]
 
+permit_conditions:
+  title: Permit conditions beside the recorded values
+  practice: "Each condition's recorded figure per reporting period (the samples' maximum, mean or total, as the condition states) is set beside the limit as the permit register writes it; a limit in another unit is converted only where the units table knows the conversion. No limit is inferred, and a condition with no mapped or recorded value is unknown."
+  tool: permit_conditions
+  inputs: [{name: Permit register limits, unit: as written}, {name: Laboratory results and survey readings, unit: stored unit}, {name: Daily reported volumes, unit: as reported}]
+  valid: Conditions the register maps to a measured quantity on a tag, well or facility.
+  needs: The register; a condition without a quantity, a link or a value in the window is reported unknown.
+  vectors: [{worked: "tests/analysis/test_permit_conditions.py::test_the_produced_water_exceedance_is_found_and_nothing_is_inferred"}]
+
 ldar:
   title: LDAR survey leaks, repeat leakers and coverage
   standard: "US EPA Method 21 (determination of volatile organic compound leaks)"

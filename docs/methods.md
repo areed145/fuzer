@@ -52,6 +52,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`gas_balance`](#gas_balance) Daily gas balance and its closure gap | Engineering practice | Gas handled (kSm³/d); Gas export, lift gas, flare, fuel gas and vent (kSm³/d) | A daily report with the gas handled. |
 | [`productivity_index`](#productivity_index) Productivity index from a flowing survey against the static pressure before it | Engineering practice | Static bottomhole pressure (barg); Flowing bottomhole pressure (barg); Oil rate at the flowing survey (Sm³/d) | A flowing survey with a rate and a static survey on the same well shortly before it. |
 | [`material_balance`](#material_balance) One-tank material balance from static pressures and net voidage | Engineering practice | Static bottomhole pressures (barg); Allocated oil (rm³); Water injected (rm³) | The PVT voidage replacement needs, and static surveys on at least two dates. |
+| [`permit_conditions`](#permit_conditions) Permit conditions beside the recorded values | Engineering practice | Permit register limits (as written); Laboratory results and survey readings (stored unit); Daily reported volumes (as reported) | The register; a condition without a quantity, a link or a value in the window is reported unknown. |
 | [`ldar`](#ldar) LDAR survey leaks, repeat leakers and coverage | US EPA Method 21 (determination of volatile organic compound leaks) | Component screening readings by survey (ppm) | At least one survey; equipment of a surveyed class with no reading is reported unknown. |
 | [`ili_strength`](#ili_strength) ILI anomaly growth between runs and remaining strength against MOP | ASME B31G (modified, 0.85 dL); ASME B31.8 design factors | Anomaly depth (% of wall); Anomaly length (mm); Wall thickness (mm); Outside diameter (mm); SMYS of the API 5L grade (MPa); Maximum operating pressure (barg) | ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade. |
 | [`co2_corrosion`](#co2_corrosion) CO2 corrosion rate predicted against measured, per line | de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections | Produced water temperature (degC); Gas CO2 (% mol); Gas H2S (ppmv); Maximum operating pressure (barg); CML wall thickness readings (mm) | Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison. |
@@ -467,6 +468,15 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Run by:** `material_balance`
 - **Threshold `surveys`:** Static surveys the fit needs, on wells surveyed at least twice. (3)
 - **Worked example:** `tests/analysis/test_reservoir_pressure.py::test_material_balance_recovers_the_tank_and_states_its_assumptions`, on the fake plant
+
+## permit_conditions
+
+**Permit conditions beside the recorded values.** Engineering practice. Each condition's recorded figure per reporting period (the samples' maximum, mean or total, as the condition states) is set beside the limit as the permit register writes it; a limit in another unit is converted only where the units table knows the conversion. No limit is inferred, and a condition with no mapped or recorded value is unknown.
+
+- **Valid for:** Conditions the register maps to a measured quantity on a tag, well or facility.
+- **Needs:** The register; a condition without a quantity, a link or a value in the window is reported unknown.
+- **Run by:** `permit_conditions`
+- **Worked example:** `tests/analysis/test_permit_conditions.py::test_the_produced_water_exceedance_is_found_and_nothing_is_inferred`, on the fake plant
 
 ## ldar
 

@@ -182,12 +182,13 @@ AGENT_CATALOG = (
     ),
     AgentDefinition(
         "hse-incident-management", "HSE & Incident Management",
-        "Evidence-only incident timelines, investigation records, corrective-action tracking and recorded flare; "
-        "no regulatory or emergency authority.",
+        "Evidence-only incident timelines, investigation records, corrective-action tracking, recorded flare and "
+        "permit conditions beside the record; no regulatory or emergency authority.",
         "You organize recorded incident evidence for accountable HSE review and say which HSE sources are unavailable.",
         "Live troubleshooting of a unit (Field Operations & Facilities).",
         (HSE_SPECIALIST, ENVIRONMENTAL_SPECIALIST, INCIDENT_INVESTIGATOR, EMERGENCY_LEAD),
-        ("Recorded incidents, event logs, and linked corrective work only; environmental and regulatory sources are not configured.",),
+        ("Recorded incidents, event logs, linked corrective work, and the permit register's conditions with the values on record; "
+         "no compliance determination is made from them.",),
         ("Source-linked incident timelines and clearly scoped evidence gaps for human review.",),
         ("No compliance determination, hazard/barrier assurance, emergency procedure, or response advice without authoritative data.",),
         ("Escalate safety-critical judgments and emergency response to accountable people and approved procedures.",),
@@ -433,7 +434,9 @@ UNAVAILABLE = (
      "Logistics and vendor sources; reservations, open purchase orders and planned delivery times are read "
      "(material_readiness)."),
     (_HSE, "Hazard and barrier status", "An authoritative barrier or safety-case register."),
-    (_HSE, "Environmental and regulatory obligation tracking", "Permits and obligations from an authoritative register."),
+    (_HSE, "Compliance determinations and regulatory interpretation",
+     "Accountable people; the permit register's conditions are set beside the recorded values with owners and due dates "
+     "(permit_conditions), and none is judged."),
     (_HSE, "Emergency response procedures", "Approved emergency response plans; the assistant only supports with information."),
     (_ASSET, "Commercial reconciliation: sales, nominations, liftings and entitlements",
      "The commercial system's sales and nomination records; production accounting volumes and the cost ledger are "

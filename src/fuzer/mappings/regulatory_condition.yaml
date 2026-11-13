@@ -1,0 +1,37 @@
+# Permit and obligation register (#370): each condition of a regulatory permit (a discharge limit, a flaring consent, a
+# report or a dated commitment), with its words as written, its owner, how often it falls due, and where the register
+# states one, the measured quantity and the numeric limit with its unit and basis (each sample, or the period's
+# maximum, mean or total). What it applies to links it to the tag, well or facility whose records show it. A limit is
+# read only from here, never inferred.
+source: regulatory
+record_type: condition
+shape: records
+dataset: regulatory_conditions
+key: condition_id
+entity:
+  kind: permit_condition
+  fields:
+    - permit
+    - text
+    - owner
+    - regulator
+    - status
+    - frequency
+    - [report_due_days, {from: report_due_days, as: number}]
+    - due_date
+    - quantity
+    - [limit_value, {from: limit_value, as: number}]
+    - limit_type
+    - unit
+    - basis
+    - [description, {from: text, default: "", keep: true}]
+links:
+  - rel: applies_to
+    when: tag
+    to: {kind: tag, from: tag, as: tag}
+  - rel: applies_to
+    when: well
+    to: {kind: well, from: well, as: well}
+  - rel: applies_to
+    when: facility
+    to: {kind: facility, from: facility}

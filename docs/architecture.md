@@ -12,7 +12,7 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 41 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 31 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 65 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 66 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 36 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 15 modules</small>"]
@@ -97,6 +97,7 @@ flowchart LR
   src_pi_af[/"pi_af"/]
   src_pid[/"pid"/]
   src_ptw[/"ptw"/]
+  src_regulatory[/"regulatory"/]
   src_rounds[/"rounds"/]
   src_safeguards[/"safeguards"/]
   src_sap[/"sap"/]
@@ -119,6 +120,7 @@ flowchart LR
   kind_material(["material"])
   kind_notification(["notification"])
   kind_permit(["permit"])
+  kind_permit_condition(["permit_condition"])
   kind_pipeline(["pipeline"])
   kind_pipeline_feature(["pipeline_feature"])
   kind_pipeline_segment(["pipeline_segment"])
@@ -165,6 +167,7 @@ flowchart LR
   src_pid --> kind_document
   src_ptw --> kind_isolation
   src_ptw --> kind_permit
+  src_regulatory --> kind_permit_condition
   src_rounds --> kind_round_point
   src_safeguards --> kind_bypass
   src_safeguards --> kind_demand
@@ -255,7 +258,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `accounting`, `alarm_journal`, `alarm_performance`, `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `co2_corrosion`, `completeness`, `compression`, `condition`, `control_loops`, `costs`, `crew_load`, `drivers`, `equipment`, `facilities`, `flare`, `flare_review`, `flow_capacity`, `forecast`, `forecast_actual`, `gas_balance`, `gas_lift`, `gas_lift_stability`, `hydraulics`, `ili`, `incident_followup`, `integrity`, `interventions`, `kpis`, `ldar`, `limits`, `loop_tuning`, `loops`, `material_readiness`, `metering`, `production_efficiency`, `prognosis`, `protection`, `quality`, `quality_trend`, `recip`, `record_quality`, `records`, `reservoir_pressure`, `rotating`, `signals`, `spares`, `stiction`, `studies`, `surveillance`, `treating`, `trend_view`, `trips`, `value`, `values`, `vibration_spectra`, `water_injection`, `well_diagnostics`, `well_test_factor`, `well_tests`, `work_execution`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `accounting`, `alarm_journal`, `alarm_performance`, `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `co2_corrosion`, `completeness`, `compression`, `condition`, `control_loops`, `costs`, `crew_load`, `drivers`, `equipment`, `facilities`, `flare`, `flare_review`, `flow_capacity`, `forecast`, `forecast_actual`, `gas_balance`, `gas_lift`, `gas_lift_stability`, `hydraulics`, `ili`, `incident_followup`, `integrity`, `interventions`, `kpis`, `ldar`, `limits`, `loop_tuning`, `loops`, `material_readiness`, `metering`, `permit_conditions`, `production_efficiency`, `prognosis`, `protection`, `quality`, `quality_trend`, `recip`, `record_quality`, `records`, `reservoir_pressure`, `rotating`, `signals`, `spares`, `stiction`, `studies`, `surveillance`, `treating`, `trend_view`, `trips`, `value`, `values`, `vibration_spectra`, `water_injection`, `well_diagnostics`, `well_test_factor`, `well_tests`, `work_execution`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)
@@ -303,7 +306,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `skill_version`, `work_event`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact`, `skill_version` (its `schema.sql`)
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 50, field-operations-facilities 97, hse-incident-management 50, maintenance-integrity 86, orchestrator 23, production-surveillance 80, wells-subsurface 73, work-management-supply-chain 39 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 50, field-operations-facilities 97, hse-incident-management 51, maintenance-integrity 86, orchestrator 23, production-surveillance 80, wells-subsurface 73, work-management-supply-chain 39 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals
