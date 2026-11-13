@@ -199,7 +199,7 @@ def import_(conn, text: str, by: str, note: str | None = None) -> dict:
                                                **{k: c[k] for k in CONNECTION_FIELDS if k in c and k != "name"})
                 else:
                     entities.add_connection(conn, s["name"], c["name"], c["type"], by, c.get("config"),
-                                            c.get("secrets"), note)
+                                            c.get("secrets"), note, cls=c.get("class"), direction=c.get("direction"))
             done.append(s["name"])
         return {"systems": done}
     v = versions.propose(conn, text, by, note=note or "imported")

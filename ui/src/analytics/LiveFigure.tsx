@@ -28,16 +28,18 @@ function Figure({ kind, params }: { kind: string; params?: Record<string, string
   return <>
     <Status loading={result.loading && !d} error={result.error} onRetry={result.reload} />
     {d && s && <>
-      <p className="small muted">{s.context}</p>
       {s.headline && <p role="status"><strong>{s.headline}</strong></p>}
       {s.stats.length > 0 && <dl className="analytics-summary">
         {s.stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}{stat.unit && <> <small>{stat.unit}</small></>}</dd></div>)}
       </dl>}
       {d.spec.data.length > 0 && <PlotlyChart spec={d.spec} label={[d.title, s.headline, s.context].filter(Boolean).join(". ")} />}
-      {s.notes.length > 0 && <ul className="small muted analytics-notes">{s.notes.map((note) => <li key={note}>{note}</li>)}</ul>}
-      {s.warnings.length > 0 && <div className="analytics-warnings" role="status"><strong>Data notes</strong><ul>{s.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
       {s.tables.map((table) => <FigureTable key={table.title} table={table} />)}
-      <p className="small muted">Source: {s.source}</p>
+      {s.warnings.length > 0 && <div className="analytics-warnings" role="status"><strong>Data notes</strong><ul>{s.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
+      <Disclosure className="analytics-about" label="Notes and source">
+        <p className="small muted">{s.context}</p>
+        {s.notes.length > 0 && <ul className="small muted analytics-notes">{s.notes.map((note) => <li key={note}>{note}</li>)}</ul>}
+        <p className="small muted">Source: {s.source}</p>
+      </Disclosure>
     </>}
   </>;
 }

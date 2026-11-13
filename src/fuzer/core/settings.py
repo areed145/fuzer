@@ -151,6 +151,12 @@ register(
     Setting("closeout.apply_to_exports", "bool", False, "Demo: apply a close-out sent back to a source system (an "
             "SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it",
             "Work"),
+    Setting("tuning.noise_rate", "float", 0.5, "A detector whose closed cases on one equipment class are this share "
+            "false alarms and duplicates or more gets a tuning proposal (P6.3)", "Work", min=0.05, max=1),
+    Setting("tuning.min_cases", "int", 5, "Closed cases a detector needs on one equipment class before its noise "
+            "rate can raise a tuning proposal", "Work", min=2, max=500),
+    Setting("tuning.max_windows", "int", 12, "Windows of history a tuning proposal replays for each value it tries, "
+            "newest cases first; caps what one proposal reads from the historian", "Work", min=1, max=200),
     Setting("closeout.recheck_days", "int", 30, "Days after a real problem is closed out to ask whoever closed it "
             "whether the fix held; the same failure on the same asset inside this window reopens the case as a repeat",
             "Work"),
@@ -201,6 +207,8 @@ register(
     Setting("sre.handoff.max_diagnoses", "int", 10, "Upsets the assistant diagnoses per hand-off run", "SRE",
             min=0, max=100),
     Setting("sre.handoff.max_usd", "float", 5.0, "Claude spend cap per hand-off run (USD)", "SRE", min=0),
+    Setting("watch.max_usd", "float", 2.0, "Model spend cap per agentic watch run, all areas (USD)", "SRE", min=0),
+    Setting("watch.max_areas", "int", 12, "Process areas the agentic watch reads per run", "SRE", min=0, max=200),
     Setting("sre.step_minutes", "int", 10, "Minutes between the values the detectors read", "SRE", min=1, max=60),
     Setting("sre.lookback_hours", "int", 24, "Hours before the window that a step is judged against", "SRE", min=1,
             max=168),
@@ -292,8 +300,9 @@ register(
             "message links to the case (empty: the message names the case without a link)", "Schedule"),
     Setting("access.session_hours", "int", 8, "Absolute signed-in session lifetime in hours", "Access",
             min=1, max=24, scopes=(GLOBAL,)),
-    Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "
-            "bounds memory pressure on the single-instance demo, not a commercial quota", "Access",
+    Setting("access.api_concurrency", "int", 8, "Maximum simultaneous authenticated API requests per server process "
+            "(one more waits a few seconds for a place); bounds memory pressure on the single-instance demo, not a "
+            "commercial quota", "Access",
             min=1, max=32, scopes=(GLOBAL,)),
     Setting("detectors.on", "bool", True, "Run the detectors; set for one detector as detectors.on@<name> on the "
             "Detection page", "Detection"),
@@ -521,7 +530,8 @@ def history(conn, key: str, limit: int = 50) -> list[dict]:
 
 @dataclass
 class Overrides:
-    """Settings for a test, without a database: `with settings.Overrides({"sre.handoff.max_usd": 1}):`."""
+    """Settings for a test, or a value tried without writing it (a tuning proposal's replay, P6.3), read in this process
+    only: `with settings.Overrides({"sre.handoff.max_usd": 1}):`."""
 
     values: dict = field(default_factory=dict)
 

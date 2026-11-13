@@ -1,4 +1,4 @@
-// The daily report (#98, #242): one page for each production day's narrative, where its review stands, and the
+// The daily report (#98, #242), and the regulatory reports (P7.6, RegulatoryReports.tsx): one page for each production day's narrative, where its review stands, and the
 // review itself (publish, or send back with what to change). The `daily_report` case behind it is linked for
 // its history; the day's production figures are the `production_day` record (EC DAY001).
 import { useState } from "react";
@@ -9,6 +9,7 @@ import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
 import { AgentIdle, useAct } from "./workflows/shared";
 import { Button, PageHeader , Card as UICard, Badge as UIBadge} from "../ui";
+import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
 const STATUS_CLASS: Record<string, string> = {
   published: "ok", "awaiting review": "key", "sent back": "warn", drafting: "warn", "needs a fix": "warn",
@@ -28,7 +29,10 @@ export function StatusBadge({ status }: { status: DailyStatus }) {
 
 export function ReportsPage({ query }: { query: URLSearchParams }) {
   const days = useAsync(() => api.dailyReports(), []);
-  const day = query.get("day") ?? days.data?.[0]?.day;
+  const regulatory = useAsync(() => api.regulatoryReports(), []);
+  const report = query.get("report") ?? undefined;
+  const [template, period] = report ? report.split(":") : [];
+  const day = report ? undefined : query.get("day") ?? days.data?.[0]?.day;
   const waiting = days.data?.filter((d) => d.status === "awaiting review").length ?? 0;
   return (
     <section>
@@ -50,6 +54,15 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
         </div>
       )}
       {day && <Report key={day} day={day} onChange={days.reload} />}
+      <h2>Regulatory reports</h2>
+      <p className="small muted">Drafted from their records for a period, each figure drilling to them; a figure on
+        estimated or missing data is marked for the reviewer.</p>
+      <Status loading={regulatory.loading && !regulatory.data} error={regulatory.error} />
+      {regulatory.data && <RegulatoryList data={regulatory.data} selected={report} onChange={regulatory.reload} />}
+      <ObligationsDue />
+      {template && period && (
+        <RegulatoryReportView key={report} template={template} period={period} onChange={regulatory.reload} />
+      )}
     </section>
   );
 }

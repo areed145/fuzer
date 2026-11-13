@@ -57,3 +57,12 @@ arrive:
                          detector: deviation_reviews, about: model}
   # The compression pack's briefs not followed twice: its specialist drafts a change to the playbook (P6.4c)
   skill_change: {skill: maintenance-integrity/compression, about: skill}
+  repeat_leak: {not_here: "no LDAR survey export: the site runs no leak survey programme in its data"}
+  gas_balance_gap: {not_here: "its daily report carries no fuel gas, so its gas balance has nothing to close"}
+  # Steps made noisy: what it then raises that it would not at its usual value is closed as false alarms, and the
+  # tuning job proposes a quieter value (P6.3). The plant is quiet, so two such cases are enough here
+  detector_tuning: {tuning: {detector: steps, value: 2.0, since: "today-5d 00:00", until: "today-1d 00:00", min_cases: 2}, about: detector}
+  # The month's flare and emissions report drafted from its records, its review work for the HSE specialist (P7.6)
+  regulatory_report: {report: flare_emissions_monthly, about: report}
+  # The monthly flaring return coming due in 5 days with no report started: the calendar raises it (P7.6c)
+  report_due: {obligation: {name: flaring_return, template: flare_emissions_monthly, regulator: the regulator}, about: report}

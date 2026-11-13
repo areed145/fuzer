@@ -23,7 +23,8 @@ fixtures are a bundle's exports: `conformance(..., fixture=<exports>)`.
 
 `install` puts a pack on a project in one step: its datasets on Sources, its work types on Routing and its
 detectors on Detection. `conformance` is the suite every pack must pass, against a database it may write to:
-the pack installs, installs again with nothing changed, its fixture loads through its own mappings with no
+each connection declares its class and direction (D4, docs/ot-security.md: a control or control-adjacent one only
+reads), the pack installs, installs again with nothing changed, its fixture loads through its own mappings with no
 dataset held, failed or missing, and each detector it names is registered.
 """
 
@@ -168,6 +169,17 @@ def conformance(conn, path, *, fixture=None, by: str = "conformance") -> dict:
     for d in datasets:
         if not d.get("mappings") and not d.get("reader"):
             problems.append(f"dataset {d.get('name')!r} has no mapping or reader")
+    from ._catalog_common import check_zone
+
+    for c in pack.get("connections") or []:  # D4: each connection says what zone it reaches into and which way
+        if not isinstance(c, dict) or not c.get("class") or not c.get("direction"):
+            problems.append(f"connection {c.get('name') if isinstance(c, dict) else c!r} doesn't declare its class "
+                            "(control, control_adjacent or business) and direction (read or write)")
+            continue
+        try:
+            check_zone(c["class"], c["direction"])
+        except CatalogError as e:
+            problems.append(f"connection {c.get('name')!r}: {e}")
     named = {d.get("name") for d in datasets}
     for r in pack.get("exception_rules") or []:
         if isinstance(r, dict) and r.get("dataset") not in named:

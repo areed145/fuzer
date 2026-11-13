@@ -51,6 +51,7 @@ KINDS: dict[str, dict] = {
                            "cadence": "daily 02:00"},
     "log_entry": {"label": "Operator log entry", "approvers": ["ops_lead"], "cadence": "now"},
     "detection_feedback": {"label": "Detection feedback", "approvers": ["engineer", "ops_lead"], "cadence": "15min"},
+    "regulatory_report": {"label": "Regulatory report", "approvers": ["hse_specialist"], "cadence": "now"},
 }
 LIMIT = 50  # writes per system per run, unless its pack says otherwise
 
@@ -380,6 +381,13 @@ def send(conn, wid: int, by: str = "system") -> dict:
     if out == "confirmed":
         return confirm(conn, wid, "system", "applied to its export")
     return row
+
+
+def due(conn, now: datetime | None = None) -> bool:
+    """An approved write-back is due: what `run` would pick up (its schedule starts a run only then)."""
+    now = now or datetime.now().astimezone()
+    return conn.execute("select 1 from writeback where state = 'approved' and due_at <= %s limit 1",
+                        (now,)).fetchone() is not None
 
 
 def run(conn, now: datetime | None = None) -> dict:

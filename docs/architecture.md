@@ -13,11 +13,11 @@ flowchart LR
   c_sources["Sources and ingestion<br><small>fuzer.sources, 41 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 31 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 62 modules</small>"]
-  c_ops["Operations<br><small>fuzer.ops, 31 modules</small>"]
+  c_ops["Operations<br><small>fuzer.ops, 35 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 15 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 27 modules</small>"]
-  c_evals["Evals<br><small>fuzer.evals, 12 modules</small>"]
+  c_evals["Evals<br><small>fuzer.evals, 13 modules</small>"]
   c_api["API<br><small>fuzer.api, 21 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 32 modules</small>"]
@@ -81,6 +81,7 @@ From the mapping files in `src/fuzer/mappings` (source → entity kind). Claude'
 flowchart LR
   src_accounting[/"accounting"/]
   src_adx[/"adx"/]
+  src_cfihos[/"cfihos"/]
   src_cms[/"cms"/]
   src_dcs[/"dcs"/]
   src_drilling[/"drilling"/]
@@ -127,6 +128,7 @@ flowchart LR
   kind_round_point(["round_point"])
   kind_safeguard(["safeguard"])
   kind_step_test(["step_test"])
+  kind_tag(["tag"])
   kind_timeseries(["timeseries"])
   kind_vibration_spectrum(["vibration_spectrum"])
   kind_well(["well"])
@@ -136,6 +138,9 @@ flowchart LR
   src_accounting --> kind_accounting_volume
   src_accounting --> kind_ledger_entry
   src_adx --> kind_timeseries
+  src_cfihos --> kind_document
+  src_cfihos --> kind_equipment
+  src_cfihos --> kind_tag
   src_cms --> kind_vibration_spectrum
   src_dcs --> kind_control_loop
   src_dcs --> kind_step_test
@@ -209,6 +214,8 @@ flowchart TD
 | `work_notify` | `* * * * *` | Notifications: work sent, handed back, escalated or coming due, told to the person within a minute. |
 | `writeback_run` | `* * * * *` | Write-backs: approved changes sent to source systems by their cadence; nothing unapproved. |
 | `closeout_sweep` | `*/5 * * * *` | Close-out: ask whether a fix held when its re-check is due; reopen a case whose problem returned. |
+| `detector_tuning` | `30 4 * * *` | Tuning: a quieter value proposed, replayed on its closed cases, for a detector whose noise passed its threshold. |
+| `report_calendar` | `0 5 * * *` | Obligations: each regulatory report drafted ahead of its due date, and work for one coming due. |
 | `sre_scan` | `0 */6 * * *` | SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off. |
 | `studies_job` | `*/5 * * * *` | Big correlation and clustering studies, queued from the API or an agent. |
 | `day_close` | `0 7 * * *` | Daily operations report: facts from the day's records, a new version when they change, the ops lead's review in the workflow (the reporter agent drafts it). |
@@ -259,11 +266,11 @@ Signals, limits, calcs, hydraulics, studies and clustering over the graph and th
 
 The scheduled loop: SRE detection and grouping, hand-off, the board, daily reports, opportunities and studies. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `at_risk`, `board`, `cadence`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `exceptions`, `fleet`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `rounds`, `routing`, `safeguards`, `simops`, `skill_review`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
+- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `at_risk`, `board`, `cadence`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `emissions`, `exceptions`, `fleet`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `reports`, `rounds`, `routing`, `safeguards`, `simops`, `skill_review`, `sre`, `sre_handoff`, `study`, `suppression`, `tuning`, `turnaround`, `watch`, `writeback`
 - **Uses:** analysis, core, graph, plots, sources, workflow
-- **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `case_disposition`, `case_repeat`, `daily_ops_report`, `detection`, `detector_tier_run`, `exception_kind`, `exception_record`, `field_photo`, `measurement`, `opportunity`, `plan_item`, `point_baseline`, `register_summary`, `review_item`, `round_reading`, `round_run`, `shift_handover`, `source_closeout`, `source_correction`, `sre_run`, `sre_suppress`, `study`, `suppressed_finding`, `suppression`, `upset`, `work_item`, `writeback`, `writeback_event` ([schema](schema.md))
-- **Owns:** `sre_run`, `detector_run`, `detector_tier_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record`, `field_photo`, `exception_kind`, `suppression`, `suppressed_finding`, `plan_item`, `source_closeout`, `shift_handover`, `writeback`, `writeback_event`, `source_correction`, `case_disposition`, `case_repeat`, `round_run`, `round_reading` (its `schema.sql`)
-- **Settings:** `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `detectors.cadence`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.max_shelve_days`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `readiness.permit_types`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
+- **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `case_disposition`, `case_repeat`, `daily_ops_report`, `detection`, `detector_tier_run`, `exception_kind`, `exception_record`, `field_photo`, `measurement`, `opportunity`, `plan_item`, `point_baseline`, `register_summary`, `regulatory_report`, `report_obligation`, `review_item`, `round_reading`, `round_run`, `shift_handover`, `source_closeout`, `source_correction`, `sre_run`, `sre_suppress`, `study`, `suppressed_finding`, `suppression`, `upset`, `watch_proposal`, `work_item`, `writeback`, `writeback_event` ([schema](schema.md))
+- **Owns:** `sre_run`, `detector_run`, `detector_tier_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `regulatory_report`, `report_obligation`, `opportunity`, `study`, `exception_record`, `field_photo`, `exception_kind`, `suppression`, `suppressed_finding`, `plan_item`, `source_closeout`, `shift_handover`, `writeback`, `writeback_event`, `source_correction`, `case_disposition`, `case_repeat`, `round_run`, `round_reading`, `watch_proposal` (its `schema.sql`)
+- **Settings:** `agents.model`, `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `detectors.cadence`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.max_shelve_days`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `readiness.permit_types`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values`, `tuning.max_windows`, `tuning.min_cases`, `tuning.noise_rate`, `watch.max_areas`, `watch.max_usd` ([settings](settings.md))
 - **Tests:** [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
 
 ### Charts
@@ -303,9 +310,9 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 
 Answer keys, the history replay and the ops eval that score it all. More in [evals](evals.md).
 
-- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `packs_eval`, `pid2graph`, `pronto`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`, `wells3w`
+- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `packs_eval`, `pid2graph`, `pronto`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`, `watch_eval`, `wells3w`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
-- **Writes:** `assistant_answer`, `assistant_fact`, `golden`, `lesson`, `llm_extraction`, `ops_eval`, `point_normal`, `source_record`, `work_event`, `work_item` ([schema](schema.md))
+- **Writes:** `assistant_answer`, `assistant_fact`, `exception_record`, `golden`, `lesson`, `llm_extraction`, `ops_eval`, `point_normal`, `source_record`, `work_event`, `work_item` ([schema](schema.md))
 - **Owns:** `ops_eval` (its `schema.sql`)
 - **Settings:** `agents.model`, `opportunities.gas_lift_breakeven` ([settings](settings.md))
 - **Tests:** [`tests/evals`](https://github.com/areed145/fuzer/tree/main/tests/evals)

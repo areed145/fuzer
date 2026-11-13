@@ -15,6 +15,9 @@ settings that tune it and where it is scored (`replay:<name>` in the replay harn
 reports "not applicable: missing X", neither runs, and every run is kept in `detector_run`, so the Detection page and
 docs/detectors.md read from one place. Adding a detector is one registered function and its test.
 
+A detector says in `quieter` which way each parameter that tunes it makes it raise less ("up" or "down"), so a
+tuning proposal (ops/tuning.py, P6.3) knows which way to try.
+
 On and off, and thresholds for one equipment class, are settings (`detectors.on@<name>`, `<param>@<class>`), so each
 change is versioned and attributed in the settings history. A detector lists in `by_class` the parameters it reads
 per equipment class, through `param`; only those take a class value.
@@ -41,7 +44,7 @@ MODULES = ("fuzer.ops.sre", "fuzer.analysis.limits", "fuzer.analysis.trips", "fu
            "fuzer.analysis.records", "fuzer.sources.alerts", "fuzer.ops.opportunities", "fuzer.ops.safeguards",
            "fuzer.analysis.loops", "fuzer.analysis.well_tests",
            "fuzer.analysis.gas_lift", "fuzer.analysis.quality", "fuzer.analysis.flare", "fuzer.analysis.alarm_performance",
-           "fuzer.workflow.conformance")
+           "fuzer.workflow.conformance", "fuzer.ops.watch", "fuzer.ops.emissions")
 
 POINTS = "select 1 from edge where rel = 'has_timeseries' limit 1"  # the need most detectors share
 
@@ -66,6 +69,7 @@ class Detector:
     window: bool = False           # a window function the SRE scan and the replay harness call
     found: Callable | None = None  # how many findings a run's result holds
     by_class: tuple = ()           # the params it reads per equipment class (through `param`)
+    quieter: dict = field(default_factory=dict)  # param -> "up" or "down": the way that raises less (P6.3)
 
     @property
     def doc(self) -> str:
@@ -88,6 +92,10 @@ def register(name: str, *, title: str, kind: str, cadence: str, **kw):
         raise DetectorError(f"{name}: {', '.join(sorted(unknown))} isn't a measurement role (core/roles.py)")
     if not set(kw.get("by_class", ())) <= set(kw.get("params", ())):
         raise DetectorError(f"{name}: a parameter read per equipment class is one of its params")
+    if not set(kw.get("quieter", {})) <= set(kw.get("params", ())):
+        raise DetectorError(f"{name}: a parameter that turns it quieter is one of its params")
+    if bad := {k: v for k, v in kw.get("quieter", {}).items() if v not in ("up", "down")}:
+        raise DetectorError(f"{name}: say which way turns it quieter, up or down, not {bad}")
 
     def wrap(fn):
         held = _registry.get(name)
@@ -270,12 +278,26 @@ def tune(conn, name: str, key: str, value, *, cls: str | None = None, by: str, r
     return settings.set(conn, full, value, by=by, reason=reason, project_name=project_name)
 
 
+def version(conn, name: str, project_name: str | None = None) -> int:
+    """The detector's version on this asset: how many times it has been switched or tuned here, from the settings
+    history (a new version each change, P6.3)."""
+    d = get(name)
+    p = project_name or settings.project()
+    r = conn.execute("select count(*) as n from setting_history where scope = any(%s) "
+                     "and (key = %s or split_part(key, %s, 1) = any(%s))",
+                     ([settings.scope_of(p), settings.GLOBAL], f"{ON}{settings.QUALIFIER}{name}", settings.QUALIFIER,
+                      list(d.params))).fetchone()
+    return 1 + r["n"]
+
+
 # ---- scores and listing ---------------------------------------------------------------------------
 
 def replay_score(conn, d: Detector) -> dict | None:
     """The detector's latest replay score (recall, precision, false alarms a week, over which window): from the
     replay its eval names, else from the sweep of the work detectors (`sweep:<name>`, evals/sweep.py), when it has
     been run."""
+    if d.kind == AGENTIC:
+        return shadow_score(conn, d)
     key = d.eval.partition(":")[2] if (d.eval or "").startswith("replay:") else f"sweep:{d.name}"
     try:
         with conn.transaction():  # a database without the eval table yet
@@ -291,12 +313,32 @@ def replay_score(conn, d: Detector) -> dict | None:
             "since": r["since"], "until": r["until"], "at": r["run_at"].isoformat(timespec="seconds")}
 
 
+def shadow_score(conn, d: Detector) -> dict | None:
+    """An agentic detector's latest score in shadow on each bundle (`shadow:<name>`, evals/watch_eval.py): the share of
+    its proposals that match an injected event no rule caught, and its precision."""
+    try:
+        with conn.transaction():
+            rows = conn.execute("select distinct on (scores->>'bundle') since, until, scores, run_at from ops_eval "
+                                "where detector = %s order by scores->>'bundle', id desc", (f"shadow:{d.name}",)).fetchall()
+    except Exception:
+        return None
+    if not rows:
+        return None
+    last = max(rows, key=lambda r: r["run_at"])
+    return {"recall": last["scores"].get("recall"), "precision": last["scores"].get("precision"),
+            "false_alarms_per_week": None, "upsets": last["scores"].get("upsets"), "since": last["since"],
+            "until": last["until"], "at": last["run_at"].isoformat(timespec="seconds"),
+            "shadow": [{"bundle": r["scores"].get("bundle"), "matched": r["scores"].get("matched"),
+                        "precision": r["scores"].get("precision"), "proposals": r["scores"].get("proposals"),
+                        "model": r["scores"].get("model"), "since": r["since"], "until": r["until"]} for r in rows]}
+
+
 def describe(d: Detector) -> dict:
     """A detector as the reference page and the Detection page read it."""
     return {"name": d.name, "title": d.title, "kind": d.kind, "kind_label": KINDS[d.kind], "cadence": d.cadence,
             "cadence_label": CADENCES[d.cadence], "raises": list(d.raises), "classes": list(d.classes),
             "roles": list(d.roles), "needs": list(d.needs), "params": list(d.params), "by_class": list(d.by_class),
-            "eval": d.eval, "about": d.doc}
+            "quieter": dict(d.quieter), "eval": d.eval, "about": d.doc}
 
 
 def _params(conn, d: Detector, project_name: str | None, rows: dict) -> list[dict]:
@@ -324,6 +366,6 @@ def listing(conn, pack, project_name: str | None = None) -> list[dict]:
         lacking = missing(conn, pack, d)
         out.append({**describe(d), "on": on(conn, d.name, p), "switched": switched.get(d.name),
                     "applicable": not lacking, "note": note(lacking) if lacking else None,
-                    "last_run": runs.get(d.name), "score": replay_score(conn, d),
+                    "last_run": runs.get(d.name), "score": replay_score(conn, d), "version": version(conn, d.name, p),
                     "settings": _params(conn, d, p, rows)})
     return out

@@ -72,6 +72,12 @@ create table if not exists source_connection (
     unique (system_id, name)
 );
 
+-- Its class and direction (D4, docs/ot-security.md): a control or control-adjacent connection is only read.
+alter table source_connection add column if not exists class text;
+alter table source_connection add column if not exists direction text not null default 'read';
+update source_connection c set class = case when s.kind = 'historian' then 'control_adjacent' else 'business' end
+from source_system s where s.id = c.system_id and c.class is null;
+
 -- One table or feed: where it is, how it loads, and what it held at its last load.
 create table if not exists source_dataset (
     id            bigserial primary key,

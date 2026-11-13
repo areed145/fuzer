@@ -487,6 +487,7 @@ identities, history, review and the graph stay as they are.
 | Drilling and completions | Directional surveys as CSV (`well_surveys`) or WITSML 1.4.1 trajectories (`witsml_trajectories`, feet or metres), turned into each well's trajectory by minimum curvature; completion components (`well_completions`) by measured depth, with true vertical depth from the survey (graph/positions.py, #61) | WITSML 2.x, LAS logs, a well data store's API |
 | GIS | GeoJSON wells, facilities, pipelines; PODS-style route segments (`pods_segments`) by station, placed on the route with the line's length as its stationing | Feature services; PODS database views |
 | Production accounting, cost ledger | CSV of monthly accounted volumes (`acct_volumes`) and booked cost by element and currency (`acct_cost_ledger`); reconciled against DAY001 (analysis/accounting.py) | Accounting system views; sales and nominations |
+| Engineering handover | CFIHOS tables (`cfihos` source pack, #63): tags (`cfihos_tag`), equipment (`cfihos_equipment`), document revisions (`cfihos_document`) and which tags each covers (`cfihos_tag_document`). Tags and equipment merge with the site's registers; a CFIHOS class name ("reciprocating compressor") becomes the ISO 14224 class, and stands over the one a tag's function code implies | CFIHOS unique IDs and property values from the reference data library |
 | Manuals, guides, procedures | EDMS manifest (JSON) of PDFs; sections linked to models, classes, tags | SharePoint / EDMS live |
 | Teams channels | (planned) | Selected channels via Microsoft Graph; thread summaries and links |
 
@@ -498,7 +499,11 @@ drawing reader returns connections read off scans; both become directional
 manifest entry names the file (`"dexpi": "pid/<sheet>.xml"`) and the sheet's area, and the reader takes the tags
 (equipment, piping components, instrumentation functions), positions and line numbers, and turns each piping
 segment into hops between tagged items: a nozzle stands for its equipment, an off-page connector for the item it
-names. Kestrel's flare and sales metering sheet ships this way. The Network page switches between the two, flow traces can
+names. Kestrel's flare and sales metering sheet ships this way. When a DEXPI sheet's drawing is there too, its
+scanned twin can be read (`fuzer llm-link --source pids --twins`, #63) and compared with the exact file
+(`dexpi.compare`): each tag or line one shows and the other doesn't, and each line the scan shows the wrong way round,
+becomes a "drawing disagrees" question on Master data. The twin's reading is kept apart (`pid_twin`), so it never adds
+links over the exact file's. The Network page switches between the two, flow traces can
 follow either, and a comparison lists EC flows with no piping path on the P&IDs
 and piping between EC nodes with no EC flow path (API and a Dagster check).
 

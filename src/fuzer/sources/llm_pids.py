@@ -491,18 +491,20 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
 
 def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str | None = None,
         limit: int | None = None, workers: int = 4, batch: bool = False, force: bool = False,
-        dry_run: bool = False, poll_seconds: int = 30) -> dict:
-    """Read drawings (all but smart P&IDs) that have no current cached result. Needs a rebuilt register first."""
+        dry_run: bool = False, poll_seconds: int = 30, twins: bool = False) -> dict:
+    """Read drawings (all but smart P&IDs) that have no current cached result. Needs a rebuilt register first.
+    With `twins`, read instead the images of sheets that also come as DEXPI (#63), kept under TWIN so they are only
+    compared with the exact file (twin_differences) and never become links."""
     model, effort = model or llm.model(), effort or llm.effort()  # the settings (#131) unless given
     rows = conn.execute(
         """
         select r.source_key, r.payload, x.text_hash, x.prompt_version
         from source_record r
-        left join llm_extraction x on x.source = r.source and x.source_key = r.source_key
-        where r.source = 'pid' and r.record_type = 'sheet' and r.payload->>'format' <> 'smart'
-          and r.payload ? 'image'
+        left join llm_extraction x on x.source = %(cache)s and x.source_key = r.source_key
+        where r.source = 'pid' and r.record_type = 'sheet' and r.payload ? 'image'
+          and (case when %(twins)s then r.payload ? 'dexpi' else r.payload->>'format' <> 'smart' end)
         order by r.source_key
-        """
+        """, {"cache": TWIN if twins else "pid", "twins": twins}
     ).fetchall()
     missing = [r["source_key"] for r in rows if not r["payload"].get("image_sha256")]
     todo = [r for r in rows if r["payload"].get("image_sha256") and (
@@ -534,12 +536,12 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
             cur.execute(
                 """
                 insert into llm_extraction (source, source_key, text_hash, model, prompt_version, result)
-                values ('pid', %s, %s, %s, %s, %s)
+                values (%s, %s, %s, %s, %s, %s)
                 on conflict (source, source_key) do update
                 set text_hash = excluded.text_hash, model = excluded.model, prompt_version = excluded.prompt_version,
                     result = excluded.result, created_at = now()
                 """,
-                (sk, sheets[sk]["image_sha256"], model, PROMPT_VERSION, Jsonb(result)),
+                (TWIN if twins else "pid", sk, sheets[sk]["image_sha256"], model, PROMPT_VERSION, Jsonb(result)),
             )
         conn.commit()
         totals["stored"] += 1
@@ -564,6 +566,22 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
                     totals["failed_requests"] += 1
                     errors.append(f"{futures[fut]}: {type(e).__name__}: {e}")
     return {**stats, **totals, **llm.cost_report(model, totals), "errors": errors[:5]}
+
+
+TWIN = "pid_twin"  # llm_extraction source for readings of sheets that also come as DEXPI: compared, never linked
+
+
+def twin_differences(conn, sheets: dict[str, dict], pack: Pack) -> dict[str, dict]:
+    """Each DEXPI sheet whose image has a current reading (run with twins), compared with its exact file (#63):
+    {sheet: dexpi.compare(...)}."""
+    from . import dexpi
+
+    out = {}
+    for row in conn.execute("select source_key, text_hash, result from llm_extraction where source = %s", (TWIN,)):
+        p = sheets.get(row["source_key"])
+        if p is not None and p.get("dexpi") and row["text_hash"] == p.get("image_sha256"):
+            out[row["source_key"]] = dexpi.compare(p, row["result"], pack, _area(p, pack))
+    return out
 
 
 def _readings(conn, sheets: dict[str, dict]) -> dict[str, dict]:
@@ -709,13 +727,14 @@ def placements(conn, on: dict[str, str]) -> list[dict]:
     return out
 
 
-def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict]) -> list[tuple[str, dict]]:
+def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict], pack: Pack | None = None) -> list[tuple[str, dict]]:
     """Review questions (kind pid_mismatch) where a drawing and another system disagree (#475): an alarm and trip
     table that differs from the alarms configured in the DCS and AF, or shows a setting no alarm source has, and an
     instrument the drawing shows on one item while SAP has it under another. Neither side is assumed right: the
     reviewer says which one needs changing. The subject carries the disagreement itself, so a decided question
     comes back as a new one when the values on either side change. `drawing_issues` are the limits checks'
-    `drawing` issues (analysis.limits.drawing_issues)."""
+    `drawing` issues (analysis.limits.drawing_issues). With the pack, a DEXPI sheet whose scan was read too (run with
+    twins, #63) adds a question for each tag or line one shows and the other doesn't."""
     docs = {r["source_key"]: r["fuzer_id"] for r in conn.execute(
         "select source_key, fuzer_id from crosswalk where source = 'pid' and record_type = 'sheet'")}
     out: list[tuple[str, dict]] = []
@@ -724,7 +743,7 @@ def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict]) -> lis
         digest = hashlib.sha1(issue["detail"].encode()).hexdigest()[:12]
         # The same record shape as anything else detected (P1.1): a model read the drawing, a rule compared it
         found = Finding("drawings.compare", AGENTIC, method="A drawing read by a model, compared with "
-                        + ("the register" if check == "placement" else "the configured alarms"),
+                        + {"placement": "the register", "twin": "its DEXPI file"}.get(check, "the configured alarms"),
                         items=(fact("Drawing", sk), fact("Tag", tag), fact("Measured on", issue.get("point")),
                                fact("Drawn on", kw.get("drawn_on")),
                                fact("Register", "; ".join(f"{'/'.join(x['sources'])} has it under {x['parent']}"
@@ -752,6 +771,24 @@ def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict]) -> lis
             where = ", ".join(f"{'/'.join(x['sources'])} has it under {x['parent']}" for x in p["register"])
             add(sk, p["tag"], "placement", p, f"{sk} shows {p['tag']} on {p['drawn_on']}, but {where}. Which is "
                 f"right, the drawing or the register?", drawn_on=p["drawn_on"], register=p["register"])
+    if pack is not None:
+        ids = {r["key"]: r["fuzer_id"] for r in conn.execute("select key, fuzer_id from entity_key where kind = 'tag'")}
+        for sk, d in sorted(twin_differences(conn, sheets, pack).items()):
+            for side, where, other in (("only_dexpi", "DEXPI file", "the scan doesn't show it"),
+                                       ("only_scan", "scan", "the DEXPI file doesn't have it")):
+                for tag in d["tags"][side]:
+                    add(sk, tag, "twin", {"detail": f"{tag} is on the {where} of {sk} but {other}",
+                                          "point_id": ids.get(tag)},
+                        f"{tag} is on the {where} of {sk} but {other}. Which is right?")
+                for a, b in d["connections"][side]:
+                    add(sk, f"{a}>{b}", "twin", {"detail": f"the {where} of {sk} pipes {a} to {b} but {other}",
+                                                 "point_id": ids.get(a)},
+                        f"The {where} of {sk} pipes {a} to {b} but {other}. Which is right?")
+            for a, b in d["connections"]["reversed"]:
+                add(sk, f"{a}>{b}", "twin", {"detail": f"the DEXPI file of {sk} pipes {a} to {b}, the scan {b} to {a}",
+                                             "point_id": ids.get(a)},
+                    f"The DEXPI file of {sk} pipes {a} to {b} but the scan shows the flow from {b} to {a}. Which way "
+                    f"does it run?")
     return out
 
 

@@ -17,6 +17,8 @@ cautious reading (a bypass due out before the job may still be in).
 
 from datetime import UTC, datetime, timedelta
 
+from ..graph import structure
+
 # A permit type, as sites write it, to the hazard it brings.
 HAZARD_WORDS = {
     "hot": ("hot work", "welding", "grinding", "naked flame"),
@@ -66,15 +68,17 @@ def _label(conn, ids: list[str]) -> str:
     return row["label"] if row and row["label"] else ids[0]
 
 
-def job(conn, title: str, subjects: list[str], area: str | None = None, ref: dict | None = None) -> dict:
-    """A job as the check sees it: its title, subjects, area and the hazards its permits bring."""
+def job(conn, title: str, subjects: list[str], area: str | None = None, ref: dict | None = None,
+        plant=None) -> dict:
+    """A job as the check sees it: its title, subjects, area and the hazards its permits bring. `plant` is
+    structure.load read once by a caller making several."""
     from .plan import _area
     from .safeguards import bypasses
 
     subjects = list(subjects or [])
     return {"title": title, "subjects": subjects, "area": area if area is not None else _area(conn, subjects),
             "hazards": _hazards(conn, subjects), "ref": ref or {},
-            "bypasses": bypasses(conn, subjects, system=True) if subjects else []}
+            "bypasses": bypasses(conn, subjects, system=True, plant=plant) if subjects else []}
 
 
 def conflicts(conn, a: dict, b: dict, *, same_asset: bool = True) -> list[dict]:
@@ -110,8 +114,10 @@ def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now:
     if exception_id is not None:
         row = conn.execute("select title from exception_record where id = %s", (exception_id,)).fetchone()
         title = row and row["title"]
-    me = job(conn, title or "this job", subjects)
-    others = [job(conn, r["title"], list(r["subjects"] or []), ref={"exception": r["id"]}) for r in conn.execute(
+    plant = structure.load(conn)  # once for this job and every job it is checked against
+    me = job(conn, title or "this job", subjects, plant=plant)
+    others = [job(conn, r["title"], list(r["subjects"] or []), ref={"exception": r["id"]}, plant=plant)
+              for r in conn.execute(
         """
         select e.id, e.title, e.subjects from exception_record e join work_item w on w.id = e.item_id
         where e.state = 'open' and e.joined_to is null and w.state not in ('done', 'cancelled')
@@ -119,7 +125,7 @@ def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now:
           and exists (select 1 from event_outbox o where o.topic = 'exception.dispatched' and o.ref = 'exception:' || e.id)
         order by e.id
         """, (exception_id,)).fetchall()]
-    others += [job(conn, r["title"], list(r["subjects"] or []), r["area_id"], ref={"plan_item": r["id"]})
+    others += [job(conn, r["title"], list(r["subjects"] or []), r["area_id"], ref={"plan_item": r["id"]}, plant=plant)
                for r in conn.execute(
         """
         select id, title, subjects, area_id from plan_item
@@ -142,7 +148,8 @@ def on_plan(conn, rows: list[dict]) -> dict[int, list[dict]]:
     out: dict[int, list[dict]] = {}
     if len(active) < 2:
         return out
-    jobs = {r["id"]: job(conn, r["title"], list(r["subjects"] or []), r["area_id"]) for r in active}
+    plant = structure.load(conn) if any(r["subjects"] for r in active) else None  # once, not once per item
+    jobs = {r["id"]: job(conn, r["title"], list(r["subjects"] or []), r["area_id"], plant=plant) for r in active}
     for i, a in enumerate(active):
         for b in active[i + 1:]:
             if not (a["start_at"] < b["end_at"] and b["start_at"] < a["end_at"]) or a["area_id"] != b["area_id"]:

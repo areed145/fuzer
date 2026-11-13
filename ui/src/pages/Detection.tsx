@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { api, type Closeouts, type DetectorParam, type DetectorRow, type EquipmentClass, type ProviderRow, type Trust } from "../api";
+import { api, type Closeouts, type DetectorCloseouts, type DetectorParam, type DetectorRow, type EquipmentClass, type ProviderRow, type Trust, type TuningProposal } from "../api";
 import { Status, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
-import { ActionStatus, Badge, Button, Card, Field, Input, Select, Table } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Field, Input, Select, Table } from "../ui";
 
 const when = (at: string | null | undefined) => (at ? at.slice(0, 16).replace("T", " ") : "");
 const show = (v: unknown) =>
@@ -24,6 +24,12 @@ function LastRun({ d }: { d: DetectorRow }) {
 }
 
 function Score({ d }: { d: DetectorRow }) {
+  if (d.score?.shadow) {
+    return <span>{d.score.shadow.map((b) => <div key={b.bundle}>
+      {b.bundle}: matched {pct(b.matched)} of {b.proposals} proposals to what no rule caught, precision {pct(b.precision)}
+      {b.model === "scripted" && <span className="muted small"> (scripted model)</span>}
+    </div>)}<div className="muted small">In shadow, on replay</div></span>;
+  }
   if (d.score) {
     return <span>Recall {pct(d.score.recall)}, precision {pct(d.score.precision)}
       <div className="muted small">{d.score.since} to {d.score.until}</div></span>;
@@ -39,6 +45,24 @@ function CloseoutRates({ c }: { c: Closeouts }) {
     <div className="muted small">{c.closed} of {c.cases} cases closed out</div></span>;
 }
 
+/** A detector's close-outs: what share was noise (false alarms and duplicates), per class when it has cases on more
+ * than one. */
+function DetectorRates({ c }: { c: DetectorCloseouts }) {
+  if (!c.cases) return <span className="muted">No cases yet</span>;
+  if (!c.closed) return <span className="muted">{c.cases} open, none closed out</span>;
+  return <span>Confirmed {pct(c.confirmed_rate)}, noise {pct(c.noise_rate)}
+    <div className="muted small">{c.false_alarm} false alarm{c.false_alarm === 1 ? "" : "s"}, {c.duplicate} duplicate
+      {c.duplicate === 1 ? "" : "s"}; {c.closed} of {c.cases} cases closed out</div></span>;
+}
+
+function ClassRates({ d, classes }: { d: DetectorRow; classes: EquipmentClass[] }) {
+  const rows = d.closeouts?.by_class.filter((r) => r.closed) ?? [];
+  if (rows.length < 2) return null;
+  const name = (code: string) => (code ? classes.find((x) => x.code === code)?.name ?? code : "Not classified");
+  return <p className="small">Close-outs by class: {rows.map((r, i) => <span key={r.class}>{i ? "; " : ""}
+    <b>{name(r.class)}</b> {r.closed} closed, noise {pct(r.noise_rate)}</span>)}</p>;
+}
+
 /** The detectors on this asset: on or off, whether they apply, their last run and replay score, and their
  * thresholds, with a value for one equipment class where the detector reads one. */
 export function Detection() {
@@ -46,7 +70,12 @@ export function Detection() {
   const [open, setOpen] = useState<string | null>(null);
   const person = loadPerson() || "anonymous";
   const saved = () => { list.reload(); notifyChanged(); };
+  const proposals = useAsync(() => api.tuningProposals(), []);
+  const decided = () => { proposals.reload(); saved(); };
   return <>
+    {(proposals.data?.length ?? 0) > 0 && <Card title="Tuning proposals">
+      {proposals.data!.map((p) => <Proposal key={p.id} p={p} person={person} decided={decided} />)}
+    </Card>}
     <Status loading={list.loading && !list.data} error={list.error} empty={list.data && list.data.detectors.length === 0}>
       No detectors are registered.
     </Status>
@@ -75,6 +104,37 @@ export function Detection() {
       </Table>
     </Card>}
   </>;
+}
+
+/** A quieter value for a noisy detector: the change, its replay on the closed cases before and after, and any real
+ * case it would miss. Accepting tunes the detector (a new version in the settings history); setting it aside needs a
+ * reason. */
+function Proposal({ p, person, decided }: { p: TuningProposal; person: string; decided: () => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const act = async (label: string, fn: () => Promise<unknown>) => {
+    setError(null);
+    setBusy(label);
+    try { await fn(); decided(); } catch (e) { setError(String((e as Error).message ?? e)); } finally { setBusy(null); }
+  };
+  return <div className="setting-edit">
+    <p><b>{p.title}</b></p>
+    <p className="small">{pct(p.noise_rate)} noise on {p.cases} closed cases{p.class ? ` on ${p.class}` : ""}. Replayed
+      over {p.windows} window{p.windows === 1 ? "" : "s"}: noisy cases raised {p.before.noise} to {p.after.noise}, real
+      cases raised {p.before.real} to {p.after.real}.{" "}
+      {p.missed.length ? <b>It would miss case{p.missed.length === 1 ? "" : "s"} {p.missed.join(", ")}.</b> : "It misses no real case."}</p>
+    <div className="row small">
+      <ConfirmAction label="Accept tuning" busy={!!busy}
+        consequence={`Set ${p.param} to ${p.proposed} for ${p.detector}${p.class ? ` on ${p.class}` : ""}? It takes effect on its next run and is kept in the settings history.`}
+        onConfirm={() => act("Accepting", () => api.acceptTuning(p.id, person))} />
+      <Input aria-label={`Reason to set aside ${p.title}`} className="grow" placeholder="reason to leave it as it is"
+        value={reason} onChange={(e) => setReason(e.target.value)} />
+      <Button disabled={!!busy || reason.trim().length < 3}
+        onClick={() => act("Setting aside", () => api.setTuningAside(p.id, person, reason))}>Set aside</Button>
+    </div>
+    <ActionStatus busy={busy} error={error} />
+  </div>;
 }
 
 function ProviderLine({ p, classes, levels, person, open, toggle, saved }: {
@@ -130,17 +190,19 @@ function DetectorLine({ d, classes, project, person, open, toggle, saved }: {
 }) {
   return <>
     <tr>
-      <td>{d.title}<div className="muted small">{d.about}</div></td>
+      <td>{d.title}{d.version && d.version > 1 ? <span className="muted small"> v{d.version}</span> : null}
+        <div className="muted small">{d.about}</div></td>
       <td>{d.kind_label}</td>
       <td>{d.cadence_label}</td>
       <td><State d={d} />{!d.applicable && d.note && <div className="muted small">{d.note}</div>}</td>
       <td><LastRun d={d} /></td>
       <td><Score d={d} /></td>
-      <td>{d.closeouts && <CloseoutRates c={d.closeouts} />}</td>
+      <td>{d.closeouts && <DetectorRates c={d.closeouts} />}</td>
       <td><Button size="sm" onClick={toggle}>{open ? "Close" : "Change"}</Button></td>
     </tr>
     {open && <tr className="setting-edit">
       <td colSpan={8}>
+        <ClassRates d={d} classes={classes} />
         <Switch d={d} project={project} person={person} saved={saved} />
         {d.settings.map((s) => <Param key={s.key} d={d} s={s} classes={classes} person={person} saved={saved} />)}
       </td>

@@ -1,0 +1,4 @@
+equipment_number,equipment_description,equipment_class_name,tag_number,manufacturer_company_name,model_part_name,manufacturer_serial_number
+VRU-EQ-001,Vapour Recovery Compressor,reciprocating compressor,G1-K-7001,Ariel,JGQ/2,SN90029
+VRU-EQ-002,Vapour Recovery Suction Scrubber,pressure vessel,G1-V-7002,Exterran,EXT-24,SN90028
+VRU-EQ-003,Vapour Recovery Aftercooler,air cooled heat exchanger,G1-E-7003,Hudson,HPC-6,SN90030

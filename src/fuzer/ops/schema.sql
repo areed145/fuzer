@@ -177,6 +177,45 @@ create table if not exists daily_ops_report (
     unique (day, version)
 );
 
+-- Regulatory and emissions reports (P7.6, #954): one row per version of a template's report for a period. A new
+-- version when its figures change (a late or corrected record); each figure keeps the rows it is made of and their
+-- basis (measured, estimated, missing). Approval and submission are recorded on the version they were for.
+create table if not exists regulatory_report (
+    id           bigserial primary key,
+    template     text not null,
+    period       text not null,                 -- YYYY-MM
+    version      integer not null,
+    status       text not null default 'draft', -- draft | approved | submitted
+    sections     jsonb not null,                -- [{title, figures: [{key, label, value, unit, basis, rows}]}]
+    marked       jsonb not null default '[]',   -- the figures resting on estimated or missing data
+    coverage     jsonb not null,                -- since, through, partial
+    fingerprint  text not null,
+    drafted_by   text not null,
+    item_id      bigint,                        -- the review case
+    approved_by  text,
+    approved_at  timestamptz,
+    submitted    jsonb,                         -- how it went out, by whom and when
+    created_at   timestamptz not null default now(),
+    unique (template, period, version)
+);
+alter table regulatory_report add column if not exists approval_note text;
+
+-- The obligations calendar (P7.6c): each report a regulator expects, per period, its due date as days after the
+-- period ends, and how far ahead the report process starts.
+create table if not exists report_obligation (
+    name         text primary key,
+    template     text not null,
+    regulator    text,
+    due_days     integer not null default 15,   -- 15: due on the 15th of the month after the period
+    lead_days    integer not null default 10,   -- the process starts this many days before it is due
+    draft_ahead  boolean not null default true, -- the calendar drafts it from its records when its window opens
+    starts       date not null,                 -- the first due date it counts; periods due before it are not owed
+    active       boolean not null default true,
+    note         text,
+    updated_by   text not null,
+    updated_at   timestamptz not null default now()
+);
+
 -- The opportunity scan (#102): gains left on the table, one row per opportunity under a stable key. A decided
 -- one (rejected, accepted, project) isn't raised again unless its evidence or gain changes materially.
 create table if not exists opportunity (
@@ -521,3 +560,23 @@ create table if not exists round_reading (
     exception_id  bigint,                        -- what an out-of-limit reading or a failed check raised
     unique (run_id, point)
 );
+
+-- The agentic watch (P3.3a, ops/watch.py): what the watch agent proposed for an area over a window, that no detector
+-- raised. In shadow (wave 4) a proposal is kept and scored, never routed.
+create table if not exists watch_proposal (
+    id         bigserial primary key,
+    area       text not null,                  -- the process area's fuzer id
+    since      timestamp not null,
+    until      timestamp not null,
+    subject    text,                           -- what it is about, as the evidence names it
+    start      timestamp,
+    "end"      timestamp,
+    why        text not null,                  -- why it is unusual
+    ruled_out  text,                           -- what it ruled out
+    evidence   jsonb not null default '[]',    -- the ids it cites (points, detections, log entries, notifications)
+    cited      boolean not null default false, -- whether every id it cites was in what it was shown
+    mode       text not null default 'shadow',
+    model      text,
+    run_at     timestamptz not null default now()
+);
+create index if not exists watch_proposal_window on watch_proposal (since, until);

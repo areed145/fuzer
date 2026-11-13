@@ -94,3 +94,17 @@ def test_pack_extensions():
     tax = Taxonomy(pack)
     assert tax.classify_tag("31-H-1001", None, None) == "FH.BX"  # a pack can extend its classification
     assert tax.classify_tag("31-ZZ-1001", None, None) is None
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("name,description,code", [
+    ("reciprocating compressor", None, "CO.RE"),
+    ("Air Cooled Heat Exchanger", None, "HE.AC"),
+    ("pressure vessel", "Inlet scrubber", "VE.SC"),
+    ("differential pressure transmitter", None, "IP.DP"),  # the longest type named, not "pressure"
+    ("pump", None, "PU"),
+    ("widget", None, None),
+    (None, None, None),
+])
+def test_a_cfihos_class_name_reads_into_the_taxonomy(name, description, code):
+    assert Taxonomy(PACK).classify_cfihos(name, description) == code

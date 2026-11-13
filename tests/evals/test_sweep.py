@@ -81,7 +81,7 @@ def test_every_detector_has_a_score_and_a_floor():
     assert not set(sweep.SCORED_ELSEWHERE) & swept  # scored one way, not two
 
 
-CHEAP = ["quality_drift", "well_tests", "flare_events"]  # seconds each; the whole sweep is the e2e tier's
+CHEAP = ["quality_drift", "well_tests", "flare_events", "repeat_leaks", "gas_balance_gaps"]  # seconds each; the whole sweep is the e2e tier's
 
 
 @pytest.mark.integration
@@ -92,7 +92,7 @@ def test_the_cheap_detectors_find_okans_injected_events_and_the_detection_page_s
     res = sweep.run(conn, load_pack("okan"), BUNDLES / "okan", CHEAP)
     for r in res.values():
         assert not sweep.gate(r), r
-        assert r["recall"] == 1.0 and r["runs"] > 10, r
+        assert r["recall"] == 1.0 and r["runs"] > 6, r  # the LDAR detector runs after each quarterly survey
         sweep.store(conn, r)
     assert res["flare_events"]["precision"] == 1.0
     score = detectors.replay_score(conn, detectors.get("quality_drift"))

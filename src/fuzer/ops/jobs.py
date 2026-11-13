@@ -27,6 +27,7 @@ settings llm.model and llm.effort, the day close the setting daily_report.close_
 
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 
 import dagster as dg
@@ -40,6 +41,9 @@ from . import pipeline
 from .cadence import TIERS as CADENCE_CRON
 
 PROJECT_TAG = "fuzer/project"
+
+
+PROJECTS_TAG = "fuzer/projects"  # a run that does its work for several projects in turn, comma-separated
 
 
 def project_tags(project: str) -> dict[str, str]:
@@ -69,6 +73,28 @@ class Fuzer(dg.ConfigurableResource):
             data = projects.config(conn, name).get("data")
         db.set_default(scope)
         self._data = self._pick(scope.schema, data)
+
+    def several(self, context) -> list[str]:
+        """The projects a run tagged for several (`fuzer/projects`) takes in turn; empty for a run for one project
+        (or none), which works in the scope its start set."""
+        run = getattr(context, "run", None)
+        return [n for n in (run.tags.get(PROJECTS_TAG, "") if run is not None else "").split(",") if n]
+
+    @contextmanager
+    def within(self, name: str):
+        """Work in one project of a run for several: its schema and its exports folder. Steps run in the run's
+        one process (in_process_executor), so the process's scope is safe to move and is put back after."""
+        before, data = db.scope(), self._data
+        with db.connect(url=self.database_url) as conn:
+            scope = projects.scope(conn, name)
+            folder = projects.config(conn, name).get("data")
+        db.set_default(scope)
+        self._data = self._pick(scope.schema, folder)
+        try:
+            yield
+        finally:
+            db.set_default(before)
+            self._data = data
 
     def _pick(self, schema: str, data: str | None) -> str:
         """A project's exports folder: its own (from its bundle). The first project's can still be overridden by
@@ -335,23 +361,46 @@ def flow_vs_piping(fuzer: Fuzer) -> dg.AssetCheckResult:
                                          for k, v in result.items() if k != "passed"})
 
 
+def in_each_project(context: dg.OpExecutionContext, fuzer: Fuzer, work) -> None:
+    """Do `work(conn, say)` for each project the run is for, `say` logging with the project's name. In a run for
+    several (Fuzer.several), one project failing does not stop the others: the run fails at the end, naming them."""
+    names = fuzer.several(context)
+    if not names:
+        with fuzer.connect() as conn:
+            work(conn, context.log.info)
+        return
+    failed: dict[str, Exception] = {}
+    for project in names:
+        try:
+            with fuzer.within(project), fuzer.connect() as conn:
+                work(conn, lambda text, project=project: context.log.info(f"{project}: {text}"))
+        except Exception as e:
+            context.log.error(f"{project}: failed: {e}")
+            failed[project] = e
+    if failed:
+        first = next(iter(failed.values()))
+        raise dg.Failure(f"failed for {', '.join(failed)}: {first}") from first
+
+
 @dg.op(description="Fire due work-engine timers, escalate person tasks past their SLA (#97) and deliver the "
                    "event outbox.")
 def work_tick_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from ..core import events, exceptions
     from ..workflow import engine
-    with fuzer.connect() as conn:
-        context.log.info(f"work tick: {engine.tick(conn)}")
+    from . import handover, rounds
+
+    def work(conn, say) -> None:
+        say(f"work tick: {engine.tick(conn)}")
         closed = exceptions.reconcile(conn)
         conn.commit()
-        from . import handover
         if drafted := handover.at_shift_change(conn):  # once per shift change (#467)
-            context.log.info(f"shift handover {drafted['id']} drafted")
+            say(f"shift handover {drafted['id']} drafted")
         conn.commit()
-        from . import rounds
-        context.log.info(f"rounds: {rounds.open_shift(conn)}")  # this shift's rounds, last shift's closed (P5.4)
+        say(f"rounds: {rounds.open_shift(conn)}")  # this shift's rounds, last shift's closed (P5.4)
         conn.commit()
-        context.log.info(f"exceptions: {closed}, events: {events.deliver(conn)}")
+        say(f"exceptions: {closed}, events: {events.deliver(conn)}")
+
+    in_each_project(context, fuzer, work)
 
 
 @dg.job(description="Work engine timers and SLAs: re-checks that are due, reminders and escalations.")
@@ -386,14 +435,45 @@ def writeback_run():
 @dg.op(description="Close-out re-checks that are due, and repeats folded back into the case they repeat (P6.1b).")
 def closeout_sweep_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from . import disposition
-    with fuzer.connect() as conn:
-        context.log.info(f"close-out: {disposition.sweep(conn, fuzer.pack_for(conn))}")
+
+    def work(conn, say) -> None:
+        say(f"close-out: {disposition.sweep(conn, fuzer.pack_for(conn))}")
         conn.commit()
+
+    in_each_project(context, fuzer, work)
 
 
 @dg.job(description="Close-out: ask whether a fix held when its re-check is due; reopen a case whose problem returned.")
 def closeout_sweep():
     closeout_sweep_op()
+
+
+@dg.op(description="Tuning proposals for detectors whose cases keep closing as false alarms or duplicates (P6.3).")
+def detector_tuning_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from . import tuning
+    with fuzer.connect() as conn:
+        out = tuning.propose(conn, fuzer.pack_for(conn))
+        context.log.info(f"tuning: {[{k: p[k] for k in ('detector', 'param', 'class', 'proposed')} for p in out]}")
+        conn.commit()
+
+
+@dg.job(description="Tuning: a quieter value proposed, replayed on its closed cases, for a detector whose noise passed its threshold.")
+def detector_tuning():
+    detector_tuning_op()
+
+
+@dg.op(description="The obligations calendar (P7.6c): reports drafted as their windows open, and work for one coming due.")
+def report_calendar_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from . import reports
+    with fuzer.connect() as conn:
+        out = reports.run_calendar(conn, fuzer.pack_for(conn))
+        context.log.info(f"report calendar: drafted {out['drafted']}, raised {[r['key'] for r in out['raised']]}, "
+                         f"cleared {out['cleared']}, errors {out['errors']}")
+
+
+@dg.job(description="Obligations: each regulatory report drafted ahead of its due date, and work for one coming due.")
+def report_calendar():
+    report_calendar_op()
 
 
 @dg.op(description="Agentic SRE (#96): detect upsets in the process data since the last run.")
@@ -477,14 +557,17 @@ def _tier_job(name: str):
     def op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
         from ..core import events
         from . import board, cadence
-        with fuzer.connect() as conn:
+
+        def work(conn, say) -> None:
             pack = fuzer.pack_for(conn)
             out = cadence.run_tier(conn, pack, name)
-            context.log.info(f"tier {name}: {out}")
+            say(f"tier {name}: {out}")
             if out["ran"]:
                 board.refresh(conn, pack)
-            context.log.info(f"events: {events.deliver(conn)}")
+            say(f"events: {events.deliver(conn)}")
             conn.commit()
+
+        in_each_project(context, fuzer, work)
 
     @dg.job(name=f"detect_{name}", description=f"Detectors every {name}: each from its own watermark (P3.2).")
     def job():
@@ -534,17 +617,64 @@ def schedule_timezone() -> str:
 TZ = schedule_timezone()
 
 
-def per_project(job, cron: str, status: dg.DefaultScheduleStatus) -> dg.ScheduleDefinition:
-    """A schedule that starts the job once for each project, tagged with it."""
+def per_project(job, cron: str, status: dg.DefaultScheduleStatus, due=None) -> dg.ScheduleDefinition:
+    """A schedule that starts the job once for each project, tagged with it. With `due` (conn -> bool, read in the
+    project's schema), a project whose job has nothing to do at this tick starts no run: every run is a new Python
+    process, and the minute jobs starting one per project per minute to find nothing held most of a one-CPU
+    instance (13 Nov)."""
     @dg.schedule(name=f"{job.name}_schedule", job=job, cron_schedule=cron, execution_timezone=TZ,
                  default_status=status, required_resource_keys={"fuzer"})
     def schedule(context: dg.ScheduleEvaluationContext):
         at = context.scheduled_execution_time.isoformat()
+        fuzer = context.resources.fuzer
+        waiting = [project for project, _ in fuzer.targets() if not pending(context.instance, job.name, project)]
+        if not waiting:
+            return dg.SkipReason("the previous run for each project is still queued or running")
         requests = [dg.RunRequest(run_key=f"{project}@{at}", tags=project_tags(project))
-                    for project, _ in context.resources.fuzer.targets()
-                    if not pending(context.instance, job.name, project)]
-        return requests or dg.SkipReason("the previous run for each project is still queued or running")
+                    for project in waiting if due is None or has_work(fuzer, project, due)]
+        return requests or dg.SkipReason("nothing is due in any project")
     return schedule
+
+
+def together(job, cron: str, status: dg.DefaultScheduleStatus) -> dg.ScheduleDefinition:
+    """A schedule that starts the job once for every project together: its op takes them in turn (in_each_project).
+    For the light jobs that run every few minutes, where a process per project per tick cost more than the work;
+    the long ones keep a run per project, so one project's rebuild neither waits for nor hides another's."""
+    @dg.schedule(name=f"{job.name}_schedule", job=job, cron_schedule=cron, execution_timezone=TZ,
+                 default_status=status, required_resource_keys={"fuzer"})
+    def schedule(context: dg.ScheduleEvaluationContext):
+        if pending(context.instance, job.name, ""):
+            return dg.SkipReason("the previous run is still queued or running")
+        names = [project for project, _ in context.resources.fuzer.targets() if project]
+        at = context.scheduled_execution_time.isoformat()
+        if len(names) < 2:
+            return dg.RunRequest(run_key=f"{names[0] if names else ''}@{at}", tags=project_tags(names[0] if names else ""))
+        return dg.RunRequest(run_key=f"all@{at}", tags={PROJECTS_TAG: ",".join(names)})
+    return schedule
+
+
+def has_work(fuzer: Fuzer, project: str, due) -> bool:
+    """Whether `due` finds work for the project. A check that fails starts the run, which reports the failure."""
+    try:
+        with db.use(_scope_of(fuzer, project)), db.connect(url=fuzer.database_url) as conn:
+            return bool(due(conn))
+    except Exception:
+        return True
+
+
+def _notify_due(conn) -> bool:
+    from ..workflow import engine
+    return engine.notify_pending(conn)
+
+
+def _writeback_due(conn) -> bool:
+    from . import writeback
+    return writeback.due(conn)
+
+
+def _studies_due(conn) -> bool:
+    from . import study
+    return study.queued(conn)
 
 
 PENDING = [dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.STARTING,
@@ -564,16 +694,19 @@ schedules = [
     per_project(refresh_logs, "0 * * * *", RUNNING),
     per_project(refresh_all, "0 2 * * *", RUNNING),
     per_project(claude_reading, "0 3 * * *", STOPPED),
-    per_project(work_tick, "*/5 * * * *", RUNNING),
-    per_project(work_notify, "* * * * *", RUNNING),
-    per_project(writeback_run, "* * * * *", RUNNING),
-    per_project(closeout_sweep, "*/5 * * * *", RUNNING),
+    together(work_tick, "*/5 * * * *", RUNNING),
+    per_project(work_notify, "* * * * *", RUNNING, _notify_due),
+    per_project(writeback_run, "* * * * *", RUNNING, _writeback_due),
+    together(closeout_sweep, "*/5 * * * *", RUNNING),
+    per_project(detector_tuning, "30 4 * * *", RUNNING),
+    per_project(report_calendar, "0 5 * * *", RUNNING),
     per_project(sre_scan, "0 */6 * * *", RUNNING),
-    per_project(studies_job, "*/5 * * * *", RUNNING),
+    per_project(studies_job, "*/5 * * * *", RUNNING, _studies_due),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
     per_project(source_health, "*/30 * * * *", RUNNING),
     per_project(providers_poll, "*/15 * * * *", RUNNING),
-    *(per_project(job, CADENCE_CRON[name], RUNNING) for name, job in DETECT.items()),
+    *((together if name in ("5min", "30min") else per_project)(job, CADENCE_CRON[name], RUNNING)
+      for name, job in DETECT.items()),
 ]
 
 
@@ -722,7 +855,7 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
 
     run = context.dagster_run
     message = run_failed_text(run.job_name, run.run_id, context.failure_event.message or "",
-                                  run.tags.get(PROJECT_TAG, ""))
+                                  run.tags.get(PROJECT_TAG, "") or run.tags.get(PROJECTS_TAG, ""))
     context.log.error(message)
     alerts.post(message)
     job = run.job_name
@@ -750,7 +883,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes, unmapped_site_codes,
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, detector_tuning, report_calendar, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure, alert_on_tick_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

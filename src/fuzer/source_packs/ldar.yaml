@@ -5,3 +5,4 @@ fuzer_source_pack: 1
 system: {name: ldar}
 datasets: [ldar_surveys]
 optional: [ldar_surveys]
+detectors: [repeat_leaks]

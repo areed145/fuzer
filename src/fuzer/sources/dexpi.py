@@ -149,3 +149,29 @@ def _read_v2(root) -> dict:
                     tags.append(s.text.strip())
     return {"dexpi_version": "2.x", "tags": tags, "connections": [], "positions": {}, "lines": [],
             "unresolved": 0, "note": "DEXPI 2 connections are not read yet: tags only"}
+
+
+def compare(exact: dict, reading: dict, pack, area: str | None = None) -> dict:
+    """A DEXPI sheet against its scanned twin (#63): the same drawing read exactly from the P&ID tool's export and by
+    the drawing reader from its image. `exact` is what read() returns (or a smart sheet's payload), `reading` the
+    drawing reader's interpreted result (llm_pids.interpret). Tags compare as canonical keys (the sheet's area put in
+    front where the drawing leaves it off); the scan's tags are the ones it linked and the ones it read but found no
+    register entry for. Piping compares as directed hops between keys; a hop the scan shows the wrong way round is
+    `reversed`, not missing. Returns {tags, connections: {both, only_dexpi, only_scan[, reversed]}, same}."""
+    def key(t):
+        return pack.tags.parse(t or "", default_area=area) or t
+
+    def hops(cs):
+        return {(key(c["from"]), key(c["to"])) for c in cs if c.get("from") and c.get("to")}
+
+    a = {key(t) for t in exact.get("tags", [])}
+    b = {m["key"] for m in reading.get("mentions", []) if m.get("key")} | {
+        f["key"] for f in reading.get("findings", []) if f.get("key") and f.get("kind") != "connection"}
+    ca, cb = hops(exact.get("connections", [])), hops(reading.get("connections", []))
+    reversed_ = sorted(h for h in ca - cb if (h[1], h[0]) in cb)
+    flipped = {(y, x) for x, y in reversed_}
+    tags = {"both": sorted(a & b), "only_dexpi": sorted(a - b), "only_scan": sorted(b - a)}
+    conns = {"both": sorted(ca & cb), "only_dexpi": sorted(ca - cb - set(reversed_)),
+             "only_scan": sorted(cb - ca - flipped), "reversed": reversed_}
+    same = not (tags["only_dexpi"] or tags["only_scan"] or conns["only_dexpi"] or conns["only_scan"] or reversed_)
+    return {"tags": tags, "connections": conns, "same": same}

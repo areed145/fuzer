@@ -66,14 +66,14 @@
 }
 
 :root {
-  --bg: #f6f7f9;
+  --bg: #eef2f6;
   --panel: #ffffff;
   --text: #1b1f24;
   --muted: #5f6b7a;
-  --line: #e2e6eb;
-  --accent: #0b6bcb;
+  --line: #dde4ec;
+  --accent: #0b7f8c;
   --accent-text: #ffffff;
-  --accent-soft: #e6f0fb;
+  --accent-soft: #dff3f5;
   --ok: #1a7f4b;
   --ok-soft: #e3f4ea;
   --warn: #a35f00;
@@ -125,20 +125,28 @@
   --brand-ink: #1d3b5c;
   --brand-hub: #0f8f9c;
   --brand-word: #1d3b5c;
-  --radius: 8px;
+  /* The menu rail is navy in both themes; cards lift off the page with a soft shadow. */
+  --rail: #132a44;
+  --rail-text: #c9d6e5;
+  --rail-hover: #1c3a5c;
+  --rail-line: #28466a;
+  --rail-on: #0b7f8c;
+  --tile: #f3f7fa;
+  --shadow: 0 1px 2px rgb(16 42 68 / .08), 0 4px 14px rgb(16 42 68 / .06);
+  --radius: 10px;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-    --bg: #0f1216;
-    --panel: #171b21;
+    --bg: #0b0e12;
+    --panel: #12171d;
     --text: #e6e9ee;
     --muted: #8d98a7;
-    --line: #2a3039;
-    --accent: #4c9eff;
+    --line: #232b35;
+    --accent: #3fc6d4;
     --accent-text: #0b1220;
-    --accent-soft: #16273d;
+    --accent-soft: #10272b;
     --ok: #4cc38a;
     --ok-soft: #12291e;
     --warn: #f0b44c;
@@ -189,6 +197,13 @@
     --brand-ink: #a9bdd4;
     --brand-hub: #3fc6d4;
     --brand-word: #e6e9ee;
+    --rail: #0e1217;
+    --rail-text: #b6c2d0;
+    --rail-hover: #1a2029;
+    --rail-line: #232b35;
+    --rail-on: #0f6f7a;
+    --tile: #0b0e12;
+    --shadow: none;
     color-scheme: dark;
 }
 
@@ -198,7 +213,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 a { color: var(--accent); text-decoration: none; }

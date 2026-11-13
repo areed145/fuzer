@@ -287,6 +287,81 @@ test("a report waiting on an agent no worker has claimed says the agent worker m
   assert.equal(await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).count(), 0);
 });
 
+test("P7.6 a regulatory report marks figures on estimated or missing data and drills each figure to its records", async () => {
+  const report = { id: 1, template: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "2026-11",
+    version: 2, versions: [1, 2], status: "draft", drafted_by: "agent:reporter", item_id: 27, created_at: "2026-11-13T10:00:00Z",
+    coverage: { since: "2026-11-01", through: "2026-11-12", partial: true, label: "November 2026" },
+    marked: [{ key: "meter:w", label: "Metered gas, KR 12-03H", basis: "estimated", flags: ["1 estimated: 2026-11-12"] }],
+    review: { id: 3, state: "open", item_id: 27, case_state: "open", assignee: null },
+    sections: [
+      { title: "Metered gas", figures: [{ key: "meter:w", label: "Metered gas, KR 12-03H", value: 1390.0, unit: "kSm3",
+        basis: "estimated", note: null, flags: ["1 estimated: 2026-11-12"], subject: "fz-well-1", rows: [
+          { label: "2026-11-11", value: 725.2, basis: "measured", ref: "record:measurement:daily_volume:KR12-03H>2026-11-11" },
+          { label: "2026-11-12", value: 664.8, basis: "estimated", ref: "record:measurement:daily_volume:KR12-03H>2026-11-12" }] }] },
+      { title: "Flare events", figures: [{ key: "flare_events", label: "Flare episodes", value: 1, unit: null, basis: "measured",
+        note: null, flags: [], rows: [{ label: "2026-11-12 03:20 to 07:00 at H1-V-8001", value: 82.7, unit: "kSm3", basis: "measured",
+          ref: "case:26", text: "About 82.7 kSm3 over its baseline, an estimate; cause unknown" }] }] },
+    ] };
+  await page.route("**/reports/daily", route => route.fulfill({ json: [] }));
+  await page.route("**/reports/regulatory", route => route.fulfill({ json: {
+    templates: [{ name: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "month", role: "role:hse_specialist",
+      description: "" }],
+    reports: [{ template: "flare_emissions_monthly", title: report.title, period: "2026-11", version: 2, status: "draft", marked: 1,
+      coverage: report.coverage, item_id: 27, created_at: report.created_at }] } }));
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11*", route => route.fulfill({ json: report }));
+  await page.goto(`${url}/#/reports?report=flare_emissions_monthly:2026-11`);
+  await page.getByRole("heading", { name: "Monthly flare and emissions report, November 2026" }).waitFor();
+  await page.getByText("1 figure on estimated or missing data").waitFor();
+  await page.getByText("the month is not over", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "review case (open)" }).getAttribute("href"), "#/cases/27");
+  await page.getByRole("cell", { name: "▸ Metered gas, KR 12-03H" }).click();
+  assert.equal(await page.getByRole("link", { name: "KR12-03H>2026-11-12" }).getAttribute("href"), "#/e/fz-well-1");
+  await page.getByRole("cell", { name: "▸ Flare episodes" }).click();
+  assert.equal(await page.getByRole("link", { name: "case 26" }).getAttribute("href"), "#/cases/26");
+  await page.getByText("cause unknown", { exact: false }).waitFor();
+});
+
+test("P7.6b a marked report is approved by a person with their reason, then exported", async () => {
+  const report = { id: 1, template: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "2026-11",
+    version: 1, versions: [1], status: "draft", drafted_by: "agent:reporter", item_id: 27, created_at: "2026-11-13T10:00:00Z",
+    approved_by: null, approved_at: null, approval_note: null, submitted: null,
+    coverage: { since: "2026-11-01", through: "2026-11-12", partial: true, label: "November 2026" },
+    marked: [{ key: "meter:w", label: "Metered gas, KR 12-03H", basis: "estimated", flags: ["1 estimated: 2026-11-12"] }],
+    review: { id: 3, state: "open", item_id: 27, case_state: "open", assignee: null }, sections: [] };
+  let approved = null, exported = 0;
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "Hana"));
+  await page.route("**/reports/daily", route => route.fulfill({ json: [] }));
+  await page.route("**/reports/regulatory", route => route.fulfill({ json: { templates: [], reports: [] } }));
+  await page.route("**/reports/obligations", route => route.fulfill({ json: { obligations: [{ name: "flaring_return" }], calendar: [
+    { obligation: "flaring_return", template: "flare_emissions_monthly", regulator: "the regulator", period: "2026-10", due: "2026-11-15",
+      opens: "2026-11-05", overdue: false, days_left: 2, report: null, draft_ahead: false }] } }));
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11/approve", route => {
+    approved = route.request().postDataJSON();
+    return route.fulfill({ json: { status: "approved" } });
+  });
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11/export*", route => {
+    exported++;
+    return route.fulfill({ json: { filename: "r-DRAFT.csv", content: "DRAFT x", sha256: "ab" } });
+  });
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11?*", route => route.fulfill({ json: report }));
+  await page.route("**/reports/regulatory/flare_emissions_monthly/2026-11", route => route.fulfill({ json: report }));
+  await page.goto(`${url}/#/reports?report=flare_emissions_monthly:2026-11`);
+  const approve = page.getByRole("button", { name: "Approve report", exact: true });
+  await approve.waitFor();
+  await page.getByText("for the regulator: due 2026-11-15, in 2 days; not started", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "flaring_return, 2026-10" }).getAttribute("href"),
+    "#/reports?report=flare_emissions_monthly%3A2026-10");
+  assert.equal(await approve.isDisabled(), true);  // a marked figure needs the approver's reason first
+  await page.getByRole("textbox", { name: "Why it can go as it is" }).fill("The estimates are the system's own.");
+  await approve.click();
+  await page.getByRole("button", { name: "Confirm Approve report" }).click();
+  for (let i = 0; i < 50 && !approved; i++) await page.waitForTimeout(50);
+  assert.deepEqual(approved, { by: "Hana", version: 1, note: "The estimates are the system's own." });
+  await page.getByRole("button", { name: "Export CSV (draft)" }).click();
+  for (let i = 0; i < 50 && !exported; i++) await page.waitForTimeout(50);
+  assert.equal(exported, 1);
+});
+
 test("a case's process diagram opens on the waiting step at a readable size, the whole process a click away (#406)", async () => {
   const xml = readFileSync(new URL("../../src/fuzer/workflow/definitions/upset.bpmn", import.meta.url), "utf8");
   const step = { id: 3, process_id: 1, element: "triage", name: "Triage", kind: "user", state: "waiting", flow: null, role: "engineer",
@@ -869,7 +944,7 @@ test("Detection under Settings switches a detector and sets a threshold for one 
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
-test("Detection shows close-out rates beside each detector and mutes a noisy provider for one class (P3.8b)", async () => {
+test("Detection shows close-out rates beside each detector, duplicates counted as noise (P6.3a), and mutes a noisy provider for one class (P3.8b)", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
     user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
   await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
@@ -880,7 +955,8 @@ test("Detection shows close-out rates beside each detector and mutes a noisy pro
     trust_levels: { route: "Route directly", triage: "Triage first", mute: "Muted" },
     detectors: [{ name: "trips", title: "A machine that tripped", kind_label: "Rule", cadence_label: "Every 30 minutes",
       raises: ["machine_trip"], about: "", on: true, switched: null, applicable: true, note: null, last_run: null,
-      score: null, eval: "test:trips", settings: [], closeouts: rates(10, 8, 6, 2) }],
+      score: null, eval: "test:trips", settings: [], closeouts: { ...rates(10, 8, 6, 1), duplicate: 1, data_problem: 0,
+        noise: 2, noise_rate: 0.25, by_class: [] } }],
     providers: [{ system: "healthwatch", name: "healthwatch", label: "HealthWatch predictive health", type: "health_alert",
       enabled: true, closeouts: rates(4, 4, 1, 3),
       trust: [{ class: "", trust: "triage", reason: "new vendor", updated_by: "ana", updated_at: "2026-11-12T00:00:00" }] }] };
@@ -891,7 +967,8 @@ test("Detection shows close-out rates beside each detector and mutes a noisy pro
     return route.fulfill({ json: {} });
   });
   await page.goto(`${url}/#/settings?view=detection`);
-  await page.getByText("Confirmed 75%, false alarm 25%", { exact: false }).waitFor();
+  await page.getByText("Confirmed 75%, noise 25%", { exact: false }).waitFor();
+  await page.getByText("1 false alarm, 1 duplicate", { exact: false }).waitFor();
   await page.getByText("Confirmed 25%, false alarm 75%", { exact: false }).waitFor();
   await page.getByText("Triage first", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Change" }).nth(1).click();
@@ -905,6 +982,37 @@ test("Detection shows close-out rates beside each detector and mutes a noisy pro
     body: { trust: "mute", class: "CO", by: writes[0].body.by, reason: "three false alarms on compressors" } }]);
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test("P6.3 a tuning proposal on Detection shows its replay and is accepted, confirmed, by the person", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
+  await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
+  await page.route("**/settings", (route) => route.fulfill({ json: setupSettings }));
+  const proposal = { id: 41, item_id: 912, title: "Tune steps: signals.step_z 2.0 to 2.5", detector: "steps",
+    param: "signals.step_z", class: null, current: 2.0, proposed: 2.5, cases: 14, windows: 3, noise_rate: 0.86,
+    before: { noise: 12, real: 2 }, after: { noise: 5, real: 2 }, missed: [] };
+  const posts = [];
+  await page.route("**/settings/detectors**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === "POST") {
+      posts.push({ path, body: route.request().postDataJSON() });
+      return route.fulfill({ json: {} });
+    }
+    if (path.endsWith("/settings/detectors/tuning")) return route.fulfill({ json: posts.length ? [] : [proposal] });
+    return route.fulfill({ json: { project: "okan", classes: [], trust_levels: {}, detectors: [], providers: [] } });
+  });
+  await page.goto(`${url}/#/settings?view=detection`);
+  await page.getByText("Tune steps: signals.step_z 2.0 to 2.5", { exact: true }).waitFor();
+  await page.getByText("noisy cases raised 12 to 5, real cases raised 2 to 2", { exact: false }).waitFor();
+  await page.getByText("It misses no real case.", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Accept tuning" }).click();
+  await page.getByText("Set signals.step_z to 2.5 for steps?", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Confirm Accept tuning" }).click();
+  await page.getByText("Tune steps: signals.step_z 2.0 to 2.5", { exact: true }).waitFor({ state: "detached" });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].path, "/settings/detectors/tuning/41/accept");
+  assert.ok(posts[0].body.by);
 });
 
 test("reader Settings and Sources do not request protected configuration or connection details", async () => {
@@ -1574,7 +1682,7 @@ test("an asset says what is known, what is missing and what each gap holds back;
       kinds: ["class_guide"], basis: ["it applies to its equipment class"] }] } }));
   const answers = [];
   await page.route("**/entities/tag-e5002/placement", (route) => { answers.push(route.request().postDataJSON()); return route.fulfill({ json: { accepted: true } }); });
-  await page.goto(`${url}/#/e/tag-e5002`);
+  await page.goto(`${url}/#/e/tag-e5002?tab=record`);
   const panel = page.locator(".asset-context");
   await panel.getByText("Holds back Process excursions; IOW breaches; excursion and IOW cases. 89% of heat exchangers have it.").waitFor();
   await panel.getByText("57% of what heat exchangers usually have").waitFor();
@@ -1622,7 +1730,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-child").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
   await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
   await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
@@ -2548,6 +2656,8 @@ test("Home shows each server-built figure in its own card, with its tables on re
   const first = charts.locator(".home-card").filter({ has: page.getByRole("heading", { name: "Production efficiency", exact: true }) });
   await page.waitForFunction(() => document.querySelector(".home-charts .js-plotly-plot")?._fullLayout?.xaxis);
   await first.getByText("Coverage is not verified.").waitFor();
+  // Notes and the source are one click away; data warnings stay on the card.
+  await first.getByRole("button", { name: "Notes and source" }).click();
   await first.getByText("Unknown values are gaps, never zero.").waitFor();
   // No carousel: no slide controls, and both charts are on the page together.
   assert.equal(await page.getByRole("button", { name: /^(Previous|Next) chart$/ }).count(), 0);
@@ -3078,9 +3188,18 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
     values: {}, keys: [], edge_counts: {}, edges: Array.from({ length: 24 }, (_, i) => edge(i + 1)),
     records: [{ source: "pi_af", record_type: "element", source_key: "OKAN\\20 OK_GGCP\\20-K-2300A", method: "singleton", confidence: 1 }] } }));
   await page.goto(`${url}/#/e/${id}`);
+  // An asset opens on its work and process values; what the register holds about it is one view away.
+  await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
+  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
+    ["Overview", "Measurements", "Connections", "Record", "Graph"]);
+  assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
+  await page.getByRole("link", { name: "Record", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
   await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).waitFor();
+  await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
+  await page.getByRole("link", { name: "Connections", exact: true }).click();
+  await page.getByRole("link", { name: "WT-1", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
   await page.getByRole("button", { name: "Show all 24", exact: true }).click();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 24);

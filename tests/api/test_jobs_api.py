@@ -108,6 +108,12 @@ def client_for(instance) -> TestClient:
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def fresh_readings(monkeypatch):
+    """Each test reads the scheduler's storage itself; the shared reading has its own test."""
+    monkeypatch.setattr(jobs, "SHARED_SECONDS", 0)
+
+
 def test_dagster_link_keeps_local_default_for_development(monkeypatch):
     monkeypatch.delenv("FUZER_PUBLIC_URL", raising=False)
     monkeypatch.delenv("FUZER_DAGSTER_URL", raising=False)
@@ -219,3 +225,19 @@ def test_health_names_a_failing_sensor(instance, monkeypatch):
     h = jobs.health(WithHeartbeat(instance), DEFS, check_rows=[])
     assert h["level"] == "red" and h["failing_triggers"] == ["new_exports"]
     assert h["summary"] == "new_exports failing, so the jobs it starts are not running"
+
+
+def test_people_who_ask_together_share_one_reading(monkeypatch):
+    monkeypatch.setattr(jobs, "SHARED_SECONDS", 15)
+    instance, other, reads = object(), object(), []
+
+    def read():
+        reads.append(1)
+        return {"n": len(reads)}
+
+    assert jobs.shared("health", instance, read) == {"n": 1}
+    assert jobs.shared("health", instance, read) == {"n": 1}  # within the window: the same reading
+    assert jobs.shared("health", other, read) == {"n": 2}  # another scheduler's storage is read again
+    assert jobs.shared("health", None, read) == {"n": 3}  # no scheduler: nothing to keep
+    monkeypatch.setattr(jobs.time, "monotonic", lambda: 1e12)
+    assert jobs.shared("health", other, read) == {"n": 4}  # the window passed

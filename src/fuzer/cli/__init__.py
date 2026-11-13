@@ -57,6 +57,8 @@ def parser() -> argparse.ArgumentParser:
     lk.add_argument("--model", default=None, help="model id (default: the setting llm.model)")
     lk.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None)
     lk.add_argument("--per-request", type=int, default=20, help="log entries per request")
+    lk.add_argument("--twins", action="store_true",
+                    help="pids: read the scans of sheets that also come as DEXPI, to compare with the exact file")
     ps = sub.add_parser("pid-score", help="score image reading against the fake data's answer key")
     ps.add_argument("--truth", default=None, help="answer key (default: pid_truth.json in the exports folder)")
     ps.add_argument("--record", action="store_true", help="save the scores to evals/runs/ as the new baseline")
@@ -207,6 +209,10 @@ def parser() -> argparse.ArgumentParser:
                     help="run each work detector over the bundle's history and score its raises against the events "
                          "its evals/detections.yaml declares (P3.6a; writes cases, so run it on a scratch copy; exits "
                          "1 if a score is under its floor); --detector picks one")
+    ev.add_argument("--watch", action="store_true",
+                    help="scan --since to --until with the rules, read it with the agentic watch and score its "
+                         "proposals against the fake plant's injected events no rule caught (P3.3b; needs a model "
+                         "provider and costs money; exits 1 if under half match)")
     ev.add_argument("--roles", action="store_true",
                     help="score the measurement roles proposed for each point against the fake plant's process model "
                          "(P1.4; exits 1 under 90%% right or if a wrong role was confident)")
@@ -329,7 +335,7 @@ def main(argv=None):
                 if args.source in ("logs", "all"):
                     result["logs"] = llm_links.run(conn, pack, per_request=args.per_request, **common)
                 if args.source in ("pids", "all"):
-                    result["pids"] = llm_pids.run(conn, pack, **common)
+                    result["pids"] = llm_pids.run(conn, pack, twins=args.twins, **common)
                 if args.source in ("docs", "all"):
                     from ..sources import llm_docs
                     result["docs"] = llm_docs.run(conn, pack, **common)
@@ -388,6 +394,20 @@ def main(argv=None):
                     bad += sweep.gate(res)
                 if bad:
                     raise SystemExit("sweep eval under its floor: " + "; ".join(bad))
+            elif args.cmd == "eval" and args.watch:
+                from ..evals import watch_eval
+
+                if not (args.since and args.until):
+                    raise SystemExit("--watch needs --since and --until (a few days around the bundle's upsets)")
+                res = watch_eval.run(conn, pack, resolve(conn).name, args.since, args.until, data, say=_say)
+                if res["status"] != "shadow":
+                    raise SystemExit(f"watch eval not run: {res['note']}")
+                watch_eval.store(conn, res)
+                _say(f"{res['proposals']} proposals, {res['matched_uncaught']} on what no rule caught "
+                     f"(matched {res['matched']}), precision {res['precision']}, {res['uncaught']} of {res['upsets']} "
+                     f"upsets uncaught, ${res['usd']}")
+                if not res["passes"]:
+                    raise SystemExit("watch eval: under half its proposals match what no rule caught")
             elif args.cmd == "eval" and args.roles:
                 from ..evals import roles as roles_eval
 

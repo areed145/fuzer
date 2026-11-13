@@ -55,6 +55,8 @@ class NewConnection(BaseModel):
     type: str
     config: dict[str, Any] = Field(default_factory=dict)
     secrets: dict[str, str] = Field(default_factory=dict)
+    cls: str | None = Field(None, alias="class")  # control, control_adjacent or business (D4); by the system's kind
+    direction: str | None = None  # read or write (D4); read by default
     by: str = "anonymous"
     reason: str | None = None
 
@@ -381,7 +383,8 @@ def add_connection(name: str, body: NewConnection, conn=Depends(get_conn)):
     from ..sources import catalog
 
     _folder_exists(body.type, body.config)
-    return _do(conn, catalog.add_connection, conn, name, body.name, body.type, body.by, body.config, body.secrets, body.reason)
+    return _do(conn, catalog.add_connection, conn, name, body.name, body.type, body.by, body.config, body.secrets,
+               body.reason, cls=body.cls, direction=body.direction)
 
 
 @router.patch("/connections/{cid}")

@@ -28,6 +28,8 @@ export interface NavItem {
 
 export interface NavGroup {
   label: string;
+  /** The outline drawn beside the label in the menu (a 24 by 24 path). */
+  icon: string;
   items: NavItem[];
   permission?: string;
   demo?: boolean;
@@ -35,11 +37,12 @@ export interface NavGroup {
 
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
-  { label: "Home", items: [{ label: "Home", section: "" }] },
+  { label: "Home", icon: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z", items: [{ label: "Home", section: "" }] },
   // One entry: the tour starts the guided walkthrough, which keeps its #/investigate/okan URL (#556).
-  { label: "Demo", demo: true, items: [{ label: "Demo tour", section: "demo", also: ["investigate"] }] },
+  { label: "Demo", icon: "M6 4l14 8-14 8z", demo: true, items: [{ label: "Demo tour", section: "demo", also: ["investigate"] }] },
   {
     label: "Explore",
+    icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z",
     items: [
       { label: "Browse", section: "browse", also: ["e"] },
       { label: "Map", section: "map" },
@@ -49,6 +52,7 @@ export const NAV: NavGroup[] = [
   },
   {
     label: "Investigate",
+    icon: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16.5 16.5L21 21",
     items: [
       { label: "Downtime", section: "downtime" },
       { label: "Ask", section: "ask", permission: "ai" },
@@ -61,6 +65,7 @@ export const NAV: NavGroup[] = [
   },
   {
     label: "Work",
+    icon: "M6 4h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 10l2 2 4-4M8 16h8",
     items: [
       { label: "All work", section: "exceptions", also: ["board", "cases", "performance"] },
       // Handover is reached from My work, Turnaround is a window on Plan, Data review from Master data (#554).
@@ -69,10 +74,11 @@ export const NAV: NavGroup[] = [
       { label: "Master data", section: "masterdata", also: ["review"], badge: "review" },
     ],
   },
-  { label: "Sources", permission: "configure", items: [{ label: "Sources", section: "sources" }] },
-  { label: "Jobs", permission: "configure", items: [{ label: "Jobs", section: "jobs" }] },
+  { label: "Sources", icon: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6", permission: "configure", items: [{ label: "Sources", section: "sources" }] },
+  { label: "Jobs", icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2", permission: "configure", items: [{ label: "Jobs", section: "jobs" }] },
   {
     label: "Settings",
+    icon: "M4 7h10M18 7h2M4 17h2M10 17h10M16 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM8 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4z",
     items: [
       { label: "Application settings", section: "settings" },
       { label: "Users", section: "users", also: ["access"], permission: "configure" },
@@ -205,6 +211,7 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
                         aria-current={on ? "page" : undefined}
                         {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       >
+                        <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={group.icon} /></svg>
                         <span>{group.label}</span>
                         {count > 0 && <span className="count" title={counted}>
                           <span aria-hidden="true">{count}</span><span className="sr-only">{counted}</span></span>}

@@ -33,9 +33,10 @@ DECLARED_IN = ("fuzer.ops.intake", "fuzer.ops.sre_handoff", "fuzer.sources.alert
                "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating", "fuzer.graph.data_work",
                "fuzer.graph.criticality", "fuzer.analysis.completeness",
                "fuzer.graph.contextualized", "fuzer.sources.scorecard", "fuzer.ops.rounds",
-               "fuzer.ops.safeguards", "fuzer.ops.skill_review", "fuzer.analysis.loops", "fuzer.analysis.well_tests",
+               "fuzer.ops.safeguards", "fuzer.ops.skill_review", "fuzer.ops.tuning", "fuzer.analysis.loops",
+               "fuzer.analysis.well_tests",
                "fuzer.analysis.gas_lift", "fuzer.analysis.quality", "fuzer.analysis.flare", "fuzer.analysis.alarm_performance",
-               "fuzer.workflow.conformance")
+               "fuzer.workflow.conformance", "fuzer.ops.emissions", "fuzer.ops.reports")
 _impl: ModuleType | None = None
 
 

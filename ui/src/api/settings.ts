@@ -197,16 +197,30 @@ export interface DetectorRow {
   applicable: boolean;
   note: string | null;
   last_run: { status: "ran" | "not_applicable" | "failed" | "off"; note: string | null; found: number | null; at: string } | null;
-  score: { recall: number | null; precision: number | null; false_alarms_per_week: number | null; since: string; until: string } | null;
+  score: {
+    recall: number | null; precision: number | null; false_alarms_per_week: number | null; since: string; until: string;
+    /** An agentic detector's score in shadow, per bundle: the share of its proposals matching what no rule caught. */
+    shadow?: { bundle: string; matched: number | null; precision: number | null; proposals: number; model: string | null }[];
+  } | null;
   eval: string | null;
   settings: DetectorParam[];
-  closeouts: Closeouts;
+  closeouts: DetectorCloseouts;
+  version?: number;
 }
 
 /** How the cases a detector or provider raised were closed out (P3.8b). */
 export interface Closeouts {
   cases: number; closed: number; real: number; false_alarm: number;
   confirmed_rate: number | null; false_alarm_rate: number | null;
+}
+
+/** A registered detector's close-outs, with duplicates counted as noise beside false alarms, and per equipment class
+ * (P6.3a). */
+export interface DetectorTally extends Closeouts {
+  duplicate: number; data_problem: number; noise: number; noise_rate: number | null;
+}
+export interface DetectorCloseouts extends DetectorTally {
+  by_class: (DetectorTally & { class: string })[];
 }
 
 export type Trust = "route" | "triage" | "mute";
@@ -219,6 +233,13 @@ export interface ProviderRow {
 
 export interface EquipmentClass { code: string; name: string; units: number }
 
+/** A quieter value proposed for a noisy detector, replayed on its closed cases (P6.3). */
+export interface TuningProposal {
+  id: number; item_id: number | null; title: string; detector: string; param: string; class: string | null;
+  current: number; proposed: number; cases: number; windows: number; noise_rate: number;
+  before: { noise: number; real: number }; after: { noise: number; real: number }; missed: number[];
+}
+
 export const detectionApi = {
   detectors: () =>
     request<{ project: string | null; classes: EquipmentClass[]; detectors: DetectorRow[]; providers: ProviderRow[];
@@ -228,6 +249,11 @@ export const detectionApi = {
       { trust, class: cls, by, reason }),
   switchDetector: (name: string, on: boolean, by: string, reason: string) =>
     request<unknown>("PUT", `/settings/detectors/${encodeURIComponent(name)}/on`, undefined, { on, by, reason }),
+  tuningProposals: () => request<TuningProposal[]>("GET", "/settings/detectors/tuning"),
+  acceptTuning: (id: number, by: string, note?: string) =>
+    request<unknown>("POST", `/settings/detectors/tuning/${id}/accept`, undefined, { by, note: note ?? null }),
+  setTuningAside: (id: number, by: string, reason: string) =>
+    request<unknown>("POST", `/settings/detectors/tuning/${id}/set-aside`, undefined, { by, reason }),
   tuneDetector: (name: string, key: string, change: { value?: unknown; class?: string | null; reset?: boolean }, by: string, reason: string) =>
     request<unknown>("PUT", `/settings/detectors/${encodeURIComponent(name)}/params/${encodeURIComponent(key)}`, undefined,
       { ...change, by, reason }),

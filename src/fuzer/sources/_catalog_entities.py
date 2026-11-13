@@ -12,6 +12,8 @@ from ._catalog_common import (
     _audit,
     _changes,
     _check_dataset,
+    check_zone,
+    zone_default,
 )
 
 
@@ -122,15 +124,20 @@ def connection(conn, connection_id: int) -> dict | None:
 
 
 def add_connection(conn, system_name: str, name: str, type_: str, by: str, config: dict | None = None,
-                   secrets: dict | None = None, reason: str | None = None) -> dict:
+                   secrets: dict | None = None, reason: str | None = None, cls: str | None = None,
+                   direction: str | None = None) -> dict:
+    """A connection to the system. Its class (`cls`) defaults by the system's kind and its direction to read (D4)."""
     s = system(conn, system_name)
     if not s:
         raise CatalogError(f"no system {system_name!r}")
     from . import connections as types
 
     types.check(type_, config or {}, secrets or {})
-    row = conn.execute("insert into source_connection (system_id, name, type, config, secrets) values (%s, %s, %s, %s, %s) "
-                       "returning *", (s["id"], name, type_, Jsonb(config or {}), Jsonb(secrets or {}))).fetchone()
+    cls, direction = cls or zone_default(s.get("kind")), direction or "read"
+    check_zone(cls, direction)
+    row = conn.execute("insert into source_connection (system_id, name, type, config, secrets, class, direction) "
+                       "values (%s, %s, %s, %s, %s, %s, %s) returning *",
+                       (s["id"], name, type_, Jsonb(config or {}), Jsonb(secrets or {}), cls, direction)).fetchone()
     _audit(conn, by, "connection", row, "create", new=dict(row), reason=reason)
     return dict(row)
 
@@ -145,6 +152,7 @@ def update_connection(conn, connection_id: int, by: str, reason: str | None = No
     from . import connections as types
 
     types.check(after.get("type", old["type"]), after.get("config", old["config"]), after.get("secrets", old["secrets"]))
+    check_zone(after.get("class", old.get("class")), after.get("direction", old.get("direction")))
     sets = ", ".join(f"{k} = %s" for k in after)
     row = conn.execute(f"update source_connection set {sets}, updated_at = now(), last_test = null, "
                        "last_tested_at = null where id = %s returning *",

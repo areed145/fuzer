@@ -68,15 +68,15 @@ def settings_history(key: str, limit: int = 50, conn=Depends(get_conn)):
 
 @router.get("/settings/detectors")
 def detectors_list(conn=Depends(get_conn)):
-    """Every detector on this asset: on or off, whether it applies, its parameters and class values, last run and
-    replay score; and the asset's equipment classes a value can be set for."""
-    from ..ops import disposition
+    """Every detector on this asset: on or off, whether it applies, its parameters and class values, last run, replay
+    score and how its cases closed out, per equipment class too (P6.3a); and the asset's equipment classes a value can
+    be set for."""
+    from ..ops import disposition, tuning
     from ..sources import providers
 
     p = settings.project()
-    rates = disposition.rates(conn)
-    rows = [{**d, "closeouts": disposition.quality([r for (t, _), r in rates.items() if t in d["raises"]])}
-            for d in detectors.listing(conn, pack(), p)]
+    rates, per = disposition.rates(conn), tuning.closeouts(conn)
+    rows = [{**d, "closeouts": per.get(d["name"]) or tuning.empty()} for d in detectors.listing(conn, pack(), p)]
     outside = [{"system": x["system"], "name": x["name"], "label": x["label"], "type": x["type"], "enabled": x["enabled"],
                 "trust": providers.trust_rules(conn, x["system"], x["name"]),
                 "closeouts": disposition.quality([r for k, r in rates.items() if k == (x["type"], x["system"])])}
@@ -145,6 +145,61 @@ def detectors_tune(name: str, key: str, t: TuneIn, conn=Depends(get_conn)):
                               reset=t.reset)
     except (detectors.DetectorError, settings.SettingError) as e:
         raise HTTPException(400, str(e)) from e
+
+
+# ---- tuning proposals (P6.3): a quieter value for a noisy detector, decided by a person ------------------------------
+
+@router.get("/settings/detectors/tuning")
+def detector_tuning_open(conn=Depends(get_conn)):
+    """The open tuning proposals: each detector, parameter and class, the change, and its replay before and after."""
+    from ..ops import tuning
+
+    return [{**{k: v for k, v in r["evidence"].items() if k != "finding"}, "id": r["id"], "item_id": r["item_id"],
+             "title": r["title"]}
+            for r in conn.execute("select id, item_id, title, evidence from exception_record where type = %s "
+                                  "and state = 'open' order by id", (tuning.TUNING,))]
+
+
+class TuningAccept(BaseModel):
+    by: str = "anonymous"
+    note: str | None = None
+
+
+class TuningAside(BaseModel):
+    by: str = "anonymous"
+    reason: str = Field(min_length=3)
+
+
+def _tuning(fn, *args, **kw):
+    from ..core import gates
+
+    try:
+        return fn(*args, **kw)
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from None
+    except gates.GateRefused as e:
+        raise HTTPException(403, str(e)) from None
+    except (ValueError, detectors.DetectorError, settings.SettingError) as e:
+        raise HTTPException(409, str(e)) from None
+
+
+@router.post("/settings/detectors/tuning/{exception_id}/accept")
+def detector_tuning_accept(exception_id: int, a: TuningAccept, conn=Depends(get_conn)):
+    """Tune the detector as proposed, through the limit-change gate (a named person only); its case closes."""
+    from ..ops import tuning
+
+    out = _tuning(tuning.accept, conn, exception_id, a.by, a.note)
+    conn.commit()
+    return out
+
+
+@router.post("/settings/detectors/tuning/{exception_id}/set-aside")
+def detector_tuning_set_aside(exception_id: int, a: TuningAside, conn=Depends(get_conn)):
+    from ..ops import tuning
+
+    out = _tuning(tuning.set_aside, conn, exception_id, a.by, a.reason)
+    conn.commit()
+    return out
 
 
 # --- human gates (P5.10, #619) -------------------------------------------------------------------------------------

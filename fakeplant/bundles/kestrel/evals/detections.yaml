@@ -96,3 +96,5 @@ detectors:
       - {key: "fz-downtime", from: "today", to: "today"}  # a stop no log entry or notification mentions
 
   gas_lift_instability: {not_here: "its wells flow on their own; none is on gas lift"}
+  repeat_leaks: {not_here: "no LDAR survey export"}
+  gas_balance_gaps: {not_here: "its daily report carries no fuel gas"}

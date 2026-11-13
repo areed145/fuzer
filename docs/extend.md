@@ -336,6 +336,8 @@ connections:
 - name: export
   type: folder
   config: {path: lab/samples}     # where the real exports land; the installer can point it elsewhere
+  class: business                 # a business system, not the control system or next to it
+  direction: read                 # Fuzer only reads it
 datasets:
 - name: water_cut_samples
   connection: export
@@ -378,7 +380,9 @@ exception_rules:
 What each part does:
 
 - `system`, `connections`: the system type and how Fuzer reaches it. Secrets are references (`env:NAME`),
-  never values.
+  never values. Each connection declares its `class` (`control`, `control_adjacent` or `business`) and its
+  `direction` (`read` or `write`), and a control or control-adjacent connection can only be `read`
+  ([OT security](ot-security.md), D4). Conformance fails a pack whose connections don't.
 - `datasets`: one per export, each with the mapping in use ([As YAML](#as-yaml) describes mappings) and its
   quality checks. A blocking check holds a load that fails it.
 - `exception_types` and `exception_rules`: the work the system's records raise, and the role that owns each

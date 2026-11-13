@@ -7,6 +7,8 @@ PostgreSQL). Without it, an embedded Postgres is started under .fuzer/pgdata.
 import hashlib
 import os
 import re
+import threading
+import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -118,6 +120,70 @@ def forget_zones() -> None:
     _zones.clear()
 
 
+class _Pooled(psycopg.Connection):
+    """A connection that goes back to the process's pool when closed, with its session state cleared."""
+
+    _fuzer_key: tuple | None = None
+
+    def close(self) -> None:
+        if self._fuzer_key is None or not _keep(self):
+            super().close()
+
+
+_pool: dict[tuple, list[tuple[float, _Pooled]]] = {}
+_pool_lock = threading.Lock()
+_pool_size = 0  # idle connections kept per (url, options); 0: every connect() opens one and every close ends it
+POOL_IDLE_SECONDS = 120  # an idle connection older than this is closed, not reused: the server may have dropped it
+
+
+def pool(size: int) -> None:
+    """Keep up to `size` idle connections per project for reuse (the API server: a request opened and closed
+    several, each a TLS handshake and a new server process on the deployment's database). 0 closes them and stops."""
+    global _pool_size
+    with _pool_lock:
+        _pool_size = max(0, size)
+        idle = [c for conns in _pool.values() for _, c in conns] if not _pool_size else []
+        if not _pool_size:
+            _pool.clear()
+    for c in idle:
+        psycopg.Connection.close(c)
+
+
+def _keep(conn: _Pooled) -> bool:
+    """Put a closing connection back for reuse; False when it must really close. Its open transaction is rolled
+    back and its session state (settings, temporary tables, session locks) discarded, so the next user gets it as
+    connect() made it: DISCARD ALL returns search_path and TimeZone to the values the connection was opened with."""
+    if not _pool_size or conn.closed or conn.broken:
+        return False
+    try:
+        conn.rollback()
+        conn.autocommit = True
+        conn.execute("discard all")
+    except Exception:
+        return False
+    with _pool_lock:
+        idle = _pool.setdefault(conn._fuzer_key, [])
+        if not _pool_size or len(idle) >= _pool_size:
+            return False
+        idle.append((time.monotonic(), conn))
+    return True
+
+
+def _take(key: tuple) -> _Pooled | None:
+    stale, found = [], None
+    with _pool_lock:
+        idle = _pool.get(key, [])
+        while idle and found is None:
+            since, conn = idle.pop()  # the most recently used: the rest age out
+            if time.monotonic() - since > POOL_IDLE_SECONDS or conn.closed:
+                stale.append(conn)
+            else:
+                found = conn
+    for conn in stale:
+        psycopg.Connection.close(conn)
+    return found
+
+
 def connect(autocommit: bool = False, url: str | None = None, schema: str | None = None) -> psycopg.Connection:
     """A connection that finds its project's tables first, then the shared ones, by unqualified name. The project
     is the current scope's unless `schema` names one; a project never sees another project's schema. It runs in the
@@ -127,7 +193,18 @@ def connect(autocommit: bool = False, url: str | None = None, schema: str | None
     options = f"-c search_path={search_path(schema)}"
     if tz := _zone(url, schema):
         options += f" -c TimeZone={tz}"
-    return psycopg.connect(url, row_factory=dict_row, autocommit=autocommit, options=options)
+    if not _pool_size:
+        return psycopg.connect(url, row_factory=dict_row, autocommit=autocommit, options=options)
+    conn = _take((url, options))
+    if conn is None:
+        # no server-side prepared statements: DISCARD ALL drops them without psycopg knowing
+        conn = _Pooled.connect(url, row_factory=dict_row, options=options, prepare_threshold=None)
+        conn._fuzer_key = (url, options)
+    # what a user may have set on the client side, which DISCARD ALL on the server does not undo
+    conn.row_factory = dict_row
+    conn.read_only = conn.isolation_level = conn.deferrable = None
+    conn.autocommit = autocommit
+    return conn
 
 
 def create_project_schema(conn, schema: str) -> None:

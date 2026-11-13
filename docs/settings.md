@@ -52,6 +52,9 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `work.due_soon_minutes` | int | `60` | 0 to 1440 | Tell the person holding a step this many minutes before it is due (0: never). |
 | `intake.sap_notifications` | bool | `True` |  | Raise open SAP notifications with no work order as exceptions for the IOC to dispatch, on each register refresh. |
 | `closeout.apply_to_exports` | bool | `False` |  | Demo: apply a close-out sent back to a source system (an SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it. |
+| `tuning.noise_rate` | float | `0.5` | 0.05 to 1 | A detector whose closed cases on one equipment class are this share false alarms and duplicates or more gets a tuning proposal (P6.3). |
+| `tuning.min_cases` | int | `5` | 2 to 500 | Closed cases a detector needs on one equipment class before its noise rate can raise a tuning proposal. |
+| `tuning.max_windows` | int | `12` | 1 to 200 | Windows of history a tuning proposal replays for each value it tries, newest cases first; caps what one proposal reads from the historian. |
 | `closeout.recheck_days` | int | `30` |  | Days after a real problem is closed out to ask whoever closed it whether the fix held; the same failure on the same asset inside this window reopens the case as a repeat. |
 | `readiness.permit_types` | str | `` |  | Work types (exception types, comma-separated) that need a valid permit to work, with its isolations in place, on the job's location before they are dispatched or started in the field; empty by default, since an upset or IOW breach is first a look, not hands-on work. The dispatch card and the phone show permits for every job (P5.5c, P5.11a). |
 | `stewardship.bulk_accept_at` | float | `0.0` | 0 to 1 | Offer to accept, in one step, Claude's master data proposals at or above this confidence (0: never; set it once the proposal evals show they hold at that level). |
@@ -82,6 +85,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `sre.handoff.min_detections` | int | `3` | ≥ 1 | Detections an upset needs before it is handed off (a lone detection is evidence, not an upset worth a person's time). |
 | `sre.handoff.max_diagnoses` | int | `10` | 0 to 100 | Upsets the assistant diagnoses per hand-off run. |
 | `sre.handoff.max_usd` | float | `5.0` | ≥ 0 | Claude spend cap per hand-off run (USD). |
+| `watch.max_usd` | float | `2.0` | ≥ 0 | Model spend cap per agentic watch run, all areas (USD). |
+| `watch.max_areas` | int | `12` | 0 to 200 | Process areas the agentic watch reads per run. |
 | `sre.step_minutes` | int | `10` | 1 to 60 | Minutes between the values the detectors read. |
 | `sre.lookback_hours` | int | `24` | 1 to 168 | Hours before the window that a step is judged against. |
 | `sre.learned_minutes` | int | `60` | ≥ 0 | Minutes a value must stay outside a learned normal range (one no source set) to count. |
@@ -161,7 +166,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | Setting | Type | Default | Range | What it is |
 |---|---|---|---|---|
 | `access.session_hours` | int | `8` | 1 to 24 | Absolute signed-in session lifetime in hours. |
-| `access.api_concurrency` | int | `4` | 1 to 32 | Maximum simultaneous authenticated API requests per server process; bounds memory pressure on the single-instance demo, not a commercial quota. |
+| `access.api_concurrency` | int | `8` | 1 to 32 | Maximum simultaneous authenticated API requests per server process (one more waits a few seconds for a place); bounds memory pressure on the single-instance demo, not a commercial quota. |
 
 ## Detection
 

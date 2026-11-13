@@ -1620,6 +1620,46 @@ Daily operations reports (#98): one row per version of a production day's report
 | `item_id` | bigint |  |
 | `created_at` | timestamptz |  |
 
+### `regulatory_report`
+
+Regulatory and emissions reports (P7.6, #954): one row per version of a template's report for a period. A new version when its figures change (a late or corrected record); each figure keeps the rows it is made of and their basis (measured, estimated, missing). Approval and submission are recorded on the version they were for.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `template` | text |  |
+| `period` | text | YYYY-MM |
+| `version` | integer |  |
+| `status` | text | draft \| approved \| submitted |
+| `sections` | jsonb | [{title, figures: [{key, label, value, unit, basis, rows}]}] |
+| `marked` | jsonb | the figures resting on estimated or missing data |
+| `coverage` | jsonb | since, through, partial |
+| `fingerprint` | text |  |
+| `drafted_by` | text |  |
+| `item_id` | bigint, | the review case |
+| `approved_by` | text |  |
+| `approved_at` | timestamptz |  |
+| `submitted` | jsonb, | how it went out, by whom and when |
+| `created_at` | timestamptz |  |
+
+### `report_obligation`
+
+The obligations calendar (P7.6c): each report a regulator expects, per period, its due date as days after the period ends, and how far ahead the report process starts.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `template` | text |  |
+| `regulator` | text |  |
+| `due_days` | integer | 15: due on the 15th of the month after the period |
+| `lead_days` | integer | the process starts this many days before it is due |
+| `draft_ahead` | boolean | the calendar drafts it from its records when its window opens |
+| `starts` | date | the first due date it counts; periods due before it are not owed |
+| `active` | boolean |  |
+| `note` | text |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ### `opportunity`
 
 The opportunity scan (#102): gains left on the table, one row per opportunity under a stable key. A decided one (rejected, accepted, project) isn't raised again unless its evidence or gain changes materially.
@@ -1931,6 +1971,27 @@ Operator rounds (P5.4, ops/rounds.py): one run of each round per shift, for the 
 | `by` | text |  |
 | `at` | timestamptz |  |
 | `exception_id` | bigint, | what an out-of-limit reading or a failed check raised |
+
+### `watch_proposal`
+
+The agentic watch (P3.3a, ops/watch.py): what the watch agent proposed for an area over a window, that no detector raised. In shadow (wave 4) a proposal is kept and scored, never routed.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `area` | text | the process area's fuzer id |
+| `since` | timestamp |  |
+| `until` | timestamp |  |
+| `subject` | text, | what it is about, as the evidence names it |
+| `start` | timestamp |  |
+| `"end"` | timestamp |  |
+| `why` | text | why it is unusual |
+| `ruled_out` | text, | what it ruled out |
+| `evidence` | jsonb | the ids it cites (points, detections, log entries, notifications) |
+| `cited` | boolean | whether every id it cites was in what it was shown |
+| `mode` | text |  |
+| `model` | text |  |
+| `run_at` | timestamptz |  |
 
 ## Charts
 
