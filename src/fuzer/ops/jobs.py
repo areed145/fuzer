@@ -644,19 +644,106 @@ def new_exports(context: dg.SensorEvaluationContext, fuzer: Fuzer):
     return dg.SensorResult(run_requests=requests, cursor=json.dumps({"projects": cursor}, sort_keys=True))
 
 
+# Telling someone when a scheduled job or sensor fails (R.4b), so that the board does not go stale unnoticed. A failed
+# run, and a sensor or schedule whose evaluation fails, is posted once to the alert webhook (alerts.webhook), naming
+# the project and the job and linking to the Jobs page when notify.app_url is set; the Jobs page counts the same
+# failures (api/jobs.py health). A failing sensor or schedule starts no run, so `failed_ticks` finds it by its latest
+# tick.
+
+TICK_FAILURE = "FAILURE"
+
+
+def _tick_status(v) -> str:
+    return str(getattr(v, "value", v))
+
+
+def _jobs_link(path: str, app: str | None = None) -> str:
+    if app is None:
+        try:
+            from ..sources import alerts
+
+            url = alerts.app_link(f"#{path}")
+        except Exception:  # an alert must still go out when the database can't be read
+            url = ""
+    else:
+        url = f"{app}/#{path}" if app else ""
+    return f" Jobs: {url}" if url else ""
+
+
+def run_failed_text(job: str, run_id: str, message: str, project: str = "", app: str | None = None) -> str:
+    """What the alert channel is told about a failed run."""
+    where = f" ({project})" if project else ""
+    return (f"Fuzer{where}: job '{job}' failed (run {run_id[:8]}): {message.strip()}"
+            f"{_jobs_link(f'/jobs/run/{run_id}', app)}")
+
+
+def tick_failed_text(kind: str, name: str, error: str, app: str | None = None) -> str:
+    """What the alert channel is told about a sensor or schedule whose evaluation failed."""
+    return (f"Fuzer: {kind} '{name}' failed, so the jobs it starts are not running until it recovers: "
+            f"{(error or 'no error message').strip()}{_jobs_link('/jobs', app)}")
+
+
+def failed_ticks(instance, seen: dict[str, float], skip: frozenset[str] = frozenset()) -> tuple[list[dict], dict]:
+    """Sensors and schedules whose latest tick failed since the last look (`seen`: name -> latest failed tick time
+    already reported). Returns the new failures and the updated `seen`. A name that recovers is forgotten, so a
+    second failure later is reported again."""
+    latest: dict[str, tuple] = {}
+    for state in instance.all_instigator_state():
+        name = state.instigator_name
+        if name in skip:
+            continue
+        ticks = instance.get_ticks(state.instigator_origin_id, state.selector_id, limit=1)
+        if ticks and (name not in latest or ticks[0].timestamp > latest[name][1].timestamp):
+            latest[name] = (state, ticks[0])
+    out, now = [], {}
+    for name, (state, tick) in sorted(latest.items()):
+        if _tick_status(tick.status) != TICK_FAILURE:
+            continue
+        now[name] = tick.timestamp
+        if seen.get(name, -1) < tick.timestamp:
+            kind = "schedule" if _tick_status(state.instigator_type).upper() == "SCHEDULE" else "sensor"
+            error = getattr(getattr(tick, "error", None), "message", "") or ""
+            out.append({"kind": kind, "name": name, "at": tick.timestamp, "error": error})
+    return out, now
+
+
+def load_seen(cursor: str | None) -> dict[str, float]:
+    try:
+        return {str(k): float(v) for k, v in json.loads(cursor or "{}").items()}
+    except (ValueError, AttributeError):
+        return {}
+
+
 @dg.run_failure_sensor(default_status=dg.DefaultSensorStatus.RUNNING,
                        description="Posts failed runs to FUZER_ALERT_WEBHOOK, and to GitHub issues, when they are set.")
 def alert_on_failure(context: dg.RunFailureSensorContext):
-    message = f"Fuzer job '{context.dagster_run.job_name}' failed (run {context.dagster_run.run_id[:8]}): " \
-              f"{context.failure_event.message}"
-    context.log.error(message)
     from ..core import bugreports
     from ..sources import alerts
 
+    run = context.dagster_run
+    message = run_failed_text(run.job_name, run.run_id, context.failure_event.message or "",
+                                  run.tags.get(PROJECT_TAG, ""))
+    context.log.error(message)
     alerts.post(message)
-    job = context.dagster_run.job_name
+    job = run.job_name
     bugreports.reporter.report(bugreports.Reported(message, f"dagster-run:{job}", kind=f"Dagster job {job} failed"),
                                "alert_on_failure", wait=True)
+
+
+@dg.sensor(default_status=dg.DefaultSensorStatus.RUNNING, minimum_interval_seconds=300,
+           description="Posts a sensor or schedule that failed to evaluate (and so starts no run) to "
+                       "FUZER_ALERT_WEBHOOK, once per failure.")
+def alert_on_tick_failure(context: dg.SensorEvaluationContext):
+    from ..sources import alerts
+
+    new, seen = failed_ticks(context.instance, load_seen(context.cursor),
+                                      skip=frozenset({"alert_on_tick_failure"}))
+    for f in new:
+        message = tick_failed_text(f["kind"], f["name"], f["error"])
+        context.log.error(message)
+        alerts.post(message)
+    context.update_cursor(json.dumps(seen, sort_keys=True))
+    return dg.SkipReason(f"{len(new)} new failure(s) posted" if new else "no failed sensors or schedules")
 
 
 defs = dg.Definitions(
@@ -665,7 +752,7 @@ defs = dg.Definitions(
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
     jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
     schedules=schedules,
-    sensors=[new_exports, dataset_schedules, alert_on_failure],
+    sensors=[new_exports, dataset_schedules, alert_on_failure, alert_on_tick_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},
     # Each run executes its steps in its own process. The default multiprocess executor adds a second Python
     # process per step on top of the run's, which doubled every run's memory on the 2 GB instance (OOM kills,

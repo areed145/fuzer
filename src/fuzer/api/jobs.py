@@ -221,11 +221,11 @@ def checks(instance, defs) -> list:
 
 
 def health(instance, defs, check_rows: list | None = None) -> dict:
-    """green / amber / red for the nav: failed runs in the last 24 h are red, failing checks or a stopped
-    scheduler amber."""
+    """green / amber / red for the nav: failed runs in the last 24 h and sensors or schedules whose latest tick
+    failed are red, failing checks or a stopped scheduler amber."""
     if instance is None:
         return {"level": "unknown", "available": False, "failed_runs_24h": 0, "failing_checks": 0,
-                "scheduler_running": False, "summary": "Dagster hasn't run here yet"}
+                "failing_triggers": [], "scheduler_running": False, "summary": "Dagster hasn't run here yet"}
     from dagster import DagsterRunStatus
 
     since = datetime.fromtimestamp(time.time() - DAY, UTC)
@@ -233,16 +233,21 @@ def health(instance, defs, check_rows: list | None = None) -> dict:
     rows = checks(instance, defs) if check_rows is None else check_rows
     failing = sum(1 for c in rows if c["level"] in ("warn", "fail"))
     sched = scheduler(instance)["running"]
-    level = "red" if failed else "amber" if (failing or not sched) else "green"
+    triggers = sorted(name for name, (_, tick) in _states(instance).items()
+                      if tick is not None and _enum(tick.status) == "FAILURE")
+    level = "red" if (failed or triggers) else "amber" if (failing or not sched) else "green"
     parts = []
     if failed:
         parts.append(f"{failed} failed run{'s' * (failed != 1)} in 24 h")
+    if triggers:
+        parts.append(f"{', '.join(triggers)} failing, so the jobs {'it starts' if len(triggers) == 1 else 'they start'}"
+                     " are not running")
     if failing:
         parts.append(f"{failing} check{'s' * (failing != 1)} flagging")
     if not sched:
         parts.append("scheduler not running")
     return {"level": level, "available": True, "failed_runs_24h": failed, "failing_checks": failing,
-            "scheduler_running": sched, "summary": "; ".join(parts) or "All jobs healthy"}
+            "failing_triggers": triggers, "scheduler_running": sched, "summary": "; ".join(parts) or "All jobs healthy"}
 
 
 def _claude_spend(instance, defs) -> dict:
