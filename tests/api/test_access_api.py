@@ -707,6 +707,23 @@ def test_restricted_documents_are_hidden_everywhere_from_people_outside_their_gr
     assert next(a for a in admin["accounts"] if a["id"] == person.id)["groups"] == {project: ["licensed"]}
     be(person, person_token)
     assert client.get(f"/entities/{manual}").status_code == 200  # in the group: seen again
+
+    # A local MCP server or CLI assistant (no signed-in person) answers as the account given with --as, else as no one.
+    from fuzer.core import capabilities
+
+    refused = {"error": "nothing found; try the search tool"}
+    try:
+        capabilities.serve_as(capabilities.ANONYMOUS)
+        assert mcp_server.get_entity(manual) == refused
+        assert "error" not in mcp_server.get_entity(procedure)
+        capabilities.serve_as("user:not-an-account")
+        assert mcp_server.get_entity(manual) == refused  # an unknown account sees no more than no one
+        capabilities.serve_as(person.actor)
+        assert "error" not in mcp_server.get_entity(manual)  # in the group
+        capabilities.serve_as(None)
+        assert "error" not in mcp_server.get_entity(manual)  # the workflow's own agent steps: unfiltered
+    finally:
+        capabilities.serve_as(None)
     with db.connect() as conn:
         events = conn.execute("select action, project from access_event where action in "
                               "('document_groups_set', 'groups_set') order by id").fetchall()

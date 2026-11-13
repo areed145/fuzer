@@ -72,6 +72,9 @@ def parser() -> argparse.ArgumentParser:
     m.add_argument("--http", action="store_true", help="serve streamable HTTP instead of stdio")
     m.add_argument("--host", default="127.0.0.1")
     m.add_argument("--port", type=int, default=8001)
+    m.add_argument("--as", dest="serve_as", metavar="ACCOUNT", default=None,
+                   help="answer as this account (its id or user:<id>), seeing the restricted documents its groups see; "
+                        "without it, restricted documents are left out")
 
     j = sub.add_parser("jobs", help="run the Dagster UI with schedules and sensors")
     j.add_argument("--port", type=int, default=3000)
@@ -86,6 +89,9 @@ def parser() -> argparse.ArgumentParser:
         a.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
                        help="orchestrator effort (default: the setting agents.effort); specialists use agents.specialist_effort")
         a.add_argument("--json", action="store_true", help="print the answer, tools used and cost as JSON")
+        a.add_argument("--as", dest="serve_as", metavar="ACCOUNT", default=None,
+                       help="answer as this account (its id or user:<id>), seeing the restricted documents its groups "
+                            "see; without it, restricted documents are left out")
 
     w = sub.add_parser("work", help="work engine (#97): load the starting processes, run the agent worker, fire timers")
     w.add_argument("action", choices=["load", "worker", "tick"],
@@ -261,10 +267,12 @@ def main(argv=None):
 
         sys.exit(subprocess.call(dagster_command(args.port)))
     elif args.cmd in ("ask", "chat"):
+        _serve_as(args.serve_as)
         _assistant(args)
     elif args.cmd == "mcp":
         from ..agents import mcp_server
 
+        _serve_as(args.serve_as)
         mcp_server.main(http=args.http, host=args.host, port=args.port)
     elif args.cmd == "work":
         from ..agents import worker
@@ -627,6 +635,14 @@ def _assistant(args) -> None:
             print()
 
     asyncio.run(run())
+
+
+def _serve_as(account: str | None) -> None:
+    """Restricted documents (R.5, #29): a local MCP server or CLI assistant answers as an account, or as no one."""
+    from ..core import access, capabilities
+
+    capabilities.serve_as(capabilities.ANONYMOUS if not account else
+                          account if account.startswith(access.ACTOR_PREFIX) else access.ACTOR_PREFIX + account)
 
 
 def data_dir() -> str:

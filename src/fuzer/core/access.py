@@ -469,6 +469,15 @@ def hidden_documents(conn, person: Principal | None, project: str | None = None)
     return frozenset(r["fuzer_id"] for r in rows)
 
 
+def hidden_for(conn, actor: str) -> frozenset[str]:
+    """What `actor` may not see: a signed-in account (`user:<id>`) by its groups, anyone else (an unknown or disabled
+    account, an anonymous local process) as someone in no group."""
+    person = principal(conn, actor.removeprefix(ACTOR_PREFIX)) if actor.startswith(ACTOR_PREFIX) else None
+    if person is None or not person.enabled:
+        person = Principal(id="", display_name=actor, enabled=False, owner=False, roles=(), permissions=frozenset())
+    return hidden_documents(conn, person)
+
+
 def refers_to(value, hidden: frozenset[str]) -> bool:
     """Whether a record (a dict) names a hidden document by one of its reference keys."""
     return isinstance(value, dict) and any(isinstance(value.get(k), str) and value[k] in hidden
