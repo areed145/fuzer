@@ -364,9 +364,11 @@ SKILL_CATALOG = (
     SkillDefinition(
         f"{_WORK}/job-readiness", (_WORK,),
         (WORK_PLANNER, WORK_SCHEDULER, SUPPLY_CHAIN_SPECIALIST, LOGISTICS_COORDINATOR),
-        "Work orders, their dates and turnaround revision, and BOM spares with stock on hand.",
+        "Work orders, their dates and turnaround revision, BOM spares with stock on hand, reservations, open purchase "
+        "orders and planned delivery times.",
         "Per job, what is recorded as ready and what is missing or unknown (materials, dates, resources, logistics).",
-        "A stock count is not a reservation; crew, vendor, transport and access status stay unknown. " + _APPROVE),
+        "A delivery date is the order's own, not a promise; crew, vendor, transport and access status stay unknown. "
+        + _APPROVE),
     SkillDefinition(
         f"{_HSE}/incident-evidence", (_HSE,),
         (HSE_SPECIALIST, ENVIRONMENTAL_SPECIALIST, INCIDENT_INVESTIGATOR, EMERGENCY_LEAD),
@@ -425,8 +427,9 @@ UNAVAILABLE = (
     (_MAINT, "Curve and map comparison for machines without OEM data",
      "OEM pump curves for those models and compressor maps for those machines (a datasheet Claude reads counts)."),
     (_WORK, "Schedule-conflict and crew resource analysis", "A planning system with crews, calendars and resource loading."),
-    (_WORK, "Vendor, transport and site-access constraints; material reservations",
-     "Procurement and logistics sources; SAP stock on hand alone does not show them."),
+    (_WORK, "Vendor performance, transport and site-access constraints",
+     "Logistics and vendor sources; reservations, open purchase orders and planned delivery times are read "
+     "(material_readiness)."),
     (_HSE, "Hazard and barrier status", "An authoritative barrier or safety-case register."),
     (_HSE, "Environmental and regulatory obligation tracking", "Permits and obligations from an authoritative register."),
     (_HSE, "Emergency response procedures", "Approved emergency response plans; the assistant only supports with information."),

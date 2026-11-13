@@ -321,3 +321,20 @@ def plot_vibration_spectrum(tag: str, point: str | None = None) -> dict[str, Any
         if err:
             return err
     return _chart(maintenance.vibration_spectrum, {"tag": fid, "point": point})
+
+
+@capability("work-management-supply-chain", "maintenance-integrity", kind="calc")
+def material_readiness(as_of: str | None = None, ref: str | None = None) -> dict[str, Any]:
+    """Material readiness (#362): every open reservation (or those on one work order or material) against stock on
+    hand and open purchase orders, allocated earliest need date first: in stock, on order and due in time, late (an
+    order due after the job's need date, with the days late), or not on order (with whether the material's planned
+    delivery time would still fit if it were ordered today). A delivery date is the purchase order's own; nothing here
+    says a part is ordered, reserved or will arrive beyond the record. Ordering and expediting stay with supply chain."""
+    from ...analysis import calcs
+    from ...analysis import material_readiness as mr
+    with db.connect() as conn:
+        try:
+            return _plain(mr.coverage(conn, as_of, ref))
+        except calcs.CalcError as e:
+            return {"error": str(e), **e.refusal()}
+
