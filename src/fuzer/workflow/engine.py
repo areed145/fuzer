@@ -21,6 +21,7 @@ from .definitions import *
 from .runtime import *
 from .assignment import *
 from .work_items import *
+from .notify import pending as notify_pending  # whether that job has anything to do
 from .notify import scan as notify_scan  # the scheduler's one-minute notify job (P5.2)
 from .home import home, mark_seen, watch, watching  # Home is my shift (P5.1)
 from .views import remove_view, save_view, views  # saved views per role (P5.1c)

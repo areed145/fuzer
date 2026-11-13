@@ -562,17 +562,47 @@ def schedule_timezone() -> str:
 TZ = schedule_timezone()
 
 
-def per_project(job, cron: str, status: dg.DefaultScheduleStatus) -> dg.ScheduleDefinition:
-    """A schedule that starts the job once for each project, tagged with it."""
+def per_project(job, cron: str, status: dg.DefaultScheduleStatus, due=None) -> dg.ScheduleDefinition:
+    """A schedule that starts the job once for each project, tagged with it. With `due` (conn -> bool, read in the
+    project's schema), a project whose job has nothing to do at this tick starts no run: every run is a new Python
+    process, and the minute jobs starting one per project per minute to find nothing held most of a one-CPU
+    instance (13 Nov)."""
     @dg.schedule(name=f"{job.name}_schedule", job=job, cron_schedule=cron, execution_timezone=TZ,
                  default_status=status, required_resource_keys={"fuzer"})
     def schedule(context: dg.ScheduleEvaluationContext):
         at = context.scheduled_execution_time.isoformat()
+        fuzer = context.resources.fuzer
+        waiting = [project for project, _ in fuzer.targets() if not pending(context.instance, job.name, project)]
+        if not waiting:
+            return dg.SkipReason("the previous run for each project is still queued or running")
         requests = [dg.RunRequest(run_key=f"{project}@{at}", tags=project_tags(project))
-                    for project, _ in context.resources.fuzer.targets()
-                    if not pending(context.instance, job.name, project)]
-        return requests or dg.SkipReason("the previous run for each project is still queued or running")
+                    for project in waiting if due is None or has_work(fuzer, project, due)]
+        return requests or dg.SkipReason("nothing is due in any project")
     return schedule
+
+
+def has_work(fuzer: Fuzer, project: str, due) -> bool:
+    """Whether `due` finds work for the project. A check that fails starts the run, which reports the failure."""
+    try:
+        with db.use(_scope_of(fuzer, project)), db.connect(url=fuzer.database_url) as conn:
+            return bool(due(conn))
+    except Exception:
+        return True
+
+
+def _notify_due(conn) -> bool:
+    from ..workflow import engine
+    return engine.notify_pending(conn)
+
+
+def _writeback_due(conn) -> bool:
+    from . import writeback
+    return writeback.due(conn)
+
+
+def _studies_due(conn) -> bool:
+    from . import study
+    return study.queued(conn)
 
 
 PENDING = [dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.STARTING,
@@ -593,13 +623,13 @@ schedules = [
     per_project(refresh_all, "0 2 * * *", RUNNING),
     per_project(claude_reading, "0 3 * * *", STOPPED),
     per_project(work_tick, "*/5 * * * *", RUNNING),
-    per_project(work_notify, "* * * * *", RUNNING),
-    per_project(writeback_run, "* * * * *", RUNNING),
+    per_project(work_notify, "* * * * *", RUNNING, _notify_due),
+    per_project(writeback_run, "* * * * *", RUNNING, _writeback_due),
     per_project(closeout_sweep, "*/5 * * * *", RUNNING),
     per_project(detector_tuning, "30 4 * * *", RUNNING),
     per_project(report_calendar, "0 5 * * *", RUNNING),
     per_project(sre_scan, "0 */6 * * *", RUNNING),
-    per_project(studies_job, "*/5 * * * *", RUNNING),
+    per_project(studies_job, "*/5 * * * *", RUNNING, _studies_due),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
     per_project(source_health, "*/30 * * * *", RUNNING),
     per_project(providers_poll, "*/15 * * * *", RUNNING),

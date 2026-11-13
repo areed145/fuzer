@@ -383,6 +383,13 @@ def send(conn, wid: int, by: str = "system") -> dict:
     return row
 
 
+def due(conn, now: datetime | None = None) -> bool:
+    """An approved write-back is due: what `run` would pick up (its schedule starts a run only then)."""
+    now = now or datetime.now().astimezone()
+    return conn.execute("select 1 from writeback where state = 'approved' and due_at <= %s limit 1",
+                        (now,)).fetchone() is not None
+
+
 def run(conn, now: datetime | None = None) -> dict:
     """Send what is approved and due by each system's cadence, up to its limit per run; commits."""
     now = now or datetime.now().astimezone()
