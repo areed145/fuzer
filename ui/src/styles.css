@@ -236,6 +236,8 @@ input, select, button {
   border-radius: 6px;
   padding: 6px 10px;
 }
+/* A select is as wide as its longest option; on a phone a long sheet title would push the page sideways (P5.14). */
+select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 button { cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: default; }

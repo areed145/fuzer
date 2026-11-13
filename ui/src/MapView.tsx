@@ -242,13 +242,15 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     // Lines under points; a white halo under each line keeps it readable on any basemap.
     const lines = shown.filter((f) => f.geometry.type !== "Point");
     const points = shown.filter((f) => f.geometry.type === "Point");
+    // A tap on a phone opens the popup; a hover label there would stick beside it, saying the same thing twice.
+    const hover = matchMedia("(hover: hover)").matches;
     for (const f of lines) {
       const s = serviceOf(f);
       const isFocus = f.id === focus;
       const abandoned = f.properties.status === "abandoned";
       const weight = Math.max(2, Math.min(6, Number(f.properties.diameter_in ?? 6) / 3)) + (isFocus ? 3 : 0);
       L.geoJSON(f as GeoJSON.Feature, { style: { color: colors.outline, weight: weight + 3, opacity: 0.9 } }).addTo(g);
-      L.geoJSON(f as GeoJSON.Feature, {
+      const line = L.geoJSON(f as GeoJSON.Feature, {
         style: {
           color: abandoned ? colors.abandoned : (s ? serviceColors[s.key] : other),
           weight,
@@ -256,25 +258,25 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
           opacity: 0.95,
         },
       })
-        .bindTooltip(tip(f), { sticky: true })
         .bindPopup(() => popup(f))
         .addTo(g);
+      if (hover) line.bindTooltip(tip(f), { sticky: true });
     }
     for (const f of points) {
       const [lon, lat] = f.geometry.coordinates as number[];
       const kind = String(f.properties.kind);
       const isFocus = f.id === focus;
       const r = (POINTS.find((p) => p.key === kind)?.radius ?? 5) + (isFocus ? 4 : 0);
-      L.circleMarker([lat, lon], {
+      const marker = L.circleMarker([lat, lon], {
         radius: r,
         color: colors.outline,
         weight: kind === "well" ? 1 : 2,
         fillColor: isFocus ? colors.focus : kind === "well" ? colors.well : colors.label,
         fillOpacity: 1,
       })
-        .bindTooltip(tip(f))
         .bindPopup(() => popup(f))
         .addTo(g);
+      if (hover) marker.bindTooltip(tip(f));
     }
     if (shown.length) {
       // Fit to the wells and platforms where the work is, not the export lines running off to a terminal (#398);
