@@ -114,7 +114,7 @@ def test_scan_carries_on_from_the_last_run(conn):
         "select distinct on (detector) detector, status, found from detector_run order by detector, id")}
     assert set(ran) == {d.name for d in detectors.window()} and ran["stops"] == {
         "detector": "stops", "status": "ran", "found": len(stop)}, ran
-    assert first["not_applicable"] == {}
+    assert first["not_applicable"] == {"promoted_rules": "not applicable: missing a published rule"}  # none yet
 
     trip = [u for u in sre.upsets(conn, "2024-11-05T00:00") if u["start"] <= "2024-11-05T05:30"
             and "20-K-2100C" in (u["units"] or [])]
