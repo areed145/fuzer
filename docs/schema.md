@@ -1993,6 +1993,24 @@ The agentic watch (P3.3a, ops/watch.py): what the watch agent proposed for an ar
 | `model` | text |  |
 | `run_at` | timestamptz |  |
 
+### `promoted_rule`
+
+A deterministic rule drafted from a pattern of confirmed proposals (P3.4): its spec, its replay score, and who published it. Published rules run as the promoted_rules window detector.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `pattern` | text |  |
+| `spec` | jsonb | role, class, direction, z, minutes, baseline_days |
+| `examples` | jsonb | the confirmed proposals it was fitted on |
+| `score` | jsonb, | its replay score, when the asset has a fake plant's events |
+| `status` | text | draft \| published \| retired |
+| `drafted_by` | text |  |
+| `drafted_at` | timestamptz |  |
+| `published_by` | text |  |
+| `published_at` | timestamptz |  |
+| `reason` | text |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

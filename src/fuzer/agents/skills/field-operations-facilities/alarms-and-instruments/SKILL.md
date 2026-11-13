@@ -35,6 +35,12 @@ the generator behaves, not the plant.
    while a loop cycled is worth naming: detuning doesn't fix a sticking valve. `loop_high_rate(ref, start, end,
    step_seconds)` reads the loop every few seconds over a bounded window (a step test's), for loops the minute grid is
    too coarse for.
+
+   **What would the step test suggest?** `loop_tuning(test)` fits a first order plus dead time model to a step test
+   and gives the SIMC PI range from tight to smooth, with its method, data window, fit quality and assumptions, against
+   the settings in force at the test; where the settings changed since, it compares before and after.
+   `plot_step_fit(test)` shows how well the model fits. Present it as a range for the control-system owner to weigh,
+   never as a setting to make: a change is theirs under management of change, and no tool writes to a controller.
 5. **When did it change?** `detect_changes(ref)` dates steps, drifts and jitter changes. `plot_changes(ref)` marks them.
 6. **Limits and headroom.** `limits(ref)` gives alarm limits, IOWs and learned ranges with excursions while the unit
    runs. `capacity_headroom(ref)` shows the nearest limit, and `plot_operating_window(ref, since, until)` the minutes
@@ -42,4 +48,4 @@ the generator behaves, not the plant.
 
 **Boundaries.** A learned range is what the plant has done, not what is safe. Nothing here validates an operating
 envelope. Recommend checks to instrument technicians and control-system owners; never propose a setpoint, tuning,
-alarm limit or bypass change as something to do. A cycling loop or a ranked worklist is evidence for them, not a tuning or change request.
+alarm limit or bypass change as something to do; a tuning range is evidence for the control-system owner, not a change. A cycling loop or a ranked worklist is evidence for them, not a tuning or change request.

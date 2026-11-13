@@ -209,6 +209,8 @@ register(
     Setting("sre.handoff.max_usd", "float", 5.0, "Claude spend cap per hand-off run (USD)", "SRE", min=0),
     Setting("watch.max_usd", "float", 2.0, "Model spend cap per agentic watch run, all areas (USD)", "SRE", min=0),
     Setting("watch.max_areas", "int", 12, "Process areas the agentic watch reads per run", "SRE", min=0, max=200),
+    Setting("watch.promote_after", "int", 3, "Confirmed watch proposals of one pattern before the watch drafts a "
+            "deterministic rule for it", "SRE", min=1, max=50),
     Setting("sre.step_minutes", "int", 10, "Minutes between the values the detectors read", "SRE", min=1, max=60),
     Setting("sre.lookback_hours", "int", 24, "Hours before the window that a step is judged against", "SRE", min=1,
             max=168),
@@ -387,12 +389,19 @@ def _stored(conn, key: str, p: str | None) -> dict:
         return {}
 
 
+# Hosts that reserve a variable's usual name (some strip ANTHROPIC_API_KEY) can set it under this name instead.
+ENV_FALLBACK = {"ANTHROPIC_API_KEY": "FUZER_ANTHROPIC_API_KEY"}
+
+
 def secret(conn, key: str) -> str | None:
     """A secret setting's value, read from where its reference points (env:NAME); None when it isn't there."""
     if _setting(key).type != "secret":
         raise SettingError(f"{key} isn't a secret")
     ref = get(conn, key) or ""
-    return os.environ.get(ref[4:]) or None if ref.startswith("env:") else None
+    if not ref.startswith("env:"):
+        return None
+    name = ref[4:]
+    return os.environ.get(name) or os.environ.get(ENV_FALLBACK.get(name, "")) or None
 
 
 def _rows(conn, key: str, p: str | None) -> dict:
