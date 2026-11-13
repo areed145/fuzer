@@ -55,14 +55,13 @@ def test_the_mcp_server_binds_every_declared_tool():
 
 def test_the_local_mcp_and_cli_assistant_answer_as_the_account_given_or_as_no_one():
     from fuzer import cli
-    from fuzer.core import capabilities
 
     try:
         cli._serve_as(None)
-        assert capabilities._served_as == capabilities.ANONYMOUS
+        assert registry._served_as == registry.ANONYMOUS
         cli._serve_as("abc")
-        assert capabilities._served_as == "user:abc"
+        assert registry._served_as == "user:abc"
         cli._serve_as("user:abc")
-        assert capabilities._served_as == "user:abc"
+        assert registry._served_as == "user:abc"
     finally:
-        capabilities.serve_as(None)
+        registry.serve_as(None)
