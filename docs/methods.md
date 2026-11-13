@@ -64,6 +64,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`instrument_health`](#instrument_health) Whether a transmitter's readings can be trusted | Engineering practice | Historian readings on the point or every point on the unit (each point's own) | A week of readings before the window and readings inside it. |
 | [`loop_oscillation`](#loop_oscillation) Whether a control loop is cycling, with its period and amplitude | Engineering practice | Historian readings on the unit's points or one point (each point's own) | A day or more of 5-minute readings, and at least four cycles in the window. |
 | [`loop_health`](#loop_health) Control loop health ranking (time in manual, output saturation, setpoint error, oscillation) | Engineering practice | Process value (each loop's own); Setpoint (each loop's own); Controller output (%); Mode (1 auto (-) | A day or more of 5-minute readings on all four points. |
+| [`loop_tuning`](#loop_tuning) Step test model fit (first order plus dead time) and SIMC PI tuning range | Engineering practice | Process value (high rate) (each loop's own); Controller output (%); Process value span (each loop's own) | The step test's window read every few seconds (a bounded high-rate read), and the value's span from the loop list for a gain in % per %. |
 | [`valve_stiction`](#valve_stiction) Valve stiction from controller output against process value (cross-correlation test) | Engineering practice | Process value (each loop's own); Controller output (%); Mode (1 auto (-) | A day or more of 5-minute readings covering at least four cycles. |
 | [`contactor_foaming`](#contactor_foaming) Contactor differential pressure against its clean level (foaming and fouling) | Engineering practice | Contactor differential pressure (bar); Treated gas analyser (optional) (mol% or mg/Sm³) | A week of differential pressure history before the last two days. |
 | [`treated_gas`](#treated_gas) Treated gas analyser against its operating window | Engineering practice | Treated gas analyser (mol% or mg/Sm³); Operating window (same) | Seven days of analyser readings and an operating window on the point. |
@@ -614,6 +615,18 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `setpoint_error`:** Mean absolute setpoint error in auto, as a share of the setpoint, from which a loop is flagged. (2 %)
 - **Threshold `oscillation`:** What a regular oscillation adds to the score. (50)
 - **Worked example:** `tests/analysis/test_control_loops.py::test_each_planted_fault_ranks_at_the_top_of_the_worklist`, on the fake plant
+
+## loop_tuning
+
+**Step test model fit (first order plus dead time) and SIMC PI tuning range.** Engineering practice. Skogestad, S. (2003), Simple analytic rules for model reduction and PID controller tuning, Journal of Process Control 13: for a first order plus dead time process (gain K, time constant tau, dead time theta), a PI controller with Kc = tau / (K (tau_c + theta)) and Ti = min(tau, 4 (tau_c + theta)); tau_c = theta for tight control, larger for smoother, more robust control. The model is fitted by least squares to an open-loop step response read at a high rate, the dead time searched over the samples. Using tau_c from theta to 3 theta as the range, and the R-squared floor, are this registry's own choices.
+
+- **Valid for:** Self-regulating loops with an open-loop step test on record, read at the test's sample rate, that settled within the test.
+- **Needs:** The step test's window read every few seconds (a bounded high-rate read), and the value's span from the loop list for a gain in % per %.
+- **Run by:** `loop_tuning`
+- **Threshold `r2_min`:** R-squared of the fit over the test window below which no range is suggested. (0.9)
+- **Threshold `compare_days`:** Days either side of a setting change for the before and after comparison. (7 days)
+- **Worked example:** `tests/analysis/test_loop_tuning.py::test_a_fit_recovers_a_known_model_and_simc_gives_a_range`, on the fake plant
+- **Worked example:** `tests/analysis/test_loop_tuning.py::test_each_step_test_recovers_its_known_model`, on the fake plant
 
 ## valve_stiction
 

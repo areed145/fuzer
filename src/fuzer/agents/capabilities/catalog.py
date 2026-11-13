@@ -414,9 +414,9 @@ UNAVAILABLE = (
      "An authoritative subsurface or well-file source; pressure surveys give productivity index and a one-tank "
      "material balance (productivity_index, material_balance)."),
     (_FIELD, "Validated operating envelopes", "Envelopes validated by the control-system owner; alarm limits and IOWs are not that."),
-    (_FIELD, "Control loop tuning suggestions", "Process model fits from step tests; loops on the DCS loop list are "
-     "ranked for attention (loop_health), checked for sticking valves (valve_stiction), and their settings, step tests "
-     "and high-rate data read (controller_settings, loop_high_rate)."),
+    (_FIELD, "Tuning for loops without a step test, and integrating (level) loops",
+     "An open-loop step test on record for the loop; self-regulating loops with one get a fitted model and a SIMC "
+     "range (loop_tuning)."),
     (_MAINT, "Vibration waveform analysis (envelope demodulation, time waveform) and machines off the spectra route",
      "Time waveforms from the condition-monitoring system; route spectra with bearing geometry are read against fault "
      "frequencies (vibration_spectra)."),

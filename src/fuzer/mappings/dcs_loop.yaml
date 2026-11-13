@@ -18,6 +18,8 @@ entity:
     - sp_point
     - op_point
     - mode_point
+    - [pv_range_low, {from: pv_range_low, as: number}]
+    - [pv_range_high, {from: pv_range_high, as: number}]
 links:
   - rel: has_timeseries
     when: pv_point
