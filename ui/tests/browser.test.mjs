@@ -5330,3 +5330,40 @@ test("Gas balance: the closure gap always shown, the open stretch with its zero 
   await page.locator('.gas-balance tr[data-date="2025-12-30"] td[data-label="Fuel"]').getByText("not reported").waitFor();
   await page.locator('.gas-balance tr[data-date="2025-12-30"] td[data-label="Gap"]').getByText("190 kSm³", { exact: false }).waitFor();
 });
+
+test("R.7 an owner narrows an account to areas of this project, confirmed, and can give the whole project back", async () => {
+  await usersFixture();
+  const operator = { id: "op", actor: "user:op", display_name: "North operator", enabled: true, owner: false,
+    roles: ["operator"], areas: {} };
+  const writes = [];
+  await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, project: "okan",
+    user: { ...signedInUser, owner: true } } }));
+  await page.route("**/auth/access", route => route.fulfill({ json: { accounts: [operator], roles: [
+    { name: "operator", description: "Review and act", permissions: ["read", "operate"] }], permissions: { read: "Browse evidence", operate: "Operate shared work" } } }));
+  await page.route("**/entities?*", route => route.fulfill({ json: [
+    { fuzer_id: "fz-area-north", kind: "area", label: "North train", description: null },
+    { fuzer_id: "fz-area-south", kind: "area", label: "South train", description: null }] }));
+  await page.route("**/auth/accounts/op/projects/okan/areas", route => {
+    const body = route.request().postDataJSON();
+    writes.push(body);
+    operator.areas = body.areas.length ? { okan: body.areas } : {};
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.goto(`${url}/#/users`);
+  const card = page.locator(".access-account").filter({ has: page.getByRole("heading", { name: /North operator/ }) });
+  await card.getByRole("button", { name: "Areas in okan (all)", exact: true }).click();
+  await card.getByText("Acts on work anywhere in this project.", { exact: false }).waitFor();
+  await card.getByRole("checkbox", { name: "North train", exact: true }).check();
+  await card.getByRole("button", { name: "Save areas", exact: true }).click();
+  assert.equal(writes.length, 0);  // nothing changes before the confirmation
+  await card.getByRole("button", { name: "Confirm Save areas", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "North operator now acts only on work in 1 area of okan." }).waitFor();
+  assert.deepEqual(writes, [{ areas: ["fz-area-north"] }]);
+  await card.getByRole("button", { name: "Areas in okan (1)", exact: true }).waitFor();  // still open, now saved
+  await card.getByText("Acts only on work in 1 area.", { exact: false }).waitFor();
+  await card.getByRole("checkbox", { name: "North train", exact: true }).uncheck();
+  await card.getByRole("button", { name: "Save areas", exact: true }).click();
+  await card.getByRole("button", { name: "Confirm Save areas", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "North operator acts on work across all of okan again." }).waitFor();
+  assert.deepEqual(writes.at(-1), { areas: [] });
+});

@@ -136,6 +136,7 @@ function AccountCard({ account, data, workflow, assigned, reload }: {
         onConfirm={save} />
     </Disclosure>
     <ActionStatus busy={busy ? "Saving account access..." : null} error={error}>{saved && <p>Account access saved.</p>}</ActionStatus>
+    {!account.owner && account.enabled && <AccountAreas account={account} reload={reload} />}
     {workflow && <AccountAssignments key={assigned.join(",")}
       account={account} roles={workflow.filter(r => r.kind === "person")} assigned={assigned} reload={reload} />}
   </Card>;
@@ -156,6 +157,53 @@ function AccountAssignments({ account, roles, assigned, reload }: {
       onInspect={() => reload()}
       reload={() => reload(`Workflow assignments saved for ${account.display_name}. Application access unchanged.`)} />
   </Disclosure>;
+}
+
+function AccountAreas({ account, reload }: { account: AccessAccount; reload: (message?: string) => void }) {
+  const project = useAuth()?.project ?? "";
+  if (!project) return null;
+  const saved = account.areas?.[project] ?? [];
+  return <Disclosure label={<>Areas in {project} ({saved.length || "all"})</>}>
+    <AreasEditor key={saved.join(",")} account={account} project={project} saved={saved} reload={reload} />
+  </Disclosure>;
+}
+
+function AreasEditor({ account, project, saved, reload }: {
+  account: AccessAccount; project: string; saved: string[]; reload: (message?: string) => void;
+}) {
+  const [areas, setAreas] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const options = useAsync(() => api.search("", "area"), []);
+  const dirty = [...areas].sort().join() !== [...saved].sort().join();
+  const save = async () => {
+    setBusy(true); setError("");
+    try {
+      await api.setAreas(account.id, project, areas);
+      reload(areas.length ? `${account.display_name} now acts only on work in ${areas.length} ${areas.length === 1 ? "area" : "areas"} of ${project}.`
+        : `${account.display_name} acts on work across all of ${project} again.`);
+      notifyChanged();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setBusy(false); }
+  };
+  return <>
+    <p>{saved.length ? `Acts only on work in ${saved.length} ${saved.length === 1 ? "area" : "areas"}.` : "Acts on work anywhere in this project."}
+      {" "}Reading is never narrowed; facility-wide work stays shared.</p>
+    <Status loading={options.loading} error={options.error} />
+    {options.data && !options.data.length && <p>This project's register has no areas yet.</p>}
+    {options.data && options.data.length > 0 && <fieldset disabled={busy}><legend>Areas it can act on (none ticked: all)</legend>
+      {options.data.map((hit) => <label key={hit.fuzer_id}>
+        <Input type="checkbox" checked={areas.includes(hit.fuzer_id)}
+          onChange={(event) => setAreas(event.target.checked ? [...areas, hit.fuzer_id] : areas.filter((value) => value !== hit.fuzer_id))} />
+        {hit.label ?? hit.fuzer_id}
+      </label>)}
+    </fieldset>}
+    <ConfirmAction label="Save areas" busy={busy} disabled={!dirty}
+      consequence={areas.length ? `Narrow ${account.display_name} to ${areas.length} ${areas.length === 1 ? "area" : "areas"} of ${project}? Their actions on work elsewhere are refused; they can still read it.`
+        : `Let ${account.display_name} act on work anywhere in ${project}?`}
+      onConfirm={save} />
+    <ActionStatus busy={busy ? "Saving areas..." : null} error={error} />
+  </>;
 }
 
 function RoleCard({ role, data, reload }: { role?: AccessRole; data: AccessAdministration; reload: (message?: string) => void }) {
