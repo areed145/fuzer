@@ -134,6 +134,30 @@ export function upFor(path: string[]): { to: string; label: string } | undefined
   return { to: href("/"), label: "Home" };
 }
 
+/** The installed app has no address bar to copy from (P5.14d): share this page's link, or copy it where the phone
+ * can't share. */
+function ShareButton() {
+  const [said, setSaid] = useState("");
+  const share = async () => {
+    const url = location.href;
+    const title = document.querySelector("#main-content h1")?.textContent?.trim() || "Fuzer";
+    try {
+      if (navigator.share) { await navigator.share({ title, url }); return; }
+      await navigator.clipboard.writeText(url);
+      setSaid("Link copied");
+    } catch (error) {
+      if ((error as DOMException)?.name !== "AbortError") setSaid("Could not share this link");
+    }
+    window.setTimeout(() => setSaid(""), 2500);
+  };
+  return <>
+    <Button className="share-button" aria-label="Share a link to this page" title="Share a link to this page" onClick={share}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></svg>
+    </Button>
+    <span className="share-status" aria-live="polite">{said}</span>
+  </>;
+}
+
 /** The in-app Back for the installed app, where the browser's own buttons are gone. */
 export function BackButton({ path, className }: { path: string[]; className?: string }) {
   const depth = useAppDepth();
@@ -227,6 +251,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
         <a className="brand" href={href("/")}>
           <Logo />
         </a>
+        <ShareButton />
         {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). It reloads this page, in place. */}
         <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" onClick={() => location.reload()}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>

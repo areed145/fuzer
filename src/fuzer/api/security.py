@@ -17,6 +17,8 @@ from ..core import access, db, settings
 
 current: ContextVar[access.Principal | None] = ContextVar("fuzer_http_principal", default=None)
 mutating: ContextVar[bool] = ContextVar("fuzer_http_mutating", default=False)
+# The shell is public: the page, its offline worker (P5.14d) and health. Everything else needs a session.
+PUBLIC_SHELL = ("/", "/sw.js", "/health")
 MAX_BODY = 32 * 1024 * 1024  # Four existing 5 MB assistant images, base64 encoded, plus JSON.
 _active = 0
 ADMISSION_WAIT_SECONDS = 10.0  # how long a request over access.api_concurrency waits for a place
@@ -136,7 +138,7 @@ class AuthenticatedRoute(APIRoute):
 
         async def protected(request: Request):
             global _active
-            if self.path in ("/", "/health"):
+            if self.path in PUBLIC_SHELL:
                 return await handler(request)
             person = await run_in_threadpool(identify, request)
             if person is None:

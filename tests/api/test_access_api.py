@@ -55,7 +55,7 @@ def test_every_data_and_execution_route_is_protected_before_validation(runtime):
                 yield from flattened(route.original_router.routes)
 
     protected = [route for route in flattened(app.routes)
-                 if not route.path.startswith("/auth") and route.path not in ("/", "/health")]
+                 if not route.path.startswith("/auth") and route.path not in security.PUBLIC_SHELL]
     assert len(protected) > 100
     for route in protected:
         # webhooks are authenticated by each system's shared secret instead of a session (#465), still 401 without
@@ -66,6 +66,7 @@ def test_every_data_and_execution_route_is_protected_before_validation(runtime):
             assert response.status_code == 401, (method, url, response.text)
     assert client.get("/health").status_code == 200
     assert client.head("/").status_code != 405  # Render probes the port with HEAD /
+    assert client.get("/sw.js").status_code in (200, 404)  # the offline shell's worker is public, like the page
     assert client.get("/auth/me").json()["user"] is None
 
 
