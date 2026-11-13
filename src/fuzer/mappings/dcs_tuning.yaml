@@ -1,0 +1,17 @@
+# Controller settings (#358): the DCS configuration export of each loop's PID settings, one row per change, with the
+# date the setting took effect, who changed it, why and under which change record. Each row lands as dated values
+# on the loop (proportional gain, integral time, derivative time), so a loop's settings at any date can be read back.
+# Fuzer only reads them; nothing is ever written to a controller.
+source: dcs
+record_type: controller_setting
+shape: measurements
+dataset: dcs_tuning
+key: setting_id
+measurements:
+  of: {kind: control_loop, from: loop_tag}
+  at: effective_from
+  method: {template: "{changed_by}: {reason}"}
+  values:
+    - {quantity: controller_gain, from: kc}
+    - {quantity: integral_time, from: ti_s, unit: s}
+    - {quantity: derivative_time, from: td_s, unit: s}

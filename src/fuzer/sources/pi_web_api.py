@@ -19,6 +19,7 @@ import httpx
 
 from ..core import settings
 from .connectors import LiveTable
+from .timeseries import HIGH_RATE_VALUES
 
 PAGE = 1000
 BATCH = 500
@@ -185,4 +186,14 @@ class Provider:
                                 endTime=end.isoformat() + "Z", interval=f"{step_minutes}m")["Items"]
         # digital states and bad values come back as objects; trends show numbers only
         return [(i["Timestamp"][:16], float(i["Value"])) for i in items
+                if isinstance(i.get("Value"), (int, float)) and i.get("Good", True)]
+
+    def high_rate(self, s: dict, start: datetime, end: datetime, step_seconds: int) -> list[tuple[str, float]]:
+        """Interpolated values every `step_seconds` (#358); the caller (timeseries.high_rate) bounds the window."""
+        if (wid := self._web_id(s["point"])) is None:
+            return []
+        items = self.client.get(f"streams/{wid}/interpolated", startTime=start.isoformat() + "Z",
+                                endTime=end.isoformat() + "Z", interval=f"{step_seconds}s",
+                                maxCount=HIGH_RATE_VALUES)["Items"]
+        return [(i["Timestamp"][:19], float(i["Value"])) for i in items
                 if isinstance(i.get("Value"), (int, float)) and i.get("Good", True)]

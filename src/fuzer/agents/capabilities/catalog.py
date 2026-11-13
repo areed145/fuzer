@@ -416,8 +416,9 @@ UNAVAILABLE = (
      "material balance (productivity_index, material_balance), and the as-built trajectory, completion components "
      "and depth logs come from the drilling source pack (well_depths, plot_well_trajectory)."),
     (_FIELD, "Validated operating envelopes", "Envelopes validated by the control-system owner; alarm limits and IOWs are not that."),
-    (_FIELD, "Control loop tuning", "Controller gain and reset settings and high-rate data; loops on the DCS loop list "
-     "are ranked for attention (loop_health) and checked for sticking valves (valve_stiction)."),
+    (_FIELD, "Control loop tuning suggestions", "Process model fits from step tests; loops on the DCS loop list are "
+     "ranked for attention (loop_health), checked for sticking valves (valve_stiction), and their settings, step tests "
+     "and high-rate data read (controller_settings, loop_high_rate)."),
     (_MAINT, "Vibration waveform analysis (envelope demodulation, time waveform) and machines off the spectra route",
      "Time waveforms from the condition-monitoring system; route spectra with bearing geometry are read against fault "
      "frequencies (vibration_spectra)."),

@@ -130,7 +130,10 @@ The work detectors (well tests, gas lift, quality drift, flare, loops, trips, ma
 cases rather than SRE detections) are scored by a sweep (`sweep.py`, `fuzer eval --sweep`, P3.6a). Each bundle's
 `evals/detections.yaml` says, per detector, the stretch of history to sweep and the events it should raise: a key
 fragment and the window in which a run should raise it. A detector that can't arise on the bundle's asset type says
-why (`not_here`).
+why (`not_here`). An entry may first land the next delivery in the bundle's history (`deliver`), for a detector that
+reads what it brings (a bypass register, a changed alarm limit, a lab result), and may score only some of the
+detector's work types (`types`): Okan's alarm floods each follow an injected upset, while a bad actor there is the rule
+itself applied to the DCS's alarm data.
 
 **Runs.** The detector runs as a schedule runs it, every `every_days` across the stretch (or on the dates listed
 under `at`, for a slow one), and at each event's end so a short event is never stepped over. It gets the time
@@ -144,8 +147,8 @@ falls in the event's window, and a false alarm otherwise.
 which events were missed and which raises were false. `fuzer eval --sweep` keeps each detector's scores in
 `ops_eval` as `sweep:<detector>`, which the Detection page reads, and exits 1 when one is under its floor
 (`sweep.GATES`, or the detector's own `gates` in the file, set where a false alarm is kept as found rather than
-hidden). `tests/evals/test_sweep.py` checks the cheap detectors on every change and the whole Okan sweep in the e2e
-tier.
+hidden). `tests/evals/test_sweep.py` checks Okan's cheap detectors on every change and its whole sweep (about 20 minutes)
+in the e2e tier; `test_sweep_kestrel.py` and `test_sweep_harrier.py` sweep those bundles whole on every change.
 
 ## Reading drawings
 

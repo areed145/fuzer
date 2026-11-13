@@ -6,6 +6,10 @@ ranking and the stiction check build on this. Read-only: Fuzer never writes to t
     series(conn, ref, days, until, step)    its PV, SP, OP and mode over the window, aligned
     health(conn, days, until)               every loop ranked for the controls engineer's worklist (#356): time in
                                             manual, output saturated, setpoint error and a regular oscillation
+    settings(conn, ref, at)                 its controller settings (gain, integral and derivative time), each dated,
+                                            and the ones in force at `at` (#358)
+    step_tests(conn, ref)                   the step tests on record for it (#358)
+    high_rate(conn, ref, start, end, step)  its PV, SP, OP and mode every few seconds over a bounded window (#358)
 
 The ranking is a worklist for review, not a change request: it never proposes a tuning, setpoint or mode change.
 """
@@ -135,3 +139,83 @@ def health(conn, days: int = 7, until: str | None = None, src=None) -> dict:
                      f"setpoint, at most 100) + {OSCILLATION_SCORE:g} for a regular oscillation. Flags at {MANUAL_PCT:g}% "
                      f"manual, {SATURATED_PCT:g}% saturated, {ERROR_PCT:g}% setpoint error. A worklist for review, not a "
                      "change request.")}
+
+
+SETTINGS = {"controller_gain": "kc", "integral_time": "ti_s", "derivative_time": "td_s"}
+
+
+def settings(conn, ref: str, at: str | None = None) -> dict:
+    """A loop's controller settings from the DCS configuration export, oldest first, each with the date it took effect
+    and who changed it and why; and the settings in force at `at` (default: the latest)."""
+    lp = loop(conn, ref)
+    rows = conn.execute(
+        "select record, quantity, at, value, unit, method from measurement where fuzer_id = %s and quantity = any(%s) "
+        "order by at, record", (lp["id"], list(SETTINGS))).fetchall()
+    by: dict[str, dict] = {}
+    for r in rows:
+        x = by.setdefault(r["record"], {"effective_from": r["at"].isoformat(timespec="minutes"),
+                                        "by": r["method"], "setting": r["record"].rsplit(":", 1)[-1]})
+        x[SETTINGS[r["quantity"]]] = r["value"]
+    history = sorted(by.values(), key=lambda x: x["effective_from"])
+    when = at or "9999"
+    now = [h for h in history if h["effective_from"] <= when]
+    base = {"loop": lp["loop"], "id": lp["id"], "holds": lp["holds"], "units": {"kc": "% output per % of span",
+                                                                                 "ti_s": "s", "td_s": "s"}}
+    if not history:
+        return base | {"history": [], "in_force": None,
+                       "note": "No controller settings on record for this loop: the DCS configuration export isn't "
+                               "loaded or doesn't list it."}
+    return base | {"history": history, "in_force": now[-1] if now else None, "at": at,
+                   "source": "DCS configuration export (dated settings)",
+                   "note": "Read-only: Fuzer never writes to a controller."}
+
+
+def step_tests(conn, ref: str | None = None) -> list[dict]:
+    """The step tests on record, for one loop or all: when each ran, when the output stepped and by how much."""
+    rows = conn.execute(
+        """
+        select s.fuzer_id as id, sl.label as test, jsonb_object_agg(g.field, g.value #>> '{}') as f,
+               e.dst as loop_id, ll.label as loop
+        from entity s join entity_label sl using (fuzer_id) join golden g on g.fuzer_id = s.fuzer_id
+        join edge e on e.src = s.fuzer_id and e.rel = 'tests' and e.valid_to is null
+        join entity_label ll on ll.fuzer_id = e.dst
+        where s.kind = 'step_test' and s.retired_at is null and s.merged_into is null
+        group by s.fuzer_id, sl.label, e.dst, ll.label order by sl.label
+        """).fetchall()
+    lp = loop(conn, ref) if ref else None
+    num = lambda v: float(v) if v not in (None, "") else None
+    return [{"test": r["test"], "id": r["id"], "loop": r["loop"], "loop_id": r["loop_id"], "start": r["f"].get("start"),
+             "end": r["f"].get("end"), "step_at": r["f"].get("step_at"), "op_from": num(r["f"].get("op_from")),
+             "op_to": num(r["f"].get("op_to")), "sample_s": num(r["f"].get("sample_s")), "done_by": r["f"].get("done_by"),
+             "notes": r["f"].get("notes")} for r in rows if lp is None or r["loop_id"] == lp["id"]]
+
+
+def high_rate(conn, ref: str, start: str, end: str, step_seconds: int = 1, src=None) -> dict:
+    """A loop's PV, SP, OP and mode every `step_seconds` from `start` to `end`: a bounded read (at most
+    timeseries.HIGH_RATE_SPAN and HIGH_RATE_VALUES a point), for loops too fast for the minute grid."""
+    from datetime import datetime
+
+    from ..sources import timeseries
+
+    lp = loop(conn, ref)
+    if lp["missing"]:
+        raise CalcError(f"{lp['loop']} has no {', '.join(lp['missing'])} point on the historian")
+    try:
+        a, b = datetime.fromisoformat(start), datetime.fromisoformat(end)
+        vals = {k: dict(timeseries.high_rate(p, a, b, int(step_seconds), src)) for k, p in lp["_series"].items()}
+    except ValueError as e:
+        raise CalcError(str(e)) from e
+    times = sorted(set.intersection(*(set(v) for v in vals.values())))
+    src_name = getattr(src, "name", None) if src else timeseries.provider().name
+    out = {k: v for k, v in lp.items() if k != "_series"} | {
+        "since": start, "until": end, "step_s": int(step_seconds), "times": times,
+        **{k: [vals[k][t] for t in times] for k in ROLES}, "synthetic": src_name == "synthetic",
+        "bounds": {"max_hours": timeseries.HIGH_RATE_SPAN.total_seconds() / 3600,
+                   "max_values": timeseries.HIGH_RATE_VALUES}}
+    if src_name == "synthetic":
+        out["note"] = ("The fake plant records seconds only across its step tests; elsewhere these are its 5-minute "
+                       "values interpolated, so they show nothing faster.")
+    elif not times:
+        out["note"] = "The historian returned no high-rate values for this loop over that window."
+    return out
+

@@ -79,5 +79,60 @@ detectors:
     # pumps, and 20-GT-2000B when train B was down in April 2024
     gates: {recall: 0.8, precision: 0.4}
 
-  unrecorded_changes: {not_here: "Okan's base data has no change records; the limit-change delivery is P3.6b"}
-  bypass_overdue: {not_here: "Okan's base data has no bypass register; its delivery is P3.6b"}
+  alarm_performance:
+    # Floods only: a bad actor (an alarm standing a day, or repeating) is the rule itself applied to the DCS's alarm
+    # data, with no injected event to score it against. Every flood follows an injected upset, or a routine change
+    # that set off more alarms than an operator can take (EEMUA 191: over 10 in 10 minutes), which still counts.
+    types: [alarm_flood]
+    since: "2024-01-15"
+    until: "2025-12-31"
+    every_days: 56  # about 15 s a run; each flood's day is run too
+    events:
+      - {key: "flood · 2024-03-14", from: "2024-03-14", to: "2024-03-15"}  # train B trip
+      - {key: "flood · 2024-03-29", from: "2024-03-29", to: "2024-03-31"}  # train B trip
+      - {key: "flood · 2024-04-01", from: "2024-04-01", to: "2024-04-02"}  # field shutdown
+      - {key: "flood · 2024-04-05", from: "2024-04-05", to: "2024-04-06"}  # the restart after it
+      - {key: "flood · 2024-06-11", from: "2024-06-11", to: "2024-06-12"}  # train A trips
+      - {key: "flood · 2024-07-02", from: "2024-07-02", to: "2024-07-03"}
+      - {key: "flood · 2024-07-24", from: "2024-07-24", to: "2024-07-25"}
+      - {key: "flood · 2024-11-05", from: "2024-11-05", to: "2024-11-06"}  # train C trips
+      - {key: "flood · 2024-11-09", from: "2024-11-09", to: "2024-11-10"}
+      - {key: "flood · 2025-01-14", from: "2025-01-14", to: "2025-01-15"}  # OK-NWP-G2 shut in on a hydrate
+      - {key: "flood · 2025-01-21", from: "2025-01-21", to: "2025-01-22"}
+      - {key: "flood · 2025-06-01", from: "2025-06-01", to: "2025-06-02"}  # field shutdown
+      - {key: "flood · 2025-06-24", from: "2025-06-24", to: "2025-06-25"}  # train A trips
+      - {key: "flood · 2025-07-16", from: "2025-07-16", to: "2025-07-17"}
+      - {key: "flood · 2025-11-25", from: "2025-11-25", to: "2025-11-26"}  # the HP separator's setpoint change
+
+  records_gaps:
+    # It reads the last records.lookback_days before the latest log entry, whenever it runs
+    since: "2025-12-31"
+    until: "2025-12-31"
+    events:
+      - {key: "fz-downtime", from: "2025-12-31", to: "2025-12-31"}   # 40-V-2002's trip: no log entry, no notification
+      - {key: "fz-log_entry", from: "2025-12-31", to: "2025-12-31"}  # OK-J09-02 shut in per the log: no downtime
+
+  # The entries below land the next delivery in Okan's history first; what they land stays, so they come last.
+  source_health:
+    deliver: {path: deliveries/thin-delivery, datasets: [moc_register]}
+    since: "today"
+    until: "today"
+    events:
+      - {key: "moc_register", from: "today", to: "today"}  # the change register's fill dropping on load
+
+  bypass_overdue:
+    deliver: {path: deliveries/bypass-register, datasets: [safeguard_register, safeguard_bypasses], rebuild: true}
+    since: "2024-02-12"
+    until: "2024-04-15"
+    every_days: 7
+    events:
+      - {key: "BYP-OK-014", from: "2024-02-27", to: "2024-04-15"}  # train B's vibration trip, bypassed past expiry
+
+  unrecorded_changes:
+    deliver: {path: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,
+              rebuild: true}
+    since: "today-7d"
+    until: "today"
+    every_days: 1
+    events:
+      - {key: "20VT2200B", from: "today-2d", to: "today"}  # its HH alarm changed two days ago, no change record

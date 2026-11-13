@@ -126,6 +126,7 @@ flowchart LR
   kind_purchase_order(["purchase_order"])
   kind_round_point(["round_point"])
   kind_safeguard(["safeguard"])
+  kind_step_test(["step_test"])
   kind_timeseries(["timeseries"])
   kind_vibration_spectrum(["vibration_spectrum"])
   kind_well(["well"])
@@ -137,6 +138,7 @@ flowchart LR
   src_adx --> kind_timeseries
   src_cms --> kind_vibration_spectrum
   src_dcs --> kind_control_loop
+  src_dcs --> kind_step_test
   src_drilling --> kind_completion_component
   src_ec --> kind_downtime
   src_ec --> kind_plant_hierarchy__facility__area__tag__well
@@ -294,7 +296,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `skill_version`, `work_event`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact`, `skill_version` (its `schema.sql`)
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 50, field-operations-facilities 93, hse-incident-management 50, maintenance-integrity 84, orchestrator 23, production-surveillance 80, wells-subsurface 73, work-management-supply-chain 36 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 50, field-operations-facilities 95, hse-incident-management 50, maintenance-integrity 84, orchestrator 23, production-surveillance 80, wells-subsurface 73, work-management-supply-chain 36 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals

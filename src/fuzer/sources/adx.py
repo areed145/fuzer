@@ -19,6 +19,7 @@ import httpx
 
 from ..core import settings
 from .connectors import LiveTable
+from .timeseries import HIGH_RATE_VALUES
 
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -120,3 +121,17 @@ class Provider:
             f"(datetime({start.isoformat()}) .. datetime({end.isoformat()})) "
             f"| summarize Value = avg(Value) by bin(Timestamp, {step_minutes}m) | order by Timestamp asc")
         return [(r["Timestamp"][:16], round(float(r["Value"]), 3)) for r in rows if r["Value"] is not None]
+
+    def high_rate(self, s: dict, start: datetime, end: datetime, step_seconds: int) -> list[tuple[str, float]]:
+        """Values averaged into `step_seconds` bins (#358); the caller (timeseries.high_rate) bounds the window."""
+        if not s.get("adx_series_id"):
+            return []
+        table = s.get("adx_table") or "PiValues"
+        if not IDENT.match(table):
+            raise ValueError(f"bad ADX table name {table!r}")
+        rows = self._for(s).query(
+            f"{table} | where SeriesId == {quote(s['adx_series_id'])} and Timestamp between "
+            f"(datetime({start.isoformat()}) .. datetime({end.isoformat()})) "
+            f"| summarize Value = avg(Value) by bin(Timestamp, {int(step_seconds)}s) | order by Timestamp asc "
+            f"| take {HIGH_RATE_VALUES}")
+        return [(r["Timestamp"][:19], round(float(r["Value"]), 4)) for r in rows if r["Value"] is not None]

@@ -160,3 +160,18 @@ def test_unreachable_point_is_reported_not_fatal(data):
         unit = queries.resolve_ref(conn, PACK, "10-P-1001B")
         out = values.around(conn, unit, "2024-01-01T18:00", src=Broken())
     assert out["series"] and out["errors"] and all("VT" not in s["point"] for s in out["series"])
+
+
+def test_a_high_rate_read_comes_from_pi_every_second(pi):
+    """#358: PI's interpolated values at a seconds interval, through the provider's bounded high-rate read."""
+    from datetime import datetime
+
+    p = pi_web_api.Provider(pi)
+    got = timeseries.high_rate({"point": "OKA_PP.10FIC1001.OP"}, datetime(2025, 6, 10, 10, 1, 58),
+                               datetime(2025, 6, 10, 10, 2, 2), 1, p)
+    assert got == [("2025-06-10T10:01:58", 72.0), ("2025-06-10T10:01:59", 72.0), ("2025-06-10T10:02:00", 77.0),
+                   ("2025-06-10T10:02:01", 77.0), ("2025-06-10T10:02:02", 77.0)]
+    with pytest.raises(ValueError, match="at most 6 h"):
+        timeseries.high_rate({"point": "OKA_PP.10FIC1001.OP"}, datetime(2025, 6, 10), datetime(2025, 6, 11), 30, p)
+    assert timeseries.high_rate({"point": "X"}, datetime(2025, 6, 10), datetime(2025, 6, 10, 1), 5,
+                                timeseries.NoProvider()) == []  # a provider without high-rate values reads none
