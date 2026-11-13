@@ -1,0 +1,20 @@
+# Completion components (#61): casing, liner, tubing, packers, nipples and frac stages, each between a top and a base
+# measured depth down its well. Depths are along the hole (MD); graph/positions.py gives each its true vertical depth
+# from the well's survey.
+source: drilling
+record_type: completion_component
+shape: records
+dataset: well_completions
+key: component_id
+entity:
+  kind: completion_component
+  fields:
+    - [description, component]
+    - [top_md_m, {from: top_md_m, as: number}]
+    - [base_md_m, {from: base_md_m, as: number}]
+    - [size_mm, {from: size_mm, as: number}]
+    - installed
+links:
+  - rel: part_of
+    when: well
+    to: {kind: well, from: well, as: well}

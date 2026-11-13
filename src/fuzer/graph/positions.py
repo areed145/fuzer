@@ -1,5 +1,6 @@
-"""Positions along a line (#61): pipelines locate things by station, metres from the line's start (PODS,
-in-line inspection), not by map coordinates.
+"""Positions along a line and down a hole (#61): pipelines locate things by station, metres from the line's start
+(PODS, in-line inspection), and wells by depth along the hole (MD) and true vertical depth (TVD), not by map
+coordinates.
 
 - stationing(): the station of each vertex of a line's GIS route. A route is drawn simpler than the pipe is laid,
   so map distance is scaled to the line's declared length where it has one: station 0 is the route's first point
@@ -8,8 +9,11 @@ in-line inspection), not by map coordinates.
 - build(): with the register rebuilt, each pipeline feature found on a line is linked to the segment whose station
   range holds it (`found_on`, its station in the link's props), and features and segments go on the map along their
   line's route. A feature whose station no segment holds stays on its line, and the stats count it.
+- min_curvature() / well(): a well's directional survey (CSV or WITSML stations, kept as source records) as its
+  trajectory, and its completion components by measured and true vertical depth.
 """
 
+import math
 from itertools import pairwise
 
 from psycopg.types.json import Jsonb
@@ -168,3 +172,79 @@ def along(conn, fuzer_id: str) -> dict:
         key=lambda f: _num(f["station_m"]) or 0)
     return {"line": line, "segments": segments, "features": features}
 
+
+
+# Depth positions (#61b): a well's trajectory from its directional survey, and what sits at a depth down it.
+
+def min_curvature(stations: list[tuple[float, float, float]]) -> list[dict]:
+    """(md_m, inclination_deg, azimuth_deg) survey stations, in depth order, to the hole's position at each: true
+    vertical depth below the first station and north / east of it (metres), by the minimum curvature method."""
+    out, tvd, north, east = [], 0.0, 0.0, 0.0
+    for i, (md, inc, azi) in enumerate(stations):
+        if i:
+            md0, inc0, azi0 = stations[i - 1]
+            i1, i2, a1, a2 = map(math.radians, (inc0, inc, azi0, azi))
+            cos_dl = math.cos(i2 - i1) - math.sin(i1) * math.sin(i2) * (1 - math.cos(a2 - a1))
+            dl = math.acos(max(-1.0, min(1.0, cos_dl)))
+            rf = 2 / dl * math.tan(dl / 2) if dl > 1e-9 else 1.0
+            half = (md - md0) / 2 * rf
+            north += half * (math.sin(i1) * math.cos(a1) + math.sin(i2) * math.cos(a2))
+            east += half * (math.sin(i1) * math.sin(a1) + math.sin(i2) * math.sin(a2))
+            tvd += half * (math.cos(i1) + math.cos(i2))
+            dls = math.degrees(dl) / (md - md0) * 30 if md > md0 else 0.0
+        else:
+            dls = 0.0
+        out.append({"md_m": md, "inclination_deg": inc, "azimuth_deg": azi, "tvd_m": round(tvd, 2),
+                    "north_m": round(north, 2), "east_m": round(east, 2), "dls_deg_30m": round(dls, 2)})
+    return out
+
+
+def tvd_at(trajectory: list[dict], md: float) -> float | None:
+    """True vertical depth at a measured depth, interpolated between survey stations; None below the last one."""
+    for a, b in pairwise(trajectory):
+        if a["md_m"] <= md <= b["md_m"]:
+            f = (md - a["md_m"]) / (b["md_m"] - a["md_m"]) if b["md_m"] > a["md_m"] else 0.0
+            return round(a["tvd_m"] + f * (b["tvd_m"] - a["tvd_m"]), 1)
+    return trajectory[0]["tvd_m"] if trajectory and md == trajectory[0]["md_m"] else None
+
+
+def _survey(conn, keys: set[str]) -> list[tuple[float, float, float]]:
+    rows = {}
+    for r in conn.execute("select payload from source_record where record_type = 'survey_station' "
+                          "and payload->>'well' = any(%s)", (list(keys),)):
+        p = r["payload"]
+        md, inc, azi = (_num(p.get(k)) for k in ("md_m", "inclination_deg", "azimuth_deg"))
+        if md is not None and inc is not None and azi is not None:
+            rows[md] = (md, inc, azi)
+    return [rows[k] for k in sorted(rows)]
+
+
+def well(conn, fuzer_id: str) -> dict:
+    """A well's trajectory and its completion components by depth, each with its true vertical depth."""
+    keys = {r["key"] for r in conn.execute("select key from entity_key where fuzer_id = %s", (fuzer_id,))}
+    keys |= {r["label"] for r in conn.execute("select label from entity_label where fuzer_id = %s", (fuzer_id,))}
+    trajectory = min_curvature(_survey(conn, keys)) if keys else []
+    comp_ids = [r["src"] for r in conn.execute(
+        "select src from edge where dst = %s and rel = 'part_of' and valid_to is null "
+        "and src in (select fuzer_id from entity where kind = 'completion_component')", (fuzer_id,))]
+    g: dict[str, dict] = {i: {} for i in comp_ids}
+    for r in conn.execute("select fuzer_id, field, value from golden where fuzer_id = any(%s)", (comp_ids,)):
+        g[r["fuzer_id"]][r["field"]] = r["value"]
+    labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
+        "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (comp_ids,))}
+    components = []
+    for i in comp_ids:
+        top, base = _num(g[i].get("top_md_m")), _num(g[i].get("base_md_m"))
+        components.append({"id": i, "label": labels.get(i, i), "description": g[i].get("description"),
+                           "top_md_m": top, "base_md_m": base, "size_mm": _num(g[i].get("size_mm")),
+                           "installed": g[i].get("installed"),
+                           "top_tvd_m": tvd_at(trajectory, top) if top is not None else None,
+                           "base_tvd_m": tvd_at(trajectory, base) if base is not None else None})
+    components.sort(key=lambda c: (c["top_md_m"] if c["top_md_m"] is not None else 1e9, -(c["size_mm"] or 0)))  # outer first
+    summary = {}
+    if trajectory:
+        last = trajectory[-1]
+        summary = {"td_md_m": last["md_m"], "td_tvd_m": last["tvd_m"], "max_inclination_deg": max(
+            s["inclination_deg"] for s in trajectory), "displacement_m": round(math.hypot(last["north_m"], last["east_m"]), 1),
+            "max_dls_deg_30m": max(s["dls_deg_30m"] for s in trajectory)}
+    return {"trajectory": trajectory, "components": components, "summary": summary}

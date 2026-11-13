@@ -260,6 +260,8 @@ export const exploreApi = {
       "GET", `/entities/${encodeURIComponent(id)}/spares`),
   map: () => request<GeoCollection>("GET", "/map"),
   entityMap: (id: string) => request<GeoCollection>("GET", `/entities/${encodeURIComponent(id)}/map`),
+  depths: (id: string) => request<{ trajectory: unknown[]; components: unknown[] }>(
+    "GET", `/entities/${encodeURIComponent(id)}/depths`),
   along: (id: string) => request<Along>("GET", `/entities/${encodeURIComponent(id)}/along`),
   entityDrawings: (id: string) =>
     request<{ highlight: string[]; drawings: { id: string; label: string | null; title: string | null }[] }>(
