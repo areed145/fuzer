@@ -1,0 +1,6 @@
+segment_id,line_id,name,station_from_m,station_to_m,wall_thickness_mm,grade,class_location,from_valve,to_valve
+HR-PL-001-S01,HR-PL-001,Origin pump station to MLV-101,0,38500,12.7,API 5L X65,2,origin discharge,MLV-101
+HR-PL-001-S02,HR-PL-001,MLV-101 to Battle Creek crossing (heavy wall),38500,41200,15.9,API 5L X65,3,MLV-101,MLV-102
+HR-PL-001-S03,HR-PL-001,MLV-102 to midline pump station,41200,104800,12.7,API 5L X65,1,MLV-102,midline suction
+HR-PL-001-S04,HR-PL-001,Midline pump station to MLV-103,104800,163300,12.7,API 5L X65,1,midline discharge,MLV-103
+HR-PL-001-S05,HR-PL-001,MLV-103 to terminal receiver,163300,210000,14.3,API 5L X65,2,MLV-103,terminal receiver

@@ -3,4 +3,5 @@
 # fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
 fuzer_source_pack: 1
 system: {name: gis}
-datasets: [gis_facilities, gis_pipelines, gis_wells]
+datasets: [gis_facilities, gis_pipelines, gis_wells, pods_segments]
+optional: [pods_segments]

@@ -43,6 +43,20 @@ kinds:
     group: Physical
     colour: "#4f8a8b"
     description: A pipeline or flowline between areas or facilities.
+  pipeline_segment:
+    label: Pipeline segment
+    group: Physical
+    colour: "#3f7374"
+    description: >-
+      A stretch of a pipeline between two stations (a PODS route segment, typically block valve to block valve),
+      with its own wall thickness, grade and class location.
+  pipeline_feature:
+    label: Pipeline feature
+    group: Events
+    colour: "#6aa3a4"
+    description: >-
+      Something an in-line inspection run found at a station along a line: metal loss, a dent, a weld anomaly,
+      or a fitting it used as a reference.
   well:
     label: Well
     group: Physical
@@ -206,8 +220,8 @@ relations:
     label: part of
     view: physical
     description: Containment in the physical, document or schedule hierarchy.
-    from: [area, tag, well, document_section, activity]
-    to: [facility, area, tag, well, document, activity]
+    from: [area, tag, well, document_section, activity, pipeline_segment]
+    to: [facility, area, tag, well, document, activity, pipeline]
   installed_at:
     label: installed at
     view: physical
@@ -227,6 +241,14 @@ relations:
     description: Manifolds and wells on the jacket or platform they are on; a scheduled activity and the plant it is planned on.
     from: [allocation_node, well, activity]
     to: [area, facility, tag, well]
+  found_on:
+    label: found on
+    view: physical
+    description: >-
+      A pipeline feature and the line it was found on, then the segment whose station range holds it (its station
+      in the link's props).
+    from: [pipeline_feature]
+    to: [pipeline, pipeline_segment]
   starts_at:
     label: starts at
     view: physical

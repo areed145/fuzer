@@ -11,7 +11,7 @@ flowchart LR
   app(["The app (ui/)"])
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 39 modules</small>"]
-  c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
+  c_graph["Graph and golden records<br><small>fuzer.graph, 31 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 53 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 31 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
@@ -84,6 +84,7 @@ flowchart LR
   src_ec[/"ec"/]
   src_edms[/"edms"/]
   src_gis[/"gis"/]
+  src_inspection[/"inspection"/]
   src_jde[/"jde"/]
   src_maximo[/"maximo"/]
   src_moc[/"moc"/]
@@ -113,6 +114,8 @@ flowchart LR
   kind_notification(["notification"])
   kind_permit(["permit"])
   kind_pipeline(["pipeline"])
+  kind_pipeline_feature(["pipeline_feature"])
+  kind_pipeline_segment(["pipeline_segment"])
   kind_plant_hierarchy__facility__area__tag__well(["plant hierarchy: facility, area, tag, well"])
   kind_production_day(["production_day"])
   kind_purchase_order(["purchase_order"])
@@ -133,8 +136,10 @@ flowchart LR
   src_edms --> kind_document
   src_edms --> kind_document_section
   src_gis --> kind_pipeline
+  src_gis --> kind_pipeline_segment
   src_gis --> kind_plant_hierarchy__facility__area__tag__well
   src_gis --> kind_well
+  src_inspection --> kind_pipeline_feature
   src_jde --> kind_equipment
   src_maximo --> kind_equipment
   src_moc --> kind_change
@@ -221,9 +226,9 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 
 Resolves records into one entity per real thing, links them, and answers queries over the graph. More in [identity](identity.md).
 
-- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `calibration`, `contextualized`, `criticality`, `curation`, `data_work`, `edges`, `gaps`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `placement`, `proposals`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `review`, `roles`, `spatial`, `structure`, `topology`
+- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `calibration`, `contextualized`, `criticality`, `curation`, `data_work`, `edges`, `gaps`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `placement`, `positions`, `proposals`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `review`, `roles`, `spatial`, `structure`, `topology`
 - **Uses:** core, sources
-- **Writes:** `assertion`, `crosswalk`, `edge`, `entity`, `golden`, `id_event`, `lesson`, `lesson_history`, `llm_extraction`, `match_calibration`, `match_score`, `measurement_role`, `measurement_role_pin`, `ontology_kind`, `ontology_relation`, `pinned_link`, `placement_decision`, `register_summary`, `review_item`, `review_rule`, `reviewed_value`, `source_dataset`, `source_new_record`, `steward_fix`, `steward_proposal`, `unlinked` ([schema](schema.md))
+- **Writes:** `assertion`, `crosswalk`, `edge`, `entity`, `geo_index`, `golden`, `id_event`, `lesson`, `lesson_history`, `llm_extraction`, `match_calibration`, `match_score`, `measurement_role`, `measurement_role_pin`, `ontology_kind`, `ontology_relation`, `pinned_link`, `placement_decision`, `register_summary`, `review_item`, `review_rule`, `reviewed_value`, `source_dataset`, `source_new_record`, `steward_fix`, `steward_proposal`, `unlinked` ([schema](schema.md))
 - **Owns:** `entity`, `id_event`, `crosswalk`, `entity_key`, `entity_label`, `register_summary`, `assertion`, `golden`, `edge`, `unlinked`, `placement_decision`, `review_item`, `pinned_link`, `review_rule`, `match_score`, `match_calibration`, `reviewed_value`, `source_new_record`, `knowledge_index`, `lesson`, `lesson_history`, `value_ranking`, `feedback`, `geo_index`, `measurement`, `measurement_role`, `measurement_role_pin`, `steward_fix`, `steward_proposal` (its `schema.sql`)
 - **Settings:** `stewardship.bulk_accept_at` ([settings](settings.md))
 - **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)

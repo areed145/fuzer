@@ -182,6 +182,15 @@ def entity_map(fuzer_id: str, conn=Depends(get_conn)):
     return spatial.around(conn, fuzer_id)
 
 
+@router.get("/entities/{fuzer_id}/along")
+def entity_along(fuzer_id: str, conn=Depends(get_conn)):
+    """What is along a pipeline or one of its segments, by station: its segments and the features an in-line
+    inspection found on it (#61)."""
+    from ..graph import positions
+
+    return positions.along(conn, fuzer_id)
+
+
 @router.get("/entities/{fuzer_id}/drawings")
 def entity_drawings(fuzer_id: str, conn=Depends(get_conn)):
     """The P&ID sheets that show an entity, and the entity ids to highlight on them."""
