@@ -727,14 +727,17 @@ def placements(conn, on: dict[str, str]) -> list[dict]:
     return out
 
 
-def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict], pack: Pack | None = None) -> list[tuple[str, dict]]:
+def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict], pack: Pack | None = None,
+               flows: list[dict] = ()) -> list[tuple[str, dict]]:
     """Review questions (kind pid_mismatch) where a drawing and another system disagree (#475): an alarm and trip
     table that differs from the alarms configured in the DCS and AF, or shows a setting no alarm source has, and an
     instrument the drawing shows on one item while SAP has it under another. Neither side is assumed right: the
     reviewer says which one needs changing. The subject carries the disagreement itself, so a decided question
     comes back as a new one when the values on either side change. `drawing_issues` are the limits checks'
     `drawing` issues (analysis.limits.drawing_issues). With the pack, a DEXPI sheet whose scan was read too (run with
-    twins, #63) adds a question for each tag or line one shows and the other doesn't."""
+    twins, #63) adds a question for each tag or line one shows and the other doesn't. `flows` are where the flow
+    network and the drawn piping disagree (graph.queries.network.flow_disagreements): a question each, whichever
+    side has the link."""
     docs = {r["source_key"]: r["fuzer_id"] for r in conn.execute(
         "select source_key, fuzer_id from crosswalk where source = 'pid' and record_type = 'sheet'")}
     out: list[tuple[str, dict]] = []
@@ -743,7 +746,8 @@ def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict], pack: 
         digest = hashlib.sha1(issue["detail"].encode()).hexdigest()[:12]
         # The same record shape as anything else detected (P1.1): a model read the drawing, a rule compared it
         found = Finding("drawings.compare", AGENTIC, method="A drawing read by a model, compared with "
-                        + {"placement": "the register", "twin": "its DEXPI file"}.get(check, "the configured alarms"),
+                        + {"placement": "the register", "twin": "its DEXPI file",
+                           "flow": "the flow network"}.get(check, "the configured alarms"),
                         items=(fact("Drawing", sk), fact("Tag", tag), fact("Measured on", issue.get("point")),
                                fact("Drawn on", kw.get("drawn_on")),
                                fact("Register", "; ".join(f"{'/'.join(x['sources'])} has it under {x['parent']}"
@@ -789,6 +793,26 @@ def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict], pack: 
                                              "point_id": ids.get(a)},
                     f"The DEXPI file of {sk} pipes {a} to {b} but the scan shows the flow from {b} to {a}. Which way "
                     f"does it run?")
+    drawn_on: dict[str, list[str]] = {}  # the sheets each tag is on, for a line no sheet is recorded against
+    if flows:
+        sheet_of = {v: k for k, v in docs.items()}
+        for r in conn.execute("select e.src, l.label from edge e join entity_label l on l.fuzer_id = e.dst "
+                              "where e.rel = 'mentions' and e.src = any(%s)", (list(sheet_of),)):
+            drawn_on.setdefault(r["label"], []).append(sheet_of[r["src"]])
+    for d in flows:
+        a, b = d["from"], d["to"]
+        sk = (d["sheets"] or sorted(drawn_on.get(a, [])) or sorted(drawn_on.get(b, [])) or ["the drawings"])[0]
+        system = " and ".join({"ec": "Energy Components"}.get(s, s.upper()) for s in d["systems"]) or "The flow network"
+        drawn = f"the drawings run {a} → {d['drawn']}" if d["drawn"] else f"no drawing pipes anything out of {a}"
+        if d["kind"] == "flow_only":
+            detail = (f"{system} sends {a} to {b}, but {drawn} and never reach {b}"
+                      + ("" if d["on_drawings"] else f" ({b} isn't on any drawn line)"))
+            question = f"{detail}. Which is right: add the missing line to the drawings, or change the flow link?"
+        else:
+            detail = f"{drawn}, but {system} never sends {a} to {b}"
+            question = f"{detail[0].upper()}{detail[1:]}. Which is right: add the link to the flow network, or redline the drawings?"
+        add(sk, f"{a}>{b}", "flow", {"detail": detail, "point_id": d["from_id"]}, question,
+            direction=d["kind"], **{k: d[k] for k in ("from", "to", "to_id", "drawn_path", "sheets", "systems")})
     return out
 
 

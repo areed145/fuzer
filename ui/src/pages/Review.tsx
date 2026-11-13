@@ -70,7 +70,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             ? d.decision === "reject"
               ? `Saved #${item.id}. Recorded as not a disagreement.`
               : d.value === "drawing"
-                ? `Saved #${item.id}. Recorded: ${item.payload.check === "placement" ? "SAP" : "the configured alarm"} needs changing to match ${item.payload.sheet}. Nothing was changed in either system.`
+                ? `Saved #${item.id}. Recorded: ${mismatchSystem(item.payload)} needs changing to match ${item.payload.sheet}. Nothing was changed in either system.`
                 : `Saved #${item.id}. Recorded: ${item.payload.sheet} needs a redline. Nothing was changed in either system.`
           : item.kind === "role"
             ? `Saved #${item.id}. ${item.payload.point ?? "The point"} is ${roleLabel(item.payload, d)} from now on, and stays so after rebuilds.`
@@ -587,14 +587,21 @@ function PidConnectionCard({ id, p, onDecide }: { id: number; p: PidConnectionPa
   );
 }
 
-const MISMATCH_TITLE = { alarm: "Alarm setting differs from the drawing", alarm_unset: "Drawing rates an alarm nobody configured",
-  placement: "Instrument drawn on another item" } as const;
+const MISMATCH_TITLE: Record<string, string> = { alarm: "Alarm setting differs from the drawing",
+  alarm_unset: "Drawing rates an alarm nobody configured", placement: "Instrument drawn on another item",
+  twin: "DEXPI file differs from the scan", flow: "Flow link differs from the drawings" };
+
+/** The side other than the drawing: who changes if the drawing is right. */
+const mismatchSystem = (p: PidMismatchPayload) =>
+  p.check === "placement" ? "SAP"
+    : p.check === "flow" ? (p.systems?.length ? p.systems.map((s) => s === "ec" ? "Energy Components" : s.toUpperCase()).join(" and ") : "the flow network")
+    : "the configured alarm";
 
 /** A drawing and the DCS, AF or SAP disagree (#475): which side needs changing. Recording it changes neither. */
 function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string | null; p: PidMismatchPayload; onDecide: OnDecide }) {
   const { busy, feedback, run } = useBusy(onDecide,
     "It drafts the correction for the owner of the side that is wrong. Nothing changes there until they approve it.");
-  const system = p.check === "placement" ? "SAP" : "the alarm";
+  const system = p.check === "alarm" || p.check === "alarm_unset" ? "the alarm" : mismatchSystem(p);
   return (
     <UICard className="review">
       <div className="row spread">
@@ -603,7 +610,11 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
       </div>
       <p>{p.question}</p>
       {p.returned && <p className="small returned">{p.returned.why}</p>}
-      <a className="mono small" href={entityHref(p.fuzer_id)}>{label ?? p.tag}</a>
+      {p.check === "flow" ? (
+        <span className="mono small">
+          <a href={entityHref(p.fuzer_id)}>{p.from}</a> → {p.to_id ? <a href={entityHref(p.to_id)}>{p.to}</a> : p.to}
+        </span>
+      ) : <a className="mono small" href={entityHref(p.fuzer_id)}>{label ?? p.tag}</a>}
       {p.finding ? <FindingEvidence finding={p.finding} /> : <div className="small">{p.detail}</div>}
       <div className="row">
         {p.document
@@ -613,7 +624,7 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
           Drawing is right, change {system}
         </Button>
         <Button disabled={busy} onClick={() => run({ decision: "choose", value: "system" })}>
-          {p.check === "placement" ? "SAP" : "Alarm"} is right, redline the drawing
+          {p.check === "alarm" || p.check === "alarm_unset" ? "Alarm" : system.replace(/^the /, "The ")} is right, redline the drawing
         </Button>
         <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "field" })}>Check it in the field</Button>
         <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "reject" })}>Not a disagreement</Button>

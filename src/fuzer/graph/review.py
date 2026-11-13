@@ -135,6 +135,8 @@ def _wrong(kind: str, p: dict, decision: str, value) -> dict:
     if kind == "pid_mismatch" and decision == "choose":
         if value == "system":
             return {"wrong": ["drawing"]}
+        if p.get("check") == "flow":  # the drawing is right: the flow network's system changes its link
+            return {"wrong": list(p.get("systems") or []) or ["flow network"]}
         if p.get("check") == "placement":
             return {"wrong": sorted({s for x in p.get("register") or [] for s in x.get("sources") or []})}
         return {"wrong": ["alarm configuration"]}
@@ -178,7 +180,8 @@ def group_of(kind: str, p: dict) -> tuple[str, str] | None:
         return f"match|{a}+{b}|{basis}", f"{a} and {b} records at the same tag where {basis}"
     if kind == "pid_mismatch":
         check = p.get("check") or "check"
-        what = {"placement": "placement", "twin": "what their DEXPI file shows"}.get(check, check)
+        what = {"placement": "placement", "twin": "what their DEXPI file shows",
+                "flow": "what flows where"}.get(check, check)
         return f"pid_mismatch|{check}", f"drawings that disagree on {what}"
     if kind == "pid_connection":
         return "pid_connection|all", "lines read from drawings"

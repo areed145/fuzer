@@ -146,3 +146,88 @@ def compare_networks(conn, depth: int = 6, limit: int = 100) -> dict:
             {"depth": depth, "limit": limit},
         ).fetchall()
     return {"in_ec_not_on_pids": missing("flows_to", "pipes_to"), "on_pids_not_in_ec": missing("pipes_to", "flows_to")}
+
+
+def _reach(adj: dict[str, set[str]], start: str, depth: int, stop: set[str] = frozenset()) -> list[list[str]]:
+    """Breadth-first layers downstream of `start` (start excluded); a node in `stop` is reached but not walked past."""
+    seen, layer, out = {start}, [start], []
+    for _ in range(depth):
+        nxt = sorted({b for a in layer if a == start or a not in stop for b in adj.get(a, ()) if b not in seen})
+        if not nxt:
+            break
+        seen |= set(nxt)
+        out.append(nxt)
+        layer = nxt
+    return out
+
+
+def flow_disagreements(conn, area_of, depth: int = 12) -> list[dict]:
+    """Where the flow network (flows_to, Energy Components' allocation) and the drawings' piping (pipes_to) disagree
+    inside one plant area (`area_of(label)` gives a tag's area; links between areas are pipelines, which the P&IDs
+    don't draw). Two ways:
+
+        flow_only    the flow network sends A to B, but no drawn line leads from A to B (B may be on no drawing)
+        drawn_only   a drawn line leads from A to B, both on the flow network, but the flow network never sends A to B
+
+    The flow network may skip equipment the drawings show (an allocation network goes from one metered node to the
+    next): a drawn path through other items still counts as agreeing. Each comes with the drawn path downstream of A
+    in layers, and the sheets and systems behind each side. Nothing is decided here: the drawing disagreements turn
+    these into questions (sources.llm_pids.mismatches)."""
+    rows = conn.execute(
+        """
+        select e.rel, e.src, e.dst, e.sources, e.props, ls.label as a, ld.label as b from edge e
+        join entity s on s.fuzer_id = e.src and s.kind = 'tag' and s.merged_into is null
+        join entity d on d.fuzer_id = e.dst and d.kind = 'tag' and d.merged_into is null
+        join entity_label ls on ls.fuzer_id = e.src join entity_label ld on ld.fuzer_id = e.dst
+        where e.rel in ('flows_to', 'pipes_to') and e.src <> e.dst and e.valid_to is null
+          and (e.valid_from is null or e.valid_from <= now())
+        """).fetchall()
+    flows: dict[str, set[str]] = {}
+    pipes: dict[str, set[str]] = {}
+    label, ids, sheets, systems = {}, {}, {}, {}
+    for r in rows:
+        label[r["src"]], label[r["dst"]] = r["a"], r["b"]
+        ids[r["a"]], ids[r["b"]] = r["src"], r["dst"]
+        if r["rel"] == "flows_to":
+            flows.setdefault(r["src"], set()).add(r["dst"])
+            systems[(r["src"], r["dst"])] = sorted(set(r["sources"] or []))
+        else:
+            pipes.setdefault(r["src"], set()).add(r["dst"])
+            p = r["props"] or {}
+            for x in (r["src"], r["dst"]):
+                sheets.setdefault(x, set()).update(s for s in [p.get("sheet"), p.get("pfd"), *(p.get("sheets") or [])]
+                                                   if s)
+    on_flow = set(flows) | {b for bs in flows.values() for b in bs}
+    piped = set(pipes) | {b for bs in pipes.values() for b in bs}
+    area = {x: area_of(label[x]) for x in label}
+    drawn_areas = {area[x] for x in piped if area[x]}
+    names = lambda layers: " → ".join(", ".join(label[x] for x in layer) for layer in layers)
+
+    def item(kind, a, b, path, flow_systems):
+        return {"kind": kind, "from": label[a], "to": label[b], "from_id": a, "to_id": b, "area": area[a],
+                "drawn_path": [[label[x] for x in layer] for layer in path], "drawn": names(path),
+                "on_drawings": b in piped, "sheets": sorted(sheets.get(a, set()) | sheets.get(b, set())),
+                "systems": flow_systems}
+
+    out = []
+    for a in sorted(flows, key=label.get):
+        for b in sorted(flows[a], key=label.get):
+            if not area[a] or area[a] != area[b] or area[a] not in drawn_areas:
+                continue
+            path = _reach(pipes, a, depth)
+            if b not in {x for layer in path for x in layer}:
+                out.append(item("flow_only", a, b, path, systems[(a, b)]))
+    for a in sorted(on_flow & set(pipes), key=label.get):
+        if not area[a]:
+            continue
+        fed = {x for layer in _reach(flows, a, depth) for x in layer}
+        path = _reach(pipes, a, depth, stop=on_flow)  # up to the next items on the flow network, not past them
+        for b in sorted({x for layer in path for x in layer} & on_flow, key=label.get):
+            if area[b] == area[a] and b not in fed and b != a:
+                upto = []
+                for layer in path:  # the drawn path, cut at b's layer
+                    upto.append(layer)
+                    if b in layer:
+                        break
+                out.append(item("drawn_only", a, b, upto, sorted({s for k, v in systems.items() if a in k for s in v})))
+    return out
