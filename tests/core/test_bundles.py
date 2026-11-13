@@ -2,7 +2,7 @@
 from Okan, and the pack follows the database a process connects to, not an import-time global."""
 
 import re
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -290,7 +290,7 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
         assert wells_with_series == 2
         # Its records are written relative to today, so the compressor trip is yesterday's, and the notification
         # it raised reaches the IOC's queue (#456).
-        yesterday = (plant_today() - timedelta(days=1)).isoformat()
+        yesterday = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()  # a date alone: the server's day
         trip = conn.execute("select g.value #>> '{}' as v from golden g join entity_key k using (fuzer_id) "
                             "where k.kind = 'notification' and k.key = '10004001' and g.field = 'created'").fetchone()
         assert trip["v"] == yesterday

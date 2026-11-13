@@ -3,7 +3,7 @@ built-in mapping for. The Add a source calls, with the suggested mapping accepte
 volume, energy and heating value on the plant tag or well it measures, and yesterday's compressor trip shows as a
 short day on the sales meter."""
 
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -11,7 +11,6 @@ from psycopg.conninfo import make_conninfo
 
 from fuzer.core import bundles, db, settings
 from fuzer.core import pack as packs
-from fuzer.sources.relative_dates import plant_today
 
 KESTREL = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel"
 NAME = "kestrel_measurement"
@@ -67,7 +66,7 @@ def test_gas_measurement_is_onboarded_from_the_ui(monkeypatch):
                 """)}
             for thing in ("A1-FT-1002", "C1-FT-3005", "H1-FT-8010", "KR 12-03H", "KR 12-04H"):
                 assert got[(thing, "volume")] == 60 and got[(thing, "hhv")] == 60
-            yesterday, before = (plant_today() - timedelta(days=d) for d in (1, 2))
+            yesterday, before = (date.today() - timedelta(days=d) for d in (1, 2))
             sales = {r["at"].date(): r["value"] for r in conn.execute(
                 """
                 select m.at, m.value from measurement m join entity_key k on k.fuzer_id = m.fuzer_id

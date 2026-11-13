@@ -3,7 +3,7 @@ relative to today, read as real dates; coolers reject heat to the site's own med
 serves any bundle with its own tag grammar (#457)."""
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -34,8 +34,9 @@ def test_a_csv_with_relative_dates_reads_real_ones_and_changes_its_fingerprint_d
     (tmp_path / "real.csv").write_text("id,created,text\n1,2026-11-08,Tripped today\n")
     rel, real = connectors.find(tmp_path, "rel"), connectors.find(tmp_path, "real")
     rows = list(rel.rows())
-    today = plant_today()
-    assert rows[0]["created"] == (today - timedelta(days=1)).isoformat() and rows[0]["text"] == "Tripped today"
+    today = plant_today()  # a time of day falls on the plant's date, a date alone on the server's (#866)
+    calendar = datetime.now(UTC).date()
+    assert rows[0]["created"] == (calendar - timedelta(days=1)).isoformat() and rows[0]["text"] == "Tripped today"
     assert rows[1]["created"] == f"{today} 07:00"
     assert next(iter(real.rows()))["created"] == "2026-11-08"  # real dates untouched
 
@@ -152,4 +153,17 @@ def test_a_meter_export_is_suggested_as_measurements_on_its_tags_and_wells():
     volume = next(x for x in suggest.profile(c, pack)["columns"] if x["name"] == "volume_ksm3")
     assert volume["place"] == 0  # 1426.9 is a volume, not well KR 14-26 written without its prefix (#459)
     rows = list(c.rows())
-    assert {r["gas_day"] for r in rows} >= {(plant_today() - timedelta(days=1)).isoformat()}  # relative dates too
+    assert {r["gas_day"] for r in rows} >= {(datetime.now(UTC).date() - timedelta(days=1)).isoformat()}  # relative too
+
+
+def test_between_midnight_utc_and_the_plants_midnight_a_time_of_day_is_on_the_plants_date():
+    """#866: at 00:10 UTC on 13 November it is still 12 November at a plant in Denver. `today 07:00` is the plant's
+    07:00 that has passed (the 12th), not one seven hours ahead; a date alone stays the server's day, which consumers
+    read as UTC midnight."""
+    calendar, clock = date(2026, 11, 13), date(2026, 11, 12)
+    assert relative_dates.resolve("today 07:00", (calendar, clock)) == "2026-11-12 07:00"
+    assert relative_dates.resolve("today+1dT07:00", (calendar, clock)) == "2026-11-13T07:00"
+    assert relative_dates.resolve("today+1d", (calendar, clock)) == "2026-11-14"
+    assert relative_dates.resolve_all({"a": ["today-1d", "today-1d 06:45"]}, (calendar, clock)) == {
+        "a": ["2026-11-12", "2026-11-11 06:45"]}
+    assert relative_dates.resolve("today 07:00", DAY) == "2026-11-09 07:00"  # one day given is both
