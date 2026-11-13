@@ -70,6 +70,20 @@ create table if not exists fuzer.access_area_grant (
     area       text not null,
     primary key (account_id, project, area)
 );
+-- Restricted documents (R.5, #29): a document class (its doc_type) an owner restricts to a group in one project,
+-- and the groups each account is in there. A class with no row is open to everyone who can read the project.
+create table if not exists fuzer.access_document_group (
+    project  text not null,
+    doc_type text not null,
+    grp      text not null,
+    primary key (project, doc_type)
+);
+create table if not exists fuzer.access_group_grant (
+    account_id text references fuzer.access_account(id) on delete cascade,
+    project    text not null,
+    grp        text not null,
+    primary key (account_id, project, grp)
+);
 create table if not exists fuzer.access_login (
     token_hash text primary key,
     flow jsonb not null,

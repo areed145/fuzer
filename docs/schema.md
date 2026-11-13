@@ -75,6 +75,24 @@ Area grants (R.7, D7): narrow what an account may act on in one project to areas
 | `project` | text |  |
 | `area` | text |  |
 
+### `access_document_group`
+
+Restricted documents (R.5, #29): a document class (its doc_type) an owner restricts to a group in one project, and the groups each account is in there. A class with no row is open to everyone who can read the project.
+
+| Column | Type | Note |
+|---|---|---|
+| `project` | text |  |
+| `doc_type` | text |  |
+| `grp` | text |  |
+
+### `access_group_grant`
+
+| Column | Type | Note |
+|---|---|---|
+| `account_id` | text |  |
+| `project` | text |  |
+| `grp` | text |  |
+
 ### `access_login`
 
 | Column | Type | Note |

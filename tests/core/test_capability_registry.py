@@ -29,7 +29,7 @@ def test_a_binder_sees_tools_declared_before_and_after_it(clean):
 
     assert seen == ["early", "late"]
     assert clean.REGISTRY["early"].agents == ("a", "b") and clean.REGISTRY["early"].kind == "plot"
-    assert clean.REGISTRY["late"].fn is late
+    assert clean.REGISTRY["late"].fn.__wrapped__ is late  # served guarded (R.5, #29)
 
 
 def test_bad_declarations_fail(clean):
