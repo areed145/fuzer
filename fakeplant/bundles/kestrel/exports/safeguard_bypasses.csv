@@ -1,4 +1,4 @@
 bypass_id,safeguard_id,state,bypassed_from,expires,reason,authorised_by,moc
 BYP-KR-029,SG-KR-002,removed,today-20d 07:00,today-19d 19:00,Vibration probe replaced on the compressor frame,Operations superintendent,
 BYP-KR-031,SG-KR-003,active,today-3d 08:00,today-1d 20:00,B1-LT-2005 reading high after calibration; bypassed until the instrument technician checks it,Shift supervisor,
-BYP-KR-032,SG-KR-005,active,today 07:00,today+1d 07:00,Reboiler thermocouple being replaced,Operations superintendent,MOC-KR-0142
+BYP-KR-032,SG-KR-005,active,today-1d 07:00,today+1d 07:00,Reboiler thermocouple being replaced,Operations superintendent,MOC-KR-0142

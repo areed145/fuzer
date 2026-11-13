@@ -3,6 +3,8 @@ register: the amine contactor foamed after yesterday's restart (differential pre
 the hour, sweet gas CO2 up toward its limit); the TEG reboiler has cooled about 10 degC over six weeks toward its low
 limit and the dry gas water content has crossed its 112 mg/Sm3 limit; the propane chiller holds the dew point."""
 
+from datetime import datetime, timedelta
+
 import pytest
 from test_calibration import kestrel  # noqa: F401  (the Kestrel bundle, built fresh)
 
@@ -29,7 +31,9 @@ def test_the_amine_contactor_foamed_after_the_restart(conn):
     gas = out["treated_gas"]
     assert gas["description"] == "Sweet Gas CO2" and gas["limit"] == 2.0 and 1.5 < gas["peak"] < 2.0
     assert gas["limit_basis"] == "integrity operating window IOW-KR-007" and "iow:window:IOW-KR-007>A" in out["sources"]
-    assert gas["peak_at"][:13] == out["peak_at"][:13]  # the gas went off as the column foamed
+    # the gas went off as the column foamed: the hourly dP peak and the 15-minute CO2 peak fall within the hour
+    lag = datetime.fromisoformat(gas["peak_at"]) - datetime.fromisoformat(out["peak_at"])
+    assert abs(lag) <= timedelta(hours=1)
     # the sweet gas itself is inside its window on the day: foaming is the finding, not a CO2 problem
     assert _run(conn, "treated_gas", "D1-V-4001")["flag"] is None
 
