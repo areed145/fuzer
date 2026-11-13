@@ -12,7 +12,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from ..core import db, llm, projects
 from ..core.pack import current_pack
-from ..ops import pipeline
+from ..ops import pipeline, stops
 from ..workflow import engine
 from .demo_seed import register_projects, seed
 
@@ -263,8 +263,13 @@ def main(argv: list[str] | None = None) -> None:
             with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
                 engine.load_defaults(scoped)
     stop = threading.Event()
+
+    def stopping(*_):  # recorded first, so the next instance knows the runs this stop interrupts (ops/stops.py)
+        stops.mark_stopped(home)
+        stop.set()
+
     for sig in (signal.SIGTERM, signal.SIGINT):
-        signal.signal(sig, lambda *_: stop.set())
+        signal.signal(sig, stopping)
     if args.role == "web":  # nothing here waits on the readings: the worker does them and holds its own daemon
         print("Role web: the Dagster daemon, its runs and the agent workers run on the worker service", flush=True)
         supervise(commands(added, "web"), stop)

@@ -274,7 +274,7 @@ def eval_results_md() -> str:
                 "fake plant's upsets that no rule caught, with `fuzer eval --watch`. A run passes when at least "
                 f"{watch_eval.BAR:.0%} of its proposals match an upset no rule caught.", "",
                 "| Run | Bundle | Window | Model | Upsets (uncaught) | Proposals | On what no rule caught | Precision "
-                "| Recall | Cost | Passed | Missed |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+                "| Recall | Cost | Passed | No rule caught |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in reversed(wa):
             out.append(f"| {r['date']} | {r['bundle']} | {r['since'][:10]} to {r['until'][:10]} | {r.get('model') or ''} "
                        f"| {r['upsets']} ({r['uncaught']}) | {r['proposals']} | {r['matched_uncaught']} | "

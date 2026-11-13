@@ -55,6 +55,10 @@ def save(run: dict, day: str | None = None, runs: Path = RUNS) -> Path:
     run = {"date": day or date.today().isoformat(), **run}
     window = f"-{run['since'][:10]}" if run["kind"] == "watch" else ""  # a day may score several windows
     path = runs / f"{run['date']}-{run['kind']}{'-' + run['bundle'] if run.get('bundle') else ''}{window}.json"
+    n = 2
+    while run["kind"] == "watch" and path.exists():  # a second watch run on a window the same day keeps the first
+        path = path.with_name(f"{path.stem.rsplit('~', 1)[0]}~{n}.json")
+        n += 1
     path.write_text(json.dumps(run, indent=2, default=str) + "\n")
     return path
 
