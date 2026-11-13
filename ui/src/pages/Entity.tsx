@@ -28,7 +28,8 @@ function EntityMap({ id }: { id: string }) {
   );
 }
 import { IncidentDetail, IncidentList } from "./Incidents";
-import { MeasurementsCard, TrendCard } from "../Trend";
+import { MeasurementsCard } from "../Trend";
+import { TrendView } from "../TrendView";
 import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
 import { WatchButton } from "../Watch";
@@ -185,7 +186,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
               <p className="section-text">{fmt(e.golden.text?.value)}</p>
             </UICard>
           )}
-          {e.kind === "timeseries" && <TrendCard id={fid} />}
+          {e.kind === "timeseries" && <TrendView id={fid} />}
           {MAINTAINED.includes(e.kind) && (
             <><IncidentsCard id={fid} />
             <Related about={{ subject: fid }} incidents={false} /></>
@@ -206,7 +207,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
       {view === "trends" && (
         <>
-          {(e.edge_counts["out:has_timeseries"] ?? 0) > 0 && <TrendCard id={fid} direct />}
+          <TrendView id={fid} />
           <MeasurementsCard id={fid} />
           {["pipeline", "pipeline_segment"].includes(e.kind) && <AlongCard id={fid} />}
           {e.kind === "well" && <DepthCard id={fid} />}
