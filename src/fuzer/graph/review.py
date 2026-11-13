@@ -178,7 +178,8 @@ def group_of(kind: str, p: dict) -> tuple[str, str] | None:
         return f"match|{a}+{b}|{basis}", f"{a} and {b} records at the same tag where {basis}"
     if kind == "pid_mismatch":
         check = p.get("check") or "check"
-        return f"pid_mismatch|{check}", f"drawings that disagree on {'placement' if check == 'placement' else check}"
+        what = {"placement": "placement", "twin": "what their DEXPI file shows"}.get(check, check)
+        return f"pid_mismatch|{check}", f"drawings that disagree on {what}"
     if kind == "pid_connection":
         return "pid_connection|all", "lines read from drawings"
     return None

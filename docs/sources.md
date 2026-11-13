@@ -499,7 +499,11 @@ drawing reader returns connections read off scans; both become directional
 manifest entry names the file (`"dexpi": "pid/<sheet>.xml"`) and the sheet's area, and the reader takes the tags
 (equipment, piping components, instrumentation functions), positions and line numbers, and turns each piping
 segment into hops between tagged items: a nozzle stands for its equipment, an off-page connector for the item it
-names. Kestrel's flare and sales metering sheet ships this way. The Network page switches between the two, flow traces can
+names. Kestrel's flare and sales metering sheet ships this way. When a DEXPI sheet's drawing is there too, its
+scanned twin can be read (`fuzer llm-link --source pids --twins`, #63) and compared with the exact file
+(`dexpi.compare`): each tag or line one shows and the other doesn't, and each line the scan shows the wrong way round,
+becomes a "drawing disagrees" question on Master data. The twin's reading is kept apart (`pid_twin`), so it never adds
+links over the exact file's. The Network page switches between the two, flow traces can
 follow either, and a comparison lists EC flows with no piping path on the P&IDs
 and piping between EC nodes with no EC flow path (API and a Dagster check).
 

@@ -109,6 +109,7 @@ have the configured LLM read operator logs and scanned P&IDs, then rebuild
 | `--model` | model id (default: the setting llm.model) |
 | `--effort` (low / medium / high / xhigh / max) |  |
 | `--per-request` | log entries per request |
+| `--twins` | pids: read the scans of sheets that also come as DEXPI, to compare with the exact file |
 | `--workers` | parallel requests |
 | `--batch` | use the Batches API: half price, results within ~1 hour |
 | `--force` | re-read entries that already have a result |
