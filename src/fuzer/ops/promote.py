@@ -11,9 +11,9 @@ draft and publishes it. From then on the rule catches the pattern, and the watch
 - `draft(conn, pattern, ...)`: once `watch.promote_after` proposals of a pattern are confirmed, a rule is drafted. Points
   of that role on that class, whose average over `minutes` moves past `z` of the week before's spread, in that
   direction. The threshold is 0.8 of the smallest confirmed shift, and the duration half the shortest (30 minutes at
-  least), so the rule catches every example it was fitted on with some margin. With the bundle's process model, the
-  draft is scored on replay over the period given: recall over the kinds of event its examples matched, and precision
-  and false alarms a week as the replay counts them.
+  least), so the rule catches every example it was fitted on with some margin. The draft is scored by the scorer
+  given (on a bundle, `watch_eval.rule_scorer` replays it): recall over the kinds of event its examples matched, and
+  precision and false alarms a week as the replay counts them.
 - `publish(conn, rule_id, by)`: a person, never an agent (D8), publishes a draft. Published rules run as the
   `promoted_rules` window detector, through the SRE scan like any other.
 
@@ -23,7 +23,6 @@ catches the pattern, nothing about it is asked and nothing is spent.
 
 import json
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import numpy as np
 
@@ -148,10 +147,9 @@ def fit(examples: list[dict]) -> dict:
             "minutes": max(MIN_MINUTES, (min(mins) // 2 // STEP) * STEP if mins else MIN_MINUTES)}
 
 
-def draft(conn, pattern: str, by: str = "agent:watch", pack=None, data_dir=None, replay: tuple[str, str] | None = None,
-          src=None) -> dict:
-    """Draft a rule for a pattern with enough confirmed proposals, scored on replay over `replay` (since, until) when
-    `data_dir` holds the bundle's process model."""
+def draft(conn, pattern: str, by: str = "agent:watch", scorer=None) -> dict:
+    """Draft a rule for a pattern with enough confirmed proposals, scored by `scorer(spec, kinds)` when given (on a
+    bundle's replay: `watch_eval.rule_scorer`)."""
     p = next((x for x in patterns(conn) if x["pattern"] == pattern), None)
     if not p:
         raise PromoteError(f"no confirmed proposal has the pattern {pattern!r}")
@@ -164,29 +162,12 @@ def draft(conn, pattern: str, by: str = "agent:watch", pack=None, data_dir=None,
         (p["proposals"],))]
     spec = {"role": p["role"], "class": p["class"], "direction": p["direction"], **fit(ex),
             "baseline_days": BASELINE_DAYS, "cadence": "6h"}
-    score = None
-    if data_dir and replay and (Path(data_dir) / "process_model.json").is_file():
-        score = replay_score(conn, pack, spec, replay, data_dir, {e["event_kind"] for e in ex if e["event_kind"]}, src)
+    score = scorer(spec, {e["event_kind"] for e in ex if e["event_kind"]}) if scorer else None
     row = conn.execute(
         "insert into promoted_rule (pattern, spec, examples, score, drafted_by) values (%s, %s, %s, %s, %s) returning *",
         (pattern, json.dumps(spec), json.dumps(ex, default=str), json.dumps(score) if score else None, by)).fetchone()
     conn.commit()
     return dict(row)
-
-
-def replay_score(conn, pack, spec: dict, window: tuple[str, str], data_dir, kinds: set[str], src=None) -> dict:
-    """The rule on the bundle's replay over `window`: recall over the event kinds its examples matched (all upsets
-    when none is known), precision and false alarms a week."""
-    from ..evals import replay
-
-    fn = lambda conn, pack, a, b, src: [d | {"detector": "promoted_rules"} for d in apply(conn, spec, a, b, src)]
-    fn.__name__ = "promoted_rule"
-    res = replay.run(conn, pack, fn, window[0], window[1], data_dir=data_dir, src=src, learn_days=None)
-    by = {k: v for k, v in res["by_kind"].items() if not kinds or k in kinds}
-    events, found = sum(v["events"] for v in by.values()), sum(v["detected"] for v in by.values())
-    return {"since": window[0], "until": window[1], "kinds": sorted(kinds), "events": events, "detected": found,
-            "recall": round(found / events, 3) if events else None, "precision": res["precision"],
-            "false_alarms_per_week": res["false_alarms_per_week"], "detections": res["detections"]}
 
 
 def publish(conn, rule_id: int, by: str, reason: str | None = None) -> dict:

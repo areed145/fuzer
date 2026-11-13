@@ -185,3 +185,27 @@ def judge(conn, data_dir, since: str, until: str, by: str = "replay") -> dict:
         promote.confirm(conn, p["id"], hit is not None, by, event_kind=hit["kind"] if hit else None)
         (confirmed if hit else rejected).append(p["id"])
     return {"confirmed": confirmed, "rejected": rejected}
+
+
+def rule_score(conn, pack, spec: dict, window: tuple[str, str], data_dir, kinds: set[str], src=None) -> dict:
+    """A promoted rule (P3.4) on the bundle's replay over `window`: recall over the event kinds its examples matched
+    (all upsets when none is known), precision and false alarms a week."""
+    from ..ops import promote
+
+    def fn(conn, pack, a, b, src):
+        return [d | {"detector": "promoted_rules"} for d in promote.apply(conn, spec, a, b, src)]
+
+    fn.__name__ = "promoted_rule"
+    res = replay.run(conn, pack, fn, window[0], window[1], data_dir=data_dir, src=src, learn_days=None)
+    by = {k: v for k, v in res["by_kind"].items() if not kinds or k in kinds}
+    events, found = sum(v["events"] for v in by.values()), sum(v["detected"] for v in by.values())
+    return {"since": window[0], "until": window[1], "kinds": sorted(kinds), "events": events, "detected": found,
+            "recall": round(found / events, 3) if events else None, "precision": res["precision"],
+            "false_alarms_per_week": res["false_alarms_per_week"], "detections": res["detections"]}
+
+
+def rule_scorer(conn, pack, data_dir, window: tuple[str, str], src=None):
+    """What `promote.draft` takes to score a draft on the bundle's replay over `window`; None without a process model."""
+    if not data_dir or not (Path(data_dir) / "process_model.json").is_file():
+        return None
+    return lambda spec, kinds: rule_score(conn, pack, spec, window, data_dir, kinds, src)

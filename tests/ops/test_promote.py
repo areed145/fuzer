@@ -62,7 +62,7 @@ def test_a_confirmed_pattern_becomes_a_published_rule_and_the_watch_stops_spendi
         assert p["confirmed"] == 3 and p["ready"] and p["rule"] is None and p["smallest_z"] > 5
 
         # the watch drafts a rule, fitted on the three and scored on the held-out trip
-        rule = promote.draft(conn, PATTERN, pack=PACK, data_dir=okan_data, replay=HELD_OUT)
+        rule = promote.draft(conn, PATTERN, scorer=watch_eval.rule_scorer(conn, PACK, okan_data, HELD_OUT))
         spec, score = rule["spec"], rule["score"]
         assert (spec["role"], spec["class"], spec["direction"]) == ("discharge_temperature", "CO", "high")
         assert spec["z"] < p["smallest_z"] and spec["minutes"] >= promote.MIN_MINUTES
