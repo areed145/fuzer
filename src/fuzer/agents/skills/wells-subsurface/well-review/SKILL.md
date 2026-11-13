@@ -9,6 +9,11 @@ Separate what the records show from what they only suggest. Each finding carries
 
 1. **Identity.** `get_entity(well)` gives the well, its sidetracks and links. Check which sidetrack the records
    belong to before you trend them; `record_history(ref)` shows whether its source records changed.
+
+   **By depth.** `well_depths(well)` gives the trajectory (TD by MD and TVD, inclination, worst dogleg), each
+   completion component's top and base by MD and TVD, and the depth logs' median reading over each component;
+   `plot_well_trajectory(well)` draws it. Quote depths with their basis (MD, or TVD below the tie-in) and name the
+   records (survey format, log file). Where it says nothing is loaded, the completion is unknown, not absent.
 2. **Tests and trends.** `well_performance(ref=well)` gives the test history and `measurements(ref)` adds wellhead
    lab samples. `detect_changes(ref)` dates steps and drifts on the well's PI points. Say when the latest test was;
    a stale test is a finding, not a current rate. `calc("test_check", well)` says whether the latest test is
@@ -30,5 +35,6 @@ Separate what the records show from what they only suggest. Each finding carries
    evidence that is missing. `cluster_entities("wells")` finds peers to compare with.
 
 **Not known here.** Reservoir pressure, drive, connectivity and completion design are unknown unless a source
-records them. Offer a reservoir explanation only as a question for the subsurface engineer. Whether to intervene is
+records them. The as-built completion and logs are records; what the completion was designed to do, cement quality
+and what a log means (lithology, net pay) are not. Offer a reservoir explanation only as a question for the subsurface engineer. Whether to intervene is
 theirs and the intervention specialist's to decide.

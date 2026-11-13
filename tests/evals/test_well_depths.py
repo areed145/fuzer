@@ -121,3 +121,18 @@ def test_a_witsml_2_trajectory_reads_as_the_same_stations_as_its_1_4_1_twin(tmp_
     assert {w for w, _, _ in new} == {"KR 12-04H"} and new[0][2]["format"] == "witsml 2.0"
     assert [(p["md_m"], p["inclination_deg"], p["azimuth_deg"]) for _, _, p in new] == \
         [(p["md_m"], p["inclination_deg"], p["azimuth_deg"]) for p in old]
+
+
+def test_the_wells_agent_reads_a_well_by_depth_with_the_records_it_rests_on(kestrel_db):
+    conn = kestrel_db
+    b = positions.brief(conn, _id(conn, "KR 12-03H"))
+    assert b["found"] and b["summary"]["td_md_m"] == 4600
+    assert b["sources"]["log_files"] == ["well_logs/KR12-03H_lwd.las"] and list(b["sources"]["survey_stations"]) == ["csv"]
+    stages = [c for c in b["components"] if c["component"].startswith("frac stage")]
+    assert len(stages) == 5 and all(c["log_median"]["GR"] < 60 for c in stages)  # the stages are in the sand
+    casing = next(c for c in b["components"] if c["component"] == "surface casing")
+    assert casing["log_median"]["GR"] > 90  # the log starts at 600 m, in the shale at the casing shoe
+    assert "samples" in b["logs"][0] and "values" not in b["logs"][0]  # the agent gets no arrays
+    south = positions.brief(conn, _id(conn, "KR 12-04H"))
+    assert south["found"] and list(south["sources"]["survey_stations"]) == ["witsml 1.4.1"]
+    assert "log_median" not in south["components"][0]

@@ -51,3 +51,17 @@ def test_the_mcp_server_binds_every_declared_tool():
     assert {"claim_work", "draft_work_item"} <= set(registry.REGISTRY)
     assert all(set(c.agents) <= set(capabilities.AGENTS) for c in registry.REGISTRY.values())
     assert mcp_server.claim_work is registry.REGISTRY["claim_work"].fn
+
+
+def test_the_local_mcp_and_cli_assistant_answer_as_the_account_given_or_as_no_one():
+    from fuzer import cli
+
+    try:
+        cli._serve_as(None)
+        assert registry._served_as == registry.ANONYMOUS
+        cli._serve_as("abc")
+        assert registry._served_as == "user:abc"
+        cli._serve_as("user:abc")
+        assert registry._served_as == "user:abc"
+    finally:
+        registry.serve_as(None)
