@@ -98,6 +98,9 @@ export interface DrawingMark {
   y?: number;
   id?: string | null;
   confidence?: number;
+  /** Another drawing this reading names (an off-page connector's "TO …"), and its document to open. */
+  sheet?: string;
+  sheet_id?: string;
 }
 
 export interface Drawing {
@@ -114,7 +117,7 @@ export interface Drawing {
   findings: { text: string; kind: string; issue: string }[];
   /** Lines leaving or entering the sheet (#475): confirmed when the other sheet shows them too. */
   offpage?: { direction: "to" | "from"; sheet: string; tag: string | null; other: string | null; line: string;
-    status: "confirmed" | "one_sided" | "unread"; sheet_id: string | null }[];
+    status: "confirmed" | "one_sided" | "unread"; sheet_id: string | null; x?: number; y?: number }[];
   /** Instrument loops read from bubbles and signal lines: transmitter, controller, final element. */
   loops?: { members: string[] }[];
   /** Data tables on the sheet (equipment data, alarm and trip settings), as read (#475). */

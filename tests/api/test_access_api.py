@@ -67,6 +67,8 @@ def test_every_data_and_execution_route_is_protected_before_validation(runtime):
     assert client.get("/health").status_code == 200
     assert client.head("/").status_code != 405  # Render probes the port with HEAD /
     assert client.get("/sw.js").status_code in (200, 404)  # the offline shell's worker is public, like the page
+    for icon in security.ROOT_ICONS:  # the icons a phone asks for at the root on its own
+        assert client.get(icon).status_code in (200, 404) and client.head(icon).status_code in (200, 404)
     assert client.get("/auth/me").json()["user"] is None
 
 

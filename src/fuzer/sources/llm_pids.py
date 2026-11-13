@@ -76,7 +76,8 @@ Also report the topology:
   aren't in `via`). A line that only crosses another (drawn with or without a jump) is not connected to it.
 - offpage: each off-page connector (an arrow-shaped box at the sheet edge reading TO or FROM another
   drawing number): direction "to" or "from", the drawing number, the tag on this sheet the line comes
-  from or goes to, the tag written in the connector (the item on the other sheet), and the line number.
+  from or goes to, the tag written in the connector (the item on the other sheet), the line number, and the
+  tile and the centre of the connector box within that tile as x and y, as for tags.
 - loops: each instrument loop joined by signal lines (dashed, or dashed with small circles for software
   links): its members in order, transmitter, controller, final element, e.g. LT-2001, LIC-2001, LV-2001.
 
@@ -127,9 +128,11 @@ SCHEMA = {
                            "via": {"type": "array", "items": {"type": "string"}}, "stream": {"type": "string"}},
         }},
         "offpage": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False, "required": ["direction", "sheet", "tag", "other", "line"],
+            "type": "object", "additionalProperties": False,
+            "required": ["direction", "sheet", "tag", "other", "line", "tile", "x", "y"],
             "properties": {"direction": {"type": "string", "enum": ["to", "from"]}, "sheet": {"type": "string"},
-                           "tag": {"type": "string"}, "other": {"type": "string"}, "line": {"type": "string"}},
+                           "tag": {"type": "string"}, "other": {"type": "string"}, "line": {"type": "string"},
+                           "tile": {"type": "integer"}, "x": {"type": "number"}, "y": {"type": "number"}},
         }},
         "loops": {"type": "array", "items": {
             "type": "object", "additionalProperties": False, "required": ["members"],
@@ -464,7 +467,7 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
         here, there = key(o["tag"]), pack.tags.parse(o["other"] or "", default_area=pack.tags.area_in(o["sheet"] or ""))
         offpage.append({"direction": o["direction"], "sheet": (o["sheet"] or "").replace(" ", "").upper(),
                         "tag": here, "other": there, "line": o["line"], "text": o["tag"],
-                        "registered": here in known_tags and there in known_tags})
+                        "registered": here in known_tags and there in known_tags, **at(o)})
     loops = []
     for lp in data.get("loops", []):
         members = [key(m) or m for m in lp["members"]]

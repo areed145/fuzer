@@ -27,8 +27,14 @@ class FakeVision:
     def topology(sheet, truth):
         """Lines, off-page ends and loops as drawn; on OKAN-20-PID-006 (train C) it misses the off-page end, so
         the inlet separator's line to train C is shown by one sheet only."""
-        offpage = [{k: o[k] for k in ("direction", "sheet", "tag", "other", "line")} for o in truth["offpage"]
-                   if sheet != "OKAN-20-PID-006"]
+        boxes = llm_pids.tile_boxes(*truth["size"])
+
+        def at(x, y):  # a sheet point as Claude gives it: a tile and pixels within it (tiles here aren't shrunk)
+            tile = next(i for i, b in enumerate(boxes, 1) if b[0] <= x < b[2] and b[1] <= y < b[3])
+            return {"tile": tile, "x": x - boxes[tile - 1][0], "y": y - boxes[tile - 1][1]}
+
+        offpage = [{**{k: o[k] for k in ("direction", "sheet", "tag", "other", "line")}, **at(o["x"], o["y"])}
+                   for o in truth["offpage"] if sheet != "OKAN-20-PID-006"]
         return {"connections": [{"from": c["from"], "to": c["to"], "line": c["line"], "via": c["via"], "stream": ""}
                                 for c in truth["connections"] if c.get("to") and not c.get("offpage")],
                 "offpage": offpage, "loops": [{"members": lp["members"]} for lp in truth["loops"]],
@@ -166,12 +172,25 @@ def test_drawing_endpoint_places_readings(setup, read):
     # train B's line from the inlet separator: both sheets show it, and the viewer can open the other sheet
     [end] = d["offpage"]
     assert end["status"] == "confirmed" and end["sheet"] == "OKAN-20-PID-003" and end["sheet_id"]
+    placed = next(o for o in truth[SHEET]["offpage"] if o["sheet"] == end["sheet"])
+    assert abs(end["x"] - placed["x"]) <= 1 and abs(end["y"] - placed["y"]) <= 1  # the connector, to tap on the sheet
     assert d["loops"] and all(len(lp["members"]) >= 2 for lp in d["loops"])
 
     smart = conn.execute("select c.fuzer_id from crosswalk c join source_record r using (source, record_type, source_key) "
                          "where c.source = 'pid' and r.payload->>'format' = 'smart' limit 1").fetchone()["fuzer_id"]
     s = client.get(f"/documents/{smart}/drawing").json()
     assert s["read_by"] == "smart file" and s["marks"] and all("x" in m for m in s["marks"])
+
+
+def test_a_reading_that_names_another_sheet_opens_it():
+    from fuzer.graph.queries.documents import _sheet_links
+
+    marks = [{"text": "TO OKAN-20-PID-004", "status": "not_a_tag", "x": 1, "y": 2},
+             {"text": "OKAN 20 PID 003", "status": "not_a_tag"},  # this sheet's own number isn't a link
+             {"text": "20-V-2001", "status": "linked", "id": "fz-tag-1"}]
+    _sheet_links(marks, {"OKAN-20-PID-004": "fz-doc-4", "OKAN-20-PID-003": "fz-doc-3"}, "OKAN-20-PID-003")
+    assert marks[0]["sheet_id"] == "fz-doc-4" and marks[0]["sheet"] == "OKAN-20-PID-004"
+    assert "sheet_id" not in marks[1] and "sheet_id" not in marks[2]
 
 
 def test_drawings_for_an_entity(setup, read):

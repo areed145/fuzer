@@ -18,7 +18,11 @@ from ..core import access, db, settings
 current: ContextVar[access.Principal | None] = ContextVar("fuzer_http_principal", default=None)
 mutating: ContextVar[bool] = ContextVar("fuzer_http_mutating", default=False)
 # The shell is public: the page, its offline worker (P5.14d) and health. Everything else needs a session.
-PUBLIC_SHELL = ("/", "/sw.js", "/health")
+# The icons iPhones and browsers ask for at the root on their own: public like the page they belong to.
+ROOT_ICONS = ("/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png",
+              "/apple-touch-icon-180x180.png", "/apple-touch-icon-180x180-precomposed.png",
+              "/apple-touch-icon-120x120.png", "/apple-touch-icon-120x120-precomposed.png")
+PUBLIC_SHELL = ("/", "/sw.js", "/health", *ROOT_ICONS)
 MAX_BODY = 32 * 1024 * 1024  # Four existing 5 MB assistant images, base64 encoded, plus JSON.
 _active = 0
 ADMISSION_WAIT_SECONDS = 10.0  # how long a request over access.api_concurrency waits for a place

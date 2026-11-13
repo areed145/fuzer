@@ -6130,3 +6130,96 @@ test("P5.14 quirks from a real phone: a tap on the map opens one label, the laye
   });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
 });
+
+test("P5.14 a P&ID on the whole screen: zoom, pan, a tap opens a tag, connected sheets go through, Back and Close", async () => {
+  await context.close();
+  context = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
+  const doc = (n) => `fz-document-00000000000${n}`;
+  const drawing = (n, extra) => ({ sheet: `OKAN-20-PID-00${n}`, format: "image",
+    title: "AREA 20 - OK_GGCP INLET SEPARATION AND LIFT GAS COMPRESSION AND DEHYDRATION", read_by: "claude",
+    image: `/documents/${doc(n)}/image`, width: 2000, height: 1400, connections: [], findings: [], ...extra });
+  const sheets = {
+    [doc(3)]: drawing(3, {
+      marks: [{ text: "20-V-2001", key: "20-V-2001", status: "linked", x: 500, y: 600, id: "fz-tag-000000000001" },
+              { text: "TO OKAN-20-PID-004", status: "not_a_tag", x: 1880, y: 300, sheet: "OKAN-20-PID-004", sheet_id: doc(4) }],
+      offpage: [{ direction: "to", sheet: "OKAN-20-PID-004", tag: "20-V-2001", other: "20-K-2200A", line: '12"-P-2001',
+                  status: "confirmed", sheet_id: doc(4), x: 1880, y: 340 }] }),
+    [doc(4)]: drawing(4, { marks: [], offpage: [{ direction: "from", sheet: "OKAN-20-PID-003", tag: "20-K-2200A",
+      other: "20-V-2001", line: '12"-P-2001', status: "confirmed", sheet_id: doc(3) }] }),
+  };
+  await page.route("**/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png|webmanifest)$/.test(path)) return route.continue();
+    const m = path.match(/^\/documents\/([^/]+)\/(drawing|image)$/);
+    if (m && m[2] === "image") return route.fulfill({ status: 200, contentType: "image/png", body: Buffer.alloc(0) });
+    if (m) return route.fulfill({ json: sheets[m[1]] });
+    if (path === `/entities/${doc(3)}`) return route.fulfill({ json: { fuzer_id: doc(3), kind: "document",
+      label: "OKAN-20-PID-003", golden: {}, values: {}, keys: [], edges: [], edge_counts: {},
+      records: [{ source: "pid", record_type: "sheet", source_key: "OKAN-20-PID-003", method: "singleton", confidence: 1 }] } });
+    if (path.endsWith("/map")) return route.fulfill({ json: { features: [], focus: null } });
+    const fixtures = { "/auth/me": { mode: "local", configured: true, user: null }, "/demo/config": { enabled: true },
+      "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
+      "/jobs/health": { available: false, level: "unknown", summary: "" } };
+    await route.fulfill({ json: fixtures[path] ?? [] });
+  });
+  await page.goto(`${url}/#/e/${doc(3)}`);
+  await page.getByAltText("P&ID OKAN-20-PID-003").waitFor();
+  // the card's long title and source wrap inside the screen, and its connected sheet is a link
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
+  assert.equal(await page.locator(".drawing-links a").first().getAttribute("href"), `#/e/${doc(4)}`);
+
+  await page.getByRole("button", { name: "Full screen" }).click();
+  const full = page.getByRole("dialog", { name: "P&ID OKAN-20-PID-003" });
+  await full.waitFor();
+  assert.match(page.url(), new RegExp(`drawing=${doc(3)}`));
+  const sheet = full.locator(".drawing-full-sheet");
+  const scale = () => sheet.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a);
+  const fit = await scale();
+  assert.ok(Math.abs(fit - 390 / 2000) < 0.01, `fitted to the screen width: ${fit}`);
+  assert.equal(await full.getByRole("button", { name: "Fit" }).getAttribute("aria-pressed"), "true");
+
+  // a pinch (two pointers moving apart) zooms in; Fit comes back to the whole sheet
+  const stage = full.locator(".drawing-full-stage");
+  await stage.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const cy = r.top + r.height / 2, cx = r.left + r.width / 2;
+    const fire = (type, id, x) => el.dispatchEvent(new PointerEvent(type, { pointerId: id, clientX: x, clientY: cy, bubbles: true, pointerType: "touch" }));
+    fire("pointerdown", 1, cx - 20); fire("pointerdown", 2, cx + 20);
+    for (let d = 20; d <= 80; d += 10) { fire("pointermove", 1, cx - d); fire("pointermove", 2, cx + d); }
+    fire("pointerup", 1, cx - 80); fire("pointerup", 2, cx + 80);
+  });
+  assert.ok(await scale() > fit * 3, "pinched in");
+  assert.equal(await full.getByRole("button", { name: "Fit" }).getAttribute("aria-pressed"), "false");
+  await full.getByRole("button", { name: "Fit" }).click();
+  assert.ok(Math.abs(await scale() - fit) < 0.001);
+  await full.getByRole("button", { name: "Zoom in" }).click();
+  assert.ok(await scale() > fit * 1.3);
+  await full.getByRole("button", { name: "Fit" }).click();
+
+  // a tap on a tag says what it is and opens it
+  await full.locator("[data-mark='0']").tap();
+  await full.getByRole("link", { name: "Open 20-V-2001" }).waitFor();
+  assert.equal(await full.getByRole("link", { name: "Open 20-V-2001" }).getAttribute("href"), "#/e/fz-tag-000000000001");
+  await full.getByRole("button", { name: "Dismiss" }).click();
+
+  // the off-page connector goes through to the next sheet, here
+  await full.locator("[data-off='0']").tap();
+  await full.getByRole("button", { name: "Go to OKAN-20-PID-004" }).click();
+  await page.getByRole("dialog", { name: "P&ID OKAN-20-PID-004" }).waitFor();
+  // and that sheet's own connector leads back; Back returns to the sheet before
+  await page.getByRole("navigation", { name: "Connected sheets" }).getByRole("button", { name: /OKAN-20-PID-003/ }).waitFor();
+  await page.goBack();
+  await page.getByRole("dialog", { name: "P&ID OKAN-20-PID-003" }).waitFor();
+  await page.goForward();
+  await page.getByRole("dialog", { name: "P&ID OKAN-20-PID-004" }).waitFor();
+
+  // Close leaves the drawings for the page they were opened from, past every sheet followed
+  await page.getByRole("button", { name: "Close drawing" }).click();
+  await page.waitForFunction(() => !location.hash.includes("drawing="));
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  assert.equal(new URL(page.url()).hash, `#/e/${doc(3)}`);
+  await page.getByAltText("P&ID OKAN-20-PID-003").waitFor();
+  assert.deepEqual(errors, []);
+});

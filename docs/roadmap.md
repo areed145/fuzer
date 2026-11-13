@@ -82,6 +82,13 @@ the way back to the job is lost. One epic in the work and UI lane makes the inst
 |---|---|---|
 | P5.14 The installed app on a phone | A web manifest and icons so it installs standalone. An in-app Back that walks the app's own history and, with nothing behind it, goes up to the page's owner, never out of the app; a cold launch resumes the last page. A bottom bar within thumb reach on a phone. Going back keeps scroll, tab and filters. The shell and the kept jobs open without signal, links land on the right page, and a page can be shared. | Installed on iOS and Android it opens standalone. Back returns through the pages visited and never leaves the app; a cold launch resumes. Home, My work, Explore and Investigate are one tap away at the bottom with targets of 44 px or more. Back to a list restores its place. With no signal it opens to My work with the kept jobs. A browser test walks a dispatched job at 390 px in standalone display and back again. |
 
+Drawings on a phone (P5.14f): a P&ID opens on the whole screen from its card (or a tap on the sheet), with pinch and
+wheel zoom, drag to pan, double-tap, Fit, and Find for the ringed item. A tap on a tag says what it is and opens it. An
+off-page connector, or a reading that names another sheet, goes through to that sheet in the viewer, and Back returns
+to the one before. New readings place each off-page connector on the sheet; older ones take the place where the other
+sheet's number was read. The home-screen icon is in the page itself, since iOS saves a linked icon by fetching it
+again and got a letter tile.
+
 ## How the work is tracked
 
 | Thing | How |
