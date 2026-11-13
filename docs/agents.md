@@ -163,6 +163,15 @@ no exception and no case come from it. Each run has a spend cap (`watch.max_usd`
 areas. With no model provider configured the watch is off and says so, and nothing else changes. Live mode, where a
 proposal becomes an agentic finding that always goes to a person for triage, is wave 5.
 
+`evals/watch_eval.py` (P3.3b) scores it in shadow on a fake plant's history. The SRE scan runs over the period first,
+so the watch sees what the rules found, then the watch reads it a day at a time. Each injected upset is caught if a
+detection or an exception landed on one of its units within it, and uncaught otherwise. A proposal matches an upset
+when what it names or cites is on one of the upset's units and its time overlaps. The scores per bundle are the share
+of proposals matching an uncaught upset (the bar is half), precision (matching any upset), recall over the uncaught
+upsets and the share fully cited. They are kept in `ops_eval` as `shadow:watch` and shown on the Detection page. CI
+tests the wiring with a scripted model; a live score needs a provider key and is run by hand with
+`fuzer eval --watch --since ... --until ...`.
+
 ## Views and agent tools
 
 **Charts:**
