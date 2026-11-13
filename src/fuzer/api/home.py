@@ -23,6 +23,16 @@ def root():
         {"detail": "The web UI is not built. The deployment owner must build ui before serving Fuzer."}, status_code=503)
 
 
+@router.get("/sw.js", include_in_schema=False)
+def service_worker():
+    """The installed app's offline shell (P5.14d): part of the shell, so public like "/". Served from the root so it can
+    look after the whole app, and never cached, so a new build's worker is picked up on the next visit."""
+    worker = UI_DIST / "sw.js"
+    if not worker.exists():
+        return JSONResponse({"detail": "The web UI is not built."}, status_code=404)
+    return FileResponse(worker, media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
+
 @router.get("/health")
 def health():
     try:

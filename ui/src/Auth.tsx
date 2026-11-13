@@ -6,7 +6,24 @@ import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
 import { useRoute } from "./lib";
 import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader } from "./ui";
+import { unreachable } from "./fieldOffline";
 import "./styles/auth.css";
+
+/** The last admitted session, kept on the phone (P5.14d) so the installed app still opens with no signal, to the jobs
+ * and outbox kept there (P5.3c). It grants nothing: the server checks every request when the signal returns, the CSRF
+ * token is never kept, and it's dropped when the server says the session has ended or isn't admitted. */
+const KEPT = "fuzer.session.kept";
+type Kept = AuthSession & { kept_at: string };
+function keep(session: AuthSession | null) {
+  try {
+    if (session) localStorage.setItem(KEPT, JSON.stringify({ ...session, user: session.user && { ...session.user, csrf: "" },
+      kept_at: new Date().toISOString() }));
+    else localStorage.removeItem(KEPT);
+  } catch { /* private mode */ }
+}
+function kept(): Kept | null {
+  try { return JSON.parse(localStorage.getItem(KEPT) ?? "null") as Kept | null; } catch { return null; }
+}
 
 const AuthContext = createContext<AuthSession | null>(null);
 export const useAuth = () => useContext(AuthContext);
@@ -27,6 +44,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [setupCode, setSetupCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  /** When the server can't be reached and the app runs on the session kept at this time. */
+  const [offline, setOffline] = useState("");
   const reload = () => { setChecking(true); setRevision((value) => value + 1); };
   useEffect(() => {
     let active = true;
@@ -34,13 +53,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (!active) return;
       setCsrf(value.user?.csrf ?? "");
       if (value.mode === "microsoft") setTrustedPerson(value.user?.actor ?? "");
-      setSession(value); setError(""); setEnded(false);
-    }).catch((failure: Error) => { if (active) setError(failure.message); })
+      setSession(value); setError(""); setEnded(false); setOffline("");
+      const admits = value.mode === "local" || !!value.user?.enabled && (value.user.owner || value.user.permissions.includes("read"));
+      keep(admits ? value : null);
+    }).catch((failure: Error) => {
+      if (!active) return;
+      const last = unreachable(failure) ? kept() : null;
+      if (last) { setSession(last); setError(""); setOffline(last.kept_at); }
+      else setError(failure.message);
+    })
       .finally(() => { if (active) setChecking(false); });
     return () => { active = false; };
   }, [revision]);
   useEffect(() => {
     const expired = () => {
+      keep(null);
       setSession(null);
       setCsrf("");
       setEnded(true);
@@ -48,11 +75,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
     };
     window.addEventListener("fuzer:unauthorized", expired);
     window.addEventListener("fuzer:access-changed", reload);
+    window.addEventListener("online", reload);  // the signal is back: check the session with the server again
     const refresh = () => { if (document.visibilityState === "visible") reload(); };
     document.addEventListener("visibilitychange", refresh);
     return () => {
       window.removeEventListener("fuzer:unauthorized", expired);
       window.removeEventListener("fuzer:access-changed", reload);
+      window.removeEventListener("online", reload);
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
@@ -76,6 +105,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <AuthContext.Provider value={session}>
       {error && <div role="alert" className="notice">Access could not be refreshed: {error}{" "}
         <Button onClick={reload}>Reload access</Button></div>}
+      {offline && <div role="status" className="notice offline-notice">No signal. Showing what this phone kept; reports wait
+        in the outbox and send when the signal returns.{" "}<Button onClick={reload} disabled={checking}>{checking ? "Checking..." : "Try again"}</Button></div>}
       {children}
     </AuthContext.Provider>;
   }

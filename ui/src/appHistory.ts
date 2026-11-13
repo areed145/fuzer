@@ -11,12 +11,58 @@
 import { useEffect, useState } from "react";
 
 const KEY = "fzDepth";
+const ENTRY = "fzKey";
+const SCROLLS = "fuzer.scrolls";
 const LAST = "fuzer.lastRoute";
 /** A cold launch older than this starts at Home, not on yesterday's page. */
 const RESUME_MS = 12 * 60 * 60 * 1000;
 
 let depth = 0;
 let length = 0;
+let entry = "";
+/** Where each history entry was scrolled to, so Back lands where the operator left the list (P5.14c). */
+const scrolls = new Map<string, number>(readScrolls());
+
+function readScrolls(): [string, number][] {
+  try { return JSON.parse(sessionStorage.getItem(SCROLLS) ?? "[]"); } catch { return []; }
+}
+let saving = 0;
+function writeScrolls() {
+  window.clearTimeout(saving);
+  try { sessionStorage.setItem(SCROLLS, JSON.stringify([...scrolls].slice(-50))); } catch { /* private mode */ }
+}
+function saveScrolls() {
+  window.clearTimeout(saving);
+  saving = window.setTimeout(writeScrolls, 300);
+}
+const newKey = () => Math.random().toString(36).slice(2, 10);
+const stateKey = (): string | undefined => {
+  const value = (history.state as Record<string, unknown> | null)?.[ENTRY];
+  return typeof value === "string" ? value : undefined;
+};
+
+let restoring = 0;
+/** Scroll back to where an entry was left. The page draws its data a moment later, so keep at it until it holds, for up
+ * to two seconds, and stop as soon as the operator touches or scrolls the page themselves. */
+function restore(y: number) {
+  window.cancelAnimationFrame(restoring);
+  const until = performance.now() + 2000;
+  let stop = false;
+  const cancel = () => { stop = true; };
+  window.addEventListener("touchstart", cancel, { once: true, passive: true });
+  window.addEventListener("wheel", cancel, { once: true, passive: true });
+  window.addEventListener("keydown", cancel, { once: true });
+  // Held until it has stayed there for half a second: the page's data arriving above the fold can shift it again.
+  let settled = 0;
+  const step = () => {
+    if (stop) return;
+    if (Math.abs(window.scrollY - y) > 2) { window.scrollTo(0, y); settled = 0; }
+    else if (!settled) settled = performance.now();
+    const now = performance.now();
+    if (now < until && (!settled || now - settled < 500)) restoring = window.requestAnimationFrame(step);
+  };
+  step();
+}
 const listeners = new Set<() => void>();
 
 const stateDepth = (): number | undefined => {
@@ -24,10 +70,11 @@ const stateDepth = (): number | undefined => {
   return typeof value === "number" ? value : undefined;
 };
 
-function record(next: number) {
+function record(next: number, key: string) {
   depth = next;
   length = history.length;
-  history.replaceState({ ...(history.state as object | null), [KEY]: next }, "");
+  entry = key;
+  history.replaceState({ ...(history.state as object | null), [KEY]: next, [ENTRY]: key }, "");
 }
 
 /** Installed on the home screen and opened from there (standalone display), not in a browser tab. */
@@ -48,6 +95,8 @@ function remember() {
  * Home with no route of its own. */
 export function resumeRoute(now = Date.now()): string | undefined {
   if (!installed() || (location.hash && location.hash !== "#/" && location.hash !== "#")) return undefined;
+  // With no signal, open to My work, which reads the jobs kept on the phone (P5.14d); other pages need the server.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return "#/inbox";
   try {
     const last = JSON.parse(localStorage.getItem(LAST) ?? "null") as { hash?: string; at?: number } | null;
     if (!last?.hash || !last.hash.startsWith("#/") || last.hash === "#/" || !last.at || now - last.at > RESUME_MS) return undefined;
@@ -59,11 +108,28 @@ export function resumeRoute(now = Date.now()): string | undefined {
 
 function onChange() {
   const known = stateDepth();
+  // The page being left is still drawn: note where it was, before its scroll event (which may be a frame behind) is
+  // credited to the next entry.
+  const leaving = entry;
+  const left = window.scrollY;
   if (known !== undefined) {
-    depth = known;  // back, forward, or a page that kept the state it had
+    // Back, forward, or a page that kept the state it had: return to where that entry was left.
+    depth = known;
     length = history.length;
+    const key = stateKey() ?? newKey();
+    if (key !== entry) {
+      scrolls.set(leaving, left);
+      entry = key;
+      restore(scrolls.get(key) ?? 0);
+    }
+  } else if (history.length > length) {
+    // A new page opens at its top, not at the scroll the last page was left at.
+    scrolls.set(leaving, left);
+    record(depth + 1, newKey());
+    window.cancelAnimationFrame(restoring);
+    window.scrollTo(0, 0);
   } else {
-    record(history.length > length ? depth + 1 : depth);
+    record(depth, entry || newKey());  // a redirect or a filter rewriting the link: same entry, same place
   }
   remember();
   listeners.forEach((listener) => listener());
@@ -74,7 +140,12 @@ let started = false;
 export function startAppHistory(): boolean {
   if (started) return false;
   started = true;
-  record(stateDepth() ?? 0);
+  try { history.scrollRestoration = "manual"; } catch { /* older browsers */ }
+  record(stateDepth() ?? 0, stateKey() ?? newKey());
+  window.addEventListener("scroll", () => { scrolls.set(entry, window.scrollY); saveScrolls(); }, { passive: true });
+  // Leaving or reloading, or the phone putting the app in the background: keep the place now, not in 300 ms.
+  window.addEventListener("pagehide", writeScrolls);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") writeScrolls(); });
   window.addEventListener("hashchange", onChange);
   window.addEventListener("popstate", onChange);
   document.documentElement.classList.toggle("installed", installed());
@@ -84,6 +155,9 @@ export function startAppHistory(): boolean {
     return true;
   }
   remember();
+  // A reload keeps the entry: put the page back where it was.
+  const y = scrolls.get(entry);
+  if (y) restore(y);
   return false;
 }
 

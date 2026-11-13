@@ -20,7 +20,8 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server?.kill("SIGTERM"); });
 beforeEach(async () => {
-  context = await browser.newContext();
+  // The offline worker (P5.14d) would answer page loads before the fixtures below can; its own test turns it on.
+  context = await browser.newContext({ serviceWorkers: "block" });
   page = await context.newPage();
   errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -5952,4 +5953,110 @@ test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away
 
   await page.setViewportSize({ width: 1280, height: 844 });
   await bar.waitFor({ state: "hidden" });  // the sidebar does this job on a wide screen
+});
+
+test("P5.14c Back returns to where the list was left, with its filter, and the installed app can refresh", async () => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+  // A long page, as a real list on a phone is.
+  await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { document.body.style.minHeight = "5000px"; }));
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  await page.route("**/entities/fz-pump/map", route => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/fz-pump", route => route.fulfill({ json: { fuzer_id: "fz-pump", kind: "equipment",
+    label: "Export pump P-101", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const filter = page.getByRole("textbox", { name: "Filter my work by case or step" });
+  await filter.waitFor();
+  const entries = await page.evaluate(() => history.length);
+  await filter.fill("pump");
+  await page.waitForFunction(() => location.hash === "#/inbox?q=pump", null, { timeout: 3000 }).catch(() => assert.fail("the filter is in the link"));
+  assert.equal(await page.evaluate(() => history.length), entries, "typing doesn't add history steps");
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await page.waitForFunction(() => window.scrollY === 1500);
+
+  // A new page opens at its top; Back returns to the list where it was left, filtered as it was.
+  await page.evaluate(() => { location.hash = "#/e/fz-pump"; });
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  assert.equal(await page.evaluate(() => window.scrollY), 0);
+  await page.locator(".topbar").getByRole("button", { name: "Back", exact: true }).click();
+  await page.waitForURL(/#\/inbox\?q=pump$/);
+  assert.equal(await filter.inputValue(), "pump");
+  await page.waitForFunction(() => window.scrollY === 1500, null, { timeout: 3000 }).catch(() => assert.fail("scroll restored"));
+
+  // No reload button in the installed app, so the bar has one: it reloads this page, in place.
+  const refresh = page.locator(".topbar").getByRole("button", { name: "Refresh this page", exact: true });
+  assert.ok((await refresh.boundingBox()).height >= 44);
+  // Pressed in place (a pointer click would first scroll the button into view and move the page).
+  await Promise.all([page.waitForEvent("load"), refresh.evaluate((button) => button.click())]);
+  assert.match(page.url(), /#\/inbox\?q=pump$/);
+  await page.waitForFunction(() => window.scrollY === 1500, null, { timeout: 3000 }).catch(() => assert.fail("scroll kept over a reload"));
+});
+
+test("P5.14c In a browser tab the browser's own reload is there, so the bar draws none", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/browse`);
+  await page.locator(".topbar").waitFor();
+  assert.equal(await page.locator(".topbar .refresh-button").isVisible(), false);
+});
+
+test("P5.14d With no signal the installed app opens to My work with the kept jobs, and a page's link can be shared", async () => {
+  // A context of its own, with the offline worker allowed and the clipboard readable.
+  await context.close();
+  context = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+  page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
+  let offline = false;
+  const job = { id: 7, type: "leak", key: "walk-9", title: "Leak at P-101", source: "olga", state: "open", priority: null,
+    value_usd: null, subjects: [], unmatched: [], item_id: 31, case_state: "open", assignee: "fred", role: null, raised_count: 1,
+    first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", label: "Leak", due: null, task_id: null, task_name: null,
+    assets: [], finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+      end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null }, history: [], field: [], queued: false, sent: { by: "ann", at: "2026-11-08T07:05:00Z", reason: "check the gland" } };
+  const fixtures = {
+    "/auth/me": { mode: "local", configured: true, user: null },
+    "/work/inbox": { person: "fred", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 1 }, queue: { total: 0 } } },
+    "/exceptions/field": { person: "fred", jobs: [job], coming_up: [] },
+    "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
+    "/demo/config": { enabled: true }, "/jobs/health": { available: false, level: "unknown", summary: "" },
+  };
+  // On the context, so requests the worker passes on are answered by the fixtures too.
+  await context.route("**/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || path === "/sw.js" || /\.(svg|png|webmanifest)$/.test(path)) {
+      return offline ? route.abort("internetdisconnected") : route.continue();
+    }
+    if (offline) return route.abort("internetdisconnected");
+    await route.fulfill({ json: fixtures[path] ?? [] });
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "standalone", { value: true });
+    Object.defineProperty(navigator, "share", { value: undefined });  // a phone that can't share: the link is copied
+    localStorage.setItem("fuzer.reviewer", "fred");
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // With signal: the job loads and is kept, and the worker keeps the app itself.
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout: 10_000 });
+
+  // The share button copies this page's link, since there's no address bar to copy it from.
+  await page.locator(".topbar").getByRole("button", { name: "Share a link to this page", exact: true }).click();
+  await page.locator(".share-status").filter({ hasText: "Link copied" }).waitFor();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), `${url}/#/inbox`);
+
+  // No signal, and the phone discarded the app: a cold launch still opens, to My work and the kept job.
+  offline = true;
+  await context.setOffline(true);
+  await page.goto(`${url}/`, { waitUntil: "commit" });
+  await page.waitForFunction(() => location.hash === "#/inbox");
+  await page.getByRole("status").filter({ hasText: "No signal" }).waitFor();
+  await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
+  assert.equal(await page.getByRole("heading", { name: "Sign-in could not be checked" }).count(), 0);
+
+  // The signal returns: the session is checked with the server again and the notice goes.
+  offline = false;
+  await context.setOffline(false);
+  await page.getByRole("status").filter({ hasText: "No signal" }).waitFor({ state: "detached", timeout: 10_000 });
 });
