@@ -1,6 +1,7 @@
-.analytics-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 8px 0; }
-.analytics-summary dt { font-size: .8rem; color: var(--muted); }
-.analytics-summary dd { margin: 0; font-size: 1.25rem; font-weight: 600; }
+.analytics-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 8px 0 12px; }
+.analytics-summary > div { background: var(--tile); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.analytics-summary dt { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.analytics-summary dd { margin: 4px 0 0; font-size: 1.25rem; font-weight: 650; line-height: 1.15; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .analytics-summary small { font-size: .8rem; font-weight: 400; }
 .analytics-warnings { margin: 1rem 0; font-size: .85rem; color: var(--muted); }
 .analytics-warnings ul { margin: .4rem 0 0; padding-left: 1.25rem; }

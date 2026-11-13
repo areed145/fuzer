@@ -1730,7 +1730,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-child").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
   await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
   await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
@@ -2656,6 +2656,8 @@ test("Home shows each server-built figure in its own card, with its tables on re
   const first = charts.locator(".home-card").filter({ has: page.getByRole("heading", { name: "Production efficiency", exact: true }) });
   await page.waitForFunction(() => document.querySelector(".home-charts .js-plotly-plot")?._fullLayout?.xaxis);
   await first.getByText("Coverage is not verified.").waitFor();
+  // Notes and the source are one click away; data warnings stay on the card.
+  await first.getByRole("button", { name: "Notes and source" }).click();
   await first.getByText("Unknown values are gaps, never zero.").waitFor();
   // No carousel: no slide controls, and both charts are on the page together.
   assert.equal(await page.getByRole("button", { name: /^(Previous|Next) chart$/ }).count(), 0);

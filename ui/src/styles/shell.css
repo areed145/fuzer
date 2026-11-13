@@ -2,11 +2,12 @@
 /* App shell: a sidebar (a drawer with a top bar below 900px) and the page. Nav data lives in nav.tsx. */
 .app { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh;
   /* The sidebar column keeps its panel colour and edge the whole height of a long page, not just the first screen (#395). */
-  background: linear-gradient(to right, var(--panel) 0 219px, var(--line) 219px 220px, transparent 220px); }
+  background: linear-gradient(to right, var(--rail) 0 220px, transparent 220px); }
 .sidebar {
   position: sticky; top: 0; z-index: 1101; height: 100vh; overflow-y: auto;
   display: flex; flex-direction: column; gap: 10px;
-  padding: 14px 12px; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 14px 12px; background: var(--rail); color: var(--rail-text);
+  --brand-ink: #ffffff; --brand-word: #ffffff; --brand-hub: #3fc6d4;
 }
 .brand { display: inline-flex; align-items: center; color: var(--text); padding: 2px 8px 6px; }
 .brand:hover { text-decoration: none; }
@@ -18,16 +19,20 @@
 }
 .nav-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .nav-group a {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 3px 8px; border-radius: 6px; color: var(--text); font-weight: 500;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px; color: var(--rail-text); font-weight: 500;
 }
-.nav-group a:hover { background: var(--bg); text-decoration: none; }
-.nav-group a.on { background: var(--accent-soft); color: var(--accent); }
+.nav-group a .nav-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nav-group a .count { margin-left: auto; }
+.nav-group a:hover { background: var(--rail-hover); text-decoration: none; }
+.nav-group a.on { background: var(--rail-on); color: #ffffff; }
+.sidebar a:focus-visible { outline-color: #ffffff; }
 .nav-group.admin { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
 .sidebar a:focus-visible, .menu-button:focus-visible, .crumbs a:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 1px;
 }
-.sidebar-status { display: grid; gap: 6px; padding: 10px 8px 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.sidebar-status { display: grid; gap: 6px; padding: 10px 8px 0; border-top: 1px solid var(--rail-line); font-size: 12px; color: var(--rail-text);
+  --text: #ffffff; --muted: var(--rail-text); --panel: var(--rail-hover); --line: var(--rail-line); --accent: #7fdde6; }
 .sidebar-status .facts { display: flex; flex-wrap: wrap; column-gap: 8px; }
 .sidebar-status .facts strong { flex-basis: 100%; }
 .sidebar-status .facts strong { color: var(--text); font-weight: 600; }
