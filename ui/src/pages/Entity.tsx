@@ -645,12 +645,12 @@ function IncidentsCard({ id }: { id: string }) {
   const d = useAsync(() => api.incidents(id), [id]);
   if (!d.data?.total) return null;
   return (
-    <section>
+    <UICard as="section">
       <h2>
         Incidents <span className="muted small">{d.data.total.toLocaleString()}</span>
       </h2>
       <IncidentList items={d.data.items.slice(0, 8)} />
-    </section>
+    </UICard>
   );
 }
 

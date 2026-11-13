@@ -8,4 +8,5 @@ ul.timeline .when { font-family: var(--mono); font-size: 12px; color: var(--mute
 ul.timeline .what { display: flex; flex-direction: column; gap: 4px; }
 .badge.event-type { color: var(--danger); text-transform: capitalize; }
 .repeats-table td > .ui-disclosure { display: inline-block; margin-left: 8px; vertical-align: top; }
-.more-incidents, .once-units { margin: 4px 0 16px; }
+.more-incidents { margin: 4px 0 0; }
+.once-units { margin: 4px 0 16px; }
