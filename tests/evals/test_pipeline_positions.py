@@ -15,7 +15,7 @@ def test_ili_features_link_to_the_right_segment_and_station(harrier_db):
     line = _id(conn, "HR-PL-001")
     out = positions.along(conn, line)
     assert [s["label"] for s in out["segments"]] == [f"HR-PL-001-S0{i}" for i in range(1, 6)]
-    where = {f["label"]: (f["segment"], f["station_m"]) for f in out["features"]}
+    where = {f["label"]: (f["segment"], f["station_m"]) for f in out["features"] if f["run_id"] == "RUN-2024-MFL"}
     seg = {s["id"]: s["label"] for s in out["segments"]}
     expect = {"ILI-24-0007": "S01", "ILI-24-0031": "S02", "ILI-24-0032": "S02", "ILI-24-0058": "S03",
               "ILI-24-0071": "S03", "ILI-24-0072": "S04", "ILI-24-0094": "S04", "ILI-24-0118": "S05"}
@@ -27,7 +27,7 @@ def test_ili_features_link_to_the_right_segment_and_station(harrier_db):
     assert edge["props"]["station_m"] == 38912.3
     # a segment shows only its own features
     assert [f["label"] for f in positions.along(conn, _id(conn, "HR-PL-001-S02"))["features"]] == [
-        "ILI-24-0031", "ILI-24-0032"]
+        "ILI-24-0031", "ILI-26-0029", "ILI-24-0032", "ILI-26-0030"]  # both runs (#366), in station order
 
 
 def test_features_and_segments_are_placed_along_the_route_by_station(harrier_db):
@@ -53,4 +53,4 @@ def test_a_feature_on_a_line_the_register_doesnt_know_is_kept(harrier_db):
     # the source's link coverage counts it, where the data steward reads it
     stats = conn.execute("select stats from source_match_stat where source = 'inspection' order by id desc limit 1"
                          ).fetchone()["stats"]
-    assert stats["coverage"]["by_rel"]["found_on"] == [8, 9]
+    assert stats["coverage"]["by_rel"]["found_on"] == [17, 18]  # two runs on the mainline (#366), one stray

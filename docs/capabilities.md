@@ -215,7 +215,7 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Production & Surveillance | 80 |
 | Wells & Subsurface | 71 |
 | Field Operations & Facilities | 88 |
-| Maintenance & Integrity | 78 |
+| Maintenance & Integrity | 80 |
 | Work Management & Supply Chain | 36 |
 | HSE & Incident Management | 50 |
 | Asset Performance & Reporting | 50 |
@@ -392,7 +392,7 @@ Used by every agent or by several specialists.
 | `detections` | query | since?, detector?, limit? | What the SRE's scheduled scans found in the process data (#96), newest first: the point and unit, detector (excursions outside limits, unit stops, steps, drifts, bad instruments, equipment against its curve), what it found (key), start and end (null = still going) and evidence. |
 | `plot_instrument_health` | plot | ref, since?, until? | Chart a point's or a unit's readings with the stretches instrument_health flags shaded (noisy, frozen or stuck, out of range, apart from its redundant twin). |
 
-## Maintenance & Integrity (4)
+## Maintenance & Integrity (6)
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
@@ -400,6 +400,8 @@ Used by every agent or by several specialists.
 | `plot_wall_thickness` | plot | ref?, kind?, min_required_mm? | Chart wall thickness: with ref, each CML on that vessel / piping / pipeline over time with loss rates (and retirement dates if min_required_mm is given); without ref, the items losing wall fastest across the asset (kind narrows to pipelines or tags). |
 | `plot_reliability` | plot | ref, method? | Chart reliability from failure notifications on a unit or an equipment class: a Weibull plot of times between failures (beta, eta), or Crow-AMSAA cumulative failures (beta > 1: speeding up). |
 | `plot_peers` | plot | ref | Chart the units of one equipment class (or a unit's class) by failures per year, outliers marked. |
+| `ili_anomalies` | calc | line? | In-line inspection anomalies (#366) per line, or one line: each run, and each metal loss anomaly of the latest run matched to the previous run by type and station (within 1.5 m), with its growth (% of wall and mm a year), its modified ASME B31G remaining strength against the MOP (ERF = MOP over the safe pressure at the class location's design factor) now and at its growth rate 5 years on, and the screen (exceeds_now, exceeds_within_5_years at ERF 1 or 80 % of wall, no_strength, within_screen). |
+| `plot_ili_anomalies` | plot | line? | Chart ILI metal loss depth along a line for each run, the anomalies crossing the screen ringed. |
 
 ## HSE & Incident Management (1)
 
