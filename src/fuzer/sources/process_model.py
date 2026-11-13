@@ -410,8 +410,12 @@ class Window:
             return self.lag(load * u.get("rpm", 14950) * (1 + 0.003 * self.noise(unit + "n", 20)), 5)
         if var == "exhaust_temperature":
             return self.lag(self.ambient() + load * (u.get("exhaust", 485) - 30 + 0.4 * (self.ambient() - 27)), 25)
-        if var == "power":  # kW the compressors take: the train's load on the driver's duty share of ISO output
-            return load * u.get("duty", 0.86) * u.get("iso_kw", 5670.0) * (1 + 0.01 * self.noise(unit + "kw", 20))
+        if var == "power":  # kW the compressors take: the driver's duty share of ISO output at the train's load and
+            share = np.ones_like(self.t)  # its share of the inlet gas, never under what its stages recycle to hold
+            for e in self.ev(u["train"], "share"):  # their control line
+                share = share * self.path(e["points"], 1.0)
+            share = np.maximum(share, 0.62 * 1.1)
+            return load * share * u.get("duty", 0.57) * u.get("iso_kw", 5670.0) * (1 + 0.01 * self.noise(unit + "kw", 20))
         if var == "lube_pressure":  # barg at the lube oil header: the pumps run while it turns; a plugging filter
             plug = sum((self.path(e["points"]) for e in self.ev(unit, "lube_filter")), np.zeros_like(self.t))
             return u.get("lube_pressure", 2.6) - plug + 0.02 * self.noise(unit + "lp", 10)

@@ -7,10 +7,9 @@ import pytest
 
 from fakeplant import calibration, process
 
-# Found by these checks and not fixed yet: the compressor maps' design heads and the gas turbines' duty were set to
-# close a power balance on heads about 1.5 times what the stages do, and Fuzer's Schultz efficiency on an ideal k
-# reads the 1st stage's heavier gas about 0.04 high. A fix should take its entry out of here.
-OPEN = {"stage_head", "train_power_closure", "fuzer_efficiency 20-K-2100A"}
+# Found by these checks and not fixed yet: Fuzer's Schultz efficiency on an ideal k reads the 1st stage's heavier gas
+# about 0.04 high. A fix should take its entry out of here.
+OPEN = {"fuzer_efficiency 20-K-2100A"}
 
 
 @pytest.fixture(scope="module")
@@ -35,6 +34,11 @@ def test_compressor_discharge_temperatures_are_a_centrifugal_stages_efficiency_o
     eff = [c for c in report["checks"] if c["check"] == "stage_efficiency"]
     assert len(eff) == 3 and all(c["ok"] and 0.75 <= c["physics"] <= 0.79 for c in eff), eff
     assert all(_ok(report, f"fuzer_z_{end}").values() for end in ("suction", "discharge"))
+
+
+def test_compressor_maps_and_gas_turbines_match_the_head_the_stages_do(report):
+    heads, power = _ok(report, "stage_head"), _ok(report, "train_power_closure")
+    assert len(heads) >= 3 and all(heads.values()) and len(power) == 3 and all(power.values())
 
 
 def test_gas_producers_flow_into_their_header_above_their_hydrate_temperature(report):

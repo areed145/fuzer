@@ -273,7 +273,7 @@ def surge(conn, fid: str, days: int = 30, until: str | None = None, recent_days:
     (recycling), polytropic head against the map at the same flow and speed, and the same stage on the other trains
     (load sharing). Flags `near_surge` when the 5th percentile margin of the last week is under 5 %, `recycling`
     when the valve is open more than 30 % of the running time."""
-    from . import equipment
+    from . import compression, equipment
 
     tag = _tag(conn, fid)
     c = _stage_map(conn, tag)
@@ -300,14 +300,17 @@ def surge(conn, fid: str, days: int = 30, until: str | None = None, recent_days:
     for t, qq, sp, a in rows:
         daily.setdefault(t[:10], []).append((qq / float(_surge_flow(c, sp / rated * 100)) - 1) * 100)
     head = None
-    try:  # head from the stage's pressures and temperatures, against the map at the same flow and speed
-        perf = equipment.compressor_performance(conn, tag, days=days, until=until, src=src)
-        mh = _map_head(c, float(np.median(q)), float(np.median(speed)))
-        if mh:
-            head = {"data_kj_kg": perf["head_kj_kg"], "map_kj_kg": round(mh, 1),
-                    "vs_map_pct": round((perf["head_kj_kg"] / mh - 1) * 100, 1)}
-    except CalcError:
-        pass
+    mh = _map_head(c, float(np.median(q)), float(np.median(speed)))
+    # head from the stage's pressures and temperatures against the map at the same flow and speed: on the gas
+    # analysis's real-gas properties, else on an ideal gas
+    for how, fn in (("real", compression.gas_performance), ("ideal", equipment.compressor_performance)):
+        try:
+            h = fn(conn, tag, days=days, until=until, src=src)["head_kj_kg"] if mh else None
+        except CalcError:
+            continue
+        if h:
+            head = {"data_kj_kg": h, "map_kj_kg": round(mh, 1), "vs_map_pct": round((h / mh - 1) * 100, 1), "gas": how}
+        break
     siblings = []
     from ..graph import structure
 
