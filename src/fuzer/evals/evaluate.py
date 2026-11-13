@@ -229,7 +229,8 @@ CITE = re.compile(r"fz-[a-z_]+-[0-9a-f]{12}|\b(?:notification|work order|order|l
 def _mentions(text: str, want: str | list[str]) -> bool:
     """want (or any of its alternatives) in text, ignoring case and ³ / 3."""
     norm = text.lower().replace("³", "3")
-    return any(w.lower().replace("³", "3") in norm for w in ([want] if isinstance(want, str) else want))
+    alternatives = want if isinstance(want, list) else [want]  # a key may list a number (112, -15) beside words
+    return any(str(w).lower().replace("³", "3") in norm for w in alternatives)
 
 
 FIGURE = re.compile(r"\[\[figure:(f_[0-9a-f]+)\]\]")

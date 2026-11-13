@@ -389,12 +389,19 @@ def _stored(conn, key: str, p: str | None) -> dict:
         return {}
 
 
+# Hosts that reserve a variable's usual name (some strip ANTHROPIC_API_KEY) can set it under this name instead.
+ENV_FALLBACK = {"ANTHROPIC_API_KEY": "FUZER_ANTHROPIC_API_KEY"}
+
+
 def secret(conn, key: str) -> str | None:
     """A secret setting's value, read from where its reference points (env:NAME); None when it isn't there."""
     if _setting(key).type != "secret":
         raise SettingError(f"{key} isn't a secret")
     ref = get(conn, key) or ""
-    return os.environ.get(ref[4:]) or None if ref.startswith("env:") else None
+    if not ref.startswith("env:"):
+        return None
+    name = ref[4:]
+    return os.environ.get(name) or os.environ.get(ENV_FALLBACK.get(name, "")) or None
 
 
 def _rows(conn, key: str, p: str | None) -> dict:
