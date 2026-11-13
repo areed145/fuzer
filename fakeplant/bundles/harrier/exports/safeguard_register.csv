@@ -1,6 +1,6 @@
-safeguard_id,tag,protects,function,action,sil,proof_test_interval_months,last_proof_test
-SG-HR-001,E1-LT-5001A,E1-T-5001A,Crude tank A high-high level shutdown,Closes the tank A receipt valve,2,12,today-150d
-SG-HR-002,G1-TT-7006,G1-K-7001,VRU compressor high discharge temperature trip,Trips the compressor,1,24,today-300d
-SG-HR-003,G1-VT-7007,G1-K-7001,VRU compressor high vibration trip,Trips the compressor,1,24,today-12d
-SG-HR-004,G1-LT-7002,G1-V-7002,VRU suction scrubber high-high level trip,Trips the compressor,2,12,today-420d
-SG-HR-005,B1-PT-2003,B1-P-2001A,Midline pump A low suction pressure trip,Trips the pump,1,36,today-700d
+safeguard_id,tag,protects,function,action,sil,proof_test_interval_months,last_proof_test,demand_rate_per_year
+SG-HR-001,E1-LT-5001A,E1-T-5001A,Crude tank A high-high level shutdown,Closes the tank A receipt valve,2,12,today-150d,0.1
+SG-HR-002,G1-TT-7006,G1-K-7001,VRU compressor high discharge temperature trip,Trips the compressor,1,24,today-300d,0.1
+SG-HR-003,G1-VT-7007,G1-K-7001,VRU compressor high vibration trip,Trips the compressor,1,24,today-12d,0.1
+SG-HR-004,G1-LT-7002,G1-V-7002,VRU suction scrubber high-high level trip,Trips the compressor,2,12,today-420d,0.1
+SG-HR-005,B1-PT-2003,B1-P-2001A,Midline pump A low suction pressure trip,Trips the pump,1,36,today-700d,0.1

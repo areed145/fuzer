@@ -127,6 +127,9 @@ def test_activating_a_project_writes_no_environment_and_old_variables_only_overr
     ({"operating_model": {"name": "standard", "version": 1, "deviations": [
         {"part": "roles", "key": "operator", "reason": "r", "owner": "ops_lead", "value": {}}]}},
      "only a settings deviation carries a value"),
+    ({"operating_model": {"name": "standard", "version": 1, "deviations": [
+        {"part": "roles", "key": "operator", "reason": "r", "owner": "ops_lead", "review_by": "next spring"}]}},
+     "review_by isn't a date"),
 ])
 def test_a_bundles_source_packs_roster_and_operating_model_are_checked(tmp_path, extra, error):
     folder = tmp_path / "kestrel"

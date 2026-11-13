@@ -327,6 +327,30 @@ unnamed. Okan adopts standard v1 with no deviations; Kestrel adopts it with one,
 operating settings, so it is a step someone takes. Adopting loads the shipped processes and forms first, as the
 API's start does, so a project stood up from its bundle a moment ago adopts without anyone publishing them by hand.
 
+**Conformance** (P8.2) shows every asset against its model in one view: Settings, Standards
+(`GET /standards/conformance`, `fuzer operating-model fleet`, or `standing` for one project). For each asset it gives
+the model and version, whether it was applied as it is, and each difference with its reason, owner and review date.
+The verdict is `standard`, `justified` (it differs only where it says why) or `drifted` (a difference without a reason,
+an overdue review, or not applied). It also shows whether the work follows the standard in practice over the last 28
+days: person steps on time, overrides (sent to the field though not ready, started without a permit), steps left undone
+when a case closed, and rounds done. A named deviation is reviewed a year after it is named unless its owner gives a
+date (`--review-by`, or `review_by` on a bundle's deviation). Past that date the `deviation_reviews` detector raises
+`deviation_review_due` for the owner, until it is reviewed (named again with a later date) or unnamed. The view reads
+only granted projects and names the rest.
+
+**Change control** (P8.3, `workflow/model_changes.py`) is how the standard changes. A change is proposed as a new
+version: the latest published one with some roles, work types, settings, processes or forms changed. A changed
+process must parse. It is test-run on up to 20 of this project's cases closed in the last 180 days, of the work types
+it touches: each case's route and process before and after, and whether it would have met the new SLA. The run fails
+if a changed process names a role the version doesn't hold. A person other than its author, with the workflow_admin
+role, approves or rejects it with a note, and only after a test run. An approved version is published, then rolled
+out one asset at a time. Each rollout records the version the asset ran before, so it can be rolled back. A rollout
+or rollback keeps an asset's named setting deviations, and lists any other named difference the version replaced. A
+local deviation that proved better is proposed the same way (`promote`). Conformance holds an asset to the version
+last rolled out to it, and "current" means the latest published. It is on the CLI as `fuzer model-change`, through
+`/standards/versions` and `/standards/rollouts`, and the versions and rollouts show on Settings, Standards
+(`tests/evals/test_model_changes.py` takes a process change live on Kestrel and Harrier and rolls Harrier back).
+
 A package moved between databases runs the same: Okan's model, changed away from the standard and exported, applied
 to a second copy of Okan that ran the standard, takes the loop eval the same way step for step
 (`tests/evals/test_loop_operating_model.py`).

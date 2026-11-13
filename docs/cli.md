@@ -214,15 +214,35 @@ the operating model as a package (P8.1): export, apply, adopt, deviations, confo
 
 | Argument | What it does |
 |---|---|
-| `action` (export / apply / adopt / deviations / conformance / name / unname / applied) |  |
+| `action` (export / apply / adopt / deviations / conformance / name / unname / applied / standing / fleet) |  |
 | `package` | a package folder, or `standard` (export: the folder to write; deviations and conformance: default the model the project's bundle follows, apply: default `standard`) |
 | `--part` | with name and unname: roles, work_types, settings, processes or forms |
 | `--key` | with name and unname: the role, work type, setting, process or form |
 | `--reason` | with name: why this project differs there |
 | `--owner` | with name: the role or person who owns the difference |
+| `--review-by` | with name: when it is next reviewed (YYYY-MM-DD; default a year) |
+| `--days` | with standing and fleet: the days of work to read (P8.2) |
 | `--name` | with export: the model's name |
 | `--version` | with export: the model's version |
 | `--by` | who is applying it (default: $USER) |
+
+## `fuzer model-change`
+
+change control for the standard (P8.3): propose, promote, test-run, review, publish, rollout, rollback, versions, history
+
+| Argument | What it does |
+|---|---|
+| `action` (propose / promote / test-run / review / publish / rollout / rollback / versions / history) |  |
+| `--version` | with test-run, review, publish and rollout: the version |
+| `--changes` | with propose: a JSON file of {part: {key: value, or null to remove}} |
+| `--part` | with promote: the part of this project's deviation |
+| `--key` | with promote: the key of this project's deviation |
+| `--summary` | with propose and promote: what it changes and why |
+| `--approve` | with review: approve (default: reject) |
+| `--note` | with review: why |
+| `--target` | with rollout, rollback and history: the project (default: this one) |
+| `--reason` | with rollback: why |
+| `--by` | who is acting (default: $USER) |
 
 ## `fuzer onboarding`
 
@@ -267,6 +287,7 @@ score search, document links, section failure modes and log reading
 | `--full` | with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) and fail if a score is under its floor or fell since the last run |
 | `--live` | with --full: diagnose with the real Claude (costs money) |
 | `--loop` | drive every type of work arrive to counted and say which step failed for which type (P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails) |
+| `--sweep` | run each work detector over the bundle's history and score its raises against the events its evals/detections.yaml declares (P3.6a; writes cases, so run it on a scratch copy; exits 1 if a score is under its floor); --detector picks one |
 | `--roles` | score the measurement roles proposed for each point against the fake plant's process model (P1.4; exits 1 under 90%% right or if a wrong role was confident) |
 | `--since` | with --ops: start (default: 28 days before --until) |
 | `--until` | with --ops: end (default: the latest daily report) |
