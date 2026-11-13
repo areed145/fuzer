@@ -124,6 +124,9 @@ register(
             "to a person, with the spend and the cap on the case (0: no cap)", "Agents", min=0),
     Setting("agents.briefs", "bool", True, "Have the owning specialist brief each new case of a type a pack briefs, "
             "when the agent worker has no step to run", "Agents"),
+    Setting("agents.skill_drafts", "bool", False, "Have a skill's specialist draft a change to its playbook once it "
+            "has fallen short twice since its live version, as work for the skill's owner, when the agent worker has "
+            "nothing else to do", "Agents"),
     Setting("agents.brief_cap_usd", "float", 0.5, "What one agent brief on a case may cost (USD); a brief that costs more "
             "says so on the case (0: no budget)", "Agents", min=0),
     Setting("assistant.retention_days", "int", 0, "Days the assistant keeps a conversation after its last message, "
