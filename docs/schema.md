@@ -490,6 +490,48 @@ A project's named deviations from its operating model (P8.1, workflow/operating_
 | `named_by` | text |  |
 | `named_at` | timestamptz |  |
 
+### `operating_model_version`
+
+Versions of an operating model beyond the one that ships (P8.3, workflow/model_changes.py): proposed, test-run on closed cases, reviewed by someone other than its author, published. Shared, since one standard serves every asset.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `version` | int |  |
+| `base_version` | int |  |
+| `package` | jsonb |  |
+| `digest` | text |  |
+| `changes` | jsonb |  |
+| `summary` | text |  |
+| `state` | text |  |
+| `proposed_by` | text |  |
+| `proposed_at` | timestamptz |  |
+| `test_run` | jsonb |  |
+| `reviewed_by` | text |  |
+| `reviewed_at` | timestamptz |  |
+| `review_note` | text |  |
+| `published_by` | text |  |
+| `published_at` | timestamptz |  |
+
+### `operating_model_rollout`
+
+Each asset's rollouts of a published version, with the version it ran before so it can roll back (P8.3).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `project` | text |  |
+| `name` | text |  |
+| `version` | int |  |
+| `from_name` | text |  |
+| `from_version` | int |  |
+| `state` | text |  |
+| `by` | text |  |
+| `at` | timestamptz |  |
+| `rolled_back_by` | text |  |
+| `rolled_back_at` | timestamptz |  |
+| `rollback_reason` | text |  |
+
 ## Sources and ingestion
 
 [`src/fuzer/sources/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources/schema.sql)

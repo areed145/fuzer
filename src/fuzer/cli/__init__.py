@@ -128,7 +128,7 @@ def parser() -> argparse.ArgumentParser:
     om = sub.add_parser("operating-model", help="the operating model as a package (P8.1): export, apply, adopt, "
                         "deviations, conformance, name a deviation")
     om.add_argument("action", choices=["export", "apply", "adopt", "deviations", "conformance", "name", "unname",
-                                       "applied"])
+                                       "applied", "standing", "fleet"])
     om.add_argument("package", nargs="?", default=None,
                     help="a package folder, or `standard` (export: the folder to write; deviations and conformance: "
                     "default the model the project's bundle follows, apply: default `standard`)")
@@ -136,9 +136,26 @@ def parser() -> argparse.ArgumentParser:
     om.add_argument("--key", help="with name and unname: the role, work type, setting, process or form")
     om.add_argument("--reason", help="with name: why this project differs there")
     om.add_argument("--owner", help="with name: the role or person who owns the difference")
+    om.add_argument("--review-by", default=None, help="with name: when it is next reviewed (YYYY-MM-DD; default a year)")
+    om.add_argument("--days", type=int, default=28, help="with standing and fleet: the days of work to read (P8.2)")
     om.add_argument("--name", default="standard", help="with export: the model's name")
     om.add_argument("--version", type=int, default=1, help="with export: the model's version")
     om.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is applying it (default: $USER)")
+
+    mc = sub.add_parser("model-change", help="change control for the standard (P8.3): propose, promote, test-run, "
+                        "review, publish, rollout, rollback, versions, history")
+    mc.add_argument("action", choices=["propose", "promote", "test-run", "review", "publish", "rollout", "rollback",
+                                       "versions", "history"])
+    mc.add_argument("--version", type=int, help="with test-run, review, publish and rollout: the version")
+    mc.add_argument("--changes", help="with propose: a JSON file of {part: {key: value, or null to remove}}")
+    mc.add_argument("--part", help="with promote: the part of this project's deviation")
+    mc.add_argument("--key", help="with promote: the key of this project's deviation")
+    mc.add_argument("--summary", help="with propose and promote: what it changes and why")
+    mc.add_argument("--approve", action="store_true", help="with review: approve (default: reject)")
+    mc.add_argument("--note", help="with review: why")
+    mc.add_argument("--target", help="with rollout, rollback and history: the project (default: this one)")
+    mc.add_argument("--reason", help="with rollback: why")
+    mc.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is acting (default: $USER)")
 
     sub.add_parser("onboarding", help="the onboarding journey (P8.4): each step ready, blocked or to do, and what "
                    "each gap prevents")
@@ -175,6 +192,10 @@ def parser() -> argparse.ArgumentParser:
     ev.add_argument("--loop", action="store_true",
                     help="drive every type of work arrive to counted and say which step failed for which type "
                          "(P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails)")
+    ev.add_argument("--sweep", action="store_true",
+                    help="run each work detector over the bundle's history and score its raises against the events "
+                         "its evals/detections.yaml declares (P3.6a; writes cases, so run it on a scratch copy; exits "
+                         "1 if a score is under its floor); --detector picks one")
     ev.add_argument("--roles", action="store_true",
                     help="score the measurement roles proposed for each point against the fake plant's process model "
                          "(P1.4; exits 1 under 90%% right or if a wrong role was confident)")
@@ -336,6 +357,22 @@ def main(argv=None):
                          + (f" (arrived from {r['arrived']})" if r.get("arrived") else ""))
                 if res["failed"]:
                     raise SystemExit("loop eval failed: " + "; ".join(res["failed"]))
+            elif args.cmd == "eval" and args.sweep:
+                from ..evals import sweep
+
+                folder = bundles.find(resolve(conn).name)
+                if not folder:
+                    raise SystemExit("this project has no bundle folder, so no detections to score against")
+                only = [args.detector] if args.detector != "limits" else None
+                bad = []
+                for res in sweep.run(conn, pack, folder, only, say=_say).values():
+                    sweep.store(conn, res)
+                    _say(f"{res['detector']}: " + (f"not here ({res['not_here']})" if "not_here" in res else
+                         res.get("note") or f"recall {res['recall']}, precision {res['precision']}, "
+                         f"{res['false']} false of {res['raises']} raised, missed {res['missed'] or 'none'}"))
+                    bad += sweep.gate(res)
+                if bad:
+                    raise SystemExit("sweep eval under its floor: " + "; ".join(bad))
             elif args.cmd == "eval" and args.roles:
                 from ..evals import roles as roles_eval
 
@@ -420,11 +457,18 @@ def main(argv=None):
                 elif args.action == "conformance":
                     _print(om.conformance(conn, args.package))
                 elif args.action == "name":
-                    _print(om.name(conn, args.part, args.key, args.reason, args.owner, args.by))
+                    _print(om.name(conn, args.part, args.key, args.reason, args.owner, args.by, args.review_by))
                 elif args.action == "unname":
                     _print({"unnamed": om.unname(conn, args.part, args.key)})
+                elif args.action in ("standing", "fleet"):
+                    from ..workflow import conformance as standards
+
+                    _print(standards.standing(conn, args.days) if args.action == "standing"
+                           else standards.fleet(None, args.days))
                 else:
                     _print(om.applied(conn))
+            elif args.cmd == "model-change":
+                _model_change(conn, args)
             elif args.cmd == "onboarding":
                 from ..api import onboarding
 
@@ -643,6 +687,31 @@ def _audit(conn, args) -> None:
         print(f"{len(rows)} audit records for {project} written to {args.out}", file=sys.stderr)
     else:
         sys.stdout.write(text)
+
+
+def _model_change(conn, args) -> None:
+    from ..core import projects
+    from ..workflow import model_changes as mc
+
+    target = args.target or projects.current(conn)
+    if args.action == "propose":
+        _print(mc.propose(conn, json.loads(Path(args.changes).read_text()), args.summary or "", args.by))
+    elif args.action == "promote":
+        _print(mc.promote(conn, args.part, args.key, args.summary or "", args.by))
+    elif args.action == "test-run":
+        _print(mc.test_run(conn, "standard", args.version))
+    elif args.action == "review":
+        _print(mc.review(conn, "standard", args.version, args.by, args.approve, args.note or ""))
+    elif args.action == "publish":
+        _print(mc.publish(conn, "standard", args.version, args.by))
+    elif args.action == "rollout":
+        _print(mc.rollout(conn, target, "standard", args.version, args.by))
+    elif args.action == "rollback":
+        _print(mc.rollback(conn, target, args.by, args.reason or ""))
+    elif args.action == "versions":
+        _print(mc.versions(conn))
+    else:
+        _print(mc.history(conn, args.target))
 
 
 def _settings(conn, args) -> None:

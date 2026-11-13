@@ -40,7 +40,8 @@ ON = "detectors.on"  # the setting that switches detectors; detectors.on@<name> 
 MODULES = ("fuzer.ops.sre", "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating",
            "fuzer.analysis.records", "fuzer.sources.alerts", "fuzer.ops.opportunities", "fuzer.ops.safeguards",
            "fuzer.analysis.loops", "fuzer.analysis.well_tests",
-           "fuzer.analysis.gas_lift", "fuzer.analysis.quality", "fuzer.analysis.flare", "fuzer.analysis.alarm_performance")
+           "fuzer.analysis.gas_lift", "fuzer.analysis.quality", "fuzer.analysis.flare", "fuzer.analysis.alarm_performance",
+           "fuzer.workflow.conformance")
 
 POINTS = "select 1 from edge where rel = 'has_timeseries' limit 1"  # the need most detectors share
 
@@ -272,14 +273,14 @@ def tune(conn, name: str, key: str, value, *, cls: str | None = None, by: str, r
 # ---- scores and listing ---------------------------------------------------------------------------
 
 def replay_score(conn, d: Detector) -> dict | None:
-    """The detector's latest replay score (recall, precision, false alarms a week, over which window), when it is
-    scored by replay and has been."""
-    if not (d.eval or "").startswith("replay:"):
-        return None
+    """The detector's latest replay score (recall, precision, false alarms a week, over which window): from the
+    replay its eval names, else from the sweep of the work detectors (`sweep:<name>`, evals/sweep.py), when it has
+    been run."""
+    key = d.eval.partition(":")[2] if (d.eval or "").startswith("replay:") else f"sweep:{d.name}"
     try:
         with conn.transaction():  # a database without the eval table yet
             r = conn.execute("select since, until, scores, run_at from ops_eval where detector = %s "
-                             "order by id desc limit 1", (d.eval.partition(":")[2],)).fetchone()
+                             "order by id desc limit 1", (key,)).fetchone()
     except Exception:
         return None
     if not r:

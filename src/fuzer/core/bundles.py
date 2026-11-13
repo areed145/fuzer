@@ -36,6 +36,7 @@ for the same project is kept out unless `upgrade` is passed.
 import hashlib
 import json
 import re
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -183,7 +184,12 @@ def _operating_model(manifest: Path, ref) -> dict | None:
                               "a key, a reason and an owner")
         if "value" in d and d["part"] != "settings":
             raise BundleError(f"{manifest}: only a settings deviation carries a value ({d['part']} {d['key']})")
-        out.append({k: d[k] for k in ("part", "key", "reason", "owner", "value") if k in d})
+        if "review_by" in d:  # when the facility reviews it next (YAML reads a bare date as a date)
+            try:
+                d = {**d, "review_by": date.fromisoformat(str(d["review_by"])).isoformat()}
+            except ValueError:
+                raise BundleError(f"{manifest}: {d['part']} {d['key']} review_by isn't a date (YYYY-MM-DD)") from None
+        out.append({k: d[k] for k in ("part", "key", "reason", "owner", "value", "review_by") if k in d})
     return {"name": ref["name"], "version": ref["version"], "deviations": out}
 
 

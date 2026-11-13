@@ -341,6 +341,13 @@ def plant_accounting(days: int = 365, conn=Depends(get_conn)):
     return {"reconciliation": accounting.reconcile(conn, days=days), "unit_cost": accounting.unit_cost(conn, days=days)}
 
 
+@router.get("/plant/work-execution")
+def plant_work_execution(days: int = 730, conn=Depends(get_conn)):
+    """Schedule compliance and repeat repair rate per quarter, from the work order records (#373)."""
+    from ..analysis import work_execution as we
+    return we.trend(conn, days=max(90, min(days, 1825)))
+
+
 @router.get("/plant/backlog-burn")
 def plant_backlog_burn(days: int = 365, conn=Depends(get_conn)):
     """Work orders created against closed each month, the open backlog at each month's end, and the notification-to-

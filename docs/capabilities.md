@@ -201,12 +201,12 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Production & Surveillance | 78 |
 | Wells & Subsurface | 63 |
 | Field Operations & Facilities | 87 |
-| Maintenance & Integrity | 73 |
-| Work Management & Supply Chain | 34 |
+| Maintenance & Integrity | 75 |
+| Work Management & Supply Chain | 36 |
 | HSE & Incident Management | 45 |
 | Asset Performance & Reporting | 50 |
 
-## Shared (121)
+## Shared (123)
 
 Used by every agent or by several specialists.
 
@@ -228,6 +228,8 @@ Used by every agent or by several specialists.
 | `work_order_backlog` | query | as_of?, limit? | Open SAP work orders by priority, type and age; overdue orders (past basic finish); the oldest; open notifications with no order planned yet. |
 | `backlog_burn` | calc | since?, until?, days? | Is the backlog under control (#348)? Per month: work orders created (by start) against closed (by finish) and the orders open at the month's end, with whether the backlog is growing, steady or shrinking; then the days from a notification to the order raised for it (median, 90th percentile, longest). |
 | `plot_backlog_burn` | plot | since?, until?, days? | Chart work orders created and closed each month, with the open backlog at each month's end. |
+| `work_execution` | calc | since?, until?, days?, by? | Schedule compliance and repeat repair rate (#373) per quarter (or month): closed orders finished by their basic finish, with the late ones and how late; corrective orders started within 30 days of a corrective order on the same equipment finishing, with the one before. |
+| `plot_work_execution` | plot | since?, until?, days?, by? | Chart schedule compliance and the repeat repair rate per quarter (or month). |
 | `rotating_screen` | query | at?, limit? | Every rotating machine (pumps, compressors, gas turbines, motors) through the rotating health checks at one date, worst first: `act` (a severe flag: vibration zone D, head loss, accelerating failures, low-flow running), then `watch`. |
 | `backlog_health` | query | as_of?, limit? | Backlog health: ageing of open corrective (PM01) orders (flag when over 25 % are older than 90 days), priority 1-2 orders past basic finish, unplanned notifications on bad actors, and the open orders ranked by value / risk in money (production at risk, criticality, compliance, effort). |
 | `maintenance_compliance` | query | as_of?, horizon_days?, limit? | Preventive maintenance (PM) and inspection (INSP) plans: on-time share, overdue tasks and tasks due within the horizon; tasks that need a shutdown are marked. |

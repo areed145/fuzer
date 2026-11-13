@@ -1,8 +1,9 @@
 # Safeguards (P3.9a, #763): the safeguard register (each trip, interlock or shutdown, what it acts on and what it
-# protects) and the bypasses of them, each with its expiry. A built-in source pack (P1.5): the datasets name built-in
+# protects, and when it was last proof tested), the bypasses of them, each with its expiry, and the log of
+# demands on them. A built-in source pack (P1.5): the datasets name built-in
 # mapping files, assembled by fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
 fuzer_source_pack: 1
 system: {name: safeguards}
-datasets: [safeguard_register, safeguard_bypasses]
-optional: [safeguard_register, safeguard_bypasses]
-detectors: [bypass_overdue]
+datasets: [safeguard_register, safeguard_bypasses, safeguard_demands]
+optional: [safeguard_register, safeguard_bypasses, safeguard_demands]
+detectors: [bypass_overdue, proof_test_overdue, safeguard_demands]

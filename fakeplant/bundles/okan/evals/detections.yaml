@@ -1,0 +1,83 @@
+# What each work detector should raise on Okan, for the sweep scorer (P3.6a, #844): `fuzer eval --sweep` and
+# tests/evals/test_sweep.py run each detector over the stretch below as a schedule runs it, and score its raises
+# against these injected events (fakeplant/src/fakeplant/okan.py and its process model).
+#
+#   since, until    the stretch swept; every_days between runs (default 7), or `at: [dates]` for a slow detector
+#   events          {key, from, to}: a raise whose key holds `key`, made by a run between `from` and `to`, is true
+#   gates           floors for recall and precision, where the detector's own differ from sweep.GATES
+#   not_here        why the detector has nothing to find on this bundle
+#
+# A raise that matches no event is a false alarm. Where a detector's floor sits under the default it is because of
+# false alarms listed beside it, kept as found rather than hidden, so a change that adds more fails.
+detectors:
+  quality_drift:
+    since: "2024-01-15"
+    until: "2025-12-31"
+    every_days: 14
+    events:
+      # OK-J03-02's water breakthrough in June 2025 carries oil into the HP separator's produced water
+      - {key: "HP separator water outlet · oil_in_water", from: "2025-06-20", to: "2025-09-01"}
+    gates: {precision: 0.5}  # also raises H2S in the dry gas after the April 2024 field shutdown, which isn't injected
+
+  well_tests:
+    since: "2024-01-15"
+    until: "2025-12-31"
+    every_days: 14
+    events:
+      - {key: "OK-J03-02", from: "2025-06-15", to: "2025-07-31"}  # its water cut jumping on the June 2025 test
+
+  loop_oscillation:
+    since: "2024-01-15"
+    until: "2025-12-31"
+    every_days: 14
+    events:
+      - {key: "10LT2003", from: "2025-02-11", to: "2025-02-17"}  # the test separator's level valve sticking
+    gates: {precision: 0.5}
+
+  gas_lift_instability:
+    since: "2025-06-01"
+    until: "2025-12-31"
+    every_days: 14
+    events:
+      - {key: "OK-J01-01", from: "2025-12-16", to: "2025-12-29"}  # heading: casing pressure surging every 75 minutes
+
+  flare_events:
+    since: "2025-06-01"
+    until: "2025-12-31"
+    every_days: 2
+    events:
+      - {key: "2025-11-08", from: "2025-11-08", to: "2025-11-10"}  # a flare day no trip or record explains
+
+  compressor_trips:
+    since: "2024-02-15"
+    until: "2025-08-15"
+    every_days: 28
+    events:  # the nine injected train trips, each raised by the next run after it
+      - {key: "2101B@2024-03-14", from: "2024-03-14", to: "2024-04-14"}
+      - {key: "2101B@2024-03-29", from: "2024-03-29", to: "2024-04-30"}
+      - {key: "2101A@2024-06-11", from: "2024-06-11", to: "2024-07-12"}
+      - {key: "2101A@2024-07-02", from: "2024-07-02", to: "2024-08-02"}
+      - {key: "2101A@2024-07-24", from: "2024-07-24", to: "2024-08-24"}
+      - {key: "2101C@2024-11-05", from: "2024-11-05", to: "2024-12-06"}
+      - {key: "2101C@2024-11-09", from: "2024-11-09", to: "2024-12-10"}
+      - {key: "2101A@2025-06-24", from: "2025-06-24", to: "2025-07-25"}
+      - {key: "2101A@2025-07-16", from: "2025-07-16", to: "2025-08-15"}
+
+  machine_health:
+    # About 45 s a run, so on the dates a sweep every 28 days over the whole history raised anything, and each
+    # event's end
+    since: "2024-01-15"
+    until: "2025-12-31"
+    at: ["2024-02-12", "2024-04-08", "2024-08-26", "2025-06-30", "2025-09-22", "2025-11-17"]
+    events:
+      - {key: "20-K-2200B", from: "2024-02-01", to: "2024-04-03"}   # vibration and thrust climbing to its trips
+      - {key: "20-GT-2000B", from: "2025-08-01", to: "2025-11-15"}  # heat rate creeping up
+      - {key: "20-K-2300B", from: "2025-10-01", to: "2025-12-31"}   # seal wear
+      - {key: "20-GT-2000C", from: "2025-10-15", to: "2025-12-31"}  # a combustor going
+      - {key: "20-GT-2000A", from: "2025-11-01", to: "2025-12-31"}  # lube oil filter loading
+    # false alarms kept as found: train C's machines when its share of the load fell in November 2025, the crude
+    # pumps, and 20-GT-2000B when train B was down in April 2024
+    gates: {recall: 0.8, precision: 0.4}
+
+  unrecorded_changes: {not_here: "Okan's base data has no change records; the limit-change delivery is P3.6b"}
+  bypass_overdue: {not_here: "Okan's base data has no bypass register; its delivery is P3.6b"}

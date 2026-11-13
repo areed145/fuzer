@@ -3,6 +3,10 @@ still in place past its expiry is work for the ops lead, and it clears when the 
 takes away is read from the registers and the piping, never from tag names. Its own module, as Kestrel's detectors
 read Kestrel's model."""
 
+from datetime import UTC, datetime
+
+from psycopg.types.json import Jsonb
+
 from fuzer.core import detectors
 from fuzer.core.pack import resolve
 from fuzer.evals import loop
@@ -130,3 +134,76 @@ def test_two_jobs_on_a_system_with_a_bypassed_safeguard_clash(kestrel_db):
     reboiler = simops.job(conn, "Reboiler burner", [_fid(conn, "C1-H-3008")])
     assert [b["label"] for b in reboiler["bypasses"]] == ["BYP-KR-032"]
     assert not [c for c in simops.conflicts(conn, reboiler, contactor) if c["kind"] == "bypass"]
+
+
+def test_a_safeguard_past_its_proof_test_interval_is_work_until_it_is_tested(kestrel_db):
+    """P4.2e (#850): the suction scrubber's trip was last tested 400 days ago on a 12 month interval, and the reboiler
+    shutdown has no test on file; both are work for the engineer, and a test on file clears one."""
+    conn = kestrel_db
+    tests = {p["label"]: p for p in safeguards.proof_tests(conn)}
+    assert set(tests) == {f"SG-KR-00{i}" for i in range(1, 6)}
+    scrubber, reboiler = tests["SG-KR-003"], tests["SG-KR-005"]
+    assert scrubber["overdue"] and 30 <= scrubber["overdue_days"] <= 40 and scrubber["protects_labels"] == ["B1-V-2005"]
+    assert reboiler["overdue"] and reboiler["due"] is None and reboiler["overdue_days"] is None
+    assert not tests["SG-KR-002"]["overdue"]  # 500 days on a 24 month interval
+    k = _fid(conn, "B1-K-2001")
+    assert [p["label"] for p in safeguards.proof_tests(conn, [k])] == ["SG-KR-002", "SG-KR-004"]
+
+    engine.load_defaults(conn)
+    loop._people(conn)
+    conn.commit()
+    out = detectors.run(conn, resolve(conn), "proof_test_overdue")
+    assert sorted(r["safeguard"] for r in out["raised"]) == ["SG-KR-003", "SG-KR-005"] and not out["errors"], out
+    x = conn.execute("select * from exception_record where type = 'proof_test_overdue' and key = 'SG-KR-005'").fetchone()
+    assert "no proof test on file" in x["title"] and "C1-H-3008" in x["title"]
+    assert conn.execute("select role from work_item where id = %s", (x["item_id"],)).fetchone()["role"] == "engineer"
+
+    sg = _fid(conn, "SG-KR-005")
+    was = conn.execute("select * from golden where fuzer_id = %s and field = 'last_proof_test'", (sg,)).fetchone()
+    conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, 'last_proof_test', "
+                 "to_jsonb(%s::text), 'test', 'test') on conflict (fuzer_id, field) do update set value = excluded.value",
+                 (sg, datetime.now(UTC).date().isoformat()))
+    try:
+        out = detectors.run(conn, resolve(conn), "proof_test_overdue")
+        assert out["cleared"] == ["SG-KR-005"] and [r["safeguard"] for r in out["raised"]] == ["SG-KR-003"]
+    finally:  # untested again, for the other tests on this database
+        conn.execute("delete from golden where fuzer_id = %s and field = 'last_proof_test'", (sg,))
+        if was:
+            conn.execute("insert into golden values (%(fuzer_id)s, %(field)s, %(value)s, %(source)s, %(rule)s)",
+                         {**was, "value": Jsonb(was["value"])})
+        conn.commit()
+
+
+def test_a_safeguard_demanded_more_than_designed_is_work_for_the_engineer(kestrel_db):
+    """P4.2e (#850): the compressor vibration trip was called on twice this year (96 days ago and yesterday's trip),
+    designed for 0.1 a year; the probe fault 60 days ago was spurious, so it is listed but not counted. The discharge
+    temperature trip's one demand is within what one year allows. A failed demand is raised on its own."""
+    conn = kestrel_db
+    got = {d["label"]: d for d in safeguards.demands(conn)}
+    assert set(got) == {"SG-KR-002", "SG-KR-004"}
+    vib = got["SG-KR-002"]
+    assert [e["demand"] for e in vib["demands"]] == ["DEM-KR-010", "DEM-KR-007"] and vib["over"]
+    assert [e["demand"] for e in vib["spurious"]] == ["DEM-KR-008"] and vib["designed_per_year"] == 0.1
+    assert not got["SG-KR-004"]["over"] and not got["SG-KR-004"]["failed"]
+    assert safeguards.demands(conn, [_fid(conn, "C1-H-3008")]) == []
+
+    engine.load_defaults(conn)
+    loop._people(conn)
+    conn.commit()
+    out = detectors.run(conn, resolve(conn), "safeguard_demands")
+    assert [r["safeguard"] for r in out["raised"]] == ["SG-KR-002"] and not out["errors"], out
+    x = conn.execute("select * from exception_record where type = 'safeguard_demand' and key = 'SG-KR-002'").fetchone()
+    assert "demanded 2 times in 365 days" in x["title"] and "B1-K-2001" in x["title"]
+    assert conn.execute("select role from work_item where id = %s", (x["item_id"],)).fetchone()["role"] == "engineer"
+
+    dem = _fid(conn, "DEM-KR-009")
+    conn.execute("update golden set value = to_jsonb('failed'::text) where fuzer_id = %s and field = 'outcome'", (dem,))
+    try:
+        out = detectors.run(conn, resolve(conn), "safeguard_demands")
+        assert sorted(r["safeguard"] for r in out["raised"]) == ["SG-KR-002", "SG-KR-004"]
+        t = conn.execute("select title from exception_record where type = 'safeguard_demand' and key = 'SG-KR-004'")
+        assert "failed to act on a demand" in t.fetchone()["title"]
+    finally:  # it worked, for the other tests on this database
+        conn.execute("update golden set value = to_jsonb('worked'::text) where fuzer_id = %s and field = 'outcome'",
+                     (dem,))
+        conn.commit()

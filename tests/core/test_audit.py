@@ -12,6 +12,8 @@ def test_every_actor_column_is_in_the_record_or_excluded_with_a_reason(okan_db):
     # A new table naming who did something joins the record by itself, unless its time column can't be found:
     # then name it in audit.TIMES, or exclude it in audit.EXCLUDED with why.
     assert cov["unpaired"] == []
+    # A shared table (schema fuzer) holds every project's rows: it needs a project filter in audit._filter.
+    assert cov["unfiltered"] == []
     included = {c["source"] for c in cov["included"]}
     assert {"work_event.actor", "writeback.approved_by", "writeback_event.by", "access_event.actor",
             "gate_decision.actor", "setting_history.by", "source_audit.by"} <= included

@@ -35,6 +35,7 @@ EXCLUDED = {
     ("lesson_history", "by_user"): "the lesson's own edit history; the lesson's decision is in the record",
     ("work_draft", "by_user"): "an account-private draft until confirmed; confirmed_by is in the record",
     ("lesson", "review_by"): "a review-due date, not an actor",
+    ("operating_model_deviation", "review_by"): "a review-due date, not an actor",
     ("learned_rule", "taught_by"): "the aliases a rule was learned from, not an actor",
     ("work_token", "claimed_by"): "a claim is a work event (kind claimed), which is in the record",
 }
@@ -123,8 +124,9 @@ def sources(conn, schema: str | None = None) -> list[Source]:
     return out
 
 
-def _filter(src: Source) -> sql.Composable:
-    """The shared tables hold every project's rows; keep this project's."""
+def _filter(src: Source) -> sql.Composable | None:
+    """The shared tables hold every project's rows; keep this project's. None: a shared table with no filter yet,
+    left out of the record (coverage lists it, and a test fails on it) rather than leaking other projects' rows."""
     if src.schema != db.SHARED:
         return sql.SQL("true")
     if src.table == "access_event":
@@ -136,7 +138,11 @@ def _filter(src: Source) -> sql.Composable:
         return sql.SQL("name = %(project)s")
     if src.table == "work_person_cover":
         return sql.SQL("(cardinality(projects) = 0 or %(project)s = any(projects))")
-    raise AuditError(f"Shared table {src.table} has no project filter; add one before it joins the record")
+    if src.table == "operating_model_rollout":
+        return sql.SQL("project = %(project)s")
+    if src.table == "operating_model_version":
+        return sql.SQL("true")  # the shared standard every project follows: a change to it is each project's
+    return None
 
 
 def _people(conn, project: str) -> tuple[list[str], list[str]]:
@@ -173,6 +179,8 @@ def record(conn, project: str, since: datetime, until: datetime, limit: int = 10
         if src.at is None:
             continue
         where = _filter(src)
+        if where is None:
+            continue
         action = sql.SQL(ACTIONS[src.table]) if src.table in ACTIONS else sql.Literal(src.verb or "recorded")
         ref = sql.SQL(REFS[src.table]) if src.table in REFS else sql.Literal(None)
         query = sql.SQL(
@@ -197,8 +205,9 @@ def coverage(conn, schema: str | None = None) -> dict:
     """Which actor columns are in the record, which keep every change, and which are excluded and why."""
     srcs = sources(conn, schema)
     return {"included": [{"source": f"{s.table}.{s.actor}", "time": s.at, "history": s.history}
-                         for s in srcs if s.at],
+                         for s in srcs if s.at and _filter(s) is not None],
             "unpaired": [f"{s.table}.{s.actor}" for s in srcs if s.at is None],
+            "unfiltered": [f"{s.table}.{s.actor}" for s in srcs if s.at and _filter(s) is None],
             "excluded": [{"source": f"{t}.{c}", "reason": why} for (t, c), why in sorted(EXCLUDED.items())]}
 
 

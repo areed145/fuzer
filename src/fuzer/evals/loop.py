@@ -111,6 +111,13 @@ def _bring(conn, how: dict) -> str:
 
     pack, how = resolve(conn), dict(how)
     landed = ""
+    how.pop("about", None)
+    if "deviation" in how:  # a deviation someone named, with the review date they gave it, now past
+        from ..workflow import operating_model as om
+
+        d = how.pop("deviation")
+        om.name(conn, d["part"], d["key"], d["reason"], d["owner"], d.get("by", IOC), str(d["review_by"])[:10])
+        landed = f"the {d['part']} deviation {d['key']} named with its review date, then "
     if "deliver" in how and "detector" in how:  # the next delivery lands, then the detector that reads it runs
         from ..sources import ingest
 
@@ -235,14 +242,14 @@ def _recorded(conn, folder: Path) -> int:
 
 
 def _arrived(conn, kind: str, since, build: bool, about: str = "asset") -> dict | None:
-    """The exception that came in: open, about an asset (or, for work about a source, about one of the project's
-    sources), its own case (not joined to another), not the loop's."""
+    """The exception that came in: open, about an asset (or, for work about a source or the operating model, about
+    no asset), its own case (not joined to another), not the loop's."""
     return conn.execute(
         """
         select * from exception_record where type = %s and state = 'open' and joined_to is null
           and (cardinality(subjects) > 0) = %s and coalesce(source, '') <> %s and (%s or last_seen >= %s)
         order by last_seen desc, id desc limit 1
-        """, (kind, about != "source", BY, build, since)).fetchone()
+        """, (kind, about == "asset", BY, build, since)).fetchone()
 
 
 def _source_of(conn, row: dict) -> str | None:
@@ -273,6 +280,8 @@ def _assets(conn, n: int) -> list[str]:
     another or with open work, so each type's case is its own (none joins another's)."""
     from ..ops.exceptions import anchors
 
+    if n <= 0:
+        return []
     taken = anchors(conn, [s for r in conn.execute("select subjects from exception_record where state = 'open'")
                            for s in r["subjects"] or []])
     out = []
@@ -410,6 +419,10 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
                 row = {**found, "raised": True, "about_source": _source_of(conn, found)}
                 out["arrived"] = what
                 return f"{what} raised it about the {row['about_source'] or found['key']} source"
+            if how.get("about") == "model":  # work about the project's operating model (P8.2): a deviation
+                row = {**found, "raised": True, "about_model": found["key"]}
+                out["arrived"] = what
+                return f"{what} raised it about the {found['key']} deviation"
             row = {**found, "raised": True}
             out["arrived"] = what
             return f"{what} raised it about {', '.join(_names(conn, found['subjects']))}"
@@ -424,6 +437,8 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
         return f"synthetic: raised by the loop about {ref}"
 
     def match():
+        if "about_model" in row:  # it names a deviation from the operating model, not an asset or a source
+            return f"matched the operating model's {row['about_model']}"
         if "about_source" in row:  # work about a source names one of the project's sources, not an asset
             if not row["about_source"]:
                 raise Step(f"it names no source or dataset of this project ({row['key']})")

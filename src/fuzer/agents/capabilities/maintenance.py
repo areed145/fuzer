@@ -57,6 +57,26 @@ def plot_backlog_burn(since: str | None = None, until: str | None = None, days: 
     return _chart(maintenance.backlog_burn, {"since": since, "until": until, "days": days})
 
 
+@capability("work-management-supply-chain", "maintenance-integrity", kind="calc")
+def work_execution(since: str | None = None, until: str | None = None, days: int = 730,
+                   by: Literal["quarter", "month"] = "quarter") -> dict[str, Any]:
+    """Schedule compliance and repeat repair rate (#373) per quarter (or month): closed orders finished by their basic
+    finish, with the late ones and how late; corrective orders started within 30 days of a corrective order on the
+    same equipment finishing, with the one before. A period with fewer than 5 orders behind a rate says too little
+    data. These measure the records, never people or crews."""
+    from ...analysis import work_execution as we
+    with db.connect() as conn:
+        return _plain(we.trend(conn, since, until, max(90, min(days, 1825)), by))
+
+
+@capability("work-management-supply-chain", "maintenance-integrity", kind="plot")
+def plot_work_execution(since: str | None = None, until: str | None = None, days: int = 730,
+                        by: Literal["quarter", "month"] = "quarter") -> dict[str, Any]:
+    """Chart schedule compliance and the repeat repair rate per quarter (or month)."""
+    from ...plots import maintenance
+    return _chart(maintenance.work_execution, {"since": since, "until": until, "days": max(90, min(days, 1825)), "by": by})
+
+
 @capability("maintenance-integrity", "field-operations-facilities", kind="query")
 def rotating_screen(at: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Every rotating machine (pumps, compressors, gas turbines, motors) through the rotating health checks at

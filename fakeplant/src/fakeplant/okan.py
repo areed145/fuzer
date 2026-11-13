@@ -793,6 +793,31 @@ def generate(out, seed: int = 11) -> dict:
         work(None, tag, "2026-04-06", activity, "PM03", text, status="CRTD", priority=prio, due="2026-04-30",
              revision=tar)
 
+    # Story (#373): work runs late and repairs come back. About one closed order in six finished after its basic
+    # finish (the planned date moved up, the work didn't), and eight corrective repairs came back on the same
+    # equipment within a month as a new corrective order with no notification. Its own random stream, so nothing
+    # drawn above moves; answer_keys/work.json lists both.
+    wrng = random.Random(seed + 23)
+    work_truth: dict[str, list] = {"late": [], "repeat_repairs": []}
+    for o in orders:
+        if o["status"] != "TECO" or not o["finish"] or o["start"] < "2024-01-01" or o["revision"]:
+            continue
+        if wrng.random() < 0.18:
+            due = max(o["start"], _add_days(o["finish"], -wrng.randint(3, 21)))
+            if due < o["finish"]:
+                o["basic_finish"] = due
+                work_truth["late"].append({"order": o["aufnr"], "due": due, "finish": o["finish"]})
+    first = [o for o in orders if o["order_type"] == "PM01" and o["status"] == "TECO" and o["finish"]
+             and "2024-03-01" <= o["finish"] <= "2025-11-15"]
+    for o in sorted(wrng.sample(first, k=min(8, len(first))), key=lambda o: o["finish"]):
+        start = _add_days(o["finish"], wrng.randint(4, 25))
+        finish = _add_days(start, wrng.randint(0, 4))
+        orders.append({**o, "aufnr": str(50000000 + len(orders)), "qmnum": "", "start": start, "finish": finish,
+                       "basic_finish": finish, "priority": "2", "cost": f"{wrng.uniform(800, 30000):.0f}",
+                       "text": f"Repeat repair: {o['text'][:1].lower()}{o['text'][1:]}"})
+        work_truth["repeat_repairs"].append({"order": orders[-1]["aufnr"], "after": o["aufnr"], "equnr": o["equnr"],
+                                             "start": start, "previous_finish": o["finish"]})
+
     plans = []
     last_pm = {}
     for o in orders:
@@ -1191,6 +1216,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "gis_wells.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": well_feats}, indent=1))
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
+    (out / "answer_keys" / "work.json").write_text(json.dumps(work_truth, indent=1))
     (out / "answer_keys" / "assistant.json").write_text(
         json.dumps(ASSISTANT_QUESTIONS, indent=1).replace("{wet_line}", wet_line).replace("{j1202_choke}", tag_j1202))
     (out / "answer_keys" / "assistant_memory.json").write_text(json.dumps(MEMORY_QUESTIONS, indent=1))

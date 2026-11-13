@@ -35,6 +35,7 @@ targets are not held anywhere yet. Both join the package when they are.
 
 import hashlib
 import json
+from datetime import date, timedelta
 from pathlib import Path
 
 import yaml
@@ -47,6 +48,7 @@ ROLE_FIELDS = ("kind", "description", "default_sla", "escalate_to", "assignment"
 TYPE_FIELDS = ("label", "role", "process", "case_type", "audience", "close_case_on_clear", "description", "joins",
                "due_hours")
 PARTS = ("roles", "work_types", "settings", "processes", "forms")
+REVIEW_DAYS = 365  # a named deviation is reviewed a year after it is named, unless its owner says when (P8.2)
 
 
 class OperatingModelError(ValueError):
@@ -199,32 +201,46 @@ def deviations(conn, package: dict | str | Path) -> list[dict]:
             named = names.get((part, key)) or {}
             out.append({"part": part, "key": key, "change": change,
                         "package": want.get(key) if show else None, "local": have.get(key) if show else None,
-                        "reason": named.get("reason"), "owner": named.get("owner")})
+                        "reason": named.get("reason"), "owner": named.get("owner"),
+                        "review_by": named.get("review_by")})
     return out
 
 
 def _names(conn) -> dict[tuple[str, str], dict]:
     return {(r["part"], r["key"]): r for r in conn.execute(
-        "select part, key, reason, owner, named_by, named_at from operating_model_deviation where project = %s "
-        "order by part, key", (_project(conn),))}
+        "select part, key, reason, owner, named_by, named_at, review_by from operating_model_deviation "
+        "where project = %s order by part, key", (_project(conn),))}
 
 
-def name(conn, part: str, key: str, reason: str, owner: str, by: str) -> dict:
-    """Name a deviation: why this project differs from its model at `part`/`key`, and who owns the difference (a role
-    or a person). Naming one that isn't a deviation yet is allowed (a bundle names what it is about to set)."""
+def name(conn, part: str, key: str, reason: str, owner: str, by: str, review_by: date | str | None = None) -> dict:
+    """Name a deviation: why this project differs from its model at `part`/`key`, who owns the difference (a role
+    or a person) and when it is next reviewed (`review_by`, by default REVIEW_DAYS from today; past it, the
+    `deviation_reviews` detector raises work for the owner). Naming one that isn't a deviation yet is allowed (a
+    bundle names what it is about to set)."""
     if part not in PARTS:
         raise OperatingModelError(f"no part {part!r}: one of {', '.join(PARTS)}")
     if not (key or "").strip() or not (reason or "").strip() or not (owner or "").strip():
         raise OperatingModelError("a named deviation needs a key, a reason and an owner")
+    try:
+        due = date.fromisoformat(str(review_by)[:10]) if review_by else date.today() + timedelta(days=REVIEW_DAYS)
+    except ValueError:
+        raise OperatingModelError(f"review_by {review_by!r} isn't a date (YYYY-MM-DD)") from None
     row = conn.execute(
         """
-        insert into operating_model_deviation (project, part, key, reason, owner, named_by) values (%s, %s, %s, %s, %s, %s)
+        insert into operating_model_deviation (project, part, key, reason, owner, named_by, review_by)
+        values (%s, %s, %s, %s, %s, %s, %s)
         on conflict (project, part, key) do update set reason = excluded.reason, owner = excluded.owner,
-            named_by = excluded.named_by, named_at = now()
-        returning part, key, reason, owner, named_by, named_at
-        """, (_project(conn), part, key.strip(), reason.strip(), owner.strip(), by)).fetchone()
+            named_by = excluded.named_by, named_at = now(), review_by = excluded.review_by
+        returning part, key, reason, owner, named_by, named_at, review_by
+        """, (_project(conn), part, key.strip(), reason.strip(), owner.strip(), by, due)).fetchone()
     conn.commit()
     return row
+
+
+def named(conn) -> list[dict]:
+    """Every deviation this project has named: {part, key, reason, owner, named_by, named_at, review_by, overdue}."""
+    today = date.today()
+    return [{**r, "overdue": bool(r["review_by"] and r["review_by"] < today)} for r in _names(conn).values()]
 
 
 def unname(conn, part: str, key: str) -> bool:
@@ -243,16 +259,26 @@ def _bundle_model(conn) -> dict:
     return ref
 
 
-def _package_for(ref: dict) -> dict:
-    if (ref["name"], ref["version"]) != (STANDARD_NAME, STANDARD_VERSION):
-        raise OperatingModelError(f"operating model {ref['name']} v{ref['version']} isn't held here: only "
-                                  f"{STANDARD_NAME} v{STANDARD_VERSION} ships; apply a package folder instead")
-    return standard()
+def _package_for(ref: dict, conn=None) -> dict:
+    """The package a reference names: the built-in standard, or a version published through change control (P8.3)."""
+    if (ref["name"], ref["version"]) == (STANDARD_NAME, STANDARD_VERSION):
+        return standard()
+    if conn is not None:
+        from . import model_changes
+
+        if (pkg := model_changes.package(conn, ref["name"], ref["version"], published=True)) is not None:
+            return pkg
+    raise OperatingModelError(f"operating model {ref['name']} v{ref['version']} isn't held here: "
+                              f"{STANDARD_NAME} v{STANDARD_VERSION} ships, and later versions are published through "
+                              "change control")
 
 
 def conformance_package(conn) -> dict:
-    """The package this project is held to: the operating model its bundle follows."""
-    return _package_for(_bundle_model(conn))
+    """The package this project is held to: the version last rolled out to it (P8.3), else the operating model its
+    bundle follows."""
+    from . import model_changes
+
+    return _package_for(model_changes.following(conn, _project(conn)) or _bundle_model(conn), conn)
 
 
 def adopt(conn, by: str) -> dict:
@@ -263,14 +289,14 @@ def adopt(conn, by: str) -> dict:
     from . import definitions
 
     ref = _bundle_model(conn)
-    pkg = _package_for(ref)
+    pkg = _package_for(ref, conn)
     definitions.load_defaults(conn)
     done = apply(conn, pkg, by)
     project = _project(conn)
     for d in ref.get("deviations") or []:
         if d["part"] == "settings" and "value" in d:
             settings.set(conn, d["key"], d["value"], by=by, reason=d["reason"], project_name=project)
-        name(conn, d["part"], d["key"], d["reason"], d["owner"], by)
+        name(conn, d["part"], d["key"], d["reason"], d["owner"], by, d.get("review_by"))
     conn.commit()
     return {**done, **conformance(conn, pkg)}
 
