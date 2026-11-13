@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from fakeplant import historian
 from fuzer.sources import connectors, process_model, relative_dates
+from fuzer.sources.relative_dates import plant_today
 
 KESTREL = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel" / "exports"
 DAY = date(2026, 11, 9)
@@ -33,19 +34,14 @@ def test_a_csv_with_relative_dates_reads_real_ones_and_changes_its_fingerprint_d
     (tmp_path / "real.csv").write_text("id,created,text\n1,2026-11-08,Tripped today\n")
     rel, real = connectors.find(tmp_path, "rel"), connectors.find(tmp_path, "real")
     rows = list(rel.rows())
-    today = date.today()
+    today = plant_today()
     assert rows[0]["created"] == (today - timedelta(days=1)).isoformat() and rows[0]["text"] == "Tripped today"
     assert rows[1]["created"] == f"{today} 07:00"
     assert next(iter(real.rows()))["created"] == "2026-11-08"  # real dates untouched
 
     before_rel, before_real = rel.fingerprint(), real.fingerprint()
 
-    class Tomorrow(date):
-        @classmethod
-        def today(cls):
-            return today + timedelta(days=1)
-
-    monkeypatch.setattr(connectors.dt, "date", Tomorrow)
+    monkeypatch.setattr(relative_dates, "plant_today", lambda: today + timedelta(days=1))
     assert rel.fingerprint() != before_rel  # tomorrow's refresh reads it again
     assert real.fingerprint() == before_real  # a real export is still skipped when unchanged
 
@@ -56,7 +52,7 @@ def test_kestrel_trip_is_placed_relative_to_today():
     assert (trip["start"], trip["end"]) == ("2026-11-08 03:10", "2026-11-08 06:40")
     # Inside the charts' default window (48 h before now, whatever the time of day).
     m = process_model.load(KESTREL)
-    y = datetime.combine(date.today() - timedelta(days=1), datetime.min.time())
+    y = datetime.combine(plant_today() - timedelta(days=1), datetime.min.time())
     pd = [v for _, v in m.values("KRGP:B1.PT2001.PV", y + timedelta(hours=2), y + timedelta(hours=8), 10)]
     assert max(pd) > 60 and min(pd) < 35
 
@@ -66,7 +62,7 @@ def test_kestrel_trip_reaches_the_rest_of_the_plant():
     reads nothing while B1-K-2001 is down, the dew point plant warms without gas, and the amine contactor foams when
     gas comes back after the restart."""
     m = process_model.load(KESTREL)
-    y = datetime.combine(date.today() - timedelta(days=1), datetime.min.time())
+    y = datetime.combine(plant_today() - timedelta(days=1), datetime.min.time())
 
     def at(point, hh, mm=0):
         t = y + timedelta(hours=hh, minutes=mm)
@@ -83,7 +79,7 @@ def test_kestrel_teg_reboiler_runs_cool_and_the_analyser_agrees_with_the_lab():
     """The TEG reboiler's burner fouling over six weeks: C1-TT-3008 drifts below its 195 degC alarm, and the online
     moisture analyser C1-AT-3011 follows the lab's water content at the contactor outlet."""
     m = process_model.load(KESTREL)
-    now = datetime.combine(date.today(), datetime.min.time()) + timedelta(hours=9)
+    now = datetime.combine(plant_today(), datetime.min.time()) + timedelta(hours=9)
     reboiler = [v for _, v in m.values("KRGP:C1.TT3008.PV", now - timedelta(days=45), now, 24 * 60)]
     assert reboiler[0] > 200 and reboiler[-1] < 195
     lab = [r for r in connectors.find(KESTREL, "lims_results").rows() if r["analyte"] == "water_content"]
@@ -156,4 +152,4 @@ def test_a_meter_export_is_suggested_as_measurements_on_its_tags_and_wells():
     volume = next(x for x in suggest.profile(c, pack)["columns"] if x["name"] == "volume_ksm3")
     assert volume["place"] == 0  # 1426.9 is a volume, not well KR 14-26 written without its prefix (#459)
     rows = list(c.rows())
-    assert {r["gas_day"] for r in rows} >= {(date.today() - timedelta(days=1)).isoformat()}  # relative dates too
+    assert {r["gas_day"] for r in rows} >= {(plant_today() - timedelta(days=1)).isoformat()}  # relative dates too

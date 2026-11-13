@@ -2,7 +2,7 @@
 from Okan, and the pack follows the database a process connects to, not an import-time global."""
 
 import re
-from datetime import UTC, date, timedelta
+from datetime import UTC, timedelta
 from pathlib import Path
 
 import pytest
@@ -14,6 +14,7 @@ from fuzer.core import bundles, db, projects, settings
 from fuzer.core import pack as packs
 from fuzer.core.findings import external
 from fuzer.core.tags import TagGrammar
+from fuzer.sources.relative_dates import plant_today
 
 ROOT = Path(__file__).resolve().parents[2]
 KESTREL = ROOT / "fakeplant" / "bundles" / "kestrel"
@@ -289,7 +290,7 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
         assert wells_with_series == 2
         # Its records are written relative to today, so the compressor trip is yesterday's, and the notification
         # it raised reaches the IOC's queue (#456).
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        yesterday = (plant_today() - timedelta(days=1)).isoformat()
         trip = conn.execute("select g.value #>> '{}' as v from golden g join entity_key k using (fuzer_id) "
                             "where k.kind = 'notification' and k.key = '10004001' and g.field = 'created'").fetchone()
         assert trip["v"] == yesterday
@@ -461,7 +462,7 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
 
                 with db.connect(url=url) as k:
                     k2001 = k.execute("select fuzer_id from entity_key where key = 'B1-K-2001'").fetchone()["fuzer_id"]
-                    got = values.around(k, k2001, f"{date.today() - timedelta(days=1)}T04:30", 12, 12, pack=pack)
+                    got = values.around(k, k2001, f"{plant_today() - timedelta(days=1)}T04:30", 12, 12, pack=pack)
                 pd = {s["point"]: s for s in got["series"]}["KRGP:B1.PT2001.PV"]
                 assert pd.get("modelled") and pd["max"] > 60 and pd["min"] < 35
                 assert all(s["values"] for s in got["series"])

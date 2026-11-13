@@ -11,6 +11,7 @@ from psycopg.conninfo import make_conninfo
 
 from fuzer.core import bundles, db, settings
 from fuzer.core import pack as packs
+from fuzer.sources.relative_dates import plant_today
 
 KESTREL = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel"
 NAME = "kestrel_recip"
@@ -104,19 +105,19 @@ def test_yesterdays_vibration_trip_and_the_one_five_weeks_ago(kestrel):
     assert d["verdict"] == "review" and d["prior_trips"][0]["family"] == "discharge_temperature"
     assert 33 <= d["prior_trips"][0]["days_before"] <= 36 and "reliability" in d["checklist"][-1]
     # the utility power dip three months ago had no warning in the data
-    from datetime import date, timedelta
-    dip = (date.today() - timedelta(days=96)).isoformat() + "T14:20"
+    from datetime import timedelta
+    dip = (plant_today() - timedelta(days=96)).isoformat() + "T14:20"
     p = trips.diagnose(conn, k2001(conn, pack), dip, pack=pack, history=False)
     assert p["value"] == "none" and p["first_out"] is None and "first-out panel" in p["checklist"][0]
 
 
 def test_a_loose_probe_tripped_it_two_months_ago_and_the_first_restart_failed_on_lube_oil(kestrel):
-    from datetime import date, timedelta
+    from datetime import timedelta
 
     from fuzer.analysis import trips
 
     conn, pack = kestrel
-    day = (date.today() - timedelta(days=60)).isoformat()
+    day = (plant_today() - timedelta(days=60)).isoformat()
     d = trips.diagnose(conn, k2001(conn, pack), day + "T09:12", pack=pack)
     assert d["value"] == "spurious" and d["first_out"] is None and "likely spurious" in d["title"]
     assert d["spurious"]["point"] == "KRGP:B1.VT2003.PV" and d["spurious"]["before"] < 4 and d["spurious"]["value"] >= 11.2
