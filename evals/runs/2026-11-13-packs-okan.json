@@ -1,0 +1,584 @@
+{
+  "date": "2026-11-13",
+  "kind": "packs",
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "specialist_effort": "medium",
+  "bundle": "okan",
+  "passed": 5,
+  "asked": 9,
+  "not_applicable": {},
+  "packs": {
+    "field-operations-facilities/alarms-and-instruments": {
+      "questions": 3,
+      "mentions": 0.833,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.67,
+      "looked_at_charts": 0,
+      "cost_usd": 3.23,
+      "cost_per_answer_usd": 1.077,
+      "seconds_per_answer": 75.8,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "How did the alarm system perform in the week of 4 November 2024, against the target rate?",
+          "mentions": 0.5,
+          "missing": [
+            [
+              "per hour",
+              "alarms per hour"
+            ]
+          ],
+          "citations": 9,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 15,
+          "seconds": 61.4,
+          "cost_usd": 0.7459
+        },
+        {
+          "domain": null,
+          "question": "Can we trust the readings on vessel 20-V-2001 in early November 2024?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 10,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "trend"
+          ],
+          "charted": null,
+          "tool_calls": 44,
+          "seconds": 77.3,
+          "cost_usd": 0.9545
+        },
+        {
+          "domain": null,
+          "question": "Was the level control on test separator 10-V-2003 behaving in mid-February 2025?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 3,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [
+            "valve_stiction"
+          ],
+          "charted": null,
+          "tool_calls": 31,
+          "seconds": 88.7,
+          "cost_usd": 1.5317
+        }
+      ]
+    },
+    "field-operations-facilities/gas-treating": {
+      "questions": 1,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 1.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.88,
+      "cost_per_answer_usd": 0.882,
+      "seconds_per_answer": 70.3,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Is the glycol contactor 20-V-2400 drying the gas properly?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 3,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [
+            "quality_trend"
+          ],
+          "charted": null,
+          "tool_calls": 29,
+          "seconds": 70.3,
+          "cost_usd": 0.8819
+        }
+      ]
+    },
+    "hse-incident-management/safety-systems": {
+      "questions": 2,
+      "mentions": 0.875,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 0.5,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 2.26,
+      "cost_per_answer_usd": 1.132,
+      "seconds_per_answer": 86.0,
+      "passed": false,
+      "short": [
+        "routed 50% under 100%"
+      ],
+      "results": [
+        {
+          "domain": null,
+          "question": "Is the 2nd stage vibration trip on 20-K-2200B in service, tested and working as designed?",
+          "mentions": 0.75,
+          "missing": [
+            "SG-OK-201"
+          ],
+          "citations": 8,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity"
+          ],
+          "routed": false,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 52,
+          "seconds": 103.3,
+          "cost_usd": 1.3312
+        },
+        {
+          "domain": null,
+          "question": "What caused the flaring in November 2025?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 3,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "hse-incident-management"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 35,
+          "seconds": 68.8,
+          "cost_usd": 0.9333
+        }
+      ]
+    },
+    "maintenance-integrity/compression": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.5,
+      "looked_at_charts": 0,
+      "cost_usd": 3.71,
+      "cost_per_answer_usd": 1.853,
+      "seconds_per_answer": 248.2,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Which of our pumps and compressors needed attention in early March 2024, and why?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 12,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 28,
+          "seconds": 200.0,
+          "cost_usd": 1.1991
+        },
+        {
+          "domain": null,
+          "question": "Are any of our compressors at risk at the end of December 2025, and what should the IOC do about it?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 11,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity",
+            "work-management-supply-chain"
+          ],
+          "routed": true,
+          "charts": [
+            "trend"
+          ],
+          "charted": null,
+          "tool_calls": 63,
+          "seconds": 296.5,
+          "cost_usd": 2.5076
+        }
+      ]
+    },
+    "maintenance-integrity/pumps-and-drivers": {
+      "questions": 3,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": 1.0,
+      "charts_per_answer": 1.0,
+      "looked_at_charts": 0,
+      "cost_usd": 3.8,
+      "cost_per_answer_usd": 1.268,
+      "seconds_per_answer": 105.4,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Is oil export pump 10-P-1001A performing to its curve, and what happened to it in 2025?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 12,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "pump_curve"
+          ],
+          "charted": true,
+          "tool_calls": 32,
+          "seconds": 76.5,
+          "cost_usd": 1.0379
+        },
+        {
+          "domain": null,
+          "question": "Are any of our pump motors overloaded in late November 2025, and why?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 9,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "trend"
+          ],
+          "charted": null,
+          "tool_calls": 58,
+          "seconds": 89.9,
+          "cost_usd": 1.289
+        },
+        {
+          "domain": null,
+          "question": "Is any of our gas turbines burning more fuel than it should in early November 2025, and what would fix it?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "custom"
+          ],
+          "charted": null,
+          "tool_calls": 60,
+          "seconds": 149.7,
+          "cost_usd": 1.4776
+        }
+      ]
+    },
+    "maintenance-integrity/reliability": {
+      "questions": 3,
+      "mentions": 0.723,
+      "cited": 0.667,
+      "safe": 1.0,
+      "routed": 0.667,
+      "charted": null,
+      "charts_per_answer": 0.67,
+      "looked_at_charts": 0,
+      "cost_usd": 2.85,
+      "cost_per_answer_usd": 0.949,
+      "seconds_per_answer": 129.1,
+      "passed": false,
+      "short": [
+        "mentions 72% under 80%",
+        "routed 67% under 100%"
+      ],
+      "results": [
+        {
+          "domain": null,
+          "question": "Is the 180-day PM interval right for our centrifugal compressors?",
+          "mentions": 0.67,
+          "missing": [
+            [
+              236,
+              "characteristic life",
+              "eta"
+            ]
+          ],
+          "citations": 1,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "bar"
+          ],
+          "charted": null,
+          "tool_calls": 33,
+          "seconds": 203.9,
+          "cost_usd": 1.1378
+        },
+        {
+          "domain": null,
+          "question": "Would shortening the PM on the centrifugal pumps cut their failures?",
+          "mentions": 0.5,
+          "missing": [
+            [
+              "early life",
+              "early_life",
+              "early-life"
+            ]
+          ],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "custom"
+          ],
+          "charted": null,
+          "tool_calls": 24,
+          "seconds": 75.3,
+          "cost_usd": 0.6479
+        },
+        {
+          "domain": null,
+          "question": "Which critical machines in the compression area would wait on a spare part if they failed?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 5,
+          "operating_instructions": [],
+          "specialists": [
+            "work-management-supply-chain"
+          ],
+          "routed": false,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 67,
+          "seconds": 108.2,
+          "cost_usd": 1.0607
+        }
+      ]
+    },
+    "maintenance-integrity/static-equipment": {
+      "questions": 2,
+      "mentions": 0.67,
+      "cited": 0.5,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 1.5,
+      "looked_at_charts": 0,
+      "cost_usd": 1.13,
+      "cost_per_answer_usd": 0.565,
+      "seconds_per_answer": 59.3,
+      "passed": false,
+      "short": [
+        "mentions 67% under 80%"
+      ],
+      "results": [
+        {
+          "domain": null,
+          "question": "Is the GGCP inlet separator 20-V-2001 due an inspection, and how long can it run?",
+          "mentions": 0.67,
+          "missing": [
+            [
+              "minimum thickness",
+              "minimum required thickness",
+              "retirement thickness",
+              "tmin"
+            ]
+          ],
+          "citations": 5,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "wall_thickness"
+          ],
+          "charted": null,
+          "tool_calls": 15,
+          "seconds": 54.9,
+          "cost_usd": 0.5376
+        },
+        {
+          "domain": null,
+          "question": "Which flowline is losing wall fastest, and when does it need inspecting?",
+          "mentions": 0.67,
+          "missing": [
+            [
+              "short-term",
+              "short term"
+            ]
+          ],
+          "citations": 1,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "wall_ranking",
+            "measurements"
+          ],
+          "charted": null,
+          "tool_calls": 13,
+          "seconds": 63.8,
+          "cost_usd": 0.5915
+        }
+      ]
+    },
+    "production-surveillance/metering-and-balances": {
+      "questions": 2,
+      "mentions": 0.875,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 0.0,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.45,
+      "cost_per_answer_usd": 0.223,
+      "seconds_per_answer": 27.8,
+      "passed": false,
+      "short": [
+        "routed 0% under 100%"
+      ],
+      "results": [
+        {
+          "domain": null,
+          "question": "What is the allocation factor at the oil export fiscal meter 10-FT-3001?",
+          "mentions": 0.75,
+          "missing": [
+            [
+              "0.9",
+              "90"
+            ]
+          ],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [],
+          "routed": false,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 5,
+          "seconds": 17.4,
+          "cost_usd": 0.1912
+        },
+        {
+          "domain": null,
+          "question": "Can the oil export fiscal meter 10-FT-3001 be checked against another meter?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 8,
+          "operating_instructions": [],
+          "specialists": [],
+          "routed": false,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 16,
+          "seconds": 38.2,
+          "cost_usd": 0.2547
+        }
+      ]
+    },
+    "wells-subsurface/wells-and-lift": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": 1.0,
+      "charts_per_answer": 1.5,
+      "looked_at_charts": 0,
+      "cost_usd": 1.16,
+      "cost_per_answer_usd": 0.582,
+      "seconds_per_answer": 70.7,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Can we trust OK-J08-04's October 2025 well test?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 3,
+          "operating_instructions": [],
+          "specialists": [
+            "wells-subsurface"
+          ],
+          "routed": true,
+          "charts": [
+            "measurements"
+          ],
+          "charted": null,
+          "tool_calls": 23,
+          "seconds": 63.8,
+          "cost_usd": 0.5794
+        },
+        {
+          "domain": null,
+          "question": "Why did OK-J07-05 make less oil after its April 2025 slickline job?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 5,
+          "operating_instructions": [],
+          "specialists": [
+            "wells-subsurface"
+          ],
+          "routed": true,
+          "charts": [
+            "measurements",
+            "gas_lift_curve"
+          ],
+          "charted": true,
+          "tool_calls": 26,
+          "seconds": 77.6,
+          "cost_usd": 0.5844
+        }
+      ]
+    }
+  }
+}
