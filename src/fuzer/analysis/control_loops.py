@@ -50,8 +50,17 @@ def _shape(conn, r) -> dict:
         "where e.src = %s and e.rel = 'located_at' and e.valid_to is null", (r["id"],)).fetchone()
     return {"id": r["id"], "loop": r["label"], "description": r["f"].get("description"),
             "holds": item["label"] if item else None, "final_element": r["f"].get("final_element"),
-            "unit": r["f"].get("eng_units"), "points": {k: (pts[k]["point"] if pts.get(k) else None) for k in ROLES},
+            "unit": r["f"].get("eng_units"), "range": _range(r["f"]), "points": {k: (pts[k]["point"] if pts.get(k) else None) for k in ROLES},
             "missing": [k for k in ROLES if not pts.get(k)], "_series": pts}
+
+
+def _range(f: dict) -> list[float] | None:
+    """The process value's span from the loop list (the controller's 0 to 100 %), when it gives one."""
+    try:
+        lo, hi = float(f["pv_range_low"]), float(f["pv_range_high"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return [lo, hi] if hi > lo else None
 
 
 def loop(conn, ref: str) -> dict:

@@ -700,7 +700,8 @@ class Window:
         level, so the value wanders with the load; `saturate` events add a demand (a path, in % of output) the output
         can't meet past 100 %, so the value falls away from the setpoint; `stiction` events make the valve stick and
         slip: the output ramps (a triangle) while the value jumps between two levels (a square), every `period`
-        minutes; `step_test` events put it in manual for an open-loop step of the output (step_response)."""
+        minutes; `step_test` events put it in manual for an open-loop step of the output (step_response); a `retune`
+        changes how tightly the value is held from then on (`pv_noise_scale`)."""
         sp = np.full_like(self.t, float(u["sp"]))
         for e in sorted(self.ev(unit, "setpoint"), key=lambda e: e["at"]):
             sp = np.where(self.t >= minutes(e["at"]), float(e["to"]), sp)
@@ -714,7 +715,10 @@ class Window:
         demand = float(u["op"]) + swing * load + float(u.get("op_noise", 0.6)) * self.noise(unit + "o", 5)
         demand = demand + sum((self.path(e["points"]) for e in self.ev(unit, "saturate")), np.zeros_like(self.t))
         op = np.clip(demand, 0, 100)
-        pv = sp + float(u.get("pv_noise", 0.5)) * self.noise(unit + "p", 10)
+        held = np.ones_like(self.t)  # a `retune` scales how far the value strays from setpoint from then on (#359)
+        for e in self.ev(unit, "retune"):
+            held = held * (1 - (1 - float(e["pv_noise_scale"])) * self.between(e["at"], None))
+        pv = sp + float(u.get("pv_noise", 0.5)) * held * self.noise(unit + "p", 10)
         pv = pv - gain * self.lag(np.maximum(demand - 100, 0), 30)  # what the pinned output can't deliver
         op = np.where(manual > 0, float(u["op"]), op)
         pv = pv + manual * gain * swing * load  # the load the frozen output no longer answers
