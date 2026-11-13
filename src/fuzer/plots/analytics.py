@@ -351,8 +351,7 @@ def well_trajectory(depths: dict, label: str, notice: str) -> Figure:
 
 
 def _well(conn, facility: str, notice: str, well: str | None = None, **_) -> Figure:
-    if not well:
-        raise ChartError("a well trajectory needs a well")
+    well = well or facility  # without a well, what was asked for: a facility has no survey, and the figure says so
     label = conn.execute("select label from entity_label where fuzer_id = %s", (well,)).fetchone()
     return well_trajectory(positions.well(conn, well), label["label"] if label else well, notice)
 
