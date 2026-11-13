@@ -42,8 +42,8 @@ const stateKey = (): string | undefined => {
 };
 
 let restoring = 0;
-/** Scroll back to where an entry was left. The page draws its data a moment later, so keep trying until it is tall
- * enough, for up to two seconds, and stop as soon as the operator touches or scrolls the page themselves. */
+/** Scroll back to where an entry was left. The page draws its data a moment later, so keep at it until it holds, for up
+ * to two seconds, and stop as soon as the operator touches or scrolls the page themselves. */
 function restore(y: number) {
   window.cancelAnimationFrame(restoring);
   const until = performance.now() + 2000;
@@ -52,10 +52,14 @@ function restore(y: number) {
   window.addEventListener("touchstart", cancel, { once: true, passive: true });
   window.addEventListener("wheel", cancel, { once: true, passive: true });
   window.addEventListener("keydown", cancel, { once: true });
+  // Held until it has stayed there for half a second: the page's data arriving above the fold can shift it again.
+  let settled = 0;
   const step = () => {
     if (stop) return;
-    window.scrollTo(0, y);
-    if (Math.abs(window.scrollY - y) > 2 && performance.now() < until) restoring = window.requestAnimationFrame(step);
+    if (Math.abs(window.scrollY - y) > 2) { window.scrollTo(0, y); settled = 0; }
+    else if (!settled) settled = performance.now();
+    const now = performance.now();
+    if (now < until && (!settled || now - settled < 500)) restoring = window.requestAnimationFrame(step);
   };
   step();
 }
@@ -91,6 +95,8 @@ function remember() {
  * Home with no route of its own. */
 export function resumeRoute(now = Date.now()): string | undefined {
   if (!installed() || (location.hash && location.hash !== "#/" && location.hash !== "#")) return undefined;
+  // With no signal, open to My work, which reads the jobs kept on the phone (P5.14d); other pages need the server.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return "#/inbox";
   try {
     const last = JSON.parse(localStorage.getItem(LAST) ?? "null") as { hash?: string; at?: number } | null;
     if (!last?.hash || !last.hash.startsWith("#/") || last.hash === "#/" || !last.at || now - last.at > RESUME_MS) return undefined;
@@ -102,17 +108,23 @@ export function resumeRoute(now = Date.now()): string | undefined {
 
 function onChange() {
   const known = stateDepth();
+  // The page being left is still drawn: note where it was, before its scroll event (which may be a frame behind) is
+  // credited to the next entry.
+  const leaving = entry;
+  const left = window.scrollY;
   if (known !== undefined) {
     // Back, forward, or a page that kept the state it had: return to where that entry was left.
     depth = known;
     length = history.length;
     const key = stateKey() ?? newKey();
     if (key !== entry) {
+      scrolls.set(leaving, left);
       entry = key;
       restore(scrolls.get(key) ?? 0);
     }
   } else if (history.length > length) {
     // A new page opens at its top, not at the scroll the last page was left at.
+    scrolls.set(leaving, left);
     record(depth + 1, newKey());
     window.cancelAnimationFrame(restoring);
     window.scrollTo(0, 0);
