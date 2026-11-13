@@ -265,3 +265,22 @@ def control_loop(ref: str | None = None, days: int = 3, until: str | None = None
             return _plain(cl.series(conn, ref, max(1, min(days, 14)), until))
         except calcs.CalcError as e:
             return {"error": str(e), **e.refusal()}
+
+
+@capability("field-operations-facilities", kind="calc")
+def loop_health(days: int = 7, until: str | None = None) -> dict[str, Any]:
+    """Control loop health ranking (#356): every loop on the DCS loop list over the `days` up to `until`, worst first,
+    with the share of time in manual, the share of time in auto with the output saturated (within 1 % of 0 or 100),
+    the mean setpoint error in auto (% of setpoint) and whether the value cycles regularly; flags manual (5 %),
+    saturated (10 %), setpoint_error (2 %) and oscillating. A worklist for the controls engineer to review, not a
+    change request: it never proposes a tuning, setpoint or mode change."""
+    from ...analysis import control_loops as cl
+    with db.connect() as conn:
+        return _plain(cl.health(conn, max(1, min(days, 31)), until))
+
+
+@capability("field-operations-facilities", kind="plot")
+def plot_loop_health(days: int = 7, until: str | None = None) -> dict[str, Any]:
+    """Chart the control loop health ranking, worst on top, each loop's score split into what makes it up."""
+    from ...plots import general
+    return _chart(general.loop_health, {"days": max(1, min(days, 31)), "until": until})

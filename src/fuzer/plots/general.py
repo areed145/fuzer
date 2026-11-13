@@ -463,3 +463,30 @@ def reconciliation(conn, since: str | None = None, until: str | None = None, day
                          if m["verdict"] in ("incomplete", "no_accounting", "no_operational")],
         "since": out["since"], "until": out["until"], "sources": out["sources"], "note": out["note"]},
         [m["accounting"]["record"] for m in oil][:10])
+
+
+def loop_health(conn, days: int = 7, until: str | None = None) -> Figure:
+    """Control loop health ranking (#356): each loop's score, worst on top, split into what makes it up (time in
+    manual, output saturated, setpoint error, a regular oscillation); the controls engineer's worklist."""
+    from ..analysis import control_loops as cl
+
+    out = cl.health(conn, days, until)
+    if not out["loops"]:
+        raise ChartError("no control loop on the loop list with enough readings in that window")
+    ls = list(reversed(out["loops"]))  # a horizontal bar chart draws its first row at the bottom
+    y = [m["loop"] for m in ls]
+    parts = [("time in manual (%)", lambda m: m["manual_pct"], "rgba(150,150,150,0.85)"),
+             ("output saturated (% of auto)", lambda m: m["saturated_pct"] or 0, "rgba(230,150,40,0.85)"),
+             ("setpoint error (10 x % of setpoint)", lambda m: min(100.0, 10 * (m["error_pct"] or 0)),
+              "rgba(40,110,190,0.85)"),
+             ("regular oscillation", lambda m: cl.OSCILLATION_SCORE if m["oscillating"] else 0, "rgba(210,60,50,0.85)")]
+    data = [{"type": "bar", "orientation": "h", "name": n, "y": y, "x": [f(m) for m in ls], "marker": {"color": c}}
+            for n, f, c in parts]
+    lay = layout(f"Control loop health, {out['since'][:10]} to {out['until'][:10]}", "score", None)
+    lay["barmode"] = "stack"
+    return Figure("loop_health", lay["title"]["text"], data, lay, {
+        "verdict": out["verdict"], "summary": out["summary"], "thresholds": out["thresholds"],
+        "synthetic": out["synthetic"], "loops": [{k: m[k] for k in ("loop", "score", "flags", "manual_pct",
+                                                                    "saturated_pct", "error_pct", "period_min")}
+                                                 for m in out["loops"]], "note": out["note"]},
+        [m["id"] for m in out["loops"] if m["flags"]][:10])

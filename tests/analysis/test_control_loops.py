@@ -32,3 +32,19 @@ def test_the_planted_faults_read_on_the_loop_points(okan_db):
     ok = cl.series(conn, "10-LIC-2002", days=3, until="2025-12-10T00:00")
     assert set(ok["mode"]) == {1.0} and max(abs(p - s) for p, s in zip(ok["pv"], ok["sp"])) < 2.0
     assert max(ok["op"]) < 99
+
+
+def test_each_planted_fault_ranks_at_the_top_of_the_worklist(okan_db):
+    conn = okan_db.conn
+    feb = cl.health(conn, days=5, until="2025-02-15T00:00")
+    assert feb["loops"][0]["loop"] == "10-LIC-2003" and "oscillating" in feb["loops"][0]["flags"]
+    assert feb["summary"]["flagged"] == ["10-LIC-2003"] and feb["synthetic"]
+    dec = cl.health(conn, days=7, until="2025-12-01T00:00")
+    top = {m["loop"]: m for m in dec["loops"][:2]}
+    assert set(top) == {"10-FIC-1001", "20-PIC-3003"}
+    assert "saturated" in top["10-FIC-1001"]["flags"] and top["20-PIC-3003"]["flags"][0] == "manual"
+    assert all(not m["flags"] for m in dec["loops"][2:])
+    assert "not a change request" in dec["note"]
+    from fuzer.plots import general
+    fig = general.loop_health(conn, days=7, until="2025-12-01T00:00")
+    assert fig.summary["verdict"] == "flagged" and fig.data[0]["y"][-1] == dec["loops"][0]["loop"]  # worst on top

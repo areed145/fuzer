@@ -63,6 +63,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`alarm_performance`](#alarm_performance) Alarm system performance over a window | ANSI/ISA-18.2 and EEMUA 191 | Alarm limits on each point and the historian readings that cross them (alarms) | Enabled alarm limits and readings over the window. |
 | [`instrument_health`](#instrument_health) Whether a transmitter's readings can be trusted | Engineering practice | Historian readings on the point or every point on the unit (each point's own) | A week of readings before the window and readings inside it. |
 | [`loop_oscillation`](#loop_oscillation) Whether a control loop is cycling, with its period and amplitude | Engineering practice | Historian readings on the unit's points or one point (each point's own) | A day or more of 5-minute readings, and at least four cycles in the window. |
+| [`loop_health`](#loop_health) Control loop health ranking (time in manual, output saturation, setpoint error, oscillation) | Engineering practice | Process value (each loop's own); Setpoint (each loop's own); Controller output (%); Mode (1 auto (-) | A day or more of 5-minute readings on all four points. |
 | [`contactor_foaming`](#contactor_foaming) Contactor differential pressure against its clean level (foaming and fouling) | Engineering practice | Contactor differential pressure (bar); Treated gas analyser (optional) (mol% or mg/Sm³) | A week of differential pressure history before the last two days. |
 | [`treated_gas`](#treated_gas) Treated gas analyser against its operating window | Engineering practice | Treated gas analyser (mol% or mg/Sm³); Operating window (same) | Seven days of analyser readings and an operating window on the point. |
 | [`regenerator`](#regenerator) Reboiler temperature against its operating window | Engineering practice | Reboiler temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
@@ -599,6 +600,19 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `acf_peak`:** How high the autocorrelation must come back one period on. (0.4)
 - **Test vector:** Half periods of 10, 10, 10, 11 and 9 samples: periods average 20 with a spread of 1.26, so r = 20 / 3.79 = 5.27, a regular cycle. (`regularity`)
 - **Worked example:** `tests/analysis/test_loops.py::test_the_test_separator_level_cycles_while_its_valve_sticks`, on the fake plant
+
+## loop_health
+
+**Control loop health ranking (time in manual, output saturation, setpoint error, oscillation).** Engineering practice. Per loop on the DCS loop list over the window: the share of time in manual, the share of time in auto with the output within 1 % of a limit, the mean absolute setpoint error in auto as a share of the setpoint, and the loop_oscillation regularity on the process value. Score = % manual + % saturated + 10 x error % (at most 100) + 50 for a regular oscillation. The flags and the score are this registry's own screening choices, after the usual loop performance monitoring measures (time in normal mode, valve saturation, error).
+
+- **Valid for:** Loops on the DCS loop list whose PV, SP, OP and mode points are on the historian.
+- **Needs:** A day or more of 5-minute readings on all four points.
+- **Run by:** `loop_health`
+- **Threshold `manual`:** Share of the window in manual from which a loop is flagged. (5 %)
+- **Threshold `saturated`:** Share of the time in auto with the output at a limit from which a loop is flagged out of valve. (10 %)
+- **Threshold `setpoint_error`:** Mean absolute setpoint error in auto, as a share of the setpoint, from which a loop is flagged. (2 %)
+- **Threshold `oscillation`:** What a regular oscillation adds to the score. (50)
+- **Worked example:** `tests/analysis/test_control_loops.py::test_each_planted_fault_ranks_at_the_top_of_the_worklist`, on the fake plant
 
 ## contactor_foaming
 
