@@ -2,13 +2,14 @@
 from the work center its work orders name, and its permits to work, on Kestrel and Okan, read from the records and never from the equipment
 type."""
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from psycopg.conninfo import make_conninfo
 
-from fuzer.core import bundles, db, settings
+from fuzer.core import bundles, db, projects, settings
 from fuzer.core import pack as packs
 from fuzer.ops import readiness
 
@@ -58,7 +59,8 @@ def test_a_compressor_short_of_valves_waits_on_its_order_and_its_packing_has_non
     spares = out["checks"][0]
     valves = next(p for p in spares["parts"] if p["label"] == "MAT-K2001-VLV")
     assert (valves["needed"], valves["stock"], valves["short"]) == (4, 2, 2)
-    assert valves["orders"] == [{"po": "4500007101", "quantity": 2, "due": (date.today() + timedelta(days=3)).isoformat()}]
+    today = datetime.now(ZoneInfo(projects.config(conn, "kestrel")["timezone"])).date()  # the plant's date (#882)
+    assert valves["orders"] == [{"po": "4500007101", "quantity": 2, "due": (today + timedelta(days=3)).isoformat()}]
     rings = next(p for p in spares["parts"] if p["label"] == "MAT-K2001-RNG")
     assert rings["short"] == 0  # 8 in stock, 8 needed
     assert any("Compressor valve assembly" in b and "on order (4500007101)" in b for b in out["blockers"])

@@ -14,7 +14,7 @@ its assets' spare parts recorded with zero stock (`parts_short`), so stores can 
 
 from datetime import UTC, date, datetime, time, timedelta
 
-from ..core import events
+from ..core import clock, events
 from ..core.plan import KINDS, STATUSES, PlanError
 
 ACTIVE = ("proposed", "scheduled", "in_progress")
@@ -26,9 +26,9 @@ FIELDS = ("title", "kind", "start", "end", "status", "crew", "crew_hours", "need
 
 def _when(v) -> datetime:
     if isinstance(v, datetime):
-        return v if v.tzinfo else v.replace(tzinfo=UTC)
+        return clock.aware(v)
     if isinstance(v, date):
-        return datetime.combine(v, time(), UTC)
+        return datetime.combine(v, time(), clock.zone())
     try:
         return _when(datetime.fromisoformat(str(v)))
     except ValueError as e:

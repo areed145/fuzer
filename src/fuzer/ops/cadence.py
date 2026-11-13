@@ -18,7 +18,7 @@ next run reads the window again.
 import inspect
 from datetime import datetime, timedelta
 
-from ..core import detectors, settings
+from ..core import clock, detectors, settings
 
 TIERS = {"5min": "*/5 * * * *", "30min": "*/30 * * * *", "hourly": "7 * * * *", "6h": "20 */6 * * *",
          "daily": "40 2 * * *"}
@@ -56,7 +56,7 @@ def _now(conn) -> datetime:
     """Now, or the end of the data's today for a fake plant whose history stops earlier (as the SRE scan reads it)."""
     from ..graph import operations
 
-    return min(datetime.now().replace(second=0, microsecond=0),
+    return min(clock.now().replace(second=0, microsecond=0),
                datetime.fromisoformat(operations.as_of(conn)) + timedelta(days=1))
 
 

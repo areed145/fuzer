@@ -150,6 +150,8 @@ def bypassed(conn, subjects, at=None) -> list[dict]:
         return []
     from datetime import UTC, datetime
 
+    from . import clock
+
     now = at or datetime.now(UTC)
 
     def started(v) -> bool:
@@ -157,7 +159,7 @@ def bypassed(conn, subjects, at=None) -> list[dict]:
             t = datetime.fromisoformat(str(v).replace("Z", "+00:00").replace(" ", "T")) if v else None
         except ValueError:
             return True
-        return t is None or (t if t.tzinfo else t.replace(tzinfo=UTC)) <= now
+        return t is None or clock.aware(t) <= now
     return [dict(r) for r in rows if (r["state"] or "").lower() in BYPASS_IN_PLACE and started(r["since"])]
 
 

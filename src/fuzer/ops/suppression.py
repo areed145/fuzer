@@ -15,11 +15,11 @@ integrity window breach or another system's report always opens its case. "About
 reads it (`exceptions.anchors`).
 """
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
-from ..core import events
+from ..core import clock, events
 from ..core.exceptions import ExceptionError
 from .exceptions import anchor_map, anchors, match
 
@@ -45,7 +45,7 @@ def covering(conn, subjects: list[str], at=None) -> dict | None:
         return None
     planned = bool(settings.get(conn, "exceptions.suppress_planned_work"))
     if isinstance(at, datetime) and at.tzinfo is None:
-        at = at.replace(tzinfo=UTC)  # as the plan reads a time without a zone (plan._when)
+        at = clock.aware(at)  # the plant's wall clock, as the plan reads it (plan._when)
     rows = conn.execute(
         """
         select 'plan' as src, id, subjects, end_at, title as reason,
@@ -107,7 +107,7 @@ def add(conn, refs, start: str, end: str, reason: str, by: str) -> dict:
     if not (reason or "").strip():
         raise ExceptionError("a suppression needs a reason")
     a, b = (datetime.fromisoformat(x) for x in (start, end))
-    a, b = (x if x.tzinfo else x.replace(tzinfo=UTC) for x in (a, b))
+    a, b = (clock.aware(x) for x in (a, b))
     if b <= a:
         raise ExceptionError("a suppression ends after it starts")
     return conn.execute("insert into suppression (subjects, start_at, end_at, reason, created_by) "

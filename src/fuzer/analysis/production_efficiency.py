@@ -4,6 +4,8 @@ import math
 from collections import defaultdict
 from datetime import date, timedelta
 
+from ..core import clock
+
 UNIT = "Sm3/d"
 DAYS = 14
 WELLS = {"id": "reported_potential", "label": "Reported well potential", "category": "wells"}
@@ -211,7 +213,7 @@ def production_efficiency(conn, facility: str, end: date | None = None) -> dict:
     ).fetchone()
     if not facility_row:
         raise ValueError("ref must resolve to a live facility")
-    end = end or latest_report_date(conn, facility) or date.today()
+    end = end or latest_report_date(conn, facility) or clock.today()
     if not date.min + timedelta(days=DAYS - 1) <= end < date.max:
         raise ValueError("end must allow fourteen daily samples and an exclusive following day")
     since, until = end - timedelta(days=DAYS - 1), end + timedelta(days=1)

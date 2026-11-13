@@ -21,7 +21,7 @@ import re
 from datetime import datetime, timedelta
 from statistics import median
 
-from ..core import detectors
+from ..core import clock, detectors
 from ..core.findings import DETERMINISTIC, Finding, at, fact
 
 SPIKE = 3.0  # times the point's baseline
@@ -314,5 +314,5 @@ def watch(conn, until: str | None = None, days: int = DAYS, by: str = "agent:fla
         raised.append({"key": key, "attributed": e["attributed"], "exception_id": x["id"], "item_id": x["item_id"],
                        "new": x["raised"]})
     conn.commit()
-    return {"at": until or datetime.now().isoformat(timespec="minutes"), "events": len(found_rows), "raised": raised,
+    return {"at": until or clock.now().isoformat(timespec="minutes"), "events": len(found_rows), "raised": raised,
             "unknown": sum(1 for e in found_rows if not e["attributed"]), "errors": errors}

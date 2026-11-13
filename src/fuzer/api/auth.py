@@ -12,7 +12,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 from requests.exceptions import RequestException
 
-from ..core import access, db, projects, settings
+from ..core import access, clock, db, projects, settings
 from .security import cookie_name, csrf_check, identify
 
 router = APIRouter(prefix="/auth")
@@ -287,4 +287,4 @@ def audit_coverage(request: Request, project: str | None = None):
 
 
 def _aware(value: datetime | None) -> datetime | None:
-    return value.replace(tzinfo=UTC) if value is not None and value.tzinfo is None else value
+    return clock.aware(value) if value is not None else None
