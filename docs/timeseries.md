@@ -80,7 +80,10 @@ switched off at first. A trace is a role on the unit, or on a neighbour: its `dr
 `upstream` or `downstream` of it. A compressor's suction pressure can come from its scrubber and its speed from its gas
 turbine. `GET /entities/{id}/trend-view` (`analysis/trend_view.py`) returns the groups with each trace's values,
 point, units and shared axis, the unit's other points (switched off), and the roles the template expects but the unit
-has no point for. A class with no template is grouped by what each point measures. Values come through
+has no point for. Templates ship for compressors, gas turbines, pumps, vessels, heat exchangers and wells. A bundle adds
+or replaces one under `trend_templates: {classes: {CODE: ...}}` in its `pack.yaml`, in the same shape; the pack is
+refused at init if a template names an unknown role or relation (`core/trends.py`). A class with no template is
+grouped by what each point measures. Values come through
 `values.around`, so the window, limits and provider match the rest of the entity page.
 
 ## One trend with event lanes (P5.13)
@@ -92,6 +95,18 @@ cases, notifications and work orders, and downtime and incidents. Each event nam
 clicking a marker opens it. Chips switch each trace, group and lane on or off; a group the template switches off is
 one chip until it is on. A limit draws only on a panel with one trace. On a phone, groups switch as a whole and only
 each panel's first unit keeps its scale; the hover reads every value.
+
+The window and what is switched on are kept in the page link (P5.13c): `show` and `hide` list the traces and lanes
+switched on or off against the template's defaults, and `at` and `w` the centre and width when they differ from the
+latest incident and 3 days, so a link sent to the field opens the same chart. A case page draws the same chart over
+its event's window (`GET /work/items/{id}/around` now names the `units` its subjects are read on), above the alarms
+and log entries around it; a case on several units offers a chip per unit.
+
+The tab is the entity's one time series view (P5.13d). Readings landed from other sources (well tests, lab samples,
+inspection readings, `graph.measurements`) are a "Tests and samples" group in the same chart: each is a stepped,
+dotted series with a marker per reading and its method in the hover, carrying the reading before the window in and
+the one after it out, so a monthly well test reads across a 3-day window. The group starts on when a reading falls in
+the window. Their whole history stays below the chart, closed until asked for.
 
 ## Operating limits, IOWs and excursions
 

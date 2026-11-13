@@ -601,6 +601,7 @@ def test_a_case_shows_the_log_entries_about_its_event_around_its_window(conn, co
     ctx = around.context(conn, trip["item_id"])
     assert ctx["window"] == {"start": "2026-11-10T23:10", "end": "2026-11-11T09:10"}
     assert [x["id"] for x in ctx["log"]] == ["fz-log-a"]
+    assert [u["id"] for u in ctx["units"]] == ["fz-k-2001"]  # the equipment is read on the tag it is installed at
     assert impl.anchor_map(conn, ["fz-pt-2001"])["fz-pt-2001"] == impl.anchors(conn, ["fz-pt-2001"])
     conn.commit()
 

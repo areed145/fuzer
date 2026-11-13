@@ -3,28 +3,29 @@ its pressures, temperatures, driver and vibration together instead of one chart 
 
     view(conn, fuzer_id, at=None, hours_before=48, hours_after=24) -> {"template", "groups", "other", "missing", ...}
 
-The entity is read on its unit (`values.unit_of`). The unit's ISO 14224 classes pick a template from
-`core/trend_templates.yaml` (else the generic one, grouped by what each point measures). Each trace in a group is a
-measurement role (P1.4) on the unit, or on a neighbour the template names: its driver, what it drives, what is
+The entity is read on its unit (`values.unit_of`). The unit's ISO 14224 classes pick a template: its bundle's, else
+the platform's in `core/trend_templates.yaml` (`core/trends.py`), else the generic one, grouped by what each point
+measures. Each trace in a group is a measurement role (P1.4) on the unit, or on a neighbour the template names: its driver, what it drives, what is
 upstream or downstream of it. Points on the unit that no group asked for go to `other`, switched off, so nothing is
 hidden. Roles the template expects and the unit has no point for are listed in `missing`.
+
+Sparse readings landed from other sources (well tests, lab samples, inspection readings: `graph.measurements`) are one
+more group, `tests`, each a stepped series with a marker per reading, carrying the reading before the window in and
+the one after it out. It starts switched on when a reading falls in the window (P5.13d).
 
 Traces in a group that share units share an axis (`axis`). Values come from the time-series provider through
 `values.around`, so the window, the centre on the latest incident, the limits and the provider label are the same as
 the entity page's.
 """
 
-from functools import cache
-from pathlib import Path
-
-import yaml
-
 from ..core import roles as vocabulary
+from ..core import trends
+from ..core.trends import parse
+from ..graph import measurements as landed
 from ..graph import roles as point_roles
 from ..sources.timeseries import _point, _unit_points
 from . import values
 
-TEMPLATES = Path(__file__).resolve().parents[1] / "core" / "trend_templates.yaml"
 RELATIONS = {
     "self": None,
     "driver": "select src as id from edge where rel = 'drives' and dst = %(u)s and valid_to is null",
@@ -36,28 +37,14 @@ MAX_TRACES = 40  # what one chart reads at once
 PER_ENTRY = 4  # points one trace entry may bring (two upstream vessels, two bearing temperatures, ...)
 
 
-@cache
-def templates() -> dict:
-    """The platform's templates: {"generic": ..., "classes": {code: template}}."""
-    raw = yaml.safe_load(TEMPLATES.read_text())
-    for code, t in raw["classes"].items():
-        for g in t["groups"]:
-            for entry in g["traces"]:
-                relation, role = parse(entry)
-                if relation not in RELATIONS or role not in vocabulary.ROLES:
-                    raise ValueError(f"trend template {code}.{g['key']}: {entry!r} isn't <relation>.<role>")
-    return raw
+def templates(pack=None) -> dict:
+    """The templates this asset uses: the platform's, with its bundle's on top (core/trends.py)."""
+    return trends.for_pack(pack)
 
 
-def parse(entry: str) -> tuple[str, str]:
-    """`driver.speed` -> ("driver", "speed"); `speed` -> ("self", "speed")."""
-    relation, _, role = entry.rpartition(".")
-    return relation or "self", role
-
-
-def pick(classes: set[str]) -> tuple[str, dict] | None:
+def pick(classes: set[str], pack=None) -> tuple[str, dict] | None:
     """The template for a unit of these classes, in a stable order; None for the generic one."""
-    own = templates()["classes"]
+    own = templates(pack)["classes"]
     return next(((c, own[c]) for c in sorted(classes) if c in own), None)
 
 
@@ -120,7 +107,7 @@ def _template_groups(conn, unit: str, template: dict) -> tuple[list[dict], list[
 
 def _generic_groups(conn, point_ids: list[str]) -> list[dict]:
     """Points grouped by what they measure, in the generic template's order, the first few shown."""
-    generic = templates()["generic"]
+    generic = trends.builtin()["generic"]
     have = point_roles.of(conn, point_ids)
     by: dict[str, list[dict]] = {}
     for pid in point_ids:
@@ -132,6 +119,34 @@ def _generic_groups(conn, point_ids: list[str]) -> list[dict]:
     order = [q for q in generic["quantities"] if q in by] + [q for q in by if q not in generic["quantities"]]
     return [{"key": q, "label": "Other" if q == "other" else q.replace("_", " ").capitalize(),
              "show": i < generic["shown"], "traces": by[q]} for i, q in enumerate(order)]
+
+
+def _tests(conn, unit: str, start: str, end: str) -> dict | None:
+    """The unit's landed readings as one group of stepped series: the readings in [start, end], with the one before and
+    the one after so a monthly well test reads across the window. None when it has none near the window."""
+    traces = []
+    for s in landed.for_entity(conn, unit)["series"]:
+        vals = [(v["at"][:16], v["value"], v["method"]) for v in s["values"]]
+        inside = [v for v in vals if start <= v[0] <= end]
+        before = [v for v in vals if v[0] < start][-1:]
+        after = [v for v in vals if v[0] > end][:1]
+        if not inside and not (before and after):
+            continue
+        shown = [v[1] for v in before + inside + after]
+        name = s["quantity"].replace("_", " ").capitalize() + (f" at {s['location']}" if s["location"] else "")
+        traces.append({"id": f"m:{s['of']['id']}|{s['quantity']}|{s['location'] or ''}", "point": name,
+                       "description": name, "uom": s["unit"], "role": None, "role_label": name,
+                       "on": {"id": s["of"]["id"], "label": s["of"]["label"], "relation": "self"},
+                       "link": s["of"]["id"], "axis": _axis(s["unit"]), "sampled": True, "inside": len(inside),
+                       "values": [[at, v] for at, v, _ in before + inside + after],
+                       "methods": [m for _, _, m in before + inside + after],
+                       "min": min(shown), "max": max(shown), "mean": sum(shown) / len(shown), "last": shown[-1],
+                       "limits": []})
+    if not traces:
+        return None
+    show = any(t["inside"] for t in traces)
+    return {"key": "tests", "label": "Tests and samples", "show": show,
+            "traces": [{**t, "show": show and bool(t["inside"])} for t in traces[:MAX_TRACES]]}
 
 
 def view(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
@@ -146,7 +161,7 @@ def view(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hou
         others: list[str] = []
     else:
         classes = point_roles.classes(conn, unit) | ({"WELL"} if _kind(conn, unit) == "well" else set())
-        chosen = pick(classes)
+        chosen = pick(classes, pack)
         mine = [p["id"] for p in _unit_points(conn, unit, MAX_TRACES * 2)]
         if chosen:
             groups, missing = _template_groups(conn, unit, chosen[1])
@@ -169,9 +184,13 @@ def view(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hou
         g["traces"] = [{**series[t["id"]], **t, "axis": _axis(series[t["id"]]["uom"]), "show": g["show"]}
                        for t in g["traces"] if t["id"] in series]
     other = [{**series[i], "axis": _axis(series[i]["uom"]), "show": False} for i in others if i in series]
+    tests = _tests(conn, unit, read["start"], read["end"]) if row["kind"] != "timeseries" else None
+    if tests:
+        groups.append(tests)
     return {**read, "entity": fuzer_id, "unit_label": _labels(conn, [unit]).get(unit), "classes": sorted(classes),
             "template": {"key": chosen[0] if chosen else "generic",
-                         "title": chosen[1]["title"] if chosen else templates()["generic"]["title"]},
+                         "title": chosen[1]["title"] if chosen else trends.builtin()["generic"]["title"],
+                         "source": chosen[1]["source"] if chosen else "platform"},
             "groups": [g for g in groups if g["traces"]], "other": other, "missing": missing}
 
 

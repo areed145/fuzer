@@ -1,15 +1,16 @@
 import "./styles/trend-view.css";
 // One trend with event lanes (P5.13b): an entity's process values grouped by its class's template (P5.12) as panels
 // on one time axis, with its alarms, log, cases, work orders and downtime beneath. Chips switch each trace, group and
-// lane on or off; a marker opens its record.
+// lane on or off; a marker opens its record. With `linked`, the window and what is switched on go in the page's link
+// (P5.13c), so a link sent to the field opens the same chart.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { PlotlyChart } from "./analytics/PlotlyChart";
 import { entityHref, Status, useAsync } from "./lib";
 import { caseHref } from "./pages/workflows/shared";
 import { useTheme } from "./theme";
-import { buildFigure, defaults, LANE_SHORT, names, OTHER, type Palette, type TrendTrace } from "./trendFigure";
+import { buildFigure, fromQuery, LANE_SHORT, names, OTHER, toQuery, type Palette, type TrendTrace } from "./trendFigure";
 import { Button, Card, Disclosure, Input, Table } from "./ui";
 
 const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
@@ -32,16 +33,43 @@ function recordHref(d: unknown): string | null {
   return typeof id === "string" ? entityHref(id) : null;
 }
 
-export function TrendView({ id }: { id: string }) {
-  const [hours, setHours] = useState(72);
-  const [at, setAt] = useState<string | undefined>(undefined);
+/** The page link's query, read once: the route re-renders on a hash change, and this view writes its own keys. */
+function linkQuery(): URLSearchParams {
+  return new URLSearchParams(location.hash.split("?")[1] ?? "");
+}
+
+/** The centre and width that show [start, end] with the trend's two thirds before and one third after. */
+function spanning(start: string, end: string): { at: string; hours: number } {
+  const a = Date.parse(`${local(start)}Z`);
+  const hours = Math.max(1, Math.ceil((Date.parse(`${local(end)}Z`) - a) / 3600000));
+  return { at: local(new Date(a + Math.round((hours * 2) / 3) * 3600000).toISOString()), hours };
+}
+
+/** The trend of `id`. `start` and `end` open it over a window (a case's event) instead of the latest incident; `linked`
+ * keeps the window and the toggles in the page link. */
+export function TrendView({ id, start, end, linked = false }: { id: string; start?: string; end?: string; linked?: boolean }) {
+  const q = useMemo(() => (linked ? linkQuery() : new URLSearchParams()), [linked, id]);
+  const around = start && end ? spanning(start, end) : null;
+  const [hours, setHours] = useState(() => Number(q.get("w")) || around?.hours || 72);
+  const [at, setAt] = useState<string | undefined>(() => q.get("at") || around?.at);
   const [picked, setPicked] = useState<Set<string> | null>(null);
   const theme = useTheme();
   const before = Math.round((hours * 2) / 3);
   const v = useAsync(() => api.trendView(id, at, before, hours - before), [id, at, hours]);
   const d = v.data;
   const t = useAsync(() => (d && !d.error ? api.timeline(id, d.start, d.end) : Promise.resolve(null)), [id, d?.start, d?.end]);
-  const on = picked ?? (d ? defaults(d) : new Set<string>());
+  const on = useMemo(() => picked ?? (d ? fromQuery(d, q.get("show"), q.get("hide")) : new Set<string>()), [picked, d, q]);
+  const first = around?.at;
+  useEffect(() => {
+    if (!linked || !d || d.error) return;
+    const [path, query] = location.hash.split("?");
+    const next = new URLSearchParams(query ?? "");
+    const keep = { ...toQuery(d, on), at: at !== first ? at : undefined, w: hours !== (around?.hours ?? 72) ? String(hours) : undefined };
+    for (const [k, v] of Object.entries(keep)) (v ? next.set(k, v) : next.delete(k));
+    const hash = `${path}${next.size ? `?${next}` : ""}`;
+    // replaceState: a toggle is not a page to go back to, and it fires no hashchange to re-render the route
+    if (hash !== location.hash) history.replaceState(history.state, "", hash);
+  }, [linked, d, on, at, hours]);
   const toggle = (keys: string[], value: boolean) => {
     const next = new Set(on);
     keys.forEach((k) => (value ? next.add(k) : next.delete(k)));
@@ -131,7 +159,7 @@ export function TrendView({ id }: { id: string }) {
             <tbody>
               {shownTraces.map((x) => (
                 <tr key={x.id}>
-                  <td><a href={entityHref(x.id)}>{name.get(x.id)}</a></td><td className="mono">{x.point}</td>
+                  <td><a href={entityHref(x.link ?? x.id)}>{name.get(x.id)}</a></td><td className="mono">{x.point}</td>
                   <td>{fmt(x.min)}</td><td>{fmt(x.max)}</td><td>{fmt(x.last)}</td><td>{x.uom}</td>
                 </tr>
               ))}

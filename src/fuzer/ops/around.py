@@ -3,13 +3,14 @@ case's event is on, around its window. Neither is an exception (an alarm is a po
 `limits.excursions`; a log entry is a record that mentions what it is about), so they don't join the case: they are
 shown on it, beside the detections and notifications that did.
 
-    context(conn, item_id) -> {"window", "alarms", "log", "basis"}
+    context(conn, item_id) -> {"window", "units", "alarms", "log", "basis"}
 
 The event's window runs from the earliest start to the latest end of the findings on the case (a finding that gives
 only a day, an SAP notification's, counts when nothing gives a time), widened by `exceptions.around_before_hours`
 and `exceptions.around_after_hours`: a trip's vibration climbs before it, and the restart is logged after. "The
 assets it is on" is read as the join reads them (`exceptions.anchors`), so what joins a case and what is shown
-around it agree, whatever the asset type.
+around it agree, whatever the asset type. `units` are the units the case's subjects are read on (`values.unit_of`),
+so the case page can draw their trend over the same window (P5.13c).
 """
 
 from datetime import datetime, timedelta
@@ -19,6 +20,7 @@ from .exceptions import anchor_map, anchors
 
 STEP = 5  # minutes between the historian values an alarm is read from
 MAX_ROWS = 25  # of each, the earliest first: what reads on one page
+MAX_UNITS = 4  # trends a case page offers
 
 
 def _t(v) -> datetime | None:
@@ -87,15 +89,25 @@ def log(conn, mine: set[str], a: datetime, b: datetime, limit: int = MAX_ROWS) -
             if any(stands.get(m, set()) & mine for m in r["mentions"])][:limit]
 
 
+def units(conn, subjects: list[str]) -> list[dict]:
+    """The units the subjects' values are read on, in the subjects' order, each once, with their labels."""
+    from ..analysis import values
+
+    seen = list(dict.fromkeys(values.unit_of(conn, s)[1] for s in subjects))[:MAX_UNITS]
+    labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
+        "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (seen,))}
+    return [{"id": u, "label": labels.get(u)} for u in seen]
+
+
 def context(conn, item_id: int, src=None) -> dict:
     """What sounded and what was written around the event a case works."""
     w = window(conn, item_id)
     if w is None:
-        return {"window": None, "alarms": [], "log": [], "basis": "This case works no exception, so it has no event."}
+        return {"window": None, "units": [], "alarms": [], "log": [], "basis": "This case works no exception, so it has no event."}
     a, b, subjects = w
     mine = anchors(conn, subjects)
     return {"window": {"start": a.isoformat(timespec="minutes"), "end": b.isoformat(timespec="minutes")},
-            "alarms": alarms(conn, mine, a, b, src), "log": log(conn, mine, a, b),
+            "units": units(conn, subjects), "alarms": alarms(conn, mine, a, b, src), "log": log(conn, mine, a, b),
             "basis": "Alarms on points of the assets this event is on, and operator log entries that mention them, "
                      "from the earliest finding on the case to the latest, widened by "
                      f"{settings.get(conn, 'exceptions.around_before_hours')} h before and "

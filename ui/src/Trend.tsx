@@ -151,14 +151,14 @@ export function MeasurementsCard({ id }: { id: string }) {
   if (!m.loading && !m.error && series.length === 0) return null;
   return (
     <UICard  as="section">
-      <h2>
-        Measurements{" "}
-        <span className="muted small">well tests, lab results and inspection readings, landed from their sources</span>
-      </h2>
-      <Status loading={m.loading && !m.data} error={m.error} />
-      <div className="trend-grid">
-        {series.map((s) => <MeasurementChart key={`${s.quantity}|${s.location}|${s.of.id}`} s={s} self={id} />)}
-      </div>
+      {/* The trend above draws these over its window (P5.13d); this is their whole history, closed until asked for. */}
+      <Disclosure label={<strong>Tests and samples, whole history ({series.length})</strong>}>
+        <p className="small">Well tests, lab results and inspection readings, landed from their sources.</p>
+        <Status loading={m.loading && !m.data} error={m.error} />
+        <div className="trend-grid">
+          {series.map((s) => <MeasurementChart key={`${s.quantity}|${s.location}|${s.of.id}`} s={s} self={id} />)}
+        </div>
+      </Disclosure>
       {m.data?.truncated && <p className="small">Showing the latest readings only.</p>}
     </UICard>
   );

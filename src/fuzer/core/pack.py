@@ -4,6 +4,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
+from . import trends
 from .tags import NoWellGrammar, PatternWellGrammar, TagGrammar, WellGrammar
 
 
@@ -25,6 +26,7 @@ class Pack:
     reference_data: dict = field(default_factory=dict)
     data_notice: str | None = None  # how this asset's data must be labeled wherever it's shown
     investigation: dict = field(default_factory=dict)  # the guided investigation, when the bundle has one
+    trend_templates: dict = field(default_factory=dict)  # trend templates the bundle adds or replaces (P5.12b)
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
@@ -62,6 +64,7 @@ def pack_from_config(raw: dict) -> Pack:
         limits=raw.get("limits", {}),
         data_notice=raw.get("data_notice"),
         investigation=raw.get("investigation") or {},
+        trend_templates=trends.checked(raw.get("trend_templates") or {}),
     )
 
 
