@@ -72,3 +72,17 @@ def test_the_watch_in_shadow_keeps_proposals_and_routes_nothing(okan_db, monkeyp
     capped = watch.watch(conn, PACK, SINCE, UNTIL, ask=scripted(cost=1.0))
     assert capped["skipped"] and re.search(r"spend cap", capped["note"])
     conn.commit()
+
+
+@pytest.mark.unit
+def test_a_provider_reply_with_a_thinking_block_reads_as_its_text(monkeypatch):
+    """The provider returns SDK blocks, not dicts; a thinking block carries no answer (found on the first live run)."""
+    from types import SimpleNamespace as NS
+
+    reply = NS(content=[NS(type="thinking", thinking="..."), NS(type="text", text='{"proposals": []}')])
+    monkeypatch.setattr(llm, "client", lambda scope: None)
+    monkeypatch.setattr(llm, "call", lambda client, params, scope: reply)
+    monkeypatch.setattr(llm, "usage", lambda msg: {})
+    monkeypatch.setattr(llm, "cost_report", lambda name, usage, scope: {"cost_usd": 0})
+    monkeypatch.setattr(settings, "get", lambda conn, key: "a-model")
+    assert watch.model_ask("why?")["answer"] == '{"proposals": []}'

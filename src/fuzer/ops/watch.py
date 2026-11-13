@@ -227,7 +227,8 @@ def model_ask(prompt: str) -> dict:
     name = settings.get(None, "agents.model")
     msg = llm.call(client, {"model": name, "max_tokens": MAX_TOKENS,
                             "messages": [{"role": "user", "content": prompt}]}, scope="agents")
-    return {"answer": llm._text(msg.content), "model": name,
+    text = "\n".join(b.text for b in msg.content if getattr(b, "type", None) == "text")  # thinking blocks carry none
+    return {"answer": text, "model": name,
             "usage": llm.cost_report(name, llm.usage(msg), scope="agents")}
 
 
