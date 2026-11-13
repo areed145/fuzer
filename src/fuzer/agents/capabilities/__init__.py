@@ -141,7 +141,9 @@ def catalogue() -> str:
                 f"- **Measurement roles:** {', '.join(f'`{r}`' for r in p['roles'])}",
                 f"- **Charts:** {', '.join(f'`{c}`' for c in p['charts'])}",
                 f"- **Eval:** {sum(len(q) for q in p['questions'].values())} questions with answer keys across "
-                f"{len(p['questions'])} bundles", ""]
+                f"{len(p['questions'])} bundles",
+                *(["- **Not applicable:** " + "; ".join(f"{b}: {why}" for b, why in sorted(p['not_applicable'].items()))]
+                  if p.get('not_applicable') else []), ""]
     out.pop()
     out += ["", "## Not available", "",
             "No agent can do these yet, whatever the question. A specialist asked for one says it is unavailable.", "",
