@@ -3194,14 +3194,15 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   // An asset opens on its work and process values; what the register holds about it is one view away.
   await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
   assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
-    ["Overview", "Measurements", "Connections", "Record", "Graph"]);
+    ["Overview", "Timeline", "Documents", "Record", "Graph"]);
   assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
   await page.getByRole("link", { name: "Record", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
   await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).waitFor();
   await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
-  await page.getByRole("link", { name: "Connections", exact: true }).click();
+  // The links list sits with the graph; Connections is the flow diagram, which a well off the flow network lacks.
+  await page.getByRole("link", { name: "Graph", exact: true }).click();
   await page.getByRole("link", { name: "WT-1", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
   await page.getByRole("button", { name: "Show all 24", exact: true }).click();
