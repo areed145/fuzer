@@ -27,7 +27,7 @@ MIN_SAMPLES = LAST + MIN_BASE
 MIN_SHIFT = 0.10  # of the baseline median
 SCATTER = 4.0  # times the baseline's median absolute deviation
 STALE_DAYS = 120  # a series with no sample this long is no longer sampled, so not drifting
-ONE_OFF = ("wall_thickness",)  # measurements on equipment that are inspection readings, not lab samples
+ONE_OFF = ("wall_thickness", "leak_screening")  # inspection and LDAR readings on equipment, not lab samples
 
 
 def _series(conn, until: datetime) -> dict[tuple, list[dict]]:
@@ -125,8 +125,8 @@ DRIFT_TYPE = _type().name
                     kind=detectors.RULE, cadence="daily", raises=(DRIFT_TYPE,),
                     needs={"lab results at a sample point": "select 1 from measurement m join entity e on "
                                                             "e.fuzer_id = m.fuzer_id and e.kind <> 'well' where "
-                                                            "m.location is not null and m.quantity <> "
-                                                            "'wall_thickness' limit 1"},
+                                                            "m.location is not null and m.quantity not in "
+                                                            "('wall_thickness', 'leak_screening') limit 1"},
                     eval="test:tests/analysis/test_quality_drift.py::test_a_drifting_analyte_is_raised_until_it_comes_back",
                     found=lambda out: len(out["raised"]))
 def watch(conn, until: str | None = None, by: str = "agent:quality") -> dict:
