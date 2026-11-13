@@ -31,7 +31,7 @@ import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import accounts, capacity, curves, docs, journal, limits, measurements, pfd, pid, process
+from . import accounts, capacity, curves, docs, instruments, journal, limits, measurements, pfd, pid, process
 from .common import (
     ACTIONS,
     CAUSES,
@@ -160,6 +160,13 @@ def _console(tag: str) -> str:
     if tag[:2].isdigit() and 61 <= int(tag[:2]) <= 60 + JACKETS:
         return CONSOLES[HOST[int(tag[:2]) - 60]]
     return CONSOLES.get(tag[:2], "PP")
+
+
+def _interface(tag: str) -> str:
+    """The PI interface a point comes in on: each jacket's RTU, else its facility's OPC node."""
+    if m := re.match(r"OK_J(\d\d)_", tag):
+        return f"OK-J{m.group(1)}-RTU"
+    return {"OKA_PP": "PP-OPC", "OK_GGCP": "GGCP-OPC"}.get(re.split(r"[.:]", tag)[0], "NWP-OPC")
 
 
 AUTHORS = ["GGCP CRO", "PP CRO", "OIM", "Production Engineer", "Night Supervisor", "Field Operator"]
@@ -1298,6 +1305,18 @@ def generate(out, seed: int = 11) -> dict:
     # Typical levels of the satellite headers' flows, which the historian draws rather than models.
     model["levels"] = [["ST1 Lift Gas Header Flow", 720.0], ["ST2 Lift Gas Header Flow", 440.0]]
     (out / "process_model.json").write_text(json.dumps(model))
+    # Instrument faults and interface outages over the model (#868): fuzer.sources.instruments applies them, and the
+    # file is their answer key. Off alarmed and IOW points, and away from the quarter the limits are learned on.
+    core = lambda t: "".join(m.groups()) if (m := re.search(r"(\d\d)[-_.]?([A-Z]+)[-_]?(\d{4})", t)) else None
+    watched = ({core(a["tag"]) for a in alarms} | {core(i["tag"]) for i in iows}) - {None}
+    ifaces: dict[str, list[str]] = {}
+    for p in points:
+        ifaces.setdefault(_interface(p["tag"]), []).append(p["tag"])
+    (out / "instrument_faults.json").write_text(json.dumps(instruments.generate(
+        model, points, seed + 47, datetime(2024, 6, 1), datetime(2025, 12, 20),
+        avoid=[(datetime(2024, 12, 15), datetime(2025, 4, 15))],
+        skip={p["tag"] for p in points if core(p["tag"]) in watched},
+        interfaces={k: v for k, v in ifaces.items() if k.startswith("OK-J")}), indent=1))
     (out / "answer_keys" / "curves.json").write_text(json.dumps(
         [{**curves.truth(c), "delivered_as": list(delivery[m]), "datasheet": f"DS-{m}",
           # what the datasheet shows: a pump sheet without its table draws only head and efficiency

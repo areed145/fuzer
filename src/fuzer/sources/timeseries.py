@@ -64,14 +64,32 @@ class SyntheticProvider:
 
     def __init__(self, data_dir=None):
         from ..core import projects
-        from . import process_model
+        from . import instruments, process_model
 
-        self.model = process_model.load(data_dir or projects.field("data"))
+        data_dir = data_dir or projects.field("data")
+        self.model = process_model.load(data_dir)
+        self.faults = instruments.load(data_dir)
 
     def series(self, s, start, end, step_minutes):
         return self.values(s["point"], s["uom"] or "", start, end, step_minutes, s["upsets"], s.get("description") or "")
 
     def values(self, point, uom, start, end, step_minutes, upsets, description=""):
+        out = self._clean(point, uom, start, end, step_minutes, upsets, description)
+        if not out or not self.faults or not self.faults.touches(point, start, end):
+            return out
+        # What the instruments and the historian did to the clean values (instruments.py): bad values are left out.
+        from .instruments import epoch, naive
+
+        secs = np.array([epoch(t) for t, _ in out])
+        at = lambda t: self._clean(point, uom, naive(t), naive(t), 1, upsets, description)[0][1]
+        v = self.faults.apply(point, secs, np.array([x for _, x in out]), at)
+        return [(t, round(float(x), 3)) for (t, _), x in zip(out, v) if not np.isnan(x)]
+
+    def states(self, point, start, end):
+        """Digital states the historian holds for the point over the window: [(from, to, state)], epoch seconds."""
+        return self.faults.states(point, start, end) if self.faults else []
+
+    def _clean(self, point, uom, start, end, step_minutes, upsets, description=""):
         if self.model and self.model.covers(point):
             return self.model.values(point, start, end, step_minutes)
         if end < start:
