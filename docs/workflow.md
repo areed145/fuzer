@@ -307,6 +307,32 @@ Readers: the Reports page (`#/reports`: days, versions, checks, what changed), M
 day of train C's trip (5 November 2024) leads with "Biggest loss: Process trip, 146 Sm3 oil, back at
 10:30" and the trip's downtime record.
 
+## Regulatory and emissions reports
+
+A regulatory report is a template filled for one period from registered records (`ops/reports.py`, P7.6). The first,
+`flare_emissions_monthly`, is the month's flare and emissions report:
+
+| Section | Figures | Each row, and where it drills to |
+|---|---|---|
+| Metered gas | Each meter's volume over the month | A gas day's volume: the measurement record |
+| Flaring | Each flare flow point's volume over the month | A day's mean flow from the historian: the point's readings that day |
+| GHG inputs | The flared volume, and its energy at the heating value of the gas metered that month | The flare figures; the heating value used |
+| Flare events | The flare episodes, and those with no known cause | An episode with its cause or "cause unknown": its `flare_event` case |
+
+Every figure and row carries its basis: measured, estimated or missing.
+
+- **Estimated** covers a volume the measurement system estimated (status E), a flare day with under 90% of its
+  readings, and the flared energy, which is an inventory input and not the inventory.
+- **Missing** is a day with no volume or no readings.
+
+A figure takes the worst basis of its rows. A figure resting on estimated or missing data is marked at the top of the
+draft and in its review case, so the reviewer checks those first.
+
+Drafting a period (`POST /reports/regulatory/{template}/{period}/draft`, or from the Reports page) keeps a new version
+only when a figure changed, for example a late or corrected record. It raises or refreshes the period's
+`regulatory_report` case for the HSE specialist. A month that isn't over is drafted through the data's last full day,
+and the draft says so.
+
 ## The operating model as a package
 
 The way a project operates (its roles and their SLAs, the work types it declares as data, its operating settings, and

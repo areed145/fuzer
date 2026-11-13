@@ -1,0 +1,4 @@
+/* Regulatory reports (P7.6): a figure's rows sit under it. */
+.report-row-label {
+  padding-left: 2em;
+}

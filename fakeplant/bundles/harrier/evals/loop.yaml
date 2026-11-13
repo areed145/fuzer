@@ -62,3 +62,5 @@ arrive:
   # Steps made noisy: what it then raises that it would not at its usual value is closed as false alarms, and the
   # tuning job proposes a quieter value (P6.3). The plant is quiet, so two such cases are enough here
   detector_tuning: {tuning: {detector: steps, value: 2.0, since: "today-5d 00:00", until: "today-1d 00:00", min_cases: 2}, about: detector}
+  # The month's flare and emissions report drafted from its records, its review work for the HSE specialist (P7.6)
+  regulatory_report: {report: flare_emissions_monthly, about: report}
