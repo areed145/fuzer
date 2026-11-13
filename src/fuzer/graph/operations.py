@@ -30,7 +30,10 @@ def data_through(conn) -> str | None:
 
 
 def as_of(conn) -> str:
-    return data_through(conn) or date.today().isoformat()
+    """The data's today: the latest production report, else the plant's date (in its timezone, #866)."""
+    from ..sources.relative_dates import plant_today
+
+    return data_through(conn) or plant_today().isoformat()
 
 
 def _window(conn, since: str | None, until: str | None, days: int = 365) -> tuple[str, str]:
