@@ -108,6 +108,12 @@ dotted series with a marker per reading and its method in the hover, carrying th
 the one after it out, so a monthly well test reads across a 3-day window. The group starts on when a reading falls in
 the window. Their whole history stays below the chart, closed until asked for.
 
+The chart reads without the chips (P5.15a, b). Above each panel is its key: the panel's name, then each trace's name
+in its colour with its last value, so a trace is matched by name rather than colour alone (on a phone the key is a list,
+one trace a line, a long name cut and whole in the hover). A panel carries at most two units; a third starts a
+"continued" panel under it. The heading names the unit. Plotly's floating toolbar is gone: drag to zoom, and a
+Reset zoom button shows once zoomed.
+
 ## Operating limits, IOWs and excursions
 
 An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI

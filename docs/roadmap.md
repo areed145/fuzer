@@ -40,7 +40,7 @@ built left to right.
 | 3 First value | P5.3, P5.1, P6.1, P7.2 | P3.5, P3.8, P3.2, P3.9 | P2.3, P2.4, P2.5 | P4.1, P4.3, first pack of P4.2 |
 | 4 Depth | P5.5, P5.11, P5.4, P5.6, P5.8, P5.9 | P3.1, P3.10, P3.6, P3.3 in shadow, P3.7 | P2.1, P2.6, P7.1 | Packs 2 to 4 of P4.2, P4.5 |
 | *Gate B* (passed 2026-11-13) | Every work type closes end to end | | | |
-| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
+| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
 | *Gate C* (passed 2026-11-13) | | | Third asset type live, no code | |
 
@@ -87,7 +87,7 @@ R.2 (#1017) stays in Phase R as the part that can be built today: the PI Web API
 recorded from a real server where one is public, or taken from the vendor's reference where none is, instead of only
 against Fuzer's own fake historian.
 
-## Historian views (P5.12 #967, P5.13 #968)
+## Historian views (P5.12 #967, P5.13 #968, P5.15 #1012)
 
 An IOC engineer looking at a tripped compressor wants its suction and discharge pressures, temperatures, speed and
 vibration on one time axis, with the alarms, log entries, cases and work orders beside them, not a grid of one chart
@@ -97,6 +97,7 @@ per tag. Two epics in the work and UI lane do this, P5.12 first.
 |---|---|---|
 | P5.12 Trend templates by equipment class | A template per equipment class (ISO 14224 code, or well) names groups of measurement roles, the order they read in and which are shown first. Templates ship with the platform; a bundle adds or overrides one in its configuration. A view resolves the entity to its unit, its class, the template and the points holding each role there (P1.4). Points with no role in the template sit in an "Other points" group, off by default. | A compressor on Okan and on Kestrel opens with its pressures, temperatures, speed and vibration grouped from roles, with no tag names in code. Pumps, wells, vessels and heat exchangers have templates too. A role the template wants but the unit lacks is named, not silently dropped. A bundle override changes the view with no code change. |
 | P5.13 One trend with event lanes | One large chart with a shared time axis. Each template group is a panel, and traces in a panel share an axis per unit. Beneath them are event lanes: alarms, operator log, cases, work orders and downtime. Every trace and lane has a toggle, the defaults come from the template, and the choice is kept in the link. A crosshair reads every shown trace at one time, and an event marker opens its record. It replaces the per-tag small multiples on the entity page, and the case page shows the same chart over its event window. | Opening the compressor behind an Okan trip case shows the trip's pressures, temperatures, speed and vibration with its alarms, log entries, case and work order in lanes, at the trip time. Each trace and lane toggles, and a shared link restores the choice. Every marker links to its record, every trace names its point, unit and provider, and synthetic values are labelled. It works in light, dark and on a phone. |
+| P5.15 A Timeline viewer that reads at a glance | An audit of the P5.13 chart from the IOC desk and a phone found it works but makes the reader do too much. Its chips take a screen of space above the chart. A trace is matched to its chip only by colour, far above it. A panel can stack four value axes. Sixteen alarms collapse into one bar. Plotly's floating toolbar covers the top of the chart. The slices: (a) declutter: no floating toolbar, a Reset zoom of our own that shows only after a zoom, one control row, and the heading names the unit; (b) direct labels: each trace named at its right edge in its colour with its last value, at most two value axes a panel (a third unit gets its own panel), and the shaded lead-in labelled in the chart; (c) lanes that read: alarms one row per point by priority, crowded markers counted, and a clicked event opens a detail card under the chart instead of leaving the page; (d) a pinned cursor: click to pin a time, read every trace there, and pin a second time for before and after; (e) zoom reads detail: zooming in re-reads values at a finer step, and the step is shown; (f) phone: one control row, shorter panels, swipe to move the window. | On the Okan 20-K-2200B trip, every trace is named on the chart without the chips. No panel has more than two value axes. Each alarming point has its own row. A pinned before and after reads the trip's drop in every value. No toolbar covers the chart. On a 390 px phone the controls are one row and the chart starts in the first screen. Zooming to an hour shows values at the provider's finest step. Each slice has a browser test. |
 
 ## The installed app on a phone (P5.14 #984)
 

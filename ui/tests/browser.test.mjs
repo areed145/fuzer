@@ -5786,13 +5786,26 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   // empty lanes have no chip; every other lane names its count
   await card.getByRole("button", { name: "Alarms 1" }).waitFor();
   assert.equal(await card.getByRole("button", { name: /Work orders/ }).count(), 0);
-  const panels = () => card.locator(".annotation-text").allTextContents();
+  const panels = () => card.locator('text[class$="titletext"]').allTextContents();
   assert.deepEqual(await panels(), ["Pressures", "Driver"]);
+  // P5.15a/b: the unit is named, every trace is named on the chart with its last value, and no toolbar floats over it
+  await card.getByRole("heading", { name: /^K-1 · Compressor/ }).waitFor();
+  const keys = await card.locator('text[class^="legend"][class$="text"]:not([class$="titletext"])').allTextContents();
+  assert.ok(keys.some((k) => k.startsWith("Suction pressure") && k.includes("17 barg")), keys.join(" | "));
+  assert.equal(await card.locator(".modebar").count(), 0);
+  assert.equal(await card.getByRole("button", { name: "Reset zoom" }).count(), 0);
+  const plot = await card.locator(".nsewdrag").first().boundingBox();
+  await page.mouse.move(plot.x + plot.width * 0.3, plot.y + plot.height * 0.5);
+  await page.mouse.down();
+  await page.mouse.move(plot.x + plot.width * 0.6, plot.y + plot.height * 0.5, { steps: 5 });
+  await page.mouse.up();
+  await card.getByRole("button", { name: "Reset zoom" }).click();
+  await card.getByRole("button", { name: "Reset zoom" }).waitFor({ state: "detached" });
   await card.getByRole("button", { name: "Lube oil, seals and thrust", exact: true }).click();
   await card.getByRole("button", { name: "Lube oil pressure", exact: true }).waitFor();
-  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 3);
+  await page.waitForFunction(() => document.querySelectorAll('.trend-view text[class$="titletext"]').length === 3);
   await card.getByRole("button", { name: "Pressures", exact: true }).click();
-  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 2);
+  await page.waitForFunction(() => document.querySelectorAll('.trend-view text[class$="titletext"]').length === 2);
   assert.deepEqual(await panels(), ["Driver", "Lube oil, seals and thrust"]);
   await waveScreenshot("p5-13b-trend-desktop");
   // P5.13c: the toggles are in the link, so the same link opens the same chart
@@ -5802,7 +5815,7 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   await page.goto(`${url}/about:blank`);
   await page.goto(`${url}/${link}`);
   await card.locator(".main-svg").first().waitFor();
-  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 2);
+  await page.waitForFunction(() => document.querySelectorAll('.trend-view text[class$="titletext"]').length === 2);
   assert.deepEqual(await panels(), ["Driver", "Lube oil, seals and thrust"]);
   // on a phone a group switches as a whole and the chart fits the screen
   await page.setViewportSize({ width: 390, height: 900 });
