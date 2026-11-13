@@ -12,12 +12,12 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 41 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 31 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 61 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 62 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 37 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 15 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 28 modules</small>"]
-  c_evals["Evals<br><small>fuzer.evals, 13 modules</small>"]
+  c_evals["Evals<br><small>fuzer.evals, 14 modules</small>"]
   c_api["API<br><small>fuzer.api, 21 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 32 modules</small>"]
@@ -255,7 +255,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `accounting`, `alarm_journal`, `alarm_performance`, `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `co2_corrosion`, `completeness`, `compression`, `condition`, `control_loops`, `costs`, `drivers`, `equipment`, `facilities`, `flare`, `flare_review`, `flow_capacity`, `forecast`, `forecast_actual`, `gas_balance`, `gas_lift`, `gas_lift_stability`, `hydraulics`, `ili`, `incident_followup`, `integrity`, `interventions`, `kpis`, `ldar`, `limits`, `loops`, `metering`, `production_efficiency`, `prognosis`, `protection`, `quality`, `quality_trend`, `recip`, `record_quality`, `records`, `reservoir_pressure`, `rotating`, `signals`, `spares`, `stiction`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`, `vibration_spectra`, `water_injection`, `well_diagnostics`, `well_test_factor`, `well_tests`, `work_execution`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `accounting`, `alarm_journal`, `alarm_performance`, `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `co2_corrosion`, `completeness`, `compression`, `condition`, `control_loops`, `costs`, `drivers`, `equipment`, `facilities`, `flare`, `flare_review`, `flow_capacity`, `forecast`, `forecast_actual`, `gas_balance`, `gas_lift`, `gas_lift_stability`, `hydraulics`, `ili`, `incident_followup`, `integrity`, `interventions`, `kpis`, `ldar`, `limits`, `loops`, `metering`, `production_efficiency`, `prognosis`, `protection`, `quality`, `quality_trend`, `recip`, `record_quality`, `records`, `reservoir_pressure`, `rotating`, `signals`, `spares`, `stiction`, `studies`, `surveillance`, `treating`, `trend_view`, `trips`, `value`, `values`, `vibration_spectra`, `water_injection`, `well_diagnostics`, `well_test_factor`, `well_tests`, `work_execution`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)
@@ -310,9 +310,9 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 
 Answer keys, the history replay and the ops eval that score it all. More in [evals](evals.md).
 
-- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `packs_eval`, `pid2graph`, `pronto`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`, `watch_eval`, `wells3w`
+- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `mock_sap`, `ops_eval`, `packs_eval`, `pid2graph`, `pronto`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`, `watch_eval`, `wells3w`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
-- **Writes:** `assistant_answer`, `assistant_fact`, `exception_record`, `golden`, `lesson`, `llm_extraction`, `ops_eval`, `point_normal`, `source_record`, `work_event`, `work_item` ([schema](schema.md))
+- **Writes:** `assistant_answer`, `assistant_fact`, `exception_record`, `golden`, `lesson`, `llm_extraction`, `ops_eval`, `point_normal`, `source_record`, `source_system`, `work_event`, `work_item` ([schema](schema.md))
 - **Owns:** `ops_eval` (its `schema.sql`)
 - **Settings:** `agents.model`, `opportunities.gas_lift_breakeven` ([settings](settings.md))
 - **Tests:** [`tests/evals`](https://github.com/areed145/fuzer/tree/main/tests/evals)

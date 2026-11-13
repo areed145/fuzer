@@ -72,6 +72,17 @@ one is explained. The tests last minutes, so it reads 1-minute medians in 20-min
 finds 6 of the 8 fault onsets, a median 6 minutes in, with no unexplained change in 3.3 hours of normal
 running. It misses the air blockage, which starts 6 minutes into its day, and the second bout of slugging.
 
+## Trend templates (P5.12)
+
+An entity's trend reads by its equipment class, not one chart per tag. `core/trend_templates.yaml` holds a template
+per ISO 14224 class: groups of measurement roles (P1.4), each group a panel, in the order an engineer reads them, some
+switched off at first. A trace is a role on the unit, or on a neighbour: its `driver`, what it has `driven`, what is
+`upstream` or `downstream` of it. A compressor's suction pressure can come from its scrubber and its speed from its gas
+turbine. `GET /entities/{id}/trend-view` (`analysis/trend_view.py`) returns the groups with each trace's values,
+point, units and shared axis, the unit's other points (switched off), and the roles the template expects but the unit
+has no point for. A class with no template is grouped by what each point measures. Values come through
+`values.around`, so the window, limits and provider match the rest of the entity page.
+
 ## Operating limits, IOWs and excursions
 
 An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI

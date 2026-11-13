@@ -1685,7 +1685,7 @@ test("an asset says what is known, what is missing and what each gap holds back;
       kinds: ["class_guide"], basis: ["it applies to its equipment class"] }] } }));
   const answers = [];
   await page.route("**/entities/tag-e5002/placement", (route) => { answers.push(route.request().postDataJSON()); return route.fulfill({ json: { accepted: true } }); });
-  await page.goto(`${url}/#/e/tag-e5002`);
+  await page.goto(`${url}/#/e/tag-e5002?tab=record`);
   const panel = page.locator(".asset-context");
   await panel.getByText("Holds back Process excursions; IOW breaches; excursion and IOW cases. 89% of heat exchangers have it.").waitFor();
   await panel.getByText("57% of what heat exchangers usually have").waitFor();
@@ -1733,7 +1733,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-child").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
   await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
   await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
@@ -2659,6 +2659,8 @@ test("Home shows each server-built figure in its own card, with its tables on re
   const first = charts.locator(".home-card").filter({ has: page.getByRole("heading", { name: "Production efficiency", exact: true }) });
   await page.waitForFunction(() => document.querySelector(".home-charts .js-plotly-plot")?._fullLayout?.xaxis);
   await first.getByText("Coverage is not verified.").waitFor();
+  // Notes and the source are one click away; data warnings stay on the card.
+  await first.getByRole("button", { name: "Notes and source" }).click();
   await first.getByText("Unknown values are gaps, never zero.").waitFor();
   // No carousel: no slide controls, and both charts are on the page together.
   assert.equal(await page.getByRole("button", { name: /^(Previous|Next) chart$/ }).count(), 0);
@@ -3189,9 +3191,18 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
     values: {}, keys: [], edge_counts: {}, edges: Array.from({ length: 24 }, (_, i) => edge(i + 1)),
     records: [{ source: "pi_af", record_type: "element", source_key: "OKAN\\20 OK_GGCP\\20-K-2300A", method: "singleton", confidence: 1 }] } }));
   await page.goto(`${url}/#/e/${id}`);
+  // An asset opens on its work and process values; what the register holds about it is one view away.
+  await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
+  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
+    ["Overview", "Measurements", "Connections", "Record", "Graph"]);
+  assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
+  await page.getByRole("link", { name: "Record", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
   await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).waitFor();
+  await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
+  await page.getByRole("link", { name: "Connections", exact: true }).click();
+  await page.getByRole("link", { name: "WT-1", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
   await page.getByRole("button", { name: "Show all 24", exact: true }).click();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 24);
@@ -3662,12 +3673,15 @@ for (const [type, found] of Object.entries(FINDINGS)) {
   });
 }
 
-// The jobs the loop eval (P1.7) handed a field operator on the Okan bundle, one per type the field sees, written by
-// `FUZER_WRITE_FIXTURES=1 uv run pytest tests/evals/test_loop.py -k okan` and checked against the API's shape there.
-const LOOP_JOBS = JSON.parse(readFileSync(new URL("./fixtures/loop-field-jobs.json", import.meta.url), "utf8"));
+// The jobs the loop eval (P1.7) handed a field operator on each bundle, one per type the field sees, written by
+// `FUZER_WRITE_FIXTURES=1 uv run pytest tests/evals/test_loop.py tests/evals/test_loop_kestrel.py
+// tests/evals/test_loop_harrier.py` and checked against the API's shape there (#963).
+const LOOP_FIXTURES = { okan: "loop-field-jobs.json", kestrel: "loop-field-jobs-kestrel.json", harrier: "loop-field-jobs-harrier.json" };
+const LOOP_JOBS = Object.entries(LOOP_FIXTURES).flatMap(([bundle, file]) =>
+  Object.entries(JSON.parse(readFileSync(new URL(`./fixtures/${file}`, import.meta.url), "utf8"))).map(([type, job]) => [bundle, type, job]));
 
-for (const [type, job] of Object.entries(LOOP_JOBS)) {
-  test(`the loop's ${type.replace(/_/g, " ")} field job is usable on a 390 px phone (P1.7)`, async () => {
+for (const [bundle, type, job] of LOOP_JOBS) {
+  test(`the loop's ${type.replace(/_/g, " ")} field job on ${bundle} is usable on a 390 px phone (P1.7)`, async () => {
     await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "loop-field"));
     await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "loop-field", jobs: [job], coming_up: [] } }));
     await page.setViewportSize({ width: 390, height: 844 });

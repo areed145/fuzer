@@ -302,8 +302,9 @@ register(
             "message links to the case (empty: the message names the case without a link)", "Schedule"),
     Setting("access.session_hours", "int", 8, "Absolute signed-in session lifetime in hours", "Access",
             min=1, max=24, scopes=(GLOBAL,)),
-    Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "
-            "bounds memory pressure on the single-instance demo, not a commercial quota", "Access",
+    Setting("access.api_concurrency", "int", 8, "Maximum simultaneous authenticated API requests per server process "
+            "(one more waits a few seconds for a place); bounds memory pressure on the single-instance demo, not a "
+            "commercial quota", "Access",
             min=1, max=32, scopes=(GLOBAL,)),
     Setting("detectors.on", "bool", True, "Run the detectors; set for one detector as detectors.on@<name> on the "
             "Detection page", "Detection"),

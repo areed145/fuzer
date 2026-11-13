@@ -153,7 +153,7 @@ function App() {
           ) : section === "browse" ? (
             <Search query={query} stats={s} />
           ) : section === "e" && path[1] ? (
-            <Entity id={path[1]} tab={query.get("tab") === "graph" ? "graph" : "details"} />
+            <Entity id={path[1]} tab={query.get("tab") ?? ""} />
           ) : section === "ask" ? (
             <AskPage query={query} />
           ) : section === "ontology" ? (

@@ -319,9 +319,19 @@ def test_paid_get_bool_spellings_and_server_resource_bounds(runtime, monkeypatch
     for value in ("true", "1", "yes", "on", "TRUE"):
         assert runtime.get(f"/sources/connections/1/tables/test?claude={value}").status_code == 403
     monkeypatch.setattr(security, "_active", 4)
+    monkeypatch.setattr(security, "ADMISSION_WAIT_SECONDS", 0.2)
     with settings.Overrides({"access.api_concurrency": 4}):
-        response = runtime.get("/demo/investigation")
+        response = runtime.get("/demo/investigation")  # the server stayed full for the whole wait
         assert response.status_code == 429 and response.headers["retry-after"]
+        import threading
+
+        monkeypatch.setattr(security, "ADMISSION_WAIT_SECONDS", 10.0)
+        freed = threading.Timer(0.3, lambda: setattr(security, "_active", 3))
+        freed.start()
+        try:  # a place came free while it waited: the request is served, not refused
+            assert runtime.get("/demo/config").status_code == 200
+        finally:
+            freed.cancel()
     monkeypatch.setattr(security, "_active", 0)
     monkeypatch.setattr(security, "MAX_BODY", 128)
     assert runtime.post("/board/pins", content="x" * 129, headers={"Content-Type": "application/json"}).status_code == 413

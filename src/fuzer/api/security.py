@@ -1,5 +1,6 @@
 """One HTTP access boundary, including routes that read settings or trigger work on GET."""
 
+import asyncio
 import functools
 import hmac
 import inspect
@@ -18,6 +19,8 @@ current: ContextVar[access.Principal | None] = ContextVar("fuzer_http_principal"
 mutating: ContextVar[bool] = ContextVar("fuzer_http_mutating", default=False)
 MAX_BODY = 32 * 1024 * 1024  # Four existing 5 MB assistant images, base64 encoded, plus JSON.
 _active = 0
+ADMISSION_WAIT_SECONDS = 10.0  # how long a request over access.api_concurrency waits for a place
+ADMISSION_POLL_SECONDS = 0.05
 
 
 async def json_object(request: Request) -> dict:
@@ -170,8 +173,15 @@ class AuthenticatedRoute(APIRoute):
             await run_in_threadpool(self._ownership, request, person)
             hidden = await run_in_threadpool(self._hidden, request, person)
             limit = await run_in_threadpool(settings.get, None, "access.api_concurrency")
-            if _active >= limit:
-                raise HTTPException(429, "The server is busy. Wait briefly and try again.", headers={"Retry-After": "2"})
+            # A page opens with a handful of reads: one over the limit waits its turn for a few seconds rather
+            # than fail the page, and is refused only when the server stays full.
+            waited = 0.0
+            while _active >= limit:
+                if waited >= ADMISSION_WAIT_SECONDS:
+                    raise HTTPException(429, "The server is busy. Wait briefly and try again.",
+                                        headers={"Retry-After": "2"})
+                await asyncio.sleep(ADMISSION_POLL_SECONDS)
+                waited += ADMISSION_POLL_SECONDS
             _active += 1
             token = current.set(person)
             mutation = mutating.set(unsafe)

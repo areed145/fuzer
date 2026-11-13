@@ -7,6 +7,7 @@ of failing.
 """
 
 import os
+import threading
 import time
 import urllib.request
 from datetime import UTC, datetime
@@ -296,10 +297,30 @@ def _materializations(instance, run_id: str) -> list:
 
 # --- routes -----------------------------------------------------------------------------------------
 
+SHARED_SECONDS = 15.0  # how long one reading of the scheduler's storage serves everyone who asks
+_shared: dict[str, tuple[float, Any, Any]] = {}
+_shared_locks = {"health": threading.Lock(), "overview": threading.Lock()}
+
+
+def shared(name: str, instance, read):
+    """`read()`, or what it returned to someone else in the last SHARED_SECONDS. Each reading is dozens of queries on
+    the scheduler's storage; the navigation asks every minute from every open tab, and Home and Jobs ask on opening.
+    People who ask together wait for one reading instead of each making their own."""
+    if instance is None or SHARED_SECONDS <= 0:
+        return read()
+    with _shared_locks[name]:
+        hit = _shared.get(name)
+        if hit and hit[1] is instance and time.monotonic() - hit[0] < SHARED_SECONDS:
+            return hit[2]
+        value = read()
+        _shared[name] = (time.monotonic(), instance, value)
+        return value
+
+
 @router.get("/jobs/health")
 def jobs_health(instance=Depends(get_instance), defs=Depends(get_definitions)):
     """Compact status for the nav indicator."""
-    return health(instance, defs)
+    return shared("health", instance, lambda: health(instance, defs))
 
 
 @router.get("/jobs/tiers")
@@ -316,6 +337,10 @@ def jobs_overview(instance=Depends(get_instance), defs=Depends(get_definitions),
     if instance is None:
         return {"available": False, "dagster": link, "health": health(None, defs), "jobs": [], "sensors": [],
                 "checks": [], "claude": None, "scheduler": {"running": False, "last_heartbeat": None}}
+    return {**shared("overview", instance, lambda: _overview(instance, defs)), "dagster": link}
+
+
+def _overview(instance, defs) -> dict:
     sched = scheduler(instance)
     states = _states(instance)
 
@@ -347,7 +372,7 @@ def jobs_overview(instance=Depends(get_instance), defs=Depends(get_definitions),
         jobs.append({"name": j.name, "description": j.description, "triggers": triggers.get(j.name, []),
                      "last_run": recent[0] if recent else None, "recent_runs": recent})
     check_rows = checks(instance, defs)
-    return {"available": True, "dagster": link, "scheduler": sched, "health": health(instance, defs, check_rows),
+    return {"available": True, "scheduler": sched, "health": health(instance, defs, check_rows),
             "jobs": jobs, "sensors": sensors, "checks": check_rows,
             "claude": _claude_spend(instance, defs)}
 

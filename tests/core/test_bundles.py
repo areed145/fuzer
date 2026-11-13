@@ -492,7 +492,7 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
         _drop("two_projects")
 
 
-def test_scheduled_jobs_run_once_per_project_in_its_own_schema(serving, tmp_path):
+def test_scheduled_jobs_run_once_per_project_in_its_own_schema(serving, tmp_path, capfd):
     """Dagster (multi-project phase 4): schedules and the export sensor start a run per project, tagged with it,
     and a tagged run loads that project's own exports into its own schema with its own pack."""
     import dagster as dg
@@ -526,6 +526,24 @@ def test_scheduled_jobs_run_once_per_project_in_its_own_schema(serving, tmp_path
                                            scheduled_execution_time=at) as ctx:
                 runs = schedule.evaluate_tick(ctx).run_requests
             assert [r.tags[jobs.PROJECT_TAG] for r in runs] == ["okan"]
+            # The five-minute jobs start one run for every project together, not a process each.
+            tick = next(s for s in jobs.schedules if s.job_name == "work_tick")
+            with dg.build_schedule_context(instance=instance, resources={"fuzer": fuzer},
+                                           scheduled_execution_time=at) as ctx:
+                runs = tick.evaluate_tick(ctx).run_requests
+            assert [r.tags[jobs.PROJECTS_TAG] for r in runs] == ["kestrel,okan"]
+            assert jobs.PROJECT_TAG not in runs[0].tags
+
+        scope = db.scope()
+        done = jobs.work_tick.execute_in_process(resources={"fuzer": fuzer}, tags={jobs.PROJECTS_TAG: "kestrel,okan"})
+        said = capfd.readouterr().err
+        assert done.success and said.index("kestrel: work tick:") < said.index("okan: work tick:")
+        assert db.scope() == scope  # the run's process is left in the scope it started in
+        broken = jobs.work_tick.execute_in_process(resources={"fuzer": fuzer}, raise_on_error=False,
+                                                   tags={jobs.PROJECTS_TAG: "nowhere,okan"})
+        assert not broken.success  # one project failing fails the run, after the others were done
+        said = capfd.readouterr().err
+        assert "nowhere: failed:" in said and "okan: work tick:" in said
 
         sensed = jobs.new_exports(dg.build_sensor_context(resources={"fuzer": fuzer}))
         assert [r.tags[jobs.PROJECT_TAG] for r in sensed.run_requests] == ["kestrel"]  # only Kestrel has exports
