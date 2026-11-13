@@ -121,6 +121,21 @@ def _generic_groups(conn, point_ids: list[str]) -> list[dict]:
              "show": i < generic["shown"], "traces": by[q]} for i, q in enumerate(order)]
 
 
+LOOP_TRACES = {"pv": "Process value", "sp": "Setpoint", "op": "Controller output", "mode": "Mode (1 auto, 0 manual)"}
+
+
+def _loop_groups(conn, loop_id: str) -> list[dict]:
+    """A control loop's four points as one group: the setpoint on the process value's axis, the output and the mode
+    each on their own, so a level held at 50 % reads in % and not on the mode's 0 to 1."""
+    from .control_loops import loop
+
+    pts = loop(conn, loop_id)["_series"]
+    axes = {"pv": "pv", "sp": "pv", "op": "op", "mode": "mode"}
+    traces = [{"id": pts[r]["id"], "role": None, "role_label": label, "on": None, "axis": axes[r]}
+              for r, label in LOOP_TRACES.items() if pts.get(r)]
+    return [{"key": "loop", "label": "Control loop", "show": True, "traces": traces}]
+
+
 def _tests(conn, unit: str, start: str, end: str) -> dict | None:
     """The unit's landed readings as one group of stepped series: the readings in [start, end], with the one before and
     the one after so a monthly well test reads across the window. None when it has none near the window."""
@@ -159,6 +174,9 @@ def view(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hou
         classes, chosen = set(), None
         groups, missing = _generic_groups(conn, [fuzer_id]), []
         others: list[str] = []
+    elif row["kind"] == "control_loop":  # its process value, setpoint, output and mode together
+        classes, chosen = set(), None
+        groups, missing, others = _loop_groups(conn, fuzer_id), [], []
     else:
         classes = point_roles.classes(conn, unit) | ({"WELL"} if _kind(conn, unit) == "well" else set())
         chosen = pick(classes, pack)
@@ -181,7 +199,7 @@ def view(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hou
         return read
     series = {s["id"]: s for s in read.pop("series")}
     for g in groups:
-        g["traces"] = [{**series[t["id"]], **t, "axis": _axis(series[t["id"]]["uom"]), "show": g["show"]}
+        g["traces"] = [{**series[t["id"]], **t, "axis": t.get("axis") or _axis(series[t["id"]]["uom"]), "show": g["show"]}
                        for t in g["traces"] if t["id"] in series]
     other = [{**series[i], "axis": _axis(series[i]["uom"]), "show": False} for i in others if i in series]
     tests = _tests(conn, unit, read["start"], read["end"]) if row["kind"] != "timeseries" else None

@@ -166,3 +166,18 @@ def test_a_wells_tests_are_stepped_series_on_its_trend_at_a_test(okan):
     assert at in times and times[0] < v["start"]  # the test before the window is carried in
     far = trend_view.view(okan, row["fuzer_id"], at="1990-01-01T00:00", hours_before=48, hours_after=24)
     assert "tests" not in [g["key"] for g in far.get("groups", [])]
+
+
+def test_a_control_loop_opens_on_its_four_points(okan):
+    """A loop shows its process value, setpoint, output and mode, not only what has a measurement role: the setpoint
+    shares the process value's axis, and the output and the mode each have their own."""
+    loop = okan.execute("select fuzer_id from entity_label where upper(label) = '10-LIC-2002'").fetchone()["fuzer_id"]
+    v = trend_view.view(okan, loop, at="2025-12-09T00:00")
+    [g] = v["groups"]
+    by = {t["role_label"]: t for t in g["traces"]}
+    assert list(by) == list(trend_view.LOOP_TRACES.values())
+    assert by["Process value"]["point"].endswith(".PV") and by["Setpoint"]["point"].endswith(".SP")
+    assert by["Process value"]["axis"] == by["Setpoint"]["axis"] != by["Controller output"]["axis"] != by[
+        "Mode (1 auto, 0 manual)"]["axis"]
+    assert all(t["show"] for t in g["traces"])
+    assert 40 < by["Process value"]["last"] < 60  # held near 50 %, read in its own units

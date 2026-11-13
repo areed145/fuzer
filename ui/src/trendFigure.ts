@@ -143,14 +143,14 @@ export function colours(view: TrendViewData, palette: Palette): Map<string, stri
 }
 
 /** A panel as drawn: a template group, or the part of one past its first two units (P5.15b), so no panel carries
- * more than two value axes. */
-export function drawn(groups: TrendGroup[]): TrendGroup[] {
+ * more than two value axes. On a phone, where a second axis has no room for its scale, one unit a panel. */
+export function drawn(groups: TrendGroup[], per = 2): TrendGroup[] {
   return groups.flatMap((g) => {
     const units = [...new Set(g.traces.map((t) => t.axis))];
     const out: TrendGroup[] = [];
-    for (let i = 0; i < units.length; i += 2) {
-      const mine = new Set(units.slice(i, i + 2));
-      out.push({ ...g, key: i ? `${g.key}:${i / 2}` : g.key, label: i ? `${g.label}, continued` : g.label,
+    for (let i = 0; i < units.length; i += per) {
+      const mine = new Set(units.slice(i, i + per));
+      out.push({ ...g, key: i ? `${g.key}:${i / per}` : g.key, label: i ? `${g.label}, continued` : g.label,
                  traces: g.traces.filter((t) => mine.has(t.axis)) });
     }
     return out;
@@ -182,7 +182,7 @@ const local = (s: string) => Date.parse(s.length === 10 ? `${s}T00:00Z` : `${s.s
 
 export function buildFigure(view: TrendViewData, timeline: TimelineData | null, on: Set<string>, palette: Palette,
                             compact = false) {
-  const shown = drawn(panels(view, on));
+  const shown = drawn(panels(view, on), compact ? 1 : 2);
   const name = names(view);
   const lanes = (timeline?.lanes ?? []).filter((l) => l.events.length && on.has(`lane:${l.key}`));
   const colour = colours(view, palette);
@@ -215,12 +215,10 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
       const ref = n === 1 ? "y" : `y${n}`;
       const traces = g.traces.filter((t) => t.axis === u);
       const label = traces[0].uom ?? "";
-      // On a phone only the first unit keeps its scale on screen; the key and the hover read every value.
-      const hidden = compact && j >= 1 ? { showticklabels: false, title: { text: "" } } : {};
       layout[axis] = j === 0
         ? { domain, anchor: "x", title: { text: label, font: { size: 11 } }, fixedrange: true, zeroline: false }
         : { overlaying: first === 1 ? "y" : `y${first}`, side: "right", fixedrange: true, zeroline: false, showgrid: false,
-            title: { text: label, font: { size: 11 } }, anchor: "x", ...hidden };
+            title: { text: label, font: { size: 11 } }, anchor: "x" };
       if (j === 0) lowest = ref;
       for (const t of traces) {
         data.push({

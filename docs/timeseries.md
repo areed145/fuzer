@@ -93,8 +93,8 @@ template group is a panel on a shared time axis, and traces in a panel share an 
 unit's event lanes from `GET /entities/{id}/timeline?start&end` (`ops/timeline.py`): alarms, operator log entries,
 cases, notifications and work orders, and downtime and incidents. Each event names the record it came from, and
 clicking a marker opens it. Chips switch each trace, group and lane on or off; a group the template switches off is
-one chip until it is on. A limit draws only on a panel with one trace. On a phone, groups switch as a whole and only
-each panel's first unit keeps its scale; the hover reads every value.
+one chip until it is on. A limit draws only on a panel with one trace. On a phone, groups switch as a whole and each
+panel carries one unit, so every line is read against its own scale.
 
 The window and what is switched on are kept in the page link (P5.13c): `show` and `hide` list the traces and lanes
 switched on or off against the template's defaults, and `at` and `w` the centre and width when they differ from the
@@ -107,6 +107,9 @@ inspection readings, `graph.measurements`) are a "Tests and samples" group in th
 dotted series with a marker per reading and its method in the hover, carrying the reading before the window in and
 the one after it out, so a monthly well test reads across a 3-day window. The group starts on when a reading falls in
 the window. Their whole history stays below the chart, closed until asked for.
+
+A control loop opens on its process value with its setpoint on the same axis, its controller output and its mode
+each on their own axis.
 
 The chart reads without the chips (P5.15a, b). Above each panel is its key: the panel's name, then each trace's name
 in its colour with its last value, so a trace is matched by name rather than colour alone (on a phone the key is a list,

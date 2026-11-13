@@ -131,3 +131,14 @@ test("on a phone each panel's key is a list, one trace a line, with long names c
   assert.equal(short("Journal Bearing Temperature · 20-K-2001", true), "Journal Bearing Temperature ·…");
   assert.equal(short("Journal Bearing Temperature · 20-K-2001", false), "Journal Bearing Temperature · 20-K-2001");
 });
+
+test("on a phone each panel carries one unit, so no line is read against another's scale", () => {
+  const loop = { ...view, groups: [{ key: "loop", label: "Control loop", show: true, traces: [
+    trace("mode", ""), trace("pv", "%"), trace("sp", "%")] }], other: [] };
+  loop.groups[0].traces[1].axis = loop.groups[0].traces[2].axis = "pv";
+  loop.groups[0].traces[0].axis = "mode";
+  assert.deepEqual(plain(drawn(panels(loop, defaults(loop)), 1).map((g) => g.traces.map((t) => t.id))), [["mode"], ["pv", "sp"]]);
+  const f = buildFigure(loop, null, defaults(loop), palette, true);
+  assert.equal(Object.keys(f.layout).filter((k) => /^yaxis\d*$/.test(k) && f.layout[k].overlaying).length, 0);
+  assert.equal(Object.keys(f.layout).filter((k) => /^yaxis\d*$/.test(k)).length, 2);
+});
