@@ -301,7 +301,7 @@ The HTTP API the app uses. More in [deployment](deployment.md).
 - **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `auth`, `catalog`, `deps`, `entities`, `graph`, `home`, `hooks`, `investigation`, `jobs`, `knowledge`, `metrics`, `onboarding`, `ontology`, `ops`, `security`, `settings`, `sources`, `standards`, `stewardship`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `access_login`, `access_session`, `feedback`, `pinned_link`, `value_ranking` ([schema](schema.md))
-- **Settings:** `access.session_hours`, `agents.case_cap_usd`, `demo.enabled` ([settings](settings.md))
+- **Settings:** `access.session_hours`, `agents.case_cap_usd`, `demo.enabled`, `notify.app_url` ([settings](settings.md))
 - **Tests:** [`tests/api`](https://github.com/areed145/fuzer/tree/main/tests/api)
 
 ### Command line

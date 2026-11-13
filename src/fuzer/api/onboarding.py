@@ -8,6 +8,8 @@ it is fixed:
     operating model   the model the bundle follows: applied as it is, and any difference nobody has named
     context           the register's open questions: matches, disagreements, roles, drawings, criticality, gaps
     roster            the roles the bundle staffs, each with someone on it
+    go live           what a team needs before it runs a shift here (R.4): sign-in, an owner, failed-run alerts,
+                      links in notifications, and a cap on agent spend; references only, nothing is tested or called
     loop eval         how to prove it end to end (`fuzer eval --loop`, on a copy: it writes cases)
 
 `journey(conn)` reads only; nothing on the page changes the project. Each step links to the page that owns the fix.
@@ -180,6 +182,46 @@ def _roster(conn, b: dict) -> dict:
                  link="#/users?view=workflow", seats=seats, filled=filled)
 
 
+def _go_live(conn) -> dict:
+    """Presence of what a shift depends on, read from deployment references and settings. Nothing is tested or
+    called: a reference that is set is not proof the service behind it answers."""
+    import os
+
+    from ..core import access, settings
+
+    gaps, blocked = [], False
+    try:
+        auth = access.readiness()
+    except access.AccessError as e:
+        auth = {"mode": "invalid", "configured": False, "error": str(e)}
+    if auth["mode"] != "microsoft":
+        blocked = True
+        gaps.append(_gap("sign-in is in local attribution mode", "nobody but this computer can use it, and decisions "
+                         "aren't tied to named accounts", "#/settings"))
+    elif not auth["configured"]:
+        blocked = True
+        gaps.append(_gap("Microsoft sign-in isn't configured", "nobody can sign in", "#/settings"))
+    if not conn.execute("select 1 from access_account where owner and enabled").fetchone():
+        blocked = True
+        gaps.append(_gap("no owner", "nobody can approve accounts or grant access, so new people wait at sign-in",
+                         "#/users"))
+    if not settings.secret(conn, "alerts.webhook"):
+        gaps.append(_gap("no failed-run alert channel", "a failed scheduled load or detector run reaches nobody, and "
+                         "the board goes stale without anyone being told", "#/settings?view=configuration&filter=alerts.webhook"))
+    if not settings.get(conn, "notify.app_url"):
+        gaps.append(_gap("notifications have no link back", "an assignee's email or chat names the case but can't open "
+                         "it, so the field has to find it by hand", "#/settings?view=configuration&filter=notify.app_url"))
+    if os.environ.get("ANTHROPIC_API_KEY") and not settings.get(conn, "agents.case_cap_usd"):
+        gaps.append(_gap("agent spend per case has no cap", "agents can keep spending on one case without it going to "
+                         "a person", "#/settings?view=configuration&filter=agents.case_cap_usd"))
+    ready = not gaps
+    summary = ("Sign-in, an owner, alerts, links and spend caps are set. Set is not tested: check Jobs and send a "
+               "test notification before the first shift." if ready else
+               f"{len(gaps)} thing{'s' if len(gaps) != 1 else ''} to set before a team runs a shift here.")
+    return _step("go_live", "Go live", BLOCKED if blocked else READY if ready else TODO, summary, gaps,
+                 link="#/settings")
+
+
 def _loop() -> dict:
     return _step("loop", "Loop eval", TODO, "Every type of work from arrival to counted, as production brings it in. "
                  "It writes cases, so run it on a copy of the project, not here.", [], command="fuzer eval --loop")
@@ -193,7 +235,7 @@ def journey(conn) -> dict:
     steps = [first]
     if name:
         steps += [_sources(conn), _source_packs(conn, b), _operating_model(conn, b), _context(conn), _roster(conn, b),
-                  _loop()]
+                  _go_live(conn), _loop()]
     count = {s: sum(1 for x in steps if x["status"] == s) for s in (READY, BLOCKED, TODO)}
     return {"project": name, "steps": steps, "ready": count[READY], "blocked": count[BLOCKED], "to_do": count[TODO]}
 
