@@ -541,3 +541,33 @@ create table if not exists watch_proposal (
     run_at     timestamptz not null default now()
 );
 create index if not exists watch_proposal_window on watch_proposal (since, until);
+-- A person's verdict on a proposal, and the pattern a confirmed one is read into (P3.4, #951): the role of the point it
+-- names, its equipment class and which way the value moved against the week before.
+alter table watch_proposal add column if not exists verdict text;          -- confirmed | rejected
+alter table watch_proposal add column if not exists verdict_by text;
+alter table watch_proposal add column if not exists verdict_at timestamptz;
+alter table watch_proposal add column if not exists point_id text;
+alter table watch_proposal add column if not exists role text;
+alter table watch_proposal add column if not exists class text;
+alter table watch_proposal add column if not exists direction text;      -- high | low
+alter table watch_proposal add column if not exists shift_z double precision;
+alter table watch_proposal add column if not exists minutes integer;
+alter table watch_proposal add column if not exists event_kind text;     -- on replay: the injected event it matched
+alter table watch_proposal add column if not exists pattern text;        -- <class>:<role>:<direction>
+
+-- A deterministic rule drafted from a pattern of confirmed proposals (P3.4): its spec, its replay score, and who
+-- published it. Published rules run as the promoted_rules window detector.
+create table if not exists promoted_rule (
+    id           bigserial primary key,
+    pattern      text not null,
+    spec         jsonb not null,                -- role, class, direction, z, minutes, baseline_days
+    examples     jsonb not null default '[]',   -- the confirmed proposals it was fitted on
+    score        jsonb,                         -- its replay score, when the asset has a fake plant's events
+    status       text not null default 'draft', -- draft | published | retired
+    drafted_by   text not null,
+    drafted_at   timestamptz not null default now(),
+    published_by text,
+    published_at timestamptz,
+    reason       text
+);
+create unique index if not exists promoted_rule_live on promoted_rule (pattern) where status in ('draft', 'published');

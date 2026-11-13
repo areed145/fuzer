@@ -172,6 +172,18 @@ upsets and the share fully cited. They are kept in `ops_eval` as `shadow:watch` 
 tests the wiring with a scripted model; a live score needs a provider key and is run by hand with
 `fuzer eval --watch --since ... --until ...`.
 
+**From confirmed findings to a rule (P3.4).** A person confirms or rejects a proposal; on replay the fake plant's events
+do (`watch_eval.judge`). A confirmed proposal is read into a pattern: the measurement role of the point it names, its
+equipment class and which way the value moved against the week before, with how far and for how long. Once
+`watch.promote_after` proposals of one pattern are confirmed, `ops/promote.py` drafts a deterministic rule: points of
+that role on that class whose average over a fitted duration moves past a fitted threshold (0.8 of the smallest confirmed
+shift), scored on the bundle's replay. A person, never an agent, publishes it, and it runs as the `promoted_rules`
+window detector in the SRE scan. The watch then leaves alone a stretch on equipment a detection covers (or one of its
+train), so once the rule catches the pattern the question isn't asked and nothing is spent. On Okan,
+`tests/ops/test_promote.py` takes 20-K-2300A's discharge temperature climbing before its 2024 trips to a published rule
+that catches the held-out July 2025 trip. The alarm limits catch that climb too, so on a full scan the watch already
+leaves it alone: the test shows the promotion with the rule as the only detector.
+
 ## Views and agent tools
 
 **Charts:**

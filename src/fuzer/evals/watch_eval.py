@@ -165,3 +165,23 @@ def store(conn, res: dict) -> None:
     conn.execute("insert into ops_eval (detector, since, until, scores) values (%s, %s, %s, %s)",
                  (KEY, res["since"], res["until"], json.dumps(res, default=str)))
     conn.commit()
+
+
+def judge(conn, data_dir, since: str, until: str, by: str = "replay") -> dict:
+    """Confirm or reject the proposals kept over [since, until] that have no verdict, by the bundle's events (P3.4): one
+    matching an upset is confirmed, with the event's kind; one matching none is rejected."""
+    from ..ops import promote
+
+    spec = process_model.read(Path(data_dir) / "process_model.json")
+    a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
+    events = [e for e in replay.truth(spec, a - replay.TAIL, b + replay.TAIL) if e["upset"]]
+    rows = [dict(r) for r in conn.execute(
+        "select * from watch_proposal where verdict is null and since >= %s and until <= %s order by id", (a, b))]
+    confirmed, rejected = [], []
+    for p in resolve(conn, [{**r, "start": _t(r["start"]), "end": _t(r["end"]), "since": _t(r["since"]),
+                             "until": _t(r["until"])} for r in rows]):
+        hits = [e for e in events if matches(spec, p, e)]  # the most specific: on the fewest units (the machine, not its train)
+        hit = min(hits, key=lambda e: (len(e["own"]), e["start"])) if hits else None
+        promote.confirm(conn, p["id"], hit is not None, by, event_kind=hit["kind"] if hit else None)
+        (confirmed if hit else rejected).append(p["id"])
+    return {"confirmed": confirmed, "rejected": rejected}
