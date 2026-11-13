@@ -5722,3 +5722,62 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 10_000 })
     .catch(() => assert.fail("no sideways scroll"));
 });
+
+test("P5.14a The installed app has its own Back, never leaves the app, and resumes the last page", async () => {
+  // Opened from the home screen: standalone display, no browser back button.
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+  await page.route("**/entities/fz-pump/map", route => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/fz-pump", route => route.fulfill({ json: { fuzer_id: "fz-pump", kind: "equipment",
+    label: "Export pump P-101", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const manifest = await (await fetch(`${url}/assets/manifest.webmanifest`)).json();
+  assert.equal(manifest.display, "standalone");
+  assert.ok(manifest.icons.some(i => i.purpose === "maskable"));
+  assert.equal(await page.goto(`${url}/#/e/fz-pump`).then(() => page.locator("html").getAttribute("class")), "installed");
+
+  // Opened from a link, nothing is behind it: Back goes up to the page that owns it, then Home, not out of the app.
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  const back = page.locator(".topbar").getByRole("button", { name: /^Back/ });
+  // The bar redraws a moment after the route changes, so wait for the label rather than read it at once.
+  const backReads = (label) => page.locator(".topbar").getByRole("button", { name: label, exact: true }).waitFor();
+  await backReads("Back to Browse");
+  const box = await back.boundingBox();
+  assert.ok(box.height >= 44 && box.width >= 44, "Back is big enough for a gloved thumb");
+  const entries = await page.evaluate(() => history.length);
+  await back.click();
+  await page.waitForURL(/#\/browse$/);
+  assert.equal(await page.evaluate(() => history.length), entries, "going up replaces, so there's no loop");
+  await backReads("Back to Home");
+
+  // Pages opened inside the app go back the way they came, and a redirect is not a step of its own.
+  await page.evaluate(() => { location.hash = "#/e/fz-pump"; });
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  await page.evaluate(() => { location.hash = "#/field"; });  // My jobs redirects to My work
+  await page.waitForURL(/#\/inbox$/);
+  await backReads("Back");
+  await back.click();
+  await page.waitForURL(/#\/e\/fz-pump$/);
+  await back.click();
+  await page.waitForURL(/#\/browse$/);
+  await backReads("Back to Home");
+  await back.click();
+  await page.waitForURL(/#\/$/);
+  await back.waitFor({ state: "detached" });  // Home has nothing to go back to
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+  // A cold launch (iOS discards the app in the background) opens the last page from the last 12 hours.
+  await page.evaluate(() => localStorage.setItem("fuzer.lastRoute", JSON.stringify({ hash: "#/e/fz-pump", at: Date.now() - 60_000 })));
+  await page.goto(`${url}/`);
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  assert.match(page.url(), /#\/e\/fz-pump$/);
+  await page.evaluate(() => localStorage.setItem("fuzer.lastRoute", JSON.stringify({ hash: "#/e/fz-pump", at: Date.now() - 13 * 3600_000 })));
+  await page.goto(`${url}/`);
+  await page.waitForTimeout(300);
+  assert.doesNotMatch(page.url(), /#\/e\//, "yesterday's page is not resumed");
+});
+
+test("P5.14a In a browser tab on a desktop the shell is unchanged: no in-app Back beside the browser's own", async () => {
+  await page.goto(`${url}/#/browse`);
+  await page.getByRole("navigation", { name: "Main" }).waitFor();
+  assert.equal(await page.locator(".back-button").evaluateAll(els => els.filter(e => e.getClientRects().length).length), 0);
+});

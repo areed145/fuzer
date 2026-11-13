@@ -28,7 +28,8 @@ import { TaskPage } from "./pages/workflows/Task";
 import { CasePage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
 import { Identity } from "./Identity";
-import { AreaNavigation, Breadcrumbs, Sidebar } from "./nav";
+import { AreaNavigation, BackButton, Breadcrumbs, Sidebar } from "./nav";
+import { startAppHistory } from "./appHistory";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
 import { InvestigationPage } from "./pages/Investigation";
@@ -115,6 +116,7 @@ function App() {
       <Sidebar
         demoEnabled={demo.data?.enabled === true}
         section={navSection}
+        path={path}
         badges={{ work, review: openReviews }}
         status={
           <>
@@ -133,6 +135,7 @@ function App() {
         }
       />
       <main id="main-content" tabIndex={-1}>
+        <BackButton path={path} className="page-back" />
         <Breadcrumbs path={path} />
         <AreaNavigation section={navSection} demoEnabled={demo.data?.enabled === true} />
         <Suspense fallback={<div className="status" role="status" aria-live="polite">Loading…</div>}>
@@ -253,6 +256,9 @@ function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuil
     </a>
   );
 }
+
+// Before the first render, so a cold launch of the installed app resumes on the last page (P5.14a).
+startAppHistory();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
