@@ -84,7 +84,9 @@ def refs(kind: str, p: dict) -> list[str]:
             out.append(f"{source}/{rest.partition(':')[2]}")
     if kind == "role":
         out += [x for x in (p.get("point_id"), p.get("asset")) if isinstance(x, str)]
-    if kind == "pid_mismatch" and p.get("tag"):
+    if kind == "pid_mismatch" and p.get("check") == "flow":  # the two ends of the link
+        out += [f"tag:{p[k]}" for k in ("from", "to") if isinstance(p.get(k), str)]
+    elif kind == "pid_mismatch" and p.get("tag"):
         out.append(f"tag:{p['tag']}")
     if kind == "pid_connection":  # the two items the line would join
         out += [f"tag:{p[k]}" for k in ("from", "to") if isinstance(p.get(k), str)]
