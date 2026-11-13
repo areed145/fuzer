@@ -427,7 +427,7 @@ Times are in the project's timezone.
 | `studies_job` | every 5 minutes | Queued correlation and clustering studies |
 | `source_health` | every 30 minutes | Stale, failed or held sources and failing checks become work items for their owners |
 | `report_calendar` | 05:00 | Each regulatory report drafted as its obligation's window opens, and `report_due` work for one coming due with no draft, or past due and not submitted |
-| `retention` | 03:15 | Ended sessions, access events and assistant conversations past their retention settings are deleted ([retention](ot-security.md#retention)) |
+| `retention` | 03:15 | Ended sessions, and access events past `audit.retention_days`, are deleted ([retention](ot-security.md#retention)) |
 | `detector_tuning` | 04:30 | A tuning proposal for each detector whose closed cases on one class are mostly false alarms and duplicates (see below) |
 | `providers_poll` | every 15 minutes | Each polled detection provider's alert table, read when it has changed |
 | `alert_on_failure` sensor | on any failed run | Posts it to the alert webhook (`alerts.webhook`) with its project and a link to the run. A scheduled run a deploy interrupted (ended around a stop the instance recorded, `ops/stops.py`) is not a failure: its schedule starts it again, so it is not posted. A run started by hand or by a sensor is posted either way |

@@ -60,7 +60,6 @@ flowchart LR
   c_ops --> c_cli
   c_sources --> c_cli
   c_workflow --> c_cli
-  c_agents --> c_core
   click c_sources "https://github.com/areed145/fuzer/tree/main/src/fuzer/sources"
   click c_graph "https://github.com/areed145/fuzer/tree/main/src/fuzer/graph"
   click c_analysis "https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis"
@@ -220,7 +219,7 @@ flowchart TD
 | `closeout_sweep` | `*/5 * * * *` | Close-out: ask whether a fix held when its re-check is due; reopen a case whose problem returned. |
 | `detector_tuning` | `30 4 * * *` | Tuning: a quieter value proposed, replayed on its closed cases, for a detector whose noise passed its threshold. |
 | `report_calendar` | `0 5 * * *` | Obligations: each regulatory report drafted ahead of its due date, and work for one coming due. |
-| `retention` | `15 3 * * *` | Retention: delete what is past its retention setting (sessions, access events, conversations). |
+| `retention` | `15 3 * * *` | Retention: delete ended sessions and access events past audit.retention_days. |
 | `sre_scan` | `0 */6 * * *` | SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off. |
 | `studies_job` | `*/5 * * * *` | Big correlation and clustering studies, queued from the API or an agent. |
 | `day_close` | `0 7 * * *` | Daily operations report: facts from the day's records, a new version when they change, the ops lead's review in the workflow (the reporter agent drafts it). |
@@ -598,7 +597,7 @@ The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 Database, settings, projects and packs, Claude calls, tags and units: used by everything. More in [deployment](deployment.md).
 
 - **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core)
-- **Uses:** agents
+- **Uses:** nothing else in fuzer
 - **Writes** ([schema](schema.md)):
     - `access_account`
     - `access_area_grant`

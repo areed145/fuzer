@@ -8,8 +8,9 @@ log the audit record reads, and assistant conversations. Each is a setting with 
                                       0 keeps every one
 
 The audit record's other sources are the work's own history (case events, write-backs, settings, source and model
-changes): they stay as long as the work they belong to, so the audit retention never deletes them. `run` applies all
-three in the project its connection is scoped to, and records what it deleted as an access event.
+changes): they stay as long as the work they belong to, so the audit retention never deletes them. `run` (the daily
+`retention` job) applies the first two and records what it deleted as an access event. Conversations belong to the
+assistant, so the assistant purges its own (agents/service.py, at most hourly while it runs; core does not import it).
 """
 
 from datetime import UTC, datetime, timedelta
@@ -20,23 +21,21 @@ SYSTEM = "system:retention"
 
 
 def run(conn, now: datetime | None = None) -> dict:
-    """Delete what is past its retention, commit, and say how much went (nothing recorded when nothing went)."""
-    from ..agents.history import purge
+    """Delete ended sessions and access events past their retention, commit, and say how much went (nothing recorded
+    when nothing went)."""
     from . import access
 
     now = now or datetime.now(UTC)
     out = {"sessions": conn.execute("delete from access_session where expires_at <= %s", (now,)).rowcount
            + conn.execute("delete from access_login where expires_at <= %s", (now,)).rowcount,
-           "access_events": 0, "conversations": 0}
+           "access_events": 0}
     days = settings.get(conn, "audit.retention_days")
     if days > 0:
         out["access_events"] = conn.execute("delete from access_event where at < %s",
                                             (now - timedelta(days=days),)).rowcount
     conn.commit()
-    out["conversations"] = purge(conn, settings.get(conn, "assistant.retention_days"), now)
-    if out["access_events"] or out["conversations"]:
-        access.event(conn, SYSTEM, "retention_applied", audit_days=days,
-                     conversation_days=settings.get(conn, "assistant.retention_days"), **out)
+    if out["access_events"]:
+        access.event(conn, SYSTEM, "retention_applied", audit_days=days, **out)
         conn.commit()
     return out
 

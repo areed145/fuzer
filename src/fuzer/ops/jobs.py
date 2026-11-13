@@ -478,14 +478,14 @@ def report_calendar():
     report_calendar_op()
 
 
-@dg.op(description="Retention (R.5d): ended sessions, access events and assistant conversations past their settings.")
+@dg.op(description="Retention (R.5d): ended sessions and access events past their settings.")
 def retention_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from ..core import retention as kept
     with fuzer.connect() as conn:
         context.log.info(f"retention: {kept.run(conn)}")
 
 
-@dg.job(description="Retention: delete what is past its retention setting (sessions, access events, conversations).")
+@dg.job(description="Retention: delete ended sessions and access events past audit.retention_days.")
 def retention():
     retention_op()
 

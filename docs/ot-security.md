@@ -85,7 +85,8 @@ How long Fuzer keeps what it records about people is a setting each, with these 
 | Access events (sign-ins, permission changes, audit exports) | `audit.retention_days` | 0: every one kept |
 | Assistant conversations, with their answers and images | `assistant.retention_days` | 0: kept until their owner deletes them |
 
-The daily `retention` job (03:15) applies them and records what it deleted as an access event. The audit record's
+The daily `retention` job (03:15) applies the first two and records what it deleted as an access event; the assistant
+purges its own conversations past their setting, at most hourly while it runs. The audit record's
 other sources are the work's own history (case events, write-backs, settings, source and model changes); they stay as
 long as the work they belong to, and the audit retention never deletes them. Set `audit.retention_days` to the
 period the operator's records policy names (2555 for seven years, say) before a pilot.
