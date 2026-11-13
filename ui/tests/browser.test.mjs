@@ -6060,3 +6060,50 @@ test("P5.14d With no signal the installed app opens to My work with the kept job
   await context.setOffline(false);
   await page.getByRole("status").filter({ hasText: "No signal" }).waitFor({ state: "detached", timeout: 10_000 });
 });
+
+test("P5.14 quirks from a real phone: a tap on the map opens one label, the layer chips leave room for the map, a long select stays on screen", async () => {
+  await context.close();
+  // A phone: touch, no hover.
+  context = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
+  const pt = (id, kind, lon, lat) => ({ type: "Feature", id, geometry: { type: "Point", coordinates: [lon, lat] }, properties: { kind, label: id } });
+  const services = ["oil export", "gas export", "gas lift", "production flowline", "production trunkline", "gas"];
+  await page.route("**/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png|webmanifest)$/.test(path)) return route.continue();
+    if (route.request().url().startsWith("https://tile.openstreetmap.org/")) return route.fulfill({ status: 503, body: "" });
+    if (path === "/map") return route.fulfill({ json: { type: "FeatureCollection", features: [
+      pt("OKAN-40", "area", 5.005, 4.005), pt("W1", "well", 5.000, 4.000), pt("W2", "well", 5.010, 4.010),
+      ...services.map((service, i) => ({ type: "Feature", id: `L${i}`, geometry: { type: "LineString",
+        coordinates: [[5.005, 4.005], [5.01 + i / 1000, 4.01]] }, properties: { kind: "pipeline", service, label: `Line ${i}` } }))] } });
+    const fixtures = { "/auth/me": { mode: "local", configured: true, user: null }, "/demo/config": { enabled: true },
+      "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
+      "/jobs/health": { available: false, level: "unknown", summary: "" } };
+    await route.fulfill({ json: fixtures[path] ?? [] });
+  });
+  await page.goto(`${url}/#/map`);
+  const legend = page.getByLabel("Show or hide map layers");
+  await legend.waitFor();
+  // The chips are one row that scrolls sideways, so the map starts in the first screen.
+  assert.ok((await legend.boundingBox()).height < 60, "the layer chips are one row");
+  const map = page.locator(".leaflet-container");
+  assert.ok((await map.boundingBox()).y < 844 / 2, "the map starts in the top half of the screen");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+  // A tap opens the popup, and no hover label sticks beside it.
+  // The map is drawn on a canvas and fitted to the field, so the platform in the middle of it sits at its centre.
+  const box = await map.boundingBox();
+  await page.waitForTimeout(500);  // the fit animation
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  await page.locator(".leaflet-popup").waitFor();
+  assert.equal(await page.locator(".leaflet-tooltip").count(), 0);
+
+  // A select as wide as its longest option (a P&ID sheet's title) stays within the screen.
+  await page.evaluate(() => {
+    const select = document.createElement("select");
+    select.innerHTML = `<option>${"OKAN-20-PFD-002 · AREA 20 - OK_GGCP GAS COMPRESSION AND DEHYDRATION ".repeat(2)}</option>`;
+    document.querySelector("main h1")?.after(select);
+  });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
+});

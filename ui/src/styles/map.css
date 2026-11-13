@@ -33,6 +33,10 @@
 h2 select { font: inherit; font-size: 15px; }
 
 @media (max-width: 600px) {
+  /* The layer chips are one row that scrolls sideways, so the map starts in the first screen (P5.14). */
+  .map-legend { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+  .map-legend::-webkit-scrollbar { display: none; }
+  .map-legend .chip { flex: none; white-space: nowrap; }
   .map-controls { left: 10px; justify-content: flex-start; }
   .map-controls label { flex: 1; justify-content: space-between; }
   .map-controls select { min-width: 0; }
