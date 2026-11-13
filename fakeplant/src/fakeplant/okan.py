@@ -290,6 +290,7 @@ ASSISTANT_QUESTIONS = [
 
 UNEXPLAINED_FLARE = "2025-11-08"
 FUEL_METER_FAILED = ("2025-09-15", "2025-10-08")  # the GGCP fuel gas meter reads zero (#369)
+PRES_K = 2.4e-6  # bar of reservoir pressure lost per reservoir m3 produced net of injection (#364)
 # Reservoir fluid properties at reservoir conditions, from the field's PVT study (#365): formation volume factors in
 # reservoir m3 per standard m3, and the gas dissolved in the oil.
 PVT = [("oil_fvf", 1.28, "rm3/Sm3"), ("water_fvf", 1.02, "rm3/Sm3"), ("gas_fvf", 0.0052, "rm3/Sm3"),
@@ -1274,6 +1275,43 @@ def generate(out, seed: int = 11) -> dict:
     measured = [{**t, "oil_sm3d": round(float(t["oil_sm3d"]) * 1.45, 1)}
                 if t["well"] == "OK-J08-04" and t["test_date"].startswith("2025-10") else t for t in measured]
     _write_csv(out / "ec_well_tests.csv", measured)
+    # Pressure surveys (#364): a static (shut-in) reservoir pressure and, a week later, a flowing bottomhole pressure
+    # with the rate at the time, twice a year on a dozen oil wells, all corrected to the field datum. The reservoir
+    # behaves as one tank: its pressure falls with the reservoir volume produced net of the water injected, at
+    # PRES_K bar per reservoir m3, from 212 barg at the start of 2024; each well sits a little above or below the field
+    # average. Story: OK-J05-02 scales up from March 2025 and loses 40 % of its productivity index. Own random stream.
+    prng = random.Random(seed + 43)
+    by_well_tests: dict[str, list[dict]] = {}
+    for t in measured:
+        by_well_tests.setdefault(t["well"], []).append(t)
+    net, cum_net = 0.0, {}
+    for d in daily:  # an oil Sm3 makes about 2.05 reservoir m3 with its water and free gas at Okan's cut and GOR
+        net += float(d["oil_sm3"]) * 2.05 - float(d["water_inj_sm3"]) * 1.02
+        cum_net[d["report_date"]] = net
+    surveyed = [w["name"] for w in wells if w["type"] == "oil"][3::14][:12]
+    if "OK-J05-02" not in surveyed:
+        surveyed[-1] = "OK-J05-02"
+    surveys, pi_truth = [], {}
+    for name in surveyed:
+        offset, j0 = prng.uniform(-4.0, 4.0), prng.uniform(2.0, 6.0)
+        pi_truth[name] = round(j0, 2)
+        for when in ("2024-01-20", "2024-07-20", "2025-01-20", "2025-07-20"):
+            static = 212.0 - PRES_K * cum_net[when] + offset + prng.uniform(-0.8, 0.8)
+            surveys.append({"survey_id": f"PS-{name}-{when}-S", "well": name, "survey_date": when, "kind": "static",
+                            "pressure_barg": f"{static:.1f}", "oil_sm3d": "", "datum": "2450 mTVDss"})
+            flowing_on = _add_days(when, 7)
+            tests_before = [t for t in by_well_tests.get(name, []) if t["test_date"] <= flowing_on]
+            q = float(tests_before[-1]["oil_sm3d"]) if tests_before else 0.0
+            if q <= 0:
+                continue
+            j = j0 * (0.6 if name == "OK-J05-02" and when >= "2025-03-01" else 1.0) * prng.uniform(0.95, 1.05)
+            surveys.append({"survey_id": f"PS-{name}-{flowing_on}-F", "well": name, "survey_date": flowing_on,
+                            "kind": "flowing", "pressure_barg": f"{static - q / j:.1f}", "oil_sm3d": f"{q:.1f}",
+                            "datum": "2450 mTVDss"})
+    pressure_truth = {"k_bar_per_rm3": PRES_K, "initial_barg": 212.0, "wells": surveyed, "pi": pi_truth,
+                      "damaged": {"well": "OK-J05-02", "from": "2025-03-01", "pi_factor": 0.6}}
+    _write_csv(out / "ec_pressure_surveys.csv", surveys)
+    (out / "answer_keys" / "pressure.json").write_text(json.dumps(pressure_truth, indent=1))
     capacity_truth = capacity.constrain(daily, measured)  # the limits bind in the history, not beside it
     _write_csv(out / "ec_day001.csv", daily)
     for name, rows in capacity.registers(seed).items():

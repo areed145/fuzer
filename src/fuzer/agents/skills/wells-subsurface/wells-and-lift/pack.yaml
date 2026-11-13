@@ -8,10 +8,12 @@ owner: wells-subsurface               # the agent that loads this pack
 classes: [well]                       # a well is its own unit: it has no ISO 14224 equipment class of its own
 tools: [calc, well_performance, detect_changes, plot_decline, plot_water_diagnostic, plot_gas_lift_curve, plot_choke,
         plot_dp_drift, plot_intervention_gains, intervention_gains, opportunities, maintenance_history, downtime,
-        voidage_replacement, injector_hall, plot_voidage_replacement, plot_hall]
+        voidage_replacement, injector_hall, plot_voidage_replacement, plot_hall,
+        productivity_index, material_balance, plot_productivity_index, plot_material_balance]
 charts: [plot_decline, plot_water_diagnostic, plot_gas_lift_curve, plot_choke, plot_dp_drift, plot_intervention_gains,
-         plot_voidage_replacement, plot_hall]
-methods: [choke, decline, dp_drift, gas_lift, hall_plot, test_check, voidage_replacement, well_constraint]
+         plot_voidage_replacement, plot_hall, plot_productivity_index, plot_material_balance]
+methods: [choke, decline, dp_drift, gas_lift, hall_plot, material_balance, productivity_index, test_check,
+          voidage_replacement, well_constraint]
 detectors: [models, hydraulics, opportunities]
 roles: [wellhead_pressure, wellhead_temperature, casing_pressure, choke_position, gas_lift_rate, pressure, flow]
 eval: wells-and-lift                  # each bundle's answer keys: evals/wells-and-lift.yaml in the bundle

@@ -313,6 +313,20 @@ export interface GasBalance {
     gas_in_ksm3?: number; gap_ksm3?: number };
 }
 
+/** Reservoir pressure (#364): productivity index per surveyed well and the one-tank material balance. */
+export interface ReservoirPressure {
+  productivity: {
+    verdict: "no_surveys" | "flagged" | "holding"; unit: string; threshold: number; note: string; assumptions: string[];
+    wells: { well: string; first_pi: number | null; latest_pi: number | null; ratio: number | null;
+      verdict: "fallen" | "holding" | "too_few_surveys" }[];
+  };
+  material_balance: {
+    since: string; until: string; verdict: "fitted" | "insufficient" | "unknown"; note: string; assumptions: string[];
+    bar_per_million_rm3?: number; compressible_volume_rm3_per_bar?: number; r2?: number; wells?: number;
+    decline_bar_per_year?: number;
+  };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -327,6 +341,7 @@ export const metricsApi = {
   workExecution: () => request<WorkExecution>("GET", "/plant/work-execution"),
   waterInjection: () => request<WaterInjection>("GET", "/plant/water-injection"),
   gasBalance: () => request<GasBalance>("GET", "/plant/gas-balance"),
+  reservoirPressure: () => request<ReservoirPressure>("GET", "/plant/reservoir-pressure"),
   incidentFlare: () => request<FlareReview>("GET", "/incidents/flare"),
   plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
   gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),

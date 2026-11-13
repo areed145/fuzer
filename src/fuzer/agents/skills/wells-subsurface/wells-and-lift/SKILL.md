@@ -51,8 +51,16 @@ Then, in order:
 **Already in the queue.** A well whose rate or pressure leaves its model is an `upset` case from the models or
 hydraulics detectors, and a scanned gain is an `opportunity` case. Say when the well already has one.
 
-**Say what you cannot check.** Reservoir pressure, drive, connectivity and completion design are unknown unless a
-source records them; offer a reservoir explanation only as a question for the subsurface engineer. Rod pump, ESP and
+**Reservoir pressure.** Where pressure surveys are recorded, `productivity_index(well)` (charted with
+`plot_productivity_index(well)`) gives the well's index survey by survey; `fallen` is a lead for damage, scale or a
+changing drive, set beside the test history. `material_balance()` (charted with `plot_material_balance()`) fits the
+static pressures against the reservoir volume taken out net of injection: quote the bar lost per million reservoir
+m³, the decline a year at the current net voidage and r², and always the assumptions it returns. It is a one-tank
+estimate, not the oil in place.
+
+**Say what you cannot check.** Drive mechanism, aquifer, connectivity and completion design are unknown unless a
+source records them, and pressure is unknown where no survey is recorded; offer a reservoir explanation only as a
+question for the subsurface engineer. Rod pump, ESP and
 plunger lift diagnostics need dynamometer, motor or plunger data Fuzer does not hold yet: name them as missing rather
 than estimating them. A test on a gas well with no oil rate gets no oil decline; say so.
 
