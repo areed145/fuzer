@@ -192,6 +192,23 @@ reason, and the server refuses an agent either. A draft made on the page is unsc
 verdict names no event kind, so that score counts every upset in the window, not only the pattern's kind. On a real asset
 there is no replay, and the reviewer has the confirmed examples and the fit to go on.
 
+## How detection and agents are performing
+
+Work performance (`#/performance`) has a **By detector** view (P7.4a, `ops/earning.py`). Each case is put down to the
+registered detector behind it, the same way the close-outs on the Detection page are (`ops/tuning.py`). Per detector
+it shows:
+
+- the cases raised and how many are closed out, with their confirmed and false-alarm rates;
+- the median hours from the start of what was found to the case opening;
+- the value at stake on the cases confirmed as a real problem, where a case carries one;
+- whether the confirmed cases were found by a rule, an agent or another system.
+
+A detector is **earning its keep** when most of its close-outs are confirmed. It **needs tuning** when at least
+`earning.MIN_CLOSED` (5) cases are closed out and half or more of them are false alarms or duplicates. Below five
+close-outs the view says there are too few to tell. Each count opens its cases, and **Tune** opens the detector on the
+Detection page. A case whose finding records no origin counts as "not recorded". On a bundle, cases raised from
+replayed history open at the wall-clock time, so hours to case means something only on live data.
+
 ## Views and agent tools
 
 **Charts:**

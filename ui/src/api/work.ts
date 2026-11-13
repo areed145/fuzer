@@ -954,6 +954,7 @@ export const workApi = {
   recordCaseCloseout: (id: number, body: CloseoutInput) => request<CaseCloseout>("POST", `/work/items/${id}/closeout`, undefined, body),
   closeoutMissing: () => request<{ id: number; title: string; type: string; closed_at: string }[]>("GET", "/closeout/missing"),
   workPerformance: () => request<WorkPerformance>("GET", "/work/performance"),
+  detectorPerformance: () => request<DetectorPerformance>("GET", "/work/performance/detectors"),
   workViews: (person: string) => request<SavedWorkView[]>("GET", "/work/views", { person }),
   saveWorkView: (person: string, role: string, name: string, list: string, filters: Record<string, string>) =>
     request<SavedWorkView>("POST", "/work/views", undefined, { person, role, name, list, filters }),
@@ -1036,4 +1037,20 @@ export interface CaseBriefView {
     at?: string;
   };
   verdict: null | { by: string; at: string; followed: "yes" | "partly" | "no"; note?: string | null };
+}
+
+export type FindingOrigin = "deterministic" | "agentic" | "external" | "unknown";
+
+/** How one detector is performing (P7.4a): its cases, how they closed out, and whether it earns its keep. */
+export interface DetectorEarning {
+  detector: string; title: string; kind: string | null; kind_label: string | null;
+  cases: number; closed: number; real: number; false_alarm: number; duplicate: number; data_problem: number;
+  noise: number; confirmed_rate: number | null; false_alarm_rate: number | null; noise_rate: number | null;
+  hours_to_case: number | null; value_confirmed_usd: number | null; valued: number;
+  by_origin: Record<FindingOrigin, number>; verdict: "earning" | "needs_tuning" | "mixed" | "too_few"; item_ids: number[];
+}
+
+export interface DetectorPerformance {
+  detectors: DetectorEarning[]; confirmed: number;
+  by_origin: Record<FindingOrigin, { cases: number; share: number | null }>; min_closed: number; noisy: number;
 }

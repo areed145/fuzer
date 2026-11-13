@@ -68,9 +68,9 @@ function ClassRates({ d, classes }: { d: DetectorRow; classes: EquipmentClass[] 
 
 /** The detectors on this asset: on or off, whether they apply, their last run and replay score, and their
  * thresholds, with a value for one equipment class where the detector reads one. */
-export function Detection() {
+export function Detection({ focus }: { focus?: string | null } = {}) {
   const list = useAsync(() => api.detectors(), []);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(focus ?? null);
   const person = loadPerson() || "anonymous";
   const saved = () => { list.reload(); notifyChanged(); };
   const proposals = useAsync(() => api.tuningProposals(), []);

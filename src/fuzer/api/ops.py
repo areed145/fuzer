@@ -489,6 +489,14 @@ def work_performance(conn=Depends(get_conn)):
     return performance.measures(conn)
 
 
+@router.get("/work/performance/detectors")
+def work_performance_detectors(conn=Depends(get_conn)):
+    """How detection is performing (P7.4a): per detector, its cases and close-outs, hours to case, the value it
+    confirmed and how its confirmed cases were found, with whether it earns its keep or needs tuning."""
+    from ..ops import earning
+    return earning.detectors(conn)
+
+
 @router.get("/closeout/missing")
 def closeout_missing(conn=Depends(get_conn)):
     """Closed cases with no close-out yet (P6.1a)."""
