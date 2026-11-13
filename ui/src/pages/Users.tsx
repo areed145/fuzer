@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type AccessAccount, type AccessAdministration, type AccessRole, type DocumentGroups, type WorkRoleRow } from "../api";
+import { api, type AccessAccount, type AccessAdministration, type AccessRole, type AuditCoverage, type DocumentGroups, type WorkRoleRow } from "../api";
 import { refreshAccess, useAuth, usePermission } from "../Auth";
 import { href, notifyChanged, Status, useAsync } from "../lib";
 import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure } from "../ui";
@@ -65,6 +65,7 @@ function Administration({ query }: { query: URLSearchParams }) {
           {enabledOwners < 2 && " Ask a second trusted account holder to sign in, then review owner access for recovery."}</p>
         <p className="small">Owner status grants every application capability and all human workflow roles.</p>
       </Card>
+      {project && <AuditRecord project={project} />}
       {project && <RestrictedDocuments key={JSON.stringify(documents.data?.restricted ?? {})} project={project}
         data={documents.data} loading={documents.loading} error={documents.error} reload={restricted} />}
       <h2>Accounts</h2>
@@ -212,6 +213,59 @@ function AreasEditor({ account, project, saved, reload }: {
       onConfirm={save} />
     <ActionStatus busy={busy ? "Saving areas..." : null} error={error} />
   </>;
+}
+
+const day = (d: Date) => d.toISOString().slice(0, 10);
+
+/** R.5b: an owner downloads one project's audit record for a window, and sees what it covers and how long it keeps. */
+function AuditRecord({ project }: { project: string }) {
+  const today = new Date();
+  const [since, setSince] = useState(day(new Date(today.getTime() - 30 * 86400000)));
+  const [until, setUntil] = useState(day(today));
+  const [format, setFormat] = useState<"csv" | "json">("csv");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  const [failure, setFailure] = useState("");
+  const coverage = useAsync<AuditCoverage | null>(() => api.auditCoverage(project), [project]);
+  const download = async () => {
+    setBusy(true); setFailure(""); setDone("");
+    try {
+      // the window runs to the end of its last day
+      const end = new Date(`${until}T00:00:00Z`); end.setUTCDate(end.getUTCDate() + 1);
+      const text = await api.auditExport(project, `${since}T00:00:00Z`, end.toISOString(), format);
+      const rows = format === "csv" ? Math.max(text.trim().split("\n").length - 1, 0) : (JSON.parse(text).rows ?? []).length;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([text], { type: format === "csv" ? "text/csv" : "application/json" }));
+      link.download = `fuzer-audit-${project}-${since.replaceAll("-", "")}-${until.replaceAll("-", "")}.${format}`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setDone(`Downloaded ${rows} ${rows === 1 ? "event" : "events"} from ${project}, ${since} to ${until}. The download is itself in the record.`);
+    } catch (e) { setFailure(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  const c = Array.isArray(coverage.data?.included) ? coverage.data : null;  // an API without the coverage answers otherwise
+  const every = c?.included.filter(i => i.history).map(i => i.source) ?? [];
+  const latest = c?.included.filter(i => !i.history).map(i => i.source) ?? [];
+  return <Card title={`Audit record for ${project}`}>
+    <p>Who approved a write-back, changed a routing or signed in, for this project only. Each row says whether its
+      record keeps every change or only the latest.</p>
+    <div className="row wrap">
+      <Field label="From"><Input type="date" value={since} max={until} onChange={e => setSince(e.target.value)} /></Field>
+      <Field label="To"><Input type="date" value={until} min={since} onChange={e => setUntil(e.target.value)} /></Field>
+      <Field label="Format"><Select aria-label="Format" value={format} onChange={e => setFormat(e.target.value as "csv" | "json")}>
+        <option value="csv">CSV</option><option value="json">JSON</option>
+      </Select></Field>
+    </div>
+    <Button disabled={busy || !since || !until || since > until} onClick={download}>Download audit record</Button>
+    <ActionStatus busy={busy ? "Exporting the audit record..." : null} error={failure}>{done && <p>{done}</p>}</ActionStatus>
+    <Status loading={coverage.loading} error={coverage.error} />
+    {c?.retention && <ul className="small">{Object.entries(c.retention).map(([k, v]) => <li key={k}>{v}</li>)}</ul>}
+    {c && <Disclosure label={<>What the record covers ({every.length + latest.length} records, {(c.excluded ?? []).length} left out)</>}>
+      <p className="small"><strong>Every change:</strong> {every.join(", ") || "none"}</p>
+      <p className="small"><strong>Latest only</strong> (overwritten when decided again): {latest.join(", ") || "none"}</p>
+      <ul className="small">{(c.excluded ?? []).map(x => <li key={x.source}>{x.source}: {x.reason}</li>)}</ul>
+    </Disclosure>}
+  </Card>;
 }
 
 function RestrictedDocuments({ project, data, loading, error, reload }: {

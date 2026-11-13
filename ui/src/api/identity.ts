@@ -1,5 +1,5 @@
 import type { AuthSession } from "../authState";
-import { request } from "./transport";
+import { request, requestText } from "./transport";
 
 export interface AccessAccount {
   id: string; actor: string; display_name: string; enabled: boolean; owner: boolean; roles: string[];
@@ -14,6 +14,13 @@ export interface AccessAccount {
 export interface DocumentGroups {
   restricted: Record<string, string>;
   classes: { doc_type: string; documents: number }[];
+}
+
+/** Which records one project's audit reads, which keep every change, which it leaves out, and the retention in force. */
+export interface AuditCoverage {
+  included: { source: string; time: string; history: boolean }[];
+  excluded: { source: string; reason: string }[];
+  retention?: Record<string, string>;
 }
 
 export interface AccessRole { name: string; description: string; permissions: string[]; }
@@ -44,6 +51,11 @@ export const identityApi = {
   setGroups: (id: string, project: string, groups: string[]) =>
     request<{ ok: boolean }>("PUT", `/auth/accounts/${encodeURIComponent(id)}/projects/${encodeURIComponent(project)}/groups`,
       undefined, { groups }),
+  auditCoverage: (project: string) =>
+    request<AuditCoverage>("GET", "/auth/audit/coverage", { project }),
+  /** One project's audit record for a window, as the file an owner downloads (the export is itself recorded). */
+  auditExport: (project: string, since: string, until: string, format: "csv" | "json") =>
+    requestText(`/auth/audit?${new URLSearchParams({ project, since, until, format, limit: "100000" })}`),
   setAccessRole: (name: string, update: { description: string; permissions: string[] }) =>
     request<{ ok: boolean }>("PUT", `/auth/roles/${encodeURIComponent(name)}`, undefined, update),
 };
