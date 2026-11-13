@@ -389,6 +389,23 @@ also lists the well interventions the background log never mentions, the planned
 whose notification came only after the third. A mismatch is a question for the shift, not proof that an event is
 missing.
 
+`record_quality.py` (#890) reads the maintenance records for what they leave out or get wrong:
+
+- **Duplicates**: two notifications on the same item, created within 3 days of each other, with the same damage
+  code or at least half their words shared. The later one is listed against the earlier.
+- **Misfiled**: a notification filed on an area that holds items, whose text names one of them (by description,
+  or a tag typed short such as K2200B). Or one filed on an item whose text names its twin's tag instead. Each
+  finding says what the text points at.
+- **Closed without confirmation**: closed orders whose confirmation text is blank or only a word such as "done".
+  This is checked only when the work order export carries confirmations.
+
+Okan's records are messed up on purpose (`fakeplant/text.py`), with an answer key: each log author has a style
+(full, terse, capitals), 7 background notifications are raised twice, 7 are filed on their area or their twin,
+and 54 closed orders say nothing about what was done. The check finds all of them, and nothing else. A
+misfiled area notification can name all three trains' items when its text only says "1st stage after-cooler".
+The failure dates behind the reliability calcs (`calcs.failures`, Weibull and PM intervals) count notifications on
+one unit within those 3 days as one failure, so a fault raised twice doesn't read as a failure the day after a failure.
+
 ## SRE detection
 
 `sre.py` finds upsets in the process data itself, every 6 hours (`sre_scan` in Dagster, `fuzer sre`).
