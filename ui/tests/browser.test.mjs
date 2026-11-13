@@ -2272,7 +2272,7 @@ test("Demo page mounts and global refresh stay below default authenticated admis
   await page.waitForFunction(() => !document.querySelector('[role="status"]'));
   await page.getByText("No workflow cases loaded", { exact: true }).waitFor();
   assert.ok(reads > initial, "Global refresh re-reads the active resources");
-  assert.ok(maximum <= 2 && maximum <= 4, `Browser queue maximum ${maximum}; server default is four`);
+  assert.ok(maximum <= 4, `Browser queue maximum ${maximum}; server default is eight`);
 });
 
 test("Okan loading and transport errors keep recovery and navigation usable", async () => {
@@ -3179,6 +3179,29 @@ test("an asset's page shows the open exceptions about it and the work planned on
   await page.getByRole("link", { name: "Leak at P-101" }).waitFor();
   await page.getByText("not dispatched").waitFor();
   await page.getByRole("link", { name: "Replace P-101 seal" }).waitFor();
+});
+
+test("Connections draws the piping from drawings and the allocation flow together, each one switchable", async () => {
+  const id = "fz-tag-0123456789ab";
+  const edge = (rel, other) => ({ rel, direction: "out", other, other_label: other, other_kind: "tag", sources: [], props: {} });
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "tag", label: "10-V-2002",
+    golden: {}, values: {}, records: [], keys: [], edges: [edge("pipes_to", "fz-tag-next")], edge_counts: {} } }));
+  const asked = [];
+  await page.route(`**/entities/${id}/trace?*`, (route) => {
+    const q = new URL(route.request().url()).searchParams;
+    asked.push(q.get("rel"));
+    const row = (fuzer_id, label) => [{ fuzer_id, label, kind: "tag", parent: null, depth: 1 }];
+    route.fulfill({ json: q.get("direction") === "up" ? []
+      : q.get("rel") === "pipes_to" ? row("fz-tag-next", "10-V-2003") : row("fz-tag-meter", "10-FT-3001") });
+  });
+  await page.goto(`${url}/#/e/${id}?tab=connections`);
+  // A record with piping but no allocation flow still has the view.
+  await page.getByRole("checkbox", { name: /Piping/ }).waitFor();
+  await page.getByRole("checkbox", { name: /Allocation flow/ }).waitFor();
+  assert.deepEqual([...new Set(asked)].sort(), ["flows_to", "pipes_to"]);
+  await page.locator(".graph-canvas canvas, .ui-graph canvas, canvas").first().waitFor();
+  await page.getByRole("checkbox", { name: /Allocation flow/ }).uncheck();
+  assert.equal(await page.getByRole("checkbox", { name: /Piping/ }).isChecked(), true);
 });
 
 test("an asset's page opens with one line on how it is doing right now", async () => {

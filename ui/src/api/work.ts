@@ -867,6 +867,8 @@ export const workApi = {
   discardCloseout: (id: number, by: string, reason?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
+  /** The same jobs without what is looked up per job, for a page that only counts them. */
+  fieldJobsBrief: (person: string) => request<{ person: string; jobs: Pick<FieldJob, "item_id" | "queued">[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person, brief: "true" }),
   fieldReport: (id: number, by: string, status: string, note?: string,
     extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string; override?: string } = {}) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,

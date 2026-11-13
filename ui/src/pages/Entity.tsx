@@ -85,8 +85,8 @@ const MAINTAINED = ["tag", "equipment", "equipment_model", "equipment_class"];
 /** The views this kind of record has, in order. Each view loads only its own data. */
 function entityTabs(e: EntityDetail): EntityTab[] {
   const trends = !NO_TRENDS.includes(e.kind) && e.kind !== "timeseries";
-  // Connections is the flow diagram, so only a record on the flow network has it; its links are on Graph.
-  const flow = e.edges.some((x) => x.rel === "flows_to");
+  // Connections is the flow diagram, so only a record on the piping or allocation network has it; its links are on Graph.
+  const flow = e.edges.some((x) => x.rel === "flows_to" || x.rel === "pipes_to");
   const documents = [...MAINTAINED, "area", "well", "facility", "pipeline"].includes(e.kind);
   return ["overview", ...(trends ? ["trends" as const] : []), ...(flow ? ["connections" as const] : []),
     ...(documents ? ["documents" as const] : []), "record", "graph"];
@@ -448,46 +448,68 @@ function LinkList({ items }: { items: Edge[] }) {
 const TRACE_NEAR = 2;  // what feeds it and what it feeds, two steps each way; the whole network on request
 const TRACE_ALL = 10;
 
-/** What flows into this asset (left) and where its flow goes (right), drawn left to right. */
+const NETWORKS = [
+  { rel: "pipes_to", cls: "piping", label: "pipes to", name: "Piping", from: "from drawings" },
+  { rel: "flows_to", cls: "allocation", label: "flows to", name: "Allocation flow", from: "from the allocation network" },
+] as const;
+
+/** What comes into this asset (left) and where it goes (right), drawn left to right. Two networks are drawn
+ * together because they answer different questions and can differ: the piping read from drawings (solid) and the
+ * allocation flow from the production system (dashed). Either can be switched off. */
 function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: string; asOf?: string }) {
   const [all, setAll] = useState(false);
+  const [off, setOff] = useState<string[]>([]);
   const depth = all ? TRACE_ALL : TRACE_NEAR;
-  const flow = useAsync(() => Promise.all([api.trace(id, "up", asOf, depth), api.trace(id, "down", asOf, depth)]),
-    [id, asOf, depth]);
+  const flow = useAsync(() => Promise.all(NETWORKS.flatMap((n) =>
+    [api.trace(id, "up", asOf, depth, n.rel), api.trace(id, "down", asOf, depth, n.rel)])), [id, asOf, depth]);
+  const has = (i: number) => !!flow.data && flow.data[2 * i].length + flow.data[2 * i + 1].length > 0;
   const elements = useMemo(() => {
     if (!flow.data) return [];
-    const [up, down] = flow.data;
     const nodes = new Map([[id, { id, label, kind }]]);
-    const edges = new Map<string, { src: string; dst: string }>();
-    for (const [rows, upstream] of [[up, true], [down, false]] as const) {
-      for (const r of rows) {
-        nodes.set(r.fuzer_id, { id: r.fuzer_id, label: r.label ?? r.fuzer_id, kind: r.kind });
-        const [src, dst] = upstream ? [r.fuzer_id, r.parent ?? id] : [r.parent ?? id, r.fuzer_id];
-        edges.set(`${src}>${dst}`, { src, dst });
+    const edges = new Map<string, { src: string; dst: string; net: typeof NETWORKS[number] }>();
+    NETWORKS.forEach((net, i) => {
+      if (off.includes(net.rel)) return;
+      for (const [rows, upstream] of [[flow.data![2 * i], true], [flow.data![2 * i + 1], false]] as const) {
+        for (const r of rows) {
+          nodes.set(r.fuzer_id, { id: r.fuzer_id, label: r.label ?? r.fuzer_id, kind: r.kind });
+          const [src, dst] = upstream ? [r.fuzer_id, r.parent ?? id] : [r.parent ?? id, r.fuzer_id];
+          edges.set(`${net.rel}:${src}>${dst}`, { src, dst, net });
+        }
       }
-    }
+    });
     // The same element shape graph.tsx draws (subgraphElements), built here so the canvas stays in its own chunk.
     return [
       ...[...nodes.values()].map((n) => ({ data: { ...n, color: kindColor(n.kind), size: n.id === id ? 34 : 22,
         root: n.id === id } })),
-      ...[...edges.values()].map((x, i) => ({ classes: "", data: { id: `e${i}`, source: x.src, target: x.dst,
-        rel: "flows_to", ended: false, label: "flows to" } })),
+      ...[...edges.values()].map((x, i) => ({ classes: x.net.cls, data: { id: `e${i}`, source: x.src, target: x.dst,
+        rel: x.net.rel, ended: false, label: x.net.label } })),
     ];
-  }, [flow.data, id, label, kind]);
-  const empty = flow.data && elements.length <= 1;
+  }, [flow.data, id, label, kind, off]);
+  const none = !!flow.data && !has(0) && !has(1);
+  const both = has(0) && has(1);
   return (
     <UICard  as="section">
       <div className="row spread">
         <h2>Flow {asOf && <span className="muted small">on {asOf}</span>}</h2>
         <Button variant="link" onClick={() => setAll(!all)}>{all ? "Show nearest only" : "Show whole network"}</Button>
       </div>
-      <Status loading={flow.loading && !flow.data} error={flow.error} onRetry={flow.reload} empty={!!empty}>
+      <Status loading={flow.loading && !flow.data} error={flow.error} onRetry={flow.reload} empty={none}>
         Nothing flows in or out{asOf ? " on this date" : ""}.
       </Status>
-      {flow.data && !empty && <Suspense fallback={<Status loading />}>
-        <GraphCanvas elements={elements} layout="flow" selectedId={id} height={all ? 600 : 320}
-          onSelect={(to) => { if (to && to !== id) location.hash = entityHref(to); }} />
-      </Suspense>}
+      {flow.data && !none && <>
+        <p className="row small flow-networks">
+          {NETWORKS.map((n, i) => has(i) && (both
+            ? <label key={n.rel} className={`flow-network ${n.cls}`}>
+              <input type="checkbox" checked={!off.includes(n.rel)}
+                onChange={() => setOff(off.includes(n.rel) ? off.filter((r) => r !== n.rel) : [...off, n.rel])} />
+              {n.name} <span className="muted">{n.from}</span></label>
+            : <span key={n.rel} className={`flow-network ${n.cls}`}>{n.name} <span className="muted">{n.from}</span></span>))}
+        </p>
+        <Suspense fallback={<Status loading />}>
+          <GraphCanvas elements={elements} layout="flow" selectedId={id} height={all ? 600 : 320}
+            onSelect={(to) => { if (to && to !== id) location.hash = entityHref(to); }} />
+        </Suspense>
+      </>}
     </UICard>
   );
 }

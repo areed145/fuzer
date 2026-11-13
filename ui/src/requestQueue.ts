@@ -1,4 +1,7 @@
-const CONCURRENT = 2;
+// Four at once: with two, a couple of slow reads held every other request on the page past its wait, the app's
+// own checks included ("API not reachable"). Half the server's default of eight (access.api_concurrency), which
+// is for everyone signed in, so one browser never fills it.
+const CONCURRENT = 4;
 const MAX_WAITING = 32;
 const WAIT_MS = 30_000;
 let active = 0;

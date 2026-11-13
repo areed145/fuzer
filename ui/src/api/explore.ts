@@ -251,8 +251,8 @@ export const exploreApi = {
   search: (q: string, kind?: string) => request<SearchHit[]>("GET", "/entities", { q, kind, limit: 200 }),
   entity: (id: string, asOf?: string) =>
     request<EntityDetail>("GET", `/entities/${encodeURIComponent(id)}`, { as_of: asOf }),
-  trace: (id: string, direction: "up" | "down", asOf?: string, depth?: number) =>
-    request<TraceRow[]>("GET", `/entities/${encodeURIComponent(id)}/trace`, { direction, as_of: asOf, depth }),
+  trace: (id: string, direction: "up" | "down", asOf?: string, depth?: number, rel?: string) =>
+    request<TraceRow[]>("GET", `/entities/${encodeURIComponent(id)}/trace`, { direction, as_of: asOf, depth, rel }),
   history: (id: string) =>
     request<{ record: string; at: string; change: string; fields: Record<string, { from: unknown; to: unknown }> }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/history`, { limit: 20 }),
