@@ -150,6 +150,12 @@ which events were missed and which raises were false. `fuzer eval --sweep` keeps
 hidden). `tests/evals/test_sweep.py` checks Okan's cheap detectors on every change and its whole sweep (about 20 minutes)
 in the e2e tier; `test_sweep_kestrel.py` and `test_sweep_harrier.py` sweep those bundles whole on every change.
 
+**Every detector scored (P3.6c).** A window detector is scored by the replay its eval names; a work detector by the
+sweep on at least one bundle that declares events for it, unless `sweep.SCORED_ELSEWHERE` says how it is scored
+instead (the opportunity scan by the ops eval's hand calculation; the deviation review, a rule over an adopted
+operating model, by its own test). `test_every_detector_has_a_score_and_a_floor` fails for a new detector until it is
+one of these.
+
 ## Reading drawings
 
 `fuzer pid-score` scores what Claude read off the fake plant's P&IDs and PFDs against their answer key

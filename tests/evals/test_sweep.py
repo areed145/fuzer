@@ -58,6 +58,26 @@ def test_each_declared_detection_names_a_registered_detector_and_its_events(bund
         assert set(e.get("gates") or {}) <= set(sweep.GATES), name
 
 
+@pytest.mark.unit
+def test_every_detector_has_a_score_and_a_floor():
+    """P3.6c: a window detector is scored by the replay (its eval names it; ops_eval.GATES holds the SRE's floor); a
+    work detector by the sweep on at least one bundle that declares events for it (under sweep.GATES or its own
+    floors), unless it is scored elsewhere for a stated reason. A new detector fails here until it is one of these."""
+    from fuzer.evals import ops_eval
+
+    swept = {name for b in BUNDLES.iterdir() for name, e in sweep.plan(b).items() if e.get("events")}
+    unscored = []
+    for name, d in detectors.registry().items():
+        if (d.eval or "").startswith("replay:"):
+            continue
+        if name not in swept and name not in sweep.SCORED_ELSEWHERE:
+            unscored.append(name)
+    assert not unscored, f"no bundle's evals/detections.yaml declares events for {unscored}"
+    assert ("sre", "recall") in ops_eval.GATES and sweep.GATES
+    assert ("opportunities", "worst_gain_error") in ops_eval.CEILINGS
+    assert not set(sweep.SCORED_ELSEWHERE) & swept  # scored one way, not two
+
+
 CHEAP = ["quality_drift", "well_tests", "flare_events"]  # seconds each; the whole sweep is the e2e tier's
 
 

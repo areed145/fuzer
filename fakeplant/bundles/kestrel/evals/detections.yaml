@@ -64,6 +64,21 @@ detectors:
     events:
       - {key: "B1LT2005", from: "today-3d", to: "today"}  # its HH alarm moved with no change record
 
+  proof_test_overdue:
+    since: "today-30d"
+    until: "today"
+    every_days: 7
+    events:  # safeguards past their proof test interval in the register
+      - {key: "SG-KR-003", from: "today-30d", to: "today"}  # the suction scrubber's HH level trip, 30-40 days over
+      - {key: "SG-KR-005", from: "today-30d", to: "today"}  # the reboiler's high temperature trip, no test on file
+
+  safeguard_demands:
+    since: "today-30d"
+    until: "today"
+    every_days: 7
+    events:
+      - {key: "SG-KR-002", from: "today-30d", to: "today"}  # B1-K-2001's vibration trip, demanded twice in a year
+
   # The entries below land the next delivery in Kestrel's history first; what they land stays, so they come last.
   well_tests:
     deliver: {path: deliveries/well-test, datasets: [ec_well_tests], incremental: true, rebuild: true}
