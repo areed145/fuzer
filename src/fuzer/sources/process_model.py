@@ -98,6 +98,37 @@ class ProcessModel:
         out = np.interp([minutes(x) for x in times], w.t, y)
         return [(x.isoformat(timespec="minutes"), round(float(v), 3)) for x, v in zip(times, out)]
 
+    def fine(self, point: str, start: datetime, end: datetime, step_seconds: int) -> list[tuple[str, float]]:
+        """Values every `step_seconds` (#358). The grid is 5 minutes, so between grid times a value is interpolated,
+        except across a loop's step test, where the output and the value follow the test as a fast historian would
+        record them."""
+        unit, var = self.points[point]
+        n = int((end - start).total_seconds() // step_seconds) + 1
+        secs = np.arange(n) * step_seconds
+        tm = minutes(start) + secs / 60
+        w = self.window(start, end)
+        y = np.interp(tm, w.t, w.get(unit, var))
+        u = self.units[unit]
+        for e in self.events.get(unit, []) if u["type"] == "loop" and var != "sp" else []:
+            if e["kind"] != "step_test":
+                continue
+            on = (tm >= minutes(e["start"])) & (tm < minutes(e["end"]))
+            if not on.any():
+                continue
+            op, move = step_response(e, tm)
+            if var == "mode":
+                y = np.where(on, 0.0, y)
+            elif var == "op":
+                y = np.where(on, op, y)
+            else:
+                h = sum(ord(c) * 131 ** i for i, c in enumerate(point)) % (2 ** 61)
+                z = _splitmix(np.round(tm * 60).astype(np.int64).astype(np.uint64) ^ np.uint64(h ^ self.seed))
+                noise = (z >> np.uint64(11)).astype(float) / float(1 << 53) * 2 - 1
+                sd = 0.3 * float(u.get("pv_noise", 0.5))
+                y = np.where(on, np.interp(tm, w.t, w.get(unit, "sp")) + move + sd * noise, y)
+        return [((start + timedelta(seconds=int(x))).isoformat(timespec="seconds"), round(float(v), 4))
+                for x, v in zip(secs, y)]
+
     def window(self, start: datetime, end: datetime) -> "Window":
         a = math.floor(minutes(start - WARM) / DT) * DT
         b = math.ceil(minutes(end) / DT) * DT + DT
@@ -108,6 +139,17 @@ class ProcessModel:
                     self._windows.pop(next(iter(self._windows)))
                 w = self._windows[(a, b)] = Window(self, a, b)
         return w
+
+
+def step_response(e: dict, t: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """A `step_test` event's controller output and the process value's move from where it started (#358), at times `t`
+    (minutes since the epoch): the output steps from `op_from` to `op_to` at `at`, and the value answers as a first
+    order process, gain `k` (value per % of output), time constant `tau_s` and dead time `dead_s` (seconds)."""
+    dt = (t - minutes(e["at"])) * 60
+    step = float(e["op_to"]) - float(e["op_from"])
+    op = float(e["op_from"]) + step * (dt >= 0)
+    late = np.maximum(dt - float(e["dead_s"]), 0)
+    return op, float(e["k"]) * step * (1 - np.exp(-late / float(e["tau_s"])))
 
 
 def _splitmix(x: np.ndarray) -> np.ndarray:
@@ -654,13 +696,13 @@ class Window:
         level, so the value wanders with the load; `saturate` events add a demand (a path, in % of output) the output
         can't meet past 100 %, so the value falls away from the setpoint; `stiction` events make the valve stick and
         slip: the output ramps (a triangle) while the value jumps between two levels (a square), every `period`
-        minutes."""
+        minutes; `step_test` events put it in manual for an open-loop step of the output (step_response)."""
         sp = np.full_like(self.t, float(u["sp"]))
         for e in sorted(self.ev(unit, "setpoint"), key=lambda e: e["at"]):
             sp = np.where(self.t >= minutes(e["at"]), float(e["to"]), sp)
         if var == "sp":
             return sp
-        manual = self.any_between(unit, "manual")
+        manual = np.maximum(self.any_between(unit, "manual"), self.any_between(unit, "step_test"))
         if var == "mode":
             return 1 - manual
         swing, gain = float(u.get("op_swing", 8.0)), float(u.get("gain", 0.15))
@@ -679,6 +721,11 @@ class Window:
             op = np.where(on > 0, float(u["op"]) + float(e.get("op_amplitude", 4.0)) * tri, op)
             pv = np.where(on > 0, sp + float(e["amplitude"]) * np.tanh(4 * np.sin(2 * math.pi * phase))
                           + 0.3 * float(u.get("pv_noise", 0.5)) * self.noise(unit + "p", 10), pv)
+        for e in self.ev(unit, "step_test"):  # in manual, the output stepped by hand and the value answering (#358)
+            on = self.between(e["start"], e["end"]) > 0
+            step_op, move = step_response(e, self.t)
+            op = np.where(on, step_op, op)
+            pv = np.where(on, sp + move + 0.3 * float(u.get("pv_noise", 0.5)) * self.noise(unit + "p", 10), pv)
         return op if var == "op" else pv
 
     def _valve(self, unit, u, var):

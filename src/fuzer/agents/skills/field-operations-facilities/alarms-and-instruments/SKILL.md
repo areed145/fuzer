@@ -29,6 +29,12 @@ the generator behaves, not the plant.
    comes with `route` to Maintenance & Integrity: name it as a field check for the instrument technician (valve
    travel or bump test), because retuning can't fix it. On a level loop the test is weaker, and its `caveat` says so.
    `plot_valve_stiction(ref, days, until)` draws value against output.
+
+   **How is it tuned, and what did a step show?** `controller_settings(ref, at)` gives the loop's gain, integral and
+   derivative time with the date each took effect and who changed it, and the step tests on record. A setting changed
+   while a loop cycled is worth naming: detuning doesn't fix a sticking valve. `loop_high_rate(ref, start, end,
+   step_seconds)` reads the loop every few seconds over a bounded window (a step test's), for loops the minute grid is
+   too coarse for.
 5. **When did it change?** `detect_changes(ref)` dates steps, drifts and jitter changes. `plot_changes(ref)` marks them.
 6. **Limits and headroom.** `limits(ref)` gives alarm limits, IOWs and learned ranges with excursions while the unit
    runs. `capacity_headroom(ref)` shows the nearest limit, and `plot_operating_window(ref, since, until)` the minutes

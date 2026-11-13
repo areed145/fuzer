@@ -141,6 +141,13 @@ kinds:
     description: >-
       A control loop from the DCS loop list: its controller tag, the item it holds, its final element, and the PI
       points of its process value, setpoint, controller output and mode, which resolve together through it.
+  step_test:
+    label: Step test
+    group: Data
+    colour: "#7fb3b5"
+    description: >-
+      An open-loop step test on a control loop: the controller in manual, its output stepped by hand, and the value
+      recorded at a high rate, with when it ran and the size of the step.
   vibration_spectrum:
     label: Vibration spectrum
     group: Maintenance
@@ -403,9 +410,9 @@ relations:
   tests:
     label: tests
     view: data
-    description: A well test and the well it tested.
-    from: [well_test]
-    to: [well]
+    description: A well test and the well it tested, or a step test and the control loop it tested.
+    from: [well_test, step_test]
+    to: [well, control_loop]
   mentions:
     label: mentions
     view: documents
