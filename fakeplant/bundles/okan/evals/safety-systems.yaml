@@ -1,0 +1,9 @@
+# Answer keys for the safety systems and relief specialist pack's eval on this bundle (P4.2e), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# The safeguard registers arrive with the bypass-register delivery (deliveries/bypass-register).
+- question: Is the 2nd stage vibration trip on 20-K-2200B in service, tested and working as designed?
+  must_mention: [SG-OK-201, [bypass, bypassed], [proof test, tested], [twice, "2", two]]
+  specialists: [hse-incident-management]
+- question: What caused the flaring in November 2025?
+  must_mention: [[unknown, no record, not explained]]
+  specialists: [hse-incident-management]
