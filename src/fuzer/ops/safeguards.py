@@ -57,14 +57,15 @@ def _around(conn, ids: list[str]) -> set[str]:
         "and src = any(%(s)s) and valid_to is null", {"s": list(ids)}).fetchall()}
 
 
-def reach(conn, subjects: list[str], system: bool = False) -> list[str]:
+def reach(conn, subjects: list[str], system: bool = False, plant=None) -> list[str]:
     """The subjects, what is installed at or part of them and where they are installed, and with `system` the rest of
-    each one's train (and what drives it) and what is installed on or part of that."""
+    each one's train (and what drives it) and what is installed on or part of that. A caller asking for several
+    passes the `plant` (structure.load) it read once: reading it is the slow part."""
     near = _around(conn, list(subjects or []))
     if system and near:
         from ..graph import structure
 
-        plant = structure.load(conn)
+        plant = plant or structure.load(conn)
         for s in list(near):
             t = structure.train(conn, s, plant)
             if t.get("known"):
@@ -113,12 +114,12 @@ def _names(conn, ids: list[str]) -> list[str]:
 
 
 def bypasses(conn, subjects: list[str] | None = None, at_time: datetime | None = None, *, system: bool = False,
-             in_place: bool = True) -> list[dict]:
+             in_place: bool = True, plant=None) -> list[dict]:
     """The bypasses in place at `at_time` (default now), each with its safeguard, what that protects and acts on,
     whether it is overdue and by how long; on `subjects` (see `reach`) when given. `in_place=False` returns every
     bypass on file."""
     now = at_time or datetime.now(UTC)
-    near = set(reach(conn, subjects, system)) if subjects is not None else None
+    near = set(reach(conn, subjects, system, plant)) if subjects is not None else None
     out = []
     for r in _rows(conn):
         start, end = _when(r["bypassed_from"]), _when(r["expires"])
