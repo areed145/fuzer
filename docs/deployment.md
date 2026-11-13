@@ -195,6 +195,27 @@ The deployment owner performs this setup once; visitors need no API key or CLI:
    Microsoft controls password/passkey/Authenticator behavior; Fuzer does not collect
    passwords or require a particular Microsoft MFA policy.
 
+### Demo account (optional)
+
+For demonstrations and automated checks of a live deployment (for example a Claude
+session testing the site), Fuzer has one non-Microsoft account, **Demo account**
+(audit actor `user:demo`). It is off unless the deployment holds `FUZER_DEMO_TOKEN`,
+a cryptographically random secret of at least 32 characters, set in Render's secret
+settings and never in the repository or chat. Microsoft stays the sign-in for people.
+
+- `POST /auth/demo` with `{"token": "<FUZER_DEMO_TOKEN>"}` returns a normal session
+  cookie and CSRF value; a wrong token is refused and leaves no account or session.
+  `scripts/demo_login.py` does this and saves a Playwright storage state for screenshots.
+- The first sign-in creates the account enabled with the `operator` role in the
+  projects named by `FUZER_DEMO_PROJECTS` (default `okan,kestrel,harrier`) that exist.
+  It cannot open other projects unless an owner grants them.
+- It can never be an owner or hold `configure`, whatever roles an owner gives it, so
+  it cannot manage users, settings, sources or routing. It gets no `ai` permission
+  unless an owner grants it `ai_user` on Users.
+- Every sign-in and action is recorded as `user:demo`. Its sessions last at most
+  12 hours. An owner can disable it on Users; removing `FUZER_DEMO_TOKEN` ends its
+  live sessions as well as further sign-ins.
+
 Accounts are bound to Microsoft's validated tenant ID and object ID, not mutable email
 addresses or display names. An owner has every application permission and all current
 and future **human** workflow roles, without impersonating an automated agent.

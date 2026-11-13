@@ -120,6 +120,33 @@ def callback(request: Request):
     return response
 
 
+class DemoSignIn(BaseModel):
+    token: str = Field(max_length=512)
+
+
+@router.post("/demo")
+def demo(body: DemoSignIn, request: Request):
+    """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN (off unless that is set). For
+    demonstrations and automated checks of a live deployment; Microsoft stays the sign-in for people."""
+    if access.mode() != "microsoft" or not access.configured() or not access.demo_enabled():
+        raise HTTPException(404, "Not Found")
+    try:
+        with db.connect() as conn:
+            person, token = access.demo_sign_in(conn, body.token)
+            old = request.cookies.get(cookie_name("session"))
+            if old:
+                conn.execute("delete from access_session where token_hash = %s", (access.digest(old),))
+                conn.commit()
+            hours = min(settings.get(conn, "access.session_hours"), access.DEMO_SESSION_HOURS)
+    except access.AccessError as e:
+        log.warning("Demo sign-in refused")
+        raise HTTPException(403, str(e)) from e
+    response = JSONResponse({"ok": True, "actor": person.actor, "display_name": person.display_name,
+                             "csrf": person.csrf, "project": person.project})
+    _cookie(response, "session", token, hours * 3600)
+    return response
+
+
 @router.post("/logout")
 def logout(request: Request):
     person = identify(request)

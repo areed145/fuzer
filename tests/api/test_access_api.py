@@ -739,3 +739,81 @@ def test_restricted_documents_are_hidden_everywhere_from_people_outside_their_gr
         events = conn.execute("select action, project from access_event where action in "
                               "('document_groups_set', 'groups_set') order by id").fetchall()
     assert [(e["action"], e["project"]) for e in events] == [("document_groups_set", project), ("groups_set", project)]
+
+
+DEMO_TOKEN = "test-demo-token-that-is-long-enough-to-enable-it"
+
+
+def demo_signed_in(client):
+    response = client.post("/auth/demo", json={"token": DEMO_TOKEN})
+    assert response.status_code == 200, response.text
+    client.cookies.set("__Host-fuzer_session", response.cookies["__Host-fuzer_session"],
+                       domain="testserver.local", path="/")
+    client.headers["X-Fuzer-CSRF"] = response.json()["csrf"]
+    return response.json()
+
+
+def test_demo_sign_in_is_off_unless_a_long_token_is_deployed(runtime, monkeypatch):
+    monkeypatch.delenv("FUZER_DEMO_TOKEN", raising=False)
+    assert runtime.post("/auth/demo", json={"token": DEMO_TOKEN}).status_code == 404
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", "too-short")
+    assert runtime.post("/auth/demo", json={"token": "too-short"}).status_code == 404
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
+    assert runtime.post("/auth/demo", json={"token": DEMO_TOKEN[:-1] + "x"}).status_code == 403
+    assert runtime.post("/auth/demo", json={}).status_code == 422
+    with db.connect() as conn:
+        assert conn.execute("select count(*) as n from access_account").fetchone()["n"] == 0
+        assert conn.execute("select count(*) as n from access_session").fetchone()["n"] == 0
+
+
+def test_demo_account_operates_and_audits_as_demo_but_cannot_configure_or_spend(runtime, monkeypatch):
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
+    signed = demo_signed_in(runtime)
+    assert signed["actor"] == "user:demo" and DEMO_TOKEN not in str(signed)
+    me = runtime.get("/auth/me").json()["user"]
+    assert me["display_name"] == "Demo account" and not me["owner"]
+    assert me["roles"] == ["operator"] and me["permissions"] == ["operate", "read"]
+    assert runtime.get("/stats").status_code == 200
+    result = runtime.post("/board/pins", json={"key": "demo-test", "rank": 2, "reason": "Demo", "by": "system"})
+    assert result.status_code == 200, result.text
+    for method, path, body in [
+        ("PUT", "/settings/agents.model", {"value": "changed"}),
+        ("POST", "/assistant/ask", {"question": "charge", "by": "system"}),
+        ("PUT", "/work/people/attacker", {"roles": ["workflow_admin"], "by": "system"}),
+        ("POST", "/auth/bootstrap", {"token": "test-owner-code-that-is-long-enough-for-setup"}),
+    ]:
+        assert runtime.request(method, path, json=body).status_code == 403, path
+    assert runtime.get("/settings").status_code == 403
+    assert runtime.get("/auth/access").status_code == 403
+    with db.connect() as conn:
+        assert conn.execute("select pinned_by from board_pin where key='demo-test'").fetchone()["pinned_by"] == "user:demo"
+        events = conn.execute("select actor, action, data::text as data from access_event order by id").fetchall()
+        assert [e["action"] for e in events] == ["demo_account_created", "signed_in"]
+        assert {e["actor"] for e in events} == {"user:demo"} and DEMO_TOKEN not in str(events)
+        assert not conn.execute("select owner from access_account where id = 'demo'").fetchone()["owner"]
+        conn.execute("delete from board_pin where key = 'demo-test'")
+        conn.commit()
+
+
+def test_demo_account_never_owns_or_configures_and_an_owner_or_the_deployment_can_switch_it_off(runtime, monkeypatch):
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
+    demo_signed_in(runtime)
+    with db.connect() as conn:  # even a direct grant of owner and configure does not reach the demo account
+        conn.execute("update access_account set owner = true where id = 'demo'")
+        conn.execute("insert into access_membership (account_id, role) values ('demo', 'administrator')")
+        conn.commit()
+        demo = access.principal(conn, "demo")
+        assert not demo.owner and not demo.allows("configure") and demo.allows("operate")
+    assert runtime.get("/settings").status_code == 403
+    signed_in(runtime, owner=True)
+    assert runtime.put("/auth/accounts/demo", json={"enabled": True, "owner": True, "roles": []}).status_code == 400
+    assert runtime.put("/auth/accounts/demo", json={"enabled": False, "owner": False, "roles": ["operator"]}).status_code == 200
+    runtime.cookies.clear()
+    assert runtime.post("/auth/demo", json={"token": DEMO_TOKEN}).status_code == 403  # disabled stays signed out
+    with db.connect() as conn:
+        conn.execute("update access_account set enabled = true where id = 'demo'")
+        conn.commit()
+    demo_signed_in(runtime)
+    assert runtime.get("/stats").status_code == 200
+    monkeypatch.delenv("FUZER_DEMO_TOKEN")  # taking the token off the deployment ends live demo sessions too
+    assert runtime.get("/stats").status_code == 401
