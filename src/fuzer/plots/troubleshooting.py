@@ -471,3 +471,28 @@ def flare_attribution(conn, since: str | None = None, until: str | None = None, 
         "summary": out["summary"], "thresholds": out["thresholds"], "note": out["note"],
         "episodes": [{k: e[k] for k in ("start", "volume", "attributed")} | {"causes": [c["kind"] for c in e["causes"]]}
                      for e in out["episodes"]]}, [c["id"] for e in out["episodes"] for c in e["causes"]][:10])
+
+
+def ldar_leaks(conn, since: str | None = None, until: str | None = None, days: int = 730) -> Figure:
+    """LDAR leaks found in each survey (#371) with the share of components leaking, repeat leakers' leaks marked, and
+    the coverage (including the unsurveyed, unknown tags) in the summary."""
+    from ..analysis import ldar
+
+    out = ldar.surveys(conn, since, until, days)
+    if not out["surveys"]:
+        raise ChartError(out["note"])
+    repeat = {(r["id"], r["component"]) for r in out["repeat_leakers"]}
+    x = [s["date"] for s in out["surveys"]]
+    rep = [sum((h["id"], h["component"]) in repeat for h in s["leaking"]) for s in out["surveys"]]
+    data = [{"type": "bar", "name": "leaks repaired by the next survey", "x": x,
+             "y": [s["leaks"] - r for s, r in zip(out["surveys"], rep)], "marker": {"color": "rgba(230,150,40,0.8)"}},
+            {"type": "bar", "name": "repeat leakers", "x": x, "y": rep, "marker": {"color": "rgba(210,60,50,0.9)"}},
+            {"type": "scatter", "mode": "lines+markers", "name": "components leaking (%)", "x": x,
+             "y": [s["leak_rate_pct"] for s in out["surveys"]], "yaxis": "y2", "line": {"color": "rgba(60,60,60,0.8)"}}]
+    lay = layout(f"LDAR leaks by survey, {out['since']} to {out['until']}", None, "leaks found")
+    lay["barmode"] = "stack"
+    lay["yaxis2"] = {"title": {"text": "% of components"}, "overlaying": "y", "side": "right", "showgrid": False}
+    return Figure("ldar_leaks", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "verdict": out["verdict"], "coverage": out["coverage"],
+        "repeat_leakers": [{k: r[k] for k in ("tag", "component", "surveys", "max_ppm")} for r in out["repeat_leakers"]],
+        "since": out["since"], "until": out["until"], "source": out["source"], "note": out["note"]}, [])

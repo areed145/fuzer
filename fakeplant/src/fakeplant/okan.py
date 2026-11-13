@@ -1269,7 +1269,46 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "ec_downtime.csv", downtime)
     _write_csv(out / "sap_maintenance_plans.csv", plans)
     _write_csv(out / "lims_results.csv", lab)
+    # LDAR surveys (#371): each quarter a contractor screens the fugitive emission components (flanges, valve packing,
+    # seals, connectors) on the pumps, compressors, vessels, exchangers and turbines of the PP and GGCP with a Method 21
+    # analyser; the satellites and NWP aren't in the programme, so their equipment is unsurveyed. A component leaks now
+    # and then and is repaired before the next survey. Story: 20-K-2300A's dry gas seal vent leaks three surveys
+    # running from Q2 2025; the 2025 Q3 survey skipped the GGCP compression trains B and C (weather). Own random stream.
+    lrng = random.Random(seed + 47)
+    kinds = {"K": ["dry gas seal vent", "suction flange", "discharge flange", "drain valve packing"],
+             "P": ["mechanical seal", "suction flange", "discharge flange"],
+             "V": ["inlet flange", "level bridle connector", "relief valve flange", "drain valve packing"],
+             "E": ["inlet flange", "outlet flange", "vent valve packing"], "GT": ["fuel gas flange", "fuel valve packing"]}
+    scoped = []
+    for e in equipment:
+        parts = e["floc"].split("-")
+        if len(parts) != 3:
+            continue
+        func = parts[2].rstrip("0123456789ABC")
+        if func in kinds:
+            scoped.append((f"{parts[1]}-{func}-{parts[2][len(func):]}", parts[1], func))
+    ldar, ldar_truth = [], {"repeat": {"tag": "20-K-2300A", "component": "dry gas seal vent",
+                                       "surveys": ["2025-05-14", "2025-08-13", "2025-11-12"]},
+                            "unsurveyed": sorted(t for t, a, _ in scoped if a not in ("10", "20")),
+                            "skipped": {"survey": "2025-08-13", "tags": []}}
+    for q, when in enumerate(["2024-02-14", "2024-05-15", "2024-08-14", "2024-11-13", "2025-02-12", "2025-05-14",
+                              "2025-08-13", "2025-11-12"]):
+        for tag, area, func in scoped:
+            if area not in ("10", "20"):
+                continue
+            if when == "2025-08-13" and tag.startswith(("20-K-2", "20-E-2")) and tag[-1] in "BC":
+                ldar_truth["skipped"]["tags"].append(tag)
+                continue
+            for comp in kinds[func]:
+                ppm = lrng.uniform(0, 60) if lrng.random() > 0.025 else lrng.uniform(700, 18000)
+                if tag == "20-K-2300A" and comp == "dry gas seal vent":
+                    ppm = lrng.uniform(2500, 9000) if when >= "2025-05-01" else lrng.uniform(0, 40)
+                ldar.append({"reading_id": f"LDAR-{q + 1:02d}-{tag}-{comp.replace(' ', '_')}", "survey_id": f"LDAR-{when}",
+                             "tag": tag, "component": comp, "survey_date": when, "method": "Method 21",
+                             "reading_ppm": f"{ppm:.0f}"})
     _write_csv(out / "inspection_readings.csv", readings)
+    _write_csv(out / "ldar_surveys.csv", ldar)
+    (out / "answer_keys" / "ldar.json").write_text(json.dumps(ldar_truth, indent=1))
     _write_csv(out / "oem_curves.csv", curve_rows)
     _write_csv(out / "oem_compressor_maps.csv", map_rows)
     # Limits are set from the process model without its stories; AF gets its limit traits before it's written.

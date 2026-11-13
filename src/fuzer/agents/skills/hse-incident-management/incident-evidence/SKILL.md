@@ -30,6 +30,9 @@ Use only recorded evidence:
    inventory or a compliance figure. `gas_balance()` (and `plot_gas_balance()`) sets the gas handled against export,
    lift gas, flare, fuel and vent each day and always quotes the closure gap: an open stretch with a term reading
    zero points at that meter, and a term the report doesn't carry is named, never taken as zero.
+   `ldar_surveys()` (and `plot_ldar_leaks()`) gives the leak surveys: what each screened and found with its date,
+   the repeat leakers, and coverage. Quote equipment no survey reached as unknown, never as clean, and a clean
+   reading as clean on its survey date only.
    To explain flare spikes, use `flare_attribution()` (and `plot_flare_attribution()`): each episode above the
    flare's own baseline with the downtime, log entries and detections around it, or its cause unknown, and how much
    of the flare over the baseline the records explain. Causes are matched by time, so call them leads, not proven

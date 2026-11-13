@@ -327,6 +327,16 @@ export interface ReservoirPressure {
   };
 }
 
+/** LDAR surveys (#371): leaks found by survey, repeat leakers, and coverage with the unsurveyed unknown. */
+export interface Ldar {
+  since: string; until: string; note: string; leak_ppm: number; repeat_surveys: number; coverage_days: number;
+  verdict: "repeat_leakers" | "leaks_repaired" | "no_leaks_found" | "no_surveys";
+  surveys: { date: string; components: number; tags: number; leaks: number; leak_rate_pct: number; missed: string[] }[];
+  repeat_leakers: { tag: string; component: string; surveys: string[]; max_ppm: number; consecutive: number }[];
+  coverage: { in_scope: number; covered: number; covered_pct?: number;
+    unknown: { tag: string; class: string | null }[]; not_recent?: { tag: string; last_survey: string }[] };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -342,6 +352,7 @@ export const metricsApi = {
   waterInjection: () => request<WaterInjection>("GET", "/plant/water-injection"),
   gasBalance: () => request<GasBalance>("GET", "/plant/gas-balance"),
   reservoirPressure: () => request<ReservoirPressure>("GET", "/plant/reservoir-pressure"),
+  ldar: () => request<Ldar>("GET", "/plant/ldar"),
   incidentFlare: () => request<FlareReview>("GET", "/incidents/flare"),
   plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
   gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),

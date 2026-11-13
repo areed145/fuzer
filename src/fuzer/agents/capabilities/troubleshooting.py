@@ -401,3 +401,21 @@ def plot_flare_attribution(since: str | None = None, until: str | None = None, d
     found and hollow when its cause is unknown."""
     from ...plots import troubleshooting
     return _chart(troubleshooting.flare_attribution, {"since": since, "until": until, "days": max(7, min(days, 1825))})
+
+
+@capability("hse-incident-management", "maintenance-integrity", kind="calc")
+def ldar_surveys(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """LDAR survey evidence (#371): per survey, components screened, leaks found (500 ppm or more on a Method 21
+    reading), the tags reached and those the programme usually reaches but this survey missed; the repeat leakers
+    (leaking in 2 or more surveys); and coverage of every tag of a class the surveys screen, with those no survey
+    reached in 365 days listed as unknown, never clean. Evidence with survey dates, not an emissions inventory."""
+    from ...analysis import ldar
+    with db.connect() as conn:
+        return _plain(ldar.surveys(conn, since, until, days))
+
+
+@capability("hse-incident-management", "maintenance-integrity", kind="plot")
+def plot_ldar_leaks(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """Chart the leaks each LDAR survey found, repeat leakers marked, with the share of components leaking."""
+    from ...plots import troubleshooting
+    return _chart(troubleshooting.ldar_leaks, {"since": since, "until": until, "days": days})

@@ -449,6 +449,20 @@ material_balance:
     surveys: {value: 3, means: "Static surveys the fit needs, on wells surveyed at least twice.", code: "fuzer.analysis.reservoir_pressure:MIN_SURVEYS"}
   vectors: [{worked: "tests/analysis/test_reservoir_pressure.py::test_material_balance_recovers_the_tank_and_states_its_assumptions"}]
 
+ldar:
+  title: LDAR survey leaks, repeat leakers and coverage
+  standard: "US EPA Method 21 (determination of volatile organic compound leaks)"
+  practice: "A screening reading at or above the leak definition is a leak (500 ppm as in 40 CFR 60 subpart OOOOa); a component found leaking again is a repeat leaker. The coverage window is this registry's own."
+  tool: ldar_surveys
+  inputs: [{name: Component screening readings by survey, unit: ppm}]
+  valid: Fugitive emission components screened by a Method 21 analyser and recorded against their tag.
+  needs: At least one survey; equipment of a surveyed class with no reading is reported unknown.
+  thresholds:
+    leak: {value: 500, unit: "ppm", means: "A screening reading at or above this is a leak.", code: "fuzer.analysis.ldar:LEAK_PPM"}
+    repeat: {value: 2, means: "Surveys a component must leak in to be a repeat leaker.", code: "fuzer.analysis.ldar:REPEAT_SURVEYS"}
+    coverage: {value: 365, unit: "days", means: "A tag screened within this long before the window's end is covered.", code: "fuzer.analysis.ldar:COVERAGE_DAYS"}
+  vectors: [{worked: "tests/analysis/test_ldar.py::test_surveys_find_the_repeat_leaker_and_name_the_unsurveyed_as_unknown"}]
+
 lead_in:
   title: Process values in the hours before an event against the hours before that
   practice: A before and after comparison of each measurement's mean and extreme around the event.

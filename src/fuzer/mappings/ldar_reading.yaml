@@ -1,0 +1,15 @@
+# Leak detection and repair (LDAR) survey results: one row per component screened on a tag (a flange, valve packing,
+# a seal), with the analyser reading and the survey it was taken in. A reading is a measurement on the tag, located
+# at the component.
+source: ldar
+record_type: reading
+shape: measurements
+dataset: ldar_surveys
+key: reading_id
+measurements:
+  of: {kind: tag, from: tag, as: tag}
+  at: survey_date
+  method: {from: method}
+  location: component
+  values:
+    - {quantity: leak_screening, from: reading_ppm, unit: ppm}
