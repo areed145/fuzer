@@ -20,6 +20,9 @@ const RESUME_MS = 12 * 60 * 60 * 1000;
 let depth = 0;
 let length = 0;
 let entry = "";
+/** The page's route without its query: a new entry on the same page (a viewer opened over it) keeps the scroll. */
+let page = "";
+const pageOf = () => location.hash.split("?")[0];
 /** Where each history entry was scrolled to, so Back lands where the operator left the list (P5.14c). */
 const scrolls = new Map<string, number>(readScrolls());
 
@@ -123,14 +126,18 @@ function onChange() {
       restore(scrolls.get(key) ?? 0);
     }
   } else if (history.length > length) {
-    // A new page opens at its top, not at the scroll the last page was left at.
+    // A new page opens at its top, not at the scroll the last page was left at; something opened over the same page
+    // (the full-screen drawing) leaves it where it was.
     scrolls.set(leaving, left);
     record(depth + 1, newKey());
-    window.cancelAnimationFrame(restoring);
-    window.scrollTo(0, 0);
+    if (pageOf() !== page) {
+      window.cancelAnimationFrame(restoring);
+      window.scrollTo(0, 0);
+    } else scrolls.set(entry, left);
   } else {
     record(depth, entry || newKey());  // a redirect or a filter rewriting the link: same entry, same place
   }
+  page = pageOf();
   remember();
   listeners.forEach((listener) => listener());
 }
@@ -142,6 +149,7 @@ export function startAppHistory(): boolean {
   started = true;
   try { history.scrollRestoration = "manual"; } catch { /* older browsers */ }
   record(stateDepth() ?? 0, stateKey() ?? newKey());
+  page = pageOf();
   window.addEventListener("scroll", () => { scrolls.set(entry, window.scrollY); saveScrolls(); }, { passive: true });
   // Leaving or reloading, or the phone putting the app in the background: keep the place now, not in 300 ms.
   window.addEventListener("pagehide", writeScrolls);
@@ -172,6 +180,9 @@ export function useAppDepth(): number {
   }, []);
   return value;
 }
+
+/** How deep in the app's history this entry is, read now (not a hook). */
+export const appDepth = () => depth;
 
 /** Back: a step through the app's history when there is one, otherwise up to `up` (replacing this entry). */
 export function goBack(up: string) {

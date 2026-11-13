@@ -5779,6 +5779,34 @@ test("R.5 an owner restricts licensed manuals to a group, confirmed, and puts a 
   await card.getByText("Sees documents restricted to licensed.").waitFor();
 });
 
+test("R.5b an owner downloads one project's audit record for a window from Settings, and sees what it covers", async () => {
+  await usersFixture();
+  const asked = [];
+  await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, project: "okan",
+    user: { ...signedInUser, owner: true } } }));
+  await page.route("**/auth/access", route => route.fulfill({ json: { accounts: [], roles: [], permissions: {} } }));
+  await page.route("**/auth/projects/okan/document-groups", route => route.fulfill({ json: { restricted: {}, classes: [] } }));
+  await page.route(u => u.pathname === "/auth/audit/coverage", route => route.fulfill({ json: {
+    included: [{ source: "work_event.actor", time: "at", history: true }, { source: "work_item.created_by", time: "created_at", history: false }],
+    excluded: [{ source: "assistant_conversation.by_user", reason: "account-private assistant conversation, never shared" }],
+    retention: { audit: "access events are kept indefinitely", sessions: "a session ends 8 h after sign-in and is deleted once ended" } } }));
+  await page.route(u => u.pathname === "/auth/audit", route => {
+    asked.push(Object.fromEntries(new URL(route.request().url()).searchParams));
+    return route.fulfill({ contentType: "text/csv", body: "at,project,actor\n2026-11-01T00:00:00Z,okan,user:a\n2026-11-02T00:00:00Z,okan,user:b\n" });
+  });
+  await page.goto(`${url}/#/users`);
+  const card = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Audit record for okan" }) });
+  await card.getByText("access events are kept indefinitely").waitFor();
+  await card.getByLabel("From").fill("2026-11-01");
+  await card.getByLabel("To").fill("2026-11-10");
+  const [file] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: "Download audit record" }).click()]);
+  assert.equal(file.suggestedFilename(), "fuzer-audit-okan-20261101-20261110.csv");
+  await card.getByText("Downloaded 2 events from okan, 2026-11-01 to 2026-11-10.", { exact: false }).waitFor();
+  assert.deepEqual(asked, [{ project: "okan", since: "2026-11-01T00:00:00Z", until: "2026-11-11T00:00:00.000Z", format: "csv", limit: "100000" }]);
+  await card.getByRole("button", { name: /What the record covers \(2 records, 1 left out\)/ }).click();
+  await card.getByText("assistant_conversation.by_user: account-private assistant conversation, never shared").waitFor();
+});
+
 test("P5.13b The entity's Measurements tab is one trend: template panels, event lanes, chips that switch them", async () => {
   const vals = [["2024-03-13T00:00", 17], ["2024-03-14T00:00", 17], ["2024-03-14T04:00", 1], ["2024-03-15T00:00", 17]];
   const trace = (id, role_label, uom, extra = {}) => ({ id, point: `OK:${id}.PV`, description: `Compressor ${role_label}`, uom,
@@ -5823,13 +5851,26 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   // empty lanes have no chip; every other lane names its count
   await card.getByRole("button", { name: "Alarms 1" }).waitFor();
   assert.equal(await card.getByRole("button", { name: /Work orders/ }).count(), 0);
-  const panels = () => card.locator(".annotation-text").allTextContents();
+  const panels = () => card.locator('text[class$="titletext"]').allTextContents();
   assert.deepEqual(await panels(), ["Pressures", "Driver"]);
+  // P5.15a/b: the unit is named, every trace is named on the chart with its last value, and no toolbar floats over it
+  await card.getByRole("heading", { name: /^K-1 · Compressor/ }).waitFor();
+  const keys = await card.locator('text[class^="legend"][class$="text"]:not([class$="titletext"])').allTextContents();
+  assert.ok(keys.some((k) => k.startsWith("Suction pressure") && k.includes("17 barg")), keys.join(" | "));
+  assert.equal(await card.locator(".modebar").count(), 0);
+  assert.equal(await card.getByRole("button", { name: "Reset zoom" }).count(), 0);
+  const plot = await card.locator(".nsewdrag").first().boundingBox();
+  await page.mouse.move(plot.x + plot.width * 0.3, plot.y + plot.height * 0.5);
+  await page.mouse.down();
+  await page.mouse.move(plot.x + plot.width * 0.6, plot.y + plot.height * 0.5, { steps: 5 });
+  await page.mouse.up();
+  await card.getByRole("button", { name: "Reset zoom" }).click();
+  await card.getByRole("button", { name: "Reset zoom" }).waitFor({ state: "detached" });
   await card.getByRole("button", { name: "Lube oil, seals and thrust", exact: true }).click();
   await card.getByRole("button", { name: "Lube oil pressure", exact: true }).waitFor();
-  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 3);
+  await page.waitForFunction(() => document.querySelectorAll('.trend-view text[class$="titletext"]').length === 3);
   await card.getByRole("button", { name: "Pressures", exact: true }).click();
-  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 2);
+  await page.waitForFunction(() => document.querySelectorAll('.trend-view text[class$="titletext"]').length === 2);
   assert.deepEqual(await panels(), ["Driver", "Lube oil, seals and thrust"]);
   await waveScreenshot("p5-13b-trend-desktop");
   // P5.13c: the toggles are in the link, so the same link opens the same chart
@@ -5839,7 +5880,7 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   await page.goto(`${url}/about:blank`);
   await page.goto(`${url}/${link}`);
   await card.locator(".main-svg").first().waitFor();
-  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 2);
+  await page.waitForFunction(() => document.querySelectorAll('.trend-view text[class$="titletext"]').length === 2);
   assert.deepEqual(await panels(), ["Driver", "Lube oil, seals and thrust"]);
   // on a phone a group switches as a whole and the chart fits the screen
   await page.setViewportSize({ width: 390, height: 900 });
@@ -6194,4 +6235,97 @@ test("P5.14 quirks from a real phone: a tap on the map opens one label, the laye
     document.querySelector("main h1")?.after(select);
   });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
+});
+
+test("P5.14 a P&ID on the whole screen: zoom, pan, a tap opens a tag, connected sheets go through, Back and Close", async () => {
+  await context.close();
+  context = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
+  const doc = (n) => `fz-document-00000000000${n}`;
+  const drawing = (n, extra) => ({ sheet: `OKAN-20-PID-00${n}`, format: "image",
+    title: "AREA 20 - OK_GGCP INLET SEPARATION AND LIFT GAS COMPRESSION AND DEHYDRATION", read_by: "claude",
+    image: `/documents/${doc(n)}/image`, width: 2000, height: 1400, connections: [], findings: [], ...extra });
+  const sheets = {
+    [doc(3)]: drawing(3, {
+      marks: [{ text: "20-V-2001", key: "20-V-2001", status: "linked", x: 500, y: 600, id: "fz-tag-000000000001" },
+              { text: "TO OKAN-20-PID-004", status: "not_a_tag", x: 1880, y: 300, sheet: "OKAN-20-PID-004", sheet_id: doc(4) }],
+      offpage: [{ direction: "to", sheet: "OKAN-20-PID-004", tag: "20-V-2001", other: "20-K-2200A", line: '12"-P-2001',
+                  status: "confirmed", sheet_id: doc(4), x: 1880, y: 340 }] }),
+    [doc(4)]: drawing(4, { marks: [], offpage: [{ direction: "from", sheet: "OKAN-20-PID-003", tag: "20-K-2200A",
+      other: "20-V-2001", line: '12"-P-2001', status: "confirmed", sheet_id: doc(3) }] }),
+  };
+  await page.route("**/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png|webmanifest)$/.test(path)) return route.continue();
+    const m = path.match(/^\/documents\/([^/]+)\/(drawing|image)$/);
+    if (m && m[2] === "image") return route.fulfill({ status: 200, contentType: "image/png", body: Buffer.alloc(0) });
+    if (m) return route.fulfill({ json: sheets[m[1]] });
+    if (path === `/entities/${doc(3)}`) return route.fulfill({ json: { fuzer_id: doc(3), kind: "document",
+      label: "OKAN-20-PID-003", golden: {}, values: {}, keys: [], edges: [], edge_counts: {},
+      records: [{ source: "pid", record_type: "sheet", source_key: "OKAN-20-PID-003", method: "singleton", confidence: 1 }] } });
+    if (path.endsWith("/map")) return route.fulfill({ json: { features: [], focus: null } });
+    const fixtures = { "/auth/me": { mode: "local", configured: true, user: null }, "/demo/config": { enabled: true },
+      "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
+      "/jobs/health": { available: false, level: "unknown", summary: "" } };
+    await route.fulfill({ json: fixtures[path] ?? [] });
+  });
+  await page.goto(`${url}/#/e/${doc(3)}`);
+  await page.getByAltText("P&ID OKAN-20-PID-003").waitFor();
+  // the card's long title and source wrap inside the screen, and its connected sheet is a link
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
+  assert.equal(await page.locator(".drawing-links a").first().getAttribute("href"), `#/e/${doc(4)}`);
+
+  await page.getByRole("button", { name: "Full screen" }).click();
+  const full = page.getByRole("dialog", { name: "P&ID OKAN-20-PID-003" });
+  await full.waitFor();
+  assert.match(page.url(), new RegExp(`drawing=${doc(3)}`));
+  const sheet = full.locator(".drawing-full-sheet");
+  const scale = () => sheet.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a);
+  const fit = await scale();
+  assert.ok(Math.abs(fit - 390 / 2000) < 0.01, `fitted to the screen width: ${fit}`);
+  assert.equal(await full.getByRole("button", { name: "Fit" }).getAttribute("aria-pressed"), "true");
+
+  // a pinch (two pointers moving apart) zooms in; Fit comes back to the whole sheet
+  const stage = full.locator(".drawing-full-stage");
+  await stage.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const cy = r.top + r.height / 2, cx = r.left + r.width / 2;
+    const fire = (type, id, x) => el.dispatchEvent(new PointerEvent(type, { pointerId: id, clientX: x, clientY: cy, bubbles: true, pointerType: "touch" }));
+    fire("pointerdown", 1, cx - 20); fire("pointerdown", 2, cx + 20);
+    for (let d = 20; d <= 80; d += 10) { fire("pointermove", 1, cx - d); fire("pointermove", 2, cx + d); }
+    fire("pointerup", 1, cx - 80); fire("pointerup", 2, cx + 80);
+  });
+  assert.ok(await scale() > fit * 3, "pinched in");
+  assert.equal(await full.getByRole("button", { name: "Fit" }).getAttribute("aria-pressed"), "false");
+  await full.getByRole("button", { name: "Fit" }).click();
+  assert.ok(Math.abs(await scale() - fit) < 0.001);
+  await full.getByRole("button", { name: "Zoom in" }).click();
+  assert.ok(await scale() > fit * 1.3);
+  await full.getByRole("button", { name: "Fit" }).click();
+
+  // a tap on a tag says what it is and opens it
+  await full.locator("[data-mark='0']").tap();
+  await full.getByRole("link", { name: "Open 20-V-2001" }).waitFor();
+  assert.equal(await full.getByRole("link", { name: "Open 20-V-2001" }).getAttribute("href"), "#/e/fz-tag-000000000001");
+  await full.getByRole("button", { name: "Dismiss" }).click();
+
+  // the off-page connector goes through to the next sheet, here
+  await full.locator("[data-off='0']").tap();
+  await full.getByRole("button", { name: "Go to OKAN-20-PID-004" }).click();
+  await page.getByRole("dialog", { name: "P&ID OKAN-20-PID-004" }).waitFor();
+  // and that sheet's own connector leads back; Back returns to the sheet before
+  await page.getByRole("navigation", { name: "Connected sheets" }).getByRole("button", { name: /OKAN-20-PID-003/ }).waitFor();
+  await page.goBack();
+  await page.getByRole("dialog", { name: "P&ID OKAN-20-PID-003" }).waitFor();
+  await page.goForward();
+  await page.getByRole("dialog", { name: "P&ID OKAN-20-PID-004" }).waitFor();
+
+  // Close leaves the drawings for the page they were opened from, past every sheet followed
+  await page.getByRole("button", { name: "Close drawing" }).click();
+  await page.waitForFunction(() => !location.hash.includes("drawing="));
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  assert.equal(new URL(page.url()).hash, `#/e/${doc(3)}`);
+  await page.getByAltText("P&ID OKAN-20-PID-003").waitFor();
+  assert.deepEqual(errors, []);
 });

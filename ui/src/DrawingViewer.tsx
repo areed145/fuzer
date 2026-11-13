@@ -4,8 +4,9 @@ import { api, type DrawingMark, type MarkStatus } from "./api";
 import { projectUrl } from "./authState";
 import { entityHref, useAsync } from "./lib";
 import { Button, Card as UICard, Disclosure, Empty } from "./ui";
+import { connectedSheets, openDrawing } from "./DrawingFullscreen";
 
-const STATUS: { key: MarkStatus; label: string; dashed?: boolean }[] = [
+export const MARK_STATUS: { key: MarkStatus; label: string; dashed?: boolean }[] = [
   { key: "linked", label: "Linked to the register" },
   { key: "not_in_register", label: "Tag not in the register" },
   { key: "not_a_tag", label: "Not a tag" },
@@ -32,7 +33,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
   const [focus, setFocus] = useState<number>();
   if (!d.data) return null;
   const g = d.data;
-  const counts = Object.fromEntries(STATUS.map((s) => [s.key, g.marks.filter((m) => m.status === s.key).length]));
+  const counts = Object.fromEntries(MARK_STATUS.map((s) => [s.key, g.marks.filter((m) => m.status === s.key).length]));
   const hl = (m: DrawingMark) => !!m.id && highlight.includes(m.id);
   const shown = g.marks.map((m, i) => ({ m, i })).filter(({ m }) => !hidden.has(m.status) || hl(m));
   const found = g.marks.filter((m) => hl(m) && m.x !== undefined).length;
@@ -50,12 +51,16 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
         ? `${g.format === "image" ? "scan" : "drawing"} read by ${g.read_by}`
         : "not read yet (run fuzer llm-link --source pids)";
 
+  const links = connectedSheets(g);
+  const full = () => openDrawing(id, highlight);
+
   return (
-    <UICard  as="section">
-      <div className="row spread">
-        <h2>
-          {title ?? "Drawing"} <span className="muted small">{source}</span>
-        </h2>
+    <UICard as="section" className="drawing-card">
+      <div className="drawing-head">
+        <h2>{title ?? "Drawing"}</h2>
+        <div className="drawing-source muted small">{source}</div>
+      </div>
+      <div className="row drawing-zoom">
         <div className="tabs">
           {ZOOMS.map((z) => (
             <a key={z.key} className={zoom === z.key ? "on" : ""} onClick={() => setZoom(z.key)} role="button">
@@ -63,10 +68,14 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
             </a>
           ))}
         </div>
+        <Button className="drawing-full-open" onClick={full}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+          Full screen
+        </Button>
       </div>
       {g.marks.length > 0 && (
         <div className="drawing-tools" aria-label="Show or hide marks">
-          {STATUS.filter((s) => counts[s.key]).map((s) => (
+          {MARK_STATUS.filter((s) => counts[s.key]).map((s) => (
             <Button
               key={s.key}
               className={`chip st-${s.key} ${hidden.has(s.key) ? "off" : ""}`}
@@ -82,7 +91,9 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
         </div>
       )}
       <div className="viewer">
-        <div className="sheet" style={{ width: zoom ? `${g.width * zoom}px` : "100%" }}>
+        {/* a tap on the sheet itself (not on a mark) opens it on the whole screen, where it can be zoomed */}
+        <div className="sheet" style={{ width: zoom ? `${g.width * zoom}px` : "100%" }}
+             onClick={(e) => { if (!(e.target as Element).closest("a")) full(); }}>
           <img src={projectUrl(g.image)} alt={`P&ID ${g.sheet}`} />
           <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="none">
             {shown
@@ -91,9 +102,25 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
                 <Mark key={i} m={m} focus={focus === i} highlight={hl(m)}
                       onHover={(on) => setFocus(on ? i : undefined)} />
               ))}
+            {(g.offpage ?? []).map((o, i) => o.x !== undefined && o.y !== undefined && o.sheet_id && (
+              <a key={`o${i}`} href={entityHref(o.sheet_id)}>
+                <g className="off-end st-sheet"><title>{`${o.direction === "to" ? "To" : "From"} ${o.sheet}`}</title>
+                  <rect x={o.x - 90} y={o.y - 50} width={180} height={100} rx={18} /></g>
+              </a>
+            ))}
           </svg>
         </div>
       </div>
+      {links.length > 0 && (
+        <p className="drawing-links small">
+          <span className="muted">Connected sheets</span>
+          {links.map((l) => (
+            <a key={l.id} className="mono" href={entityHref(l.id)}>
+              {l.direction === "from" ? "← " : l.direction === "to" ? "→ " : ""}{l.sheet}
+            </a>
+          ))}
+        </p>
+      )}
       {highlight.length > 0 && (
         <p className="small">
           {found
@@ -122,7 +149,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
                   <span className="mono">{m.text}</span>
                 )}
                 {m.key && m.key !== m.text && <span className="muted small mono">{m.key}</span>}
-                <span className="muted small">{STATUS.find((s) => s.key === m.status)?.label}</span>
+                <span className="muted small">{MARK_STATUS.find((s) => s.key === m.status)?.label}</span>
               </li>
             ))}
           </ul>
@@ -231,17 +258,17 @@ function Mark({ m, focus, highlight, onHover }: {
   onHover: (on: boolean) => void;
 }) {
   const label = `${m.text}${m.key && m.key !== m.text ? ` (${m.key})` : ""}: ${
-    STATUS.find((s) => s.key === m.status)?.label
+    m.sheet_id ? `opens ${m.sheet}` : MARK_STATUS.find((s) => s.key === m.status)?.label
   }`;
   const body = (
     <g
-      className={`mark st-${m.status} ${focus ? "focus" : ""} ${highlight ? "hl" : ""}`}
+      className={`mark ${m.sheet_id ? "st-sheet" : `st-${m.status}`} ${focus ? "focus" : ""} ${highlight ? "hl" : ""}`}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
     >
       <title>{label}</title>
       {highlight && <circle className="hl-ring" cx={m.x} cy={m.y} r={70} />}
-      <circle cx={m.x} cy={m.y} r={m.status === "line" ? 26 : 38} />
+      <MarkShape m={m} />
       {(focus || highlight) && (
         <text x={(m.x ?? 0) + 46} y={(m.y ?? 0) - 40}>
           {m.key ?? m.text}
@@ -249,7 +276,19 @@ function Mark({ m, focus, highlight, onHover }: {
       )}
     </g>
   );
-  return m.id ? <a href={entityHref(m.id)}>{body}</a> : body;
+  const to = m.id ?? m.sheet_id;
+  return to ? <a href={entityHref(to)}>{body}</a> : body;
+}
+
+/** A highlighter mark over a reading, in its status colour: translucent and multiplied over the sheet, so the drawn text
+ * under it stays readable. A tag's bubble gets a square, a line number a band as long as its text. */
+export function MarkShape({ m }: { m: DrawingMark }) {
+  const x = m.x ?? 0, y = m.y ?? 0;
+  if (m.status === "line") {
+    const w = Math.max(90, (m.text?.length ?? 6) * 15);
+    return <rect className="dot" x={x - w / 2} y={y - 20} width={w} height={40} rx={10} />;
+  }
+  return <rect className="dot" x={x - 44} y={y - 44} width={88} height={88} rx={20} />;
 }
 
 function End({ id, text }: { id: string | null; text: string }) {

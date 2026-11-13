@@ -300,6 +300,14 @@ def test_a_job_handed_over_at_shift_change_stays_with_the_outgoing_operator_unti
         (j["id"], j["item_id"], j["queued"], j["label"]) for j in full]
     assert brief[0]["handover"]["mine_to_accept"] and "permit" not in brief[0] and "finding" not in brief[0]
     assert len(client.get("/exceptions/field", params={"person": "gina", "brief": True}).json()["jobs"]) == len(full)
+    # The full list is looked up for every job at once: the same few queries however many jobs there are.
+    asked, run = [], conn.execute
+    conn.execute = lambda *a, **k: asked.append(a[0]) or run(*a, **k)
+    try:
+        assert exceptions.field_jobs(conn, "gina") == full
+    finally:
+        del conn.execute
+    assert len(asked) <= 16, len(asked)
     assert client.post(f"/exceptions/{e}/handover/accept", json={"by": "otto"}).status_code == 400
     assert client.post(f"/exceptions/{e}/handover/accept", json={"by": "gina"}).is_success
     [taken] = [j for j in exceptions.field_jobs(conn, "gina") if j["id"] == e]

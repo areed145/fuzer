@@ -3,20 +3,18 @@
 .drawing-tools .chip { display: inline-flex; gap: 6px; align-items: center; padding: 2px 10px; border: 1px solid var(--line);
   border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font: inherit; font-size: 12px; }
 .drawing-tools .chip.off { opacity: 0.45; }
-.drawing-tools .swatch { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; }
-.drawing-tools .swatch.dashed { border-style: dashed; }
+.drawing-tools .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid currentColor;
+  background: color-mix(in srgb, currentColor 35%, transparent); }
+.drawing-tools .swatch.dashed { width: 18px; height: 8px; }
 .viewer { overflow: auto; max-height: 75vh; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
 .viewer .sheet { position: relative; }
 .viewer img { display: block; width: 100%; height: auto; }
 .viewer svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.viewer .mark circle { fill: transparent; stroke-width: 5; }
-.viewer .mark.focus circle { stroke-width: 10; }
 .viewer .mark text { font: 600 26px system-ui, sans-serif; paint-order: stroke; stroke: #fff; stroke-width: 6px; }
 .st-linked { color: var(--ok); stroke: var(--ok); fill: var(--ok); }
 .st-not_in_register { color: var(--warn); stroke: var(--warn); fill: var(--warn); }
 .st-not_a_tag { color: var(--danger); stroke: var(--danger); fill: var(--danger); }
 .st-line { color: var(--muted); stroke: var(--muted); fill: var(--muted); }
-.viewer .mark.st-line circle { stroke-dasharray: 10 8; }
 .drawing-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 12px; }
 .drawing-lists ul { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; }
 .drawing-lists li { display: flex; gap: 8px; align-items: baseline; padding: 3px 4px; border-radius: 4px; }
@@ -29,3 +27,61 @@ iframe.doc-file { width: 100%; height: 75vh; border: 1px solid var(--line); bord
 .drawing-table .table-scroll { overflow-x: auto; max-height: 320px; }
 .drawing-table table { border-collapse: collapse; width: 100%; }
 .drawing-table th, .drawing-table td { padding: 2px 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+
+/* the card's head on a phone: a long sheet name or picker wraps inside the card instead of widening the page */
+.drawing-card { min-width: 0; }
+.drawing-head { min-width: 0; margin-bottom: 4px; }
+.drawing-head h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.drawing-head h2 select { display: block; width: 100%; max-width: 100%; margin: 4px 0; font-size: 14px; }
+.drawing-source { margin: 2px 0 0; }
+.drawing-zoom { flex-wrap: wrap; gap: 8px; align-items: center; }
+.drawing-full-open { display: inline-flex; gap: 6px; align-items: center; }
+.drawing-full-open svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.viewer .sheet { cursor: zoom-in; }
+.viewer .sheet a, .drawing-full-sheet .mark, .drawing-full-sheet .off-end { cursor: pointer; }
+.drawing-links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; }
+.st-sheet { color: var(--accent); stroke: var(--accent); fill: var(--accent); }
+
+/* the drawing on the whole screen (P5.14) */
+html.drawing-open, html.drawing-open body { overflow: hidden; }
+.drawing-full { position: fixed; inset: 0; z-index: 1150; display: flex; flex-direction: column; background: #fff;
+  color: var(--text); overscroll-behavior: contain; }
+.drawing-full-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  padding-top: max(6px, env(safe-area-inset-top)); padding-left: max(8px, env(safe-area-inset-left));
+  padding-right: max(8px, env(safe-area-inset-right)); background: var(--panel); border-bottom: 1px solid var(--line); }
+.df-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.df-zoom { display: flex; gap: 4px; }
+.ui-button.df-btn { min-width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--text);
+  font: inherit; font-size: 20px; cursor: pointer; }
+.ui-button.df-btn.df-text { font-size: 14px; }
+.ui-button.df-btn[aria-pressed="true"] { background: var(--accent-soft); }
+.df-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.drawing-full-stage { position: relative; flex: 1; overflow: hidden; touch-action: none; background: #fff; outline: none;
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+.drawing-full-sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.drawing-full-sheet img { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none; pointer-events: none; }
+.drawing-full-sheet svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.drawing-full-sheet .mark circle.hit { stroke: none; fill: transparent; }
+.drawing-full-sheet .mark text { font: 600 26px system-ui, sans-serif; paint-order: stroke; stroke: #fff; stroke-width: 6px; }
+.drawing-full-pick, .drawing-full-links { position: relative; display: flex; gap: 8px; padding: 10px 12px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--line); }
+.drawing-full-pick { flex-direction: column; padding-right: 60px; }
+.drawing-full-pick .row { flex-wrap: wrap; gap: 8px; }
+.drawing-full-pick > a, .drawing-full-pick .row > * { align-self: flex-start; }
+.df-dismiss { position: absolute; top: 8px; right: 8px; }
+.drawing-full-links { overflow-x: auto; white-space: nowrap; }
+.ui-button.df-chip { flex: none; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel); color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
+
+/* Marks are a highlighter over the sheet (P5.14f): the status colour, translucent and multiplied, so the drawn text
+ * under it stays black and readable. A stronger outline on hover or tap, and for the item the page is about. */
+.viewer svg, .drawing-full-sheet svg { mix-blend-mode: multiply; }
+.viewer .mark .dot, .drawing-full-sheet .mark .dot, .off-end rect { fill-opacity: 0.3; stroke: none; }
+.viewer .mark.focus .dot, .drawing-full-sheet .mark.focus .dot, .off-end.focus rect,
+.viewer a:hover .mark .dot, .viewer a:hover .off-end rect, .drawing-full-sheet .mark:hover .dot {
+  fill-opacity: 0.45; stroke-opacity: 1; stroke: currentColor; stroke-width: 5; }
+.viewer .mark.hl .dot, .drawing-full-sheet .mark.hl .dot { fill-opacity: 0.5; stroke: var(--accent); stroke-width: 6; }
+.viewer .mark .hl-ring, .drawing-full-sheet .mark .hl-ring { fill: none; stroke: var(--accent); stroke-width: 6; opacity: 0.85; }
+.drawing-full-sheet .mark.hl text { fill: var(--accent); }

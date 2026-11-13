@@ -1,5 +1,6 @@
 """Documents and P&ID drawings: revisions, drawings for a unit, one sheet with its marks."""
 
+import re
 from pathlib import Path
 
 
@@ -96,6 +97,9 @@ def drawing(conn, fuzer_id: str) -> dict | None:
             m["id"] = ids.get(m["key"])
     for c in connections:
         c["from_id"], c["to_id"] = ids.get(c["from"]), ids.get(c["to"])
+    docs = {r["source_key"]: r["fuzer_id"] for r in conn.execute(
+        "select source_key, fuzer_id from crosswalk where source = 'pid' and record_type = 'sheet'")}
+    _sheet_links(marks, docs, rec["source_key"])
     if offpage:  # each off-page end: whether the other sheet shows it too, and that sheet's document to open
         from ...sources import llm_pids
 
@@ -104,17 +108,36 @@ def drawing(conn, fuzer_id: str) -> dict | None:
         joined = llm_pids.join(conn, sheets)
         confirmed = {(c["from"], c["to"]) for c in joined["connections"]}
         disputed = {(d["sheet"], d["direction"], d.get("line")) for d in joined["disputed"]}
-        docs = {r["source_key"]: r["fuzer_id"] for r in conn.execute(
-            "select source_key, fuzer_id from crosswalk where source = 'pid' and record_type = 'sheet'")}
         for o in offpage:
             pair = (o.get("tag"), o.get("other")) if o["direction"] == "to" else (o.get("other"), o.get("tag"))
             o["status"] = ("confirmed" if pair in confirmed else
                            "one_sided" if (rec["source_key"], o["direction"], o.get("line")) in disputed else "unread")
             o["sheet_id"] = docs.get((o.get("sheet") or "").replace(" ", "").upper())
+            if "x" not in o and o["sheet_id"]:  # read before connectors were placed: where the sheet's number is written
+                at = next((m for m in marks if m.get("sheet_id") == o["sheet_id"] and "x" in m), None)
+                if at:
+                    o["x"], o["y"] = at["x"], at["y"]
     return {"sheet": rec["source_key"], "format": p.get("format"), "title": p.get("title"), "read_by": read_by,
             "image": f"/documents/{fuzer_id}/image", "width": width, "height": height, "marks": marks,
             "connections": connections, "findings": findings, "offpage": offpage, "loops": loops,
             "tables": tables, "notes": notes, "checks": _placements(conn, marks)}
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", (text or "").upper())
+
+
+def _sheet_links(marks: list[dict], docs: dict[str, str], here: str) -> None:
+    """A reading that names another drawing (an off-page connector's "TO <drawing number>", a reference to another
+    sheet) opens that drawing: it gets the sheet and its document."""
+    sheets = sorted(((_squash(k), k) for k in docs if k != here), key=lambda x: -len(x[0]))
+    for m in marks:
+        if m.get("id"):
+            continue
+        text = _squash(m.get("text") or "")
+        hit = next((k for sq, k in sheets if len(sq) >= 6 and sq in text), None)
+        if hit:
+            m["sheet"], m["sheet_id"] = hit, docs[hit]
 
 
 def _placements(conn, marks: list[dict]) -> list[dict]:

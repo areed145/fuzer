@@ -33,40 +33,8 @@
    }
   ],
   "findings": [],
-  "lines": [
-   {
-    "text": "6\"-P-10110-A1",
-    "x": 893,
-    "y": 756
-   },
-   {
-    "text": "8\"-P-10111-A1",
-    "x": 1466,
-    "y": 746
-   }
-  ],
-  "connections": [
-   {
-    "from": "10-P-1001A",
-    "to": "10-P-1001B",
-    "line": "6\"-P-10110-A1",
-    "via": [
-     "globe",
-     "10-FV-1001A",
-     "reducer"
-    ]
-   },
-   {
-    "from": "10-P-1001B",
-    "to": "10-P-1001C",
-    "line": "8\"-P-10111-A1",
-    "via": [
-     "ball",
-     "10-FV-1001B",
-     "reducer"
-    ]
-   }
-  ],
+  "lines": [],
+  "connections": [],
   "offpage": [],
   "loops": [],
   "tables": [],

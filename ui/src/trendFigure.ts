@@ -67,6 +67,7 @@ export const LANE_SHORT: Record<string, string> = {
 const PANEL_PX = 170;
 const LANE_PX = 30;
 const GAP_PX = 30;
+const KEY_ROW_PX = 20;
 const LEAD_IN_MS = 12 * 3600 * 1000;
 
 /** What a trace is called on a chip and in the hover: its role, and the neighbour it is on when not the unit. */
@@ -141,20 +142,54 @@ export function colours(view: TrendViewData, palette: Palette): Map<string, stri
   return out;
 }
 
+/** A panel as drawn: a template group, or the part of one past its first two units (P5.15b), so no panel carries
+ * more than two value axes. */
+export function drawn(groups: TrendGroup[]): TrendGroup[] {
+  return groups.flatMap((g) => {
+    const units = [...new Set(g.traces.map((t) => t.axis))];
+    const out: TrendGroup[] = [];
+    for (let i = 0; i < units.length; i += 2) {
+      const mine = new Set(units.slice(i, i + 2));
+      out.push({ ...g, key: i ? `${g.key}:${i / 2}` : g.key, label: i ? `${g.label}, continued` : g.label,
+                 traces: g.traces.filter((t) => mine.has(t.axis)) });
+    }
+    return out;
+  });
+}
+
+/** A value as a label reads it: three significant figures, no exponent below a million. */
+export function reading(v: number): string {
+  if (!Number.isFinite(v)) return "";
+  const a = Math.abs(v);
+  return a >= 1000 ? Math.round(v).toLocaleString("en-US") : a >= 1 ? String(Number(v.toPrecision(3))) : String(Number(v.toPrecision(2)));
+}
+
+/** Rows a panel's key needs at this width: its title and each trace's name and last value, wrapped. */
+function keyRows(g: TrendGroup, name: Map<string, string>, compact: boolean): number {
+  // On a phone the key is a list: the panel's name, then one trace a line.
+  if (compact) return 1 + g.traces.length;
+  const chars = g.label.length + g.traces.reduce((n, t) => n + (name.get(t.id) ?? "").length + 12, 0);
+  return Math.max(1, Math.ceil((chars * 6.6 + g.traces.length * 34) / 860));
+}
+
+/** A key entry's name fits a phone's width: a long name is cut with an ellipsis, and the hover keeps it whole. */
+export function short(s: string, compact: boolean, max = 30): string {
+  return !compact || s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
+}
+
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 16);
 const local = (s: string) => Date.parse(s.length === 10 ? `${s}T00:00Z` : `${s.slice(0, 16)}Z`);
 
 export function buildFigure(view: TrendViewData, timeline: TimelineData | null, on: Set<string>, palette: Palette,
                             compact = false) {
-  const shown = panels(view, on);
+  const shown = drawn(panels(view, on));
   const name = names(view);
   const lanes = (timeline?.lanes ?? []).filter((l) => l.events.length && on.has(`lane:${l.key}`));
   const colour = colours(view, palette);
-  // On a phone only the first unit of a panel keeps its scale on screen; the hover reads every trace's value.
-  const extra = compact ? 0 : Math.max(0, ...shown.map((g) => new Set(g.traces.map((t) => t.axis)).size - 2));
-  const right = 1 - 0.06 * extra;
+  // Above each panel, its key: the panel's name, then each trace's name and last value in its colour (P5.15b).
+  const keyPx = shown.map((g) => 8 + KEY_ROW_PX * keyRows(g, name, compact));
   const lanesPx = lanes.length ? lanes.length * LANE_PX + 12 : 0;
-  const plotPx = shown.length * PANEL_PX + Math.max(0, shown.length - 1) * GAP_PX + (lanesPx ? GAP_PX + lanesPx : 0);
+  const plotPx = shown.length * PANEL_PX + keyPx.reduce((a, b) => a + b, 0) - (keyPx[0] ?? 0) + (lanesPx ? GAP_PX + lanesPx : 0);
   const frac = (px: number) => px / Math.max(1, plotPx);
   const data: Record<string, unknown>[] = [];
   const shapes: Record<string, unknown>[] = [];
@@ -163,8 +198,14 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
   let n = 0;
   let top = 1;
   let lowest = "y";
-  shown.forEach((g) => {
+  shown.forEach((g, k) => {
+    if (k) top -= frac(keyPx[k]);
     const bottom = Math.max(0, top - frac(PANEL_PX));
+    const legend = k ? `legend${k + 1}` : "legend";
+    layout[legend] = { visible: true, x: 0, y: top, xref: "paper", yref: "paper", xanchor: "left", yanchor: "bottom", orientation: compact ? "v" : "h",
+                       bgcolor: "rgba(0,0,0,0)", font: { size: 11, color: palette.text }, itemclick: false,
+                       itemdoubleclick: false, itemwidth: 30, tracegroupgap: 0,
+                       title: { text: `<b>${g.label}</b>`, side: compact ? "top" : "left", font: { size: 12, color: palette.text } } };
     const domain = [bottom, top];
     const units = [...new Set(g.traces.map((t) => t.axis))];
     const first = n + 1;
@@ -174,18 +215,18 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
       const ref = n === 1 ? "y" : `y${n}`;
       const traces = g.traces.filter((t) => t.axis === u);
       const label = traces[0].uom ?? "";
+      // On a phone only the first unit keeps its scale on screen; the key and the hover read every value.
       const hidden = compact && j >= 1 ? { showticklabels: false, title: { text: "" } } : {};
       layout[axis] = j === 0
         ? { domain, anchor: "x", title: { text: label, font: { size: 11 } }, fixedrange: true, zeroline: false }
         : { overlaying: first === 1 ? "y" : `y${first}`, side: "right", fixedrange: true, zeroline: false, showgrid: false,
-            title: { text: label, font: { size: 11 } },
-            ...(j >= 2 && !compact ? { anchor: "free", position: Math.min(1, right + 0.06 * (j - 1)) } : { anchor: "x" }),
-            ...hidden };
+            title: { text: label, font: { size: 11 } }, anchor: "x", ...hidden };
       if (j === 0) lowest = ref;
       for (const t of traces) {
         data.push({
           type: "scatter", mode: t.sampled ? "lines+markers" : "lines", x: t.values.map(([at]) => at),
-          y: t.values.map(([, v]) => v), yaxis: ref, name: name.get(t.id), showlegend: false,
+          y: t.values.map(([, v]) => v), yaxis: ref, legend, showlegend: true,
+          name: `${short(name.get(t.id) ?? "", compact)} <b>${reading(t.last)}</b>${t.uom ? ` ${t.uom}` : ""}`,
           line: { width: 1.6, color: colour.get(t.id), ...(t.sampled ? { shape: "hv", dash: "dot" } : {}) },
           ...(t.sampled ? { marker: { size: 7, color: colour.get(t.id) }, text: (t.methods ?? []).map((m) => m ?? "") } : {}),
           hovertemplate: `%{y:.4~g} ${t.uom ?? ""}${t.sampled ? " %{text}" : ""}<extra>${name.get(t.id)}</extra>`,
@@ -199,10 +240,9 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
         }
       }
     });
-    annotations.push({ text: `<b>${g.label}</b>`, xref: "paper", yref: "paper", x: 0, y: top, xanchor: "left",
-                       yanchor: "bottom", showarrow: false, font: { size: 12, color: palette.text } });
-    top = bottom - frac(GAP_PX);
+    top = bottom;
   });
+  if (lanes.length) top -= frac(GAP_PX);
   if (lanes.length) {
     n += 1;
     const axis = n === 1 ? "yaxis" : `yaxis${n}`;
@@ -243,15 +283,22 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
     const end = local(u);
     shapes.push({ type: "rect", xref: "x", yref: "paper", x0: iso(end - LEAD_IN_MS), x1: iso(end), y0: 0, y1: 1,
                   fillcolor: palette.shade, line: { width: 0 }, layer: "below" });
+    // said on the chart, not only in the heading (P5.15b)
+    if (end > local(view.start) && end <= local(view.end)) {
+      annotations.push({ text: "12 h before the incident", xref: "x", yref: "paper", x: iso(end - LEAD_IN_MS), y: 1,
+                         xanchor: "left", yanchor: "top", showarrow: false, font: { size: 10, color: palette.text },
+                         opacity: 0.7 });
+    }
   }
-  layout.xaxis = { type: "date", range: [view.start, view.end], anchor: lowest, domain: [0, right],
+  layout.xaxis = { type: "date", range: [view.start, view.end], anchor: lowest, domain: [0, 1],
                    showspikes: true, spikemode: "across", spikesnap: "cursor", spikethickness: 1, spikedash: "solid",
                    spikecolor: palette.text, ...(compact ? { nticks: 4 } : {}) };
   return {
     data,
     layout: {
-      ...layout, shapes, annotations, height: plotPx + 56, margin: compact ? { t: 24, r: 12, b: 32, l: 44 } : { t: 24, r: 56 + 40 * extra, b: 32, l: 56 },
-      hovermode: "x unified", hoversubplots: "axis", showlegend: false, dragmode: "zoom",
+      ...layout, shapes, annotations, height: plotPx + (keyPx[0] ?? 0) + 60,
+      margin: compact ? { t: (keyPx[0] ?? 0) + 4, r: 12, b: 44, l: 44 } : { t: (keyPx[0] ?? 0) + 4, r: 56, b: 44, l: 56 },
+      hovermode: "x unified", hoversubplots: "axis", showlegend: true, dragmode: "zoom",
     },
   };
 }

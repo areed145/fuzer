@@ -53,11 +53,14 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
   const [hours, setHours] = useState(() => Number(q.get("w")) || around?.hours || 72);
   const [at, setAt] = useState<string | undefined>(() => q.get("at") || around?.at);
   const [picked, setPicked] = useState<Set<string> | null>(null);
+  const [zoomed, setZoomed] = useState(false);
+  const [redraw, setRedraw] = useState(0);
   const theme = useTheme();
   const before = Math.round((hours * 2) / 3);
   const v = useAsync(() => api.trendView(id, at, before, hours - before), [id, at, hours]);
   const d = v.data;
   const t = useAsync(() => (d && !d.error ? api.timeline(id, d.start, d.end) : Promise.resolve(null)), [id, d?.start, d?.end]);
+  useEffect(() => setZoomed(false), [d]); // a new window draws unzoomed
   const on = useMemo(() => picked ?? (d ? fromQuery(d, q.get("show"), q.get("hide")) : new Set<string>()), [picked, d, q]);
   const first = around?.at;
   useEffect(() => {
@@ -90,7 +93,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
   return (
     <Card as="section" className="trend-view">
       <h2>
-        {d?.template.title ?? "Trend"}{" "}
+        {d?.unit_label ? `${d.unit_label} · ` : ""}{d?.template.title ?? "Trend"}{" "}
         {d && !d.error && (
           <span className="muted small">
             {d.provider === "synthetic" ? "synthetic values: no PI / ADX connection configured" : `from ${d.provider.toUpperCase()}`}
@@ -103,6 +106,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
           <Button key={h} variant={h === hours ? "primary" : "secondary"} size="sm" onClick={() => setHours(h)}>{h / 24} d</Button>
         ))}
         <span className="spacer" />
+        {zoomed && <Button size="sm" onClick={() => { setZoomed(false); setRedraw((r) => r + 1); }}>Reset zoom</Button>}
         <Button size="sm" onClick={() => shift(-1)} disabled={!d}>← Earlier</Button>
         <Input type="datetime-local" aria-label="Centre the window on" value={d && !d.error ? local(d.centre) : ""}
                onChange={(e) => e.target.value && setAt(e.target.value)} />
@@ -148,7 +152,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         </div>
       )}
       {figure && (shownTraces.length > 0 || lanes.length > 0) && (
-        <PlotlyChart spec={figure as never} onPoint={open} bare={compact}
+        <PlotlyChart key={redraw} spec={figure as never} onPoint={open} onZoom={setZoomed} bare
                      label={`${d?.unit_label ?? id}: ${shownTraces.length} traces and ${lanes.length} event lanes from ${d?.start} to ${d?.end}`} />
       )}
       {t.error && <p className="small error">Events unavailable: {t.error}</p>}

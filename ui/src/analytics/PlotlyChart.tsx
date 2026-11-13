@@ -21,8 +21,10 @@ function forWidth(spec: Spec, width: number): Spec {
 }
 
 /** A server-built figure in the page's theme: colours, fonts and colorway all come from `themed`. */
-export function PlotlyChart({ spec, label, onPoint, bare = false }: {
+export function PlotlyChart({ spec, label, onPoint, onZoom, bare = false }: {
   spec: Spec; label: string; onPoint?: (customdata: unknown) => void; bare?: boolean;
+  /** Told whether the time axis is zoomed, so a page without the toolbar can offer its own reset. */
+  onZoom?: (zoomed: boolean) => void;
 }) {
   const element = useRef<HTMLDivElement>(null);
   const theme = useTheme();
@@ -46,9 +48,13 @@ export function PlotlyChart({ spec, label, onPoint, bare = false }: {
       let width = node.parentElement?.clientWidth ?? 0;
       await draw(width);
       if (gone) return;
-      if (onPoint) {
-        (node as HTMLDivElement & { on?: (ev: string, fn: (e: any) => void) => void })
-          .on?.("plotly_click", (e: any) => { const d = e?.points?.[0]?.customdata; if (d) onPoint(d); });
+      const events = node as HTMLDivElement & { on?: (ev: string, fn: (e: any) => void) => void };
+      if (onPoint) events.on?.("plotly_click", (e: any) => { const d = e?.points?.[0]?.customdata; if (d) onPoint(d); });
+      if (onZoom) {
+        events.on?.("plotly_relayout", (e: any) => {
+          if (e?.["xaxis.range[0]"] !== undefined || e?.["xaxis.range"] !== undefined) onZoom(true);
+          else if (e?.["xaxis.autorange"]) onZoom(false);
+        });
       }
       const observer = new ResizeObserver(() => {
         const next = node.parentElement?.clientWidth ?? 0;
@@ -61,7 +67,7 @@ export function PlotlyChart({ spec, label, onPoint, bare = false }: {
       dispose = () => observer.disconnect();
     }).catch((failure: Error) => { if (!gone) setError(failure.message); });
     return () => { gone = true; dispose?.(); purge?.(); };
-  }, [spec, theme, onPoint, bare]);
+  }, [spec, theme, onPoint, onZoom, bare]);
   return <>
     {error && <p className="error" role="alert">Chart unavailable: {error}. Use the data table below.</p>}
     <div ref={element} style={{ minHeight: spec.layout.height ?? 340 }} role="img" aria-label={label} />

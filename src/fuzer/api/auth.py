@@ -341,8 +341,10 @@ def audit_coverage(request: Request, project: str | None = None):
             scope = projects.scope(conn, project or projects.current(conn))
         except projects.ProjectError as e:
             raise HTTPException(404, str(e)) from None
+    from ..core import retention
+
     with db.use(scope), db.connect() as conn:
-        return audit.coverage(conn)
+        return {**audit.coverage(conn), "retention": retention.policy(conn)}
 
 
 def _aware(value: datetime | None) -> datetime | None:
