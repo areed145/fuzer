@@ -53,6 +53,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`productivity_index`](#productivity_index) Productivity index from a flowing survey against the static pressure before it | Engineering practice | Static bottomhole pressure (barg); Flowing bottomhole pressure (barg); Oil rate at the flowing survey (Sm³/d) | A flowing survey with a rate and a static survey on the same well shortly before it. |
 | [`material_balance`](#material_balance) One-tank material balance from static pressures and net voidage | Engineering practice | Static bottomhole pressures (barg); Allocated oil (rm³); Water injected (rm³) | The PVT voidage replacement needs, and static surveys on at least two dates. |
 | [`ldar`](#ldar) LDAR survey leaks, repeat leakers and coverage | US EPA Method 21 (determination of volatile organic compound leaks) | Component screening readings by survey (ppm) | At least one survey; equipment of a surveyed class with no reading is reported unknown. |
+| [`ili_strength`](#ili_strength) ILI anomaly growth between runs and remaining strength against MOP | ASME B31G (modified, 0.85 dL); ASME B31.8 design factors | Anomaly depth (% of wall); Anomaly length (mm); Wall thickness (mm); Outside diameter (mm); SMYS of the API 5L grade (MPa); Maximum operating pressure (barg) | ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade. |
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
@@ -473,6 +474,19 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `repeat`:** Surveys a component must leak in to be a repeat leaker. (2)
 - **Threshold `coverage`:** A tag screened within this long before the window's end is covered. (365 days)
 - **Worked example:** `tests/analysis/test_ldar.py::test_surveys_find_the_repeat_leaker_and_name_the_unsurveyed_as_unknown`, on the fake plant
+
+## ili_strength
+
+**ILI anomaly growth between runs and remaining strength against MOP.** ASME B31G (modified, 0.85 dL); ASME B31.8 design factors. Metal loss anomalies are matched between in-line inspection runs by type and station; growth is the depth change over the years between runs, projected ahead at that rate. Failure pressure uses the flow stress SMYS + 69 MPa; the safe pressure is the failure pressure times the class location's design factor, and ERF is MOP over the safe pressure. The matching distance, horizon and depth limit are this registry's own screening choices.
+
+- **Valid for:** External or internal metal loss on carbon steel line pipe sized by an in-line inspection tool, on a segment with a recorded grade, wall and class location.
+- **Needs:** ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade.
+- **Run by:** `ili_anomalies`
+- **Threshold `match`:** An anomaly of the same type within this distance in the next run is the same anomaly. (1.5 m)
+- **Threshold `horizon`:** Growth is projected this far ahead of the latest run. (5 years)
+- **Threshold `depth_limit`:** An anomaly this deep crosses the screen whatever its pressure. (80 % of wall)
+- **Threshold `tool_tolerance`:** Growth under this between two runs may be tool sizing, and is said so. (10 % of wall)
+- **Test vector:** 49 % deep, 131 mm long on 610 x 15.9 mm API 5L X65: modified B31G at a 517 MPa flow stress fails at 220.7 bar. (`failure_pressure`)
 
 ## lead_in
 

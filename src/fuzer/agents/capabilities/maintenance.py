@@ -251,3 +251,24 @@ def plot_cost_of_unreliability(since: str | None = None, until: str | None = Non
     from ...plots import maintenance
     return _chart(lambda conn, **kw: maintenance.unreliability(conn, mcp_server.PACK, **kw),
                   {"since": since, "until": until, "days": days})
+
+
+@capability("maintenance-integrity", kind="calc")
+def ili_anomalies(line: str | None = None) -> dict[str, Any]:
+    """In-line inspection anomalies (#366) per line, or one line: each run, and each metal loss anomaly of the latest
+    run matched to the previous run by type and station (within 1.5 m), with its growth (% of wall and mm a year),
+    its modified ASME B31G remaining strength against the MOP (ERF = MOP over the safe pressure at the class
+    location's design factor) now and at its growth rate 5 years on, and the screen (exceeds_now,
+    exceeds_within_5_years at ERF 1 or 80 % of wall, no_strength, within_screen). A segment with no recorded
+    material grade gets no strength, never an assumed grade. Screening only: fitness for service is the integrity
+    engineer's."""
+    from ...analysis import ili
+    with db.connect() as conn:
+        return _plain(ili.anomalies(conn, line))
+
+
+@capability("maintenance-integrity", kind="plot")
+def plot_ili_anomalies(line: str | None = None) -> dict[str, Any]:
+    """Chart ILI metal loss depth along a line for each run, the anomalies crossing the screen ringed."""
+    from ...plots import maintenance
+    return _chart(maintenance.ili_anomalies, {"line": line})

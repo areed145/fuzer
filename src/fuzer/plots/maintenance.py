@@ -388,3 +388,43 @@ def work_execution(conn, since: str | None = None, until: str | None = None, day
         "summary": out["summary"], "thresholds": out["thresholds"], "by": by, "since": out["since"],
         "until": out["until"], "note": out["note"]},
         [r["id"] for p in ps for r in p["late"] + p["repeats"]][:10])
+
+
+def ili_anomalies(conn, line: str | None = None) -> Figure:
+    """ILI metal loss along a line (#366): depth against station for each run, the anomalies crossing the screen
+    marked, and the growth and strength of each in the summary."""
+    from ..analysis import ili
+
+    out = ili.anomalies(conn, line)
+    if not out["lines"]:
+        raise ChartError(out["note"])
+    ln = out["lines"][0]
+    feats = conn.execute(
+        "select g.field, g.value #>> '{}' as v, g.fuzer_id from golden g join edge e on e.src = g.fuzer_id "
+        "where e.dst = %s and e.rel = 'found_on' and e.valid_to is null and g.field = any(%s)",
+        (ln["id"], ["run_id", "station_m", "depth_pct", "feature_type"])).fetchall()
+    by: dict[str, dict] = {}
+    for r in feats:
+        by.setdefault(r["fuzer_id"], {})[r["field"]] = r["v"]
+    colors = ["rgba(150,150,150,0.8)", "rgba(40,110,190,0.9)", "rgba(40,150,90,0.9)"]
+    data = []
+    for i, run in enumerate(ln["runs"]):
+        pts = sorted((float(f["station_m"]) / 1000, float(f["depth_pct"])) for f in by.values()
+                     if f.get("run_id") == run["run"] and f.get("feature_type") == ili.METAL_LOSS and f.get("depth_pct"))
+        data.append({"type": "scatter", "mode": "markers", "name": f"{run['run']} ({run['date']})",
+                     "x": [p[0] for p in pts], "y": [p[1] for p in pts],
+                     "marker": {"color": colors[min(i - len(ln["runs"]) + 3, 2)], "size": 8}})
+    flagged = [a for a in ln["anomalies"] if a["screen"].startswith("exceeds")]
+    if flagged:
+        data.append({"type": "scatter", "mode": "markers", "name": "crosses the screen",
+                     "x": [a["station_m"] / 1000 for a in flagged], "y": [a["depth_pct"] for a in flagged],
+                     "text": [a["feature"] for a in flagged],
+                     "marker": {"symbol": "circle-open", "size": 16, "color": "rgba(210,60,50,0.95)", "line": {"width": 2}}})
+    lay = layout(f"ILI metal loss along {ln['line']}", "station (km)", "depth (% of wall)")
+    lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "y0": ili.DEPTH_LIMIT, "y1": ili.DEPTH_LIMIT,
+                      "line": {"dash": "dot", "color": "rgba(210,60,50,0.6)"}}]
+    return Figure("ili_anomalies", lay["title"]["text"], data, lay, {
+        "line": ln["line"], "verdict": out["verdict"], "summary": out["summary"], "runs": ln["runs"],
+        "anomalies": [{k: a.get(k) for k in ("feature", "station_m", "depth_pct", "rate_pct_per_year", "erf",
+                                               "projected_erf", "screen")} for a in ln["anomalies"]],
+        "method": out["method"], "source": out["source"], "note": out["note"]}, [a["id"] for a in flagged][:10])

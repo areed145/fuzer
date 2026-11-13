@@ -463,6 +463,25 @@ ldar:
     coverage: {value: 365, unit: "days", means: "A tag screened within this long before the window's end is covered.", code: "fuzer.analysis.ldar:COVERAGE_DAYS"}
   vectors: [{worked: "tests/analysis/test_ldar.py::test_surveys_find_the_repeat_leaker_and_name_the_unsurveyed_as_unknown"}]
 
+ili_strength:
+  title: ILI anomaly growth between runs and remaining strength against MOP
+  standard: "ASME B31G (modified, 0.85 dL); ASME B31.8 design factors"
+  practice: "Metal loss anomalies are matched between in-line inspection runs by type and station; growth is the depth change over the years between runs, projected ahead at that rate. Failure pressure uses the flow stress SMYS + 69 MPa; the safe pressure is the failure pressure times the class location's design factor, and ERF is MOP over the safe pressure. The matching distance, horizon and depth limit are this registry's own screening choices."
+  tool: ili_anomalies
+  inputs: [{name: Anomaly depth, unit: "% of wall"}, {name: Anomaly length, unit: mm}, {name: Wall thickness, unit: mm}, {name: Outside diameter, unit: mm}, {name: SMYS of the API 5L grade, unit: MPa}, {name: Maximum operating pressure, unit: barg}]
+  valid: External or internal metal loss on carbon steel line pipe sized by an in-line inspection tool, on a segment with a recorded grade, wall and class location.
+  needs: ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade.
+  thresholds:
+    match: {value: 1.5, unit: "m", means: "An anomaly of the same type within this distance in the next run is the same anomaly.", code: "fuzer.analysis.ili:MATCH_M"}
+    horizon: {value: 5, unit: "years", means: "Growth is projected this far ahead of the latest run.", code: "fuzer.analysis.ili:HORIZON_YEARS"}
+    depth_limit: {value: 80, unit: "% of wall", means: "An anomaly this deep crosses the screen whatever its pressure.", code: "fuzer.analysis.ili:DEPTH_LIMIT"}
+    tool_tolerance: {value: 10, unit: "% of wall", means: "Growth under this between two runs may be tool sizing, and is said so.", code: "fuzer.analysis.ili:TOLERANCE_PCT"}
+  vectors:
+    - kernel: fuzer.analysis.ili:failure_pressure
+      args: [49, 131, 15.9, 610.0, 448]
+      expect: 220.70015
+      says: "49 % deep, 131 mm long on 610 x 15.9 mm API 5L X65: modified B31G at a 517 MPa flow stress fails at 220.7 bar."
+
 lead_in:
   title: Process values in the hours before an event against the hours before that
   practice: A before and after comparison of each measurement's mean and extreme around the event.
