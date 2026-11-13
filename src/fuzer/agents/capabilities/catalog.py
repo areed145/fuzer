@@ -414,7 +414,8 @@ UNAVAILABLE = (
      "An authoritative subsurface or well-file source; pressure surveys give productivity index and a one-tank "
      "material balance (productivity_index, material_balance)."),
     (_FIELD, "Validated operating envelopes", "Envelopes validated by the control-system owner; alarm limits and IOWs are not that."),
-    (_FIELD, "Control loop performance and tuning", "Setpoint, controller output and mode points, with loop parameters."),
+    (_FIELD, "Control loop tuning and valve stiction", "Controller gain and reset settings and high-rate data; loops on the "
+     "DCS loop list are ranked for attention (loop_health)."),
     (_MAINT, "Vibration waveform analysis (envelope demodulation, time waveform) and machines off the spectra route",
      "Time waveforms from the condition-monitoring system; route spectra with bearing geometry are read against fault "
      "frequencies (vibration_spectra)."),
