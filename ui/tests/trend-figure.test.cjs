@@ -10,7 +10,7 @@ const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/trendFig
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(code, { exports: exportsObject, Date, Math, Set, Map, Object, JSON });
-const { buildFigure, defaults, names, panels, traceName } = exportsObject;
+const { buildFigure, defaults, fromQuery, names, panels, toQuery, traceName } = exportsObject;
 
 const vals = [["2024-07-24T10:00", 1], ["2024-07-24T11:00", 2]];
 const trace = (id, axis, extra = {}) => ({ id, point: `P.${id}`, description: null, uom: axis, axis, show: true, values: vals,
@@ -77,4 +77,27 @@ test("two traces that would read the same are told apart by what differs in thei
   assert.equal(n.get("a"), "Thrust Bearing Temperature");
   assert.equal(n.get("b"), "Journal Bearing Temperature");
   assert.equal(n.get("c"), "Casing vibration");
+});
+
+test("a link carries only what differs from the defaults, and an old link still opens", () => {
+  assert.deepEqual(plain(toQuery(view, defaults(view))), {});
+  const on = defaults(view);
+  on.add("lube"); on.delete("speed"); on.delete("lane:log");
+  const q = toQuery(view, on);
+  assert.deepEqual(plain(q), { show: "lube", hide: "speed,lane:log" });
+  assert.deepEqual(plain([...fromQuery(view, q.show, q.hide)].sort()), plain([...on].sort()));
+  const old = fromQuery(view, "lube,gone", "gone-too");
+  assert.ok(old.has("lube") && !old.has("gone"));
+});
+
+test("a landed reading draws as steps with a marker per reading, its method in the hover", () => {
+  const wt = trace("m:w|oil_rate|", "sm3/d", { sampled: true, methods: ["separator", null], role_label: "Oil rate" });
+  const tested = { ...view, groups: [{ key: "tests", label: "Tests and samples", show: true, traces: [wt] }], other: [] };
+  const [d] = buildFigure(tested, null, new Set([wt.id]), palette).data;
+  assert.equal(d.mode, "lines+markers");
+  assert.equal(d.line.shape, "hv");
+  assert.deepEqual(plain(d.text), ["separator", ""]);
+  assert.ok(d.hovertemplate.includes("%{text}"));
+  const [plainLine] = buildFigure(view, null, new Set(["suction"]), palette).data;
+  assert.equal(plainLine.mode, "lines");
 });

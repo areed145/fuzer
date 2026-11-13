@@ -20,6 +20,11 @@ export interface TrendTrace {
   last: number;
   limits?: TrendLimit[];
   modelled?: boolean;
+  /** A landed reading (a well test, a lab sample): drawn as steps with a marker per reading (P5.13d). */
+  sampled?: boolean;
+  methods?: (string | null)[];
+  /** The record the trace's table row opens, when it is not the trace's own id. */
+  link?: string;
 }
 export interface TrendGroup { key: string; label: string; show: boolean; traces: TrendTrace[] }
 export interface TrendViewData {
@@ -107,6 +112,26 @@ export function defaults(view: TrendViewData): Set<string> {
   return new Set([...ids, ...Object.keys(LANE_SHORT).map((k) => `lane:${k}`)]);
 }
 
+/** What is switched on, as it goes in a link: the traces and lanes switched on beyond the defaults (`show`) and
+ * the defaults switched off (`hide`), comma-separated, so a link to the default view carries neither. */
+export function toQuery(view: TrendViewData, on: Set<string>): { show?: string; hide?: string } {
+  const base = defaults(view);
+  const show = [...on].filter((k) => !base.has(k));
+  const hide = [...base].filter((k) => !on.has(k));
+  return { show: show.join(",") || undefined, hide: hide.join(",") || undefined };
+}
+
+/** What a link switched on: the defaults, with its `show` added and its `hide` taken away. Ids the view no longer has
+ * are dropped, so an old link still opens. */
+export function fromQuery(view: TrendViewData, show: string | null, hide: string | null): Set<string> {
+  const known = new Set([...view.groups, { traces: view.other }].flatMap((g) => g.traces.map((t) => t.id)));
+  Object.keys(LANE_SHORT).forEach((k) => known.add(`lane:${k}`));
+  const on = defaults(view);
+  (show ?? "").split(",").filter((k) => known.has(k)).forEach((k) => on.add(k));
+  (hide ?? "").split(",").forEach((k) => on.delete(k));
+  return on;
+}
+
 /** Each trace's colour, by its place in its group, so a colour means the same trace whatever else is switched on. */
 export function colours(view: TrendViewData, palette: Palette): Map<string, string> {
   const out = new Map<string, string>();
@@ -159,9 +184,11 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
       if (j === 0) lowest = ref;
       for (const t of traces) {
         data.push({
-          type: "scatter", mode: "lines", x: t.values.map(([at]) => at), y: t.values.map(([, v]) => v), yaxis: ref,
-          name: name.get(t.id), line: { width: 1.6, color: colour.get(t.id) }, showlegend: false,
-          hovertemplate: `%{y:.4~g} ${t.uom ?? ""}<extra>${name.get(t.id)}</extra>`,
+          type: "scatter", mode: t.sampled ? "lines+markers" : "lines", x: t.values.map(([at]) => at),
+          y: t.values.map(([, v]) => v), yaxis: ref, name: name.get(t.id), showlegend: false,
+          line: { width: 1.6, color: colour.get(t.id), ...(t.sampled ? { shape: "hv", dash: "dot" } : {}) },
+          ...(t.sampled ? { marker: { size: 7, color: colour.get(t.id) }, text: (t.methods ?? []).map((m) => m ?? "") } : {}),
+          hovertemplate: `%{y:.4~g} ${t.uom ?? ""}${t.sampled ? " %{text}" : ""}<extra>${name.get(t.id)}</extra>`,
         });
       }
       // A limit draws only where it can't be mistaken for another trace's: the panel's one trace.

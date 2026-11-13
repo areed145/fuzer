@@ -186,7 +186,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
               <p className="section-text">{fmt(e.golden.text?.value)}</p>
             </UICard>
           )}
-          {e.kind === "timeseries" && <TrendView id={fid} />}
+          {e.kind === "timeseries" && <TrendView key={fid} id={fid} />}
           {MAINTAINED.includes(e.kind) && (
             <><IncidentsCard id={fid} />
             <Related about={{ subject: fid }} incidents={false} /></>
@@ -207,7 +207,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
       {view === "trends" && (
         <>
-          <TrendView id={fid} />
+          <TrendView key={fid} id={fid} linked />
           <MeasurementsCard id={fid} />
           {["pipeline", "pipeline_segment"].includes(e.kind) && <AlongCard id={fid} />}
           {e.kind === "well" && <DepthCard id={fid} />}

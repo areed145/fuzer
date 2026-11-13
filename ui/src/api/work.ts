@@ -411,6 +411,7 @@ export interface GateDecision {
  * entries that mention them, in the event's window. */
 export interface CaseAround {
   window: { start: string; end: string } | null;
+  units: { id: string; label: string | null }[];
   alarms: { point_id: string; point: string; type: string; level: string | null; limit: number; peak: number;
     start: string; end: string | null }[];
   log: { id: string; at: string; author: string | null; text: string | null }[];

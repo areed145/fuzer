@@ -84,7 +84,7 @@ def test_a_bundle_replaces_a_class_template_without_code(okan):
     mine = {"title": "Machine", "groups": [{"key": "shaft", "label": "Shaft", "traces": ["shaft_vibration"]}]}
     v = trend_view.view(okan, _compressor(okan), pack=_Pack({"CO": mine}))
     assert v["template"] == {"key": "CO", "title": "Machine", "source": "bundle"}
-    assert [g["key"] for g in v["groups"]] == ["shaft"]
+    assert [g["key"] for g in v["groups"] if g["key"] != "tests"] == ["shaft"]  # its landed readings stay a group
     assert {t["role"] for t in v["groups"][0]["traces"]} == {"shaft_vibration"}
     assert v["other"], "the unit's other points stay reachable"
 
@@ -140,3 +140,27 @@ def test_a_timeseries_is_its_own_trend(okan):
 
 def test_unknown_entity(okan):
     assert trend_view.view(okan, "fz-nope") == {"error": "unknown entity"}
+
+
+def test_a_wells_tests_are_stepped_series_on_its_trend_at_a_test(okan):
+    """P5.13d: a well opened at one of its well tests shows that test's readings as a group of its own, switched on,
+    carrying the test before the window in; opened far from any test, the group is left out."""
+    row = okan.execute(
+        """
+        select fuzer_id, quantity, at from (
+            select m.fuzer_id, m.quantity, m.at,
+                   row_number() over (partition by m.fuzer_id, m.quantity, m.location order by m.at) as n
+            from measurement m join entity e using (fuzer_id) where e.kind = 'well') x
+        where n = 2 order by fuzer_id, quantity limit 1
+        """).fetchone()
+    assert row, "Okan lands well tests"
+    at = row["at"].isoformat(timespec="minutes")
+    v = trend_view.view(okan, row["fuzer_id"], at=at, hours_before=48, hours_after=24)
+    [tests] = [g for g in v["groups"] if g["key"] == "tests"]
+    assert tests["show"] and tests["label"] == "Tests and samples"
+    mine = [t for t in tests["traces"] if f"|{row['quantity']}|" in t["id"]]
+    assert mine and mine[0]["sampled"] and mine[0]["show"] and mine[0]["link"]
+    times = [x for x, _ in mine[0]["values"]]
+    assert at in times and times[0] < v["start"]  # the test before the window is carried in
+    far = trend_view.view(okan, row["fuzer_id"], at="1990-01-01T00:00", hours_before=48, hours_after=24)
+    assert "tests" not in [g["key"] for g in far.get("groups", [])]

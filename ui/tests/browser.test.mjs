@@ -5714,9 +5714,46 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 2);
   assert.deepEqual(await panels(), ["Driver", "Lube oil, seals and thrust"]);
   await waveScreenshot("p5-13b-trend-desktop");
+  // P5.13c: the toggles are in the link, so the same link opens the same chart
+  await page.waitForFunction(() => location.hash.includes("show=pt3") && location.hash.includes("hide=pt1"));
+  const link = await page.evaluate(() => location.hash);
+  assert.ok(link.startsWith("#/e/k1?tab=trends&"), link);
+  await page.goto(`${url}/about:blank`);
+  await page.goto(`${url}/${link}`);
+  await card.locator(".main-svg").first().waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".trend-view .annotation-text").length === 2);
+  assert.deepEqual(await panels(), ["Driver", "Lube oil, seals and thrust"]);
   // on a phone a group switches as a whole and the chart fits the screen
   await page.setViewportSize({ width: 390, height: 900 });
   await card.getByRole("button", { name: "Driver", exact: true }).waitFor();
   assert.equal(await card.getByRole("button", { name: "Speed · GT-1", exact: true }).isVisible(), false);
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "no sideways scroll");
+  // the chart redraws to the new width after a resize: wait for it, and fail only if it still overflows
+  await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 10000 });
+});
+
+test("P5.13c A case page draws the trend of the unit its event is on, over the event's window", async () => {
+  const view = { provider: "synthetic", centre: "2024-03-14T06:00", start: "2024-03-13T23:00", end: "2024-03-14T09:00",
+    step_minutes: 5, upsets: [], unit: "k1", unit_label: "K-1", classes: ["CO"], template: { key: "CO", title: "Compressor" },
+    missing: [], other: [], groups: [{ key: "pressures", label: "Pressures", show: true, traces: [{ id: "pt1", point: "OK:pt1.PV",
+      description: "Suction", uom: "barg", axis: "barg", show: true, values: [["2024-03-14T00:00", 17], ["2024-03-14T08:00", 3]],
+      min: 3, max: 17, mean: 10, last: 3, role_label: "Suction pressure", on: null, limits: [] }] }] };
+  const asked = [];
+  await page.route("**/work/items/31", route => route.fulfill({ json: { id: 31, title: "K-1 tripped", type: "machine_trip",
+    state: "open", subjects: ["k1"], created_by: "agent:trips", created_at: "2024-03-14T03:20:00Z", events: [], processes: [] } }));
+  await page.route("**/work/items/31/around", route => route.fulfill({ json: {
+    window: { start: "2024-03-13T23:00", end: "2024-03-14T09:00" }, units: [{ id: "k1", label: "K-1" }],
+    alarms: [], log: [], basis: "" } }));
+  await page.route("**/entities/k1/trend-view*", route => {
+    const q = new URL(route.request().url()).searchParams;
+    asked.push([q.get("at"), q.get("hours_before"), q.get("hours_after")]);
+    return route.fulfill({ json: view });
+  });
+  await page.route("**/entities/k1/timeline*", route => route.fulfill({ json: { unit: "k1", start: view.start, end: view.end, lanes: [] } }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/cases/31`);
+  const card = page.locator(".trend-view");
+  await card.locator(".main-svg").first().waitFor();
+  // ten hours: two thirds before the centre and one third after, so the chart spans the event's window exactly
+  assert.deepEqual(asked[0], ["2024-03-14T06:00", "7", "3"]);
+  await card.getByRole("button", { name: "Suction pressure", exact: true }).waitFor();
 });
