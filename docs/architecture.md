@@ -17,7 +17,7 @@ flowchart LR
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 15 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 27 modules</small>"]
-  c_evals["Evals<br><small>fuzer.evals, 13 modules</small>"]
+  c_evals["Evals<br><small>fuzer.evals, 14 modules</small>"]
   c_api["API<br><small>fuzer.api, 21 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 32 modules</small>"]
@@ -310,9 +310,9 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 
 Answer keys, the history replay and the ops eval that score it all. More in [evals](evals.md).
 
-- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `packs_eval`, `pid2graph`, `pronto`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`, `watch_eval`, `wells3w`
+- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `mock_sap`, `ops_eval`, `packs_eval`, `pid2graph`, `pronto`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`, `watch_eval`, `wells3w`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
-- **Writes:** `assistant_answer`, `assistant_fact`, `exception_record`, `golden`, `lesson`, `llm_extraction`, `ops_eval`, `point_normal`, `source_record`, `work_event`, `work_item` ([schema](schema.md))
+- **Writes:** `assistant_answer`, `assistant_fact`, `exception_record`, `golden`, `lesson`, `llm_extraction`, `ops_eval`, `point_normal`, `source_record`, `source_system`, `work_event`, `work_item` ([schema](schema.md))
 - **Owns:** `ops_eval` (its `schema.sql`)
 - **Settings:** `agents.model`, `opportunities.gas_lift_breakeven` ([settings](settings.md))
 - **Tests:** [`tests/evals`](https://github.com/areed145/fuzer/tree/main/tests/evals)
