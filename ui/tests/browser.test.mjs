@@ -5714,6 +5714,34 @@ test("R.5 an owner restricts licensed manuals to a group, confirmed, and puts a 
   await card.getByText("Sees documents restricted to licensed.").waitFor();
 });
 
+test("R.5b an owner downloads one project's audit record for a window from Settings, and sees what it covers", async () => {
+  await usersFixture();
+  const asked = [];
+  await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, project: "okan",
+    user: { ...signedInUser, owner: true } } }));
+  await page.route("**/auth/access", route => route.fulfill({ json: { accounts: [], roles: [], permissions: {} } }));
+  await page.route("**/auth/projects/okan/document-groups", route => route.fulfill({ json: { restricted: {}, classes: [] } }));
+  await page.route(u => u.pathname === "/auth/audit/coverage", route => route.fulfill({ json: {
+    included: [{ source: "work_event.actor", time: "at", history: true }, { source: "work_item.created_by", time: "created_at", history: false }],
+    excluded: [{ source: "assistant_conversation.by_user", reason: "account-private assistant conversation, never shared" }],
+    retention: { audit: "access events are kept indefinitely", sessions: "a session ends 8 h after sign-in and is deleted once ended" } } }));
+  await page.route(u => u.pathname === "/auth/audit", route => {
+    asked.push(Object.fromEntries(new URL(route.request().url()).searchParams));
+    return route.fulfill({ contentType: "text/csv", body: "at,project,actor\n2026-11-01T00:00:00Z,okan,user:a\n2026-11-02T00:00:00Z,okan,user:b\n" });
+  });
+  await page.goto(`${url}/#/users`);
+  const card = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Audit record for okan" }) });
+  await card.getByText("access events are kept indefinitely").waitFor();
+  await card.getByLabel("From").fill("2026-11-01");
+  await card.getByLabel("To").fill("2026-11-10");
+  const [file] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: "Download audit record" }).click()]);
+  assert.equal(file.suggestedFilename(), "fuzer-audit-okan-20261101-20261110.csv");
+  await card.getByText("Downloaded 2 events from okan, 2026-11-01 to 2026-11-10.", { exact: false }).waitFor();
+  assert.deepEqual(asked, [{ project: "okan", since: "2026-11-01T00:00:00Z", until: "2026-11-11T00:00:00.000Z", format: "csv", limit: "100000" }]);
+  await card.getByRole("button", { name: /What the record covers \(2 records, 1 left out\)/ }).click();
+  await card.getByText("assistant_conversation.by_user: account-private assistant conversation, never shared").waitFor();
+});
+
 test("P5.13b The entity's Measurements tab is one trend: template panels, event lanes, chips that switch them", async () => {
   const vals = [["2024-03-13T00:00", 17], ["2024-03-14T00:00", 17], ["2024-03-14T04:00", 1], ["2024-03-15T00:00", 17]];
   const trace = (id, role_label, uom, extra = {}) => ({ id, point: `OK:${id}.PV`, description: `Compressor ${role_label}`, uom,

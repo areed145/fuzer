@@ -566,6 +566,7 @@ def test_audit_record_is_owner_only_and_per_project(runtime, second_project):
     assert client.get("/auth/audit", params={"project": "nowhere"}).status_code == 404
     cov = client.get("/auth/audit/coverage").json()
     assert cov["unpaired"] == [] and cov["excluded"]
+    assert cov["retention"]["audit"] == "access events are kept indefinitely"  # R.5d: the policy in force, in words
 
 
 def _area_and_two_subjects(conn):
