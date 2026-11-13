@@ -201,6 +201,8 @@ register(
     Setting("sre.handoff.max_diagnoses", "int", 10, "Upsets the assistant diagnoses per hand-off run", "SRE",
             min=0, max=100),
     Setting("sre.handoff.max_usd", "float", 5.0, "Claude spend cap per hand-off run (USD)", "SRE", min=0),
+    Setting("watch.max_usd", "float", 2.0, "Model spend cap per agentic watch run, all areas (USD)", "SRE", min=0),
+    Setting("watch.max_areas", "int", 12, "Process areas the agentic watch reads per run", "SRE", min=0, max=200),
     Setting("sre.step_minutes", "int", 10, "Minutes between the values the detectors read", "SRE", min=1, max=60),
     Setting("sre.lookback_hours", "int", 24, "Hours before the window that a step is judged against", "SRE", min=1,
             max=168),

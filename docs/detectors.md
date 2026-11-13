@@ -31,6 +31,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`flare_events`](#flare_events) A flare above its baseline, matched to the records around it | Rule | Once a day | `flare_event` | Any asset with the inputs |
 | [`alarm_performance`](#alarm_performance) Alarm floods and bad actors against ISA-18.2 and EEMUA 191 | Rule | Once a day | `alarm_flood`, `alarm_bad_actor` | Any asset with the inputs |
 | [`deviation_reviews`](#deviation_reviews) A named deviation from the operating model past its review date | Rule | Once a day | `deviation_review_due` | Any asset with the inputs |
+| [`watch`](#watch) What looks unusual in a process area that no detector raised (agentic, in shadow) | Agentic | Once a day |  | Any asset with the inputs |
 
 ## excursions
 
@@ -327,3 +328,15 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `deviation_review_due`
 - **Needs:** a named deviation
 - **Scored by:** `tests/evals/test_conformance.py::test_a_deviation_past_its_review_is_work_for_its_owner_until_it_is_reviewed`, on the fake plant
+
+## watch
+
+**What looks unusual in a process area that no detector raised (agentic, in shadow).** Each process area over the window (the day to `until` by default) read by the watch agent under the run's spend cap; its proposals kept in shadow, never routed.
+
+- **Kind:** Agentic
+- **Runs:** Once a day
+- **Raises:** 
+- **Needs:** a model provider
+- **Setting `watch.max_usd`:** Model spend cap per agentic watch run, all areas (USD) (default 2.0)
+- **Setting `watch.max_areas`:** Process areas the agentic watch reads per run (default 12)
+- **Scored by:** `tests/ops/test_watch.py::test_the_watch_in_shadow_keeps_proposals_and_routes_nothing`, on the fake plant

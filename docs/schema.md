@@ -1932,6 +1932,27 @@ Operator rounds (P5.4, ops/rounds.py): one run of each round per shift, for the 
 | `at` | timestamptz |  |
 | `exception_id` | bigint, | what an out-of-limit reading or a failed check raised |
 
+### `watch_proposal`
+
+The agentic watch (P3.3a, ops/watch.py): what the watch agent proposed for an area over a window, that no detector raised. In shadow (wave 4) a proposal is kept and scored, never routed.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `area` | text | the process area's fuzer id |
+| `since` | timestamp |  |
+| `until` | timestamp |  |
+| `subject` | text, | what it is about, as the evidence names it |
+| `start` | timestamp |  |
+| `"end"` | timestamp |  |
+| `why` | text | why it is unusual |
+| `ruled_out` | text, | what it ruled out |
+| `evidence` | jsonb | the ids it cites (points, detections, log entries, notifications) |
+| `cited` | boolean | whether every id it cites was in what it was shown |
+| `mode` | text |  |
+| `model` | text |  |
+| `run_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

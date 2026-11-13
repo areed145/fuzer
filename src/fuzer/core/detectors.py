@@ -41,7 +41,7 @@ MODULES = ("fuzer.ops.sre", "fuzer.analysis.limits", "fuzer.analysis.trips", "fu
            "fuzer.analysis.records", "fuzer.sources.alerts", "fuzer.ops.opportunities", "fuzer.ops.safeguards",
            "fuzer.analysis.loops", "fuzer.analysis.well_tests",
            "fuzer.analysis.gas_lift", "fuzer.analysis.quality", "fuzer.analysis.flare", "fuzer.analysis.alarm_performance",
-           "fuzer.workflow.conformance")
+           "fuzer.workflow.conformance", "fuzer.ops.watch")
 
 POINTS = "select 1 from edge where rel = 'has_timeseries' limit 1"  # the need most detectors share
 
@@ -276,6 +276,8 @@ def replay_score(conn, d: Detector) -> dict | None:
     """The detector's latest replay score (recall, precision, false alarms a week, over which window): from the
     replay its eval names, else from the sweep of the work detectors (`sweep:<name>`, evals/sweep.py), when it has
     been run."""
+    if d.kind == AGENTIC:
+        return shadow_score(conn, d)
     key = d.eval.partition(":")[2] if (d.eval or "").startswith("replay:") else f"sweep:{d.name}"
     try:
         with conn.transaction():  # a database without the eval table yet
@@ -289,6 +291,26 @@ def replay_score(conn, d: Detector) -> dict | None:
     return {"recall": s.get("recall"), "precision": s.get("precision"),
             "false_alarms_per_week": s.get("false_alarms_per_week"), "upsets": s.get("upsets"),
             "since": r["since"], "until": r["until"], "at": r["run_at"].isoformat(timespec="seconds")}
+
+
+def shadow_score(conn, d: Detector) -> dict | None:
+    """An agentic detector's latest score in shadow on each bundle (`shadow:<name>`, evals/watch_eval.py): the share of
+    its proposals that match an injected event no rule caught, and its precision."""
+    try:
+        with conn.transaction():
+            rows = conn.execute("select distinct on (scores->>'bundle') since, until, scores, run_at from ops_eval "
+                                "where detector = %s order by scores->>'bundle', id desc", (f"shadow:{d.name}",)).fetchall()
+    except Exception:
+        return None
+    if not rows:
+        return None
+    last = max(rows, key=lambda r: r["run_at"])
+    return {"recall": last["scores"].get("recall"), "precision": last["scores"].get("precision"),
+            "false_alarms_per_week": None, "upsets": last["scores"].get("upsets"), "since": last["since"],
+            "until": last["until"], "at": last["run_at"].isoformat(timespec="seconds"),
+            "shadow": [{"bundle": r["scores"].get("bundle"), "matched": r["scores"].get("matched"),
+                        "precision": r["scores"].get("precision"), "proposals": r["scores"].get("proposals"),
+                        "model": r["scores"].get("model"), "since": r["since"], "until": r["until"]} for r in rows]}
 
 
 def describe(d: Detector) -> dict:

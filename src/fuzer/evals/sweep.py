@@ -33,6 +33,8 @@ FILE = "detections.yaml"
 # Work detectors scored some other way than a sweep of a bundle's history, and why
 SCORED_ELSEWHERE = {
     "opportunities": "the ops eval recomputes each gas lift gain by hand (ops_eval.CEILINGS, worst_gain_error)",
+    "watch": "an agent in shadow that raises nothing: its proposals are scored on replay against the injected events "
+             "no rule caught (P3.3b)",
     "deviation_reviews": "a rule over the operating model a project adopts, not over plant data: no bundle's history "
                          "has a deviation past its review (tests/evals/test_conformance.py)",
 }

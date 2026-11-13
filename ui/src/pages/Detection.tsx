@@ -24,6 +24,12 @@ function LastRun({ d }: { d: DetectorRow }) {
 }
 
 function Score({ d }: { d: DetectorRow }) {
+  if (d.score?.shadow) {
+    return <span>{d.score.shadow.map((b) => <div key={b.bundle}>
+      {b.bundle}: matched {pct(b.matched)} of {b.proposals} proposals to what no rule caught, precision {pct(b.precision)}
+      {b.model === "scripted" && <span className="muted small"> (scripted model)</span>}
+    </div>)}<div className="muted small">In shadow, on replay</div></span>;
+  }
   if (d.score) {
     return <span>Recall {pct(d.score.recall)}, precision {pct(d.score.precision)}
       <div className="muted small">{d.score.since} to {d.score.until}</div></span>;

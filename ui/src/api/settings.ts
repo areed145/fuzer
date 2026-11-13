@@ -197,7 +197,11 @@ export interface DetectorRow {
   applicable: boolean;
   note: string | null;
   last_run: { status: "ran" | "not_applicable" | "failed" | "off"; note: string | null; found: number | null; at: string } | null;
-  score: { recall: number | null; precision: number | null; false_alarms_per_week: number | null; since: string; until: string } | null;
+  score: {
+    recall: number | null; precision: number | null; false_alarms_per_week: number | null; since: string; until: string;
+    /** An agentic detector's score in shadow, per bundle: the share of its proposals matching what no rule caught. */
+    shadow?: { bundle: string; matched: number | null; precision: number | null; proposals: number; model: string | null }[];
+  } | null;
   eval: string | null;
   settings: DetectorParam[];
   closeouts: Closeouts;
