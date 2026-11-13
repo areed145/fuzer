@@ -63,3 +63,68 @@ def test_a_method_with_its_own_tool_needs_that_tool_not_a_calc_call(monkeypatch)
     monkeypatch.setattr(packs, "load", lambda path: {**real(path), "tools": [
         t for t in real(path)["tools"] if t != "alarm_analysis"]})
     assert "methods whose tool it does not list: alarm_performance" in packs.conformance(alarms)
+
+
+WELLS, GAS = "wells-subsurface/wells-and-lift", "field-operations-facilities/gas-treating"
+
+
+@pytest.fixture
+def fourth(tmp_path, monkeypatch):
+    """The shipped bundles plus a fourth, `plover`, with no wells: Harrier's asset pack and answer keys under a new
+    name. Returns a writer for its manifest's packs_not_applicable list."""
+    from fuzer import resources
+
+    for b in ("okan", "kestrel", "harrier"):
+        (tmp_path / b).symlink_to(resources.BUNDLES / b)
+    plover = tmp_path / "plover"
+    plover.mkdir()
+    (plover / "pack.yaml").symlink_to(resources.BUNDLES / "harrier" / "pack.yaml")
+    (plover / "evals").symlink_to(resources.BUNDLES / "harrier" / "evals")
+    monkeypatch.setattr(resources, "BUNDLES", tmp_path)
+
+    def manifest(exempt):
+        import yaml
+
+        (plover / "bundle.yaml").write_text(yaml.safe_dump(
+            {"bundle": 1, "name": "plover", "pack": "pack.yaml", "packs_not_applicable": exempt}))
+
+    return manifest
+
+
+def test_a_fourth_bundle_with_no_wells_conforms_without_questions_for_packs_it_marks_not_applicable(fourth):
+    fourth([{"pack": WELLS, "reason": "a gathering hub has no wells"}, {"pack": GAS, "reason": "it treats no gas"}])
+    assert packs.unknown_exemptions() == []
+    for path in packs.shipped():
+        assert packs.conformance(path) == [], path
+    assert packs.load(WELLS)["not_applicable"] == {"harrier": "a pipeline and terminal has no wells",
+                                                   "plover": "a gathering hub has no wells"}
+    assert "plover" not in packs.load(WELLS)["questions"]
+
+
+def test_a_pack_the_bundle_does_not_exempt_still_needs_its_questions(fourth):
+    fourth([{"pack": GAS, "reason": "it treats no gas"}])
+    assert "no eval questions for the plover bundle (evals/wells-and-lift.yaml in the bundle)" in \
+        packs.conformance(WELLS)
+    assert packs.conformance(GAS) == []
+
+
+def test_an_exemption_names_a_shipped_pack_and_says_why(fourth):
+    from fuzer.core import bundles
+
+    fourth([{"pack": "wells-subsurface/no-such-pack", "reason": "none here"}])
+    assert packs.unknown_exemptions() == [
+        "the plover bundle marks wells-subsurface/no-such-pack not applicable, but no such pack is shipped"]
+    fourth([{"pack": WELLS}])
+    with pytest.raises(bundles.BundleError, match="needs a pack and a reason"):
+        packs.not_applicable()
+
+
+def test_a_bundle_that_exempts_a_pack_holds_no_answer_keys_for_it(fourth):
+    fourth([{"pack": WELLS, "reason": "a gathering hub has no wells"}, {"pack": "maintenance-integrity/compression",
+                                                                      "reason": "said so to test"}])
+    assert "the plover bundle marks it not applicable but still holds evals/compression.yaml" in \
+        packs.conformance(COMPRESSION)
+
+
+def test_every_shipped_exemption_names_a_shipped_pack():
+    assert packs.unknown_exemptions() == []

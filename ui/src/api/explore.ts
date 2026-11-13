@@ -70,6 +70,15 @@ export interface GeoFeature {
   properties: { id: string; kind: string; label: string | null; [field: string]: unknown };
 }
 
+/** What is along a pipeline or segment, by station (#61). Golden values come as stored. */
+export interface Along {
+  line: string | null;
+  segments: { id: string; label: string; description: unknown; station_from_m: unknown; station_to_m: unknown;
+              wall_thickness_mm: unknown; grade: unknown; class_location: unknown }[];
+  features: { id: string; label: string; feature_type: unknown; station_m: unknown; depth_pct: unknown;
+              length_mm: unknown; clock: unknown; run_id: unknown; run_date: unknown; segment: string | null }[];
+}
+
 export interface GeoCollection {
   type: "FeatureCollection";
   features: GeoFeature[];
@@ -251,6 +260,7 @@ export const exploreApi = {
       "GET", `/entities/${encodeURIComponent(id)}/spares`),
   map: () => request<GeoCollection>("GET", "/map"),
   entityMap: (id: string) => request<GeoCollection>("GET", `/entities/${encodeURIComponent(id)}/map`),
+  along: (id: string) => request<Along>("GET", `/entities/${encodeURIComponent(id)}/along`),
   entityDrawings: (id: string) =>
     request<{ highlight: string[]; drawings: { id: string; label: string | null; title: string | null }[] }>(
       "GET", `/entities/${encodeURIComponent(id)}/drawings`),

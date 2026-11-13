@@ -483,8 +483,8 @@ identities, history, review and the graph stay as they are.
 | EC DAY001 daily reports | CSV of DAY001 rows | Comments read by Claude into links and events |
 | EC downtime / deferment | CSV: `downtime` with reason codes, lost oil, comments | EC database views |
 | DCS alarms, IOW registers | CSV exports landed as point limits; the DCS alarm and event journal (`dcs_alarm_journal`) as events the alarm analyses count | DCS and AF limit traits read live |
-| Lab, well tests, inspection | LIMS results, EC well tests, CML readings as measurements | |
-| GIS | GeoJSON wells, facilities, pipelines | Feature services |
+| Lab, well tests, inspection | LIMS results, EC well tests, CML readings as measurements; in-line inspection features (`ili_features`) at a station along a line, linked to the segment that holds it (graph/positions.py, #61) | Vendor ILI deliverables (pipeline listings) |
+| GIS | GeoJSON wells, facilities, pipelines; PODS-style route segments (`pods_segments`) by station, placed on the route with the line's length as its stationing | Feature services; PODS database views |
 | Production accounting, cost ledger | CSV of monthly accounted volumes (`acct_volumes`) and booked cost by element and currency (`acct_cost_ledger`); reconciled against DAY001 (analysis/accounting.py) | Accounting system views; sales and nominations |
 | Manuals, guides, procedures | EDMS manifest (JSON) of PDFs; sections linked to models, classes, tags | SharePoint / EDMS live |
 | Teams channels | (planned) | Selected channels via Microsoft Graph; thread summaries and links |

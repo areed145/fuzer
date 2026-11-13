@@ -1,0 +1,10 @@
+feature_id,line_id,run_id,run_date,tool,station_m,feature_type,depth_pct,length_mm,width_mm,clock
+ILI-24-0007,HR-PL-001,RUN-2024-MFL,today-410d,MFL,1240.6,metal loss,18,64,41,06:15
+ILI-24-0031,HR-PL-001,RUN-2024-MFL,today-410d,MFL,38912.3,metal loss,41,122,88,05:30
+ILI-24-0032,HR-PL-001,RUN-2024-MFL,today-410d,MFL,40110.8,dent,2.1,210,180,12:00
+ILI-24-0058,HR-PL-001,RUN-2024-MFL,today-410d,MFL,77455.0,girth weld anomaly,,35,,03:00
+ILI-24-0071,HR-PL-001,RUN-2024-MFL,today-410d,MFL,104790.2,metal loss,23,48,30,07:00
+ILI-24-0072,HR-PL-001,RUN-2024-MFL,today-410d,MFL,104812.9,metal loss,27,51,33,06:45
+ILI-24-0094,HR-PL-001,RUN-2024-MFL,today-410d,MFL,151020.4,metal loss,36,95,60,05:45
+ILI-24-0118,HR-PL-001,RUN-2024-MFL,today-410d,MFL,198733.7,dent,1.4,160,140,11:30
+ILI-24-0119,HR-PL-009,RUN-2024-MFL,today-410d,MFL,2210.0,metal loss,12,30,22,06:00
