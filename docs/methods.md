@@ -47,6 +47,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`deferment_attribution`](#deferment_attribution) Shortfall against decline, by cause | Engineering practice | Well tests (oil rate) (Sm³/d); Deferment records (Sm³) | At least one oil well in scope with enough tests for a decline fit. |
 | [`vessel_loading`](#vessel_loading) Offered load against a rating | Engineering practice | Well test rates of the wells upstream (Sm³/d); Rating (the rating's own) | A rating on record and wells upstream of the item. |
 | [`backlog_health`](#backlog_health) Open maintenance backlog by age, urgency and criticality | Engineering practice | Open work orders (created (orders) | At least one open order. |
+| [`voidage_replacement`](#voidage_replacement) Water injected against the reservoir volume produced | Engineering practice | Allocated oil (Sm³); Water injected (Sm³); Well tests (oil rate (Sm³/d, %, Sm³/Sm³); Formation volume factors and solution GOR (rm³/Sm³, Sm³/Sm³) | A daily report, injection records and the four PVT values; without PVT the ratio is unknown, and with no injection there is no ratio. |
+| [`hall_plot`](#hall_plot) An injector's Hall plot slope against its own earlier slope | Engineering practice | Monthly water injected (Sm³); Days on injection (days); Average wellhead injection pressure (barg) | Twice the comparison months of injection. |
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
@@ -397,6 +399,30 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `ageing`:** This share of open orders older than the ageing age: the backlog isn't being worked down. (25 %)
 - **Threshold `ageing_age`:** The age past which an open order counts as ageing. (90 days)
 - **Worked example:** `tests/analysis/test_backlog.py::test_backlog_health_flags_and_ranks`, on the fake plant
+
+## voidage_replacement
+
+**Water injected against the reservoir volume produced.** Engineering practice. Voidage replacement ratio as reservoir engineers screen waterfloods (Craig, The Reservoir Engineering Aspects of Waterflooding, SPE Monograph 3): injected water times its formation volume factor over produced oil, water and free gas at reservoir conditions. The formation volume factors and solution GOR are the field's own PVT.
+
+- **Valid for:** Fields with water injection and producing oil wells with tests. Free gas from the producing GOR above the solution GOR; gas injection and aquifer influx are not counted.
+- **Needs:** A daily report, injection records and the four PVT values; without PVT the ratio is unknown, and with no injection there is no ratio.
+- **Run by:** `voidage_replacement`
+- **Threshold `under`:** The latest months' ratio below this: the field is under-replacing what it produces. (0.9)
+- **Threshold `over`:** Above this: injecting more than it produces. (1.1)
+- **Threshold `months`:** The latest months with injection the verdict reads. (3 months)
+- **Worked example:** `tests/analysis/test_water_injection.py::test_voidage_replacement_reads_injection_against_produced_reservoir_volume`, on the fake plant
+
+## hall_plot
+
+**An injector's Hall plot slope against its own earlier slope.** Engineering practice. Hall (1963), Analyze Injection Well Performance: cumulative pressure x time against cumulative injection is a straight line while the well takes water the same way; it bends up with plugging or skin and down with fracturing or channelling. Read here at the wellhead, so each injector against itself.
+
+- **Valid for:** Water injectors with monthly injection records carrying a wellhead pressure.
+- **Needs:** Twice the comparison months of injection.
+- **Run by:** `injector_hall`
+- **Threshold `months`:** The latest months whose slope is set against the first half of the injector's history. (3 months)
+- **Threshold `rise`:** Latest slope over the earlier one above this: harder to inject (plugging or skin). (1.25)
+- **Threshold `fall`:** Below this: easier to inject (a fracture opening or channelling). (0.8)
+- **Worked example:** `tests/analysis/test_water_injection.py::test_the_plugging_injector_bends_its_hall_plot`, on the fake plant
 
 ## lead_in
 

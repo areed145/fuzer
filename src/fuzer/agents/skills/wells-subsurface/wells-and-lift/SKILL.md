@@ -1,6 +1,6 @@
 ---
 name: wells-and-lift
-description: Wells and artificial lift - whether the latest well test can be trusted, the well's decline and forecast with its range, gas lift performance against the economic optimum, the choke's condition, and what limits the well (choke, back-pressure or lift), for any producing well.
+description: Wells and artificial lift - whether the latest well test can be trusted, the well's decline and forecast with its range, gas lift performance against the economic optimum, the choke's condition, and what limits the well (choke, back-pressure or lift), for any producing well; and voidage replacement and Hall plots for water injectors.
 ---
 
 # Wells and artificial lift
@@ -40,6 +40,13 @@ Then, in order:
   Quote `gained`, `lost` or `no_clear_change` with the range; `unknown` (no test on one side, too few before, or a
   gas well, whose tests carry no oil) stays unknown, never zero. `opportunities()` lists scanned gains with their
   evidence.
+- **Water injection** (`voidage_replacement()`, charted with `plot_voidage_replacement()`): water injected against
+  the reservoir volume produced, month by month, with the running ratio. Quote `under_replacing`, `balanced` or
+  `over_injecting` with the latest months' ratio and the PVT it rests on. `no_injection` means the field or window
+  has none, which is not a ratio of zero; `unknown` names the PVT value that is missing. For each injector,
+  `injector_hall(well)`, charted with `plot_hall(well)`, sets its latest Hall slope against its own earlier one:
+  `rising` reads plugging or skin, `falling` a fracture opening or channelling. Both are screening; the injection
+  target and any injector work stay with the subsurface engineer.
 
 **Already in the queue.** A well whose rate or pressure leaves its model is an `upset` case from the models or
 hydraulics detectors, and a scanned gain is an `opportunity` case. Say when the well already has one.

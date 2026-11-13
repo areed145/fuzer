@@ -30,8 +30,9 @@ def test_okan_assets_are_scored_by_class_and_the_gap_that_holds_back_most_is_a_c
     assert "data_steward" in (case["role"] or case["assignee"] or "")
     assert completeness.sync(conn)["raised"] == 0  # no duplicates
 
-    # Filling the gap clears the case: give one of its points a limit.
-    assert "limits" in top["missing"]
+    # Filling the gap clears the case: give one of its points a limit. (An unmeasured asset, a water injector with no
+    # historian points, needs more than a limit.)
+    top = next(r for r in worth[:completeness.TOP] if "limits" in r["missing"] and "measured" not in r["missing"])
     point = conn.execute("select dst from edge where rel = 'has_timeseries' and src = %s limit 1",
                          (top["fuzer_id"],)).fetchone()
     if point is None:  # the points hang on a tag under it

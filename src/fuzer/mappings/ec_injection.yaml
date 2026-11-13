@@ -1,0 +1,15 @@
+# Energy Components monthly water injection: one row per injector and month, with the water it took, the days it was
+# on and its average wellhead injection pressure over those days.
+source: ec
+record_type: injection
+shape: measurements
+dataset: ec_injection
+key: record_id
+measurements:
+  of: {kind: well, from: well, as: well}
+  at: month
+  method: monthly injection
+  values:
+    - {quantity: water_injected, from: water_inj_sm3, unit: Sm3}
+    - {quantity: injection_days, from: on_days, unit: d}
+    - {quantity: injection_pressure, from: whp_barg, unit: barg}

@@ -279,6 +279,26 @@ export interface AllocationFactor {
     band: [number, number]; drift_threshold: number; drift_months: number; test_days: number };
 }
 
+/** Water injection (#365): voidage replacement month by month, and each injector's Hall plot slope. */
+export interface WaterInjection {
+  voidage: {
+    since: string; until: string; note: string; source?: string; missing_pvt: string[];
+    verdict: "under_replacing" | "balanced" | "over_injecting" | "no_injection" | "unknown" | "no_daily_report";
+    months: { month: string; oil_sm3: number; injected_sm3: number; voidage_rm3: number | null;
+      injected_rm3: number | null; vrr: number | null; cumulative_vrr: number | null; injectors: string[];
+      status: "injecting" | "no_injection" | "unknown" }[];
+    summary: { months: number; months_injecting?: number; latest_vrr?: number | null; cumulative_vrr?: number | null;
+      injectors?: string[] };
+    thresholds: { vrr_low: number; vrr_high: number; months: number; test_days: number };
+  };
+  hall: {
+    since: string; until: string; note: string; verdict: "no_injection" | "flagged" | "steady";
+    thresholds: { months: number; rise: number; fall: number };
+    injectors: { well: string; months: number; early_slope: number | null; late_slope: number | null;
+      slope_ratio: number | null; verdict: "rising" | "falling" | "steady" | "too_few_months"; reads: string }[];
+  };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -291,6 +311,7 @@ export interface FleetScorecards {
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
   workExecution: () => request<WorkExecution>("GET", "/plant/work-execution"),
+  waterInjection: () => request<WaterInjection>("GET", "/plant/water-injection"),
   incidentFlare: () => request<FlareReview>("GET", "/incidents/flare"),
   plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
   gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),

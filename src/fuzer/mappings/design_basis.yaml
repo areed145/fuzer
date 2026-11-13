@@ -1,4 +1,5 @@
-# Original design ratings from equipment datasheets. They stand only where nothing newer exists.
+# Original design ratings from equipment datasheets, and a field's reservoir fluid properties from its PVT study
+# (formation volume factors, solution GOR). They stand only where nothing newer exists.
 source: edms
 record_type: design_basis
 shape: measurements
@@ -8,6 +9,7 @@ measurements:
   of:
     - {kind: tag, from: tag, as: tag}
     - {kind: allocation_node, from: node}
+    - {kind: facility, from: facility}
   at: effective
   method: {from: method}
   values:

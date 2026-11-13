@@ -44,7 +44,8 @@ def test_wells_and_facilities(setup):
     conn, data, stats, _, _ = setup
     wells = json.loads((data / "wells.json").read_text())
     keys = {r["key"] for r in conn.execute("select key from entity_key where kind = 'well'")}
-    assert {w["name"] for w in wells} == keys and len(keys) == stats["wells"]
+    injectors = json.loads((data / "answer_keys" / "injection.json").read_text())["injectors"]  # #365
+    assert {w["name"] for w in wells} | set(injectors) == keys and len(keys) == stats["wells"] + len(injectors)
     assert {"OK-NWP-G1", "OK-NWP-G2", "OK-NWP-G3"} <= keys
     # A well's EC node, PI points and SAP location are one entity.
     w = fid(conn, "well", "OK-J07-03")
