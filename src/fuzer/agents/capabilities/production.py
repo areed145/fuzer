@@ -415,3 +415,26 @@ def plot_material_balance(since: str | None = None, until: str | None = None, da
     """Chart static pressures against reservoir volume taken out net of injection, with the fitted slope."""
     from ...plots import production
     return _chart(production.material_balance, {"since": since, "until": until, "days": days})
+
+
+@capability("wells-subsurface")
+def well_depths(well: str) -> dict[str, Any]:
+    """A well by depth (#363): its trajectory summary from the directional survey (measured and true vertical depth
+    at TD, maximum inclination, worst dogleg, displacement), each completion component with its top and base by MD
+    and TVD, and its depth log curves with the median reading over each component's interval. Names the records it
+    rests on (survey stations by format, log files). TVD is below the first survey station, not sea level."""
+    from ...graph import positions
+    with db.connect() as conn:
+        fid, err = _resolve(conn, well)
+        if err:
+            return err
+        return _plain({"well": well, **positions.brief(conn, fid)})
+
+
+@capability("wells-subsurface", kind="plot")
+def plot_well_trajectory(well: str) -> dict[str, Any]:
+    """Chart a well's vertical section by true vertical depth with its completion components over their depths and
+    its first depth logs beside it (#363)."""
+    from ...plots import analytics
+    return _chart(analytics.well_section, {}, {"well": well})
+

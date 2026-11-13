@@ -11,7 +11,7 @@ coordinates.
   line's route. A feature whose station no segment holds stays on its line, and the stats count it.
 - min_curvature() / well(): a well's directional survey (CSV or WITSML stations, kept as source records) as its
   trajectory, its completion components by measured and true vertical depth, and its depth logs (LAS curves, #901)
-  with the true vertical depth of each sample.
+  with the true vertical depth of each sample; brief() is the same in the size an agent reads (#363).
 """
 
 import math
@@ -243,13 +243,17 @@ def well(conn, fuzer_id: str) -> dict:
                            "base_tvd_m": tvd_at(trajectory, base) if base is not None else None})
     components.sort(key=lambda c: (c["top_md_m"] if c["top_md_m"] is not None else 1e9, -(c["size_mm"] or 0)))  # outer first
     logs = _logs(conn, keys, trajectory) if keys else []
+    surveys = {r["f"]: r["n"] for r in conn.execute(
+        "select coalesce(payload->>'format', 'csv') as f, count(*) as n from source_record "
+        "where record_type = 'survey_station' and payload->>'well' = any(%s) group by 1", (list(keys),))} if keys else {}
     summary = {}
     if trajectory:
         last = trajectory[-1]
         summary = {"td_md_m": last["md_m"], "td_tvd_m": last["tvd_m"], "max_inclination_deg": max(
             s["inclination_deg"] for s in trajectory), "displacement_m": round(math.hypot(last["north_m"], last["east_m"]), 1),
             "max_dls_deg_30m": max(s["dls_deg_30m"] for s in trajectory)}
-    return {"trajectory": trajectory, "components": components, "logs": logs, "summary": summary}
+    return {"trajectory": trajectory, "components": components, "logs": logs, "summary": summary,
+            "sources": {"survey_stations": surveys, "log_files": sorted({lg["file"] for lg in logs if lg["file"]})}}
 
 
 def _logs(conn, keys: set[str], trajectory: list[dict]) -> list[dict]:
@@ -264,3 +268,35 @@ def _logs(conn, keys: set[str], trajectory: list[dict]) -> list[dict]:
                     "description": p.get("description"), "file": p.get("file"), "md_m": mds,
                     "values": p.get("values") or [], "tvd_m": [tvd_at(trajectory, md) for md in mds]})
     return out
+
+
+def _median(lg: dict, top: float | None, base: float | None) -> float | None:
+    """A log curve's median over a measured depth range; None with no sample in it."""
+    if top is None or base is None:
+        return None
+    vals = sorted(v for md, v in zip(lg["md_m"], lg["values"]) if top <= md <= base)
+    return round(vals[len(vals) // 2], 1) if vals else None
+
+
+def brief(conn, fuzer_id: str) -> dict:
+    """well() in the size an agent reads (#363): the trajectory summary, each completion component by MD and TVD with
+    the depth logs' median over its interval, the logs without their samples, and the records it rests on."""
+    d = well(conn, fuzer_id)
+    if not d["trajectory"] and not d["components"] and not d["logs"]:
+        return {"found": False, "note": "No directional survey, completion components or depth logs are loaded for "
+                                        "this well, so its completion is unknown here, not absent."}
+    logs = d["logs"]
+    return {
+        "found": True, "summary": d["summary"], "sources": d["sources"],
+        "datum": "true vertical depth below the first survey station (the tie-in), not sea level",
+        "components": [{"component": c["description"] or c["label"], "top_md_m": c["top_md_m"],
+                        "base_md_m": c["base_md_m"], "top_tvd_m": c["top_tvd_m"], "base_tvd_m": c["base_tvd_m"],
+                        "size_mm": c["size_mm"], "installed": c["installed"],
+                        **({"log_median": {lg["curve"]: _median(lg, c["top_md_m"], c["base_md_m"]) for lg in logs}}
+                           if logs else {})} for c in d["components"]],
+        "logs": [{"curve": lg["curve"], "unit": lg["unit"], "description": lg["description"], "file": lg["file"],
+                  "samples": len(lg["md_m"]), "top_md_m": lg["md_m"][0] if lg["md_m"] else None,
+                  "base_md_m": lg["md_m"][-1] if lg["md_m"] else None} for lg in logs],
+        "not_known": "Completion design intent, cement quality and log interpretation (lithology, net pay) are not "
+                     "held; the readings are as logged."}
+

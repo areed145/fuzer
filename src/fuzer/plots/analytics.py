@@ -375,6 +375,13 @@ def _well(conn, facility: str, notice: str, well: str | None = None, **_) -> Fig
     return well_trajectory(positions.well(conn, well), label["label"] if label else well, notice)
 
 
+def well_section(conn, well: str) -> Figure:
+    """The well-trajectory figure for one well (#363), for the Wells & Subsurface agent's plot tool."""
+    from ..core.pack import current_pack
+
+    return _well(conn, well, current_pack(conn).notice, well=well)
+
+
 def _production(conn, facility: str, notice: str, **_) -> Figure:
     return production_efficiency(pe.production_efficiency(conn, facility), notice)
 

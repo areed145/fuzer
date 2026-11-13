@@ -258,7 +258,8 @@ SKILL_CATALOG = (
     SkillDefinition(
         f"{_WELLS}/well-review", (_WELLS,),
         (SUBSURFACE_ENGINEER, WELL_SPECIALIST),
-        "Well identity and sidetracks, well tests, wellhead samples, downtime, operator log and work on the well.",
+        "Well identity and sidetracks, well tests, wellhead samples, downtime, operator log and work on the well, and "
+        "its directional survey, completion components and depth logs where the drilling source pack loads them.",
         "A dated well history, what changed and when, and candidates with supporting and missing evidence.",
         "No reservoir certainty, completion design or intervention decision; those stay with accountable engineers."),
     SkillDefinition(
@@ -412,7 +413,8 @@ PERSONA_DISPOSITION = (
 UNAVAILABLE = (
     (_WELLS, "Reservoir model evidence beyond pressure surveys (aquifer, gas cap, simulation); completion design",
      "An authoritative subsurface or well-file source; pressure surveys give productivity index and a one-tank "
-     "material balance (productivity_index, material_balance)."),
+     "material balance (productivity_index, material_balance), and the as-built trajectory, completion components "
+     "and depth logs come from the drilling source pack (well_depths, plot_well_trajectory)."),
     (_FIELD, "Validated operating envelopes", "Envelopes validated by the control-system owner; alarm limits and IOWs are not that."),
     (_FIELD, "Control loop tuning suggestions", "Process model fits from step tests; loops on the DCS loop list are "
      "ranked for attention (loop_health), checked for sticking valves (valve_stiction), and their settings, step tests "
