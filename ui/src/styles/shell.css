@@ -38,6 +38,7 @@
 .sidebar-status .facts strong { color: var(--text); font-weight: 600; }
 .sidebar-status:empty { display: none; }
 .topbar { display: none; }
+.bottombar { display: none; }
 /* In-app Back (P5.14a): in the phone top bar, and above the page in the installed app on a tablet, where the browser's
    own back button is gone. 44 px tall so it can be hit with a gloved thumb. */
 .back-button { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; min-width: 44px; padding: 0 10px 0 4px; }
@@ -66,7 +67,26 @@
     position: sticky; top: 0; z-index: 1101; display: flex; align-items: center; gap: 8px;
     padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
   }
-  .menu-button { min-height: 44px; min-width: 44px; margin-left: auto; padding: 4px 10px; font-size: 18px; line-height: 1; }
+  /* Bottom bar (P5.14b): five tabs, each the full height of the bar, clear of the iPhone home indicator. */
+  .bottombar {
+    position: fixed; inset: auto 0 0 0; z-index: 1100; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    background: var(--panel); border-top: 1px solid var(--line);
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .bottombar.keyboard-up { display: none; }
+  .bottombar > a, .bottombar > .menu-button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    min-height: 56px; padding: 6px 2px; border: 0; border-radius: 0; background: none; box-shadow: none;
+    color: var(--muted); font-size: 11px; font-weight: 500; line-height: 1.2; text-align: center;
+  }
+  .bottombar > a:hover { text-decoration: none; color: var(--text); }
+  .bottombar > a.on { color: var(--text); box-shadow: inset 0 2px 0 var(--accent); }
+  .bottombar .tab-icon { position: relative; display: inline-flex; }
+  .bottombar .tab-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .bottombar .tab-icon .count { position: absolute; top: -6px; left: 14px; }
+  .bottombar > a:focus-visible, .bottombar > .menu-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .app > main { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .topbar { padding-top: max(8px, env(safe-area-inset-top)); padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
   .sidebar {
     position: fixed; inset: 0 auto 0 0; z-index: 1103; width: min(280px, 85vw);
     transform: translateX(-100%); transition: transform .18s ease; visibility: hidden;
