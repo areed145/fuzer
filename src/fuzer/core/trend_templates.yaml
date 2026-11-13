@@ -10,6 +10,8 @@
 # `show: false` groups start switched off. `expect` lists what an engineer would look for first: each entry is one or
 # more traces, any of which will do; when none is found the view says so, instead of leaving it out silently.
 # Nothing here names a facility or a tag: classes are ISO 14224's and roles are the platform's.
+# A bundle adds or replaces a class's template under `trend_templates: {classes: {CODE: ...}}` in its pack.yaml, in
+# this same shape; a class it names replaces the platform's whole template for that class.
 
 generic:
   title: Process values
@@ -51,3 +53,98 @@ classes:
       - [discharge_temperature, cylinder_discharge_temperature]
       - [speed, driver.speed, power, driver.power, running_status, driver.running_status]
       - [vibration, shaft_vibration]
+
+  GT:
+    title: Gas turbine
+    groups:
+      - key: load
+        label: Speed and load
+        traces: [speed, power, running_status, driven.suction_flow]
+      - key: exhaust_fuel
+        label: Exhaust and fuel
+        traces: [exhaust_temperature, fuel_flow]
+      - key: vibration
+        label: Vibration and bearings
+        traces: [vibration, shaft_vibration, bearing_temperature]
+      - key: lube
+        label: Lube oil
+        show: false
+        traces: [lube_oil_pressure, lube_oil_temperature]
+    expect:
+      - [speed, power]
+      - [exhaust_temperature]
+
+  PU:
+    title: Pump
+    groups:
+      - key: pressures
+        label: Pressures
+        traces: [suction_pressure, upstream.pressure, discharge_pressure, differential_pressure]
+      - key: flow
+        label: Flow
+        traces: [flow, suction_flow]
+      - key: driver
+        label: Motor
+        traces: [power, speed, running_status, driver.power, driver.speed]
+      - key: vibration
+        label: Vibration and bearings
+        traces: [vibration, bearing_temperature]
+    expect:
+      - [discharge_pressure]
+      - [flow, power, driver.power]
+
+  VE:
+    title: Vessel
+    groups:
+      - key: pressure
+        label: Pressure
+        traces: [pressure, differential_pressure]
+      - key: level
+        label: Level
+        traces: [level]
+      - key: temperature
+        label: Temperature
+        traces: [temperature, outlet_temperature]
+      - key: flows
+        label: Flows in and out
+        traces: [flow, upstream.flow, downstream.flow, downstream.suction_flow]
+      - key: quality
+        label: Quality
+        show: false
+        traces: [composition]
+    expect:
+      - [pressure]
+      - [level]
+
+  HE:
+    title: Heat exchanger
+    groups:
+      - key: temperatures
+        label: Temperatures
+        traces: [upstream.discharge_temperature, outlet_temperature, temperature]
+      - key: pressures
+        label: Pressures
+        traces: [pressure, differential_pressure]
+      - key: flow
+        label: Flow
+        traces: [flow]
+    expect:
+      - [outlet_temperature, temperature]
+
+  WELL:
+    title: Well
+    groups:
+      - key: pressures
+        label: Pressures
+        traces: [wellhead_pressure, casing_pressure, pressure]
+      - key: temperature
+        label: Temperature
+        traces: [wellhead_temperature, temperature]
+      - key: lift_choke
+        label: Choke and gas lift
+        traces: [choke_position, gas_lift_rate]
+      - key: flow
+        label: Flow
+        traces: [flow]
+    expect:
+      - [wellhead_pressure]

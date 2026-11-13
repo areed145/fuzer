@@ -32,7 +32,7 @@ export interface TrendViewData {
   unit: string;
   unit_label: string | null;
   classes: string[];
-  template: { key: string; title: string };
+  template: { key: string; title: string; source?: "platform" | "bundle" };
   groups: TrendGroup[];
   other: TrendTrace[];
   missing: { role: string; role_label: string; relation: string }[];

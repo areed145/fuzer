@@ -80,7 +80,10 @@ switched off at first. A trace is a role on the unit, or on a neighbour: its `dr
 `upstream` or `downstream` of it. A compressor's suction pressure can come from its scrubber and its speed from its gas
 turbine. `GET /entities/{id}/trend-view` (`analysis/trend_view.py`) returns the groups with each trace's values,
 point, units and shared axis, the unit's other points (switched off), and the roles the template expects but the unit
-has no point for. A class with no template is grouped by what each point measures. Values come through
+has no point for. Templates ship for compressors, gas turbines, pumps, vessels, heat exchangers and wells. A bundle adds
+or replaces one under `trend_templates: {classes: {CODE: ...}}` in its `pack.yaml`, in the same shape; the pack is
+refused at init if a template names an unknown role or relation (`core/trends.py`). A class with no template is
+grouped by what each point measures. Values come through
 `values.around`, so the window, limits and provider match the rest of the entity page.
 
 ## One trend with event lanes (P5.13)

@@ -3,9 +3,9 @@ its pressures, temperatures, driver and vibration together instead of one chart 
 
     view(conn, fuzer_id, at=None, hours_before=48, hours_after=24) -> {"template", "groups", "other", "missing", ...}
 
-The entity is read on its unit (`values.unit_of`). The unit's ISO 14224 classes pick a template from
-`core/trend_templates.yaml` (else the generic one, grouped by what each point measures). Each trace in a group is a
-measurement role (P1.4) on the unit, or on a neighbour the template names: its driver, what it drives, what is
+The entity is read on its unit (`values.unit_of`). The unit's ISO 14224 classes pick a template: its bundle's, else
+the platform's in `core/trend_templates.yaml` (`core/trends.py`), else the generic one, grouped by what each point
+measures. Each trace in a group is a measurement role (P1.4) on the unit, or on a neighbour the template names: its driver, what it drives, what is
 upstream or downstream of it. Points on the unit that no group asked for go to `other`, switched off, so nothing is
 hidden. Roles the template expects and the unit has no point for are listed in `missing`.
 
@@ -14,17 +14,13 @@ Traces in a group that share units share an axis (`axis`). Values come from the 
 the entity page's.
 """
 
-from functools import cache
-from pathlib import Path
-
-import yaml
-
 from ..core import roles as vocabulary
+from ..core import trends
+from ..core.trends import parse
 from ..graph import roles as point_roles
 from ..sources.timeseries import _point, _unit_points
 from . import values
 
-TEMPLATES = Path(__file__).resolve().parents[1] / "core" / "trend_templates.yaml"
 RELATIONS = {
     "self": None,
     "driver": "select src as id from edge where rel = 'drives' and dst = %(u)s and valid_to is null",
@@ -36,28 +32,14 @@ MAX_TRACES = 40  # what one chart reads at once
 PER_ENTRY = 4  # points one trace entry may bring (two upstream vessels, two bearing temperatures, ...)
 
 
-@cache
-def templates() -> dict:
-    """The platform's templates: {"generic": ..., "classes": {code: template}}."""
-    raw = yaml.safe_load(TEMPLATES.read_text())
-    for code, t in raw["classes"].items():
-        for g in t["groups"]:
-            for entry in g["traces"]:
-                relation, role = parse(entry)
-                if relation not in RELATIONS or role not in vocabulary.ROLES:
-                    raise ValueError(f"trend template {code}.{g['key']}: {entry!r} isn't <relation>.<role>")
-    return raw
+def templates(pack=None) -> dict:
+    """The templates this asset uses: the platform's, with its bundle's on top (core/trends.py)."""
+    return trends.for_pack(pack)
 
 
-def parse(entry: str) -> tuple[str, str]:
-    """`driver.speed` -> ("driver", "speed"); `speed` -> ("self", "speed")."""
-    relation, _, role = entry.rpartition(".")
-    return relation or "self", role
-
-
-def pick(classes: set[str]) -> tuple[str, dict] | None:
+def pick(classes: set[str], pack=None) -> tuple[str, dict] | None:
     """The template for a unit of these classes, in a stable order; None for the generic one."""
-    own = templates()["classes"]
+    own = templates(pack)["classes"]
     return next(((c, own[c]) for c in sorted(classes) if c in own), None)
 
 
@@ -120,7 +102,7 @@ def _template_groups(conn, unit: str, template: dict) -> tuple[list[dict], list[
 
 def _generic_groups(conn, point_ids: list[str]) -> list[dict]:
     """Points grouped by what they measure, in the generic template's order, the first few shown."""
-    generic = templates()["generic"]
+    generic = trends.builtin()["generic"]
     have = point_roles.of(conn, point_ids)
     by: dict[str, list[dict]] = {}
     for pid in point_ids:
@@ -146,7 +128,7 @@ def view(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hou
         others: list[str] = []
     else:
         classes = point_roles.classes(conn, unit) | ({"WELL"} if _kind(conn, unit) == "well" else set())
-        chosen = pick(classes)
+        chosen = pick(classes, pack)
         mine = [p["id"] for p in _unit_points(conn, unit, MAX_TRACES * 2)]
         if chosen:
             groups, missing = _template_groups(conn, unit, chosen[1])
@@ -171,7 +153,8 @@ def view(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hou
     other = [{**series[i], "axis": _axis(series[i]["uom"]), "show": False} for i in others if i in series]
     return {**read, "entity": fuzer_id, "unit_label": _labels(conn, [unit]).get(unit), "classes": sorted(classes),
             "template": {"key": chosen[0] if chosen else "generic",
-                         "title": chosen[1]["title"] if chosen else templates()["generic"]["title"]},
+                         "title": chosen[1]["title"] if chosen else trends.builtin()["generic"]["title"],
+                         "source": chosen[1]["source"] if chosen else "platform"},
             "groups": [g for g in groups if g["traces"]], "other": other, "missing": missing}
 
 
