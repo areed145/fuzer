@@ -45,6 +45,7 @@ FIXED: dict[str, str] = {
     "publish": "Publishing a process, a skill or a lesson",
     "bypass_safeguard": "Bypassing a safeguard",
     "field_start_without_permit": "Starting field work without a valid permit",
+    "approve_report": "Approving or submitting a regulatory report",
 }
 
 ALWAYS = None  # a threshold of None: always a person

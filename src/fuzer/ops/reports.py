@@ -18,6 +18,11 @@ Every figure carries its basis: `measured`, `estimated` or `missing`, the worst 
 resting on estimated or missing data is marked in the draft (`marked`), so the reviewer sees what to check before it
 goes out. Every row carries its ref: `record:<measurement record>`, `point:<id>@<day>` or `case:<work item>`.
 
+`approve` is the `approve_report` fixed gate: a named person approves the latest version, with a note when figures
+are marked, and its review case closes. `export` writes a version as CSV (a draft says DRAFT); `submit` sends the
+approved version through the write-back queue to a system, or records the exported file the person files, and keeps
+the version as submitted with the exact file and its hash.
+
 `assemble` drafts a period's report. A new version is kept only when its figures changed (a late or corrected
 record), and the review case for the template and period (`regulatory_report`, for the HSE specialist) is raised or
 refreshed with it. A month that is not over yet is drafted through the data's last full day and says so.
@@ -371,8 +376,10 @@ def get(conn, name: str, period: str, version: int | None = None) -> dict | None
         return None
     versions = [v["version"] for v in conn.execute(
         "select version from regulatory_report where template = %s and period = %s order by version", (name, period))]
+    sent = {k: v for k, v in (r["submitted"] or {}).items() if k != "content"} or None
     return plain({k: r[k] for k in ("id", "template", "period", "version", "status", "sections", "marked",
-                                    "coverage", "drafted_by", "item_id", "created_at")}
+                                    "coverage", "drafted_by", "item_id", "created_at", "approved_by", "approved_at",
+                                    "approval_note")} | {"submitted": sent}
                  | {"title": t.title, "versions": versions, "review": _review(conn, name, period)})
 
 
@@ -387,3 +394,242 @@ def listing(conn, limit: int = 50) -> dict:
                                                     "item_id", "created_at")},
                                "title": TEMPLATES[r["template"]].title if r["template"] in TEMPLATES else r["template"],
                                "marked": len(r["marked"] or [])} for r in rows]})
+
+
+# ---- approval, export and submission (P7.6b) --------------------------------------------------------------------
+
+def _key(name: str, period: str) -> str:
+    return f"{name}:{period}"
+
+
+def approve(conn, name: str, period: str, by: str, version: int | None = None, note: str | None = None) -> dict:
+    """A named person approves the latest version (the `approve_report` fixed gate: an agent is refused). A version
+    with figures on estimated or missing data needs a note saying why it can go as it is. The review case closes;
+    the approved version stays as it was, and a later change to its records drafts a new version for review."""
+    from ..core import gates
+    from ..core.exceptions import clear_exception
+
+    _template(name)
+    gates.require_person(conn, "approve_report", by, ref=f"report:{_key(name, period)}",
+                         what=f"the {name} report for {period}")
+    r = latest(conn, name, period)
+    if r is None:
+        raise ReportError(f"no {name} report for {period}; draft it first")
+    if version is not None and version != r["version"]:
+        raise ReportError(f"version {version} is not the latest; version {r['version']} is the one to approve")
+    if r["status"] != "draft":
+        raise ReportError(f"version {r['version']} is already {r['status']}")
+    note = (note or "").strip() or None
+    if r["marked"] and (not note or len(note) < 3):
+        raise ReportError(f"{len(r['marked'])} figure{'s' if len(r['marked']) != 1 else ''} rest on estimated or "
+                          "missing data; say why the report can go as it is")
+    row = conn.execute("update regulatory_report set status = 'approved', approved_by = %s, approved_at = now(), "
+                       "approval_note = %s where id = %s returning *", (by, note, r["id"])).fetchone()
+    clear_exception(conn, REVIEW, _key(name, period), by,
+                    reason=f"Approved version {r['version']}" + (f": {note}" if note else ""))
+    conn.commit()
+    return plain({k: row[k] for k in ("id", "template", "period", "version", "status", "approved_by", "approved_at",
+                                      "approval_note", "item_id")})
+
+
+def export(conn, name: str, period: str, version: int | None = None) -> dict:
+    """One version as a CSV file: every figure and every row with its basis and record. A draft says DRAFT in its
+    name and first line, so it can't pass for the approved report."""
+    import csv
+    import io
+
+    r = get(conn, name, period, version)
+    if r is None:
+        raise ReportError(f"no {name} report for {period}" + (f" version {version}" if version else ""))
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\n")
+    w.writerow([f"{'DRAFT ' if r['status'] == 'draft' else ''}{r['title']}", r["coverage"]["label"],
+                f"version {r['version']}", r["status"]])
+    w.writerow(["covers", r["coverage"]["since"], r["coverage"]["through"],
+                "month not over" if r["coverage"]["partial"] else "whole month"])
+    if r.get("approved_by"):
+        w.writerow(["approved", r["approved_by"], r["approved_at"], r.get("approval_note") or ""])
+    w.writerow(["section", "figure", "row", "value", "unit", "basis", "record"])
+    for s in r["sections"]:
+        for f in s["figures"]:
+            w.writerow([s["title"], f["label"], "", f["value"], f["unit"] or "", f["basis"], ""])
+            for x in f["rows"]:
+                w.writerow([s["title"], f["label"], x["label"], x["value"], x.get("unit") or f["unit"] or "",
+                            x["basis"], x["ref"] or ""])
+    content = buf.getvalue()
+    draft = "-DRAFT" if r["status"] == "draft" else ""
+    return {"filename": f"{name}-{period}-v{r['version']}{draft}.csv", "content": content,
+            "sha256": hashlib.sha256(content.encode()).hexdigest(), "version": r["version"], "status": r["status"]}
+
+
+def submit(conn, name: str, period: str, by: str, system: str | None = None) -> dict:
+    """Send the approved version: through the write-back queue to `system` (as a `regulatory_report` write-back,
+    approved and sent by that queue's rules), else as the exported file the person files themselves. Either way the
+    version is kept as submitted, with the exact file and its hash."""
+    from ..core import gates
+
+    _template(name)
+    gates.require_person(conn, "approve_report", by, ref=f"report:{_key(name, period)}",
+                         what=f"submitting the {name} report for {period}")
+    r = latest(conn, name, period)
+    if r is None or r["status"] == "draft":
+        raise ReportError(f"the {name} report for {period} has no approved version to submit; approve it first")
+    if r["status"] == "submitted":
+        raise ReportError(f"version {r['version']} was already submitted")
+    out = export(conn, name, period, r["version"])
+    sent = {"by": by, "file": out["filename"], "sha256": out["sha256"], "content": out["content"]}
+    if system:
+        from . import writeback
+
+        wb = writeback.propose(conn, system, "regulatory_report",
+                               {"template": name, "period": period, "version": r["version"], "file": out["filename"],
+                                "sha256": out["sha256"], "content": out["content"]}, by,
+                               record=_key(name, period), key=f"report:{_key(name, period)}:v{r['version']}",
+                               title=f"{TEMPLATES[name].title}, {r['coverage']['label']}, to send to {system}")
+        sent |= {"via": "writeback", "system": system, "writeback_id": wb["id"]}
+    else:
+        sent |= {"via": "export"}
+    row = conn.execute("update regulatory_report set status = 'submitted', submitted = %s || jsonb_build_object("
+                       "'at', now()) where id = %s returning *", (Jsonb(sent), r["id"])).fetchone()
+    conn.commit()
+    return plain({k: row[k] for k in ("id", "template", "period", "version", "status")}
+                 | {"submitted": {k: v for k, v in row["submitted"].items() if k != "content"}})
+
+
+# ---- the obligations calendar (P7.6c) ---------------------------------------------------------------------------
+
+def _due_type():
+    return TYPES.get("report_due") or exception_type(
+        "report_due", "Regulatory report coming due", role="role:hse_specialist", audience=("ioc",), joins=False,
+        description="A regulatory report whose due date is coming with no draft started, or that is past its due date "
+                    "and not submitted. Draft it from its records, review and approve it, and submit it; the work "
+                    "clears once a draft is in progress before the due date, or once it is submitted.")
+
+
+DUE = _due_type().name
+
+
+def set_obligation(conn, name: str, template: str, by: str, *, regulator: str | None = None, due_days: int = 15,
+                   lead_days: int = 10, draft_ahead: bool = True, active: bool = True, note: str | None = None,
+                   starts: date | None = None) -> dict:
+    """Declare (or change) an obligation: the report `template` for each period, due `due_days` days after the
+    period ends (15: the 15th of the next month) and started `lead_days` before that. With `draft_ahead` the
+    calendar drafts it from its records when its window opens. It counts periods due on or after `starts` (by
+    default the data's today when it is first declared), so declaring one doesn't make every past period overdue."""
+    from ..graph import operations
+
+    _template(template)
+    starts = starts or date.fromisoformat(operations.as_of(conn))
+    if not re.fullmatch(r"[a-z0-9_:-]{2,64}", name or ""):
+        raise ReportError("an obligation's name is 2 to 64 lowercase letters, digits, _, : or -")
+    if not 1 <= due_days <= 120 or not 0 <= lead_days <= 90:
+        raise ReportError("due_days is 1 to 120 and lead_days 0 to 90")
+    row = conn.execute(
+        """
+        insert into report_obligation (name, template, regulator, due_days, lead_days, draft_ahead, active, note,
+                                       updated_by, starts)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        on conflict (name) do update set template = excluded.template, regulator = excluded.regulator,
+          due_days = excluded.due_days, lead_days = excluded.lead_days, draft_ahead = excluded.draft_ahead,
+          active = excluded.active, note = excluded.note, updated_by = excluded.updated_by, updated_at = now()
+        returning *
+        """, (name, template, regulator, due_days, lead_days, draft_ahead, active, note, by, starts)).fetchone()
+    conn.commit()
+    return plain(dict(row))
+
+
+def _shift(period: str, months: int) -> str:
+    y, m = map(int, period.split("-"))
+    m += months
+    y, m = y + (m - 1) // 12, (m - 1) % 12 + 1
+    return f"{y:04d}-{m:02d}"
+
+
+def due_date(period: str, due_days: int) -> date:
+    """The day a period's report is due: `due_days` days after the period's last day."""
+    end = date.fromisoformat(f"{_shift(period, 1)}-01")
+    return end + timedelta(days=due_days - 1)
+
+
+def calendar(conn, today: date | None = None) -> list[dict]:
+    """Each active obligation's periods whose window has opened and which aren't submitted: the due date, when it
+    opened, and where its report stands (none, draft, approved), the earliest due first."""
+    from ..graph import operations
+
+    today = today or date.fromisoformat(operations.as_of(conn))
+    out = []
+    for o in conn.execute("select * from report_obligation where active order by name"):
+        for back in (3, 2, 1, 0):
+            period = _shift(period_of(today), -back)
+            due = due_date(period, o["due_days"])
+            opens = due - timedelta(days=o["lead_days"])
+            if today < opens or due < o["starts"]:
+                continue
+            r = latest(conn, o["template"], period)
+            if r and r["status"] == "submitted":
+                continue
+            out.append({"obligation": o["name"], "template": o["template"], "regulator": o["regulator"],
+                        "period": period, "due": due.isoformat(), "opens": opens.isoformat(),
+                        "overdue": today > due, "days_left": (due - today).days,
+                        "report": {"version": r["version"], "status": r["status"]} if r else None,
+                        "draft_ahead": o["draft_ahead"]})
+    return sorted(out, key=lambda x: (x["due"], x["obligation"]))
+
+
+def run_calendar(conn, pack, today: date | None = None, by: str = "agent:reporter", src=None) -> dict:
+    """The obligations calendar, as its daily job runs it: each obligation whose window opened is drafted from its
+    records when it may be and has no draft; one with no draft in progress, or past its due date and not submitted,
+    raises `report_due` for the template's role. Work for an obligation now in progress before its due date, or
+    submitted, clears."""
+    from ..core.exceptions import ExceptionError, clear_exception, raise_exception
+
+    drafted, raised, cleared, errors = [], [], [], []
+    due_now = calendar(conn, today)
+    keep = set()
+    for c in due_now:
+        key = f"{c['obligation']}:{c['period']}"
+        why = None
+        if c["report"] is None and c["draft_ahead"]:
+            try:
+                out = assemble(conn, pack, c["template"], c["period"], by=by, src=src)
+                c["report"] = {"version": out["version"], "status": "draft"}
+                drafted.append(key)
+            except ReportError as e:
+                conn.rollback()
+                why = f"it could not be drafted: {e}"
+        t = TEMPLATES[c["template"]]
+        if c["report"] is None or c["overdue"]:
+            stand = ("not started" if c["report"] is None else f"version {c['report']['version']} {c['report']['status']}"
+                     ", not submitted")
+            when = f"was due {c['due']}" if c["overdue"] else f"is due {c['due']}, in {c['days_left']} days"
+            found = Finding(
+                "reports.calendar", DETERMINISTIC, method="The obligations calendar",
+                data={k: c[k] for k in ("obligation", "template", "period", "due", "overdue")},
+                items=(fact("Obligation", c["obligation"]), fact("Regulator", c["regulator"]),
+                       fact("Report", t.title), fact("Period", bounds_label(c["period"])), fact("Due", c["due"]),
+                       fact("Where it stands", stand), fact("Why it wasn't drafted", why)))
+            try:
+                x = raise_exception(conn, DUE, key, f"{t.title}, {bounds_label(c['period'])}, {when}: {stand}", by,
+                                    source="reports", refs=[], priority=0.8 if c["overdue"] else 0.6,
+                                    finding=found, role=t.role)
+                raised.append({"key": key, "item_id": x["item_id"], "new": x["raised"]})
+                keep.add(key)
+            except ExceptionError as e:
+                errors.append(f"{key}: {e}")
+    for r in conn.execute("select key from exception_record where type = %s and state = 'open'", (DUE,)).fetchall():
+        if r["key"] not in keep:
+            reason = "a draft is in progress before its due date, or it was submitted"
+            if clear_exception(conn, DUE, r["key"], by, reason=reason):
+                cleared.append(r["key"])
+    conn.commit()
+    return {"due": due_now, "drafted": drafted, "raised": raised, "cleared": cleared, "errors": errors}
+
+
+def bounds_label(period: str) -> str:
+    return date.fromisoformat(f"{period}-01").strftime("%B %Y")
+
+
+def obligations(conn, today: date | None = None) -> dict:
+    """Every obligation, and the calendar of what is open now."""
+    rows = [plain(dict(r)) for r in conn.execute("select * from report_obligation order by name")]
+    return {"obligations": rows, "calendar": calendar(conn, today)}

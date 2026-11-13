@@ -333,6 +333,28 @@ only when a figure changed, for example a late or corrected record. It raises or
 `regulatory_report` case for the HSE specialist. A month that isn't over is drafted through the data's last full day,
 and the draft says so.
 
+**Approving and submitting.** Approving is the `approve_report` fixed gate, so an agent is refused. A named person
+approves the latest version. When figures are marked, they also write why the report can go as it is. The review case
+then closes. A later change to the records drafts a new version, and the approved one stays as it was. The export is
+a CSV of every figure and row with its basis and record, and a draft's export says DRAFT. Submitting the approved
+version takes one of two routes:
+
+- **Through the write-back queue** to a system that accepts `regulatory_report` write-backs. That queue's own
+  approver sends it.
+- **As the exported file**, which the person files themselves.
+
+Either way, the version is kept as submitted, with the exact file and its hash.
+
+**The obligations calendar.** An obligation names a template, the regulator, and when each period's report is due
+(`due_days` after the period ends). It also says how many days before the due date the process starts
+(`lead_days`), and whether the calendar drafts the report then (`draft_ahead`). Obligations live in
+`report_obligation`, through `POST /reports/obligations`. The daily `report_calendar` job does three things:
+
+- It drafts each report whose window has opened and has no draft.
+- It raises `report_due` for the template's role when a report has no draft in progress, or is past due and not
+  submitted.
+- It clears that work once a draft is in progress before the due date, or once the report is submitted.
+
 ## The operating model as a package
 
 The way a project operates (its roles and their SLAs, the work types it declares as data, its operating settings, and
@@ -404,6 +426,7 @@ Times are in the project's timezone.
 | `detect_5min` … `detect_daily` | each tier's schedule | Each scheduled detector in its tier, from its own watermark: compressor trips every 5 minutes, machine health hourly, records gaps and the opportunity scan daily (`detectors.cadence@<name>` moves one, P3.2) |
 | `studies_job` | every 5 minutes | Queued correlation and clustering studies |
 | `source_health` | every 30 minutes | Stale, failed or held sources and failing checks become work items for their owners |
+| `report_calendar` | 05:00 | Each regulatory report drafted as its obligation's window opens, and `report_due` work for one coming due with no draft, or past due and not submitted |
 | `detector_tuning` | 04:30 | A tuning proposal for each detector whose closed cases on one class are mostly false alarms and duplicates (see below) |
 | `providers_poll` | every 15 minutes | Each polled detection provider's alert table, read when it has changed |
 | `alert_on_failure` sensor | on any failed run | Posts it to the alert webhook (`alerts.webhook`) with its project and a link to the run |

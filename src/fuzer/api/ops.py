@@ -182,6 +182,79 @@ def regulatory_report_draft(template: str, period: str, body: ReportDraft, conn=
         raise HTTPException(404 if "template" in str(e) else 400, str(e)) from e
 
 
+class ReportApprove(BaseModel):
+    by: str
+    version: int | None = None
+    note: str | None = None
+
+
+class ReportSubmit(BaseModel):
+    by: str
+    system: str | None = None
+
+
+def _report_call(conn, fn, *args, **kw):
+    from ..core import gates
+    from ..ops import reports, writeback
+    try:
+        return fn(*args, **kw)
+    except gates.GateRefused as e:
+        conn.rollback()
+        raise HTTPException(403, str(e)) from e
+    except (reports.ReportError, writeback.WritebackError) as e:
+        conn.rollback()
+        raise HTTPException(404 if "no report template" in str(e) else 409, str(e)) from e
+
+
+@router.post("/reports/regulatory/{template}/{period}/approve")
+def regulatory_report_approve(template: str, period: str, body: ReportApprove, conn=Depends(get_conn)):
+    """A named person approves the latest version (a fixed gate), with a note when figures are marked."""
+    from ..ops import reports
+    return _report_call(conn, reports.approve, conn, template, period, body.by, body.version, body.note)
+
+
+@router.get("/reports/regulatory/{template}/{period}/export")
+def regulatory_report_export(template: str, period: str, version: int | None = None, conn=Depends(get_conn)):
+    """A version as a CSV file (filename, content, sha256); a draft says DRAFT."""
+    from ..ops import reports
+    return _report_call(conn, reports.export, conn, template, period, version)
+
+
+@router.post("/reports/regulatory/{template}/{period}/submit")
+def regulatory_report_submit(template: str, period: str, body: ReportSubmit, conn=Depends(get_conn)):
+    """Send the approved version through the write-back queue to a system, or record the exported file as filed."""
+    from ..ops import reports
+    return _report_call(conn, reports.submit, conn, template, period, body.by, body.system)
+
+
+class Obligation(BaseModel):
+    name: str
+    template: str
+    by: str
+    regulator: str | None = None
+    due_days: int = 15
+    lead_days: int = 10
+    draft_ahead: bool = True
+    active: bool = True
+    note: str | None = None
+
+
+@router.get("/reports/obligations")
+def report_obligations(conn=Depends(get_conn)):
+    """Every regulatory obligation, and the calendar of what is open now: each period's due date and its report."""
+    from ..ops import reports
+    return reports.obligations(conn)
+
+
+@router.post("/reports/obligations")
+def report_obligation_set(body: Obligation, conn=Depends(get_conn)):
+    """Declare or change an obligation (P7.6c)."""
+    from ..ops import reports
+    return _report_call(conn, reports.set_obligation, conn, body.name, body.template, body.by, regulator=body.regulator,
+                        due_days=body.due_days, lead_days=body.lead_days, draft_ahead=body.draft_ahead,
+                        active=body.active, note=body.note)
+
+
 @router.get("/opportunities")
 def opportunity_list(status: str | None = "open", limit: int = 100, conn=Depends(get_conn)):
     """Opportunities from the daily scan (#102)."""

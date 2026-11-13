@@ -1642,6 +1642,24 @@ Regulatory and emissions reports (P7.6, #954): one row per version of a template
 | `submitted` | jsonb, | how it went out, by whom and when |
 | `created_at` | timestamptz |  |
 
+### `report_obligation`
+
+The obligations calendar (P7.6c): each report a regulator expects, per period, its due date as days after the period ends, and how far ahead the report process starts.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `template` | text |  |
+| `regulator` | text |  |
+| `due_days` | integer | 15: due on the 15th of the month after the period |
+| `lead_days` | integer | the process starts this many days before it is due |
+| `draft_ahead` | boolean | the calendar drafts it from its records when its window opens |
+| `starts` | date | the first due date it counts; periods due before it are not owed |
+| `active` | boolean |  |
+| `note` | text |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ### `opportunity`
 
 The opportunity scan (#102): gains left on the table, one row per opportunity under a stable key. A decided one (rejected, accepted, project) isn't raised again unless its evidence or gain changes materially.
