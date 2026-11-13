@@ -501,6 +501,11 @@ names. Kestrel's flare and sales metering sheet ships this way. The Network page
 follow either, and a comparison lists EC flows with no piping path on the P&IDs
 and piping between EC nodes with no EC flow path (API and a Dagster check).
 
+How well the drawing reader reads a P&ID it didn't make is scored against PID2Graph (`evals/pid2graph/`, CC BY-SA
+4.0, its own licence and attribution beside it): the 12 real OPEN100 drawings and 20 synthetic ones, each with a graph
+of its symbols (class and box) and lines. `fuzer.evals.pid2graph` collapses a graph to which symbol pipes to which,
+and scores a reading's symbols (same class, box overlap at least 0.5) and connections for precision and recall.
+
 An engineering line list (`pid_line_list`, optional in the P&ID source pack: line, from tag, to tag) gives the same
 `pipes_to` links for every line, whatever format its sheet is in, so a scanned sheet's piping is known before it is
 read. A driven machine's SAP equipment record can name its driver by functional location (`driver`), which becomes
