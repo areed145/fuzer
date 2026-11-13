@@ -7,3 +7,9 @@
 - question: What limits KR 12-04H's rate?
   must_mention: [KR 12-04H, [choke, critical, back-pressure, back pressure], [choke position, no choke]]
   specialists: [wells-subsurface]
+# #363: a well by depth, from its survey, completion and LWD log: the frac stages sit in the lateral at landing depth,
+# where the gamma ray reads low (the target sand).
+- question: Where are KR 12-03H's frac stages, and what does the gamma ray read across them?
+  must_mention: [[frac stage], [TVD, true vertical depth], [gamma ray, GR], [sand, low gamma]]
+  specialists: [wells-subsurface]
+  charts: [well-trajectory]
