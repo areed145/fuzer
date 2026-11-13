@@ -25,6 +25,7 @@ bundle, and the schedules' timezone from the first project's (default UTC); the 
 settings llm.model and llm.effort, the day close the setting daily_report.close_cron (#131).
 """
 
+import hashlib
 import json
 import os
 import time
@@ -739,6 +740,11 @@ def due(cron: str, since: float, now: float, tz: str = TZ) -> bool:
     return False
 
 
+def _names(names: list[str], most: int = 8) -> str:
+    """A few names for a run tag, with how many more there are."""
+    return ",".join(names[:most]) + (f" and {len(names) - most} more" if len(names) > most else "")
+
+
 @dg.sensor(job=refresh_all, minimum_interval_seconds=60, default_status=dg.DefaultSensorStatus.RUNNING,
            description="Loads each dataset with its own schedule (source_dataset.schedule) when it is due, then rebuilds.")
 def dataset_schedules(context: dg.SensorEvaluationContext, fuzer: Fuzer):
@@ -787,10 +793,13 @@ def new_exports(context: dg.SensorEvaluationContext, fuzer: Fuzer):
         cursor[project] = current
         changed = sorted(name for name, sig in current.items() if seen.get(project, {}).get(name) != sig)
         if changed:
+            # Dagster keeps the run key and each tag in an indexed column (idx_run_tags), which refuses a row over
+            # about 2.7 kB: the key is a digest of the changed signatures, and the tag names at most a few datasets.
+            marks = json.dumps({"project": project, **{n: current[n] for n in changed}}, sort_keys=True)
             requests.append(dg.RunRequest(
-                run_key=json.dumps({"project": project, **{n: current[n] for n in changed}}, sort_keys=True),
+                run_key=f"{project}:{hashlib.sha256(marks.encode()).hexdigest()}",
                 asset_selection=[dg.AssetKey(n) for n in changed] + [register.key],
-                tags={"changed_exports": ",".join(changed), **project_tags(project)},
+                tags={"changed_exports": _names(changed), **project_tags(project)},
             ))
     if not requests:
         return dg.SkipReason(f"no changed exports in {', '.join(folders)}")
