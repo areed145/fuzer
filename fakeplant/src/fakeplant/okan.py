@@ -1296,6 +1296,44 @@ def generate(out, seed: int = 11) -> dict:
                       "final_element": f"{area}-{func[0]}V-{num}", "eng_units": uom,
                       **{f"{r}_point": names[r] for r in names}})
     _write_csv(out / "dcs_loops.csv", loops)
+    # Controller settings and step tests (#358). The DCS configuration export holds each loop's PID settings with the
+    # date each took effect: commissioning values, then the changes. Story: the night shift halved the test
+    # separator level controller's gain on 12 February 2025 to calm the cycling, and the level kept cycling (a sticking
+    # valve isn't a tuning problem) until the valve was repaired and the gain put back on the 18th. In June 2025 the
+    # controls engineer ran open-loop step tests on three fast loops (export flow, HP separator pressure, lift gas
+    # header pressure): the loop in manual, the output stepped by hand, the value recorded every second. Each answers
+    # as a first order process with dead time; the models are the answer key, for the fits in #359.
+    tuning = []
+    for ltag, *_ in loop_defs:
+        kc, ti, td = {"F": (0.45, 12.0, 0.0), "P": (1.2, 90.0, 0.0), "L": (2.0, 600.0, 0.0)}[ltag.split("-")[1][0]]
+        tuning.append({"setting_id": f"{ltag}-2023-01", "loop_tag": ltag, "effective_from": "2023-01-15T09:00:00",
+                       "kc": kc, "ti_s": ti, "td_s": td, "changed_by": "commissioning", "reason": "as commissioned"})
+    tuning += [
+        {"setting_id": "10-LIC-2003-2025-02a", "loop_tag": "10-LIC-2003", "effective_from": "2025-02-12T03:20:00",
+         "kc": 1.0, "ti_s": 600.0, "td_s": 0.0, "changed_by": "night shift", "reason": "level cycling, gain halved"},
+        {"setting_id": "10-LIC-2003-2025-02b", "loop_tag": "10-LIC-2003", "effective_from": "2025-02-18T10:00:00",
+         "kc": 2.0, "ti_s": 600.0, "td_s": 0.0, "changed_by": "controls engineer",
+         "reason": "level valve repaired, gain restored under MOC-OK-0219"},
+        {"setting_id": "10-FIC-1001-2025-06", "loop_tag": "10-FIC-1001", "effective_from": "2025-06-12T14:00:00",
+         "kc": 0.3, "ti_s": 8.0, "td_s": 0.0, "changed_by": "controls engineer", "reason": "retuned after step test under MOC-OK-0241"}]
+    _write_csv(out / "dcs_tuning.csv", tuning)
+    steps = [  # test id, loop, step time, output from, to, gain (value per % output), time constant s, dead time s
+        ("ST-2025-001", "10-FIC-1001", "2025-06-10T10:02:00", 72.0, 77.0, 5.2, 7.0, 2.0),
+        ("ST-2025-002", "10-PIC-2001", "2025-06-10T13:02:00", 55.0, 60.0, -0.09, 40.0, 6.0),
+        ("ST-2025-003", "20-PIC-3003", "2025-06-11T09:02:00", 60.0, 65.0, -0.35, 150.0, 15.0)]
+    step_events, step_rows = [], []
+    for tid, ltag, at, op0, op1, k, tau, dead in steps:
+        t0 = datetime.fromisoformat(at)
+        start, end = (t0 - timedelta(minutes=2)).isoformat(), (t0 + timedelta(minutes=13)).isoformat()
+        step_events.append({"unit": ltag, "kind": "step_test", "start": start, "end": end, "at": at, "op_from": op0,
+                            "op_to": op1, "k": k, "tau_s": tau, "dead_s": dead})
+        step_rows.append({"test_id": tid, "loop_tag": ltag, "start": start, "end": end, "step_at": at, "op_from": op0,
+                          "op_to": op1, "sample_s": 1, "done_by": "controls engineer",
+                          "notes": "open loop, controller in manual, output stepped by hand"})
+    _write_csv(out / "dcs_step_tests.csv", step_rows)
+    (out / "answer_keys" / "step_tests.json").write_text(json.dumps(
+        {tid: {"loop": ltag, "gain": k, "tau_s": tau, "dead_s": dead} for tid, ltag, _, _, _, k, tau, dead in steps},
+        indent=1))
     (out / "answer_keys" / "control_loops.json").write_text(json.dumps(
         {d[0]: (d[9] or {}).get("kind", "healthy") for d in loop_defs}, indent=1))
     _write_csv(out / "pi_points.csv", points + loop_rows)
@@ -1511,7 +1549,7 @@ def generate(out, seed: int = 11) -> dict:
                   for ltag, _, _, _, sp, op, swing, gain, _, _ in loop_defs}
     (out / "process_model.json").write_text(json.dumps({
         **model, "units": {**model["units"], **loop_units}, "points": {**model["points"], **loop_points},
-        "events": model["events"] + [{"unit": d[0], **d[9]} for d in loop_defs if d[9]]}))
+        "events": model["events"] + [{"unit": d[0], **d[9]} for d in loop_defs if d[9]] + step_events}))
     # Instrument faults and interface outages over the model (#868): fuzer.sources.instruments applies them, and the
     # file is their answer key. Off alarmed and IOW points, and away from the quarter the limits are learned on.
     core = lambda t: "".join(m.groups()) if (m := re.search(r"(\d\d)[-_.]?([A-Z]+)[-_]?(\d{4})", t)) else None

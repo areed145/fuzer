@@ -267,9 +267,13 @@ def app(data_dir) -> FastAPI:
         return name if name in plant.points else None
 
     @api.get(f"{base}/streams/{{web_id}}/interpolated")
-    def interpolated(web_id: str, startTime: str, endTime: str, interval: str = "1h"):
+    def interpolated(web_id: str, startTime: str, endTime: str, interval: str = "1h", maxCount: int = 150000):
         if (name := stream(web_id)) is None:
             return missing("PI Point")
+        if (m := re.fullmatch(r"\s*(\d+)\s*s\s*", interval or "")) and int(m.group(1)) % 60:
+            # every few seconds (#358): what the process model records that fast, across a loop's step tests
+            fast = plant._signal.high_rate({"point": name}, _time(startTime), _time(endTime), int(m.group(1)))
+            return {"Items": [{"Timestamp": _iso(_time(t)), "Value": v, "Good": True} for t, v in fast[:maxCount]]}
         try:
             step = _interval_minutes(interval)
         except ValueError as e:

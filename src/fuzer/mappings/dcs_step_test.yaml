@@ -1,0 +1,23 @@
+# Step test records (#358): an open-loop step test on a control loop, with the controller in manual and the output
+# stepped by hand while the historian records the value at a high rate. The record says when the test ran, when the
+# output stepped and by how much, and how often the value was sampled; the values themselves are read from the
+# historian on demand (a bounded high-rate read), and the model fits of #359 read them.
+source: dcs
+record_type: step_test
+shape: records
+dataset: dcs_step_tests
+key: test_id
+entity:
+  kind: step_test
+  fields:
+    - start
+    - end
+    - step_at
+    - [op_from, {from: op_from, as: number}]
+    - [op_to, {from: op_to, as: number}]
+    - [sample_s, {from: sample_s, as: number}]
+    - done_by
+    - notes
+links:
+  - rel: tests
+    to: {kind: control_loop, from: loop_tag}

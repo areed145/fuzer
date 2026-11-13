@@ -286,6 +286,36 @@ def plot_loop_health(days: int = 7, until: str | None = None) -> dict[str, Any]:
     return _chart(general.loop_health, {"days": max(1, min(days, 31)), "until": until})
 
 
+@capability("field-operations-facilities", kind="query")
+def controller_settings(ref: str, at: str | None = None) -> dict[str, Any]:
+    """A control loop's controller settings from the DCS configuration export (#358): proportional gain, integral
+    time and derivative time, each with the date it took effect and who changed it and why, the settings in force at
+    `at` (default the latest), and the step tests on record for the loop. Read-only: nothing is written to a
+    controller."""
+    from ...analysis import calcs
+    from ...analysis import control_loops as cl
+    with db.connect() as conn:
+        try:
+            return _plain(cl.settings(conn, ref, at) | {"step_tests": cl.step_tests(conn, ref)})
+        except calcs.CalcError as e:
+            return {"error": str(e), **e.refusal()}
+
+
+@capability("field-operations-facilities", kind="query")
+def loop_high_rate(ref: str, start: str, end: str, step_seconds: int = 1) -> dict[str, Any]:
+    """A control loop's PV, SP, OP and mode every `step_seconds` (from 1 s) from `start` to `end` (#358), read from
+    the historian on demand for loops too fast for the minute grid, such as a step test's window
+    (controller_settings lists them). Bounded: at most 6 hours and 7200 values a point in one read; a longer stretch
+    is read on the minute grid (control_loop). Read-only."""
+    from ...analysis import calcs
+    from ...analysis import control_loops as cl
+    with db.connect() as conn:
+        try:
+            return _plain(cl.high_rate(conn, ref, start, end, step_seconds))
+        except calcs.CalcError as e:
+            return {"error": str(e), **e.refusal()}
+
+
 @capability("field-operations-facilities", kind="calc")
 def valve_stiction(ref: str | None = None, days: int = 3, until: str | None = None) -> dict[str, Any]:
     """Valve stiction check (#357): for each loop on the DCS loop list (or the one named, e.g. 10-LIC-2003) in auto

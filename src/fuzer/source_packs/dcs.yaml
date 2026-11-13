@@ -1,7 +1,8 @@
-# DCS alarm configuration, its alarm and event journal where the site exports one (#859), and its loop list (#355).
+# DCS alarm configuration, its alarm and event journal where the site exports one (#859), its loop list (#355), and
+# its controller settings and step tests (#358).
 # A built-in source pack (P1.5): the datasets name built-in mapping files and readers, assembled by
 # fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
 fuzer_source_pack: 1
 system: {name: dcs}
-datasets: [dcs_alarms, dcs_alarm_journal, dcs_loops]
-optional: [dcs_alarm_journal, dcs_loops]
+datasets: [dcs_alarms, dcs_alarm_journal, dcs_loops, dcs_tuning, dcs_step_tests]
+optional: [dcs_alarm_journal, dcs_loops, dcs_tuning, dcs_step_tests]

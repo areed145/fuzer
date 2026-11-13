@@ -55,6 +55,31 @@ class Provider(Protocol):
         """Values of one series (`point`, `uom`, ADX pointer fields, `upsets`) as (minute, value) pairs."""
         ...
 
+    # Optional (#358): `high_rate(s, start, end, step_seconds)`, values every few seconds as (second, value) pairs, for
+    # fast loops a minute grid can't see. Read through `high_rate()` below, which bounds the request.
+
+
+HIGH_RATE_SPAN = timedelta(hours=6)  # one high-rate read covers at most this long...
+HIGH_RATE_VALUES = 7200  # ...and returns at most this many values a series, so a request can't pull a history
+HIGH_RATE_MIN_STEP = 1  # seconds
+
+
+def high_rate(s: dict, start: datetime, end: datetime, step_seconds: int, src=None) -> list[tuple[str, float]]:
+    """One series every `step_seconds` over a bounded window: refused (ValueError) past HIGH_RATE_SPAN or
+    HIGH_RATE_VALUES, and empty from a provider that holds no high-rate values."""
+    if step_seconds < HIGH_RATE_MIN_STEP:
+        raise ValueError(f"a high-rate step is at least {HIGH_RATE_MIN_STEP} s")
+    if end <= start:
+        raise ValueError("the window ends before it starts")
+    if end - start > HIGH_RATE_SPAN:
+        raise ValueError(f"a high-rate read covers at most {HIGH_RATE_SPAN.total_seconds() / 3600:g} h; "
+                         "read a longer stretch on the minute grid")
+    if (end - start).total_seconds() / step_seconds > HIGH_RATE_VALUES:
+        raise ValueError(f"that is more than {HIGH_RATE_VALUES} values; widen the step or narrow the window")
+    src = src or provider()
+    read = getattr(src, "high_rate", None)
+    return read(s, start, end, step_seconds) if read else []
+
 
 class SyntheticProvider:
     """Points a fake plant's process model covers (process_model.json in its data folder) come from
@@ -84,6 +109,12 @@ class SyntheticProvider:
         at = lambda t: self._clean(point, uom, naive(t), naive(t), 1, upsets, description)[0][1]
         v = self.faults.apply(point, secs, np.array([x for _, x in out]), at)
         return [(t, round(float(x), 3)) for (t, _), x in zip(out, v) if not np.isnan(x)]
+
+    def high_rate(self, s, start, end, step_seconds):
+        """Points the process model covers, every `step_seconds`; others have no high-rate values here."""
+        if self.model and self.model.covers(s["point"]):
+            return self.model.fine(s["point"], start, end, step_seconds)
+        return []
 
     def states(self, point, start, end):
         """Digital states the historian holds for the point over the window: [(from, to, state)], epoch seconds."""
