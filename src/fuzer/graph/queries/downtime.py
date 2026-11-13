@@ -13,11 +13,13 @@ _DOWNTIME = """
         union select src from edge where rel = 'instance_of' and dst = %(id)s
         union select src from edge where rel = 'classified_as' and dst in (select id from classes)
     ), scoped as (
-        select en.fuzer_id as id from entity en
+        select en.fuzer_id as id from entity en  -- every downtime, when no entity is asked for
+        where en.kind = 'downtime' and en.retired_at is null and %(id)s::text is null
+        union  -- else from the entity outwards, so one entity's downtime does not read every downtime record
+        select en.fuzer_id from targets t
+        join edge e on e.dst = t.id and e.rel in ('affects', 'caused_by')
+        join entity en on en.fuzer_id = e.src
         where en.kind = 'downtime' and en.retired_at is null
-          and (%(id)s::text is null or exists (
-                select 1 from edge e where e.src = en.fuzer_id and e.rel in ('affects', 'caused_by')
-                  and e.dst in (select id from targets)))
     ), d as (
         select s.id, jsonb_object_agg(g.field, g.value) as f
         from scoped s join golden g on g.fuzer_id = s.id

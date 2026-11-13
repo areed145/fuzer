@@ -100,10 +100,14 @@ def _describe(conn, ids: list[str]) -> dict[str, dict]:
         left join golden ft on ft.fuzer_id = en.fuzer_id and ft.field = 'facility_type'
         where en.fuzer_id = any(%s)""", ids)}
     for r in _rows(conn, """
-        select t.id, cl.label from unnest(%s::text[]) t(id)
-        join edge c on c.rel = 'classified_as' and c.valid_to is null and (c.src = t.id or c.src in (
-            select i.src from edge i where i.dst = t.id and i.rel = 'installed_at' and i.valid_to is null))
-        join entity_label cl on cl.fuzer_id = c.dst order by cl.label""", ids):
+        with of (id, src) as (  -- its own class and that of the equipment installed at it: two index walks
+            select t.id, t.id from unnest(%s::text[]) t(id)
+            union
+            select i.dst, i.src from edge i
+            where i.dst = any(%s::text[]) and i.rel = 'installed_at' and i.valid_to is null)
+        select distinct o.id, cl.label from of o
+        join edge c on c.src = o.src and c.rel = 'classified_as' and c.valid_to is null
+        join entity_label cl on cl.fuzer_id = c.dst order by cl.label""", ids, ids):
         code = r["label"].split(":", 1)[-1]
         if code not in out[r["id"]]["classes"]:
             out[r["id"]]["classes"].append(code)
