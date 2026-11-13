@@ -1,0 +1,28 @@
+# Condition-monitoring spectra (#367): one row per spectrum a route collector took at a measurement point on a machine
+# (a bearing, in a direction), exported with the point's setup: the running speed at the time, the rolling element
+# bearing at the point and its geometry, and the spectrum as its peak table ("frequency Hz:amplitude;..."). Each lands
+# as a vibration spectrum checking its tag; analysis/vibration_spectra.py reads the peaks against the bearing's fault
+# frequencies.
+source: cms
+record_type: spectrum
+shape: records
+dataset: cms_spectra
+key: spectrum_id
+entity:
+  kind: vibration_spectrum
+  fields:
+    - point
+    - measured_at
+    - [rpm, {from: rpm, as: number}]
+    - unit
+    - [overall, {from: overall, as: number}]
+    - bearing
+    - [rolling_elements, {from: rolling_elements, as: number}]
+    - [element_diameter_mm, {from: element_diameter_mm, as: number}]
+    - [pitch_diameter_mm, {from: pitch_diameter_mm, as: number}]
+    - [contact_angle_deg, {from: contact_angle_deg, as: number}]
+    - peaks
+links:
+  - rel: checks
+    when: tag
+    to: {kind: tag, from: tag, as: tag}

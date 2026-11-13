@@ -1264,11 +1264,74 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "ptw_permits.csv", permits)
     _write_csv(out / "ptw_isolations.csv", isolations)
     _write_csv(out / "rounds_points.csv", _rounds(equipment))
-    _write_csv(out / "pi_points.csv", points)
+    # Control loops (#355): the DCS loop list and each loop's PV, SP, OP and MODE points. Three are healthy; three carry
+    # the stories. The test separator's level valve sticks from 10 to 17 February 2025 (the level limit-cycles, the
+    # output ramps while the level jumps); the oil export flow controller runs out of valve while pump B's
+    # recirculation passes (its output pinned at 100 % and the flow short of setpoint); and the lift gas header's
+    # pressure controller is left in manual after the 18 November 2025 upset. Synthetic, like everything here.
+    loop_defs = [  # tag, description, controlled item, unit, sp, op, op_swing, gain, action, story
+        ("10-LIC-2002", "LP Production Separator Level Control", "10-V-2002", "%", 50.0, 45.0, 8.0, 0.4, "direct", None),
+        ("10-PIC-2001", "HP Production Separator Pressure Control", "10-V-2001", "barg", 12.0, 55.0, 6.0, 0.05,
+         "direct", None),
+        ("10-LIC-2003", "Test Separator Level Control", "10-V-2003", "%", 45.0, 40.0, 6.0, 0.4, "direct",
+         {"kind": "stiction", "start": "2025-02-10T00:00", "end": "2025-02-17T00:00", "period": 60, "amplitude": 4.0,
+          "op_amplitude": 5.0}),
+        ("10-FIC-1001", "Oil Export Flow Control", "10-V-2004", "m3/h", 380.0, 72.0, 8.0, 2.0, "reverse",
+         {"kind": "saturate", "points": [["2025-10-20T00:00", 0], ["2025-11-04T00:00", 36], ["2025-12-09T08:00", 38],
+                                         ["2025-12-09T14:00", 0]]}),
+        ("20-PIC-3003", "Lift Gas Header Pressure Control", "20-V-2002", "barg", 98.0, 60.0, 12.0, 0.25, "reverse",
+         {"kind": "manual", "start": "2025-11-18T06:00"}),
+        ("20-LIC-2400", "Glycol Contactor Level Control", "20-V-2400", "%", 40.0, 35.0, 6.0, 0.4, "direct", None),
+    ]
+    loops, loop_points, loop_rows = [], {}, []  # kept apart from `points` so the other stories' draws don't move
+    for ltag, ldesc, item, uom, *_ in loop_defs:
+        area, func, num = ltag.split("-")
+        stem = f"OKA_PP.{area}{func}{num}" if area == "10" else f"OK_GGCP:{ltag}"
+        names = {r: f"{stem}.{r.upper()}" for r in ("pv", "sp", "op", "mode")}
+        for r, d, u in (("pv", "Process Value", uom), ("sp", "Setpoint", uom), ("op", "Controller Output", "%"),
+                        ("mode", "Mode (1 AUTO, 0 MAN)", "")):
+            loop_rows.append({"tag": names[r], "descriptor": f"{ldesc} {d}", "engunits": u, "pointsource": "OPC"})
+            loop_points[names[r]] = [ltag, r]
+        loops.append({"loop_tag": ltag, "description": ldesc, "controlled_item": item, "controller": "PID",
+                      "final_element": f"{area}-{func[0]}V-{num}", "eng_units": uom,
+                      **{f"{r}_point": names[r] for r in names}})
+    _write_csv(out / "dcs_loops.csv", loops)
+    (out / "answer_keys" / "control_loops.json").write_text(json.dumps(
+        {d[0]: (d[9] or {}).get("kind", "healthy") for d in loop_defs}, indent=1))
+    _write_csv(out / "pi_points.csv", points + loop_rows)
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
     _write_csv(out / "ec_downtime.csv", downtime)
     _write_csv(out / "sap_maintenance_plans.csv", plans)
     _write_csv(out / "lims_results.csv", lab)
+    # Produced water chemistry (#368): each quarter the lab samples the water at every in-service production line's
+    # arrival end, with pH and temperature read in the field. Story: J03's flowline (the wet one above) carries the
+    # same water as its peers at the same temperature, so a CO2 model predicts it no worse, yet it loses wall many
+    # times faster than they do: what differs is the line (it runs wetter), not the water's chemistry.
+    wq_rng = random.Random(seed + 59)
+    water = []
+    for f in lines:
+        pr = f["properties"]
+        if pr["status"] != "in service" or not pr["service"].startswith("production"):
+            continue
+        trunk = "trunkline" in pr["service"]
+        temp = wq_rng.uniform(40, 48) if trunk else wq_rng.uniform(50, 62)
+        day, n = date(2024, 1, 10) + timedelta(days=wq_rng.randint(0, 20)), 0
+        while day < date.fromisoformat(AS_OF):
+            for analyte, unit, v, method in [
+                    ("ph", "pH", 6.1 + wq_rng.gauss(0, 0.08), "field pH meter"),
+                    ("sample_temperature", "degC", temp + wq_rng.gauss(0, 1.2), "field thermometer"),
+                    ("chloride", "mg/L", 17500 + wq_rng.gauss(0, 700), "Mohr titration"),
+                    ("bicarbonate", "mg/L", 850 + wq_rng.gauss(0, 40), "titration, APHA 2320"),
+                    ("iron", "mg/L", 1.2 + wq_rng.gauss(0, 0.1), "ICP-OES")]:
+                water.append({"sample_id": f"W{day:%y%m%d}-{pr['line_id'][-3:]}", "line_id": pr["line_id"],
+                              "sample_point": "arrival end", "sampled_at": f"{day.isoformat()}T10:{n % 60:02d}:00",
+                              "analyte": analyte, "result": f"{v:.3g}" if abs(v) < 100 else f"{v:.0f}", "unit": unit,
+                              "method": method})
+            day, n = day + timedelta(days=91 + wq_rng.randint(-5, 5)), n + 1
+    _write_csv(out / "lims_water_chemistry.csv", water)
+    (out / "answer_keys" / "co2_corrosion.json").write_text(json.dumps(
+        {"out_of_step": wet_line, "why": "the wet flowline: same water and temperature as its peers, far faster wall loss"},
+        indent=1))
     # LDAR surveys (#371): each quarter a contractor screens the fugitive emission components (flanges, valve packing,
     # seals, connectors) on the pumps, compressors, vessels, exchangers and turbines of the PP and GGCP with a Method 21
     # analyser; the satellites and NWP aren't in the programme, so their equipment is unsurveyed. A component leaks now
@@ -1309,6 +1372,43 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "inspection_readings.csv", readings)
     _write_csv(out / "ldar_surveys.csv", ldar)
     (out / "answer_keys" / "ldar.json").write_text(json.dumps(ldar_truth, indent=1))
+    # Condition-monitoring spectra (#367): each month a route collector takes a velocity spectrum at the drive end and
+    # non-drive end bearings of every pump, exported as the peak table with the point's bearing setup (deep groove ball
+    # bearings, 8 balls of 23.8 mm on a 100 mm pitch circle). Running speed, its harmonics and the impeller's vane pass
+    # are always there. Story: after the May 2025 seal leak on 10-P-1001B, product got into the bearing housing; from
+    # August its NDE bearing shows an outer race defect, growing at the ball pass frequency outer race and its
+    # harmonics, while the overall level barely moves.
+    crng = random.Random(seed + 61)
+    pumps = sorted({f"{p[1]}-P-{p[2][1:]}" for p in (e["floc"].split("-") for e in equipment)
+                    if len(p) == 3 and p[2].startswith("P")})
+    geo = {"bearing": "6313 deep groove ball", "rolling_elements": 8, "element_diameter_mm": 23.8,
+           "pitch_diameter_mm": 100.0, "contact_angle_deg": 0}
+    spectra, cms_truth = [], {"tag": "10-P-1001B", "point": "NDE bearing horizontal", "defect": "bpfo",
+                              "first": "2025-08", "bpfo_order": round(4 * (1 - 23.8 / 100), 3)}
+    month = date(2024, 7, 1)
+    while month < date.fromisoformat(AS_OF):
+        for tag in pumps:
+            rpm = 2975 + crng.uniform(-6, 6)
+            fr = rpm / 60
+            for point in ("DE bearing horizontal", "NDE bearing horizontal"):
+                when = month + timedelta(days=crng.randint(3, 12))
+                peaks = {fr: crng.uniform(0.7, 1.3), 2 * fr: crng.uniform(0.15, 0.3), 3 * fr: crng.uniform(0.05, 0.15),
+                         6 * fr: crng.uniform(0.25, 0.5)}  # 1x, 2x, 3x and the six-vane impeller's vane pass
+                for _ in range(4):  # the floor's own bumps, away from the machine's frequencies
+                    peaks[crng.uniform(20, 900)] = crng.uniform(0.02, 0.08)
+                if tag == cms_truth["tag"] and point == cms_truth["point"] and when >= date(2025, 8, 1):
+                    grow = 1 + (when - date(2025, 8, 1)).days / 30
+                    bpfo = cms_truth["bpfo_order"] * fr
+                    for h, share in ((1, 1.0), (2, 0.55), (3, 0.3)):
+                        peaks[h * bpfo] = 0.2 * grow * share + crng.uniform(0, 0.03)
+                overall = math.sqrt(sum(a * a for a in peaks.values()) + 0.8)  # with the broadband floor
+                spectra.append({"spectrum_id": f"CMS-{tag}-{'DE' if point.startswith('DE') else 'NDE'}-{when:%Y%m%d}",
+                                "tag": tag, "point": point, "measured_at": f"{when.isoformat()}T10:00:00",
+                                "rpm": f"{rpm:.0f}", "unit": "mm/s RMS", "overall": f"{overall:.2f}", **geo,
+                                "peaks": ";".join(f"{f:.1f}:{a:.3f}" for f, a in sorted(peaks.items()))})
+        month = (month + timedelta(days=32)).replace(day=1)
+    _write_csv(out / "cms_spectra.csv", spectra)
+    (out / "answer_keys" / "vibration_spectra.json").write_text(json.dumps(cms_truth, indent=1))
     _write_csv(out / "oem_curves.csv", curve_rows)
     _write_csv(out / "oem_compressor_maps.csv", map_rows)
     # Limits are set from the process model without its stories; AF gets its limit traits before it's written.
@@ -1406,7 +1506,12 @@ def generate(out, seed: int = 11) -> dict:
     # How the fake historian makes process values move together (fuzer.sources.process_model); not a source.
     # Typical levels of the satellite headers' flows, which the historian draws rather than models.
     model["levels"] = [["ST1 Lift Gas Header Flow", 720.0], ["ST2 Lift Gas Header Flow", 440.0]]
-    (out / "process_model.json").write_text(json.dumps(model))
+    # The control loops (#355) join the model as it's written: the limits and instrument faults above don't see them.
+    loop_units = {ltag: {"type": "loop", "sp": sp, "op": op, "op_swing": swing, "gain": gain, "pv_noise": 0.01 * sp}
+                  for ltag, _, _, _, sp, op, swing, gain, _, _ in loop_defs}
+    (out / "process_model.json").write_text(json.dumps({
+        **model, "units": {**model["units"], **loop_units}, "points": {**model["points"], **loop_points},
+        "events": model["events"] + [{"unit": d[0], **d[9]} for d in loop_defs if d[9]]}))
     # Instrument faults and interface outages over the model (#868): fuzer.sources.instruments applies them, and the
     # file is their answer key. Off alarmed and IOW points, and away from the quarter the limits are learned on.
     core = lambda t: "".join(m.groups()) if (m := re.search(r"(\d\d)[-_.]?([A-Z]+)[-_]?(\d{4})", t)) else None

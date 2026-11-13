@@ -438,7 +438,7 @@ asset pack's catalogs as defaults; codes found in neither are reported by the
 | Hierarchy | FLOCs, PI AF | ISA-95 site / area / unit, ISO 14224 trees, org units |
 | Network (nodes + edges) | EC allocation, P&ID piping | Pipeline and gathering networks, electrical single-lines, cause & effect matrices and trip logic (input -> trips -> output) |
 | Time-series metadata | PI points, AF attributes | ADX tables, SCADA, OPC UA nodes |
-| Measurements (sparse, landed) | Well tests, LIMS results, inspection thickness readings (CMLs), LDAR survey readings, pressure surveys, monthly injection | Vibration routes, other emissions surveys |
+| Measurements (sparse, landed) | Well tests, LIMS results, produced water chemistry by line, inspection thickness readings (CMLs), LDAR survey readings, pressure surveys, monthly injection; condition-monitoring spectra as records (`cms_spectra`, one per spectrum with its bearing setup) | Vibration time waveforms, other emissions surveys |
 | Limits (per point, dated) | PI AF limit traits, DCS alarm exports, IOW registers | Safe operating limits, trip setpoints from cause & effect, equipment design envelopes |
 | Events (time + text + references) | Logs, downtime, notifications, DAY001, DCS alarm and event journals | Teams threads, SCADA event logs |
 | Cases (records with a workflow) | Notifications, work orders | Management of change, permits to work, isolations, HAZOP / LOPA actions, inspection findings |
@@ -482,7 +482,7 @@ identities, history, review and the graph stay as they are.
 | Operator logs | CSV of entries | Claude for hard mentions and event extraction |
 | EC DAY001 daily reports | CSV of DAY001 rows | Comments read by Claude into links and events |
 | EC downtime / deferment | CSV: `downtime` with reason codes, lost oil, comments | EC database views |
-| DCS alarms, IOW registers | CSV exports landed as point limits; the DCS alarm and event journal (`dcs_alarm_journal`) as events the alarm analyses count | DCS and AF limit traits read live |
+| DCS alarms, IOW registers | CSV exports landed as point limits; the DCS alarm and event journal (`dcs_alarm_journal`) as events the alarm analyses count; the DCS loop list (`dcs_loops`) as control loops owning their PV, SP, OP and mode points | DCS and AF limit traits read live |
 | Lab, well tests, inspection | LIMS results, EC well tests, CML readings as measurements; in-line inspection features (`ili_features`) at a station along a line, linked to the segment that holds it (graph/positions.py, #61) | Vendor ILI deliverables (pipeline listings) |
 | Drilling and completions | Directional surveys as CSV (`well_surveys`) or WITSML 1.4.1 trajectories (`witsml_trajectories`, feet or metres), turned into each well's trajectory by minimum curvature; completion components (`well_completions`) by measured depth, with true vertical depth from the survey (graph/positions.py, #61) | WITSML 2.x, LAS logs, a well data store's API |
 | GIS | GeoJSON wells, facilities, pipelines; PODS-style route segments (`pods_segments`) by station, placed on the route with the line's length as its stationing | Feature services; PODS database views |

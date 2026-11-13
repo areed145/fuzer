@@ -482,6 +482,43 @@ ili_strength:
       expect: 220.70015
       says: "49 % deep, 131 mm long on 610 x 15.9 mm API 5L X65: modified B31G at a 517 MPa flow stress fails at 220.7 bar."
 
+co2_corrosion:
+  title: CO2 corrosion rate predicted against measured, per line
+  standard: "de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections"
+  practice: "log10(V mm/y) = 5.8 - 1710/T + 0.67 log10(fCO2), T the produced water's temperature at the line's sample point, fCO2 the CO2 partial pressure at the line's MOP times the fugacity coefficient; above the scaling temperature the rate is cut by the scale factor. The rate is uninhibited and water-wet, an upper bound. The out-of-step ratio is this registry's own screening choice; the sweet/sour boundary follows the common pCO2/pH2S rule of thumb."
+  tool: co2_corrosion_screen
+  inputs: [{name: Produced water temperature, unit: degC}, {name: Gas CO2, unit: "% mol"}, {name: Gas H2S, unit: ppmv}, {name: Maximum operating pressure, unit: barg}, {name: CML wall thickness readings, unit: mm}]
+  valid: Carbon steel production lines carrying produced water with CO2, where pCO2/pH2S is 500 or more. pH, chloride, bicarbonate and iron are reported, not modelled.
+  needs: Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison.
+  thresholds:
+    out_of_step: {value: 2, means: "A line whose measured share of its prediction is over this many times its peers' median corrodes out of step.", code: "fuzer.analysis.co2_corrosion:OUTLIER_RATIO"}
+    sour: {value: 500, means: "pCO2/pH2S under this: H2S takes part, and the CO2 model gives no prediction.", code: "fuzer.analysis.co2_corrosion:SOUR_RATIO"}
+  vectors:
+    - kernel: fuzer.analysis.co2_corrosion:predicted_rate
+      args: [55.0, 71.0, 2.1]
+      expect: {rate_mm_per_year: 4.46391, pco2_bar: 1.491, scale_factor: 1.0}
+      says: "55 degC water at 71 bara with 2.1 % mol CO2: pCO2 1.49 bar, fugacity 0.83, below the scaling temperature, 4.46 mm/y uninhibited."
+
+vibration_spectra:
+  title: Vibration spectrum against fault frequencies (bearing defects, 1x, 2x)
+  standard: "ISO 13373-3 (vibration condition monitoring: diagnostics); rolling element bearing defect frequencies from bearing geometry"
+  practice: "BPFO = n/2 fr (1 - d/D cos a), BPFI = n/2 fr (1 + d/D cos a), BSF = D/(2d) fr (1 - (d/D cos a)^2), FTF = fr/2 (1 - d/D cos a). A bearing defect is indicated when two of its first three harmonics stand above the floor, not counting a harmonic on a whole order of running speed; 2x high against 1x reads misalignment, 1x dominant reads unbalance. The amplitudes and ratios are this registry's own screening choices."
+  tool: vibration_spectra
+  inputs: [{name: Spectrum peak table, unit: mm/s RMS}, {name: Running speed, unit: rpm}, {name: Bearing geometry (elements, element and pitch diameter, contact angle), unit: mm}]
+  valid: Rolling element bearings on machines a route collector measures, with the bearing's geometry in the point setup.
+  needs: Condition-monitoring spectra with running speed; bearing frequencies need the bearing geometry.
+  thresholds:
+    tolerance: {value: 1.5, unit: "%", means: "A peak within this share of a fault frequency sits on it.", code: "fuzer.analysis.vibration_spectra:TOLERANCE_PCT"}
+    amplitude: {value: 0.1, unit: "mm/s", means: "A peak under this is the spectrum's floor.", code: "fuzer.analysis.vibration_spectra:AMPLITUDE_MIN"}
+    harmonics: {value: 2, means: "Of the first three harmonics of a bearing frequency, this many must show.", code: "fuzer.analysis.vibration_spectra:BEARING_HARMONICS"}
+    misalignment: {value: 0.5, means: "2x over this share of 1x reads misalignment.", code: "fuzer.analysis.vibration_spectra:MISALIGN_RATIO"}
+    unbalance: {value: 0.9, means: "1x over this share of the overall level reads unbalance.", code: "fuzer.analysis.vibration_spectra:UNBALANCE_RATIO"}
+  vectors:
+    - kernel: fuzer.analysis.vibration_spectra:bearing_frequencies
+      args: [3000, 8, 23.8, 100.0, 0]
+      expect: {bpfo: 152.4, bpfi: 247.6, ftf: 19.05}
+      says: "8 balls of 23.8 mm on a 100 mm pitch at 3000 rpm: BPFO 4 x 50 x 0.762 = 152.4 Hz, BPFI 247.6 Hz, cage 19.05 Hz."
+
 lead_in:
   title: Process values in the hours before an event against the hours before that
   practice: A before and after comparison of each measurement's mean and extreme around the event.

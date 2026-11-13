@@ -210,3 +210,12 @@ def test_no_dagster_yet():
 def test_health_route(instance):
     h = client_for(WithHeartbeat(instance)).get("/jobs/health").json()
     assert h["level"] == "red" and h["summary"].startswith("1 failed run in 24 h")
+
+
+def test_health_names_a_failing_sensor(instance, monkeypatch):
+    failed = SimpleNamespace(status=SimpleNamespace(value="FAILURE"))
+    monkeypatch.setattr(jobs, "_states", lambda inst: {"new_exports": (None, failed), "idle": (None, None)})
+    monkeypatch.setattr(jobs, "_runs", lambda *a, **k: [])
+    h = jobs.health(WithHeartbeat(instance), DEFS, check_rows=[])
+    assert h["level"] == "red" and h["failing_triggers"] == ["new_exports"]
+    assert h["summary"] == "new_exports failing, so the jobs it starts are not running"

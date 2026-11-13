@@ -1,0 +1,36 @@
+# DCS loop list (#355): one row per control loop, from the DCS configuration or the instrument index: the controller
+# tag, the item it holds, the final element it drives, and the PI points of its process value, setpoint, controller
+# output and mode, named as the site's historian names them. Each loop lands as one entity that owns its four points,
+# so a loop resolves as one thing; Fuzer only reads them, never writes to the historian or the DCS.
+source: dcs
+record_type: loop
+shape: records
+dataset: dcs_loops
+key: loop_tag
+entity:
+  kind: control_loop
+  fields:
+    - description
+    - controller
+    - final_element
+    - eng_units
+    - pv_point
+    - sp_point
+    - op_point
+    - mode_point
+links:
+  - rel: has_timeseries
+    when: pv_point
+    to: {kind: timeseries, from: pv_point, as: upper}
+  - rel: has_timeseries
+    when: sp_point
+    to: {kind: timeseries, from: sp_point, as: upper}
+  - rel: has_timeseries
+    when: op_point
+    to: {kind: timeseries, from: op_point, as: upper}
+  - rel: has_timeseries
+    when: mode_point
+    to: {kind: timeseries, from: mode_point, as: upper}
+  - rel: located_at
+    when: controlled_item
+    to: {kind: tag, from: controlled_item, as: tag}

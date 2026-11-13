@@ -134,6 +134,20 @@ kinds:
     group: Maintenance
     colour: "#6b8fa3"
     description: A point an operator reads or checks on a round, with its limits.
+  control_loop:
+    label: Control loop
+    group: Data
+    colour: "#5f9ea0"
+    description: >-
+      A control loop from the DCS loop list: its controller tag, the item it holds, its final element, and the PI
+      points of its process value, setpoint, controller output and mode, which resolve together through it.
+  vibration_spectrum:
+    label: Vibration spectrum
+    group: Maintenance
+    colour: "#7d8fb3"
+    description: >-
+      A condition-monitoring spectrum taken at a measurement point on a machine (a bearing, in a direction), with the
+      running speed, the bearing's geometry from the point's setup, and the spectrum's peaks.
   allocation_node:
     label: Allocation node
     group: Production
@@ -245,8 +259,10 @@ relations:
   located_at:
     label: located at
     view: physical
-    description: Manifolds and wells on the jacket or platform they are on; a scheduled activity and the plant it is planned on.
-    from: [allocation_node, well, activity]
+    description: >-
+      Manifolds and wells on the jacket or platform they are on; a scheduled activity and the plant it is planned on;
+      a control loop and the item it holds.
+    from: [allocation_node, well, activity, control_loop]
     to: [area, facility, tag, well]
   found_on:
     label: found on
@@ -343,8 +359,8 @@ relations:
   checks:
     label: checks
     view: maintenance
-    description: A round point and the equipment it reads or checks.
-    from: [round_point]
+    description: A round point, or a condition-monitoring spectrum, and the equipment it reads or checks.
+    from: [round_point, vibration_spectrum]
     to: [tag, equipment, area, facility]
   flows_to:
     label: flows to
@@ -381,8 +397,8 @@ relations:
   has_timeseries:
     label: has time series
     view: data
-    description: A tag or well and its PI points.
-    from: [tag, well]
+    description: A tag, well or control loop and its PI points.
+    from: [tag, well, control_loop]
     to: [timeseries]
   tests:
     label: tests

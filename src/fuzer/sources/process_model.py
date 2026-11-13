@@ -2,7 +2,7 @@
 
 A fake plant can describe itself in `process_model.json` in its data folder: its units (compressor trains,
 compressors, coolers, vessels, lift gas headers, jackets, wells, pumps, meters, valves, values a controller
-holds), which PI point measures which of their variables, and timed events (trips, shutdowns, a bearing
+holds, control loops with their setpoint, output and mode), which PI point measures which of their variables, and timed events (trips, shutdowns, a bearing
 wearing, a cooler fouling, a gas lift valve failing open, choke moves, hydrates, a control loop cycling). Values
 then follow from simple relations with first-order lags rather than being drawn per point, so causes lead effects:
 vibration before bearing temperature, a compressor trip before the lift gas header falls, the header before the
@@ -261,7 +261,7 @@ class Window:
                 r = u.get("recycle", 0.3)
                 ts = (1 - r) * ts + r * self.get(u["recycle_cooler"], "outlet_temperature")
             ratio = (u["p_discharge"] + 1) / (u["p_suction"] + 1)
-            td = (ts + 273.15) * ratio ** 0.27 - 273.15
+            td = (ts + 273.15) * ratio ** u.get("t_exponent", 0.27) - 273.15  # (k - 1) / (k eta_p) for its gas
             extra = sum((self.path(e["points"]) for e in self.ev(unit, "discharge_temperature")), np.zeros_like(self.t))
             vib_excess = np.maximum(self.get(unit, "vibration") - u.get("vibration", 2.2) * 1.3, 0)
             hot = run * (td + extra + 12 * self._surging(unit, 10)) + 3.5 * self.lag(vib_excess, 30)
@@ -646,6 +646,40 @@ class Window:
             v = run * v + (1 - run) * float(u.get("idle", u["value"]))
         noise = float(u.get("noise", 0.01 * abs(float(u["value"]))))
         return self.lag(v, float(u.get("tau", 10))) + self.cycles(unit) + noise * self.noise(unit + "c", 15)
+
+    def _loop(self, unit, u, var):
+        """A control loop (#355): its setpoint `sp`, controller output `op` (%), mode (1 auto, 0 manual) and process
+        value `pv`. In auto the output works against a slow load disturbance and holds the value at the setpoint.
+        `setpoint` events step the setpoint; `manual` events put it in manual with the output frozen at its normal
+        level, so the value wanders with the load; `saturate` events add a demand (a path, in % of output) the output
+        can't meet past 100 %, so the value falls away from the setpoint; `stiction` events make the valve stick and
+        slip: the output ramps (a triangle) while the value jumps between two levels (a square), every `period`
+        minutes."""
+        sp = np.full_like(self.t, float(u["sp"]))
+        for e in sorted(self.ev(unit, "setpoint"), key=lambda e: e["at"]):
+            sp = np.where(self.t >= minutes(e["at"]), float(e["to"]), sp)
+        if var == "sp":
+            return sp
+        manual = self.any_between(unit, "manual")
+        if var == "mode":
+            return 1 - manual
+        swing, gain = float(u.get("op_swing", 8.0)), float(u.get("gain", 0.15))
+        load = self.noise(unit + "load", 240)
+        demand = float(u["op"]) + swing * load + float(u.get("op_noise", 0.6)) * self.noise(unit + "o", 5)
+        demand = demand + sum((self.path(e["points"]) for e in self.ev(unit, "saturate")), np.zeros_like(self.t))
+        op = np.clip(demand, 0, 100)
+        pv = sp + float(u.get("pv_noise", 0.5)) * self.noise(unit + "p", 10)
+        pv = pv - gain * self.lag(np.maximum(demand - 100, 0), 30)  # what the pinned output can't deliver
+        op = np.where(manual > 0, float(u["op"]), op)
+        pv = pv + manual * gain * swing * load  # the load the frozen output no longer answers
+        for e in self.ev(unit, "stiction"):
+            on = self.between(e["start"], e.get("end"))
+            phase = (self.t - minutes(e["start"])) / float(e["period"])
+            tri = 2 * np.abs(2 * (phase % 1) - 1) - 1
+            op = np.where(on > 0, float(u["op"]) + float(e.get("op_amplitude", 4.0)) * tri, op)
+            pv = np.where(on > 0, sp + float(e["amplitude"]) * np.tanh(4 * np.sin(2 * math.pi * phase))
+                          + 0.3 * float(u.get("pv_noise", 0.5)) * self.noise(unit + "p", 10), pv)
+        return op if var == "op" else pv
 
     def _valve(self, unit, u, var):
         if var != "position":

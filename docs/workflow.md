@@ -379,7 +379,8 @@ Times are in the project's timezone.
 | `studies_job` | every 5 minutes | Queued correlation and clustering studies |
 | `source_health` | every 30 minutes | Stale, failed or held sources and failing checks become work items for their owners |
 | `providers_poll` | every 15 minutes | Each polled detection provider's alert table, read when it has changed |
-| `alert_on_failure` sensor | on any failed run | Posts it to the alert webhook (`alerts.webhook`) |
+| `alert_on_failure` sensor | on any failed run | Posts it to the alert webhook (`alerts.webhook`) with its project and a link to the run |
+| `alert_on_tick_failure` sensor | every 5 minutes | Posts a sensor or schedule whose latest evaluation failed, once per failure; it starts no run, so nothing else would say. The Jobs page turns red and names it |
 
 Asset checks: on the register (review backlog, PI points attached, tags in SAP, downtime reason codes, document
 revisions, flow against piping) and on each source asset (its dataset's checks and health).

@@ -1,0 +1,7 @@
+# Condition-monitoring system exports: vibration spectra by measurement point, with each point's bearing setup.
+# A built-in source pack (P1.5): the datasets name built-in mapping files and readers, assembled by
+# fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
+fuzer_source_pack: 1
+system: {name: cms}
+datasets: [cms_spectra]
+optional: [cms_spectra]
