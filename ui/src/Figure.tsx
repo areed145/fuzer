@@ -8,6 +8,7 @@ import { api, type FigureData } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
 import { Button, Table , Card as UICard, Badge as UIBadge, Disclosure } from "./ui";
 import { useTheme } from "./theme";
+import { PLOTLY_CONFIG } from "./plotlyConfig";
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -48,10 +49,7 @@ export function FigureView({ id }: { id: string }) {
     let gone = false;
     import("plotly.js-cartesian-dist-min").then(({ default: Plotly }) => {
       if (gone) return;
-      Plotly.react(node, d.spec.data, themed(d.spec.layout), {
-        responsive: true, displaylogo: false, modeBarButtonsToRemove: ["select2d", "lasso2d"],
-        toImageButtonOptions: { filename: `${d.kind}-${d.id}` },
-      }).then(() => {
+      Plotly.react(node, d.spec.data, themed(d.spec.layout), PLOTLY_CONFIG).then(() => {
         node.on?.("plotly_click", (e: any) => {
           const p = e.points?.[0];
           const target = p?.customdata ?? p?.data?.meta?.entity;

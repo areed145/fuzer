@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { FigureData } from "../api";
 import { themed } from "../Figure";
+import { PLOTLY_CONFIG } from "../plotlyConfig";
 import { useTheme } from "../theme";
 
 type Spec = FigureData["spec"];
-const CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["select2d", "lasso2d"] };
 
 /** Bars with long labels run down the page below the width the figure asks for. */
 function forWidth(spec: Spec, width: number): Spec {
@@ -21,9 +21,9 @@ function forWidth(spec: Spec, width: number): Spec {
 }
 
 /** A server-built figure in the page's theme: colours, fonts and colorway all come from `themed`. */
-export function PlotlyChart({ spec, label, onPoint, onZoom, bare = false }: {
-  spec: Spec; label: string; onPoint?: (customdata: unknown) => void; bare?: boolean;
-  /** Told whether the time axis is zoomed, so a page without the toolbar can offer its own reset. */
+export function PlotlyChart({ spec, label, onPoint, onZoom }: {
+  spec: Spec; label: string; onPoint?: (customdata: unknown) => void;
+  /** Told whether the time axis is zoomed, so a page can offer its own reset (no chart has the toolbar). */
   onZoom?: (zoomed: boolean) => void;
 }) {
   const element = useRef<HTMLDivElement>(null);
@@ -43,7 +43,7 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, bare = false }: {
         const shaped = forWidth(spec, available);
         // On touch screens a drag scrolls the page; zooming stays a mouse gesture.
         const layout = themed({ ...shaped.layout, ...(matchMedia("(pointer: coarse)").matches ? { dragmode: false } : {}) });
-        return Plotly.react(node, shaped.data, layout, bare ? { ...CONFIG, displayModeBar: false } : CONFIG);
+        return Plotly.react(node, shaped.data, layout, PLOTLY_CONFIG);
       };
       let width = node.parentElement?.clientWidth ?? 0;
       await draw(width);
@@ -67,7 +67,7 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, bare = false }: {
       dispose = () => observer.disconnect();
     }).catch((failure: Error) => { if (!gone) setError(failure.message); });
     return () => { gone = true; dispose?.(); purge?.(); };
-  }, [spec, theme, onPoint, onZoom, bare]);
+  }, [spec, theme, onPoint, onZoom]);
   return <>
     {error && <p className="error" role="alert">Chart unavailable: {error}. Use the data table below.</p>}
     <div ref={element} style={{ minHeight: spec.layout.height ?? 340 }} role="img" aria-label={label} />
