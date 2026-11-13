@@ -216,6 +216,29 @@ def project_roles_update(account_id: str, project: str, body: ProjectRoles, requ
     return {"ok": True}
 
 
+class AreaGrants(BaseModel):
+    areas: list[str] = Field(max_length=500)
+
+
+@router.put("/accounts/{account_id}/projects/{project}/areas")
+def areas_update(account_id: str, project: str, body: AreaGrants, request: Request):
+    """Narrow an account to areas of one project's register (owners only; an empty list gives back the whole
+    project). Reading is never narrowed; acting on work outside the areas is refused at the server (D7)."""
+    person = _owner(request)
+    csrf_check(request, person)
+    with db.connect() as conn:
+        try:
+            scope = projects.scope(conn, project)
+        except projects.ProjectError as e:
+            raise HTTPException(404, str(e)) from None
+    try:
+        with db.use(scope), db.connect() as conn:
+            access.set_areas(conn, person, account_id, project, body.areas)
+    except access.AccessError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True}
+
+
 @router.get("/audit")
 def audit_export(request: Request, project: str | None = None, since: datetime | None = None,
                  until: datetime | None = None, format: Literal["json", "csv"] = "json",

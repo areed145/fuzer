@@ -254,6 +254,10 @@ def accounts(conn):
     for row in rows:
         row["roles"] = list(principal(conn, row["id"]).roles)
         row["projects"] = project_roles(conn, row["id"])
+        row["areas"] = {}
+        for r in conn.execute("select project, area from access_area_grant where account_id = %s order by project, area",
+                              (row["id"],)):
+            row["areas"].setdefault(r["project"], []).append(r["area"])
         row["actor"] = ACTOR_PREFIX + row["id"]
     return rows
 
@@ -297,3 +301,68 @@ def set_role(conn, by: Principal, name: str, description: str, permissions: list
                  (name, description, sorted(set(permissions))))
     event(conn, by.actor, "application_role_set", name=name, permissions=permissions)
     conn.commit()
+
+
+# Containment in the register, child to parent (D7): a tag is part of an area, equipment is installed at a tag, a well
+# is located at a platform. Current edges only.
+CONTAINMENT = ("part_of", "installed_at", "located_at")
+
+
+def areas(conn, account_id: str, project: str | None = None) -> list[str]:
+    """The areas an account is narrowed to in `project` (default: the request's); [] means the whole project."""
+    from . import db
+
+    project = project or db.scope().project or _default_project(conn)
+    return [r["area"] for r in conn.execute(
+        "select area from access_area_grant where account_id = %s and project = %s order by area",
+        (account_id, project))]
+
+
+def set_areas(conn, by: Principal, account_id: str, project: str, area_ids: list[str]):
+    """Narrow an account to areas of one project's register (owners only; [] gives back the whole project). `conn`
+    must run for `project`, so the areas are checked against its register."""
+    if not by.enabled or not by.owner:
+        raise AccessError("Only an owner can grant application access")
+    if conn.execute("select 1 from access_account where id = %s", (account_id,)).fetchone() is None:
+        raise AccessError("Unknown account")
+    wanted = sorted(set(area_ids))
+    known = {r["fuzer_id"] for r in conn.execute(
+        "select fuzer_id from entity where fuzer_id = any(%s) and kind in ('area', 'facility') and merged_into is null",
+        (wanted,))}
+    if set(wanted) - known:
+        raise AccessError("Unknown area: " + ", ".join(sorted(set(wanted) - known)))
+    conn.execute("delete from access_area_grant where account_id = %s and project = %s", (account_id, project))
+    for area in wanted:
+        conn.execute("insert into access_area_grant (account_id, project, area) values (%s, %s, %s)",
+                     (account_id, project, area))
+    event(conn, by.actor, "areas_set", account_id=account_id, project=project, areas=wanted)
+    conn.commit()
+
+
+def within(conn, subjects: list[str], area_ids: list[str]) -> bool:
+    """Whether any of `subjects` sits inside one of `area_ids`, walking the register's containment upwards."""
+    if not subjects or not area_ids:
+        return False
+    row = conn.execute(
+        """
+        with recursive up(id, depth) as (
+            select coalesce(e.merged_into, s.id), 0 from unnest(%(subjects)s::text[]) as s(id)
+                left join entity e on e.fuzer_id = s.id
+            union
+            select g.dst, up.depth + 1 from up join edge g on g.src = up.id
+            where g.rel = any(%(rels)s) and (g.valid_to is null or g.valid_to >= current_date) and up.depth < 12
+        )
+        select exists (select 1 from up where id = any(%(areas)s)) as inside
+        """, {"subjects": subjects, "areas": area_ids, "rels": list(CONTAINMENT)}).fetchone()
+    return bool(row["inside"])
+
+
+def may_act_on(conn, person: Principal, subjects: list[str]) -> bool:
+    """D7: an owner, or a person with no area grants here, may act on anything they otherwise may. A person narrowed
+    to areas may act on work about something inside one of them, or on work about nothing in the register."""
+    if person.owner:
+        return True
+    granted = areas(conn, person.id, person.project)
+    if not granted:
+        return True
+    return not subjects or within(conn, subjects, granted)

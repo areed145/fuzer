@@ -554,3 +554,66 @@ def test_audit_record_is_owner_only_and_per_project(runtime, second_project):
     assert client.get("/auth/audit", params={"project": "nowhere"}).status_code == 404
     cov = client.get("/auth/audit/coverage").json()
     assert cov["unpaired"] == [] and cov["excluded"]
+
+
+def _area_and_two_subjects(conn):
+    """An area of the register, something inside it, and something in another area."""
+    inside = conn.execute(
+        "select e.src, e.dst from edge e join entity t on t.fuzer_id = e.dst where t.kind = 'area' "
+        "and e.rel = 'part_of' order by e.dst, e.src limit 1").fetchone()
+    other = conn.execute(
+        "select e.src from edge e join entity t on t.fuzer_id = e.dst where t.kind = 'area' and e.rel = 'part_of' "
+        "and e.dst <> %s order by e.src limit 1", (inside["dst"],)).fetchone()
+    return inside["dst"], inside["src"], other["src"]
+
+
+def test_area_grants_narrow_what_a_person_acts_on_never_what_they_read(runtime):
+    client = runtime
+    person, person_token = signed_in(client, roles=("operator",), subject=str(uuid.UUID(int=31)))
+
+    def be(who, token):
+        client.cookies.set("__Host-fuzer_session", token, domain="testserver.local", path="/")
+        client.headers["X-Fuzer-CSRF"] = who.csrf
+
+    with db.connect() as conn:
+        area, mine, theirs = _area_and_two_subjects(conn)
+        work.set_person(conn, person.actor, ["engineer"])
+        here = work.create_item(conn, "test", "In my area", "system", role="engineer", subjects=[mine])
+        there = work.create_item(conn, "test", "Next area over", "system", role="engineer", subjects=[theirs])
+        nowhere = work.create_item(conn, "test", "Facility-wide", "system", role="engineer")
+
+    def comment(item):
+        return client.post(f"/work/items/{item['id']}/comment", json={"by": "system", "text": "On it"}).status_code
+
+    assert comment(there) == 200  # no area grants: the whole project, as before
+    r = client.put(f"/auth/accounts/{person.id}/projects/okan/areas", json={"areas": [area]})
+    assert r.status_code == 403  # only an owner grants access
+    owner, owner_token = signed_in(client, owner=True, roles=(), subject=str(uuid.UUID(int=32)))
+    with db.connect() as conn:
+        project = access._default_project(conn)
+    assert client.put(f"/auth/accounts/{person.id}/projects/{project}/areas",
+                      json={"areas": ["fz-not-an-area"]}).status_code == 400
+    assert client.put(f"/auth/accounts/{person.id}/projects/{project}/areas", json={"areas": [area]}).status_code == 200
+    admin = client.get("/auth/access").json()
+    assert next(a for a in admin["accounts"] if a["id"] == person.id)["areas"] == {project: [area]}
+    assert comment(there) == 200  # an owner spans every area
+
+    be(person, person_token)
+    assert comment(here) == 200
+    assert comment(nowhere) == 200  # work about nothing in the register is shared
+    r = client.post(f"/work/items/{there['id']}/comment", json={"by": "system", "text": "On it"})
+    assert r.status_code == 403 and "outside your areas" in r.json()["detail"]
+    assert client.get(f"/work/items/{there['id']}").status_code == 200  # reading is never narrowed
+    with db.connect() as conn:
+        tokens = conn.execute("select id from work_token where item_id = %s", (there["id"],)).fetchall()
+        assert access.may_act_on(conn, access.principal(conn, person.id), [mine])
+        assert not access.may_act_on(conn, access.principal(conn, person.id), [theirs])
+        events = conn.execute("select actor, project from access_event where action = 'areas_set'").fetchall()
+        assert [(e["actor"], e["project"]) for e in events] == [(owner.actor, project)]  # in that project's record
+    for t in tokens:
+        assert client.post(f"/work/tasks/{t['id']}/claim", json={"by": "system"}).status_code == 403
+
+    be(owner, owner_token)
+    assert client.put(f"/auth/accounts/{person.id}/projects/{project}/areas", json={"areas": []}).status_code == 200
+    be(person, person_token)
+    assert comment(there) == 200  # no areas again: the whole project

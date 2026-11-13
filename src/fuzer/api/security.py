@@ -222,6 +222,8 @@ class AuthenticatedRoute(APIRoute):
                 row = conn.execute("select item_id from work_process where id = %s", (process_id,)).fetchone()
                 if row:
                     self._item(conn, person, row["item_id"])
+            if request.method not in ("GET", "HEAD") and params.get("exception_id"):
+                self._exception(conn, person, params["exception_id"])
             if self.path == "/work/tasks/bulk-complete":
                 for task_id in getattr(request.state, "task_ids", []):
                     self._task(conn, person, task_id)
@@ -239,11 +241,23 @@ class AuthenticatedRoute(APIRoute):
             item_id = int(item_id)
         except (ValueError, TypeError) as e:
             raise HTTPException(422, "Expected a numeric item identifier") from e
-        row = conn.execute("select role, assignee from work_item where id = %s", (item_id,)).fetchone()
+        row = conn.execute("select role, assignee, subjects from work_item where id = %s", (item_id,)).fetchone()
+        if row and not access.may_act_on(conn, person, row["subjects"]):
+            raise HTTPException(403, AREA_REFUSAL)
         if row and row["role"] and row["role"] not in roles_of(conn, person.actor):
             raise HTTPException(403, "This case needs its assigned workflow role")
         if row and row["assignee"] and row["assignee"] != person.actor and not person.allows("configure"):
             raise HTTPException(403, "This case is assigned to another person")
+
+    @staticmethod
+    def _exception(conn, person, exception_id):
+        try:
+            exception_id = int(exception_id)
+        except (ValueError, TypeError) as e:
+            raise HTTPException(422, "Expected a numeric exception identifier") from e
+        row = conn.execute("select subjects from exception_record where id = %s", (exception_id,)).fetchone()
+        if row and not access.may_act_on(conn, person, row["subjects"]):
+            raise HTTPException(403, AREA_REFUSAL)
 
     @staticmethod
     def _task(conn, person, task_id):
@@ -252,13 +266,18 @@ class AuthenticatedRoute(APIRoute):
             task_id = int(task_id)
         except (ValueError, TypeError) as e:
             raise HTTPException(422, "Expected a numeric task identifier") from e
-        row = conn.execute("select role, kind, assignee from work_token where id = %s", (task_id,)).fetchone()
+        row = conn.execute("select t.role, t.kind, t.assignee, i.subjects from work_token t "
+                           "left join work_item i on i.id = t.item_id where t.id = %s", (task_id,)).fetchone()
+        if row and not access.may_act_on(conn, person, row["subjects"] or []):
+            raise HTTPException(403, AREA_REFUSAL)
         if row and row["kind"] != "agent" and row["role"] and row["role"] not in roles_of(conn, person.actor):
             raise HTTPException(403, "This step needs its assigned workflow role")
         if row and row["kind"] == "agent" and not person.allows("configure"):
             raise HTTPException(403, "An administrator must hand off automated steps before a person takes over")
 
 
+AREA_REFUSAL = ("This work is on plant outside your areas. You can still read it; ask an owner to add the area, "
+                "or hand it to its area's queue.")
 PROJECT_HEADER = "x-fuzer-project"
 PROJECT_QUERY = "fuzer_project"  # links the browser opens itself (a document, a full-size figure) can't send headers
 

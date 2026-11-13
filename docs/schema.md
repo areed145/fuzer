@@ -65,6 +65,16 @@ Application roles in a project other than the database's first one (whose roles 
 | `project` | text |  |
 | `role` | text |  |
 
+### `access_area_grant`
+
+Area grants (R.7, D7): narrow what an account may act on in one project to areas of its register (area or facility fuzer ids). No rows: the whole project. Reading is never narrowed.
+
+| Column | Type | Note |
+|---|---|---|
+| `account_id` | text |  |
+| `project` | text |  |
+| `area` | text |  |
+
 ### `access_login`
 
 | Column | Type | Note |

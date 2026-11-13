@@ -72,6 +72,17 @@ deployment-wide: they join the record of each project the account can open, and 
 the database's first project. Every export is itself an access event. `tests/core/test_audit.py` fails when a new
 actor column joins the schema without a time column or an exclusion.
 
+## Area grants (D7)
+
+An owner can narrow an account, in one project, to areas of the register (an area or facility):
+`PUT /auth/accounts/{id}/projects/{project}/areas`. With no area grants a person acts across the whole project, as
+before. With them, they still read everything, but the server refuses their actions on a case, step, process or
+exception whose subjects all sit outside their areas, found by walking the register's containment upwards
+(`part_of`, `installed_at`, `located_at`). Work about nothing in the register (facility-wide work) stays shared, and
+owners span every area. The check sits beside the workflow-role check at the server's work boundary
+(`api/security.py`), so it applies to every route that acts on work; each change is an `areas_set` access event in
+the project's audit record.
+
 ## What this means for the code today
 
 These hold now and are checked by `tests/architecture/test_read_write_paths.py`:
