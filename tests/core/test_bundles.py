@@ -22,7 +22,7 @@ KESTREL_DATASETS = {
     "sap_floc", "sap_equipment", "pi_points", "maximo_assets", "pi_af",
     "sap_notifications", "sap_work_orders", "sap_maintenance_plans", "sap_bom", "sap_materials", "sap_purchase_orders", "sap_work_centers", "ptw_permits", "ptw_isolations", "rounds_points", "teams_threads",
     "safeguard_register", "safeguard_bypasses", "safeguard_demands", "moc_changes",
-    "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
+    "oplogs", "ec_downtime", "dcs_alarms", "dcs_alarm_journal", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
     "gis_facilities", "gis_pipelines", "gis_wells"}
 KESTREL_ENTITIES = 416  # with 14 closed permits (P6.5), Operator rounds points, 4 Teams threads (P5.8),
@@ -155,8 +155,11 @@ def test_kestrels_sources_name_only_tags_its_register_holds():
     x = KESTREL / "exports"
     pack = bundles.read(KESTREL)["pack"]
     flocs = {pack.tags.parse(r["floc"]) for r in csv.DictReader((x / "sap_floc.csv").open())} - {None}
+    from fuzer.sources import ingest
+
+    sheets = [s for _, _, _, s in ingest._pid_sheets(x / "pid_sheets.json")]  # a DEXPI sheet read from its file
     named = set()
-    for s in json.loads((x / "pid_sheets.json").read_text()):
+    for s in sheets:
         named |= set(s["tags"]) | {c[e] for c in s["connections"] for e in ("from", "to")}
     named |= {t for d in json.loads((x / "documents.json").read_text()) for t in d.get("tags", [])}
     for name, col in [("sap_notifications", "floc"), ("sap_work_orders", "floc"), ("sap_maintenance_plans", "floc"),
@@ -164,7 +167,7 @@ def test_kestrels_sources_name_only_tags_its_register_holds():
                       ("inspection_readings", "tag")]:
         named |= {r[col] for r in csv.DictReader((x / f"{name}.csv").open()) if r[col]}
     assert {pack.tags.parse(t) for t in named} <= flocs
-    on_drawings = {pack.tags.parse(t) for s in json.loads((x / "pid_sheets.json").read_text()) for t in s["tags"]}
+    on_drawings = {pack.tags.parse(t) for s in sheets for t in s["tags"]}
     assert flocs <= on_drawings  # and every tag in the register is on a P&ID
 
 
@@ -175,15 +178,19 @@ def test_kestrels_drawings_match_its_p_and_id_sheets(tmp_path):
     import shutil
 
     from fakeplant import drawings
+    from fuzer.sources import ingest
 
     committed = json.loads((KESTREL / "exports" / "pid_sheets.json").read_text())
-    for s in committed:
-        assert (KESTREL / "exports" / s["image"]).is_file()
-        assert set(s["positions"]) == set(s["tags"])
+    for s in ingest._pid_sheets(KESTREL / "exports" / "pid_sheets.json"):  # a DEXPI sheet's positions are in its file
+        assert (KESTREL / "exports" / s[3]["image"]).is_file()
+        assert set(s[3]["positions"]) == set(s[3]["tags"])
     copy = tmp_path / "kestrel"
     shutil.copytree(KESTREL, copy, ignore=shutil.ignore_patterns("*.png"))
     drawings.render(copy)
     assert json.loads((copy / "exports" / "pid_sheets.json").read_text()) == committed
+    for s in committed:
+        if s.get("dexpi"):
+            assert (copy / "exports" / s["dexpi"]).read_text() == (KESTREL / "exports" / s["dexpi"]).read_text()
 
 
 # ---- acceptance: Kestrel boots from its bundle in a fresh database ----------------------------------

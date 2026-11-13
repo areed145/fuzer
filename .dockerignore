@@ -11,3 +11,4 @@
 ui/node_modules
 ui/dist
 fakeplant/data
+evals/pid2graph
