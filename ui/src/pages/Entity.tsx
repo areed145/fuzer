@@ -32,6 +32,7 @@ import { MeasurementsCard } from "../Trend";
 import { TrendView } from "../TrendView";
 import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
+import { EntityStatus } from "../EntityStatus";
 import { WatchButton } from "../Watch";
 import { Related } from "../Related";
 import { kindColor } from "../kinds";
@@ -153,6 +154,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
       {view === "overview" && (
         <>
+          {operated && <EntityStatus id={fid} />}
           {operated && <WorkHere id={fid} area={e.kind === "area"} />}
           {e.kind === "incident" && <IncidentDetail id={fid} />}
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
