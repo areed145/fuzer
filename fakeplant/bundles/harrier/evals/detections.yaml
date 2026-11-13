@@ -76,3 +76,5 @@ detectors:
   well_tests: {not_here: "a pipeline and terminal has no wells to test"}
   gas_lift_instability: {not_here: "a pipeline and terminal has no wells on gas lift"}
   flare_events: {not_here: "no flare flow is metered and no daily report states a flare volume"}
+  repeat_leaks: {not_here: "no LDAR survey export"}
+  gas_balance_gaps: {not_here: "its daily report carries no fuel gas"}

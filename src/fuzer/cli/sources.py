@@ -196,8 +196,10 @@ def run(conn, pack, data: Path, args) -> object:
             out = catalog.update_system(conn, _need(args, 1, "a system name")[0], by, why, **_pairs(args.set))
         elif a == "add-connection":
             system, name, type_ = _need(args, 3, "a system, a connection name and its type")[:3]
+            zone = _pairs(args.set)  # --set class=business --set direction=read (D4)
             out = catalog.add_connection(conn, system, name, type_, by, _pairs(args.config),
-                                         {k: str(v) for k, v in _pairs(args.secret).items()}, why)
+                                         {k: str(v) for k, v in _pairs(args.secret).items()}, why,
+                                         cls=zone.get("class"), direction=zone.get("direction"))
         elif a == "edit-connection":
             cid = int(_need(args, 1, "a connection id")[0])
             old = catalog.connection(conn, cid) or {}

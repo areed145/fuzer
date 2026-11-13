@@ -41,6 +41,8 @@ export interface SourceHealth {
 
 export interface CatalogConnection {
   id: number; name: string; type: string; enabled: boolean; config: Json; display?: string;
+  /** Its zone and direction (D4): a control or control-adjacent connection is only read. */
+  class?: "control" | "control_adjacent" | "business" | null; direction?: "read" | "write";
   secrets: Record<string, { ref: string; resolves: boolean }>; last_tested_at: string | null; last_test: ConnectionTest | null;
 }
 

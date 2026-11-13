@@ -5,8 +5,9 @@ values), and each of its datasets with how it loads, the mapping in use and its 
 
     fuzer_source_pack: 1
     system: {name: planning, kind: planning, date_format: "%d/%m/%Y", ...}
-    connections:
-      - {name: export, type: folder, config: {path: /lake}, secrets: {}, enabled: true}
+    connections:                      each with its class and direction (D4, docs/ot-security.md)
+      - {name: export, type: folder, config: {path: /lake}, secrets: {}, enabled: true, class: business,
+         direction: read}
     datasets:
       - name: project_schedules
         connection: export
@@ -156,14 +157,15 @@ def import_pack(conn, text: str, by: str, reason: str | None = None,
         if c["name"] in have:
             old = have[c["name"]]
             want = {"type": c["type"], "config": cfg, "secrets": c.get("secrets") or {},
-                    "enabled": c.get("enabled", True)}
+                    "enabled": c.get("enabled", True), **{k: c[k] for k in ("class", "direction") if c.get(k)}}
             if any(old.get(k) != v for k, v in want.items()):
                 entities.update_connection(conn, old["id"], by, reason, **want)
                 report["connections"].append(c["name"])
             else:
                 report["unchanged"].append(f"connection {c['name']}")
         else:
-            row = entities.add_connection(conn, name, c["name"], c["type"], by, cfg, c.get("secrets"), reason)
+            row = entities.add_connection(conn, name, c["name"], c["type"], by, cfg, c.get("secrets"), reason,
+                                          cls=c.get("class"), direction=c.get("direction"))
             if c.get("enabled") is False:
                 entities.update_connection(conn, row["id"], by, reason, enabled=False)
             report["connections"].append(c["name"])

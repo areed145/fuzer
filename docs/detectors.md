@@ -32,6 +32,8 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`alarm_performance`](#alarm_performance) Alarm floods and bad actors against ISA-18.2 and EEMUA 191 | Rule | Once a day | `alarm_flood`, `alarm_bad_actor` | Any asset with the inputs |
 | [`deviation_reviews`](#deviation_reviews) A named deviation from the operating model past its review date | Rule | Once a day | `deviation_review_due` | Any asset with the inputs |
 | [`watch`](#watch) What looks unusual in a process area that no detector raised (agentic, in shadow) | Agentic | Once a day |  | Any asset with the inputs |
+| [`repeat_leaks`](#repeat_leaks) A leak repair that does not hold: leaking in consecutive LDAR surveys | Rule | Once a day | `repeat_leak` | Any asset with the inputs |
+| [`gas_balance_gaps`](#gas_balance_gaps) The daily gas balance staying open for days: a meter likely off | Rule | Once a day | `gas_balance_gap` | Any asset with the inputs |
 
 ## excursions
 
@@ -340,3 +342,23 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Setting `watch.max_usd`:** Model spend cap per agentic watch run, all areas (USD) (default 2.0)
 - **Setting `watch.max_areas`:** Process areas the agentic watch reads per run (default 12)
 - **Scored by:** `tests/ops/test_watch.py::test_the_watch_in_shadow_keeps_proposals_and_routes_nothing`, on the fake plant
+
+## repeat_leaks
+
+**A leak repair that does not hold: leaking in consecutive LDAR surveys.** Each component still leaking after consecutive surveys raised as `repeat_leak` for the engineer (keyed by tag and component); open ones now screening clean are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `repeat_leak`
+- **Needs:** LDAR survey readings
+- **Scored by:** `tests/ops/test_emissions.py::test_a_leak_found_in_consecutive_surveys_is_work_until_it_screens_clean`, on the fake plant
+
+## gas_balance_gaps
+
+**The daily gas balance staying open for days: a meter likely off.** The gas balance open for `GAP_DAYS` days running to the latest report raised as `gas_balance_gap` for the engineer (keyed by the day it opened); an open one is cleared once a day closes again.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `gas_balance_gap`
+- **Needs:** fuel gas on the daily report
+- **Scored by:** `tests/ops/test_emissions.py::test_a_gas_balance_open_for_days_is_work_until_it_closes`, on the fake plant

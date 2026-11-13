@@ -292,6 +292,9 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
   return (
     <div className="small conn">
       <code>{c.name}</code> {c.type} <span className="muted">{c.display ?? JSON.stringify(c.config)}</span>{" "}
+      {c.class && <span className="muted" title="The connection's zone and direction (OT security, D4)">
+        {c.class === "control_adjacent" ? "control-adjacent" : c.class}, {c.direction === "write" ? "reads and writes" : "read only"}
+      </span>}{" "}
       {Object.entries(c.secrets).map(([k, v]) => (
         <UIBadge key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</UIBadge>
       ))}{" "}

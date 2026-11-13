@@ -124,7 +124,7 @@ What each later epic must do:
 | Epic | Must |
 |---|---|
 | P5.7 Write-back queue | Be the only module that sends to an external system. Refuse a target whose connection is not `business` and `write`. Hold its write credentials apart from every collector's. |
-| P3.7 Source packs | Declare each connection's class and direction (D4) in the pack. |
+| P3.7 Source packs | Declare each connection's class and direction (D4) in the pack. Done (#936): a connection stores both, its class defaults by its system's kind (a historian is control-adjacent), a control or control-adjacent one cannot be set to write, and conformance fails a pack that doesn't declare them. |
 | P7.5 Across assets | Read through the person's project grants (D6) and name the projects left out. |
 | P4.4 Agents as accountable workers | Give agents no permission beyond read and propose, checked at the server on every surface (D8). |
 | R.5 Access, audit and retention | Keep the audit record per project and export it per project (D9). |

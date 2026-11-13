@@ -5,4 +5,4 @@ fuzer_source_pack: 1
 system: {name: ec}
 datasets: [ec_network, ec_downtime, ec_well_tests, ec_day001, ec_downtime_reasons, ec_injection, ec_pressure_surveys]
 optional: [ec_day001, ec_downtime_reasons, ec_injection, ec_pressure_surveys]
-detectors: [opportunities]
+detectors: [opportunities, gas_balance_gaps]

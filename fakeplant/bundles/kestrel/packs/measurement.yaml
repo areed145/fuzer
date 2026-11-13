@@ -17,6 +17,8 @@ connections:
     path: fakeplant/bundles/kestrel/measurement
   secrets: {}
   enabled: true
+  class: business
+  direction: read
 datasets:
 - name: daily_volumes
   connection: export
