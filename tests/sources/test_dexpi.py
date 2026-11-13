@@ -80,3 +80,26 @@ def test_dexpi_2_reads_tags_and_anything_else_is_refused(tmp_path):
     (tmp_path / "x.xml").write_text("<Drawing/>")
     with pytest.raises(ValueError, match="not a DEXPI file"):
         dexpi.read(tmp_path / "x.xml")
+
+
+@pytest.mark.unit
+def test_a_dexpi_sheet_and_its_scanned_twin_agree_and_their_differences_are_named():
+    pack = bundles.read(KESTREL)["pack"]
+    exact = dexpi.read(KESTREL / "exports" / "pid" / "KRGP-H1-PID-001.xml", "H1")
+    # The scan reading as the drawing reader leaves it (llm_pids.interpret): tags it linked, piping between them.
+    twin = {"mentions": [{"key": t} for t in exact["tags"]],
+            "connections": [{"from": c["from"], "to": c["to"]} for c in exact["connections"]]}
+    same = dexpi.compare(exact, twin, pack, "H1")
+    assert same["same"] and same["tags"]["both"] == ["H1-FT-8003", "H1-FT-8010", "H1-V-8001"]
+    assert len(same["connections"]["both"]) == 3
+
+    misread = {"mentions": [{"key": "H1-V-8001"}, {"key": "H1-FT-8003"}],  # missed FT-8010
+               "findings": [{"text": "FT-8011", "kind": "instrument", "key": "H1-FT-8011", "issue": "not in register"},
+                            {"text": "H1-V-8001 -> nowhere", "kind": "connection", "issue": "end not in register"}],
+               "connections": [{"from": "H1-FT-8003", "to": "H1-V-8001"},  # drawn the wrong way round
+                               {"from": "B1-PSV-2004", "to": "H1-V-8001"}]}  # and the A1 relief line missed
+    d = dexpi.compare(exact, misread, pack, "H1")
+    assert not d["same"]
+    assert d["tags"]["only_dexpi"] == ["H1-FT-8010"] and d["tags"]["only_scan"] == ["H1-FT-8011"]
+    assert d["connections"]["reversed"] == [("H1-V-8001", "H1-FT-8003")]
+    assert d["connections"]["only_dexpi"] == [("A1-PSV-1001", "H1-V-8001")] and d["connections"]["only_scan"] == []
