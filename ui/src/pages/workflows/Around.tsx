@@ -20,12 +20,13 @@ export function CaseAround({ id }: { id: number }) {
   const [unit, setUnit] = useState<string | null>(null);
   const d = around.data;
   if (!d?.window) return null;
-  const shown = unit ?? d.units[0]?.id;
+  const units = d.units ?? []; // an older server names none: the alarms and log still show
+  const shown = unit ?? units[0]?.id;
   return (
     <>
-      {d.units.length > 1 && (
+      {units.length > 1 && (
         <div className="chips" role="group" aria-label="Trend of">
-          {d.units.map((u) => (
+          {units.map((u) => (
             <Button key={u.id} className="chip" aria-pressed={u.id === shown} onClick={() => setUnit(u.id)}>{u.label ?? u.id}</Button>
           ))}
         </div>
