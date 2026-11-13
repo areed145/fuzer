@@ -1,0 +1,21 @@
+# CFIHOS handover equipment register (#63): the physical items delivered against each tag, matched on serial number
+# like any other equipment register, with their CFIHOS equipment class name.
+source: cfihos
+record_type: equipment
+shape: records
+dataset: cfihos_equipment
+key: equipment_number
+entity:
+  kind: equipment
+  key: {from: manufacturer_serial_number, as: serial}
+  block: {from: tag_number, as: tag}
+  fields:
+    - [description, {from: equipment_description}]
+    - [manufacturer, {from: manufacturer_company_name}]
+    - [model, {from: model_part_name}]
+    - [serial, {from: manufacturer_serial_number}]
+    - [cfihos_class, {from: equipment_class_name}]
+links:
+  - rel: installed_at
+    when: tag_number
+    to: {kind: tag, from: tag_number, as: tag}

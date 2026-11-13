@@ -1,0 +1,11 @@
+tag_number,tag_description,tag_class_name,plant_code,area_code
+G1-K-7001,Vapour Recovery Compressor,reciprocating compressor,HRPT,G1
+G1-V-7002,Vapour Recovery Suction Scrubber,pressure vessel,HRPT,G1
+G1-E-7003,Vapour Recovery Aftercooler,air cooled heat exchanger,HRPT,G1
+G1-LT-7002,Vapour Recovery Scrubber Level,level transmitter,HRPT,G1
+G1-PT-7004,Vapour Recovery Compressor Suction Pressure,pressure transmitter,HRPT,G1
+G1-PT-7005,Vapour Recovery Compressor Discharge Pressure,pressure transmitter,HRPT,G1
+G1-TT-7006,Vapour Recovery Compressor Discharge Temperature,temperature transmitter,HRPT,G1
+G1-VT-7007,Vapour Recovery Compressor Frame Vibration,vibration transmitter,HRPT,G1
+G1-ST-7008,Vapour Recovery Compressor Speed,speed transmitter,HRPT,G1
+G1-TT-7011,Vapour Recovery Aftercooler Outlet Temperature,temperature transmitter,HRPT,G1

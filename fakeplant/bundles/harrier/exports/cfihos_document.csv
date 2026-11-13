@@ -1,0 +1,5 @@
+document_number,document_revision_code,document_title,document_type_code,document_status_code
+HR-G1-DS-7001,0,Vapour recovery compressor datasheet,datasheet,AFC
+HR-G1-DS-7003,0,Vapour recovery aftercooler datasheet,datasheet,AFC
+HR-G1-GA-7000,1,Vapour recovery package general arrangement,drawing,AFC
+HR-G1-IL-7000,0,Vapour recovery package instrument index,instrument_index,AFC

@@ -69,6 +69,30 @@ class Taxonomy:
                     break
         return code if self.valid(code) else None
 
+    def classify_cfihos(self, name: str | None, description: str | None = None) -> str | None:
+        """Class (or class.type) code for a CFIHOS tag or equipment class name such as "reciprocating compressor"
+        (#63): the class whose CFIHOS name the given name is or ends with, then a type named in it ("air cooled
+        heat exchanger") or in the description. None when no class's CFIHOS name matches."""
+        words = " ".join(str(name or "").lower().replace("_", " ").split())
+        if not words:
+            return None
+        found = [(len(n), c) for c, info in self.classes.items() if (n := str(info.get("cfihos") or "").lower())
+                 and (words == n or words.endswith(" " + n))]
+        if not found:
+            return None
+        code = max(found)[1]
+        types = self.classes[code].get("types", {})
+        named = [(len(label), typ) for typ, label in types.items()
+                 if re.search(rf"\b{re.escape(label.lower())}\b", words)]
+        if named:  # the longest: "differential pressure transmitter" is DP, not PR
+            return f"{code}.{max(named)[1]}"
+        if description:
+            text = description.lower()
+            for word, typ in self.description_types.items():
+                if typ in types and re.search(rf"\b{re.escape(word)}\b", text):
+                    return f"{code}.{typ}"
+        return code
+
     def class_entities(self, used: set[str]) -> tuple[list[Candidate], list[Edge]]:
         """Entities for the used classes / types and everything above them, with is_a links."""
         cands, edges, seen = [], [], set()
@@ -130,7 +154,11 @@ def derive(pack: Pack, kinds: dict[str, str], golden: dict[str, dict], tag_keys:
     tag_class: dict[str, str] = {}
     for fid, key in tag_keys.items():
         g = golden.get(fid, {})
-        if code := tax.classify_tag(key, g.get("template"), g.get("description")):
+        # A class named in an engineering handover (CFIHOS, #63) is the designer's own: it stands over the one the
+        # tag's function code implies.
+        code = tax.classify_cfihos(g.get("cfihos_class"), g.get("description")) \
+            or tax.classify_tag(key, g.get("template"), g.get("description"))
+        if code:
             tag_class[fid] = code
             used.add(code)
             edges.append(Edge(("id", fid), "classified_as", ("equipment_class", tax.key(code)), SOURCE))
@@ -146,7 +174,7 @@ def derive(pack: Pack, kinds: dict[str, str], golden: dict[str, dict], tag_keys:
             continue
         g = golden.get(fid, {})
         classes = Counter(tag_class[t] for t in equipment_tags.get(fid, []) if t in tag_class)
-        code = classes.most_common(1)[0][0] if classes else None
+        code = classes.most_common(1)[0][0] if classes else tax.classify_cfihos(g.get("cfihos_class"), g.get("description"))
         if code:
             edges.append(Edge(("id", fid), "classified_as", ("equipment_class", tax.key(code)), SOURCE))
         mfr, model = tax.manufacturer(g.get("manufacturer"), canonical), normalise_model(g.get("model"))

@@ -205,6 +205,8 @@ def to_yaml(f: dict, base: str) -> str:
         ent = {k: v for k, v in old_ent.items() if k not in ("kind", "key", "fields")}
         ek = f.get("entity_key") or {}
         key_spec = ({"from": ek["column"], "as": ek["as"]} if ek.get("as") else ek["column"]) if ek.get("column") else None
+        if key_spec is None and isinstance(old_ent.get("key"), dict) and "from" not in old_ent["key"]:
+            key_spec = old_ent["key"]  # a template key: the form shows it as kept, so it stays as written
         out["entity"] = {"kind": f["kind"], **({"key": key_spec} if key_spec else {}), **ent,
                          "fields": managed_fields + kept_fields}
     elif "node" in old_ent:

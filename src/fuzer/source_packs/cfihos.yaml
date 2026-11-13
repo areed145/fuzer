@@ -1,0 +1,8 @@
+# CFIHOS engineering handover (#63): the tag, equipment and document registers and their cross references an EPC
+# contractor hands over to the operator, as CFIHOS tables. Tag and equipment class names are CFIHOS's, read into
+# the site's taxonomy. A built-in source pack (P1.5): the datasets name built-in mapping files, assembled by
+# fuzer.sources.packs.builtin. Optional datasets are ones not every handover includes.
+fuzer_source_pack: 1
+system: {name: cfihos}
+datasets: [cfihos_tag, cfihos_equipment, cfihos_document, cfihos_tag_document]
+optional: [cfihos_equipment, cfihos_document, cfihos_tag_document]
