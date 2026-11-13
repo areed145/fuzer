@@ -148,14 +148,16 @@ def on_plan(conn, rows: list[dict]) -> dict[int, list[dict]]:
     out: dict[int, list[dict]] = {}
     if len(active) < 2:
         return out
-    plant = structure.load(conn) if any(r["subjects"] for r in active) else None  # once, not once per item
-    jobs = {r["id"]: job(conn, r["title"], list(r["subjects"] or []), r["area_id"], plant=plant) for r in active}
-    for i, a in enumerate(active):
-        for b in active[i + 1:]:
-            if not (a["start_at"] < b["end_at"] and b["start_at"] < a["end_at"]) or a["area_id"] != b["area_id"]:
-                continue
-            for x, y in ((a, b), (b, a)):
-                for c in conflicts(conn, jobs[x["id"]], jobs[y["id"]], same_asset=False):
-                    out.setdefault(x["id"], []).append({"kind": "simops", "with": y["id"], "title": y["title"],
-                                                        "say": c["say"]})
+    pairs = [(a, b) for i, a in enumerate(active) for b in active[i + 1:]
+             if a["start_at"] < b["end_at"] and b["start_at"] < a["end_at"] and a["area_id"] == b["area_id"]]
+    if not pairs:  # nothing side by side: no need to read the plant or any item's permits
+        return out
+    paired = {r["id"]: r for pair in pairs for r in pair}
+    plant = structure.load(conn) if any(r["subjects"] for r in paired.values()) else None  # once, not once per item
+    jobs = {i: job(conn, r["title"], list(r["subjects"] or []), r["area_id"], plant=plant) for i, r in paired.items()}
+    for a, b in pairs:
+        for x, y in ((a, b), (b, a)):
+            for c in conflicts(conn, jobs[x["id"]], jobs[y["id"]], same_asset=False):
+                out.setdefault(x["id"], []).append({"kind": "simops", "with": y["id"], "title": y["title"],
+                                                    "say": c["say"]})
     return out
