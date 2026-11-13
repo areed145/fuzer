@@ -191,6 +191,15 @@ def entity_along(fuzer_id: str, conn=Depends(get_conn)):
     return positions.along(conn, fuzer_id)
 
 
+@router.get("/entities/{fuzer_id}/depths")
+def entity_depths(fuzer_id: str, conn=Depends(get_conn)):
+    """A well's trajectory from its directional survey, and its completion components by measured and true vertical
+    depth (#61)."""
+    from ..graph import positions
+
+    return positions.well(conn, fuzer_id)
+
+
 @router.get("/entities/{fuzer_id}/drawings")
 def entity_drawings(fuzer_id: str, conn=Depends(get_conn)):
     """The P&ID sheets that show an entity, and the entity ids to highlight on them."""

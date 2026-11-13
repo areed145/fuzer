@@ -1,0 +1,9 @@
+# Directional surveys (#61): one row per survey station down a well, measured depth with the hole's inclination and
+# azimuth there, as an MWD or gyro survey reports them. The rows are kept as source records, not entities:
+# graph/positions.py turns each well's stations into its trajectory (true vertical depth and offsets from the
+# wellhead, by minimum curvature), which the well's page shows beside its completion.
+source: drilling
+record_type: survey_station
+shape: records
+dataset: well_surveys
+key: survey_id

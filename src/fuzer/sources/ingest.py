@@ -101,6 +101,14 @@ def _teams(path: Path):
         yield "teams", "thread", t["thread_id"], t
 
 
+def _witsml(path: Path):
+    """WITSML 1.4.1 trajectories (#61): one survey station record per trajectory station, as a survey CSV gives."""
+    from . import witsml
+
+    for _, key, payload in witsml.read(path):
+        yield "drilling", "survey_station", key, payload
+
+
 class Reader(NamedTuple):
     """A nested export read by its own loader: its file, the field naming files it references (fingerprints
     cover those too), the loader, and the source and record types its records land as."""
@@ -117,6 +125,7 @@ READERS = {
     "pid_sheets": Reader("pid_sheets.json", ("image", "dexpi"), _pid_sheets, "pid", ("sheet",)),
     "documents": Reader("documents.json", "file", _documents, "edms", ("document", "section")),
     "teams_threads": Reader("teams_threads.json", None, _teams, "teams", ("thread",)),
+    "witsml_trajectories": Reader("witsml_trajectories.xml", None, _witsml, "drilling", ("survey_station",)),
 }
 FILES = READERS  # the name before #225
 
@@ -150,6 +159,8 @@ class _Manifest:
         return hashlib.sha1("|".join(parts).encode()).hexdigest()
 
     def schema(self):
+        if self.path.suffix == ".xml":  # an XML export (WITSML): its reader checks its own shape
+            return None
         return connectors.json_shape(json.loads(self.path.read_text())) or None
 
     def records(self):

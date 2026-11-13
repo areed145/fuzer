@@ -8,6 +8,7 @@ import { NotThisRecord, SameAs } from "./masterdata/Curation";
 import { AssetContextCard } from "./masterdata/Context";
 
 const EntityMapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));
+const LiveFigure = lazy(() => import("../analytics/LiveFigure").then((m) => ({ default: m.LiveFigure })));
 
 /** Where this thing is (or the place it belongs to) and the located things linked to it. */
 function EntityMap({ id }: { id: string }) {
@@ -181,6 +182,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           )}
           {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={e.fuzer_id} />}
           {["pipeline", "pipeline_segment"].includes(e.kind) && <AlongCard id={e.fuzer_id} />}
+          {e.kind === "well" && <DepthCard id={e.fuzer_id} />}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
             <><IncidentsCard id={e.fuzer_id} />
             <Related about={{ subject: e.fuzer_id }} incidents={false} /></>
@@ -694,6 +696,18 @@ function SparesCard({ id }: { id: string }) {
           ))}
         </tbody>
       </Table>
+    </UICard>
+  );
+}
+
+/** A well's trajectory and completion by depth (#61), when its survey or completion is loaded. */
+function DepthCard({ id }: { id: string }) {
+  const d = useAsync(() => api.depths(id), [id]);
+  if (!d.data || (!d.data.trajectory.length && !d.data.components.length)) return null;
+  return (
+    <UICard as="section">
+      <h2>Trajectory and completion <span className="muted small">by measured and true vertical depth</span></h2>
+      <Suspense fallback={null}><LiveFigure kind="well-trajectory" params={{ well: id }} /></Suspense>
     </UICard>
   );
 }

@@ -12,6 +12,7 @@ from html import escape
 
 from ..analysis import flow_capacity as fc
 from ..analysis import production_efficiency as pe
+from ..graph import positions
 from ..graph.operations import turnaround_scope
 from . import ChartError, Figure, check, layout
 
@@ -290,6 +291,72 @@ def turnaround_progress(schedule: dict | None, revision: str | None, notice: str
     )
 
 
+def well_trajectory(depths: dict, label: str, notice: str) -> Figure:
+    """A well's vertical section (#61): true vertical depth against distance out from the wellhead along the hole,
+    from its directional survey, with each completion component drawn over its measured depth range."""
+    traj, comps, s = depths["trajectory"], depths["components"], depths["summary"]
+    out = [round((t["north_m"] ** 2 + t["east_m"] ** 2) ** 0.5, 1) for t in traj]
+    data = []
+    if traj:
+        data.append({"type": "scatter", "mode": "lines", "name": "Hole (survey)", "x": out, "y": [t["tvd_m"] for t in traj],
+                     "customdata": [t["md_m"] for t in traj], "line": {"width": 2},
+                     "hovertemplate": "MD %{customdata:,.0f} m: TVD %{y:,.0f} m, %{x:,.0f} m out<extra></extra>"})
+        mds = [t["md_m"] for t in traj]
+
+        def along(md: float) -> float | None:
+            for a, b, xa, xb in zip(mds, mds[1:], out, out[1:]):
+                if a <= md <= b:
+                    return round(xa + (md - a) / (b - a) * (xb - xa), 1) if b > a else xa
+            return None
+
+        xs, ys, names = [], [], []
+        for c in comps:
+            if c["top_md_m"] is None or c["base_md_m"] is None or c["top_tvd_m"] is None or c["base_tvd_m"] is None:
+                continue
+            xa, xb = along(c["top_md_m"]), along(c["base_md_m"])
+            if xa is None or xb is None:
+                continue
+            xs += [xa, xb, None]
+            ys += [c["top_tvd_m"], c["base_tvd_m"], None]
+            names += [c["description"]] * 2 + [None]
+        if xs:
+            data.append({"type": "scatter", "mode": "lines+markers", "name": "Completion components", "x": xs, "y": ys,
+                         "text": names, "line": {"width": 6}, "marker": {"size": 5},
+                         "hovertemplate": "%{text}: TVD %{y:,.0f} m<extra></extra>"})
+    headline = (f"Drilled to {s['td_md_m']:,.0f} m along the hole, {s['td_tvd_m']:,.0f} m true vertical depth, "
+                f"{s['displacement_m']:,.0f} m out from the wellhead." if s else "No directional survey is loaded for this well.")
+    rows = [[str(c["description"] or c["label"]), _number(c["top_md_m"]), _number(c["base_md_m"]), _number(c["top_tvd_m"]),
+             _number(c["base_tvd_m"]), _number(c["size_mm"])] for c in comps]
+    return Figure(
+        kind="well-trajectory", title=f"{label}: trajectory and completion", data=data,
+        layout=layout("", height=HEIGHT + 60, xaxis={"title": {"text": "Distance out from the wellhead (m)"}},
+                      yaxis={"title": {"text": "True vertical depth (m)"}, "autorange": "reversed"},
+                      margin={"t": 24, "r": 16, "b": 60, "l": 64}, legend={"orientation": "h", "x": 0, "y": 1.12, "font": {"size": 11}}),
+        summary={
+            "context": f"Directional survey, {len(traj)} stations, by minimum curvature · {notice}",
+            "headline": headline,
+            "stats": [{"label": "Measured depth", "value": _number(s["td_md_m"]), "unit": "m"},
+                      {"label": "True vertical depth", "value": _number(s["td_tvd_m"]), "unit": "m"},
+                      {"label": "Maximum inclination", "value": _number(s["max_inclination_deg"]), "unit": "°"},
+                      {"label": "Worst dogleg", "value": _number(s["max_dls_deg_30m"]), "unit": "°/30 m"}] if s else [],
+            "notes": ["Depths are below the first survey station (the tie-in), not below sea level."] if traj else [],
+            "warnings": [f"{c['description'] or c['label']} is below the last survey station: its true vertical depth "
+                         "is not known." for c in comps if c["base_md_m"] is not None and c["base_tvd_m"] is None],
+            "tables": [{"title": f"Completion components · {len(comps)}", "note": "Outermost first at each top depth.",
+                        "columns": ["Component", "Top MD (m)", "Base MD (m)", "Top TVD (m)", "Base TVD (m)", "Size (mm)"],
+                        "rows": rows}] if comps else [],
+            "source": "the drilling system's directional survey and completion components",
+        },
+    )
+
+
+def _well(conn, facility: str, notice: str, well: str | None = None, **_) -> Figure:
+    if not well:
+        raise ChartError("a well trajectory needs a well")
+    label = conn.execute("select label from entity_label where fuzer_id = %s", (well,)).fetchone()
+    return well_trajectory(positions.well(conn, well), label["label"] if label else well, notice)
+
+
 def _production(conn, facility: str, notice: str, **_) -> Figure:
     return production_efficiency(pe.production_efficiency(conn, facility), notice)
 
@@ -303,7 +370,8 @@ def _turnaround(conn, facility: str, notice: str, revision: str | None = None, *
     return turnaround_progress(scope.get("schedule"), scope.get("revision"), notice)
 
 
-FIGURES = {"production-efficiency": _production, "flow-capacity": _capacity, "turnaround-progress": _turnaround}
+FIGURES = {"production-efficiency": _production, "flow-capacity": _capacity, "turnaround-progress": _turnaround,
+           "well-trajectory": _well}
 
 
 def live(conn, pack, kind: str, facility: str, **opts) -> dict:
