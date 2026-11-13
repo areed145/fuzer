@@ -1,4 +1,4 @@
-"""Command line: fakeplant generate | demo | drawings | historian."""
+"""Command line: fakeplant generate | demo | drawings | journal | historian."""
 
 import argparse
 import json
@@ -27,6 +27,9 @@ def main(argv=None):
     sc.add_argument("--fixed", action="store_true", help="without the copied row (the planner's fix for the held load)")
     dw = sub.add_parser("drawings", help="draw a hand-written bundle's smart P&IDs and record where each tag sits")
     dw.add_argument("bundle", help="the bundle folder, e.g. fakeplant/bundles/kestrel")
+    jr = sub.add_parser("journal", help="write a hand-written bundle's DCS alarm and event journal from its process model")
+    jr.add_argument("bundle", help="the bundle folder, e.g. fakeplant/bundles/kestrel")
+    jr.add_argument("--days", type=int, default=100, help="days of journal up to today")
     h = sub.add_parser("historian", help="serve a fake PI Web API and ADX over the fake plant's points")
     h.add_argument("--data", dest="out", default=None, help="exports folder (default: fakeplant/data/okan)")
     h.add_argument("--host", default="127.0.0.1")
@@ -43,6 +46,10 @@ def main(argv=None):
         from . import drawings
 
         _print(drawings.render(Path(args.bundle)))
+    elif args.cmd == "journal":
+        from . import journal
+
+        _print(journal.for_bundle(Path(args.bundle), args.days))
     elif args.cmd == "schedules":
         from . import schedules
 

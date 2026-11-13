@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PlantModel>
+  <PlantInformation SchemaVersion="4.1.1" OriginatingSystem="fakeplant" Date="2026-01-01" Time="00:00:00" Is3D="no" Units="mm" Discipline="PID" />
+  <Drawing Name="KRGP-H1-PID-001" Type="PID">
+    <GenericAttributes Set="DexpiAttributes" Number="2">
+      <GenericAttribute Name="DrawingNameAssignmentClass" Value="TRAIN H1 - FLARE AND SALES METERING" Format="string" />
+      <GenericAttribute Name="RevisionNumberAssignmentClass" Value="A" Format="string" />
+    </GenericAttributes>
+  </Drawing>
+  <Equipment ID="EQ-1" ComponentClass="Vessel">
+    <GenericAttributes Set="DexpiAttributes" Number="1">
+      <GenericAttribute Name="TagNameAssignmentClass" Value="H1-V-8001" Format="string" />
+    </GenericAttributes>
+    <Position>
+      <Location X="1080.0" Y="734.0" Z="0" />
+    </Position>
+    <Nozzle ID="EQ-1-N1" ComponentClass="Nozzle" />
+    <Nozzle ID="EQ-1-N2" ComponentClass="Nozzle" />
+    <Nozzle ID="EQ-1-N3" ComponentClass="Nozzle" />
+  </Equipment>
+  <PipingNetworkSystem ID="PNS-1">
+    <GenericAttributes Set="DexpiAttributes" Number="1">
+      <GenericAttribute Name="LineNumberAssignmentClass" Value="10&quot;-FL-8001-A1" Format="string" />
+    </GenericAttributes>
+    <PipingNetworkSegment ID="PNSG-1">
+      <PipingComponent ID="PC-2" ComponentClass="FlowMeasuringElement">
+        <GenericAttributes Set="DexpiAttributes" Number="1">
+          <GenericAttribute Name="PipingComponentNumberAssignmentClass" Value="H1-FT-8003" Format="string" />
+        </GenericAttributes>
+        <Position>
+          <Location X="627.0" Y="1190.0" Z="0" />
+        </Position>
+      </PipingComponent>
+      <Connection FromID="EQ-1-N1" FromNode="1" ToID="PC-2" ToNode="2" />
+    </PipingNetworkSegment>
+  </PipingNetworkSystem>
+  <PipingNetworkSystem ID="PNS-2">
+    <GenericAttributes Set="DexpiAttributes" Number="1">
+      <GenericAttribute Name="LineNumberAssignmentClass" Value="4&quot;-FL-8002-A1" Format="string" />
+    </GenericAttributes>
+    <PipingNetworkSegment ID="PNSG-2">
+      <PipingOffPageConnector ID="OPC-1" ComponentClass="FlowArrow">
+        <GenericAttributes Set="DexpiAttributes" Number="1">
+          <GenericAttribute Name="PipingOffPageConnectorReferenceAssignmentClass" Value="B1-PSV-2004" Format="string" />
+        </GenericAttributes>
+      </PipingOffPageConnector>
+      <Connection FromID="OPC-1" FromNode="1" ToID="EQ-1-N2" ToNode="2" />
+    </PipingNetworkSegment>
+  </PipingNetworkSystem>
+  <PipingNetworkSystem ID="PNS-3">
+    <GenericAttributes Set="DexpiAttributes" Number="1">
+      <GenericAttribute Name="LineNumberAssignmentClass" Value="6&quot;-FL-8003-A1" Format="string" />
+    </GenericAttributes>
+    <PipingNetworkSegment ID="PNSG-3">
+      <PipingOffPageConnector ID="OPC-2" ComponentClass="FlowArrow">
+        <GenericAttributes Set="DexpiAttributes" Number="1">
+          <GenericAttribute Name="PipingOffPageConnectorReferenceAssignmentClass" Value="A1-PSV-1001" Format="string" />
+        </GenericAttributes>
+      </PipingOffPageConnector>
+      <Connection FromID="OPC-2" FromNode="1" ToID="EQ-1-N3" ToNode="2" />
+    </PipingNetworkSegment>
+  </PipingNetworkSystem>
+  <PipingComponent ID="PC-3" ComponentClass="FlowMeasuringElement">
+    <GenericAttributes Set="DexpiAttributes" Number="1">
+      <GenericAttribute Name="PipingComponentNumberAssignmentClass" Value="H1-FT-8010" Format="string" />
+    </GenericAttributes>
+    <Position>
+      <Location X="1053.0" Y="1190.0" Z="0" />
+    </Position>
+  </PipingComponent>
+</PlantModel>

@@ -512,3 +512,45 @@ def test_overarching_people_work_every_field_they_cover_but_open_only_granted_on
     with db.connect() as conn:
         work.remove_cover(conn, "vera", by="test")
         work.remove_person(conn, "vera", by="test")
+
+
+def test_audit_record_is_owner_only_and_per_project(runtime, second_project):
+    client = runtime
+    reader, _ = signed_in(client, roles=("administrator",), subject=str(uuid.UUID(int=21)))
+    assert client.get("/auth/audit").status_code == 403  # configure access is not owner access
+    owner, _ = signed_in(client, owner=True, roles=(), subject=str(uuid.UUID(int=22)))
+    r = client.put(f"/auth/accounts/{reader.id}/projects/{second_project}", json={"roles": ["reader"]})
+    assert r.status_code == 200, r.text
+    with db.connect() as conn:
+        # A pending account, granted nowhere: its sign-in is in the first project's record only.
+        loner, _ = access.sign_in(conn, {"tid": TENANT, "oid": str(uuid.UUID(int=23)), "name": "Okan only"})
+
+    def actions(project):
+        r = client.get("/auth/audit", params={"project": project})
+        assert r.status_code == 200, r.text
+        assert all(row["project"] == project for row in r.json()["rows"])
+        return [(row["actor"], row["action"], row["detail"].get("project")) for row in r.json()["rows"]]
+
+    with db.connect() as conn:
+        first = access._default_project(conn)
+    here, there = actions(first), actions(second_project)
+    grant = (owner.actor, "project_roles_set", second_project)
+    assert grant in there and grant not in here  # the grant belongs to the project it concerns
+    assert (loner.actor, "signed_in", None) in here and (loner.actor, "signed_in", None) not in there
+    assert (reader.actor, "signed_in", None) in there  # a person granted there: their sign-in is in its record
+    # The first project's register (work, sources) never shows up in the second project's record.
+    assert not any(a == "project_roles_set" and p == first for _, a, p in there)
+    def sources(project):
+        return {row["source"] for row in client.get("/auth/audit", params={"project": project}).json()["rows"]}
+
+    assert {"work_item.created_by", "source_audit.by"} <= sources(first)
+    assert not {"work_item.created_by", "source_audit.by"} & sources(second_project)  # its own register only
+    # Exports are themselves recorded, and CSV downloads name the project and window.
+    r = client.get("/auth/audit", params={"project": second_project, "format": "csv",
+                                          "since": "2020-01-01T00:00:00Z"})
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    assert f"fuzer-audit-{second_project}-20200101-" in r.headers["content-disposition"]
+    assert (owner.actor, "audit_exported", second_project) in actions(second_project)
+    assert client.get("/auth/audit", params={"project": "nowhere"}).status_code == 404
+    cov = client.get("/auth/audit/coverage").json()
+    assert cov["unpaired"] == [] and cov["excluded"]

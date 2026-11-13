@@ -32,7 +32,7 @@ class ProposeIn(BaseModel):
     changes: dict = Field(default_factory=dict)
     summary: str
     by: str
-    promote: dict | None = None  # {part, key}: propose this project's own value there instead
+    promote: dict | None = None  # {part, key, project?}: propose that project's own value there instead
 
 
 class ReviewIn(BaseModel):
@@ -85,12 +85,20 @@ def versions(conn=Depends(get_conn)):
 
 @router.post("/standards/versions")
 def propose(b: ProposeIn, conn=Depends(get_conn)):
-    """Propose a new version of the standard: `changes` ({part: {key: value or null}}), or `promote` this project's
-    own value at a part and key."""
+    """Propose a new version of the standard: `changes` ({part: {key: value or null}}), or `promote` a project's own
+    value at a part and key (this project's, or a granted one named as `project`)."""
+    from ..core import db, projects
     from ..workflow import model_changes as mc
 
     if b.promote:
-        return _changes(mc.promote, conn, b.promote.get("part"), b.promote.get("key"), b.summary, b.by)
+        part, key, project = b.promote.get("part"), b.promote.get("key"), b.promote.get("project")
+        if not project or project == projects.current(conn):
+            return _changes(mc.promote, conn, part, key, b.summary, b.by)
+        _granted(project)
+        if project not in projects.stored(conn):
+            raise HTTPException(404, f"no project {project!r}")
+        with projects.use(conn, project), db.connect() as there:
+            return _changes(mc.promote, there, part, key, b.summary, b.by)
     return _changes(mc.propose, conn, b.changes, b.summary, b.by)
 
 

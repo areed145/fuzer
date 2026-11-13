@@ -61,7 +61,13 @@ def _ec_network(path: Path):
 
 
 def _pid_sheets(path: Path):
+    from . import dexpi
+
     for s in json.loads(path.read_text()):
+        if ref := s.get("dexpi"):  # a smart sheet exported as DEXPI XML (#858): its tags and piping from the file
+            file = (path.parent / ref).resolve()
+            s = {**s, **dexpi.read(file, s.get("area")), "format": "smart",
+                 "dexpi_sha256": hashlib.sha256(file.read_bytes()).hexdigest()}
         if image := s.get("image"):
             # Keep where the scan is and a fingerprint of its content; the bytes stay on disk
             # (later: blob storage), and the fingerprint tells us when a drawing was re-scanned.
@@ -99,7 +105,7 @@ class Reader(NamedTuple):
     """A nested export read by its own loader: its file, the field naming files it references (fingerprints
     cover those too), the loader, and the source and record types its records land as."""
     file: str
-    ref: str | None
+    ref: str | tuple[str, ...] | None
     load: Callable
     source: str
     record_types: tuple[str, ...]
@@ -108,7 +114,7 @@ class Reader(NamedTuple):
 READERS = {
     "pi_af": Reader("pi_af.json", None, _pi_af, "pi_af", ("element",)),
     "ec_network": Reader("ec_network.json", None, _ec_network, "ec", ("node", "edge")),
-    "pid_sheets": Reader("pid_sheets.json", "image", _pid_sheets, "pid", ("sheet",)),
+    "pid_sheets": Reader("pid_sheets.json", ("image", "dexpi"), _pid_sheets, "pid", ("sheet",)),
     "documents": Reader("documents.json", "file", _documents, "edms", ("document", "section")),
     "teams_threads": Reader("teams_threads.json", None, _teams, "teams", ("thread",)),
 }
@@ -137,7 +143,8 @@ class _Manifest:
         files = [self.path]
         if self.ref_field:
             items = json.loads(self.path.read_text())
-            files += sorted({f for item in items if (ref := item.get(self.ref_field))
+            fields = self.ref_field if isinstance(self.ref_field, tuple) else (self.ref_field,)
+            files += sorted({f for item in items for field in fields if (ref := item.get(field))
                              and (f := (self.path.parent / ref).resolve()).is_file()})
         parts = [f"{f}:{f.stat().st_size}:{f.stat().st_mtime_ns}" for f in files]
         return hashlib.sha1("|".join(parts).encode()).hexdigest()

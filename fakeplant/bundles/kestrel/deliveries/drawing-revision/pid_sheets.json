@@ -945,42 +945,8 @@
   "title": "TRAIN H1 - FLARE AND SALES METERING",
   "revision": "A",
   "format": "smart",
-  "tags": [
-   "H1-V-8001",
-   "H1-FT-8003",
-   "H1-FT-8010"
-  ],
-  "connections": [
-   {
-    "from": "H1-V-8001",
-    "to": "H1-FT-8003",
-    "line": "10\"-FL-8001-A1"
-   },
-   {
-    "from": "B1-PSV-2004",
-    "to": "H1-V-8001",
-    "line": "4\"-FL-8002-A1"
-   },
-   {
-    "from": "A1-PSV-1001",
-    "to": "H1-V-8001",
-    "line": "6\"-FL-8003-A1"
-   }
-  ],
   "image": "../../exports/pid/KRGP-H1-PID-001.png",
-  "positions": {
-   "H1-V-8001": [
-    1080,
-    734
-   ],
-   "H1-FT-8003": [
-    627,
-    1190
-   ],
-   "H1-FT-8010": [
-    1053,
-    1190
-   ]
-  }
+  "dexpi": "../../exports/pid/KRGP-H1-PID-001.xml",
+  "area": "H1"
  }
 ]

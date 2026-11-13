@@ -340,9 +340,10 @@ each resting only on evidence Fuzer holds.
 ## Alarms, trips and states
 
 `alarms.py` adds three analyses:
-- **`alarm_analysis`:** ISA-18.2 / EEMUA 191 measures. With no alarm journal yet, an alarm is a point
-  going past an enabled DCS / AF alarm limit while its unit runs (excursions on the alarm basis). It
-  gives:
+- **`alarm_analysis`:** ISA-18.2 / EEMUA 191 measures. Where a DCS alarm and event journal is loaded and
+  covers the window (#859), its alarms are the ones counted, to the second; otherwise an alarm is a point
+  going past an enabled DCS / AF alarm limit while its unit runs (excursions on the alarm basis).
+  `alarm_source` says which. It gives:
   - alarms per hour against 6;
   - floods (over 10 in 10 minutes);
   - chattering (3 or more on one point, each within a minute of clearing);
@@ -350,9 +351,12 @@ each resting only on evidence Fuzer holds.
   - the top bad-actor points.
   
   On Okan's week of 4–11 November 2024, it finds floods at both train C trips, the failed gas lift valve's
-  low casing pressure standing all week, and the hunting level transmitter chattering.
+  low casing pressure standing all week, and the hunting level transmitter chattering. From September 2025,
+  where Okan's journal begins, the export surge drum's Lo alarm, set inside its normal range, chatters to the
+  second and carries over half the alarm load: the classic bad actor.
 - **`trip_analysis`:** per unit with a run signal, stops, starts and failed starts (stopped again within
-  30 minutes), days between stops and the share of time running. There is no first-out alarm in the data.
+  30 minutes), days between stops and the share of time running. The journal's STATE events (TRIPPED with its
+  first-out alarm, STOPPED, RUNNING) are in the data, not yet read by this analysis.
 - **`states`:** each unit's state spans (running, startup, stopped, transition).
 
 The swimlane chart `plot_state_timeline` shows an upset spreading through a train; `plot_alarms` shows

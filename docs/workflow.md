@@ -348,7 +348,8 @@ out one asset at a time. Each rollout records the version the asset ran before, 
 or rollback keeps an asset's named setting deviations, and lists any other named difference the version replaced. A
 local deviation that proved better is proposed the same way (`promote`). Conformance holds an asset to the version
 last rolled out to it, and "current" means the latest published. It is on the CLI as `fuzer model-change`, through
-`/standards/versions` and `/standards/rollouts`, and the versions and rollouts show on Settings, Standards
+`/standards/versions` and `/standards/rollouts`, and on Settings, Standards, where each step is a button. A process
+change is made in the process editor first, then proposed from the asset's difference ("Propose as the standard")
 (`tests/evals/test_model_changes.py` takes a process change live on Kestrel and Harrier and rolls Harrier back).
 
 A package moved between databases runs the same: Okan's model, changed away from the standard and exported, applied
