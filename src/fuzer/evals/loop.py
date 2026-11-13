@@ -8,6 +8,8 @@ domain operations the API calls, and a report of the first step that failed for 
     dispatch  the IOC sends it to a field operator with what to check
     field     the field job reads as words (no raw ids) on the operator's list, and they report on site, then done
     close     every remaining decision is taken (the playbook below), and the case and the work close
+    write_back  work from a system that takes write-back goes back to it: the field's close-out drafted, a named
+              planner approves it, it goes in the system's batch, and only the system's confirm releases its case
     count     the closed work is on the record a measure reads: closed with a time and an outcome
 
 A type the field never sees (`audience` without "field") skips dispatch and field: the person holding its queue
@@ -26,9 +28,14 @@ cases opened before they did run them (`routing.adopt_open_cases`), as on the AP
 than an asset (`about: source`) matches one of the project's sources instead of an asset (#747). A type that cannot
 arise on the bundle's asset type says why (`not_here: "a pipeline has no wells"`): it is reported under `not_here`,
 not run and not raised synthetically.
+
+Write-back runs against a stand-in for SAP PM (evals/mock_sap.py): for the run, the project's SAP system sends
+through the queue's `sap_pm` adapter to it, and the step reads back what SAP holds (#751). A type whose work came from
+no system that takes write-back says so at that step.
 """
 
 import re
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -39,8 +46,9 @@ from ..core.exceptions import clear_exception, raise_exception
 from ..core.findings import external
 from ..core.jsonsafe import plain
 
-STEPS = ("arrive", "match", "route", "triage", "dispatch", "field", "close", "count")
+STEPS = ("arrive", "match", "route", "triage", "dispatch", "field", "close", "write_back", "count")
 IOC, FIELD, BY = "loop-ioc", "loop-field", "loop-eval"
+PLANNER = "loop-planner"  # approves write-backs: a named person, never the system (P5.7)
 FIELD_ROLE = "operator"
 MAX_STEPS = 30  # decisions per case before the run gives up: a process that loops forever fails
 
@@ -370,6 +378,7 @@ def _people(conn) -> None:
 
     engine.set_person(conn, IOC, sorted(bpmn.PERSON_ROLES - {FIELD_ROLE}), by=BY)
     engine.set_person(conn, FIELD, [FIELD_ROLE], by=BY)
+    engine.set_person(conn, PLANNER, ["maintenance_planner"], by=BY)
 
 
 def _assets(conn, n: int) -> list[str]:
@@ -493,7 +502,75 @@ def _readable(job: dict) -> None:
         raise Step(f"the field job shows raw ids: {bad[:3]}")
 
 
-def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | None = None) -> dict:
+def _write_back(conn, exception_id: int, field: bool, sap) -> str:
+    """The work goes back to the system it came from, through the write-back queue: the close-out the field's done
+    drafted, approved by a named planner, sent in the system's batch, and its case released only by the confirm."""
+    from ..ops import closeout, writeback
+
+    r = _row(conn, exception_id)
+    found = closeout.listing(conn, state=None, exception_id=exception_id)
+    if not found:
+        if closeout.mode(conn, r["source"])[0] == "none":
+            return "no source to write back to"
+        if not field:  # a close-out follows the field's report; desk work about a record changes nothing there
+            return f"worked at the desk: nothing goes back to {r['source']}"
+        raise Step(f"its work came from {r['source']}, which takes write-back, but the field's done drafted no "
+                   f"close-out for it")
+    c = found[0]
+    wb = conn.execute("select * from writeback where source_ref = %s order by id desc limit 1",
+                      (f"closeout:{c['id']}",)).fetchone()
+    if wb is None or wb["state"] != "awaiting_approval":
+        raise Step(f"the {r['source']} close-out isn't waiting for approval ({wb and wb['state']})")
+    held = conn.execute("select state from work_item where id = %s", (c["item_id"],)).fetchone()
+    if held is None or held["state"] in ("done", "cancelled"):
+        raise Step("the close-out's case was released before the system confirmed it")
+    closeout.approve(conn, c["id"], PLANNER)
+    conn.commit()
+    wb = writeback.get(conn, wb["id"])
+    writeback.run(conn, now=wb["due_at"])  # the system's next batch
+    wb = writeback.get(conn, wb["id"])
+    if wb["state"] != "confirmed":
+        raise Step(f"the {r['source']} write-back is {wb['state']}" + (f": {wb['error']}" if wb["error"] else ""))
+    case = conn.execute("select state from work_item where id = %s", (c["item_id"],)).fetchone()
+    if case["state"] != "done":
+        raise Step(f"{r['source']} confirmed it, but its case is still {case['state']}")
+    if sap is not None and r["source"] == "sap":
+        held = sap.notifications.get(c["record"]) or {}
+        want = c["draft"].get("status")
+        if c["action"] == "complete" and held.get("status") != want:
+            raise Step(f"SAP holds notification {c['record']} as {held.get('status')}, not {want}")
+    adapter = writeback.policy(conn, r["source"])["adapter"]
+    return (f"{c['action']} {r['source'].upper()} {c['record']}: approved by {PLANNER}, sent through {adapter}, "
+            f"confirmed")
+
+
+@contextmanager
+def _sap_stand_in(conn):
+    """For the run, the project's SAP system writes back to a stand-in for SAP PM holding its notifications."""
+    from .mock_sap import MockSapPm
+
+    have = conn.execute("select writeback from source_system where name = 'sap'").fetchone()
+    if have is None:
+        yield None
+        return
+    held = {r["source_key"]: (r["status"] or "OSNO") for r in conn.execute(
+        "select source_key, payload->>'status' as status from source_record where source = 'sap'")}
+    from psycopg.types.json import Jsonb
+
+    with MockSapPm(held) as sap:
+        conn.execute("update source_system set writeback = %s where name = 'sap'",
+                     (Jsonb({**(have["writeback"] or {}), "adapter": "sap_pm", "url": sap.url}),))
+        conn.commit()
+        try:
+            yield sap
+        finally:
+            conn.rollback()
+            conn.execute("update source_system set writeback = %s where name = 'sap'",
+                         (Jsonb(have["writeback"]) if have["writeback"] is not None else None,))
+            conn.commit()
+
+
+def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | None = None, sap=None) -> dict:
     """One type through the loop. Returns {type, starts, steps: {step: what happened}, failed: step or None,
     why: the failure}."""
     from ..ops import exceptions as ex
@@ -615,7 +692,7 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
 
     for name, fn in (("arrive", arrive), ("match", match), ("route", lambda: _routed(conn, _row(conn, row["id"]), route)),
                      ("triage", triage), ("dispatch", dispatch), ("field", field_leg), ("close", close),
-                     ("count", count)):
+                     ("write_back", lambda: _write_back(conn, row["id"], field, sap)), ("count", count)):
         try:
             out["steps"][name] = fn()
         except Exception as e:  # a step that raised is the step that failed; the rest don't run
@@ -650,7 +727,8 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
     # deliveries go last: the register build after a load runs the detectors too, and would bring in (and set aside)
     # the work another type's own detector is about to raise
     routes.sort(key=lambda r: bool({"deliver", "suggest", "round", "readings"} & set(arrive.get(r["type"], {}))))
-    results = [run_type(conn, r, refs.get(r["type"]), run_id, arrive.get(r["type"])) for r in routes]
+    with _sap_stand_in(conn) as sap:
+        results = [run_type(conn, r, refs.get(r["type"]), run_id, arrive.get(r["type"]), sap) for r in routes]
     return {"types": results, "passed": sum(not r["failed"] for r in results), "not_here": not_here,
             "synthetic": [r["type"] for r in results if r.get("arrived") == "synthetic"], "failed": [
         f"{r['type']}: {r['failed']}: {r['why']}" for r in results if r["failed"]]}

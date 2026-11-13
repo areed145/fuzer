@@ -19,7 +19,7 @@ from . import limits
 
 def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
            step_minutes: int | None = None, max_points: int = 12, src: Provider | None = None,
-           direct: bool = False, pack=None) -> dict:
+           direct: bool = False, pack=None, points: list[dict] | None = None) -> dict:
     """Values of the PI points on a unit (its own and its instruments') around a time. For an
     incident, `at` defaults to its first timed signal (a log entry or downtime start), else its start
     day, and its unit is used. For a timeseries, only that point; with `direct`, only the points linked
@@ -27,30 +27,11 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     latest incident on its tag or well (else now). The step is chosen from the window (about
     150 values) unless given. Each series has a summary for agents: min / max / mean / last, and
     `lead_in`: the mean before the last 12 h against the mean and peak in them; and its `limits` at the
-    centre (alarm limits, IOWs, or the learned normal range; limits.lines)."""
-    row = conn.execute(
-        """
-        select e.kind, (select a.dst from edge a where a.src = e.fuzer_id and a.rel = 'about' limit 1) as unit,
-               (select g.value #>> '{}' from golden g where g.fuzer_id = e.fuzer_id and g.field = 'start') as start
-        from entity e where e.fuzer_id = %s
-        """,
-        (fuzer_id,),
-    ).fetchone()
+    centre (alarm limits, IOWs, or the learned normal range; limits.lines). `points` reads those points instead of
+    the unit's (a trend template's, P5.12)."""
+    row, unit = unit_of(conn, fuzer_id)
     if not row:
         return {"error": "unknown entity"}
-    unit = row["unit"] if row["kind"] == "incident" else fuzer_id
-    if row["kind"] == "timeseries":  # the tag or well it measures
-        unit = (conn.execute("select src from edge where dst = %s and rel = 'has_timeseries' order by src limit 1",
-                             (fuzer_id,)).fetchone() or {"src": fuzer_id})["src"]
-    # equipment -> the position it's installed at
-    unit = (conn.execute("select dst from edge where src = %s and rel = 'installed_at' and valid_to is null",
-                         (unit,)).fetchone() or {"dst": unit})["dst"]
-    # instrument tag -> the equipment tag it belongs to, which incidents are about (incidents.py)
-    unit = (conn.execute(
-        """
-        select p.dst from edge p join entity a on a.fuzer_id = p.src and a.kind = 'tag'
-        join entity b on b.fuzer_id = p.dst and b.kind = 'tag' where p.src = %s and p.rel = 'part_of' limit 1
-        """, (unit,)).fetchone() or {"dst": unit})["dst"]
     if not at and row["kind"] == "incident":
         at = conn.execute(f"select ({FIRST_TIMED.format(incident='%s')}) as t", (fuzer_id,)).fetchone()["t"]
     upsets = sorted(datetime.fromisoformat(r["start"]) for r in conn.execute(
@@ -68,10 +49,44 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     if not (at or row["start"]):
         at = _latest(conn, src, hours_after)
     centre = datetime.fromisoformat(at or row["start"])
-    if row["kind"] == "timeseries":
+    if points is None and row["kind"] == "timeseries":
         points = [p for p in [_point(conn, fuzer_id)] if p]
-    else:
+    elif points is None:
         points = _unit_points(conn, fuzer_id if direct else unit, max_points, children=not direct)
+    return _read(conn, src, pack, points, unit, centre, upsets, hours_before, hours_after, step_minutes)
+
+
+def unit_of(conn, fuzer_id: str) -> tuple[dict | None, str]:
+    """The entity's row (kind, unit, start) and the unit its values are read on: an incident's unit, the tag or well a
+    timeseries measures, the position equipment is installed at, the equipment tag an instrument belongs to."""
+    row = conn.execute(
+        """
+        select e.kind, (select a.dst from edge a where a.src = e.fuzer_id and a.rel = 'about' limit 1) as unit,
+               (select g.value #>> '{}' from golden g where g.fuzer_id = e.fuzer_id and g.field = 'start') as start
+        from entity e where e.fuzer_id = %s
+        """,
+        (fuzer_id,),
+    ).fetchone()
+    if not row:
+        return None, fuzer_id
+    unit = row["unit"] if row["kind"] == "incident" else fuzer_id
+    if row["kind"] == "timeseries":  # the tag or well it measures
+        unit = (conn.execute("select src from edge where dst = %s and rel = 'has_timeseries' order by src limit 1",
+                             (fuzer_id,)).fetchone() or {"src": fuzer_id})["src"]
+    # equipment -> the position it's installed at
+    unit = (conn.execute("select dst from edge where src = %s and rel = 'installed_at' and valid_to is null",
+                         (unit,)).fetchone() or {"dst": unit})["dst"]
+    # instrument tag -> the equipment tag it belongs to, which incidents are about (incidents.py)
+    unit = (conn.execute(
+        """
+        select p.dst from edge p join entity a on a.fuzer_id = p.src and a.kind = 'tag'
+        join entity b on b.fuzer_id = p.dst and b.kind = 'tag' where p.src = %s and p.rel = 'part_of' limit 1
+        """, (unit,)).fetchone() or {"dst": unit})["dst"]
+    return row, unit
+
+
+def _read(conn, src, pack, points, unit, centre, upsets, hours_before, hours_after, step_minutes) -> dict:
+    """Each point's values in the window around `centre`, with its summary and limits."""
     start, end = centre - timedelta(hours=hours_before), centre + timedelta(hours=hours_after)
     step_minutes = step_minutes or auto_step(hours_before + hours_after)
     near = [u for u in upsets if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]

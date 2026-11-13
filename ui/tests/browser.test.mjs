@@ -3670,12 +3670,15 @@ for (const [type, found] of Object.entries(FINDINGS)) {
   });
 }
 
-// The jobs the loop eval (P1.7) handed a field operator on the Okan bundle, one per type the field sees, written by
-// `FUZER_WRITE_FIXTURES=1 uv run pytest tests/evals/test_loop.py -k okan` and checked against the API's shape there.
-const LOOP_JOBS = JSON.parse(readFileSync(new URL("./fixtures/loop-field-jobs.json", import.meta.url), "utf8"));
+// The jobs the loop eval (P1.7) handed a field operator on each bundle, one per type the field sees, written by
+// `FUZER_WRITE_FIXTURES=1 uv run pytest tests/evals/test_loop.py tests/evals/test_loop_kestrel.py
+// tests/evals/test_loop_harrier.py` and checked against the API's shape there (#963).
+const LOOP_FIXTURES = { okan: "loop-field-jobs.json", kestrel: "loop-field-jobs-kestrel.json", harrier: "loop-field-jobs-harrier.json" };
+const LOOP_JOBS = Object.entries(LOOP_FIXTURES).flatMap(([bundle, file]) =>
+  Object.entries(JSON.parse(readFileSync(new URL(`./fixtures/${file}`, import.meta.url), "utf8"))).map(([type, job]) => [bundle, type, job]));
 
-for (const [type, job] of Object.entries(LOOP_JOBS)) {
-  test(`the loop's ${type.replace(/_/g, " ")} field job is usable on a 390 px phone (P1.7)`, async () => {
+for (const [bundle, type, job] of LOOP_JOBS) {
+  test(`the loop's ${type.replace(/_/g, " ")} field job on ${bundle} is usable on a 390 px phone (P1.7)`, async () => {
     await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "loop-field"));
     await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "loop-field", jobs: [job], coming_up: [] } }));
     await page.setViewportSize({ width: 390, height: 844 });
