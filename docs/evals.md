@@ -49,9 +49,17 @@ difference nobody has named); the register's open questions in the data steward'
 loop eval, run on a copy. The page reads only. `tests/evals/test_onboarding_harrier.py` walks Harrier from its bundle
 to the standard model adopted.
 
-The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
-(rewrite it with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from it), and the browser
-tests render each one at 390 px: title, what the IOC asked and the asset visible, no raw ids, no sideways scroll,
+**Write-back** (#751) is a step of the loop: the field's done on an SAP notification drafts its close-out, a named
+planner (`loop-planner`) approves it, it goes in SAP's batch through the write-back queue's `sap_pm` adapter, and only
+SAP's confirm releases the close-out's case. SAP is a stand-in for the run (`fuzer.evals.mock_sap`), holding the
+project's notifications and answering over HTTP as SAP PM's notification service would; the step checks that SAP now
+holds the notification completed. Work no system raised says "no source to write back to", and desk work about a
+record says nothing goes back.
+
+Each bundle's run keeps the job each field type handed the operator in `ui/tests/fixtures/`: Okan's in
+`loop-field-jobs.json`, Kestrel's and Harrier's in `loop-field-jobs-kestrel.json` and `loop-field-jobs-harrier.json`
+(rewrite them with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from them), and the browser
+tests render every one at 390 px: title, what the IOC asked and the asset visible, no raw ids, no sideways scroll,
 and 44 px tap targets for On site and Done.
 
 Decisions come from the eval's playbook, one entry per process step, and what each type's own source says when it

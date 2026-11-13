@@ -196,3 +196,25 @@ def test_deploy_registers_okan_first_and_adds_each_other_bundle(tmp_path, capsys
     with db.connect() as conn:
         db.reset(conn)
         assert demo_seed.register_projects(conn, "okan", tmp_path / "none") == []  # no first project: none added
+
+
+def test_deploy_registers_every_shipped_bundle(tmp_path, capsys):
+    """Gate C follow-up (#962): the bundles the image ships, as they are, each register beside Okan at deploy with
+    their exports loaded, so a bundle that would fail on the next deploy fails here first."""
+    from fuzer.core import projects
+
+    shipped = sorted(p.name for p in demo_seed.BUNDLES.iterdir() if (p / "bundle.yaml").is_file() and p.name != "okan")
+    assert {"kestrel", "harrier"} <= set(shipped), shipped
+    okan = tmp_path / "okan"  # Okan's own exports are generated at build time; its seed is not what this checks
+    okan.mkdir()
+    (okan / "bundle.yaml").write_text(
+        f"bundle: 1\nname: okan\npack: {demo_seed.BUNDLES / 'okan' / 'pack.yaml'}\nproject:\n  data: {tmp_path / 'data'}\n")
+    with db.connect() as conn:
+        db.reset(conn)
+        demo_seed.bundles.init(conn, okan, by="deploy")
+        assert demo_seed.register_projects(conn, "okan") == shipped, capsys.readouterr().out
+        assert projects.stored(conn) == sorted([*shipped, "okan"])
+        for name in shipped:
+            n = conn.execute(f"select count(*) as n from proj_{name}.entity").fetchone()["n"]
+            assert n > 0, f"{name} registered with an empty register"
+    assert "isn't registered" not in capsys.readouterr().out
