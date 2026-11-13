@@ -67,7 +67,7 @@ suggested mapping keys it on meter and day and lands the readings on each tag an
 
 ## Design-point calibration
 
-`calibration.report` checks that Okan's hand-set design point hangs together physically (`tests/sources/test_calibration.py`).
+`calibration.report` checks that Okan's hand-set design point hangs together physically (`tests/sources/test_design_point.py`).
 It found three things, now fixed: the gas producers' wellheads (80 barg) sat below the 88 barg lift gas header they
 flow into, so their reservoir pressure is now 140 barg (100 barg at the wellhead); the inlet gas analysis (relative
 density 0.68) was too light to be the gas leaving a 6.5 barg separator at 35.5 degC, which is about 0.746 (molar mass
