@@ -64,6 +64,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`instrument_health`](#instrument_health) Whether a transmitter's readings can be trusted | Engineering practice | Historian readings on the point or every point on the unit (each point's own) | A week of readings before the window and readings inside it. |
 | [`loop_oscillation`](#loop_oscillation) Whether a control loop is cycling, with its period and amplitude | Engineering practice | Historian readings on the unit's points or one point (each point's own) | A day or more of 5-minute readings, and at least four cycles in the window. |
 | [`loop_health`](#loop_health) Control loop health ranking (time in manual, output saturation, setpoint error, oscillation) | Engineering practice | Process value (each loop's own); Setpoint (each loop's own); Controller output (%); Mode (1 auto (-) | A day or more of 5-minute readings on all four points. |
+| [`valve_stiction`](#valve_stiction) Valve stiction from controller output against process value (cross-correlation test) | Engineering practice | Process value (each loop's own); Controller output (%); Mode (1 auto (-) | A day or more of 5-minute readings covering at least four cycles. |
 | [`contactor_foaming`](#contactor_foaming) Contactor differential pressure against its clean level (foaming and fouling) | Engineering practice | Contactor differential pressure (bar); Treated gas analyser (optional) (mol% or mg/Sm³) | A week of differential pressure history before the last two days. |
 | [`treated_gas`](#treated_gas) Treated gas analyser against its operating window | Engineering practice | Treated gas analyser (mol% or mg/Sm³); Operating window (same) | Seven days of analyser readings and an operating window on the point. |
 | [`regenerator`](#regenerator) Reboiler temperature against its operating window | Engineering practice | Reboiler temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
@@ -613,6 +614,19 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `setpoint_error`:** Mean absolute setpoint error in auto, as a share of the setpoint, from which a loop is flagged. (2 %)
 - **Threshold `oscillation`:** What a regular oscillation adds to the score. (50)
 - **Worked example:** `tests/analysis/test_control_loops.py::test_each_planted_fault_ranks_at_the_top_of_the_worklist`, on the fake plant
+
+## valve_stiction
+
+**Valve stiction from controller output against process value (cross-correlation test).** Engineering practice. Horch, A. (1999), A simple method for detection of stiction in control valves, Control Engineering Practice 7: on a loop cycling in auto, the cross-correlation of controller output and process value is odd (zero at lag 0, peaks of opposite sign either side) when a sticking valve drives the cycle, and even (strongest at lag 0) when tuning or an outside disturbance does. Stated for self-regulating loops (flow, pressure); on an integrating loop (level) it is a weaker indication. The share thresholds are this registry's own screening choices.
+
+- **Valid for:** Loops on the DCS loop list in auto most of the window whose process value cycles regularly (loop_oscillation).
+- **Needs:** A day or more of 5-minute readings covering at least four cycles.
+- **Run by:** `valve_stiction`
+- **Threshold `odd_max`:** |r(0)| under this share of the strongest correlation within half a period, with peaks of opposite sign either side: a suspected sticking valve. (0.3)
+- **Threshold `even_min`:** |r(0)| over this share: tuning or a disturbance; between the two, inconclusive. (0.7)
+- **Threshold `min_auto`:** Share of the window in auto below which the test isn't run. (90 %)
+- **Worked example:** `tests/analysis/test_stiction.py::test_a_sticking_valve_reads_odd_and_a_tuning_cycle_reads_even`, on the fake plant
+- **Worked example:** `tests/analysis/test_stiction.py::test_the_sticky_level_valve_is_found_and_the_healthy_loops_are_not`, on the fake plant
 
 ## contactor_foaming
 
