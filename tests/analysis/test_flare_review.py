@@ -40,6 +40,6 @@ def test_flare_attribution_reaches_people_and_agents(okan_db):
     out = mcp_server.flare_attribution()
     assert len(out["days"]) <= 31 and out["summary"]["episodes"] == 3
     fig = troubleshooting.flare_attribution(okan_db.conn)
-    assert fig.data[0]["name"] == "flare (kSm3/d)" and len(fig.data[2]["x"]) == 3
+    assert fig.data[0]["name"] == "flare (kSm³/d)" and len(fig.data[2]["x"]) == 3
     assert fig.data[2]["marker"]["symbol"].count("circle-open") == 1
     okan_db.conn.rollback()

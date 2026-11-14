@@ -70,7 +70,7 @@ def test_screen_reaches_people_and_agents(okan_db):
     assert mcp_server.test_staleness(max_days=10)["summary"]["stale"] > 0
     climbing = next(p["well_id"] for p in wd.screen(okan_db.conn)["patterns"] if p["verdict"] == "gor_climb")
     fig = production.gor_trend(okan_db.conn, climbing)
-    assert fig.data[0]["name"] == "GOR (Sm3/Sm3)" and len(fig.data) == 3 and fig.summary["gor_climb"]
+    assert fig.data[0]["name"] == "GOR (Sm³/Sm³)" and len(fig.data) == 3 and fig.summary["gor_climb"]
     water = production.water_diagnostic(okan_db.conn, _id(okan_db.conn, "OK-J03-02"))
     assert "estimated" in water.summary["cumulative_basis"]
     okan_db.conn.rollback()

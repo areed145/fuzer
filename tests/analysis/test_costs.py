@@ -71,5 +71,5 @@ def test_costs_reach_people_and_agents(okan_db):
     fig = maintenance.spend(conn, by="unit")
     assert fig.data[0]["name"] == "cost, currency unknown"  # the plot labels an unknown currency as unknown
     fig = maintenance.unreliability(conn, load_pack("okan"))
-    assert [t["name"] for t in fig.data] == ["lost oil (USD at 470 per Sm3)", "corrective orders, currency unknown"]
+    assert [t["name"] for t in fig.data] == ["lost oil (USD at 470 per Sm³)", "corrective orders, currency unknown"]
     conn.rollback()
