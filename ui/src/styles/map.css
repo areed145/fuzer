@@ -23,7 +23,8 @@
 .map-controls .ui-button { box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
 .map-controls .map-control-button { min-width: 44px; min-height: 44px; padding: 8px; }
 .map-legend .chip { min-height: 44px; }
-.map-message { position: absolute; z-index: 1000; top: 58px; right: 10px; max-width: min(360px, calc(100% - 20px));
+/* A message sits at the foot of the map, so it never covers the controls or the field at the top (#1075). */
+.map-message { position: absolute; z-index: 1000; bottom: 28px; left: 10px; max-width: min(360px, calc(100% - 20px));
   padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--danger);
   box-shadow: 0 1px 5px rgb(0 0 0 / .2); font-size: 12px; }
 .map-frame.map-fullscreen {
@@ -34,6 +35,13 @@
 @media (max-width: 600px) { .map-frame.map-fullscreen:not(.mapview-compact *) > .map-controls { left: calc(10px + env(safe-area-inset-left)); } }
 .map-frame.map-fullscreen .map { height: 100vh !important; height: 100dvh !important; border: 0; border-radius: 0; }
 .leaflet-container { font: inherit; }
+/* With no tiles (blocked, or no base map) the plain background follows the theme, not Leaflet's light grey (#1075). */
+.leaflet-container.map { background: var(--bg); }
+/* Platforms, pads and plants are squares (#1075), wells dots. */
+.map-square { background: none; border: 0; }
+.map-square span { display: block; width: 100%; height: 100%; box-sizing: border-box; border-radius: 3px; cursor: pointer; }
+.mk-point.mk-square { border-radius: 3px; }
+.map-controls .map-extent { font-size: 13px; font-weight: 600; }
 .leaflet-control-zoom a { background: var(--panel) !important; color: var(--text) !important; border-color: var(--line) !important; }
 .leaflet-control-zoom a { width: 44px !important; height: 44px !important; line-height: 42px !important; font-size: 24px !important; }
 .viewer .mark .hl-ring { animation: hl-pulse 1.6s ease-in-out infinite; }
@@ -51,9 +59,10 @@ h2 select { font: inherit; font-size: 15px; }
   .map-basemaps { flex: 1; min-width: 0; }
   .map-basemaps > .ui-button.map-basemap { flex: 1; min-height: 38px; padding: 0 6px; }
   /* The controls span the top, so the zoom buttons and any message start under them. */
-  .mapview:not(.mapview-compact) .leaflet-top.leaflet-left { top: 54px; }
-  .mapview:not(.mapview-compact) .map-fullscreen .leaflet-top.leaflet-left { top: calc(54px + env(safe-area-inset-top)); }
-  .mapview:not(.mapview-compact) .map-message { left: 64px; right: 10px; }
+  /* Clear of the controls' row at either size (the iOS look draws them taller, #1075). */
+  .mapview:not(.mapview-compact) .leaflet-top.leaflet-left { top: 66px; }
+  .mapview:not(.mapview-compact) .map-fullscreen .leaflet-top.leaflet-left { top: calc(66px + env(safe-area-inset-top)); }
+  .mapview:not(.mapview-compact) .map-message { left: 10px; right: 10px; }
 }
 
 /* Hotspots (Home): colour is the highest band, the number how much is open, a clock badge something overdue. */

@@ -33,11 +33,19 @@ def stats(conn, pack: Pack) -> dict:
 SEARCH_FIELDS = ("description", "manufacturer", "model", "serial", "short_text", "text", "title", "summary")
 
 
+# The order kinds are listed in (#1075): the places and drawings people look for first, instrument tags last, so
+# "flare" finds the flare system area and its P&IDs before thirty flare tags, and Browse opens on facilities.
+KIND_ORDER = ["facility", "area", "document", "equipment", "well", "pipeline", "work_order", "notification", "incident"]
+LAST_KINDS = ["timeseries", "tag"]
+_KIND_RANK = ("coalesce(array_position(%(order)s::text[], e.kind), "
+              "case when e.kind = any(%(last)s::text[]) then 100 + array_position(%(last)s::text[], e.kind) else 50 end)")
+
+
 def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 50) -> list[dict]:
     """Exact key matches first (any tag / well style), then anything whose label, source key or
-    searchable field contains the text. Each part stops early, so common words stay fast on large
-    registers."""
-    params = {"kind": kind, "limit": limit}
+    searchable field contains the text, places and drawings before equipment and instrument tags (KIND_ORDER). Each
+    part stops early, so common words stay fast on large registers."""
+    params = {"kind": kind, "limit": limit, "order": KIND_ORDER, "last": LAST_KINDS}
     if not q:
         return conn.execute(
             """
@@ -46,7 +54,7 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
             join entity e on e.fuzer_id = l.fuzer_id
             left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
             where e.merged_into is null and e.retired_at is null and (%(kind)s::text is null or e.kind = %(kind)s)
-            order by l.label limit %(limit)s
+            order by """ + _KIND_RANK + """, l.label limit %(limit)s
             """,
             params,
         ).fetchall()
@@ -78,7 +86,7 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
         left join entity_label l on l.fuzer_id = e.fuzer_id
         left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
         where e.merged_into is null and e.retired_at is null and (%(kind)s::text is null or e.kind = %(kind)s)
-        order by b.rank, l.label
+        order by b.rank > 0, {_KIND_RANK}, b.rank, l.label
         limit %(limit)s
         """,
         params,

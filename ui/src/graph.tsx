@@ -45,7 +45,12 @@ function themeColors() {
 const MIN_LABEL_PX = 8;
 const labelScale = (zoom: number) => Math.min(2.5, Math.max(1, Math.round((MIN_LABEL_PX / (10 * zoom)) * 4) / 4));
 
-function stylesheet(scale = 1) {
+/** A graph this big, zoomed out this far, names only what is pointed at (#1075): the root, the picked or hovered node
+ * and its neighbours. Zoomed in, every node is named again. */
+const CROWD = 30;
+const crowdedAt = (nodes: number, zoom: number) => nodes > CROWD && zoom < 1.1;
+
+function stylesheet(scale = 1, crowded = false) {
   const t = themeColors();
   return [
     {
@@ -67,6 +72,8 @@ function stylesheet(scale = 1) {
         "text-background-padding": "1px",
       },
     },
+    ...(crowded ? [{ selector: "node", style: { label: "" } },
+                   { selector: "node.named, node:selected, node[?root]", style: { label: "data(label)", "z-index": 10 } }] : []),
     { selector: "node[?root]", style: { "border-width": 3, "border-color": t.text } },
     { selector: "node[ring]", style: { "border-width": 3, "border-color": "data(ring)" } },
     { selector: "node:selected", style: { "border-width": 4, "border-color": t.accent } },
@@ -173,14 +180,22 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     cy.on("mouseover", "edge", (e) => e.target.addClass("hover"));
     cy.on("mouseout", "edge", (e) => e.target.removeClass("hover"));
     // A hovered or selected node names its own links, so unlabelled graphs stay readable (#399).
-    cy.on("mouseover", "node", (e) => e.target.connectedEdges().addClass("near"));
-    cy.on("mouseout", "node", (e) => { if (!e.target.selected()) e.target.connectedEdges().removeClass("near"); });
-    let scale = 1;
-    const restyle = () => cy.style(stylesheet(scale) as cytoscape.StylesheetJson);
-    cy.on("zoom", () => {
-      const next = labelScale(cy.zoom());
-      if (next !== scale) { scale = next; restyle(); }
+    // ... and names itself and its neighbours where a crowded graph names nothing else.
+    cy.on("mouseover", "node", (e) => { e.target.connectedEdges().addClass("near"); e.target.closedNeighborhood("node").addClass("named"); });
+    cy.on("mouseout", "node", (e) => {
+      if (e.target.selected()) return;
+      e.target.connectedEdges().removeClass("near");
+      e.target.closedNeighborhood("node").removeClass("named");
+      cy.$("node:selected").closedNeighborhood("node").addClass("named");
     });
+    let scale = 1, crowded = false;
+    const restyle = () => cy.style(stylesheet(scale, crowded) as cytoscape.StylesheetJson);
+    const zoomed = () => {
+      const next = labelScale(cy.zoom()), crowd = crowdedAt(cy.nodes().length, cy.zoom());
+      if (next !== scale || crowd !== crowded) { scale = next; crowded = crowd; restyle(); }
+    };
+    cy.on("zoom", zoomed);
+    cy.on("add remove", zoomed);
     window.addEventListener(THEME_CHANGED, restyle);
     // The canvas changes size when a phone turns or the side panel moves below the graph: redraw at the new
     // size, and refit when it changed much (a turn, the full screen) so the graph isn't left cut off or in a corner.
@@ -219,9 +234,10 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     if (!cy) return;
     cy.$(":selected").unselect();
     cy.edges(".near").removeClass("near");
+    cy.nodes(".named").removeClass("named");
     if (selectedId) {
       const picked = cy.getElementById(selectedId).select();
-      if (picked.isNode()) picked.connectedEdges().addClass("near");
+      if (picked.isNode()) { picked.connectedEdges().addClass("near"); picked.closedNeighborhood("node").addClass("named"); }
     }
   }, [selectedId, elements]);
 
