@@ -4,6 +4,7 @@
 import { api, type LinkedOrder } from "../api";
 import { Badge, Card, Disclosure, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
+import { plural, say } from "../wording";
 
 const LINK: Record<LinkedOrder["link"], string> = {
   via_notification: "raised for its notification",
@@ -33,12 +34,12 @@ export function IncidentRepeats() {
               <td data-label="Incidents">{u.incidents}
                 <Disclosure label="Which">
                   <ul className="plain small">{u.items.map((i) => (
-                    <li key={i.id}><a href={entityHref(i.id)}>{i.start}</a> {i.description}</li>
+                    <li key={i.id}><a href={entityHref(i.id)}>{i.start}</a> {say(i.description)}</li>
                   ))}</ul>
                 </Disclosure></td>
               <td data-label="Days between">{u.days_between.length ? u.days_between.join(", ") : "once"}</td>
               <td data-label="Linked work">
-                {u.items.reduce((n, i) => n + i.linked_orders, 0)} orders, {u.items.reduce((n, i) => n + i.open_orders, 0)} open
+                {plural(u.items.reduce((n, i) => n + i.linked_orders, 0), "order")}, {u.items.reduce((n, i) => n + i.open_orders, 0)} open
                 {u.came_back_after_closed_work.map((c) => (
                   <div key={c.incident} className="small came-back">
                     Came back on <a href={entityHref(c.incident)}>{c.start}</a> after{" "}

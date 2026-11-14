@@ -84,7 +84,7 @@ def test_wording_follows_the_data():
 
     done = flow_capacity(capacity([stage("Wells", 130, "reported_potential"), stage("HP", 90, "declared", "moc", True)],
                                   basis="declared_limits", established=True, limit_sm3d=90, binding_stages=["HP"]), NOTICE)
-    assert done.summary["headline"] == "Bottleneck: HP at 90 Sm3/d. Next is Wells at 130 Sm3/d, 44.4% more."
+    assert done.summary["headline"] == "Bottleneck: HP at 90 Sm³/d. Next is Wells at 130 Sm³/d, 44.4% more."
     assert done.summary["tables"] == []
     assert not any("≥" in note or "well test" in note for note in done.summary["notes"])
     assert trace(done, "Approved")["text"] == ["130", "◆ 90"]
@@ -131,7 +131,7 @@ def test_production_keeps_gaps_and_names_ties():
     assert "Binding: Export [export]" in fig.data[0]["text"][12]
     assert fig.summary["tables"][0]["rows"][0][1] == "Unknown"
     tied = point(binding_constraint_ids=["b", "a"])
-    assert constraint_label(tied, CONSTRAINTS) == "Export [export] + Compressor [equipment] (tied)"
+    assert constraint_label(tied, CONSTRAINTS) == "Export + Compressor (equipment), tied"
     assert constraint_label(point(capacity_basis="reported_potential", binding_constraint_ids=[], active_constraint_id=None), CONSTRAINTS) \
         == "Reported potential · physical constraint unknown"
     assert constraint_label(point(dynamic_max_sm3d=None), CONSTRAINTS) == "Unknown"

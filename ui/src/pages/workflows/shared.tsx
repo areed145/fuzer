@@ -6,6 +6,7 @@ import { usePerson } from "../../work";
 import { useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { href, notifyChanged, useAsync } from "../../lib";
+import { queue } from "../../wording";
 
 export const taskHref = (id: number) => href(`/inbox/task/${id}`);
 export const caseHref = (id: number) => href(`/cases/${id}`);
@@ -101,10 +102,10 @@ export function AssignPicker({ value, onChange, agents = false, placeholder = "c
     <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
       <option value="">{placeholder}</option>
       <optgroup label="People">
-        {(people.data ?? []).map((p) => <option key={p.name} value={p.name}>{p.name}{p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ""}</option>)}
+        {(people.data ?? []).map((p) => <option key={p.name} value={p.name}>{p.display_name || p.name}{p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ""}</option>)}
       </optgroup>
       <optgroup label="Role queues">
-        {(roles.data ?? []).filter((r) => r.kind === "person").map((r) => <option key={r.name} value={`role:${r.name}`}>{r.name} queue</option>)}
+        {(roles.data ?? []).filter((r) => r.kind === "person").map((r) => <option key={r.name} value={`role:${r.name}`}>{queue(r.name)}</option>)}
       </optgroup>
       {agents && (
         <optgroup label="Agents">

@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
-from ..core import metrics, settings
+from ..core import metrics, settings, wording
 
 OUTLINE = ["Headline", "Production and deferment", "Upsets and events", "Wells", "Maintenance and integrity",
            "Look-ahead and asks"]
@@ -125,9 +125,10 @@ def facts(conn, pack, day: str) -> dict:
     ups = [u for u in sre.upsets(conn, day, kind="process", limit=200) if u["start"][:10] == day] if _has(conn, "upset") else []
     for u in ups:
         sections["Upsets and events"].append(_f(
-            "Upset from {at}: {key} on {point} ({unit}), {n} detections, {status}", [f"upset:{u['id']}"],
-            at=u["start"][11:16], key=u["first_key"], point=u["first_point"], unit=u["first_unit"], n=u["detections"],
-            status="still going" if u["end"] is None else "recovered"))
+            "{what} on {unit} from {at} ({point}), {n} " + ("detection" if u["detections"] == 1 else "detections")
+            + ", {status}", [f"upset:{u['id']}"],
+            at=u["start"][11:16], what=wording.alarm(u["first_key"]), point=u["first_point"], unit=u["first_unit"],
+            n=u["detections"], status="still going" if u["end"] is None else "recovered"))
     for x in w["incidents"]:
         sections["Upsets and events"].append(_f("Incident: {desc}", [x["id"]], desc=x.get("description") or x["label"]))
     for x in w["events"]:

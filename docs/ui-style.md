@@ -193,7 +193,8 @@ labels its times (incident start, detection start, run start) with the shared `t
 A detection links to its case when one exists.
 
 Use `lib.timestamp` for ingestion/run/observation timestamps: offset-bearing values are shown in
-UTC, missing/invalid values are unknown, and timezone-free values remain explicitly unzoned.
+UTC, missing/invalid values are unknown, and timezone-free values remain explicitly unzoned (shown as
+written, to the minute, labelled "plant time").
 Never apply this normalization to source event dates with no supplied timezone. Retain the
 Okan synthetic/historical labels and distinguish event time from ingestion observation time.
 Do not infer percent units from a numeric value below one; scheduler metadata keeps its recorded

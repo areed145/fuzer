@@ -110,12 +110,15 @@ export function timestamp(value: string | null | undefined, precision: "minutes"
   if (!value) return "Time unknown";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Time unknown";
-  if (!/(Z|[+-]\d{2}:\d{2})$/i.test(value)) return `${value} (timezone not supplied)`;
+  // Unzoned: the source's own clock, shown as written (to the minute) and said to be plant time, never converted
+  if (!/(Z|[+-]\d{2}:\d{2})$/i.test(value)) {
+    return `${value.replace("T", " ").slice(0, precision === "seconds" ? 19 : 16)} plant time`;
+  }
   return `${date.toISOString().slice(0, precision === "seconds" ? 19 : 16).replace("T", " ")} UTC`;
 }
 
-export function KindBadge({ kind }: { kind: string }) {
-  return <UIBadge className={`badge kind kind-${kind}`}>{kind.replace("_", " ")}</UIBadge>;
+export function KindBadge({ kind, label }: { kind: string; label?: string }) {
+  return <UIBadge className={`badge kind kind-${kind}`}>{label ?? kind.replace("_", " ")}</UIBadge>;
 }
 
 export function SourceBadge({ source }: { source: string }) {

@@ -1,6 +1,7 @@
 import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge, Disclosure } from "../../ui";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
+import { say } from "../../wording";
 import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
 import { Status, href, useAsync } from "../../lib";
@@ -121,7 +122,7 @@ function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: 
   return (
     <tr>
       <td>{!r.closed_at && <Input type="checkbox" checked={picked} onChange={toggle} />}</td>
-      <td><a href={caseHref(r.id)}>{r.title}</a>{r.escalated && <UIBadge className="badge late"> escalated</UIBadge>}</td>
+      <td><a href={caseHref(r.id)}>{say(r.title)}</a>{r.escalated && <UIBadge className="badge late"> escalated</UIBadge>}</td>
       <td className="small"><UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge>{r.process_key && <> <a className="muted" href={processHref(r.process_key)}>{r.process_key}</a></>}</td>
       <td className="small">{r.closed_at ? <UIBadge className="badge ok">{r.state}{r.outcome ? `: ${r.outcome}` : ""}</UIBadge> : r.step ?? r.state}</td>
       <td className="small">{r.closed_at ? "" : holder(r.assignee, r.role)}</td>
@@ -188,7 +189,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {demo && <DemoContext step="workflow" />}
       <div className="entity-head">
         <div>
-          <PageHeader className={it.title.length > 48 ? "case-title-long" : undefined}>{it.title}</PageHeader>
+          <PageHeader className={it.title.length > 48 ? "case-title-long" : undefined}>{say(it.title)}</PageHeader>
           <div className="row small">
             <UIBadge className="badge">{it.type.replace(/_/g, " ")}</UIBadge>
             <UIBadge className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</UIBadge>

@@ -2,6 +2,11 @@
 // panel sharing an axis per unit, and the unit's alarms, log, cases, work orders and downtime as lanes beneath. Pure:
 // it takes the trend view, the timeline, what is switched on and the page's colours, and returns a Plotly figure.
 
+/** A unit as printed (the same symbols as wording.ts, inlined so this module stays dependency-free): degC °C, Sm3 Sm³. */
+const unit = (u: string | null | undefined): string => (u ?? "")
+  .replace(/(?<![\w])(?:k|M)?(?:Sm3|Am3|m3)(?!\w)/g, (s) => s.replace("3", "³"))
+  .replace(/(?<![\w])degC(?!\w)/g, "°C").replace(/^um(?=$|\/)/, "µm");
+
 export interface TrendLimit { type: "hihi" | "hi" | "lo" | "lolo"; value: number; basis: "alarm" | "iow" | "learned"; iow?: string }
 export interface TrendTrace {
   id: string;
@@ -109,12 +114,15 @@ export function pointTag(point: string): string {
 }
 
 /** A description less the words every twin starts with: "Train B Compressor Thrust Bearing Temperature" beside
- * "Train B Compressor Journal Bearing Temperature" reads "Thrust Bearing Temperature". */
+ * "Train B Compressor Journal Bearing Temperature" reads "Thrust Bearing Temperature". What is left is never a bare
+ * number: "Exhaust Thermocouple 4" keeps the words that say what 4 is (#1082). */
 function distinct(own: string, all: string[]): string {
   const words = all.map((x) => x.split(" "));
   let k = 0;
   while (words.every((w) => w.length > k + 1 && w[k] === words[0][k])) k += 1;
-  return own.split(" ").slice(k).join(" ");
+  const mine = own.split(" ");
+  if (!/[A-Za-z]{2}/.test(mine.slice(k).join(" "))) k = Math.max(0, k - 2);
+  return mine.slice(k).join(" ");
 }
 
 /** The panels to draw: the template's groups, then the unit's other points, each with only its switched-on traces. */
@@ -289,7 +297,7 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
       const axis = n === 1 ? "yaxis" : `yaxis${n}`;
       const ref = n === 1 ? "y" : `y${n}`;
       const traces = g.traces.filter((t) => t.axis === u);
-      const label = traces[0].uom ?? "";
+      const label = unit(traces[0].uom);
       // A position or opening in % reads on its whole 0 to 100 scale, so a valve shut at 0 is a line on the floor,
       // not noise blown up to fill the panel (#1076).
       const whole = label === "%" && traces.every((t) => t.min >= 0 && t.max <= 100) ? { range: [-2, 102], autorange: false } : {};
@@ -303,10 +311,10 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
         data.push({
           type: "scatter", mode: t.sampled ? "lines+markers" : "lines", x: t.values.map(([at]) => at),
           y: t.values.map(([, v]) => v), yaxis: ref, legend, showlegend: true,
-          name: `${short(name.get(t.id) ?? "", compact)} <b>${reading(t.last)}</b>${t.uom ? ` ${t.uom}` : ""}`,
+          name: `${short(name.get(t.id) ?? "", compact)} <b>${reading(t.last)}</b>${t.uom ? ` ${unit(t.uom)}` : ""}`,
           line: { width: 1.6, color: colour.get(t.id), ...(t.sampled ? { shape: "hv", dash: "dot" } : {}) },
           ...(t.sampled ? { marker: { size: 7, color: colour.get(t.id) }, text: (t.methods ?? []).map((m) => m ?? "") } : {}),
-          hovertemplate: `%{y:.4~g} ${t.uom ?? ""}${t.sampled ? " %{text}" : ""}<extra>${name.get(t.id)}</extra>`,
+          hovertemplate: `%{y:.4~g} ${unit(t.uom)}${t.sampled ? " %{text}" : ""}<extra>${name.get(t.id)}</extra>`,
         });
       }
       // A limit draws only where it can't be mistaken for another trace's: the panel's one trace.

@@ -47,6 +47,14 @@ def window(conn, item_id: int) -> tuple[datetime, datetime, list[str]] | None:
     else:
         a = min(r["first_seen"] for r in rows).astimezone(clock.zone()).replace(tzinfo=None)
         b = max(r["last_seen"] for r in rows).astimezone(clock.zone()).replace(tzinfo=None)
+        # Raised on today's clock over data that ends earlier (a historical or synthetic scenario): the event is in
+        # the data, so its window is the data's last day, not today's synthetic values (#1082).
+        from ..graph.operations import data_through
+
+        end = data_through(conn)
+        if end and a.date() > datetime.fromisoformat(end[:10]).date():
+            a = datetime.fromisoformat(end[:10])
+            b = a + timedelta(days=1)
     before = settings.get(conn, "exceptions.around_before_hours")
     after = settings.get(conn, "exceptions.around_after_hours")
     return (a - timedelta(hours=before), b + timedelta(hours=after),

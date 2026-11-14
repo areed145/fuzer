@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 
 from psycopg.types.json import Jsonb
 
-from ..core import settings, work
+from ..core import settings, wording, work
 from ..core.exceptions import ExceptionError
 
 SECTIONS = ["Open work", "In the field", "Open permits", "Active bypasses", "Rounds", "Back from the field", "Escalated or overdue", "Dispatched",
@@ -67,7 +67,19 @@ def boundaries(conn, now: datetime) -> tuple[datetime, datetime]:
 
 
 def _line(text: str, *cites: str) -> dict:
-    return {"text": text, "cites": [c for c in cites if c]}
+    return {"text": wording.say(text), "cites": [c for c in cites if c]}
+
+
+def _to(to: str | None) -> str:
+    """Who work was sent to: a person by name, a role as its queue."""
+    to = str(to or "")
+    return f"the {wording.queue(to)}" if to.startswith("role:") else to or "nobody"
+
+
+def readable(facts: dict) -> dict:
+    """A drafted handover's lines in people's words (#1072), for handovers drafted before the wording layer."""
+    return {**facts, "sections": {name: [{**line, "text": wording.say(line.get("text"))} for line in lines]
+                                  for name, lines in (facts.get("sections") or {}).items()}}
 
 
 def facts(conn, start: datetime, end: datetime) -> dict:
@@ -80,7 +92,7 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         if len(rows) > LIMIT:
             more[name] = len(rows) - LIMIT
 
-    holder = lambda r: r["assignee"] or (f"the {r['role'].replace('_', ' ')} queue" if r["role"] else "nobody yet")
+    holder = lambda r: r["assignee"] or (f"the {wording.queue(r['role'])}" if r["role"] else "nobody yet")
     keep("Open work", conn.execute(
         """
         select id, title, type, priority, assignee, role, due from work_item
@@ -133,7 +145,7 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         select o.created_at, o.payload, o.ref from event_outbox o
         where o.topic = 'exception.dispatched' and o.created_at >= %(s)s and o.created_at < %(e)s order by o.id
         """, {"s": start, "e": end}).fetchall(),
-        lambda r: _line(f"{r['payload'].get('title')} sent to {str(r['payload'].get('to') or '').removeprefix('role:')}"
+        lambda r: _line(f"{wording.say(r['payload'].get('title'))} sent to {_to(r['payload'].get('to'))}"
                         f" at {r['created_at']:%H:%M}" + (f" ({r['payload']['reason']})" if r["payload"].get("reason") else ""),
                         r["ref"], f"case:{r['payload']['item_id']}" if r["payload"].get("item_id") else ""))
     keep("New exceptions", conn.execute(
@@ -261,7 +273,7 @@ def _ordered(row) -> dict:
     """jsonb keeps keys in its own order: the sections back in the handover's."""
     row = dict(row)
     sec = (row.get("facts") or {}).get("sections") or {}
-    row["facts"] = {**row["facts"], "sections": {k: sec.get(k, []) for k in SECTIONS}}
+    row["facts"] = readable({**row["facts"], "sections": {k: sec.get(k, []) for k in SECTIONS}})
     return row
 
 

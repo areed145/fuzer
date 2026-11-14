@@ -7,6 +7,7 @@ import { Markdown } from "./Markdown";
 import { entityHref, fieldLabel, fmt, useAsync } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
+import { queue } from "./wording";
 
 export { loadPerson, usePerson } from "./identityStore";
 
@@ -63,12 +64,12 @@ export function Actor({ who }: { who: string }) {
 export function holder(assignee: string | null, role: string | null, kind?: string): string {
   if (assignee) return assignee;
   if (kind === "agent") return `${role} agent`;
-  return role ? `${role.replace(/_/g, " ")} queue` : "nobody";
+  return role ? queue(role) : "nobody";
 }
 
 const to = (t: unknown) => {
   const s = String(t ?? "");
-  return s.startsWith("role:") ? `the ${s.slice(5).replace(/_/g, " ")} queue` : s.startsWith("agent:") ? `the ${s.slice(6)} agent` : s;
+  return s.startsWith("role:") ? `the ${queue(s)}` : s.startsWith("agent:") ? `the ${s.slice(6)} agent` : s;
 };
 
 const UNITS: Record<string, string> = { D: "day", H: "hour", M: "minute" };

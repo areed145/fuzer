@@ -113,7 +113,7 @@ test("each trace is named in its panel's key with its last value, and no panel c
   assert.equal(Object.keys(f.layout).filter((k) => /^yaxis\d*$/.test(k) && f.layout[k].anchor === "free").length, 0);
   const d = f.data.find((t) => t.name.startsWith("d"));
   assert.equal(d.legend, "legend2");
-  assert.ok(d.name.includes("<b>101</b> degC"), d.name);
+  assert.ok(d.name.includes("<b>101</b> °C"), d.name);  // the unit as printed (#1072)
   assert.equal(f.layout.legend2.title.text, "<b>Vibration, continued</b>");
   assert.equal(reading(1234.5), "1,235");
   assert.equal(reading(0.01234), "0.012");

@@ -2,6 +2,8 @@
 
 from collections import defaultdict
 
+from ...core.wording import failure_mode
+
 _DOWNTIME = """
     with recursive classes(id) as (
         select %(id)s::text
@@ -193,7 +195,9 @@ def incidents(conn, fuzer_id: str | None = None, since: str | None = None, until
         params,
     ).fetchall()
     return {"total": rows[0]["total"] if rows else 0,
-            "items": [{"id": r["id"], **{k: v for k, v in r["f"].items() if k != "timestamp"}} for r in rows]}
+            "items": [{"id": r["id"], **{k: v for k, v in r["f"].items() if k != "timestamp"},
+                       **({"failure_mode_words": {m: failure_mode(m) for m in r["f"]["failure_modes"]}}
+                          if r["f"].get("failure_modes") else {})} for r in rows]}
 
 
 def incident_timeline(conn, fuzer_id: str) -> list[dict]:

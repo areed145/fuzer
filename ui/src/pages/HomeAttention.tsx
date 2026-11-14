@@ -1,6 +1,7 @@
 /** Where attention is needed (Home): the places with open work, on the field map and as a ranked list. The list is
  * the reading; the map says where. A plant with no located assets gets the list alone. Read only: dispatch and
  * every edit stay on All work and the case pages. */
+import { queue } from "../wording";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { api, type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
 import { Badge, Button, ButtonLink, Card, Empty } from "../ui";
@@ -22,7 +23,7 @@ const keep = (p: AttentionPlace, f: Filter) =>
 const placeName = (p: AttentionPlace) => p.name ?? p.label;
 /** All work's place filter for the open work no place on the map holds (#1074). */
 export const UNPLACED = "unplaced";
-const holder = (i: AttentionItem) => i.assignee ?? (i.role ? `${i.role.replace(/_/g, " ")} queue` : "Unassigned");
+const holder = (i: AttentionItem) => i.assignee ?? (i.role ? queue(i.role) : "Unassigned");
 
 export function AttentionCard() {
   const spots = useAsync(() => api.attention(), []);

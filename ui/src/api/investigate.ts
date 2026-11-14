@@ -128,6 +128,8 @@ export interface Incident {
   notifications: number;
   lost_oil_sm3: number;
   failure_modes?: string[];
+  /** Each failure-mode code as its ISO 14224 word (#1072). */
+  failure_mode_words?: Record<string, string>;
   event_types?: string[];
 }
 

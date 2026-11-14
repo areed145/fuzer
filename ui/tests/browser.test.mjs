@@ -744,7 +744,7 @@ test("Core consistency Sources uses keyboard links, UTC ingestion times and expl
   await table.getByText("Health unknown", { exact: true }).first().waitFor();
   await table.getByText("Time unknown", { exact: true }).waitFor();
   await table.getByText("2026-11-06 12:00 UTC", { exact: true }).waitFor();
-  await table.getByText("2024-03-14T03:20:00 (timezone not supplied)", { exact: true }).waitFor();
+  await table.getByText("2024-03-14 03:20 plant time", { exact: true }).waitFor();
   // the how-to lives in the docs, so the table is on the first screen (#415)
   assert.equal(await page.locator("details, summary").count(), 0);
   assert.equal(await table.getByText("failed", { exact: true }).first().getAttribute("class").then(c => c.includes("ui-badge-danger")), true);
@@ -2950,7 +2950,7 @@ const homePopulated = {
     signals: 1, events: 1, downtime_records: 1, notifications: 1, lost_oil_sm3: 1450.4 }], total: 1 },
   "/upsets": [
     { id: 1, kind: "process", status: "detected", start: "2025-12-21T03:00:00Z", end: null, detections: 4, work_item_id: 31,
-      priority_usd: null, first_unit: "train:B", first_detector: "limits", first_key: "20-PT-3003", first_point: null },
+      priority_usd: null, first_unit: "20-PT-3003", first_detector: "limits", first_key: "alarm:hi", first_point: null },
     { id: 2, kind: "process", status: "detected", start: "2025-12-22T03:00", end: null, detections: 8, work_item_id: null,
       priority_usd: null, first_unit: null, first_detector: "limits", first_key: null, first_point: "OKAN.20PT3003.PV" },
   ],
@@ -2983,10 +2983,10 @@ test("Home leads with the facility search, labels times and links each item to i
     assert.equal(await page.getByRole("link", { name: "Check separator level 1", exact: true }).getAttribute("href"), "#/inbox/task/1");
     assert.equal(await page.getByRole("button", { name: "Claim", exact: true }).count(), 0);
     await page.getByText("Started 2025-03-11 · 1,450 Sm³ lost oil", { exact: true }).waitFor();
-    assert.equal(await page.getByRole("link", { name: "20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
+    assert.equal(await page.getByRole("link", { name: "High alarm on 20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
     assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/exceptions?list=ranked&view=kind");
-    await page.getByText("Detected from 2025-12-21 03:00 UTC", { exact: false }).waitFor();
-    await page.getByText("Detected from 2025-12-22T03:00 (timezone not supplied)", { exact: false }).waitFor();
+    await page.getByText("From 2025-12-21 03:00 UTC", { exact: false }).waitFor();
+    await page.getByText("2025-12-22 03:00 plant time", { exact: false }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await waveScreenshot(`home-populated-${width}`);
   }
@@ -3669,13 +3669,21 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
     state: acked ? "acknowledged" : "handed_over", notes_by: "bo", acknowledged_by: acked ? "ann" : null,
     acknowledged_at: acked ? "2026-11-12T06:10:00Z" : null, item_id: 40, lines: 6 });
   await page.route("**/handovers", (route) => route.fulfill({ json: [row()] }));
-  await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "Open work": [] } },
+  const lines = [
+    { text: "Low alarm on OK-J08-03 (peak 10.78 barg) from 2025-12-30 21:20 (upset), with the ops lead queue", cites: ["case:113"] },
+    { text: "PTW-30000 hot work on 10-E-3001, issued to 2026-11-16 18:00", cites: ["entity:fz-permit-65501ac23ccf"] },
+  ];
+  await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "Open work": lines } },
     drafted_at: "2026-11-12T06:00:00Z", notes: "Watch K-201", notes_at: "2026-11-12T05:50:00Z", acknowledged_note: null } }));
   await page.goto(`${url}/#/inbox`);
   await page.getByText("Shift handover ready", { exact: false }).waitFor();
   await page.getByRole("link", { name: "Read and acknowledge" }).click();
   await page.waitForURL(/#\/handover\?id=7$/);
   await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
+  // Citations read as words and link to what they cite; no raw `case:` or register ids (#1072)
+  assert.equal(await page.getByRole("link", { name: "case 113", exact: true }).getAttribute("href"), "#/cases/113");
+  assert.equal(await page.getByRole("link", { name: "the permit", exact: true }).getAttribute("href"), "#/e/fz-permit-65501ac23ccf");
+  assert.doesNotMatch(await page.locator("main").innerText(), /\[case:|\[entity:|fz-[a-z_]+-[0-9a-f]{6,}|role:|alarm:/);
   acked = true;
   await page.goto(`${url}/#/inbox`);
   await page.getByRole("link", { name: "Shift handover", exact: true }).waitFor();
@@ -4331,6 +4339,14 @@ for (const [type, found] of Object.entries(FINDINGS)) {
     const read = async (path, width) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${url}/#${path}`);
+      // On the case, what was found reads as one sentence first and the fields are a tap away (#1082)
+      const details = page.getByRole("button", { name: "How it was found and the values" });
+      if (path.startsWith("/cases/")) {
+        const sentence = await page.locator(".finding-sentence").innerText();
+        assert.match(sentence, /^(A rule|An agent|Another system) found this/);
+        assert.ok(sentence.includes(`A ${type} title`), sentence);
+        await details.click();
+      }
       const box = page.locator(".finding dl").first();
       await box.waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} fits ${width}px`);
