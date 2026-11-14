@@ -6,6 +6,7 @@ export interface JobsHealth {
   level: HealthLevel;
   available: boolean;
   failed_runs_24h: number;
+  recovered_runs_24h?: number;
   failing_checks: number;
   scheduler_running: boolean;
   summary: string;

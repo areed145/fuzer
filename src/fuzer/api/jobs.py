@@ -225,21 +225,33 @@ def health(instance, defs, check_rows: list | None = None) -> dict:
     """green / amber / red for the nav: failed runs in the last 24 h and sensors or schedules whose latest tick
     failed are red, failing checks or a stopped scheduler amber."""
     if instance is None:
-        return {"level": "unknown", "available": False, "failed_runs_24h": 0, "failing_checks": 0,
+        return {"level": "unknown", "available": False, "failed_runs_24h": 0, "recovered_runs_24h": 0, "failing_checks": 0,
                 "failing_triggers": [], "scheduler_running": False, "summary": "Dagster hasn't run here yet"}
     from dagster import DagsterRunStatus
 
     since = datetime.fromtimestamp(time.time() - DAY, UTC)
-    failed = len(_runs(instance, limit=100, statuses=[DagsterRunStatus.FAILURE], updated_after=since))
+    # A run that failed and whose job has finished cleanly since (one cut short by a deploy restart, say) is history,
+    # not a job that is down: it is counted apart and doesn't turn the indicator red on every page.
+    runs = _runs(instance, limit=100, statuses=[DagsterRunStatus.FAILURE], updated_after=since)
+    latest: dict[str, str | None] = {}
+    for rec in runs:
+        job = rec.dagster_run.job_name
+        if job not in latest:
+            last = _runs(instance, job, limit=1, statuses=[DagsterRunStatus.SUCCESS, DagsterRunStatus.FAILURE])
+            latest[job] = _enum(last[0].dagster_run.status) if last else None
+    failed = sum(1 for rec in runs if latest[rec.dagster_run.job_name] != "SUCCESS")
+    recovered = len(runs) - failed
     rows = checks(instance, defs) if check_rows is None else check_rows
     failing = sum(1 for c in rows if c["level"] in ("warn", "fail"))
     sched = scheduler(instance)["running"]
     triggers = sorted(name for name, (_, tick) in _states(instance).items()
                       if tick is not None and _enum(tick.status) == "FAILURE")
-    level = "red" if (failed or triggers) else "amber" if (failing or not sched) else "green"
+    level = "red" if (failed or triggers) else "amber" if (failing or not sched or recovered) else "green"
     parts = []
     if failed:
         parts.append(f"{failed} failed run{'s' * (failed != 1)} in 24 h")
+    if recovered:
+        parts.append(f"{recovered} run{'s' * (recovered != 1)} failed in 24 h and ran cleanly since")
     if triggers:
         parts.append(f"{', '.join(triggers)} failing, so the jobs {'it starts' if len(triggers) == 1 else 'they start'}"
                      " are not running")
@@ -247,7 +259,8 @@ def health(instance, defs, check_rows: list | None = None) -> dict:
         parts.append(f"{failing} check{'s' * (failing != 1)} flagging")
     if not sched:
         parts.append("scheduler not running")
-    return {"level": level, "available": True, "failed_runs_24h": failed, "failing_checks": failing,
+    return {"level": level, "available": True, "failed_runs_24h": failed, "recovered_runs_24h": recovered,
+            "failing_checks": failing,
             "failing_triggers": triggers, "scheduler_running": sched, "summary": "; ".join(parts) or "All jobs healthy"}
 
 

@@ -3699,6 +3699,25 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.getByText("Shift handover ready", { exact: false }).waitFor({ state: "detached" });
 });
 
+test("a handover reads in a minute on a phone: what needs the lead first, five lines a section, the rest on ask", async () => {
+  const row = { id: 8, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "handed_over",
+    acknowledged_by: null, acknowledged_at: null, item_id: 41, lines: 30 };
+  await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
+  const many = (word, n) => Array.from({ length: n }, (_, i) => ({ text: `${word} ${i + 1}`, cites: [`case:${i + 1}`] }));
+  await page.route("**/handovers/8", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-12T06:00:00Z",
+    notes: null, acknowledged_note: null, facts: { sections: { "Open work": many("Backlog case", 25), "In the field": [],
+      "Escalated or overdue": many("Escalated step", 2) }, more: { "Open work": 121 } } } }));
+  await page.goto(`${url}/#/handover?id=8`);
+  await page.getByText("Escalated step 1").waitFor();
+  const headings = await page.locator("main h3").allInnerTexts();
+  assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("Open work"), headings.join(" | "));
+  assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 5);
+  assert.ok(await page.getByText("Nothing in in the field.").count());
+  await page.getByRole("button", { name: "Show all 146" }).click();
+  assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 25);
+  await page.getByText("and 121 more").waitFor();
+});
+
 test("a dispatched operator sees what they were sent on My work and lands on the job from it (#604)", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olav"));
   const inbox = { person: "olav", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
