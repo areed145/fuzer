@@ -117,15 +117,72 @@ function swipeActions() {
   });
 }
 
+/** Segment rows that don't fit the screen become a pull-down: only the chosen segment shows, as a button that opens
+ * an iOS menu of every choice. Rows that fit stay segmented controls. */
+const ROWS = "main nav.tabs, main .area-navigation, main .work-board-stages, main .attention-bar .chips";
+const chosen = (el: Element) => el.matches(".on, [aria-current], [aria-pressed='true']");
+
+function fitMenus() {
+  if (!phone()) return;
+  document.querySelectorAll<HTMLElement>(ROWS).forEach((row) => {
+    if (row.hasAttribute("data-ios-menu") || row.children.length < 4 || !row.getClientRects().length) return;
+    if (row.scrollWidth > row.clientWidth + 2) row.setAttribute("data-ios-menu", "");
+  });
+}
+
+function closeMenu() { document.querySelectorAll(".ios-menu, .ios-menu-scrim").forEach((e) => e.remove()); }
+
+function openMenu(row: HTMLElement, button: HTMLElement) {
+  closeMenu();
+  const scrim = document.createElement("div");
+  scrim.className = "ios-menu-scrim";
+  scrim.addEventListener("click", closeMenu);
+  const menu = document.createElement("div");
+  menu.className = "ios-menu";
+  menu.setAttribute("role", "menu");
+  Array.from(row.children).forEach((item) => {
+    const option = document.createElement("button");
+    option.setAttribute("role", "menuitemradio");
+    option.setAttribute("aria-checked", String(chosen(item)));
+    const count = item.querySelector(".muted")?.textContent?.trim() ?? "";
+    const label = (item.textContent ?? "").replace(count, "").trim();
+    option.innerHTML = `<span class="check">${chosen(item) ? "&#10003;" : ""}</span><span></span><span class="n"></span>`;
+    option.children[1].textContent = label;
+    option.children[2].textContent = count;
+    option.addEventListener("click", () => { closeMenu(); if (!chosen(item)) (item as HTMLElement).click(); });
+    menu.append(option);
+  });
+  document.body.append(scrim, menu);
+  const r = button.getBoundingClientRect();
+  menu.style.left = `${Math.max(16, Math.min(r.left, window.innerWidth - menu.offsetWidth - 16))}px`;
+  const below = r.bottom + 8 + menu.offsetHeight < window.innerHeight - 90;
+  menu.style.top = `${below ? r.bottom + 8 : Math.max(16, r.top - 8 - menu.offsetHeight)}px`;
+  if (!below) menu.style.transformOrigin = "bottom left";
+  (menu.querySelector("[aria-checked='true']") as HTMLElement | null ?? menu.querySelector("button"))?.focus();
+}
+
+function pullDowns() {
+  document.addEventListener("click", (e) => {
+    const item = (e.target as Element).closest<HTMLElement>("[data-ios-menu] > *");
+    if (!item || !chosen(item)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openMenu(item.parentElement as HTMLElement, item);
+  }, true);
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+  window.addEventListener("hashchange", closeMenu);
+}
+
 export function startIos() {
   if (!wanted()) return;
   document.documentElement.classList.add("ios");
   let queued = false;
-  const refold = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; foldTitle(); }); } };
+  const refold = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; foldTitle(); fitMenus(); }); } };
   window.addEventListener("scroll", refold, { passive: true });
   window.addEventListener("hashchange", () => setTimeout(refold, 50));
   new MutationObserver(refold).observe(document.body, { childList: true, subtree: true });
   edgeSwipe();
   pullToRefresh();
   swipeActions();
+  pullDowns();
 }
