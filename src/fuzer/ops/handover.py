@@ -1,12 +1,14 @@
 """Shift handover for the IOC (#467): at each shift change, what the incoming ops lead needs to know in a few minutes,
 drafted from live work, every line citing its case or exception the way the daily report cites its records.
 
-Six sections, over the shift that just ended:
+The sections, over the shift that just ended:
 
     Open work               open cases by priority (most urgent first)
     In the field            jobs in progress (on site, not yet done) and with whom, and handovers waiting to be
                             accepted (P5.11d)
     Open permits            permits to work not closed or expired, and isolations not yet in place (P5.11d)
+    Active bypasses         safeguards out of service at the shift change, from the bypass register: what is
+                            bypassed, on what, who approved it and when it must come out, overdue ones first (P5.11e)
     Back from the field     exceptions the field reported done or could not do, waiting on the IOC to decide
     Escalated or overdue    steps escalated during the shift, and steps past their due time now
     Dispatched              what the outgoing shift sent to the field, and to whom
@@ -28,7 +30,7 @@ from psycopg.types.json import Jsonb
 from ..core import settings, work
 from ..core.exceptions import ExceptionError
 
-SECTIONS = ["Open work", "In the field", "Open permits", "Rounds", "Back from the field", "Escalated or overdue", "Dispatched",
+SECTIONS = ["Open work", "In the field", "Open permits", "Active bypasses", "Rounds", "Back from the field", "Escalated or overdue", "Dispatched",
             "New exceptions", "Records to check"]
 RECORDS = "records_gap"  # its own section, so not repeated under Open work and New exceptions
 CASE_TYPE = "shift_handover"
@@ -100,6 +102,7 @@ def facts(conn, start: datetime, end: datetime) -> dict:
                            if r["handover"] and not r["handover"].get("accepted_at") else ""),
                         f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     keep("Open permits", _permits(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}"))
+    keep("Active bypasses", _bypasses(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}"))
     from . import rounds
 
     keep("Rounds", rounds.of_shift(conn, start, end), lambda r: _line(r["text"]))
@@ -157,6 +160,26 @@ def _local(at: str | None) -> str:
         return datetime.fromisoformat(at).astimezone(_tz()).strftime("%H:%M")
     except ValueError:
         return at[11:16]
+
+
+def _bypasses(conn, end: datetime) -> list[dict]:
+    """Safeguards bypassed at the shift change, from the bypass register (P3.9, P5.11e): an overdue one first and
+    saying so, a removed or not yet started one left out. A bundle with no bypass register has none."""
+    from . import safeguards
+
+    rows = sorted(safeguards.bypasses(conn, at_time=end), key=lambda b: (not b["overdue"], b["expires"] or "", b["label"] or ""))
+    out = []
+    for b in rows:
+        what = b.get("function") or "safeguard"
+        on = ", ".join(b["protects_labels"]) or ", ".join(b["acts_on_labels"]) or "?"
+        until = safeguards._when(b["expires"])
+        text = (f"{b['label']}: {what} ({b['safeguard']}) bypassed on {on}"
+                + (f", approved by {b['authorised_by']}" if b.get("authorised_by") else ", no approver on record")
+                + ((f", overdue since {until:%d %b %H:%M}" if b["overdue"] else f", expires {until:%d %b %H:%M}")
+                   if until else ", no expiry on record")
+                + (f", under {b['moc']}" if b.get("moc") else ""))
+        out.append({"id": b["id"], "text": text})
+    return out
 
 
 def _permits(conn, end: datetime) -> list[dict]:

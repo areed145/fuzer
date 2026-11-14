@@ -379,6 +379,40 @@ def test_the_shift_handover_lists_jobs_in_the_field_and_open_permits_from_the_re
     assert all(x["cites"][0].startswith("entity:") for x in s["Open permits"])
 
 
+def test_the_shift_handover_lists_active_bypasses_from_the_register(kestrel):
+    """P5.11e: the incoming lead sees which safeguards are out. BYP-KR-031 (the B1 suction scrubber's trip) is past
+    its expiry and says so; BYP-KR-032 is in date under its change; BYP-KR-029, removed, is not listed."""
+    from datetime import UTC, datetime
+
+    from fuzer.ops import handover
+
+    conn, _ = kestrel
+    now = datetime.now(UTC)
+    lines = handover.facts(conn, now - timedelta(hours=12), now)["sections"]["Active bypasses"]
+    by = {x["text"].split(":")[0]: x for x in lines}
+    assert list(by) == ["BYP-KR-031", "BYP-KR-032"]  # overdue first; the removed one left out
+    scrubber = by["BYP-KR-031"]["text"]
+    assert " bypassed on B1-V-2005" in scrubber and ", approved by " in scrubber and ", overdue since " in scrubber
+    assert ", expires " in by["BYP-KR-032"]["text"] and by["BYP-KR-032"]["text"].endswith(", under MOC-KR-0142")
+    assert all(x["cites"][0].startswith("entity:") for x in lines)
+
+
+def test_the_shift_handover_has_an_empty_bypass_section_with_no_register(kestrel):
+    """A bundle with no bypass register gets an empty section, not an error."""
+    from datetime import UTC, datetime
+
+    from fuzer.ops import handover
+
+    conn, _ = kestrel
+    conn.execute("savepoint no_register")
+    try:
+        conn.execute("update entity set retired_at = now() where kind = 'bypass'")
+        now = datetime.now(UTC)
+        assert handover.facts(conn, now - timedelta(hours=12), now)["sections"]["Active bypasses"] == []
+    finally:
+        conn.execute("rollback to savepoint no_register")
+
+
 def test_okan_spares_come_from_its_own_records(okan_db):
     conn = okan_db.conn
     short = conn.execute(
