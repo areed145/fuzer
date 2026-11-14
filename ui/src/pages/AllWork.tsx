@@ -1,7 +1,7 @@
 /** All work (#502): the IOC's one list of everything that came in. Exceptions, the Work board and the Cases list were
  * three pages showing the same work at different grains; they are views of this page now. Old links land here:
  * `#/board?view=…` opens Ranked by value, `#/cases?state=…` opens In progress or Closed. Case and task pages are
- * unchanged. */
+ * unchanged. Board lays the open work out by stage, one column per view. */
 import "../styles/all-work.css";
 import { useEffect, useRef, useState } from "react";
 import { Button, Input, PageHeader, Select } from "../ui";
@@ -12,8 +12,9 @@ import { usePerson } from "../work";
 import { ExceptionsPage, backFromField, waitingToDispatch, withTheField, type ExceptionView } from "./Exceptions";
 import { BoardPage } from "./Board";
 import { CasesPage } from "./workflows/Cases";
+import { WorkBoardPage } from "./WorkBoard";
 
-export type WorkList = ExceptionView | "progress" | "ranked" | "closed";
+export type WorkList = ExceptionView | "progress" | "ranked" | "closed" | "board";
 
 export const WORK_LISTS: { key: WorkList; label: string }[] = [
   { key: "dispatch", label: "To dispatch" },
@@ -23,6 +24,7 @@ export const WORK_LISTS: { key: WorkList; label: string }[] = [
   { key: "progress", label: "In progress" },
   { key: "ranked", label: "Ranked by value" },
   { key: "closed", label: "Closed" },
+  { key: "board", label: "Board" },
 ];
 
 const KEYS = new Set(WORK_LISTS.map((l) => l.key));
@@ -84,6 +86,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
       <FilterBar list={list} query={query} filters={filters} />
       <SavedViews list={list} filters={filters} roles={(people.data ?? []).find((p) => p.name === person)?.roles ?? []} />
       {list === "ranked" ? <BoardPage query={query} filters={filters} />
+        : list === "board" ? <WorkBoardPage query={query} filters={filters} />
         : list === "progress" ? <CasesPage key="progress" query={query} fixedState="open" filters={filters} />
         : list === "closed" ? <CasesPage key="closed" query={query} fixedState="closed" filters={filters} />
         : <ExceptionsPage key={list} query={query} view={list} filters={filters} />}

@@ -684,6 +684,8 @@ export interface ExceptionRow {
   priority: number | null; value_usd: number | null; subjects: string[]; unmatched: string[];
   item_id: number | null; case_state: string | null; assignee: string | null; role: string | null;
   raised_count: number; reports?: number; first_seen: string; last_seen: string;
+  /** When it was closed or cleared, and when anything about it last changed. */
+  closed_at?: string | null; updated_at?: string;
   planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
   /** Set aside by a person until then, with why (P3.5c). */
   shelved_until?: string | null; shelved_by?: string | null; shelved_reason?: string | null;
@@ -846,7 +848,7 @@ export const workApi = {
     request<NotifyPreference>("PUT", `/work/people/${encodeURIComponent(person)}/notify`, undefined, { ...p, by }),
   markNotificationsRead: (person: string, ids?: number[]) =>
     request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
-  exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
+  exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string; closed_since?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
   exceptionsSuppressed: () => request<SuppressedView>("GET", "/exceptions/suppressed"),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),

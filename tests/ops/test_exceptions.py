@@ -190,6 +190,24 @@ def test_finished_cases_close_their_exceptions(conn, types):
     conn.commit()
 
 
+def test_the_board_asks_for_what_closed_since_a_moment(conn, types):
+    from datetime import timedelta
+
+    from fuzer.core import work
+    from fuzer.core.exceptions import reconcile
+
+    types("overdue_pm", role="role:maintenance")
+    e = raise_exception(conn, "overdue_pm", "PM-2", "PM 2 overdue", "sap")
+    work.close_case(conn, e["item_id"], "done", "mia")
+    reconcile(conn)
+    closed_at = conn.execute("select closed_at from exception_record where id = %s", (e["id"],)).fetchone()["closed_at"]
+    ids = lambda since: [r["id"] for r in impl.listing(conn, state=None, closed_since=since, limit=1000)]
+    assert e["id"] in ids(closed_at - timedelta(minutes=1))
+    assert e["id"] not in ids(closed_at + timedelta(minutes=1))
+    assert all(r["closed_at"] is not None for r in impl.listing(conn, state=None, closed_since=closed_at - timedelta(days=1)))
+    conn.commit()
+
+
 def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
     from fuzer.ops import exceptions as ex
 
