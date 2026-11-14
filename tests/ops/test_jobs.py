@@ -37,6 +37,14 @@ def test_definitions_load():
     assert defs.resolve_sensor_def("new_exports").default_status == dg.DefaultSensorStatus.RUNNING
 
 
+def test_retention_runs_daily_for_every_project_and_is_on_by_default():
+    """R.5d: the retention settings are applied by a daily job (core/retention.py, tested in
+    tests/core/test_retention.py), running unless someone stops it."""
+    retention = next(s for s in jobs.defs.schedules if s.job_name == "retention")
+    assert retention.cron_schedule == "15 3 * * *"
+    assert retention.default_status == dg.DefaultScheduleStatus.RUNNING
+
+
 def test_refresh_all_loads_sources_rebuilds_and_checks(fuzer):
     selection = [*jobs.SOURCES, jobs.register]
     checks = [jobs.review_backlog, jobs.orphan_timeseries, jobs.tags_missing_from_sap, jobs.downtime_reason_codes,
