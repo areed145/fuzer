@@ -55,12 +55,8 @@
   :root.ios .topbar .refresh-button { display: none !important; }  /* pull to refresh replaces it */
   :root.ios .topbar .share-button { border: 0; background: none; color: var(--accent); }
 
-  /* ---- Large titles ---- */
+  /* ---- Large titles: room for them on a phone ---- */
   :root.ios main { padding: 4px 16px 16px; }
-  :root.ios main h1, :root.ios .ui-page-header h1 { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: .01em; margin: 0; }
-  :root.ios .entity-head .ui-page-header h1.mono, :root.ios .ui-page-header.mono h1 { font-size: 30px; }
-  :root.ios .ui-page-header { margin-bottom: 12px; gap: 6px; }
-  :root.ios .ui-page-subtitle, :root.ios .ui-page-header p { font-size: 15px; }
   :root.ios .crumbs { display: none; }  /* Back and the folded title say where you are */
 
   /* ---- Bottom tab bar: translucent, tinted icon for the current tab ---- */
@@ -73,76 +69,6 @@
   :root.ios .bottombar .tab-icon svg { width: 25px; height: 25px; stroke-width: 1.7; }
   :root.ios .bottombar > a.on .tab-icon svg { stroke-width: 2.1; }
   :root.ios .bottombar .tab-icon .count { background: var(--danger); color: #fff; top: -4px; left: 16px; }
-
-  /* ---- Segmented controls: area navigation and record views ---- */
-  :root.ios .area-navigation, :root.ios .tabs, :root.ios .work-board-stages, :root.ios .attention-bar .chips {
-    display: flex; gap: 2px; margin: 4px 0 16px; padding: 2px; border: 0; border-radius: 9px; background: var(--fill);
-    overflow-x: auto; scrollbar-width: none; width: 100%; max-width: 100%;
-  }
-  :root.ios .tabs > *, :root.ios .area-navigation a, :root.ios .work-board-stages .chip, :root.ios .attention-bar .chip {
-    flex: 1 0 auto; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-    padding: 0 12px; margin: 0; border: 0; border-radius: 7px; background: none; color: var(--text);
-    font-size: 13px; font-weight: 500; white-space: nowrap;
-  }
-  :root.ios .tabs > * + * { border-left: 0; }
-  :root.ios .tabs > .on, :root.ios .area-navigation a[aria-current="page"], :root.ios .work-board-stages .chip.on, :root.ios .attention-bar .chip.on {
-    background: var(--panel); font-weight: 600; box-shadow: 0 3px 8px rgb(0 0 0 / .12), 0 3px 1px rgb(0 0 0 / .04);
-    border: 0;
-  }
-  :root.ios[data-theme="dark"] .tabs > .on, :root.ios[data-theme="dark"] .area-navigation a[aria-current="page"],
-  :root.ios[data-theme="dark"] .work-board-stages .chip.on, :root.ios[data-theme="dark"] .attention-bar .chip.on { background: #636366; }
-  :root.ios .attention-bar .chips { flex-wrap: nowrap; margin: 0 0 10px; }
-  :root.ios .attention-bar .chip { padding: 0 8px; min-height: 30px; }
-  :root.ios .attention-bar { gap: 0; }
-  :root.ios .area-navigation { margin-inline: 0; padding-inline: 2px; }
-
-  /* ---- Inset grouped cards ---- */
-  :root.ios .ui-card { border: 0; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; box-shadow: none; }
-  :root.ios .ui-card h2 { border-left: 0; padding-left: 0; font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: uppercase; color: var(--muted); }
-  :root.ios .ui-card-header { margin-bottom: 8px; }
-  :root.ios .entity-status { border: 0; border-radius: var(--radius); padding: 12px 16px; }
-  :root.ios .ui-stat { border: 0; border-radius: var(--radius); }
-
-  /* ---- Controls: 44-point targets, tinted buttons, search field, menus ---- */
-  :root.ios .ui-button { min-height: 44px; border-radius: 10px; border: 0; font-size: 15px; font-weight: 600; padding: 0 16px; }
-  :root.ios .ui-button-sm { min-height: 34px; font-size: 14px; padding: 0 14px; border-radius: 8px; }
-  :root.ios .ui-button-secondary { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
-  :root.ios .ui-button-ghost, :root.ios .ui-button-link { background: none; color: var(--accent); }
-  :root.ios .ui-button:active { opacity: .55; }
-  :root.ios input:not([type=checkbox]):not([type=radio]):not([type=range]), :root.ios select {
-    min-height: 36px; border: 0; border-radius: 10px; background-color: var(--fill); color: var(--text); font-size: 17px; padding: 6px 12px;
-  }
-  :root.ios .home-search { gap: 0; }
-  :root.ios .home-search input, :root.ios input[type=search], :root.ios input[placeholder^="Search"] {
-    padding-left: 34px !important; background-repeat: no-repeat; background-position: 10px 50%; background-size: 17px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='m20 20-4.8-4.8'/%3E%3C/svg%3E");
-  }
-  :root.ios .home-search button[type=submit] { display: none; }  /* the keyboard's Search key submits */
-  :root.ios .home-search input { width: 100%; flex: 1; }
-  :root.ios .asof { color: var(--muted); }
-  :root.ios .bottombar > .menu-button { background: none; }
-  /* Filters: the search field across the top, then each filter as a compact capsule menu. */
-  :root.ios .work-filters { gap: 8px; margin-bottom: 12px; }
-  :root.ios .work-filters > input[type=search] { order: -1; flex: 1 1 100%; }
-  :root.ios .work-filters select, :root.ios .work-board-controls select {
-    width: auto; min-height: 32px; padding: 4px 30px 4px 14px; border-radius: 16px; font-size: 15px; font-weight: 500;
-    color: var(--accent); background-color: color-mix(in srgb, var(--accent) 12%, transparent); appearance: none; -webkit-appearance: none;
-    background-repeat: no-repeat; background-position: right 10px center; background-size: 11px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%230b7f8c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E");
-  }
-  :root.ios .work-board-controls .ui-field { flex-direction: row; align-items: center; gap: 8px; width: auto; }
-  :root.ios .work-board-controls .ui-field > span { font-size: 15px; }
-  /* Switches for on/off settings, the iOS way. */
-  :root.ios input[type=checkbox]:not(td input) {
-    appearance: none; -webkit-appearance: none; width: 51px; height: 31px; flex: none; border-radius: 16px; margin: 0;
-    background: rgb(120 120 128 / .16); position: relative; transition: background-color .2s; vertical-align: middle;
-  }
-  :root.ios input[type=checkbox]:not(td input)::after {
-    content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff;
-    box-shadow: 0 3px 8px rgb(0 0 0 / .15), 0 3px 1px rgb(0 0 0 / .06); transition: transform .2s;
-  }
-  :root.ios input[type=checkbox]:not(td input):checked { background: var(--ok); }
-  :root.ios input[type=checkbox]:not(td input):checked::after { transform: translateX(20px); }
 
   /* ---- Lists with chevrons: the board's stage list ---- */
   :root.ios .work-board-column { padding: 0; border: 0; background: none; }
@@ -200,6 +126,85 @@
   :root.ios .ios-pull.spinning { animation: ios-spin .7s linear infinite; }
   @keyframes ios-spin { to { transform: translateY(30px) rotate(360deg); } }
 }
+
+/* ---- Every width, iPhone and iPad alike: titles, segmented controls, cards and controls ---- */
+/* ---- Large titles ---- */
+:root.ios main h1, :root.ios .ui-page-header h1 { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: .01em; margin: 0; }
+:root.ios .entity-head .ui-page-header h1.mono, :root.ios .ui-page-header.mono h1 { font-size: 30px; }
+:root.ios .ui-page-header { margin-bottom: 12px; gap: 6px; }
+:root.ios .ui-page-subtitle, :root.ios .ui-page-header p { font-size: 15px; }
+
+/* ---- Segmented controls: area navigation and record views ---- */
+:root.ios .area-navigation, :root.ios .tabs, :root.ios .work-board-stages, :root.ios .attention-bar .chips {
+  display: flex; gap: 2px; margin: 4px 0 16px; padding: 2px; border: 0; border-radius: 9px; background: var(--fill);
+  overflow-x: auto; scrollbar-width: none; width: 100%; max-width: 100%;
+}
+:root.ios .tabs > *, :root.ios .area-navigation a, :root.ios .work-board-stages .chip, :root.ios .attention-bar .chip {
+  flex: 1 0 auto; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 0 12px; margin: 0; border: 0; border-radius: 7px; background: none; color: var(--text);
+  font-size: 13px; font-weight: 500; white-space: nowrap;
+}
+:root.ios .tabs > * + * { border-left: 0; }
+:root.ios .tabs > .on, :root.ios .area-navigation a[aria-current="page"], :root.ios .work-board-stages .chip.on, :root.ios .attention-bar .chip.on {
+  background: var(--panel); font-weight: 600; box-shadow: 0 3px 8px rgb(0 0 0 / .12), 0 3px 1px rgb(0 0 0 / .04);
+  border: 0;
+}
+:root.ios[data-theme="dark"] .tabs > .on, :root.ios[data-theme="dark"] .area-navigation a[aria-current="page"],
+:root.ios[data-theme="dark"] .work-board-stages .chip.on, :root.ios[data-theme="dark"] .attention-bar .chip.on { background: #636366; }
+:root.ios .attention-bar .chips { flex-wrap: nowrap; margin: 0 0 10px; }
+:root.ios .attention-bar .chip { padding: 0 8px; min-height: 30px; }
+:root.ios .attention-bar { gap: 0; }
+:root.ios .area-navigation { margin-inline: 0; padding-inline: 2px; }
+
+/* ---- Inset grouped cards ---- */
+:root.ios .ui-card { border: 0; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; box-shadow: none; }
+:root.ios .ui-card h2 { border-left: 0; padding-left: 0; font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: uppercase; color: var(--muted); }
+:root.ios .ui-card-header { margin-bottom: 8px; }
+:root.ios .entity-status { border: 0; border-radius: var(--radius); padding: 12px 16px; }
+:root.ios .ui-stat { border: 0; border-radius: var(--radius); }
+
+/* ---- Controls: 44-point targets, tinted buttons, search field, menus ---- */
+:root.ios .ui-button { min-height: 44px; border-radius: 10px; border: 0; font-size: 15px; font-weight: 600; padding: 0 16px; }
+:root.ios .ui-button-sm { min-height: 34px; font-size: 14px; padding: 0 14px; border-radius: 8px; }
+:root.ios .ui-button-secondary { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+:root.ios .ui-button-ghost, :root.ios .ui-button-link { background: none; color: var(--accent); }
+:root.ios .ui-button:active { opacity: .55; }
+:root.ios input:not([type=checkbox]):not([type=radio]):not([type=range]), :root.ios select {
+  min-height: 36px; border: 0; border-radius: 10px; background-color: var(--fill); color: var(--text); font-size: 17px; padding: 6px 12px;
+}
+:root.ios .home-search { gap: 0; }
+:root.ios .home-search input, :root.ios input[type=search], :root.ios input[placeholder^="Search"] {
+  padding-left: 34px !important; background-repeat: no-repeat; background-position: 10px 50%; background-size: 17px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='m20 20-4.8-4.8'/%3E%3C/svg%3E");
+}
+:root.ios .home-search button[type=submit] { display: none; }  /* the keyboard's Search key submits */
+:root.ios .home-search input { width: 100%; flex: 1; }
+:root.ios .asof { color: var(--muted); }
+:root.ios .bottombar > .menu-button { background: none; }
+/* Filters: the search field across the top, then each filter as a compact capsule menu. */
+:root.ios .work-filters { gap: 8px; margin-bottom: 12px; }
+:root.ios .work-filters > input[type=search] { order: -1; flex: 1 1 100%; }
+:root.ios .work-filters select, :root.ios .work-board-controls select {
+  width: auto; min-height: 32px; padding: 4px 30px 4px 14px; border-radius: 16px; font-size: 15px; font-weight: 500;
+  color: var(--accent); background-color: color-mix(in srgb, var(--accent) 12%, transparent); appearance: none; -webkit-appearance: none;
+  background-repeat: no-repeat; background-position: right 10px center; background-size: 11px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%230b7f8c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E");
+}
+:root.ios .work-board-controls .ui-field { flex-direction: row; align-items: center; gap: 8px; width: auto; }
+:root.ios .work-board-controls .ui-field > span { font-size: 15px; }
+/* Switches for on/off settings, the iOS way. */
+:root.ios input[type=checkbox]:not(td input) {
+  appearance: none; -webkit-appearance: none; width: 51px; height: 31px; flex: none; border-radius: 16px; margin: 0;
+  background: rgb(120 120 128 / .16); position: relative; transition: background-color .2s; vertical-align: middle;
+}
+:root.ios input[type=checkbox]:not(td input)::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff;
+  box-shadow: 0 3px 8px rgb(0 0 0 / .15), 0 3px 1px rgb(0 0 0 / .06); transition: transform .2s;
+}
+:root.ios input[type=checkbox]:not(td input):checked { background: var(--ok); }
+:root.ios input[type=checkbox]:not(td input):checked::after { transform: translateX(20px); }
+
+
 :root:not(.ios) .ios-pull, :root:not(.ios) .topbar-title { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -237,16 +242,6 @@
   :root.ios .topbar .back-button svg { width: 24px; height: 24px; stroke-width: 2.2; margin-left: -2px; }
   :root.ios .topbar .brand { padding: 0; }
   :root.ios .topbar-title { bottom: 6px; }
-  :root.ios main h1, :root.ios .ui-page-header h1 { font-size: 31px; line-height: 37px; text-wrap: balance; }
-
-  /* The glass material, shared by bars, buttons, controls and sheets. */
-  :root.ios :is(.topbar .back-button, .topbar .share-button, .bottombar, .leaflet-bar, .ui-fullscreen-button,
-      .drawer-close, .map-popup, .ios-glass) {
-    background: var(--glass); background-image: var(--glass-sheen);
-    -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%);
-    border: var(--hair) solid var(--glass-edge);
-    box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
-  }
 
   /* Tab bar: a floating glass capsule; the current tab sits in a lens. */
   :root.ios .bottombar {
@@ -259,39 +254,7 @@
   :root.ios .bottombar > a.on { background: var(--lens); color: var(--accent); }
   :root.ios .app > main { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
 
-  /* Segmented controls: a capsule track with a glass lens on the chosen segment. */
-  :root.ios .area-navigation, :root.ios .tabs, :root.ios .work-board-stages, :root.ios .attention-bar .chips {
-    border-radius: 999px; padding: 3px; background: var(--fill);
-  }
-  :root.ios .tabs > *, :root.ios .area-navigation a, :root.ios .work-board-stages .chip, :root.ios .attention-bar .chip {
-    border-radius: 999px; min-height: 34px;
-  }
-  :root.ios .tabs > .on, :root.ios .area-navigation a[aria-current="page"], :root.ios .work-board-stages .chip.on,
-  :root.ios .attention-bar .chip.on, :root.ios[data-theme="dark"] .tabs > .on,
-  :root.ios[data-theme="dark"] .area-navigation a[aria-current="page"], :root.ios[data-theme="dark"] .work-board-stages .chip.on,
-  :root.ios[data-theme="dark"] .attention-bar .chip.on {
-    background: var(--glass-thick); background-image: var(--glass-sheen); color: var(--accent);
-    box-shadow: inset 0 1px 0 var(--glass-hi), 0 2px 8px rgb(0 0 0 / .12); border: var(--hair) solid var(--glass-edge);
-  }
-
-  /* Capsule buttons and fields. */
-  :root.ios .ui-button, :root.ios .ui-button-sm { border-radius: 999px; }
-  :root.ios .ui-button-primary { background-image: var(--glass-sheen); box-shadow: inset 0 1px 0 rgb(255 255 255 / .35), 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
-  :root.ios .ui-button-secondary { background: var(--glass-thick); background-image: var(--glass-sheen); color: var(--accent);
-    border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), 0 2px 8px rgb(0 0 0 / .08); }
-  :root.ios input:not([type=checkbox]):not([type=radio]):not([type=range]), :root.ios select { border-radius: 999px; }
-  :root.ios .work-filters select, :root.ios .work-board-controls select { color: var(--text); background-color: var(--glass-thick);
-    border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), 0 2px 8px rgb(0 0 0 / .08); }
-
-  /* Cards and lists: the rounder iOS 26 corners. */
-  :root.ios .ui-card, :root.ios .entity-status { border-radius: var(--radius); }
   :root.ios .work-card-actions .ui-button { border-radius: 0; box-shadow: none; background-image: none; }
-
-  /* Map buttons: glass, round. */
-  :root.ios .leaflet-bar { border-radius: 24px; overflow: hidden; }
-  :root.ios .leaflet-bar a, :root.ios .leaflet-bar a:hover { width: 44px !important; height: 44px !important; line-height: 44px !important;
-    background: transparent; color: var(--text); border-bottom: var(--hair) solid var(--glass-edge); }
-  :root.ios .ui-fullscreen-button { width: 44px; height: 44px; border-radius: 50%; padding: 0; color: var(--text); }
 
   /* Sheets float: inset from the edges, deep corners, thick glass. */
   :root.ios .attention-detail {
@@ -334,6 +297,53 @@
   :root.ios .scrim { background: rgb(0 0 0 / .35); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 }
 
+/* Liquid Glass at every width. */
+:root.ios main h1, :root.ios .ui-page-header h1 { font-size: 31px; line-height: 37px; text-wrap: balance; }
+
+/* The glass material, shared by bars, buttons, controls and sheets. */
+:root.ios :is(.topbar .back-button, .topbar .share-button, .bottombar, .leaflet-bar, .ui-fullscreen-button,
+    .drawer-close, .map-popup, .ios-glass) {
+  background: var(--glass); background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%);
+  border: var(--hair) solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
+}
+
+
+/* Segmented controls: a capsule track with a glass lens on the chosen segment. */
+:root.ios .area-navigation, :root.ios .tabs, :root.ios .work-board-stages, :root.ios .attention-bar .chips {
+  border-radius: 999px; padding: 3px; background: var(--fill);
+}
+:root.ios .tabs > *, :root.ios .area-navigation a, :root.ios .work-board-stages .chip, :root.ios .attention-bar .chip {
+  border-radius: 999px; min-height: 34px;
+}
+:root.ios .tabs > .on, :root.ios .area-navigation a[aria-current="page"], :root.ios .work-board-stages .chip.on,
+:root.ios .attention-bar .chip.on, :root.ios[data-theme="dark"] .tabs > .on,
+:root.ios[data-theme="dark"] .area-navigation a[aria-current="page"], :root.ios[data-theme="dark"] .work-board-stages .chip.on,
+:root.ios[data-theme="dark"] .attention-bar .chip.on {
+  background: var(--glass-thick); background-image: var(--glass-sheen); color: var(--accent);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 2px 8px rgb(0 0 0 / .12); border: var(--hair) solid var(--glass-edge);
+}
+
+/* Capsule buttons and fields. */
+:root.ios .ui-button, :root.ios .ui-button-sm { border-radius: 999px; }
+:root.ios .ui-button-primary { background-image: var(--glass-sheen); box-shadow: inset 0 1px 0 rgb(255 255 255 / .35), 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+:root.ios .ui-button-secondary { background: var(--glass-thick); background-image: var(--glass-sheen); color: var(--accent);
+  border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), 0 2px 8px rgb(0 0 0 / .08); }
+:root.ios input:not([type=checkbox]):not([type=radio]):not([type=range]), :root.ios select { border-radius: 999px; }
+:root.ios .work-filters select, :root.ios .work-board-controls select { color: var(--text); background-color: var(--glass-thick);
+  border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), 0 2px 8px rgb(0 0 0 / .08); }
+
+/* Cards and lists: the rounder iOS 26 corners. */
+:root.ios .ui-card, :root.ios .entity-status { border-radius: var(--radius); }
+
+/* Map buttons: glass, round. */
+:root.ios .leaflet-bar { border-radius: 24px; overflow: hidden; }
+:root.ios .leaflet-bar a, :root.ios .leaflet-bar a:hover { width: 44px !important; height: 44px !important; line-height: 44px !important;
+  background: transparent; color: var(--text); border-bottom: var(--hair) solid var(--glass-edge); }
+:root.ios .ui-fullscreen-button { width: 44px; height: 44px; border-radius: 50%; padding: 0; color: var(--text); }
+
+
 /* ================= Pull-down menus for rows too wide for the screen =================
    A row of segments that fits stays a segmented control. One that doesn't (a record's 7 views, All work's 8 lists,
    the Board's 6 stages) shows only the chosen one, as a capsule button with up/down chevrons; tapping it opens an iOS
@@ -372,3 +382,89 @@
   .ios-menu .n { color: var(--muted); font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { .ios-menu { animation: none; } }
+
+/* ================= Persona tour fixes (#1077) ================= */
+/* Plain text links get a 44-point tap height without moving the text around them. */
+:root.ios #main-content a:not([class]):not(:is(nav, .area-navigation, .tabs, [data-ios-menu]) > a) { position: relative; }
+:root.ios #main-content a:not([class]):not(:is(nav, .area-navigation, .tabs, [data-ios-menu]) > a)::after { content: ""; position: absolute; inset: -10px -4px; }
+@media (max-width: 900px) {
+  :root.ios #main-content .ui-button-link { min-height: 44px; }
+}
+
+/* iPhone: the large title and what sits under it take less of the first screen. A large title stops at two lines (the
+   whole title folds into the top bar on scroll), the subtitle gives way, and Help is a round info button. */
+@media (max-width: 600px) {
+  :root.ios main h1, :root.ios .ui-page-header h1 {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+  }
+  :root.ios .ui-page-subtitle { display: none; }
+  :root.ios .ui-page-header .ui-help {
+    display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%;
+    font-size: 0; color: var(--accent); background: var(--fill); position: relative;
+  }
+  :root.ios .ui-page-header .ui-help::before { content: "?"; font-size: 17px; font-weight: 600; }
+  :root.ios .ui-page-header .ui-help::after { content: ""; position: absolute; inset: -6px; }
+}
+
+/* A section picker that would only repeat the page title becomes the title's own menu, as iOS does: the large title
+   gets a chevron and opens the list of sections (ios.ts). The picker stays for keyboard and VoiceOver. */
+@media (max-width: 900px) {
+  :root.ios [data-ios-title-menu]:not(:focus-within) {
+    position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important; overflow: hidden !important;
+    clip-path: inset(50%) !important;
+  }
+  :root.ios h1.ios-title-menu { cursor: pointer; }
+  :root.ios h1.ios-title-menu::after {
+    content: ""; display: inline-block; width: 15px; height: 15px; margin-left: 8px; vertical-align: 2px; background: var(--muted);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+}
+
+/* Home's attention list: each place reads as a list row with the place name as its link, not a wall of link colour.
+   Crews is a toggle of its own, beside the segmented filter rather than one of its segments. */
+:root.ios .attention-list .attention-row.ui-button { color: var(--text); font-weight: 400; }
+:root.ios .attention-list .attention-row strong { color: var(--accent); font-weight: 600; }
+:root.ios .attention-filters { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+:root.ios .attention-filters .chips { margin-bottom: 0 !important; width: auto; }
+:root.ios .attention-bar { row-gap: 8px; margin-bottom: 10px; }
+:root.ios .attention-bar .crews-toggle.chip {
+  flex: none; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  border: var(--hair) solid var(--line); background: none; color: var(--muted); box-shadow: none;
+}
+:root.ios .attention-bar .crews-toggle.chip.on { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: transparent; color: var(--accent); }
+
+/* iPad landscape and wider: the same iOS look as portrait, with the sidebar as a floating Liquid Glass panel. Rotating
+   the iPad swaps the bottom bar for the sidebar but keeps the type, controls and colours. */
+@media (min-width: 901px) {
+  :root.ios .app { grid-template-columns: 248px minmax(0, 1fr); background: var(--bg); }
+  :root.ios .sidebar {
+    top: 10px; height: calc(100vh - 20px); height: calc(100dvh - 20px); margin: 10px 0 10px 10px; padding: 14px 10px;
+    border-radius: 26px; color: var(--text);
+    background: var(--glass-thick); background-image: var(--glass-sheen);
+    -webkit-backdrop-filter: blur(24px) saturate(190%); backdrop-filter: blur(24px) saturate(190%);
+    border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
+    --rail-text: var(--text); --rail-hover: var(--fill); --rail-on: var(--lens); --rail-line: var(--line);
+    --brand-ink: var(--text); --brand-word: var(--text); --brand-hub: var(--accent);
+  }
+  :root.ios .nav-group a { min-height: 44px; border-radius: 12px; font-size: 15px; }
+  :root.ios .nav-group a .nav-icon { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
+  :root.ios .nav-group a.on { color: var(--accent); font-weight: 600; }
+  :root.ios .sidebar a:focus-visible { outline-color: var(--accent); }
+  :root.ios .sidebar .sidebar-status { --text: inherit; --muted: inherit; --panel: inherit; --line: inherit; --accent: inherit; color: var(--muted); }
+  :root.ios .sidebar { overflow-x: hidden; }
+  :root.ios .sidebar .sidebar-status { overflow-wrap: anywhere; }
+  :root.ios .sidebar .sidebar-status * { min-width: 0; }
+  :root.ios .sidebar .sidebar-status select { max-width: 100%; font-size: 15px; }
+  /* Segmented controls fit their segments, as on iPadOS, rather than stretching across the page. */
+  :root.ios :is(.area-navigation, .tabs, .attention-bar .chips) { width: fit-content; }
+  :root.ios main h1, :root.ios .ui-page-header h1 { font-size: 34px; line-height: 41px; }
+}
+:root.ios .attention-filters > .crews-toggle::before { display: none; }
+/* On an iPhone the four filters take the row; Crews sits at the end of the line under them, beside the count. */
+@media (max-width: 600px) {
+  :root.ios .attention-filters { display: contents; }
+  :root.ios .attention-bar .chips { flex: 1 1 100%; }
+  :root.ios .attention-bar > .small { flex: 1 1 auto; order: 2; }
+  :root.ios .attention-bar .crews-toggle.chip { order: 3; min-height: 32px; }
+}

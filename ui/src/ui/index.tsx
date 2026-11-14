@@ -84,11 +84,37 @@ export function Card({ as: Component = "div", title, actions, children, classNam
 }
 export const Section = Card;
 
+/** On a phone a `phone-rows` table stacks each row (styles/work.css), so a cell can't lean on its column heading any more:
+ * each cell is labelled with its heading, unless it names its own `data-label`. The first column is the row's title and
+ * needs none. Rows added later are labelled too. */
+function labelCells(table: HTMLTableElement) {
+  const heads = Array.from(table.tHead?.rows[0]?.cells ?? []).map((th) => th.textContent?.trim() ?? "");
+  if (!heads.length) return;
+  for (const body of Array.from(table.tBodies)) for (const row of Array.from(body.rows)) {
+    let column = 0;
+    for (const cell of Array.from(row.cells)) {
+      const head = heads[column];
+      if (column > 0 && head && !cell.hasAttribute("data-label")) cell.setAttribute("data-label", head);
+      column += cell.colSpan || 1;
+    }
+  }
+}
+
 export function Table({ children, className = "", variant = "default", density = "normal", clickable = variant === "results", headingCase = "capitalize", ...props }: TableHTMLAttributes<HTMLTableElement> & {
   className?: string; variant?: "default" | "results" | "keyValue" | "list" | "compare" | "settings" | "mapping";
   density?: "normal" | "compact"; clickable?: boolean; headingCase?: "capitalize" | "verbatim";
 }) {
-  return <div className="ui-table-wrap"><table {...props} className={`ui-table ui-table--${variant} ui-table-${density}${clickable ? " ui-table-clickable" : ""} ui-table-heading-${headingCase} ${className}`.trim()}>{children}</table></div>;
+  const ref = useRef<HTMLTableElement>(null);
+  const stacks = /\bphone-rows\b/.test(className);
+  useEffect(() => {
+    const table = ref.current;
+    if (!stacks || !table) return;
+    labelCells(table);
+    const watch = new MutationObserver(() => labelCells(table));
+    watch.observe(table, { childList: true, subtree: true });
+    return () => watch.disconnect();
+  }, [stacks]);
+  return <div className="ui-table-wrap"><table ref={ref} {...props} className={`ui-table ui-table--${variant} ui-table-${density}${clickable ? " ui-table-clickable" : ""} ui-table-heading-${headingCase} ${className}`.trim()}>{children}</table></div>;
 }
 
 export function Field({ label, hint, width = "md", children }: { label: ReactNode; hint?: ReactNode; width?: Width; children: ReactNode }) {

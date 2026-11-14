@@ -7295,6 +7295,39 @@ test("on an iPhone the app follows iOS: a row too wide becomes a pull-down menu,
   assert.deepEqual(errors, []);
 });
 
+test("on an iPhone a table stacks as labelled rows and a section picker that repeats the title becomes the title's menu (#1077)", async () => {
+  const route = { type: "short_gas_day", label: "Short gas day", description: "", declared_in: "source pack", source_system: "measurement",
+    joins: false, join_hours: null, starts: "queue", process: "queue_item", role: "production_engineer", case_type: "short_gas_day",
+    audience: ["ioc"], close_case_on_clear: true, due: null };
+  await page.route("**/routing", (r) => r.fulfill({ json: [route] }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/?ios=1#/routing`);
+  const title = page.getByRole("heading", { name: "Routing", exact: true });
+  await title.waitFor();
+  // Each cell carries its column heading, so the stacked row still says what each value is.
+  const row = page.locator("table.routing-table tbody tr").first();
+  await row.waitFor();
+  assert.equal(await row.locator("td").nth(1).getAttribute("data-label"), "Goes to");
+  assert.equal(await row.locator("td").first().getAttribute("data-label"), null);
+  assert.equal(await page.locator("table.routing-table thead").isVisible(), false);
+  // The Settings pages picker would only say "Routing" over "Routing": the title opens the sections instead.
+  await page.waitForFunction(() => document.querySelector("main h1")?.classList.contains("ios-title-menu"));
+  const picker = page.getByRole("navigation", { name: "Settings pages" });
+  assert.equal(await picker.getAttribute("data-ios-title-menu"), "");
+  await title.click();
+  const menu = page.getByRole("menu");
+  await menu.getByRole("menuitemradio", { name: /Routing/ }).waitFor();
+  assert.equal(await menu.getByRole("menuitemradio", { name: /Routing/ }).getAttribute("aria-checked"), "true");
+  await page.keyboard.press("Escape");
+  await menu.waitFor({ state: "detached" });
+  // On a desktop the table keeps its headings and the picker its tabs.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/?ios=0#/routing`);
+  await page.locator("table.routing-table tbody tr").first().waitFor();
+  assert.equal(await page.locator("table.routing-table thead").isVisible(), true);
+  assert.deepEqual(errors, []);
+});
+
 test("P5.14e A dispatched job walked in the installed app at 390 px: My work, the step, its asset, the trend, and Back to the step", async () => {
   // Installed on a phone: standalone display, no browser back button, a gloved thumb.
   await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));

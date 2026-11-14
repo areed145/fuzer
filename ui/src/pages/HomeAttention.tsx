@@ -53,13 +53,16 @@ export function AttentionCard() {
       </Status>
       {spots.data && <>
         <div className="row spread wrap attention-bar">
-          <div className="chips" role="group" aria-label="Show places with">
-            {FILTERS.map((f) => (
-              <Button key={f.key} className={filter === f.key ? "chip on" : "chip"} aria-pressed={filter === f.key}
-                      onClick={() => setFilter(f.key)}>{f.label}</Button>
-            ))}
-            {mapped && <Button className={crews ? "chip on" : "chip"} aria-pressed={crews} onClick={() => setCrews(!crews)}>
-              Crews</Button>}
+          <div className="row attention-filters">
+            <div className="chips" role="group" aria-label="Show places with">
+              {FILTERS.map((f) => (
+                <Button key={f.key} className={filter === f.key ? "chip on" : "chip"} aria-pressed={filter === f.key}
+                        onClick={() => setFilter(f.key)}>{f.label}</Button>
+              ))}
+            </div>
+            {/* Crews shows field crews on the map; it is a toggle of its own, not one of the place filters. */}
+            {mapped && <Button className={crews ? "chip on crews-toggle" : "chip crews-toggle"} aria-pressed={crews}
+                               onClick={() => setCrews(!crews)}>Crews</Button>}
           </div>
           <span className="small muted">
             {open.toLocaleString()} open across {spots.data.places.length.toLocaleString()} {spots.data.places.length === 1 ? "place" : "places"}
