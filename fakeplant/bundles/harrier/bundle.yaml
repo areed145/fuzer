@@ -16,6 +16,7 @@ pack: pack.yaml
 project:
   data: exports
   timeseries: synthetic
+  sample_crew: true  # a sample team works the queue on today's clock (ops/sample_crew.py, #1073)
   timezone: America/Edmonton
 roster: roster.yaml
 operating_model: {name: standard, version: 1}
