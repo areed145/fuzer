@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
 import { entityHref, href } from "./lib";
-import { Button, FullscreenButton, Select, useFullscreen } from "./ui";
+import { Button, FullscreenButton, useFullscreen } from "./ui";
 
 // Each pipeline service in the colour of what it carries, the same as in the 3D view and the network (kinds.ts).
 // Gas services are dashed so colour is not the only cue.
@@ -24,33 +24,39 @@ const POINTS: { key: string; label: string; radius: number }[] = [
   { key: "facility", label: "Plants and terminals", radius: 8 },
   { key: "well", label: "Wells", radius: 3 },
 ];
-const BASEMAPS = {
-  osm: {
-    label: "OpenStreetMap",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
+const OSM = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+type Tiles = { url: string; attribution: string; maxNativeZoom: number; subdomains?: string };
+/* Three base maps, each in a light and a dark form that follows the app's theme (System by default), so there is no
+ * separate dark or light choice. All are free to use with attribution and need no key or account: CARTO for the
+ * standard map, Esri World Imagery for satellite, OpenTopoMap for terrain. Apple MapKit JS needs a paid developer
+ * account token and Google's Map Tiles API a billed key, and neither allows their tiles in Leaflet otherwise. */
+const IMAGERY: Tiles = { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+  maxNativeZoom: 19 };
+const TOPO: Tiles = { url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", subdomains: "abc",
+  attribution: `${OSM}, SRTM | Style &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`, maxNativeZoom: 17 };
+const BASEMAPS: Record<"standard" | "satellite" | "terrain", { label: string; light: Tiles; dark: Tiles }> = {
+  standard: {
+    label: "Standard",
+    light: { url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", subdomains: "abcd",
+      attribution: `${OSM} &copy; <a href="https://carto.com/attributions">CARTO</a>`, maxNativeZoom: 20 },
+    dark: { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd",
+      attribution: `${OSM} &copy; <a href="https://carto.com/attributions">CARTO</a>`, maxNativeZoom: 20 },
   },
-  light: {
-    label: "Light",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  },
-  dark: {
-    label: "Dark",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  },
-  satellite: {
-    label: "Satellite",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-    maxZoom: 19,
-  },
-} as const;
+  // Imagery has no dark form and needs none.
+  satellite: { label: "Satellite", light: IMAGERY, dark: IMAGERY },
+  // OpenTopoMap has no dark form either; the dark theme dims it in CSS (.map-basemap-terrain-dark).
+  terrain: { label: "Terrain", light: TOPO, dark: TOPO },
+};
 type Basemap = keyof typeof BASEMAPS | "none";
+const BASEMAP_KEY = "fuzer.basemap";
+const savedBasemap = (): keyof typeof BASEMAPS => {
+  try {
+    const v = localStorage.getItem(BASEMAP_KEY);
+    if (v === "satellite" || v === "terrain") return v;
+  } catch { /* storage blocked: use the default */ }
+  return "standard";
+};
 
 const themeValue = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -148,7 +154,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   const spots = useRef<L.LayerGroup | null>(null);
   const fitted = useRef(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const [basemapName, setBasemapName] = useState<Basemap>(basemap ? "osm" : "none");
+  const [basemapName, setBasemapName] = useState<Basemap>(basemap ? savedBasemap : "none");
   const [mapMessage, setMapMessage] = useState("");
   const [baseError, setBaseError] = useState(false);  // #398: say so when the base map tiles can't load
   const themeVersion = useTheme();
@@ -187,17 +193,24 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     tiles.current?.remove();
     tiles.current = null;
     if (basemapName !== "none") {
-      const selected = BASEMAPS[basemapName];
+      const selected = BASEMAPS[basemapName][themeVersion === "dark" ? "dark" : "light"];
       setBaseError(false);
       let loaded = false;
       tiles.current = L.tileLayer(selected.url, {
-        maxZoom: selected.maxZoom,
+        maxZoom: 20,
+        maxNativeZoom: selected.maxNativeZoom,
+        subdomains: selected.subdomains ?? "abc",
         attribution: selected.attribution,
       }).on("tileload", () => { loaded = true; setBaseError(false); })
         .on("tileerror", () => { if (!loaded) setBaseError(true); })
         .addTo(m);
     }
-  }, [basemapName]);
+  }, [basemapName, themeVersion === "dark"]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chooseBasemap = (name: keyof typeof BASEMAPS) => {
+    setBasemapName(name);
+    try { localStorage.setItem(BASEMAP_KEY, name); } catch { /* storage blocked: the choice lasts this visit */ }
+  };
 
   useEffect(() => {
     requestAnimationFrame(() => map.current?.invalidateSize());
@@ -374,23 +387,13 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
       </div>}
       <div ref={full.ref} className={`map-frame${full.on ? " map-fullscreen ui-fullscreen" : ""}`}>
         <div className="map-controls">
-          {!compact && <label className="small muted">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-              <path d="m12 3 9 5-9 5-9-5 9-5Z" />
-              <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
-            </svg>
-            <Select
-              aria-label="Basemap"
-              value={basemapName}
-              onChange={(ev) => setBasemapName(ev.target.value as Basemap)}
-            >
-              <option value="osm">{BASEMAPS.osm.label}</option>
-              <option value="light">{BASEMAPS.light.label}</option>
-              <option value="dark">{BASEMAPS.dark.label}</option>
-              <option value="satellite">{BASEMAPS.satellite.label}</option>
-              <option value="none">None</option>
-            </Select>
-          </label>}
+          {!compact && basemapName !== "none" && <div className="map-basemaps" role="group" aria-label="Base map">
+            {(Object.keys(BASEMAPS) as (keyof typeof BASEMAPS)[]).map((name) => (
+              <Button key={name} type="button" variant="ghost" size="sm" aria-pressed={basemapName === name}
+                      className={`map-basemap${basemapName === name ? " on" : ""}`}
+                      onClick={() => chooseBasemap(name)}>{BASEMAPS[name].label}</Button>
+            ))}
+          </div>}
           {!compact && <Button size="sm" className="map-control-button" onClick={locate} aria-label="Find my location" title="Find my location">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <circle cx="12" cy="12" r="7" />
@@ -404,7 +407,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
         {baseError && basemapName !== "none" && !compact && <div className="map-message" role="status">
           Base map unavailable: its tiles could not load, so features are drawn on a plain background.</div>}
         {full.on && overlay && <div className="map-overlay">{overlay}</div>}
-        <div ref={el} className={`map${basemapName === "none" ? "" : ` map-basemap-${basemapName}`}`} style={{ height }} />
+        <div ref={el} className={`map${basemapName === "none" ? "" : ` map-basemap-${basemapName}-${themeVersion === "dark" ? "dark" : "light"}`}`} style={{ height }} />
       </div>
     </div>
   );

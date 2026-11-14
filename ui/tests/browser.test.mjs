@@ -1421,8 +1421,8 @@ test("the map fits the field's wells and platforms, not the export line, and say
     { type: "Feature", id: "L1", geometry: { type: "LineString", coordinates: [[5.005, 4.005], [6.5, 5.5]] },
       properties: { kind: "pipeline", service: "oil export", label: "Export" } }] } }));
   const zooms = [];
-  await page.route("https://tile.openstreetmap.org/**", (route) => {
-    zooms.push(Number(new URL(route.request().url()).pathname.split("/")[1]));
+  await page.route("https://*.basemaps.cartocdn.com/**", (route) => {
+    zooms.push(Number(new URL(route.request().url()).pathname.split("/")[3]));
     return route.fulfill({ status: 503, body: "" });
   });
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -1431,6 +1431,48 @@ test("the map fits the field's wells and platforms, not the export line, and say
   // Fitted to points about 1 km apart the tiles come at a close zoom; fitting the 200 km export line would ask for about 8.
   assert.ok(Math.max(...zooms) >= 12, `expected a close fit to the field, tiles came at zoom ${[...new Set(zooms)]}`);
 });
+
+test("the base map is Standard, Satellite or Terrain, and Standard follows the theme rather than being its own choice", async () => {
+  const pt = (id, kind, lon, lat) => ({ type: "Feature", id, geometry: { type: "Point", coordinates: [lon, lat] }, properties: { kind, label: id } });
+  await page.route("**/map", (route) => route.fulfill({ json: { type: "FeatureCollection", features: [
+    pt("W1", "well", 5.000, 4.000), pt("P1", "area", 5.005, 4.005)] } }));
+  const hosts = [];
+  const tile = (route) => { hosts.push(route.request().url()); return route.fulfill({ status: 503, body: "" }); };
+  for (const host of ["https://*.basemaps.cartocdn.com/**", "https://server.arcgisonline.com/**", "https://*.tile.opentopomap.org/**"])
+    await page.route(host, tile);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/`);
+  await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.setItem("fuzer.theme", "light"); });
+  await page.goto(`${url}/#/map`);
+  await page.reload();
+  const group = page.getByRole("group", { name: "Base map" });
+  await group.waitFor();
+  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite", "Terrain"]);
+  assert.equal(await group.getByRole("button", { name: "Standard" }).getAttribute("aria-pressed"), "true");
+  assert.equal(await page.locator(".map-controls select").count(), 0, "no dropdown");
+  const box = await group.boundingBox();
+  assert.ok(box.x >= 0 && box.x + box.width <= 390, "the control fits a phone");
+  await expectHost(hosts, "/rastertiles/voyager/");
+  await group.getByRole("button", { name: "Satellite" }).click();
+  await expectHost(hosts, "arcgisonline.com/ArcGIS/rest/services/World_Imagery/");
+  await group.getByRole("button", { name: "Terrain" }).click();
+  await expectHost(hosts, "tile.opentopomap.org/");
+  // The choice is remembered; a dark theme gives the dark standard map.
+  await group.getByRole("button", { name: "Standard" }).click();
+  await page.evaluate(() => localStorage.setItem("fuzer.theme", "dark"));
+  hosts.length = 0;
+  await page.reload();
+  await expectHost(hosts, "/dark_all/");
+  await page.getByRole("group", { name: "Base map" }).getByRole("button", { name: "Terrain" }).click();
+  await page.locator(".map-basemap-terrain-dark").waitFor();
+  await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.removeItem("fuzer.theme"); });
+  await page.setViewportSize({ width: 1280, height: 900 });
+});
+
+async function expectHost(hosts, part) {
+  for (let i = 0; i < 50 && !hosts.some((h) => h.includes(part)); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(hosts.some((h) => h.includes(part)), `expected tiles from ${part}, got ${hosts.slice(-3)}`);
+}
 
 test("Add a source offers a connection for a subfolder when its folder's tables are all loaded (#412)", async () => {
   const system = { id: 1, name: "contractor", kind: null, description: null, owner: "ana", steward: null, timezone: null, encoding: null,
@@ -6619,7 +6661,7 @@ test("P5.14 quirks from a real phone: a tap on the map opens one label, the laye
   await page.route("**/*", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.startsWith("/assets/") || path === "/" || /\.(svg|png|webmanifest)$/.test(path)) return route.continue();
-    if (route.request().url().startsWith("https://tile.openstreetmap.org/")) return route.fulfill({ status: 503, body: "" });
+    if (/^https:\/\/[a-z]\.basemaps\.cartocdn\.com\//.test(route.request().url())) return route.fulfill({ status: 503, body: "" });
     if (path === "/map") return route.fulfill({ json: { type: "FeatureCollection", features: [
       pt("OKAN-40", "area", 5.005, 4.005), pt("W1", "well", 5.000, 4.000), pt("W2", "well", 5.010, 4.010),
       ...services.map((service, i) => ({ type: "Feature", id: `L${i}`, geometry: { type: "LineString",
