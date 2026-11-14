@@ -4964,6 +4964,83 @@ test("P5.17f A refused report stays on the phone and goes as a note; a lapsed se
   assert.equal(posts[3].client_id, posts[2].client_id, "the same report, held and sent once signed in");
 });
 
+// P5.17g (#1096): field mode, chosen on the phone, makes every target at least 56 px with room between, text 7:1 or
+// better in light and dark, a job's report buttons in reach at the bottom, and it is remembered on a cold launch.
+test("P5.17g Field mode: 56 px targets, 7:1 text, a job's actions in thumb reach, remembered on the phone", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = { id: 7, type: "leak", key: "a", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [{ fuzer_id: "fz-p-101", label: "P-101 export pump", kind: "pump" }], checklist: [], sources: [],
+    history: [], field: [], queued: false, sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const run = { id: 3, round: "Compression rounds", area: "B1", shift_start: "2026-11-14T06:00:00Z", shift_end: "2099-11-14T18:00:00Z",
+    role: "operator", points: 1, taken: 0, found: 0, state: "open" };
+  const detail = { ...run, points: [{ id: "R-2", point_id: "R-2", asset: null, asset_label: "B1-K-2001", round: run.round, area: "B1",
+    what: "Seal gas panel", kind: "check", unit: null, low: null, high: null, taken: null }] };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  await page.route("**/rounds", (route) => route.fulfill({ json: [run] }));
+  await page.route("**/rounds/3", (route) => route.fulfill({ json: detail }));
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask, task: { ...demoTask.task, assignee: "fred" } } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/entities/fz-p-101/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/fz-p-101", (route) => route.fulfill({ json: { fuzer_id: "fz-p-101", kind: "equipment",
+    label: "P-101 export pump", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // Chosen once in Settings, on this device.
+  await page.goto(`${url}/#/settings`);
+  await page.getByLabel(/Field mode/).check();
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains("field-mode")), true);
+
+  const small = () => page.evaluate(() => [...document.querySelectorAll(
+    "main .ui-button, main .ui-input, main textarea, .bottombar > a, .bottombar > .menu-button")]
+    .filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== "hidden")
+    .map((el) => [el.textContent.trim().slice(0, 30) || el.getAttribute("aria-label"), Math.round(el.getBoundingClientRect().height)])
+    .filter(([, h]) => h < 56));
+  await page.goto(`${url}/#/inbox`);  // a cold launch: still on
+  await page.locator(".field-job").getByText("Look at the gland").waitFor();
+  await page.getByRole("button", { name: "Compression rounds (B1)" }).click();
+  await page.getByRole("button", { name: "Passed", exact: true }).waitFor();
+  assert.deepEqual(await small(), [], "My work, a job and a round: every target 56 px or more");
+  const gaps = await page.evaluate(() => [...document.querySelectorAll(".field-actions")].flatMap((row) => {
+    const b = [...row.querySelectorAll(".ui-button")].map((x) => x.getBoundingClientRect());
+    return b.slice(1).map((r, i) => (Math.abs(r.top - b[i].top) < 2 ? r.left - b[i].right : r.top - b[i].bottom));
+  }));
+  assert.ok(gaps.length && gaps.every((g) => g >= 8), `8 px between targets: ${gaps}`);
+
+  // The job's Done is in the bottom third of the screen, above the bottom bar, with the job's top on screen.
+  await page.locator(".field-job").evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + scrollY - 60));
+  const done = await page.locator(".field-job").getByRole("button", { name: "Done", exact: true }).boundingBox();
+  const bar = await page.locator(".bottombar").boundingBox();
+  assert.ok(done.y >= 844 * 2 / 3 && done.y + done.height <= bar.y, `Done at ${done.y}, bar at ${bar.y}`);
+
+  // Text against its background: 7:1 or better, light and dark.
+  const contrast = () => page.evaluate(() => {
+    const rgb = (c) => c.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+    const lum = (c) => { const [r, g, b] = rgb(c).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const pair = (fg, bg) => { const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x); return (a + 0.05) / (b + 0.05); };
+    const card = document.querySelector(".field-job");
+    const muted = card.querySelector(".muted");
+    const bg = getComputedStyle(card).backgroundColor;
+    return Math.min(pair(getComputedStyle(card).color, bg), pair(getComputedStyle(muted).color, bg));
+  });
+  assert.ok(await contrast() >= 7, `light: ${await contrast()}`);
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  assert.ok(await contrast() >= 7, `dark: ${await contrast()}`);
+  await page.evaluate(() => { document.documentElement.dataset.theme = "light"; });
+
+  for (const path of ["/#/inbox/task/42", "/#/e/fz-p-101"]) {
+    await page.goto(`${url}${path}`);
+    await page.locator("main h1").first().waitFor();
+    await page.waitForTimeout(300);
+    assert.deepEqual(await small(), [], `${path}: every target 56 px or more`);
+  }
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
+});
+
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
 // with what changed since they last looked, and reaches an item in another field in one click from Home.
 test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {
@@ -7578,6 +7655,7 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
   await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
     evidence: { ...demoTask.evidence, subjects: [{ fuzer_id: "fz-p-101" }] } } }));
   await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/entities/fz-p-101/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
   await page.route("**/entities/fz-p-101", (route) => route.fulfill({ json: { fuzer_id: "fz-p-101", kind: "equipment",
     label: "P-101 export pump", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
   await page.route("**/entities/fz-p-101/map", (route) => route.fulfill({ json: { features: [], focus: null } }));

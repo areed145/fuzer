@@ -84,6 +84,7 @@ Things to try:
 Choose **Settings -> Appearance** for System, Light or Dark mode. The choice is saved in your browser,
 not the facility database. System follows your device's appearance; charts, graphs and map layers
 follow the same choice. On small screens, open the menu to reach navigation and your identity.
+**Field mode**, in the same place, makes buttons larger for gloves and raises contrast for sunlight on that device.
 
 The planted stories to find are listed in the [README](https://github.com/areed145/fuzer#okan-field-demo).
 
