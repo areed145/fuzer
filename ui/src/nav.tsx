@@ -6,6 +6,7 @@ import { Button } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
 import { useEntityNames } from "./useEntityNames";
+import { SyncStatus } from "./SyncStatus";
 
 export type Badge = "work" | "review";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -255,6 +256,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           <Logo />
         </a>
         <span className="topbar-title" aria-hidden="true" />
+        <SyncStatus />
         <ShareButton />
         {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). It reloads this page, in place. */}
         <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" onClick={() => location.reload()}>

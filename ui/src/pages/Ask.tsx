@@ -142,7 +142,14 @@ export function AskPage({ query }: { query: URLSearchParams }) {
     <section className="ask">
       <PageHeader>Ask</PageHeader>
       {demo && <DemoContext step="agents" />}
-      {!ai && <p>Questions require AI access from an owner. No model call will be made with your current access.</p>}
+      {/* An account that can't ask sees why and who can grant it, not a prompt box it can't use (#1078). */}
+      {!ai && (
+        <UICard className="ask-no-access" role="note">
+          <strong>Your account can't ask the assistant.</strong>{" "}
+          Asking runs a paid AI model, so it needs AI access. An owner grants it under{" "}
+          <a href={href("/users")}>Users</a>.
+        </UICard>
+      )}
       {ai && catalog.data?.provider_configured === false && (
         <UICard className="ask-no-provider" role="note">
           <strong>No AI provider is configured.</strong>{" "}
@@ -152,7 +159,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
         </UICard>
       )}
       <AboutBanner about={about} context={context} />
-      {turns.length === 0 && !context.data && (
+      {ai && turns.length === 0 && !context.data && (
         <div className="ask-examples">
           {EXAMPLES.map(([label, q]) => (
             <Button key={label} className="example" disabled={!ai} onClick={() => demo ? setText(q) : ask(q)}>
@@ -166,7 +173,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
       <Specialists catalog={catalog} />
       {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} demo={demo} caseId={context.data?.item_id ?? undefined} />)}
       <div ref={end} />
-      <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); if (!demo) ask(text); }}>
+      {ai && <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); if (!demo) ask(text); }}>
         <textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : context.data ? `Ask about ${context.data.label}…` : "Ask about the plant…"}
                   onChange={(e) => setText(e.target.value)}
                   onPaste={(e) => {
@@ -211,7 +218,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
           <span className="spacer" />
           <span className="muted small">Enter to send · Shift+Enter for a new line · paste images</span>
         </div>
-      </form>
+      </form>}
       <Conversations current={conversation} reload={listed} busy={busy} onOpen={reopen}
                      readOnly={demo}
                      onDeleted={(id) => { if (id === conversation) { setTurns([]); setConversation(undefined); } }} />

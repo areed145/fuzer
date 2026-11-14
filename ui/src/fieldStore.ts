@@ -7,6 +7,12 @@
  * the same calls fall back to `localStorage`, holding photos as text as before. */
 
 const DB = "fuzer-field";
+
+/** The signed-in account ("" in local mode). What is kept is kept per account, so a shared phone never shows one
+ * person's kept pages to another. Set by the sign-in gate through `outboxSession`. */
+let scope = "";
+export const setScope = (account: string) => { scope = account; };
+export const getScope = () => scope;
 const VERSION = 1;
 export type StoreName = "outbox" | "kept";
 
@@ -89,6 +95,19 @@ export async function put(store: StoreName, value: unknown, key?: string): Promi
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Every [key, value] in a store. */
+export async function entries<T>(store: StoreName): Promise<[string, T][]> {
+  const db = await open();
+  if (!db) return Object.entries(fallbackRead(store)) as [string, T][];
+  try {
+    const keys = (await commit<IDBValidKey[]>(db, store, "readonly", (s) => s.getAllKeys())) ?? [];
+    const values = (await commit<T[]>(db, store, "readonly", (s) => s.getAll())) ?? [];
+    return keys.map((k, i) => [String(k), values[i]]);
+  } catch {
+    return [];
   }
 }
 

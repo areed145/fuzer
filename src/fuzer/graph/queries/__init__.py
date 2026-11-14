@@ -8,6 +8,7 @@ from .documents import (  # noqa: F401
 from .downtime import (  # noqa: F401
     _DOWNTIME,
     downtime,
+    downtime_monthly,
     downtime_ranking,
     downtime_reason_checks,
     incident_timeline,

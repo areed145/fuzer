@@ -14,6 +14,17 @@ const VERDICT: Record<PerfRow["keeping_up"], { text: string; tone: string }> = {
 const COUNTS: [keyof PerfCell, string][] = [["sla_misses", "SLA misses"], ["escalations", "Escalations"],
   ["hand_backs", "Hand-backs"], ["repeats", "Repeats"]];
 
+/** Open cases at the end of each of the last five weeks, oldest first, as five small bars with the last one marked. */
+function WeekBars({ values, label }: { values: number[]; label: string }) {
+  const top = Math.max(1, ...values);
+  return (
+    <span className="week-bars" role="img" aria-label={`${label}: ${values.join(", ")}`} title={`${label}: ${values.join(" · ")}`}>
+      {values.map((v, i) => <span key={i} className={i === values.length - 1 ? "now" : undefined}
+        style={{ height: `${Math.max(v ? 12 : 4, (100 * v) / top)}%` }} />)}
+    </span>
+  );
+}
+
 export function PerformancePage({ query }: { query: URLSearchParams }) {
   const data = useAsync(() => api.workPerformance(), []);
   const views = ["type", "detector", "skill"] as const;
@@ -37,10 +48,14 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
       {by === "detector" ? <Detectors /> : by === "skill" ? <Skills /> : <>
       <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
       {d && (rows.length ? (
+        // The queue table is a card like the blocks under it, and every cell says what it is (#1078).
+        <Card title={by === "type" ? "Work types this week" : "Queues this week"}>
         <Table density="compact" className="perf-table phone-rows">
           <thead><tr>
-            <th>{by === "type" ? "Work type" : "Queue"}</th><th>This week</th><th>Arrived</th><th>Closed</th><th>Open</th>
-            <th>Hours to triage, dispatch, close</th>{COUNTS.map(([, l]) => <th key={l}>{l}</th>)}
+            <th>{by === "type" ? "Work type" : "Queue"}</th><th>This week</th>
+            <th>Arrived <span className="muted small">4-wk avg</span></th><th>Closed <span className="muted small">4-wk avg</span></th>
+            <th>Open now <span className="muted small">last 5 weeks</span></th>
+            <th>Median hours</th>{COUNTS.map(([, l]) => <th key={l}>{l}</th>)}
           </tr></thead>
           <tbody>{rows.map((r) => {
             const name = (r.queue ?? r.type ?? "").replace(/_/g, " ");
@@ -48,18 +63,22 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
             return (
               <tr key={name}>
                 <td><strong>{name}</strong></td>
-                <td><Badge className={`badge ${VERDICT[r.keeping_up].tone}`}>{VERDICT[r.keeping_up].text}</Badge></td>
-                <td>{n(`${name}: arrived this week`, w.arrivals)} <span className="small muted">avg {r.arrivals_avg4}</span></td>
-                <td>{n(`${name}: closed this week`, w.closed)} <span className="small muted">avg {r.closed_avg4}</span></td>
-                <td>{n(`${name}: open now`, w.backlog)} <span className="small muted">avg {r.backlog_avg4}</span>
-                  <div className="small muted" title="open at the end of each of the last five weeks, oldest first">
-                    {r.weeks.map((c) => c.backlog.n).join(" · ")}</div></td>
-                <td className="small">{[w.triage_h, w.dispatch_h, w.close_h].map((h) => (h == null ? "–" : h)).join(" · ")}</td>
+                <td data-label="This week"><Badge className={`badge ${VERDICT[r.keeping_up].tone}`}>{VERDICT[r.keeping_up].text}</Badge></td>
+                <td data-label="Arrived">{n(`${name}: arrived this week`, w.arrivals)} <span className="small muted">avg {r.arrivals_avg4}</span></td>
+                <td data-label="Closed">{n(`${name}: closed this week`, w.closed)} <span className="small muted">avg {r.closed_avg4}</span></td>
+                <td data-label="Open now">{n(`${name}: open now`, w.backlog)} <span className="small muted">avg {r.backlog_avg4}</span>
+                  <WeekBars values={r.weeks.map((c) => c.backlog.n)} label={`${name}: open at the end of each of the last five weeks`} /></td>
+                <td data-label="Median hours" className="small">
+                  <dl className="perf-hours">
+                    {([["triage", w.triage_h], ["dispatch", w.dispatch_h], ["close", w.close_h]] as const).map(([k, h]) => (
+                      <div key={k}><dt>{k}</dt><dd>{h == null ? "–" : `${h} h`}</dd></div>))}
+                  </dl></td>
                 {COUNTS.map(([k, l]) => <td key={k} data-label={l}>{n(`${name}: ${l.toLowerCase()} this week`, w[k] as { n: number; ids: number[] })}</td>)}
               </tr>
             );
           })}</tbody>
         </Table>
+        </Card>
       ) : <Empty>No work in the last five weeks.</Empty>)}
       {open && <Card className="perf-cases" title={open.label}
         actions={<Button variant="link" onClick={() => setOpen(null)}>Close</Button>}>

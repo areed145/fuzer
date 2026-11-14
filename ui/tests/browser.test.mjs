@@ -4270,7 +4270,7 @@ test("Routing lists each type of work, flags an empty lane and dry-runs a dispat
   await page.getByRole("link", { name: "Short gas day" }).click();
   await page.waitForURL(/type=short_gas_day/);
   await page.getByText(/which nobody holds/).waitFor();
-  await page.getByRole("alert").getByText(/Nobody holds production_engineer/).waitFor();
+  await page.getByRole("alert").getByText(/Nobody holds production engineer/).waitFor();
   await page.getByLabel("Refs").fill("tag:FT-7");
   await page.getByLabel("Dispatch to").fill("riley");
   await page.getByRole("button", { name: "Try it" }).click();
@@ -4650,6 +4650,124 @@ test("P5.17a Ten reports with four photos each wait on the phone and are sent on
   }
   assert.ok(posts.reduce((n, p) => n + (p.photos ?? []).join("").length, 0) > 5_000_000, "more than localStorage could hold");
   assert.deepEqual(posts.slice(1).map((p) => p.note), Array.from({ length: 10 }, (_, i) => `Report ${i + 1}`));
+});
+
+// P5.17b (#1091): the top bar says when there is no signal and since when, and what waits to send, on every page; a
+// report on the phone shows on its job as waiting, and taking a job from a queue needs signal.
+test("P5.17b The top bar shows no signal and what waits to send on every page, and Take it needs signal", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let reachable = true;
+  const posts = [];
+  const base = { type: "leak", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z", last_seen: "2026-11-12T05:00:00Z",
+    joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null, unmatched: [], case_state: "open",
+    raised_count: 1, due: null, task_id: null, task_name: null, assets: [], checklist: [], sources: [], history: [], field: [] };
+  const mine = { ...base, id: 7, key: "a", title: "Leak at P-101", item_id: 7, assignee: "fred", role: null, queued: false,
+    sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const queued = { ...base, id: 8, key: "b", title: "Drip at V-200", item_id: 8, assignee: null, role: "operator", queued: true, sent: null };
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (reachable || path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.fallback();
+    return route.abort("internetdisconnected");
+  });
+  const live = (json) => (route) => (reachable ? route.fulfill({ json }) : route.abort("internetdisconnected"));
+  await page.route("**/exceptions/field?*", live({ person: "fred", jobs: [mine, queued], coming_up: [] }));
+  await page.route("**/work/inbox?*", live({ person: "fred", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } }));
+  await page.route("**/exceptions/7/report", (route) => {
+    if (!reachable) return route.abort("internetdisconnected");
+    posts.push(route.request().postDataJSON());
+    return route.fulfill({ json: mine });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const status = page.locator(".topbar .sync-status");
+  const card = page.locator(".field-job").filter({ hasText: "Leak at P-101" });
+  await card.getByText("Look at the gland").waitFor();
+  assert.equal(await status.count(), 0, "quiet while live with nothing waiting");
+
+  reachable = false;
+  await page.reload();
+  await card.getByText("Look at the gland").waitFor();
+  await status.filter({ hasText: /^No signal since \d/ }).waitFor();
+  const take = page.locator(".field-job").filter({ hasText: "Drip at V-200" });
+  assert.equal(await take.getByRole("button", { name: "Take it" }).isDisabled(), true);
+  await take.getByText("Needs signal", { exact: false }).waitFor();
+
+  await card.getByLabel(/Note for the IOC/).fill("Gland weeping");
+  await card.getByRole("button", { name: "Add note", exact: true }).click();
+  await card.getByText("Note waiting to send").waitFor();
+  await status.filter({ hasText: "· 1 waiting" }).waitFor();
+
+  // Elsewhere in the app the top bar still says so, and opens My work.
+  await page.evaluate(() => { location.hash = "#/"; });
+  await status.filter({ hasText: "· 1 waiting" }).waitFor();
+
+  reachable = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await status.waitFor({ state: "detached" });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].note, "Gland weeping");
+});
+
+// P5.17c (#1092): with signal, the jobs' assets, their drawings and documents are kept on the phone; without it the
+// asset's page, its document list and its drawing open from the phone, labelled, and a page not kept says so.
+test("P5.17c A job's asset page, documents and drawing open without signal, and an unkept page says so", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let reachable = true;
+  const id = "fz-equipment-p101", pid = "fz-doc-pid1", manual = "fz-doc-man1";
+  const job = { id: 7, type: "leak", key: "a", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [{ fuzer_id: id, label: "P-101 export pump", kind: "equipment" }], checklist: [], sources: [],
+    history: [], field: [], queued: false, sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const ent = (fuzer_id, kind, label) => ({ fuzer_id, kind, label, golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} });
+  const answers = {
+    "/exceptions/field": { person: "fred", jobs: [job], coming_up: [] },
+    "/work/inbox": { person: "fred", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } },
+    [`/entities/${id}`]: ent(id, "equipment", "P-101 export pump"),
+    [`/entities/${id}/drawings`]: { highlight: [id], drawings: [{ id: pid, label: "OKAN-10-PID-001", title: "Export pumps" }] },
+    [`/entities/${id}/documents`]: [{ id: manual, label: "P-101 pump manual", title: "Pump manual", doc_type: "manual", revision: null, why: "names P-101" }],
+    [`/documents/${pid}/drawing`]: { sheet: "OKAN-10-PID-001", title: "Export pumps", image: `/documents/${pid}/image`, width: 40, height: 30,
+      marks: [], offpage: [], tables: [] },
+    [`/entities/${manual}`]: ent(manual, "document", "P-101 pump manual"),
+  };
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.svg$/.test(path) || path === "/favicon.png") return route.fallback();
+    if (!reachable) return route.abort("internetdisconnected");
+    if (path === `/documents/${pid}/image`) return route.fulfill({ body: PNG, contentType: "image/png" });
+    if (path in answers) return route.fulfill({ json: answers[path] });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  await page.locator(".field-job").getByText("Look at the gland").waitFor();
+  // The pack is read in the background: wait until the drawing's sheet is kept.
+  const keptKeys = () => page.evaluate(async () => {
+    const db = await new Promise((ok) => { const r = indexedDB.open("fuzer-field"); r.onsuccess = () => ok(r.result); });
+    return new Promise((ok) => { const r = db.transaction("kept").objectStore("kept").getAllKeys(); r.onsuccess = () => ok(r.result.map(String)); });
+  });
+  for (let i = 0; !(await keptKeys()).some((k) => k.startsWith("warm:")) && i < 150; i++) await page.waitForTimeout(100);
+  const kept = await keptKeys();
+  for (const path of [`/entities/${id}`, `/entities/${id}/status`, `/documents/${pid}/drawing`, `/documents/${pid}/image`,
+    `/entities/${id}/trend-view?hours_before=48&hours_after=24`]) assert.ok(kept.some((k) => k.endsWith(path)), `kept ${path}`);
+
+  reachable = false;
+  await page.locator(".field-job").getByRole("link", { name: "P-101 export pump" }).click();
+  await page.locator("h1", { hasText: "P-101 export pump" }).waitFor();
+  await page.getByText("No signal: kept on this phone", { exact: false }).waitFor();
+  await page.evaluate((id) => { location.hash = `#/e/${id}?tab=documents`; }, id);
+  await page.getByRole("link", { name: "Pump manual" }).waitFor();
+  const sheet = page.locator(".sheet-thumb img").first();
+  await sheet.waitFor();
+  await page.waitForFunction(() => { const img = document.querySelector(".sheet-thumb img"); return img?.complete && img.naturalWidth > 0; });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll at 390 px");
+
+  // An asset no job points at was never kept: the page says so and goes back to the jobs.
+  await page.evaluate(() => { location.hash = "#/e/fz-equipment-elsewhere"; });
+  await page.getByText("This page isn't kept on this phone", { exact: false }).waitFor();
+  await page.getByRole("link", { name: "Back to My work" }).waitFor();
 });
 
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,

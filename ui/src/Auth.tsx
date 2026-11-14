@@ -6,7 +6,7 @@ import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
 import { useRoute } from "./lib";
 import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader } from "./ui";
-import { outboxSession, unreachable } from "./fieldOffline";
+import { forgetKept, outboxSession, unreachable } from "./fieldOffline";
 import "./styles/auth.css";
 
 /** The last admitted session, kept on the phone (P5.14d) so the installed app still opens with no signal, to the jobs
@@ -206,7 +206,7 @@ export function SignOut() {
   return <>
     <Button size="sm" disabled={busy} onClick={async () => {
       setBusy(true); setError("");
-      try { await api.signOut(); location.reload(); }
+      try { await api.signOut(); await forgetKept(); location.reload(); }
       catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); setBusy(false); }
     }}>{busy ? "Signing out..." : "Sign out"}</Button>
     {error && <span role="alert">{error}</span>}

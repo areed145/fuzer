@@ -22,7 +22,7 @@ def _rows(items: list[tuple[str, str, float | None, list]]) -> list[dict]:
 # --- production ------------------------------------------------------------------------------------------------------
 
 @metric("production.efficiency", "Production efficiency", group="Production", unit="%", grains=("facility",),
-        period="the 14 days to the latest daily report", dated=True,
+        period="the 14 days to the latest daily report", dated=True, target=95,
         definition="Oil allocated to the facility against the most it could have delivered on the same days, the "
                    "binding system capacity each day.",
         formula="sum(allocated oil) / sum(dynamic maximum) x 100, over days with both",
@@ -63,7 +63,7 @@ def _backlog(conn, pack) -> dict | None:
 
 
 @metric("maintenance.backlog_ageing", "Corrective backlog older than 90 days", group="Maintenance", unit="%",
-        better="lower",
+        better="lower", target=20,
         definition="Of the open corrective work orders, the share opened more than 90 days ago: a backlog that "
                    "isn't being worked down, not just a big one.",
         formula="open corrective (PM01) orders older than 90 days / open corrective orders x 100",
@@ -76,6 +76,7 @@ def backlog_ageing(conn, pack, grain=None) -> dict:
 
 
 @metric("maintenance.urgent_overdue", "Urgent work orders overdue", group="Maintenance", unit="orders", better="lower",
+        target=0,
         definition="Priority 1 and 2 work orders past their basic finish date.",
         formula="count(open orders with priority 1 or 2 and basic finish before today)",
         records="SAP work orders (open, priority, basic finish)")
@@ -88,9 +89,10 @@ def urgent_overdue(conn, pack, grain=None) -> dict:
 
 # --- how the work is running (P7.2's measures, read as they are) -----------------------------------------------------
 
-def _work(measure: str, label: str, definition: str, formula: str, better: str):
+def _work(measure: str, label: str, definition: str, formula: str, better: str, target: float | None = None):
     @metric(f"work.{measure}", label, group="Work", unit="cases", grains=("queue", "type"), period="this week",
-            better=better, definition=definition, formula=formula, records="cases and their history (work items)")
+            better=better, definition=definition, formula=formula, records="cases and their history (work items)",
+            target=target)
     def compute(conn, pack, grain=None) -> dict:
         from . import performance
 
@@ -99,8 +101,11 @@ def _work(measure: str, label: str, definition: str, formula: str, better: str):
         rows = [(r[name], r[name].replace("_", " "), r["weeks"][-1][measure]["n"], [f"case:{i}" for i in
                  r["weeks"][-1][measure]["ids"]]) for r in m[dim]]
         rows = [r for r in rows if r[2]]
+        # every queue keeps its weeks, so the weekly totals are the history (#1078)
+        history = [{"at": w["start"][:10], "value": sum(q["weeks"][i][measure]["n"] for q in m["queues"])}
+                   for i, w in enumerate(m["weeks"])]
         return {"value": sum(r[2] for r in rows), "rows": _rows(rows) if grain else [],
-                "refs": [x for r in rows for x in r[3]], "as_of": m["weeks"][-1]["start"][:10]}
+                "refs": [x for r in rows for x in r[3]], "as_of": m["weeks"][-1]["start"][:10], "history": history}
     return compute
 
 
@@ -108,12 +113,12 @@ _work("arrivals", "Cases opened", "Cases opened this week (Monday to now).", "co
 _work("closed", "Cases closed", "Cases closed this week (Monday to now).", "count(cases closed this week)", "higher")
 _work("backlog", "Open cases", "Cases still open now.", "count(cases open now)", "lower")
 _work("sla_misses", "Steps past due", "Person steps due this week that finished late or are still open past due.",
-      "count(person steps due this week, done after their due time or still open past it)", "lower")
+      "count(person steps due this week, done after their due time or still open past it)", "lower", 0)
 
 
 # --- context and sources ---------------------------------------------------------------------------------------------
 
-@metric("context.completeness", "Asset context completeness", group="Context", unit="%", grains=("area", "class"),
+@metric("context.completeness", "Asset context completeness", group="Context", unit="%", grains=("area", "class"), target=90,
         definition="Of what an asset's class usually has (a check at least half its class passes), the share it "
                    "has: class, model, maintenance, historian points, roles, limits, drawing, documents, criticality.",
         formula="mean over assets of (expected checks passed / expected checks) x 100",
@@ -137,7 +142,7 @@ def context_completeness(conn, pack, grain=None) -> dict:
 
 
 @metric("sources.straight_through", "Records decided without a steward", group="Sources", unit="%",
-        grains=("system",),
+        grains=("system",), target=95,
         definition="Of a source's records, the share the last rebuild matched, linked or kept as new on its own, "
                    "leaving nothing for a steward.",
         formula="(records - records needing a steward) / records x 100",
@@ -159,7 +164,7 @@ def straight_through(conn, pack, grain=None) -> dict:
 
 def _scorecard(measure: str, label: str, definition: str, formula: str):
     @metric(f"sources.{measure}", f"Source {label.lower()}", group="Sources", unit="%", grains=("dataset",),
-            period="the latest rebuild", definition=definition, formula=formula,
+            period="the latest rebuild", definition=definition, formula=formula, target=95,
             records="each dataset's scorecard row (source_score), kept with every rebuild")
     def compute(conn, pack, grain=None) -> dict:
         rows = [(r["name"], r["name"], float(r["v"]), [])

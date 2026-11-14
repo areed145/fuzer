@@ -1,13 +1,15 @@
 /** The integrated plan (Turnaround is a window on it, #554): every planned activity from every source on one timeline, by area. SAP work orders,
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { usePerson } from "../work";
 import { useAct } from "./workflows/shared";
+import { useEntityNames } from "../useEntityNames";
+import { commonName } from "../entityRefs";
 
 const DAY = 86_400_000;
 const STATUSES = ["proposed", "scheduled", "in_progress", "done", "cancelled"];
@@ -35,6 +37,15 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
     }
     return [...out.entries()].sort(([a], [b]) => (a === "No area" ? 1 : b === "No area" ? -1 : a.localeCompare(b)));
   }, [plan.data]);
+  // An area heading names the area, not only its code: "OKAN-10 · Okan Production Platform" (#1078).
+  const areaIds = [...new Set((plan.data ?? []).map((i) => i.area_id).filter((x): x is string => !!x))];
+  const names = useEntityNames(areaIds);
+  const areaTitle = (area: string, list: PlanItem[]) => {
+    const id = list[0]?.area_id;
+    const n = id ? names?.[id] : undefined;
+    const name = n ? commonName(n.label, n.description) : null;
+    return name ? `${area} · ${name}` : area;
+  };
   if (!plan.data) return <Status loading={plan.loading} error={plan.error} />;
   const t0 = new Date(from).getTime(), t1 = new Date(to).getTime();
   const pos = (at: string) => Math.min(100, Math.max(0, ((new Date(at).getTime() - t0) / (t1 - t0)) * 100));
@@ -42,6 +53,14 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
   const bundles = plan.data.filter((i) => i.clashes.some((c) => c.kind === "bundle")).length;
   const waiting = plan.data.filter((i) => i.parts_short?.length).length;
   const today = pos(new Date().toISOString());
+  // Week lines on every track and a date axis above them: Mondays inside the window (#1078).
+  const mondays: number[] = [];
+  for (let t = t0 + ((8 - new Date(t0).getUTCDay()) % 7) * DAY; t < t1; t += 7 * DAY) mondays.push(t);
+  const weekAt = (t: number) => ((t - t0) / (t1 - t0)) * 100;
+  // Today and the week lines, set once for every track: one tile a week wide, placed so a line falls on each Monday.
+  const week = (7 * DAY * 100) / (t1 - t0);
+  const lines = { "--today": `${today}%`, "--week": `${week}%`,
+                  "--week-at": `${week < 100 && mondays.length ? (100 * weekAt(mondays[0])) / (100 - week) : 0}%` } as CSSProperties;
   const taWindow = turnaround?.window ? { left: pos(turnaround.window.start), right: pos(turnaround.window.end) } : null;
   const changed = () => { plan.reload(); scope.reload(); };
   return (
@@ -67,9 +86,21 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
       {error && <p role="alert" className="error">{error}</p>}
       <div className={revision !== null ? "plan-layout with-panel" : "plan-layout"}>
       <div>
+      {/* The number a manager wants comes first: production at risk from the planned shutdowns (#1078). */}
+      <AtRiskCard from={from} />
       {!plan.data.length && <Empty>Nothing planned in these weeks.</Empty>}
       {groups.map(([area, list]) => (
-        <Card key={area} title={area} className="plan-area">
+        <Card key={area} title={areaTitle(area, list)} className="plan-area">
+          {/* Each area's timeline carries its own date axis, so a row is read against dates, not a bare track (#1078). */}
+          <div className="plan-timeline" style={lines}>
+          <div className="plan-row plan-axis" aria-hidden="true">
+            <span />
+            <div className="plan-axis-track">
+              {mondays.map((t, n) => <span key={t} className="plan-axis-week" style={{ left: `${weekAt(t)}%` }}>
+                {n % Math.ceil(mondays.length / 9) === 0 && Math.abs(weekAt(t) - today) > 4 ? short(new Date(t).toISOString()) : ""}</span>)}
+              {today > 0 && today < 100 && <span className="plan-axis-today">Today</span>}
+            </div>
+          </div>
           <ul className="plan-rows">{list.map((i) => <li key={i.id} className={`plan-row status-${i.status}`}>
             <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
               <strong>{i.title}</strong>
@@ -81,15 +112,15 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
             </button>
             <div className="plan-track" aria-hidden="true">
               {taWindow && <span className="plan-window" style={{ left: `${taWindow.left}%`, width: `${Math.max(0.8, taWindow.right - taWindow.left)}%` }} />}
-              {today > 0 && today < 100 && <span className="plan-today" style={{ left: `${today}%` }} />}
+              {today > 0 && today < 100 && <span className="plan-today" />}
               <span className={`plan-bar kind-${i.kind}${i.needs_shutdown ? " shutdown" : ""}`}
                 style={{ left: `${pos(i.start_at)}%`, width: `${Math.max(0.8, pos(i.end_at) - pos(i.start_at))}%` }} />
             </div>
             {open === i.id && <Detail item={i} person={person} onChange={changed} />}
           </li>)}</ul>
+          </div>
         </Card>
       ))}
-      <AtRiskCard from={from} />
       </div>
       {revision !== null && (turnaround ? <TurnaroundPanel scope={turnaround} person={person} onChange={changed} />
         : <aside className="plan-panel"><Status loading={scope.loading} error={scope.error} onRetry={scope.reload} /></aside>)}

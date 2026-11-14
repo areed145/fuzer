@@ -314,3 +314,45 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 
 /* What installing a source pack added (P1.5): long dataset names wrap on a phone rather than scroll. */
 .pack-installed td { overflow-wrap: anywhere; }
+/* Metrics (#1078): fixed columns on every group's table, a trend line per metric, and the value against its target. */
+table.metric-table { table-layout: fixed; width: 100%; }
+table.metric-table col.metric-now { width: 9.5rem; }
+table.metric-table col.metric-trend { width: 7.5rem; }
+table.metric-table col.metric-for { width: 11rem; }
+table.metric-table col.metric-cut { width: 7rem; }
+.metric-good { color: var(--ok); }
+.metric-bad { color: var(--danger); }
+svg.sparkline { display: block; overflow: visible; }
+svg.sparkline path { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+svg.sparkline circle { fill: var(--accent); }
+svg.sparkline .sparkline-target { stroke: var(--muted); stroke-dasharray: 3 3; stroke-width: 1; }
+@media (max-width: 640px) { table.metric-table { table-layout: auto; } }
+/* Work performance (#1078): open cases over five weeks as small bars, and the median hours each labelled. */
+.week-bars { display: flex; align-items: flex-end; gap: 2px; height: 18px; margin-top: 4px; }
+.week-bars > span { width: 7px; background: var(--line); border-radius: 1px; }
+.week-bars > span.now { background: var(--accent); }
+dl.perf-hours { display: grid; grid-template-columns: auto auto; gap: 0 8px; margin: 0; }
+dl.perf-hours > div { display: contents; }
+dl.perf-hours dt { color: var(--muted); }
+dl.perf-hours dd { margin: 0; font-variant-numeric: tabular-nums; }
+/* Daily reports (#1078): the days as a strip of tiles, newest first, each with its status; versions under the report. */
+.report-days { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 12px; margin-bottom: 4px; }
+.report-day { display: grid; gap: 2px; justify-items: start; min-width: 118px; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--panel); color: var(--text); text-decoration: none; }
+.report-day:hover { border-color: var(--accent); }
+.report-day.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.report-day-week { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.report-day .warn-text { color: var(--warn); }
+.report-versions { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+/* The plan's date axis and week lines (#1078): Mondays labelled above each area's tracks, a line per week on each track,
+   and today named. */
+.plan-axis { border-top: 0; padding: 0 0 0.15rem; }
+.plan-axis-track { position: relative; height: 1.1rem; font-size: 11px; color: var(--muted); }
+.plan-axis-week { position: absolute; bottom: 0; transform: translateX(-50%); white-space: nowrap; }
+.plan-axis-week::after { content: ""; position: absolute; left: 50%; bottom: -0.3rem; height: 0.25rem; border-left: 1px solid var(--line); }
+.plan-axis-today { position: absolute; bottom: 0; transform: translateX(-50%); padding: 0 4px; border-radius: 3px;
+  background: var(--text); color: var(--bg); font-weight: 600; }
+.plan-timeline .plan-track { background-image: linear-gradient(to right, var(--line) 0 1px, transparent 1px);
+  background-size: var(--week) 100%; background-repeat: repeat-x; background-position: var(--week-at) 0; }
+.plan-timeline .plan-today, .plan-timeline .plan-axis-today { left: var(--today); }
+@media (max-width: 640px) { .plan-axis > span:first-child { display: none; } }

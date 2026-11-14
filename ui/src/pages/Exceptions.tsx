@@ -242,8 +242,10 @@ function Row({ r, person, people, queues, onChange }: {
       <div className="work-row-what">
         <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{r.title}</a> : r.title}</div>
         <div className="small muted"><PriorityBadge p={r.priority} type={r.type} />{" "}
-          {[r.type.replace(/_/g, " "), r.source, r.value_usd ? `${money(r.value_usd)} at stake` : null]
-            .filter(Boolean).join(" · ")}</div>
+          {/* The type opens its route: where this kind of work goes, who holds it and when it is due (#1078). */}
+          <a className="muted work-type-link" href={href("/routing", { type: r.type })} title="Where this type of work goes">
+            {r.type.replace(/_/g, " ")}</a>
+          {[r.source, r.value_usd ? `${money(r.value_usd)} at stake` : null].filter(Boolean).map((x) => ` · ${x}`).join("")}</div>
         {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}
       </div>
       <div className="work-row-where small">{subjects.map((s) => <div key={s}><a href={entityHref(s)}
