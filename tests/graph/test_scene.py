@@ -72,6 +72,15 @@ def test_links_run_from_their_source_to_their_target_and_a_shaft_is_no_pipe(comp
             assert sum(1 for u, v in zip(p, q, strict=True) if u != v) == 1, "runs are square to the axes"
     gas = [link for link in s["links"] if link["rel"] == "lift_gas_to"]
     assert gas and all(link["product"] == "lift_gas" for link in gas)
+    # Deck piping stays at the equipment's level; a run between plates drops below the deck and comes back up.
+    top = scene.NOZZLE + scene.SEPARATE * len(s["rels"])
+    for link in s["links"]:
+        a, b = at[link["src"]], at[link["dst"]]
+        heights = [p[1] for p in link["path"]]
+        if a["plate"] == b["plate"]:
+            assert 0 < min(heights) and max(heights) <= top
+        else:
+            assert min(heights) < 0 and max(heights) <= top
 
 
 def test_what_it_connects_to_elsewhere_is_drawn_and_says_where(compression):
@@ -152,3 +161,35 @@ def test_the_api_serves_the_scene_and_refuses_an_unknown_link_type(compression):
     only = client.get("/scene", params={"at": k, "rels": "pipes_to"}).json()
     assert only["rels"] == ["pipes_to"] and {link["rel"] for link in only["links"]} == {"pipes_to"}
     assert client.get("/scene", params={"rels": "nonsense"}).status_code == 422
+
+
+def test_by_location_the_areas_keep_their_bearings_but_not_their_distances(okan_db):
+    conn = okan_db.conn
+    s = scene.scene(conn, layout="geo")
+    assert s["layout"] == "geo"
+    located = [p for p in s["plates"] if p["located"]]
+    assert len(located) >= 0.9 * sum(1 for p in s["plates"] if p["area"])
+    for i, p in enumerate(s["plates"]):  # still never overlapping
+        for q in s["plates"][i + 1:]:
+            assert p["x"] + p["w"] <= q["x"] or q["x"] + q["w"] <= p["x"] or p["z"] + p["d"] <= q["z"] or q["z"] + q["d"] <= p["z"]
+    at = {r["id"]: (r["cx"], r["cy"]) for r in conn.execute(
+        "select fuzer_id as id, cx, cy from geo_index where fuzer_id = any(%s)", [[p["id"] for p in located]])}
+    mid = {p["id"]: (p["x"] + p["w"] / 2, p["z"] + p["d"] / 2) for p in located}
+    both = [i for i in mid if i in at]
+    west, east = min(both, key=lambda i: at[i][0]), max(both, key=lambda i: at[i][0])
+    south, north = min(both, key=lambda i: at[i][1]), max(both, key=lambda i: at[i][1])
+    assert mid[west][0] < mid[east][0]
+    assert mid[north][1] < mid[south][1], "north is away from the viewer (smaller z)"
+    span = max(x for x, _ in mid.values()) - min(x for x, _ in mid.values())
+    assert span < 2000, "long distances are shortened, so the field stays in one view"
+
+
+def test_with_no_location_the_scene_stays_schematic_and_says_so(okan_db):
+    conn = okan_db.conn
+    conn.execute("delete from geo_index")  # rolled back below
+    try:
+        s = scene.scene(conn, layout="geo")
+        assert s["layout"] == "schematic"
+        assert not any(p["located"] for p in s["plates"])
+    finally:
+        conn.rollback()

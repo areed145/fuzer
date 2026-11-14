@@ -3699,11 +3699,13 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
     places: [{ id: "F", kind: "facility", label: "FAC", parent: null }, { id: "A1", kind: "area", label: "AREA-1", parent: "F" },
       { id: "A2", kind: "area", label: "AREA-2", parent: "F" }],
   };
-  const asked = [], scripts = [];
+  const asked = [], scripts = [], layouts = [];
   page.on("request", (r) => { if (/\/assets\/.*\.js$/.test(r.url())) scripts.push(r.url()); });
   await page.route("**/scene*", (route) => {
-    asked.push(new URL(route.request().url()).searchParams.get("at"));
-    return route.fulfill({ json: scene });
+    const params = new URL(route.request().url()).searchParams;
+    asked.push(params.get("at"));
+    layouts.push(params.get("layout"));
+    return route.fulfill({ json: params.get("layout") === "geo" ? { ...scene, layout: "geo" } : scene });
   });
   await page.route("**/network*", (route) => route.fulfill({ json: { rels: [], nodes: [], edges: [], truncated: false } }));
 
@@ -3733,6 +3735,13 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   await page.waitForFunction(() => [...document.querySelectorAll(".scene-tag")].some((t) => !t.hidden && t.textContent === "K-1"));
   assert.ok(!(await names()).includes("Booster Compressor"));
   await page.getByLabel("Label items by").selectOption("names");
+  // By location, compacted: asked of the server and kept in the link; the line under the controls says which it is.
+  await page.getByLabel("Lay the drawing out").selectOption("geo");
+  await page.waitForFunction(() => location.hash.includes("layout=geo"));
+  await page.getByTestId("scene-basis").filter({ hasText: "Areas where they are, long distances shortened" }).waitFor();
+  assert.equal(layouts.at(-1), "geo");
+  await page.getByLabel("Lay the drawing out").selectOption("schematic");
+  await page.getByTestId("scene-basis").filter({ hasText: "Schematic, not to scale" }).waitFor();
 
   // Full screen covers the page with the drawing, its controls and legend; Escape or the button leaves.
   await page.getByRole("button", { name: "Full screen" }).click();

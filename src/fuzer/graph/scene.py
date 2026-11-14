@@ -2,7 +2,8 @@
 between them as pipe runs. For reading flow and scenarios, not a model of the plant: nothing is to scale, and where
 the register holds no geometry every position comes from the links alone.
 
-    scene(conn, at=None, rels=None, pack=None)   {root, focus, plates, items, links, shapes, counts, places}
+    scene(conn, at=None, rels=None, pack=None, layout="schematic")
+        -> {root, focus, layout, plates, items, links, shapes, counts, places}
 
 `at` is a facility, an area, or anything inside one (a tag, a well, an item of equipment: the scene is its area, and
 `focus` is the drawn item it stands for). With no `at` the scene is the facility with the most areas.
@@ -19,10 +20,17 @@ The layout is deterministic. In a plate, flow runs along x: an item's column is 
 items. Parallel runs sit side by side along z: a header (an item feeding, or fed by, two or more items of one shape)
 is left out, and each group still joined is a lane (valves and instruments don't make a header). A header sits across the lanes it joins; a driver sits beside
 what it drives (drives); items on no link are set out in rows behind. Plates are packed in rows.
+
+`layout="geo"` places the plates where their areas are instead (geo_index: the area's own location, else the middle of
+what in it has one), compacted: bearings hold, near neighbours keep their spacing and long distances shrink, then
+plates are pushed apart just enough not to touch. North is away from the viewer. A plate with no location, and the
+plates for ends elsewhere or in no area, sit in a row in front. With no located plate the scene stays schematic and
+says so (`layout`).
 """
 
+import math
 from collections import defaultdict
-from statistics import mean
+from statistics import mean, median
 
 from ..core import shapes
 from . import queries
@@ -32,7 +40,9 @@ CLIMB = 5  # steps from an item up to its area
 CELL_X, CELL_Z = 8.0, 5.0  # one column of flow, one lane
 MARGIN = 4.0
 PLATE_GAP = 10.0
-NOZZLE, RACK, BRIDGE = 1.0, 9.0, 12.0  # heights of a run between neighbours, across a plate, between plates
+NOZZLE = 1.0  # a run on a deck sits at the equipment's nozzles
+SUBSEA, BURIED = -13.5, -1.0  # a run between plates: along the seabed where a jacket stands in the sea, else just below grade
+SEPARATE = 0.35  # each link type a little apart, so runs of different types don't sit inside each other
 LOOSE_PER_ROW = 8
 MAX_ITEMS = 3000
 ELSEWHERE, UNPLACED = "elsewhere", "unplaced"
@@ -277,22 +287,102 @@ def _frame(table: dict, area_type: str | None) -> str:
     return next((table["frames"][w] for w in words if w in table["frames"]), "slab")
 
 
-def _route(a: dict, b: dict, lift: float) -> list[list[float]]:
-    """A pipe run from a to b: straight along the flow, through the gap between columns, or up and over."""
+def _route(a: dict, b: dict, lane: int, plates: dict[str, dict]) -> list[list[float]]:
+    """A pipe run from a to b. On one deck it stays at the equipment's level, running in the gaps between rows and
+    columns. Between plates it leaves by the deck's edge facing the other, drops as a riser to the seabed (or below
+    grade onshore), runs along the bottom and rises at the other plate's edge."""
     ax, az, bx, bz = a["x"], a["z"], b["x"], b["z"]
-    ya, yb = a["y"] + NOZZLE, b["y"] + NOZZLE
-    if a["plate"] == b["plate"] and abs((bx - ax) - CELL_X) < 0.01:
-        if az == bz:
-            return [[ax, ya, az], [bx, yb, bz]]
-        mid = (ax + bx) / 2
-        return [[ax, ya, az], [mid, ya, az], [mid, yb, bz], [bx, yb, bz]]
-    top = max(a["y"], b["y"]) + (RACK if a["plate"] == b["plate"] else BRIDGE) + lift
-    pts = [[ax, ya, az], [ax, top, az]]
-    if az != bz and ax != bx:
-        turn = bx - CELL_X / 2 if bx > ax else bx + CELL_X / 2
-        pts += [[turn, top, az], [turn, top, bz]]
-    pts += [[bx, top, bz], [bx, yb, bz]]
+    off = lane * SEPARATE
+    ya, yb = a["y"] + NOZZLE + off, b["y"] + NOZZLE + off
+    pts: list[list[float]]
+    if a["plate"] == b["plate"]:
+        if az == bz and abs((bx - ax) - CELL_X) < 0.01:  # next in line: straight across
+            pts = [[ax, ya, az], [bx, yb, bz]]
+        else:  # out to the gap beside its row, along it to the gap before b's column, across, and in
+            gz = az + CELL_Z / 2 - off
+            gx = bx - CELL_X / 2 + off if bx >= ax else bx + CELL_X / 2 - off
+            pts = [[ax, ya, az], [ax, ya, gz], [gx, ya, gz], [gx, yb, bz], [bx, yb, bz]]
+    else:
+        pa, pb = plates[a["plate"]], plates[b["plate"]]
+        sea = "lattice" in (pa["frame"], pb["frame"])
+        low = (SUBSEA if sea else BURIED) + off
+
+        def edge(p: dict, x: float, z: float, tx: float, tz: float) -> list[float]:
+            cx, cz = p["x"] + p["w"] / 2, p["z"] + p["d"] / 2
+            if abs(tx - cx) * p["d"] >= abs(tz - cz) * p["w"]:  # leave by the east or west side
+                return [p["x"] + p["w"] if tx > cx else p["x"], 0.0, z]
+            return [x, 0.0, p["z"] + p["d"] if tz > cz else p["z"]]
+
+        ea = edge(pa, ax, az, pb["x"] + pb["w"] / 2, pb["z"] + pb["d"] / 2)
+        eb = edge(pb, bx, bz, pa["x"] + pa["w"] / 2, pa["z"] + pa["d"] / 2)
+        pts = [[ax, ya, az], [ea[0], ya, ea[2]], [ea[0], low, ea[2]], [eb[0], low, ea[2]],
+               [eb[0], low, eb[2]], [eb[0], yb, eb[2]], [bx, yb, bz]]
     return [p for i, p in enumerate(pts) if i == 0 or p != pts[i - 1]]
+
+
+def _located(conn, plates: list[dict], items: dict[str, dict]) -> dict[str, tuple[float, float]]:
+    """Each plate's (lon, lat): its area's own location, else the middle of its items that have one."""
+    ids = [p["id"] for p in plates if p["area"]] + list(items)
+    at = {r["id"]: (r["cx"], r["cy"]) for r in _rows(
+        conn, "select fuzer_id as id, cx, cy from geo_index where fuzer_id = any(%s)", ids)}
+    out = {}
+    for p in plates:
+        if not p["area"]:
+            continue
+        mine = [at[i] for i, it in items.items() if it["plate"] == p["id"] and i in at]
+        if p["id"] in at:
+            out[p["id"]] = at[p["id"]]
+        elif mine:
+            out[p["id"]] = (mean(x for x, _ in mine), mean(y for _, y in mine))
+    return out
+
+
+def _geo_layout(plates: list[dict], where: dict[str, tuple[float, float]]) -> None:
+    """Place located plates by bearing and compacted distance from their middle, then part any that touch; the rest in
+    a row in front. Sets each plate's x and z (its corner) in place."""
+    located = [p for p in plates if p["id"] in where]
+    lon0 = mean(where[p["id"]][0] for p in located)
+    lat0 = mean(where[p["id"]][1] for p in located)
+    k = math.cos(math.radians(lat0)) * 111_320
+    metres = {p["id"]: ((where[p["id"]][0] - lon0) * k, -(where[p["id"]][1] - lat0) * 110_540) for p in located}
+    # Scale so neighbours sit about a plate apart, then shrink long distances (a log beyond a few neighbours).
+    size = median(max(p["w"], p["d"]) for p in located) + PLATE_GAP
+    gaps = [min((math.dist(metres[a["id"]], metres[b["id"]]) for b in located if b is not a), default=0.0)
+            for a in located]
+    near = median([g for g in gaps if g > 0] or [1.0])
+    reach = 4 * size
+    centres = {}
+    for p in located:
+        mx, mz = metres[p["id"]]
+        r = math.hypot(mx, mz) / near * size
+        squeezed = r if r <= reach else reach * (1 + math.log(r / reach))
+        f = squeezed / r if r else 0.0
+        centres[p["id"]] = [mx / near * size * f, mz / near * size * f]
+    # Part plates that overlap, along the axis they overlap least, a little each pass.
+    for _ in range(300):
+        moved = False
+        for i, a in enumerate(located):
+            for b in located[i + 1:]:
+                ca, cb = centres[a["id"]], centres[b["id"]]
+                ox = (a["w"] + b["w"]) / 2 + PLATE_GAP / 2 - abs(ca[0] - cb[0])
+                oz = (a["d"] + b["d"]) / 2 + PLATE_GAP / 2 - abs(ca[1] - cb[1])
+                if ox <= 0 or oz <= 0:
+                    continue
+                moved = True
+                axis, push = (0, ox) if ox < oz else (1, oz)
+                sign = 1 if ca[axis] >= cb[axis] or (ca[axis] == cb[axis] and a["id"] < b["id"]) else -1
+                ca[axis] += sign * push / 2
+                cb[axis] -= sign * push / 2
+        if not moved:
+            break
+    for p in located:
+        p["x"], p["y"], p["z"] = centres[p["id"]][0] - p["w"] / 2, 0.0, centres[p["id"]][1] - p["d"] / 2
+    x = min((p["x"] for p in located), default=0.0)
+    front = max((p["z"] + p["d"] for p in located), default=0.0) + 2 * PLATE_GAP
+    for p in plates:
+        if p["id"] not in where:
+            p["x"], p["y"], p["z"] = x, 0.0, front
+            x += p["w"] + PLATE_GAP
 
 
 def places(conn) -> list[dict]:
@@ -309,12 +399,12 @@ def places(conn) -> list[dict]:
         order by (en.kind = 'facility') desc, l.label""")
 
 
-def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None) -> dict:
+def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None, layout: str = "schematic") -> dict:
     table = shapes.for_pack(pack)
     # A shaft is not a pipe run: what drives what sets a driver beside its machine instead.
     rels = [r for r in dict.fromkeys(rels or queries.network_rels(conn)) if r != COUPLING]
     root, focus = _root(conn, at)
-    empty = {"root": None, "focus": None, "rels": rels, "plates": [], "items": [], "links": [], "shapes": {},
+    empty = {"root": None, "focus": None, "layout": "schematic", "rels": rels, "plates": [], "items": [], "links": [], "shapes": {},
              "counts": {"items": 0, "links": 0, "not_drawn": 0, "by_layout": 0, "by_geometry": 0, "no_shape": 0},
              "truncated": False, "places": places(conn)}
     if root is None:
@@ -379,29 +469,35 @@ def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None)
                         "classes": a["classes"], "shape": shape[n], "plate": pid,
                         "cell": cell[n], "placed": how[n],
                         **({"area": area_label.get(away_area[n])} if n in away_area else {})}
-    # Plates in rows, in a fixed order, to about one and a half times as wide as deep.
-    limit = max((sum(p["w"] * p["d"] for p in plates) * 1.5) ** 0.5, max((p["w"] for p in plates), default=0.0))
-    x = z = depth = 0.0
+    where = _located(conn, plates, items) if layout == "geo" else {}
+    if where:
+        _geo_layout(plates, where)
+    else:
+        # Plates in rows, in a fixed order, to about one and a half times as wide as deep.
+        limit = max((sum(p["w"] * p["d"] for p in plates) * 1.5) ** 0.5, max((p["w"] for p in plates), default=0.0))
+        x = z = depth = 0.0
+        for p in plates:
+            if x and x + p["w"] > limit:
+                x, z, depth = 0.0, z + depth + PLATE_GAP, 0.0
+            p["x"], p["y"], p["z"] = x, 0.0, z
+            x += p["w"] + PLATE_GAP
+            depth = max(depth, p["d"])
     for p in plates:
-        if x and x + p["w"] > limit:
-            x, z, depth = 0.0, z + depth + PLATE_GAP, 0.0
-        p["x"], p["y"], p["z"] = x, 0.0, z
-        x += p["w"] + PLATE_GAP
-        depth = max(depth, p["d"])
+        p["located"] = p["id"] in where
     at_plate = {p["id"]: p for p in plates}
     for it in items.values():
         p, (c, lane) = at_plate[it["plate"]], it.pop("cell")
         it["x"] = p["x"] + MARGIN + CELL_X / 4 + c * CELL_X
         it["z"] = p["z"] + MARGIN + CELL_Z / 4 + lane * CELL_Z
         it["y"] = p["y"]
-    lift = {r: 0.5 * i for i, r in enumerate(rels)}
+    lane = {r: i for i, r in enumerate(rels)}
     links = [{"id": e["id"], "src": e["src"], "dst": e["dst"], "rel": e["rel"], "product": e["product"],
-              "path": _route(items[e["src"]], items[e["dst"]], lift[e["rel"]])} for e in edges]
+              "path": _route(items[e["src"]], items[e["dst"]], lane[e["rel"]], at_plate)} for e in edges]
     used = sorted({it["shape"] for it in items.values()})
     out_focus = focus if focus in items else None
     return {
         "root": {"id": root["id"], "kind": root["kind"], "label": about[root["id"]]["label"] or root["id"]},
-        "focus": out_focus, "rels": rels, "plates": plates,
+        "focus": out_focus, "layout": "geo" if where else "schematic", "rels": rels, "plates": plates,
         "items": sorted(items.values(), key=lambda it: (it["label"], it["id"])), "links": links,
         "shapes": {s: table["shapes"][s] for s in used},
         "counts": {"items": len(items), "links": len(links),

@@ -135,14 +135,15 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   });
   world.add(plateMesh);
 
-  // Links: straight runs between the path's points, an elbow at each turn and an arrow on the longest run.
+  // Links: straight runs between the path's points, an elbow at each turn and an arrow on the longest run. Deck
+  // piping sits at the equipment's level; a run between plates drops as a riser and follows the seabed (scene.py).
   const elbows: { p: THREE.Vector3; color: THREE.Color }[] = [];
   const arrows: { p: THREE.Vector3; dir: THREE.Vector3; color: THREE.Color }[] = [];
   for (const link of scene.links) {
     const color = new THREE.Color(lineColor(link) || token("--muted"));
     const pts = link.path.map(([x, y, z]) => new THREE.Vector3(x, y, z));
     let longest = 0, mid: THREE.Vector3 | null = null, dir: THREE.Vector3 | null = null;
-    const r = pts.length > 4 || (pts.length > 2 && pts[1].y > pts[0].y) ? PIPE * 0.6 : PIPE; // up and over: a lighter run
+    const r = pts.some((p) => p.y < 0) ? PIPE * 1.3 : PIPE; // a pipeline between plates reads heavier than deck piping
     for (let i = 1; i < pts.length; i++) {
       struts.push({ a: pts[i - 1], b: pts[i], r, color });
       if (i < pts.length - 1) elbows.push({ p: pts[i], color });
