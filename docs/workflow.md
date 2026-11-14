@@ -270,6 +270,19 @@ They emulate a phone and can't prove a real one, so check a real device before a
 
 Note the phone, the OS version and anything that failed, and file it as an issue against P5.14 (#984).
 
+### Work kept on the phone
+
+What the field does without signal is kept in the phone's IndexedDB (`ui/src/fieldStore.ts`), not `localStorage`, so
+photos are kept as files and a shift of reports fits (P5.17a, #1090). Each write waits in the outbox with its client
+id, the time it was made, the signed-in account and the project it was made in. One sender for the whole app
+(`startOutbox` in `ui/src/fieldOffline.ts`) sends oldest first on a confirmed session: on launch, when the signal
+returns, when the app comes back to the foreground, and every 30 s while it is on screen, whichever page is open.
+iOS has no background sync, so nothing sends while the app is closed. A write that never reached the server is sent
+again; the server applies each client id once. A write the server refuses is not resent. A signed-out session, or an
+expired session confirmation, holds the outbox until the same account signs in again. The app asks the browser to keep
+its storage (`navigator.storage.persist()`) the first time it keeps something. An outbox kept by an earlier version in
+`localStorage` moves across on the next launch.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and

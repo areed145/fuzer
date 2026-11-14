@@ -4565,6 +4565,90 @@ test("a report made without signal waits on the phone and is sent once with its 
   assert.ok(made >= before - 1000 && made <= posts[0].received - 1000, "keeps the time it was made, not when it was sent");
 });
 
+// P5.17a (#1090): the outbox is IndexedDB, so a shift of reports with photos fits on the phone; what P5.3c kept in
+// localStorage moves across; and the app's one sender sends from whichever page is open, once, even with two tabs.
+test("P5.17a Ten reports with four photos each wait on the phone and are sent once from any page, old outbox included", async () => {
+  await page.addInitScript(() => {
+    localStorage.setItem("fuzer.reviewer", "fred");
+    if (!sessionStorage.getItem("seeded")) {  // the outbox an earlier version kept, once
+      sessionStorage.setItem("seeded", "1");
+      localStorage.setItem("fuzer.field.outbox", JSON.stringify([{ client_id: "legacy-1", exception_id: 7, by: "fred",
+        status: "note", note: "Kept by the old outbox", at: "2026-11-12T06:00:00.000Z" }]));
+    }
+  });
+  let reachable = false;
+  const posts = [];
+  const job = { id: 7, type: "leak", key: "k", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [{ fuzer_id: "fz-p-101", label: "P-101 export pump", kind: "pump" }], checklist: [], sources: [],
+    history: [], field: [], queued: false, sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const serve = async (p) => {
+    await p.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+    await p.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    await p.route("**/exceptions/7/report", (route) => {
+      if (!reachable) return route.abort("internetdisconnected");
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ json: job });
+    });
+  };
+  await serve(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job").first();
+  await card.getByText("Look at the gland").waitFor();
+  // The old outbox moved into the store, and out of localStorage.
+  await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.field.outbox")), null);
+
+  // A phone photo: noise, so it stays large after shrinking (several hundred kB each, far past localStorage's 5 MB).
+  const photo = Buffer.from(await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 1600; c.height = 1200;
+    const g = c.getContext("2d");
+    const img = g.createImageData(c.width, c.height);
+    for (let i = 0; i < img.data.length; i++) img.data[i] = (i % 4 === 3) ? 255 : Math.random() * 255;
+    g.putImageData(img, 0, 0);
+    return c.toDataURL("image/jpeg", 0.95).split(",")[1];
+  }), "base64");
+  const files = [1, 2, 3, 4].map((n) => ({ name: `gland-${n}.jpg`, mimeType: "image/jpeg", buffer: photo }));
+  for (let n = 1; n <= 10; n++) {
+    await card.locator('input[type="file"]').setInputFiles(files);
+    await card.getByText("Photos (4)").waitFor();
+    await card.getByLabel(/Note for the IOC/).fill(`Report ${n}`);
+    await card.getByRole("button", { name: "Add note", exact: true }).click();
+    await page.getByRole("heading", { name: `${n + 1} reports waiting to send` }).waitFor();
+  }
+  assert.equal(posts.length, 0);
+
+  // Away from My work, with a second tab open too: the signal returns and each report is sent once.
+  await page.evaluate(() => { location.hash = "#/"; });
+  const other = await context.newPage();
+  other.on("pageerror", (error) => errors.push(error.message));
+  await other.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.continue();
+    return route.fulfill({ json: path === "/auth/me" ? { mode: "local", configured: true, user: null } : [] });
+  });
+  await serve(other);
+  await other.goto(`${url}/#/`);
+  reachable = true;
+  await Promise.all([page, other].map((p) => p.evaluate(() => window.dispatchEvent(new Event("online")))));
+  for (let i = 0; posts.length < 11 && i < 200; i++) await page.waitForTimeout(100);
+  await page.waitForTimeout(500);
+  assert.equal(posts.length, 11);
+  assert.equal(new Set(posts.map((p) => p.client_id)).size, 11, "each report once");
+  assert.equal(posts[0].client_id, "legacy-1", "oldest first");
+  assert.equal(posts[0].at, "2026-11-12T06:00:00.000Z", "keeps the time it was made");
+  for (const p of posts.slice(1)) {
+    assert.equal(p.photos.length, 4);
+    assert.ok(p.photos.every((x) => x.startsWith("data:image/jpeg;base64,")), "photos go as the report API takes them");
+  }
+  assert.ok(posts.reduce((n, p) => n + (p.photos ?? []).join("").length, 0) > 5_000_000, "more than localStorage could hold");
+  assert.deepEqual(posts.slice(1).map((p) => p.note), Array.from({ length: 10 }, (_, i) => `Report ${i + 1}`));
+});
+
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
 // with what changed since they last looked, and reaches an item in another field in one click from Home.
 test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {

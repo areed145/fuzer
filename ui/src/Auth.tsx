@@ -6,7 +6,7 @@ import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
 import { useRoute } from "./lib";
 import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader } from "./ui";
-import { unreachable } from "./fieldOffline";
+import { outboxSession, unreachable } from "./fieldOffline";
 import "./styles/auth.css";
 
 /** The last admitted session, kept on the phone (P5.14d) so the installed app still opens with no signal, to the jobs
@@ -63,10 +63,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setSession(value); setError(""); setEnded(false); setOffline("");
       const admits = value.mode === "local" || !!value.user?.enabled && (value.user.owner || value.user.permissions.includes("read"));
       keep(admits ? value : null);
+      outboxSession(value.user?.actor ?? "", admits);
     }).catch((failure: Error) => {
       if (!active) return;
       const last = unreachable(failure) ? kept() : null;
-      if (last) { setSession(last); setError(""); setOffline(last.kept_at); }
+      if (last) { setSession(last); setError(""); setOffline(last.kept_at); outboxSession(last.user?.actor ?? "", false); }
       else setError(failure.message);
     })
       .finally(() => { if (active) setChecking(false); });
@@ -74,6 +75,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [revision]);
   useEffect(() => {
     const expired = () => {
+      outboxSession("", false);  // held, not dropped: it sends after the same account signs in again
       keep(null);
       setSession(null);
       setCsrf("");

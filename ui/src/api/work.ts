@@ -898,10 +898,10 @@ export const workApi = {
   fieldJobsBrief: (person: string) => request<{ person: string; jobs: Pick<FieldJob, "item_id" | "queued">[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person, brief: "true" }),
   fieldReport: (id: number, by: string, status: string, note?: string,
     extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string; override?: string;
-      permit_in_hand?: boolean } = {}) =>
+      permit_in_hand?: boolean; project?: string } = {}) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
       reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null,
-      override: extra.override ?? null, permit_in_hand: extra.permit_in_hand ?? null }),
+      override: extra.override ?? null, permit_in_hand: extra.permit_in_hand ?? null }, extra.project),
   fieldHandover: (id: number, h: { by: string; to: string; done: string; left: string; unsafe?: string }) =>
     request<FieldJob>("POST", `/exceptions/${id}/handover`, undefined, { ...h, unsafe: h.unsafe ?? null }),
   acceptHandover: (id: number, by: string) => request<FieldJob>("POST", `/exceptions/${id}/handover/accept`, undefined, { by }),

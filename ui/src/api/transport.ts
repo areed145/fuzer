@@ -3,14 +3,15 @@ import { scheduleRequest } from "../requestQueue";
 
 type Params = Record<string, string | number | undefined | null>;
 
-export async function request<T>(method: string, path: string, params?: Params, body?: unknown): Promise<T> {
+/** `project` overrides the picked project, for a write kept on the phone that must go to the project it was made in. */
+export async function request<T>(method: string, path: string, params?: Params, body?: unknown,
+  project: string = getProject()): Promise<T> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params ?? {})) {
     if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
   }
   const url = qs.size ? `${path}?${qs}` : path;
   const csrf = getCsrf();
-  const project = getProject();
   const readOnly = method === "GET" && !params?.claude && !path.endsWith("generate");
   return scheduleRequest(async () => {
     const res = await fetch(url, {

@@ -1,8 +1,16 @@
-/** The field without signal (P5.3c, #643). The operator's jobs, with their instructions and assets, are kept on the
- * phone each time they load, and read from there when the server can't be reached. A report made without signal
- * waits in an outbox with an id and the time it was made, and is sent when the signal returns; the server applies
- * each id once and keeps that time, so a report sent twice arrives once. */
+/** The field without signal (P5.3c, #643; P5.17a, #1090). The operator's jobs, with their instructions and assets, are
+ * kept on the phone each time they load, and read from there when the server can't be reached. A write made without
+ * signal waits in an outbox with an id and the time it was made, and is sent when the signal returns; the server
+ * applies each id once and keeps that time, so a write sent twice arrives once.
+ *
+ * Both live in IndexedDB (`fieldStore.ts`), photos as files. The outbox belongs to the account that made it and the
+ * project it was made in, and one sender serves the whole app: it sends on launch, when the signal comes back, when
+ * the app returns to the foreground and every 30 s while it is on screen, from whichever page is open. iOS has no
+ * background sync, so nothing is sent while the app is closed. Only writes that never reached the server are sent
+ * again; one the server refused is not resent (AGENTS.md), and an expired session holds the outbox until sign-in. */
 import { api, type FieldJob, type FieldReading, type PlanItem } from "./api";
+import { getProject } from "./authState";
+import * as store from "./fieldStore";
 
 export interface QueuedReport {
   client_id: string; exception_id: number; by: string; status: string; note?: string; at: string;
@@ -12,33 +20,94 @@ export interface QueuedReport {
   /** A permit confirmed in hand where none could be checked (#742). */
   permit_in_hand?: boolean;
 }
+
+/** One write waiting on the phone. `kind` picks its sender; photos are kept apart from the payload, as files. */
+export interface QueuedWrite<P = unknown> {
+  client_id: string; kind: string; at: string;
+  /** The signed-in account that made it ("" in local mode), and the project it was made in. */
+  account: string; project: string;
+  payload: P; photos?: store.KeptPhoto[];
+}
+
 type Jobs = { person: string; jobs: FieldJob[]; coming_up: PlanItem[]; offline?: { since: string } };
+type Sender = (w: QueuedWrite, photos: string[]) => Promise<unknown>;
 
-const OUTBOX = "fuzer.field.outbox";
-const JOBS = "fuzer.field.jobs.";
 export const OUTBOX_CHANGED = "fuzer:outbox";
-
-function read<T>(key: string, fallback: T): T {
-  try { return JSON.parse(localStorage.getItem(key) ?? "") as T; } catch { return fallback; }
-}
-function write(key: string, value: unknown): boolean {
-  try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
-}
+/** The outcome of a send, as the detail of an OUTBOX_CHANGED event. */
+export interface FlushResult { sent: number; refused: string[]; held: boolean }
 
 /** A fetch that never reached the server (no signal), as opposed to the server saying no. */
 export const unreachable = (e: unknown) => e instanceof TypeError || (typeof navigator !== "undefined" && !navigator.onLine);
 
-export const outbox = (): QueuedReport[] => read<QueuedReport[]>(OUTBOX, []);
+/** The server said this session can't send right now (signed out, or its confirmation expired): keep everything and
+ * wait for sign-in, rather than treating it as a refusal. */
+const heldBySession = (e: unknown) => {
+  const { status, message } = e as { status?: number; message?: string };
+  return status === 401 || status === 403 && /^Session confirmation/.test(message ?? "");
+};
+
+let account = "";
+let live = false;
+let migrated: Promise<void> | null = null;
+
+const senders = new Map<string, Sender>();
+/** How a kind of queued write is sent. Each sender must be idempotent on `client_id`. */
+export function registerSender(kind: string, send: Sender) { senders.set(kind, send); }
+
+const changed = (detail?: FlushResult) => window.dispatchEvent(new CustomEvent(OUTBOX_CHANGED, { detail }));
+
+/** What waits to send for the signed-in account, oldest first. */
+export async function outbox(): Promise<QueuedWrite[]> {
+  await migrated;
+  return (await store.all<QueuedWrite>("outbox")).filter((w) => w.account === account).sort((a, b) => a.at.localeCompare(b.at));
+}
+
+const LEGACY_OUTBOX = "fuzer.field.outbox";
+const LEGACY_JOBS = "fuzer.field.jobs.";
+
+/** Move what P5.3c kept in `localStorage` into the store, then clear it. */
+async function migrate() {
+  let legacy: QueuedReport[] = [];
+  try { legacy = JSON.parse(localStorage.getItem(LEGACY_OUTBOX) ?? "[]") as QueuedReport[]; } catch { /* nothing kept */ }
+  let ok = true;
+  for (const r of Array.isArray(legacy) ? legacy : []) {
+    const { photos, client_id, at, ...payload } = r;
+    const kept = await Promise.all((photos ?? []).map(store.keepPhoto));
+    ok = await store.put("outbox", { client_id, kind: "field_report", at, account, project: getProject(), payload,
+      photos: kept } satisfies QueuedWrite) && ok;
+  }
+  try {
+    if (ok) localStorage.removeItem(LEGACY_OUTBOX);
+    for (const key of Object.keys(localStorage).filter((k) => k.startsWith(LEGACY_JOBS))) {
+      const person = key.slice(LEGACY_JOBS.length);
+      const jobs = JSON.parse(localStorage.getItem(key) ?? "null");
+      if (jobs && await store.put("kept", jobs, jobsKey(person))) localStorage.removeItem(key);
+    }
+  } catch { /* storage unavailable */ }
+}
+
+/** Who is signed in, and whether the server confirmed it just now (`live`) or the app runs on the session the phone
+ * kept. Called by the sign-in gate; the outbox sends only on a live session. */
+export function outboxSession(actor: string, isLive: boolean) {
+  account = actor;
+  live = isLive;
+  migrated ??= migrate().catch(() => undefined);
+  void migrated.then(() => { changed(); if (live) void flush(); });
+}
+
+const jobsKey = (person: string) => `jobs:${account}:${getProject()}:${person}`;
 
 /** The person's jobs from the server, kept on the phone; without signal, the ones kept last time. */
 export async function fieldJobs(person: string): Promise<Jobs> {
   try {
     const fresh = await api.fieldJobs(person);
-    write(JOBS + person, { ...fresh, kept_at: new Date().toISOString() });
+    void store.put("kept", { ...fresh, kept_at: new Date().toISOString() }, jobsKey(person));
     return fresh;
   } catch (e) {
-    const kept = read<(Jobs & { kept_at?: string }) | null>(JOBS + person, null);
-    if (!unreachable(e) || !kept) throw e;
+    if (!unreachable(e)) throw e;
+    await migrated;
+    const kept = await store.get<Jobs & { kept_at?: string }>("kept", jobsKey(person));
+    if (!kept) throw e;
     return { ...kept, offline: { since: kept.kept_at ?? "" } };
   }
 }
@@ -46,45 +115,87 @@ export async function fieldJobs(person: string): Promise<Jobs> {
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID()
   : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
-/** Send a report now; without signal, keep it in the outbox. Returns "sent" or "queued". */
-export async function sendReport(r: Omit<QueuedReport, "client_id" | "at">): Promise<"sent" | "queued"> {
-  const q: QueuedReport = { ...r, client_id: newId(), at: new Date().toISOString() };
+/** Send a write now; without signal, keep it in the outbox. Returns "sent" or "queued". Resolves "queued" only once
+ * the phone has committed it. */
+export async function sendOrQueue<P>(kind: string, payload: P, photos: string[] = []): Promise<"sent" | "queued"> {
+  const w: QueuedWrite<P> = { client_id: newId(), kind, at: new Date().toISOString(), account, project: getProject(), payload };
   try {
-    await post(q);
+    await sender(kind)(w, photos);
     return "sent";
   } catch (e) {
     if (!unreachable(e)) throw e;
-    if (!write(OUTBOX, [...outbox(), q])) throw new Error("No signal, and the phone has no room to keep this report: try without photos.");
-    window.dispatchEvent(new Event(OUTBOX_CHANGED));
+    await migrated;
+    const kept = await Promise.all(photos.map(store.keepPhoto));
+    if (!(await store.put("outbox", { ...w, photos: kept }))) {
+      throw new Error("No signal, and the phone has no room to keep this report: try without photos.");
+    }
+    void store.askToPersist();
+    changed();
     return "queued";
   }
 }
 
-const post = (q: QueuedReport) => api.fieldReport(q.exception_id, q.by, q.status, q.note,
-  { reading: q.reading, photos: q.photos, client_id: q.client_id, at: q.at, override: q.override,
-    permit_in_hand: q.permit_in_hand });
+function sender(kind: string): Sender {
+  const s = senders.get(kind);
+  if (!s) throw new Error(`Nothing sends ${kind}`);
+  return s;
+}
+
+registerSender("field_report", (w, photos) => {
+  const q = w.payload as Omit<QueuedReport, "client_id" | "at" | "photos">;
+  return api.fieldReport(q.exception_id, q.by, q.status, q.note, { reading: q.reading, photos, client_id: w.client_id,
+    at: w.at, override: q.override, permit_in_hand: q.permit_in_hand, project: w.project });
+});
+
+/** Send a job's report now; without signal, keep it in the outbox. */
+export const sendReport = ({ photos, ...r }: Omit<QueuedReport, "client_id" | "at">) =>
+  sendOrQueue("field_report", r, photos ?? []);
 
 let flushing = false;
-/** Send what waited, oldest first. A report the server refuses is dropped and its reason returned, so the operator
- * hears it; one that still can't reach the server stays for next time. */
-export async function flush(): Promise<{ sent: number; refused: string[] }> {
-  const out = { sent: 0, refused: [] as string[] };
-  if (flushing) return out;
+let lastRefused: string[] = [];
+/** The reasons the last send was refused, so a page opened after it can still say so. */
+export const refusedReasons = () => lastRefused;
+export const clearRefused = () => { lastRefused = []; changed(); };
+
+/** Send what waited, oldest first. A write the server refuses is dropped and its reason returned, so the operator
+ * hears it; one that still can't reach the server stays for next time, and so does everything while the session
+ * needs signing in again. One send at a time, across tabs where the browser offers locks. */
+export async function flush(): Promise<FlushResult> {
+  const out: FlushResult = { sent: 0, refused: [], held: false };
+  if (flushing || !live) return out;
   flushing = true;
-  try {
-    for (const q of outbox()) {
+  const run = async () => {
+    for (const w of await outbox()) {
       try {
-        await post(q);
+        await sender(w.kind)(w, await Promise.all((w.photos ?? []).map(store.photoUrl)));
         out.sent++;
       } catch (e) {
         if (unreachable(e)) break;
+        if (heldBySession(e)) { out.held = true; break; }
         out.refused.push((e as Error).message);
       }
-      write(OUTBOX, outbox().filter((x) => x.client_id !== q.client_id));
+      await store.remove("outbox", w.client_id);
     }
+  };
+  try {
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    if (locks) await locks.request("fuzer-outbox", { ifAvailable: true }, async (lock) => { if (lock) await run(); });
+    else await run();
   } finally {
     flushing = false;
-    if (out.sent || out.refused.length) window.dispatchEvent(new Event(OUTBOX_CHANGED));
+    if (out.refused.length) lastRefused = out.refused;
+    if (out.sent || out.refused.length || out.held) changed(out);
   }
   return out;
+}
+
+let started = false;
+/** Start the one sender for the app. */
+export function startOutbox() {
+  if (started || typeof window === "undefined") return;
+  started = true;
+  const visible = () => document.visibilityState === "visible";
+  window.addEventListener("online", () => void flush());
+  document.addEventListener("visibilitychange", () => { if (visible()) void flush(); });
+  window.setInterval(() => { if (visible()) void flush(); }, 30_000);
 }

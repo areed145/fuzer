@@ -40,7 +40,7 @@ built left to right.
 | 3 First value | P5.3, P5.1, P6.1, P7.2 | P3.5, P3.8, P3.2, P3.9 | P2.3, P2.4, P2.5 | P4.1, P4.3, first pack of P4.2 |
 | 4 Depth | P5.5, P5.11, P5.4, P5.6, P5.8, P5.9 | P3.1, P3.10, P3.6, P3.3 in shadow, P3.7 | P2.1, P2.6, P7.1 | Packs 2 to 4 of P4.2, P4.5 |
 | *Gate B* (passed 2026-11-13) | Every work type closes end to end | | | |
-| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15, P5.16 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
+| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15, P5.16, P5.17 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
 | *Gate C* (passed 2026-11-13) | | | Third asset type live, no code | |
 
@@ -133,6 +133,16 @@ sounding and down now, in one read that matches each asset's status card), lit p
 case, as the links were at the case's time), "if this trips" from P5.9a's reads labelled as an estimate, a well rerouted
 in the browser only, entry from the map, and the same scene drawn flat where WebGL is missing or the person asks. What
 is left is measuring 30 frames a second on a mid-range phone, which needs a real device.
+
+## Field work with poor signal (P5.17 #1089)
+
+A field operator has one bar at the wellhead and none in the compressor house, often with gloves on and the sun on the
+screen. P5.3c and P5.14d kept the job list and queued job reports; everything else on a job, and rounds, needed signal.
+One epic in the work and UI lane makes a shift work offline and the phone easy to use with gloves.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P5.17 Field work with poor signal, and a field mode | (a) the outbox in IndexedDB with photos as files, sent from any page; (b) signal and sync status in the shell; (c) the day's work kept: jobs, asset pages, documents, drawings and a recent trend, under a budget; (d) rounds offline; (e) close-outs, handover accept and plan updates queued, with what needs signal disabled; (f) a refused write is kept with its reason, never dropped, and the IOC sees made and arrived times; (g) field mode: 56 px targets, larger type, high contrast, actions in thumb reach; (h) tests on offline, throttled and dropped connections and an iPhone checklist. | A dispatched job, its asset, drawings and trend open offline, labelled with when they were kept. A round is taken offline. Reports, close-outs and readings made offline arrive once with their time, ten with four photos each without running out of room. Nothing the operator made is lost on return. Every page shows signal and sync state. Field mode passes 56 px targets and 7:1 contrast. |
 
 ## How the work is tracked
 
