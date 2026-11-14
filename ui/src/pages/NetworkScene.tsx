@@ -141,7 +141,7 @@ export function NetworkScene({ query, set, relDef }: {
                     </p>
                     {s.root.kind === "facility" && s.plates.find((p) => p.id === item.plate)?.area && (
                       <div className="actions">
-                        <ButtonLink href={href("/network", { view: "3d", at: item.plate, node: item.id })}>Show its area alone</ButtonLink>
+                        <ButtonLink href={href("/3d", { at: item.plate, node: item.id })}>Show its area alone</ButtonLink>
                       </div>
                     )}
                   </>

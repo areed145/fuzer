@@ -499,7 +499,7 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
         <h2>Flow {asOf && <span className="muted small">on {asOf}</span>}</h2>
         <span className="row">
           <Button variant="link" onClick={() => setAll(!all)}>{all ? "Show nearest only" : "Show whole network"}</Button>
-          <ButtonLink variant="link" href={href("/network", { view: "3d", at: id })}>See its area in 3D</ButtonLink>
+          <ButtonLink variant="link" href={href("/3d", { at: id })}>See its area in 3D</ButtonLink>
         </span>
       </div>
       <Status loading={flow.loading && !flow.data} error={flow.error} onRetry={flow.reload} empty={none}>

@@ -50,6 +50,7 @@ import { RoutingPage } from "./pages/Routing";
 // Graph views pull in Cytoscape; load them only when opened.
 const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m.Ontology })));
 const Network = lazy(() => import("./pages/Network").then((m) => ({ default: m.Network })));
+const Scene = lazy(() => import("./pages/Scene").then((m) => ({ default: m.Scene })));
 // The map pulls in Leaflet; load it only when opened.
 const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.MapPage })));
 // The modeler pages pull in bpmn-js's modeler and the form-js editor; load them only when opened.
@@ -97,6 +98,11 @@ function App() {
     // Data review is the Questions tab of Master data now (#505, P2.3); its links land on the same kind.
     if (section === "review") {
       location.replace(href("/masterdata", { tab: "questions", ...Object.fromEntries(query.entries()) }));
+      return;
+    }
+    // The 3D view has its own tab now; a link to the Network page's old 3D mode opens it with the same view.
+    if (section === "network" && query.get("view") === "3d") {
+      location.replace(href("/3d", Object.fromEntries([...query.entries()].filter(([k]) => k !== "view"))));
       return;
     }
     // My jobs is part of My work now (#503).
@@ -166,6 +172,8 @@ function App() {
             <Ontology query={query} />
           ) : section === "network" ? (
             <Network query={query} />
+          ) : section === "3d" ? (
+            <Scene query={query} />
           ) : section === "map" ? (
             <MapPage />
           ) : section === "downtime" ? (

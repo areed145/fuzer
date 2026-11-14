@@ -48,6 +48,7 @@ export const NAV: NavGroup[] = [
       { label: "Browse", section: "browse", also: ["e"] },
       { label: "Map", section: "map" },
       { label: "Network", section: "network" },
+      { label: "3D", section: "3d" },
     ],
   },
   {
