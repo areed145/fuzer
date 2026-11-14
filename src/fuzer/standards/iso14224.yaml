@@ -49,6 +49,7 @@ classes:
   VE: {name: Pressure vessels, category: mechanical, cfihos: pressure vessel,
        types: {SE: Separator, SC: Scrubber, DR: Drum, CO: Column}}
   TA: {name: Storage tanks, category: mechanical, cfihos: storage tank}
+  FL: {name: Flares, category: mechanical, cfihos: flare, types: {BM: Flare boom, ST: Flare stack}}
   CR: {name: Cranes, category: mechanical, cfihos: crane}
   # electrical
   FC: {name: Frequency converters, category: electrical, cfihos: variable frequency drive}
@@ -62,7 +63,7 @@ classes:
        types: {PR: Pressure, TE: Temperature, LE: Level, FL: Flow, DP: Differential pressure,
                SP: Speed, VI: Vibration, AN: Analyser}}
   VA: {name: Valves, category: safety_control, cfihos: valve,
-       types: {ES: Emergency shutdown, PS: Pressure safety / relief, CO: Control, CH: Choke}}
+       types: {ES: Emergency shutdown, PS: Pressure safety / relief, CO: Control, CH: Choke, BD: Blowdown}}
   # subsea / well completion (placeholders for completeness; extend as needed)
   XT: {name: Subsea Xmas trees, category: subsea, cfihos: christmas tree}
   WE: {name: Wellhead and Xmas trees, category: well_completion, cfihos: wellhead}

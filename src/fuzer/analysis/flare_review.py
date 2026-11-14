@@ -4,6 +4,10 @@ flare over the baseline those records explain. For the environmental and HSE rev
 inventory or a compliance finding.
 
     review(conn, since, until)   the daily flare, its rolling baseline, the episodes with their causes, and a summary
+    systems(conn)                each metered flare and what is piped into it: the relief, blowdown and control valves
+                                 and the items they relieve, by area
+    allocation(conn, since, until)  the flare the production accounting system allocated back to each source
+                                 (measurements `flare_allocated`), by source and kind of flaring
 
 Permit limits are not loaded, so nothing here says a flare was within or over one.
 """
@@ -52,8 +56,77 @@ def review(conn, since: str | None = None, until: str | None = None, days: int =
                         "over_baseline_ksm3": round(over, 1), "explained_ksm3": round(explained, 1),
                         "explained_share_pct": round(100 * explained / over, 1) if over else None,
                         "by_reason_ksm3": {k: round(v, 1) for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])}},
+            "systems": systems(conn), "allocation": allocation(conn, since, until),
             "thresholds": {"day_spike": flare.DAY_SPIKE, "day_base": flare.DAY_BASE, "spike": flare.SPIKE},
             "source": "daily report flare volume and flare flow points, downtime, operator log, detections",
             "note": f"A day is an episode when its flare is {flare.DAY_SPIKE:g} times the median of the "
                     f"{flare.DAY_BASE} days before it. Causes are the records around an episode, matched by time: "
                     "a lead for the report, not a proven cause. " + EVIDENCE}
+
+
+def _names(conn, ids) -> dict[str, str]:
+    """Each entity's description where it has one (an area's full name beside its code)."""
+    return {r["fuzer_id"]: r["v"] for r in conn.execute(
+        "select fuzer_id, value #>> '{}' as v from golden where field = 'description' and fuzer_id = any(%s)",
+        (list(ids),)) if r["v"]}
+
+
+def systems(conn) -> list[dict]:
+    """Each flare with a flow point (`flare_flow`) and the devices piped into it from outside its own area, grouped by
+    the area of the item each relieves: where a flare's gas can come from, read from the piping."""
+    from ..graph import structure
+
+    rows = flare._points(conn)
+    if not rows:
+        return []
+    plant = structure.load(conn)
+    out = []
+    for r in rows:
+        by: dict[str, dict] = {}
+        for d in flare.paths(conn, r["asset"], plant):
+            area = plant.area.get(d["relieves"])
+            g = by.setdefault(area or "", {"area": area, "area_label": plant.label(area) if area else None,
+                                           "devices": [], "items": []})
+            g["devices"].append(d["device_label"] or d["device"])
+            if (d["relieves_label"] or d["relieves"]) not in g["items"]:
+                g["items"].append(d["relieves_label"] or d["relieves"])
+        names = _names(conn, [g["area"] for g in by.values() if g["area"]])
+        for g in by.values():
+            g["area_name"] = names.get(g["area"]) or g["area_label"]
+        out.append({"subject": r["asset"], "label": r["label"], "point": r["point_id"],
+                    "sources": sorted(by.values(), key=lambda g: g["area_label"] or ""),
+                    "devices": sum(len(g["devices"]) for g in by.values())})
+    return out
+
+
+def allocation(conn, since: str, until: str) -> dict | None:
+    """The flare allocated back to its sources in [since, until): each source's volume, split by kind of flaring and
+    by basis (metered or estimated), as the production accounting system booked it. None when nothing is loaded."""
+    rows = conn.execute(
+        """
+        select m.fuzer_id, coalesce(l.label, m.fuzer_id) as label, m.method, sum(m.value) as v, max(m.unit) as unit
+        from measurement m
+        left join lateral (select label from entity_label where fuzer_id = m.fuzer_id order by label limit 1) l on true
+        where m.quantity = 'flare_allocated' and m.at >= %s and m.at < %s
+        group by 1, 2, 3
+        """, (since, until)).fetchall()
+    if not rows:
+        return None
+    by: dict[str, dict] = {}
+    for r in rows:
+        kind, basis, *_ = [x.strip() for x in (r["method"] or "").removeprefix("flare allocation:").split(";")] + ["", ""]
+        g = by.setdefault(r["fuzer_id"], {"source": r["fuzer_id"], "label": r["label"], "ksm3": 0.0, "by_kind": {},
+                                          "by_basis": {}})
+        g["ksm3"] += float(r["v"])
+        g["by_kind"][kind or "unstated"] = g["by_kind"].get(kind or "unstated", 0.0) + float(r["v"])
+        g["by_basis"][basis or "unstated"] = g["by_basis"].get(basis or "unstated", 0.0) + float(r["v"])
+    total = sum(g["ksm3"] for g in by.values())
+    names = _names(conn, by)
+    for g in by.values():
+        g["name"] = names.get(g["source"]) or g["label"]
+    sources = sorted(({**g, "ksm3": round(g["ksm3"], 1), "share_pct": round(100 * g["ksm3"] / total, 1) if total else None,
+                       "by_kind": {k: round(v, 1) for k, v in sorted(g["by_kind"].items(), key=lambda kv: -kv[1])},
+                       "by_basis": {k: round(v, 1) for k, v in g["by_basis"].items()}} for g in by.values()),
+                     key=lambda g: -g["ksm3"])
+    return {"ksm3": round(total, 1), "unit": "kSm3", "sources": sources,
+            "source": "production accounting's daily flare allocation"}

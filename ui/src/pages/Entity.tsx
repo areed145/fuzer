@@ -73,6 +73,7 @@ const REL_LABELS: Record<string, [string, string]> = {
   drives: ["Drives", "Driven by"],
   pipes_to: ["Piped to", "Piped from"],
   lift_gas_to: ["Lift gas to", "Lift gas from"],
+  relieves_to: ["Relieves to", "Relieved from"],
 };
 /** A relation the list above doesn't name reads as words, never as its key: "tested_by" in is "Tested by (from)". */
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1]

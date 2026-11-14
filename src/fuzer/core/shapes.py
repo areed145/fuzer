@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 
 BUILTIN = Path(__file__).with_name("scene_shapes.yaml")
-SOLIDS = ("capsule_v", "capsule_h", "cylinder_v", "cylinder_h", "box", "sphere", "well")
+SOLIDS = ("capsule_v", "capsule_h", "cylinder_v", "cylinder_h", "box", "sphere", "well", "boom")
 FRAMES = ("slab", "lattice")
 LOOKUPS = ("classes", "types", "kinds")
 FALLBACK = "item"

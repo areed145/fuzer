@@ -230,6 +230,13 @@ export interface FlareReview {
   summary: { days: number; flare_ksm3: number; episodes: number; attributed: number; unknown: number;
     over_baseline_ksm3: number; explained_ksm3: number; explained_share_pct: number | null;
     by_reason_ksm3: Record<string, number> };
+  /** Each metered flare and what is piped into it, by the area of the item each device relieves. */
+  systems?: { subject: string; label: string; point: string; devices: number;
+    sources: { area: string | null; area_label: string | null; area_name: string | null; devices: string[]; items: string[] }[] }[];
+  /** The flare production accounting allocated back to each source over the window. */
+  allocation?: { ksm3: number; unit: string; source: string;
+    sources: { source: string; label: string; name: string; ksm3: number; share_pct: number | null;
+      by_kind: Record<string, number>; by_basis: Record<string, number> }[] } | null;
 }
 
 /** Separator and export quality from the lab (#342). */

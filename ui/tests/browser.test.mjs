@@ -5641,7 +5641,13 @@ test("Incidents show flare episodes with the records around them, or the cause u
       ep("2025-02-10", 1100, [{ kind: "downtime", id: "fz-downtime-1", at: "2025-02-10T08:00",
         text: "EXT-EGP Escravos Gas Plant curtailed export" }])],
     summary: { days: 365, flare_ksm3: 16383, episodes: 2, attributed: 1, unknown: 1, over_baseline_ksm3: 1270,
-      explained_ksm3: 1100, explained_share_pct: 86.6, by_reason_ksm3: { "EXT-EGP": 1100, unknown: 170 } } } }));
+      explained_ksm3: 1100, explained_share_pct: 86.6, by_reason_ksm3: { "EXT-EGP": 1100, unknown: 170 } },
+    systems: [{ subject: "fz-tag-flr", label: "25-FT-4003", point: "fz-timeseries-flr", devices: 13, sources: [
+      { area: "fz-area-10", area_label: "OKAN-10", area_name: "OKA_PP Okan Production Platform", devices: ["10-PSV-2001"], items: ["10-V-2001"] },
+      { area: "fz-area-20", area_label: "OKAN-20", area_name: "OK_GGCP Okan Gas Gathering and Compression Platform", devices: ["20-PSV-2001"], items: ["20-V-2001"] }] }],
+    allocation: { ksm3: 16343, unit: "kSm3", source: "production accounting's daily flare allocation", sources: [
+      { source: "fz-area-20", label: "OKAN-20", name: "OK_GGCP Okan Gas Gathering and Compression Platform", ksm3: 11924,
+        share_pct: 73, by_kind: { routine: 10192, "non-routine: export curtailment": 1613 }, by_basis: { estimated: 9005, metered: 2919 } }] } } }));
   await page.goto(`${url}/#/incidents`);
   const card = page.locator(".flare-attribution");
   await card.locator(".flare-summary").getByText("2 episodes above the baseline (1 with records around them, 1 cause unknown)",
@@ -5650,6 +5656,8 @@ test("Incidents show flare episodes with the records around them, or the cause u
   await card.locator('li[data-start="2025-11-08"] .flare-cause').getByText("cause unknown").waitFor();
   await card.locator('li[data-start="2025-02-10"]').getByText("Downtime 2025-02-10 08:00:", { exact: false }).waitFor();
   await card.getByText("not an emissions inventory", { exact: false }).waitFor();
+  await card.locator(".flare-system").getByText("13 relief, blowdown and control", { exact: false }).waitFor();
+  await card.locator(".flare-allocation").getByText("OK_GGCP Okan Gas Gathering and Compression Platform").waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });

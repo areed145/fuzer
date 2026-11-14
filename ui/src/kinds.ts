@@ -13,7 +13,7 @@ export const kindColor = (kind: string) => KIND_COLORS[kind] || cssVar(`--kind-$
 /** What a line carries (props.product on flows_to and lift_gas_to, src/fuzer/graph/products.py), in the words a
  * legend shows. A product a source names that isn't here has no colour of its own and draws as its link type. */
 export const PRODUCTS: Record<string, string> = {
-  multiphase: "Multiphase", liquid: "Oil and liquids", gas: "Gas", lift_gas: "Lift gas", water: "Water",
+  multiphase: "Multiphase", liquid: "Oil and liquids", gas: "Gas", lift_gas: "Lift gas", water: "Water", flare: "Flare and relief",
 };
 
 /** The colour of a product (--product-<name> in styles.css), or "" for one with none. */

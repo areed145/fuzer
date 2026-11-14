@@ -312,13 +312,15 @@ class Mapping:
         when, unless = link.get("when"), link.get("unless") or {}
         if not isinstance(unless, dict) or (when is not None and not isinstance(when, (str, dict))):
             raise MappingError(f"`when` is a column or {{column: value}}, `unless` is {{column: value}}{self._where}")
+        # a value given as a list matches any one of them
+        same = lambda row, k, v: row.get(k) in v if isinstance(v, list) else row.get(k) == v
 
         def applies(row: dict) -> bool:
             if isinstance(when, str) and row.get(when) in (None, ""):
                 return False
-            if isinstance(when, dict) and any(row.get(k) != v for k, v in when.items()):
+            if isinstance(when, dict) and not all(same(row, k, v) for k, v in when.items()):
                 return False
-            return not (unless and all(row.get(k) == v for k, v in unless.items()))
+            return not (unless and all(same(row, k, v) for k, v in unless.items()))
 
         return (link["rel"], applies, link.get("each"), self._endpoint(link.get("from"), misses=True),
                 self._endpoint(link.get("to"), misses=True), link.get("confidence", 1.0),

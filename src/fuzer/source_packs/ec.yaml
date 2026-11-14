@@ -1,8 +1,10 @@
-# Energy Components: allocation network, downtime, well tests, daily reports, monthly water injection and pressure surveys.
+# Energy Components: allocation network, downtime, well tests, daily reports, monthly water injection, pressure surveys
+# and the daily flare allocation.
 # A built-in source pack (P1.5): the datasets name built-in mapping files and readers, assembled by
 # fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
 fuzer_source_pack: 1
 system: {name: ec}
-datasets: [ec_network, ec_downtime, ec_well_tests, ec_day001, ec_downtime_reasons, ec_injection, ec_pressure_surveys]
-optional: [ec_day001, ec_downtime_reasons, ec_injection, ec_pressure_surveys]
+datasets: [ec_network, ec_downtime, ec_well_tests, ec_day001, ec_downtime_reasons, ec_injection, ec_pressure_surveys,
+           ec_flare_allocation]
+optional: [ec_day001, ec_downtime_reasons, ec_injection, ec_pressure_surveys, ec_flare_allocation]
 detectors: [opportunities, gas_balance_gaps]

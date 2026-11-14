@@ -1,0 +1,14 @@
+# Energy Components daily flare allocation: each day's metered (or, before a flare meter, estimated) flare split back
+# to the installation it came from, one row per day, installation and kind of flaring (routine, or a non-routine
+# event), with how EC split it. Read by analysis/flare_review.py beside the relief paths piped into the flare.
+source: ec
+record_type: flare_allocation
+shape: measurements
+dataset: ec_flare_allocation
+key: record_id
+measurements:
+  of: {from: source, as: floc}
+  at: report_date
+  method: {template: "flare allocation: {category}; {basis}; {allocation}"}
+  values:
+    - {quantity: flare_allocated, from: flare_ksm3, unit: kSm3}

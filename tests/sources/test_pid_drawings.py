@@ -21,7 +21,7 @@ def test_pfds_draw_trains_once_with_a_stream_table(pfds):
     """The gas plant's PFD draws its three trains once (20-K-2100A/B/C): the key expands each to its tags, a stream
     between trains to one connection per train, and the header into the trains to one per train (#475)."""
     gas = pfds["OKAN-20-PFD-002"]
-    assert set(pfds) == {"OKAN-10-PFD-001", "OKAN-20-PFD-002"} and gas["level"] == "old"
+    assert set(pfds) == {"OKAN-10-PFD-001", "OKAN-20-PFD-002", "OKAN-25-PFD-003"} and gas["level"] == "old"
     k = {t["key"]: t["as_drawn"] for t in gas["tags"]}
     assert k["20-K-2100B"] == "20-K-2100A/B/C" and k["20-V-2001"] == "20-V-2001"
     pairs = {(c["from"], c["to"], c["stream"]) for c in gas["connections"]}
@@ -40,7 +40,8 @@ def test_every_degradation_level_is_drawn(truth):
 
 def test_off_page_connectors_pair_up_across_sheets(truth):
     ends = [(s, o) for s, k in truth.items() for o in k["offpage"]]
-    assert len(ends) == 12  # the surge drum to each export pump, and the inlet separator to each train
+    assert len(ends) == 18  # the surge drum to each export pump, the inlet separator to each train, the two relief
+    # headers to the flare deck, and the deck to the alternate stack
     for sheet, o in ends:
         other = truth[o["sheet"]]["offpage"]
         back = [x for x in other if x["line"] == o["line"] and x["sheet"] == sheet]
