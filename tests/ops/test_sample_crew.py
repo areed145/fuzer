@@ -138,3 +138,18 @@ def test_most_rounds_are_walked_through_the_shift(crewed):
     readings = crewed.execute("select count(*) as n, count(*) filter (where not passed) as bad from round_reading "
                               "").fetchone()
     assert readings["bad"] <= 0.1 * readings["n"]
+
+
+def test_the_field_reports_what_it_notices_a_few_times_a_shift_once_each(crewed):
+    sample_crew.staff(crewed)
+    crewed.commit()
+    start, end = rounds.shift(crewed, _now(crewed))
+    late = end - timedelta(minutes=1)
+    for _ in range(2):  # a second tick in the same shift raises nothing more
+        sample_crew.field_reports(sample_crew._Tick(crewed, late))
+    rows = crewed.execute("select key, title, source, subjects, state from exception_record where type = %s and key like %s",
+                          (sample_crew.FIELD_REPORT, f"{start.isoformat(timespec='minutes')}#%")).fetchall()
+    assert len(rows) == sample_crew.REPORTS_PER_SHIFT
+    assert all(r["source"] == "sample crew" and r["subjects"] for r in rows)
+    kinds = {t["name"]: t for t in exceptions.type_listing(crewed)}
+    assert "sample crew" in kinds[sample_crew.FIELD_REPORT]["label"]

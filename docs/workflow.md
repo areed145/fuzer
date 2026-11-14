@@ -216,7 +216,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   closes what comes back done and sends could-not-dos round again; the desks take a few cases each and close them
   after hours to days, giving what waits a realistic due date; sam and alex go on site, report done or could not do,
   and walk this shift's rounds (the odd reading outside its limits raises a round finding); riley publishes the daily
-  reports. Each case's path is fixed by its id, about one in ten is left for nobody, and nothing is backdated, so the
+  reports. A few times a shift sam or alex reports something they noticed on an asset, a `field_report` labelled
+  "sample crew", so new work keeps arriving though the demo's own data is historical (#1085 rolls it forward). Each case's path is fixed by its id, about one in ten is left for nobody, and nothing is backdated, so the
   history builds up as a staffed site's would. Work a real account holds is never touched.
 - **Agent steps nobody will run.** Without an agents provider no agent worker runs; the case says so straight away
   (not after 10 minutes) and offers **Take it over**, which hands the agent's step to you as a person step.

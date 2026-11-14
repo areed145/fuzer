@@ -10,9 +10,13 @@ domain operations, as people would, every work tick:
                               time and close it after hours to days; what waits gets a realistic due date at triage
     the field (sam, alex)     one job each at a time: on site after the drive out, then done or could not do with a
                               note; between jobs they take from the operator queue, and they walk this shift's rounds
+    field reports              a few times a shift sam or alex reports something they noticed on their way round (a
+                              weeping flange, an odd noise), raised as a `field_report` (labelled "sample crew"), so
+                              new field work keeps arriving after the starting backlog is worked off: the demo's own
+                              data is historical and raises little that is new (#1085 rolls it forward)
 
 Each piece of work takes its own path, picked from its id so a run is repeatable and the mix holds: about one in ten
-is left as nobody's yet, so a few cases are genuinely overdue and the demo account finds work to take. Nothing is
+is left as nobody's for two to four days, so a few cases are genuinely overdue and the demo account finds work to take. Nothing is
 backdated: each step happens at the tick it is due, so history builds up as it would on a staffed site.
 
 Only a project whose bundle says `sample_crew: true` (the fakeplant bundles) gets a crew; a real deployment never does.
@@ -46,11 +50,22 @@ WIP_DEFAULT = 4
 QUEUED = 3  # field jobs waiting in the operator queue before the lead holds the next back
 PER_TICK = 4  # of each kind of step the crew takes in one tick, so a cold start fills the board over the first hour
 
-LEFT = 0.10  # share of work nobody takes (genuinely overdue, or there for a visitor to take)
+LEFT = 0.10  # share of work nobody takes for days (genuinely overdue, or there for a visitor to take)
 PLANNED = 0.35  # of the work raised with no queue, the share the lead plans instead of sending now
 TO_QUEUE = 0.3  # of the field jobs, the share sent to the operator queue rather than to an operator
 COULD_NOT = 0.15  # field jobs that come back could not do on a first visit
 ROUND_PARTLY, ROUND_MISSED = 0.08, 0.03  # rounds left part done, or not walked, this shift
+REPORTS_PER_SHIFT = 8  # things the field notices and reports each shift
+FIELD_REPORT = "field_report"
+NOTICED = (  # what an operator notices on the way round, said of a tag and its description
+    "Weeping flange on {tag} ({what})",
+    "Unusual noise from {tag} ({what})",
+    "Oil level low in the sight glass on {tag} ({what})",
+    "Local gauge on {tag} ({what}) reads higher than the DCS",
+    "Small drip from a drain valve on {tag} ({what})",
+    "Corrosion under insulation suspected on {tag} ({what})",
+    "Loose cable gland and missing cover bolt on {tag} ({what})",
+)
 OUTSIDE = 0.04  # readings and checks found outside their limits: the field's own work for the IOC
 FIELD_SHARE = {True: 0.7, False: 0.35}  # of desk work a field operator could check (by type) or not, the share sent out
 
@@ -120,6 +135,13 @@ def staff(conn) -> list[str]:
         if not conn.execute("select 1 from work_person where name = %s", (name,)).fetchone():
             work.add_person(conn, name, roles, by="sample crew")
             added.append(name)
+    if not conn.execute("select 1 from exception_kind where name = %s", (FIELD_REPORT,)).fetchone():
+        from . import exceptions
+
+        exceptions.define(conn, FIELD_REPORT, "sample crew", "Field report (sample crew)", role="role:ops_lead",
+                          audience=("ioc", "field"), joins=False,
+                          description="Something a sample crew operator noticed on the way round, for the IOC to send "
+                                      "someone to or close: synthetic, made by the demo's sample crew (#1073).")
     return added
 
 
@@ -211,8 +233,8 @@ def work_queue(t: _Tick) -> None:
 
     for r in rows:
         u = _u(r["id"], "path")
-        if u < LEFT:
-            continue  # nobody's yet
+        if u < LEFT and now - r["first_seen"] < timedelta(hours=48 + 48 * _u(r["id"], "left")):
+            continue  # nobody's yet: overdue for a couple of days before the backlog gets to it
         t_ = types.get(r["type"])
         field = bool(t_ and "field" in t_.audience)
         last = _last_field(r)
@@ -232,7 +254,7 @@ def work_queue(t: _Tick) -> None:
             continue
 
         back = (last and last["status"] in ("done", "could_not_do") and r["assignee"] != last["by"]
-                and r["role"] != "operator")  # sent round again, it waits in the operator queue below
+                and r["role"] != "operator" and r["assignee"] not in FIELD)  # sent round again: handled below
         if back:  # back from the field: the lead closes what was done, sends a could-not-do round again once
             if r["assignee"] not in (None, LEAD) or waited < _minutes(30, 120, r["id"], "back", _visits(r)):
                 continue
@@ -241,6 +263,9 @@ def work_queue(t: _Tick) -> None:
                       reason=f"Closed on the field's report: {last.get('note') or 'done'}")
             elif _visits(r) < 2:
                 send_out(r, "redispatch", f"Try again when you can: {last.get('note') or 'could not do'}")
+            else:  # twice could not: it needs planning, not another visit
+                t.act("close", work.close_case, conn, r["item_id"], "done", LEAD,
+                      reason=f"Handed to maintenance planning after two visits: {last.get('note') or 'could not do'}")
             continue
 
         if r["assignee"] in FIELD:  # with an operator: on site after the drive, then done or could not do
@@ -269,12 +294,13 @@ def work_queue(t: _Tick) -> None:
         if not r["assignee"]:  # in a desk queue: triage, then a desk person takes it when they have room
             if waited < _minutes(15, 75, r["id"], "triage"):
                 continue
-            if r["role"] != "data_steward" and _u(r["id"], "field") < FIELD_SHARE[field]:
+            share = 0.5 if r["type"] == FIELD_REPORT else FIELD_SHARE[field]  # some reports are for planning
+            if r["role"] != "data_steward" and _u(r["id"], "field") < share:
                 send_out(r, "dispatch")
             elif desk and wip[desk] < room[desk]:
                 if t.act("take", work.take, conn, r["item_id"], desk):
                     wip[desk] += 1
-                    hours = _desk_hours(r["id"])
+                    hours = _desk_hours(r["id"], r["type"])
                     if (due := dues.get(r["item_id"])) is not None and due < now + timedelta(hours=hours):
                         # taken late: the desk says when it will be done
                         t.act("triage", work.set_due, conn, r["item_id"], desk, now + timedelta(hours=hours + 2),
@@ -286,15 +312,21 @@ def work_queue(t: _Tick) -> None:
             continue
 
         if r["assignee"] in DESK.values():  # at a desk: worked for hours to days, then closed
-            hours = _desk_hours(r["id"])
+            hours = _desk_hours(r["id"], r["type"])
             if waited >= timedelta(hours=hours):
                 if t.act("close", work.close_case, conn, r["item_id"], "done", r["assignee"],
                          reason=_pick(DESK_NOTES.get(r["role"]) or DESK_NOTES[None], r["id"], "desk-note")):
                     wip[r["assignee"]] -= 1
 
 
-def _desk_hours(exception_id: int) -> float:
-    """How long a desk works a case: a few hours for most, days for some (about a day and a half on average)."""
+QUICK = ("field_report", "round_finding")  # what the field found: a desk plans or closes it within the shift
+
+
+def _desk_hours(exception_id: int, type: str | None = None) -> float:
+    """How long a desk works a case: what the field found within a shift; else a few hours for most, days for some
+    (about a day and a half on average)."""
+    if type in QUICK:
+        return 2 + 10 * _u(exception_id, "desk")
     return 4 + 92 * _u(exception_id, "desk") ** 2
 
 
@@ -325,6 +357,34 @@ def daily_reports(t: _Tick) -> None:
             continue
         data = {"review_decision": "publish"} if s["element"] == "review" else {}
         t.act("report_review", work.complete_step, t.conn, s["id"], LEAD, data)
+
+
+def field_reports(t: _Tick) -> None:
+    """A few times a shift, at times fixed by the shift, sam or alex reports something they noticed on an asset."""
+    from ..core.exceptions import raise_exception
+    from . import rounds
+
+    conn, now = t.conn, t.now
+    start, end = rounds.shift(conn, now)
+    tags = conn.execute(
+        """
+        select e.fuzer_id, l.label, g.value #>> '{}' as what from entity e join entity_label l using (fuzer_id)
+        join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
+        where e.kind = 'tag' and e.retired_at is null and coalesce(g.value #>> '{}', '') <> '' order by e.fuzer_id
+        """).fetchall()
+    if not tags:
+        return
+    for slot in range(REPORTS_PER_SHIFT):
+        key = f"{start.isoformat(timespec='minutes')}#{slot}"
+        if now < start + (end - start) * (0.1 + 0.8 * _u(key, "at")):
+            continue
+        if conn.execute("select 1 from exception_record where type = %s and key = %s", (FIELD_REPORT, key)).fetchone():
+            continue  # reported already (and maybe closed since): once per slot
+        tag = tags[int(_u(key, "tag") * len(tags))]
+        who = _pick(FIELD, key, "who")
+        title = _pick(NOTICED, key, "what").format(tag=tag["label"], what=tag["what"])
+        t.act("field_report", raise_exception, conn, FIELD_REPORT, key, title, who, refs=[tag["fuzer_id"]],
+              source="sample crew")
 
 
 def walk_rounds(t: _Tick) -> None:
@@ -386,7 +446,7 @@ def run(conn, now: datetime | None = None) -> dict:
     t = _Tick(conn, now)
     added = staff(conn)
     conn.commit()
-    for part in (work_queue, daily_reports, walk_rounds):
+    for part in (field_reports, work_queue, daily_reports, walk_rounds):
         try:
             part(t)
         except Exception as e:  # one part failing leaves the others to run
