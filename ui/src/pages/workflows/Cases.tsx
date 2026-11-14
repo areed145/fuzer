@@ -1,11 +1,11 @@
-import { ActionStatus, Button, ConfirmAction, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge, Disclosure } from "../../ui";
+import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge, Disclosure } from "../../ui";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, ScenarioClock, describe, holder, usePerson, when } from "../../work";
-import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText, processHref, taskHref, useAct } from "./shared";
+import { AgentIdle, AssignPicker, PriorityBadge, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
@@ -126,7 +126,7 @@ function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: 
       <td className="small">{r.closed_at ? <UIBadge className="badge ok">{r.state}{r.outcome ? `: ${r.outcome}` : ""}</UIBadge> : r.step ?? r.state}</td>
       <td className="small">{r.closed_at ? "" : holder(r.assignee, r.role)}</td>
       <td className="nowrap">{!r.closed_at && <Due at={r.due} />}</td>
-      <td className="small">{priorityText(r.priority) ?? ""}</td>
+      <td className="small"><PriorityBadge p={r.priority} type={r.type} low /></td>
       <td className="small muted">{when(r.created_at)}</td>
     </tr>
   );
@@ -152,28 +152,47 @@ function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; 
 export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
   const [person] = usePerson();
-  const takeOver = useAct();
+  const people = useAsync(() => api.workPeople(), []);
   const it = item.data;
   if (!it || item.error) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
     <Status loading={item.loading} error={item.error} onRetry={item.reload} />
     <a href={href("/exceptions", { list: "progress" })}>Return to All work</a></section>;
-  const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
   const closed = !!it.closed_at;
   const payload = (it as WorkItem & { payload?: Record<string, unknown> }).payload ?? {};
   // a process case (queue_item, #509) keeps what was raised under payload.start
   const raised = (payload.start && typeof payload.start === "object" ? payload.start : payload) as Record<string, unknown>;
   const dataset = typeof raised.dataset === "string" ? raised.dataset : null;
+  const level = priorityLevel(it.priority, it.type);
+  // A field operator reading the case on a phone needs the job, not the IOC's evidence (#1071): for someone who only
+  // works in the field, the evidence and history fold under Full case.
+  const roles = (people.data ?? []).find((p) => p.name === person)?.roles ?? [];
+  const fieldOnly = !demo && roles.length > 0 && roles.every((r) => r === "operator");
+  const evidence = <>
+    <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
+    <CaseSafeguards id={it.id} />
+    <CaseFindings sources={it.sources} />
+    <CaseAround id={it.id} />
+    <Related about={{ case: it.id }} />
+    <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
+    <CaseGates id={it.id} />
+    <AgentWork it={it} />
+    {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
+    {Object.keys(payload).length > 0 && (
+      <Disclosure className="card" open={typeof raised.summary === "string"} label={<>Details</>}><DataView data={payload} /></Disclosure>
+    )}
+    <Timeline it={it} person={person} readOnly={demo} />
+  </>;
   return (
     <section>
       {demo && <DemoContext step="workflow" />}
       <div className="entity-head">
         <div>
-          <PageHeader>{it.title}</PageHeader>
+          <PageHeader className={it.title.length > 48 ? "case-title-long" : undefined}>{it.title}</PageHeader>
           <div className="row small">
             <UIBadge className="badge">{it.type.replace(/_/g, " ")}</UIBadge>
             <UIBadge className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</UIBadge>
-            {priorityText(it.priority) && <span className="muted">priority {priorityText(it.priority)}</span>}
+            {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <span className="muted">priority, {level.why}</span></span>}
             <span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
             {!demo && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
@@ -187,51 +206,60 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         </div>
         {!closed && <Due at={it.due} />}
       </div>
+      {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
+          evidence it is decided on. */}
+      <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} reload={item.reload} />
       <ScenarioClock />
       {typeof raised.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
         <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
         reload={item.reload} />}
-      <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
-      <CaseSafeguards id={it.id} />
-      <CaseFindings sources={it.sources} />
-      <CaseAround id={it.id} />
-      <Related about={{ case: it.id }} />
-      <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
-      <CaseGates id={it.id} />
-      {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {typeof raised.recheck_of === "number" && <RecheckCard firstId={raised.recheck_of} person={person} closed={closed}
         readOnly={demo} reload={item.reload} />}
       {it.type !== "recheck" && (closed ? it.state === "done" : !it.processes.some((p) => p.state === "running")) &&
         <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload} />}
-      {open.length > 0 && (
-        <UICard className="">
-          <h3>Waiting on</h3>
-          <ul className="plain">
-            {open.map((s) => (
-              <li key={s.id} className="row">
-                {s.kind === "agent" ? <strong>{s.name ?? s.element}</strong> : <a href={demo ? href(`/inbox/task/${s.id}`, { demo: "workflow" }) : taskHref(s.id)}><strong>{s.name ?? s.element}</strong></a>}
-                <span className="small muted">with {holder(s.assignee, s.role, s.kind)}</span>
-                <StepBadges row={s} />
-                <Due at={s.due_at} />
-                <AgentIdle step={s} configured={it.agents_configured}
-                  onTakeOver={demo || !person ? undefined : () => takeOver.run("take over", () =>
-                    api.handOff(s.id, person, person, "no agent worker picked it up; done by a person"), item.reload)} />
-              </li>
-            ))}
-          </ul>
-          {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}
-        </UICard>
-      )}
-      <AgentWork it={it} />
-      {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
-      {Object.keys(payload).length > 0 && (
-        <Disclosure className="card" open={typeof raised.summary === "string"} label={<>Details</>}><DataView data={payload} /></Disclosure>
-      )}
-      <Timeline it={it} person={person} readOnly={demo} />
+      {fieldOnly ? <Disclosure className="case-full" label={<>Full case</>}>{evidence}</Disclosure> : evidence}
     </section>
   );
 }
+
+/** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
+ * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
+function NextStep({ it, person, demo, fieldOnly, reload }: {
+  it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; reload: () => void;
+}) {
+  const takeOver = useAct();
+  const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
+  const closed = !!it.closed_at;
+  if (closed || (!open.length && demo)) return null;
+  const next = open.find((s) => s.kind !== "agent" && (!s.assignee || s.assignee === person)) ?? open.find((s) => s.kind !== "agent");
+  const stepHref = (sid: number) => demo ? href(`/inbox/task/${sid}`, { demo: "workflow" }) : taskHref(sid);
+  return (
+    <UICard className="case-next" aria-label="Next step">
+      <h2>{open.length ? "Waiting on" : "Next step"}</h2>
+      {open.length > 0 ? <ul className="plain case-next-steps">
+        {open.map((s) => (
+          <li key={s.id} className="row wrap">
+            <strong>{s.name ?? s.element}</strong>
+            <span className="small muted">with {holder(s.assignee, s.role, s.kind)}</span>
+            <StepBadges row={s} />
+            <Due at={s.due_at} />
+            <AgentIdle step={s} configured={it.agents_configured}
+              onTakeOver={demo || !person ? undefined : () => takeOver.run("take over", () =>
+                api.handOff(s.id, person, person, "no agent worker picked it up; done by a person"), reload)} />
+          </li>
+        ))}
+      </ul> : <p className="small">No step is open. Close it out below, or give it to someone.</p>}
+      <div className="row wrap case-next-actions">
+        {next && <ButtonLink variant="primary" href={stepHref(next.id)}>Open {next.name ?? next.element}</ButtonLink>}
+        {fieldOnly && <ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink>}
+      </div>
+      {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}
+      {!demo && !fieldOnly && <CaseActions it={it} person={person} reload={reload} />}
+    </UICard>
+  );
+}
+
 
 /** The update for the system that raised the work (#466): what the field did, as a completion or a follow-up, to
  * edit and send, or not send. */
@@ -282,25 +310,29 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   const [reason, setReason] = useState("");
   const a = useAct();
   return (
-    <UICard className="inset">
+    <div className="case-actions">
       <div className="row wrap">
-        <span className="small">Give it to</span> <AssignPicker value={to} onChange={setTo} />
+        <Field label="Give it to" width="md"><AssignPicker value={to} onChange={setTo} /></Field>
+        <Field label="Why (kept in its history)" width="md">
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         <Button variant="secondary" disabled={!to || !!a.busy}
           onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Reassign</Button>
-        <span className="small">Priority</span>
-        <Input width="xs" value={priority} onChange={(e) => setPriority(e.target.value)} />
-        <span className="small">Due</span>
-        <Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
-        <Button variant="secondary" disabled={!!a.busy || (!due && priority === (it.priority?.toString() ?? ""))}
-          onClick={() => a.run("set", () => api.setCase(it.id, person, {
-            ...(priority !== (it.priority?.toString() ?? "") && priority ? { priority: Number(priority) } : {}),
-            ...(due ? { due: new Date(due).toISOString() } : {}), reason: reason || undefined }), () => { setDue(""); reload(); })}>Save</Button>
-        <Input placeholder="why (kept in its history)" value={reason} onChange={(e) => setReason(e.target.value)} />
       </div>
+      <Disclosure className="small" label={<>Change priority or due time</>}>
+        <div className="row wrap">
+          <Field label="Priority" width="xs"><Input value={priority} onChange={(e) => setPriority(e.target.value)} /></Field>
+          <Field label="Due" width="md"><Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
+          <Button variant="secondary" disabled={!!a.busy || (!due && priority === (it.priority?.toString() ?? ""))}
+            onClick={() => a.run("set", () => api.setCase(it.id, person, {
+              ...(priority !== (it.priority?.toString() ?? "") && priority ? { priority: Number(priority) } : {}),
+              ...(due ? { due: new Date(due).toISOString() } : {}), reason: reason || undefined }), () => { setDue(""); reload(); })}>Save</Button>
+        </div>
+      </Disclosure>
       {a.error && <p className="error small">{a.error}</p>}
-    </UICard>
+    </div>
   );
 }
+
 
 export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; person?: string; reload?: () => void; focus?: string }) {
   const xml = useAsync(() => api.workDefinitionXml(p.definition_id), [p.definition_id]);
@@ -314,10 +346,11 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
     <UICard className="">
       <div className="row spread">
         <h3>
-          <a href={processHref(p.process_key)}>{p.process_key}</a> <span className="muted small">v{p.version} · {p.state}{p.outcome ? `: ${p.outcome}` : ""}</span>
+          <a href={processHref(p.process_key)} title={`version ${p.version}`}>{p.process_key.replace(/_/g, " ")} process</a>{" "}
+          <span className="muted small">{p.state}{p.outcome ? `: ${p.outcome}` : ""}</span>
         </h3>
-        <span className="small muted">
-          {p.correlation_key && <>key <span className="mono">{p.correlation_key}</span> · </>}started {when(p.started_at)} by {p.started_by}
+        <span className="small muted" title={p.correlation_key ? `key ${p.correlation_key}` : undefined}>
+          started {when(p.started_at)} by <Actor who={p.started_by} />
           {p.state === "running" && person && reload && (
             <> · <Button variant="link" disabled={!!a.busy}
               onClick={() => confirm("Cancel this process? Its open steps are cancelled.") &&
@@ -341,7 +374,14 @@ export function Timeline({ it, person, readOnly = false }: { it: WorkItem; perso
       <h3>History</h3>
       <ol className="timeline">
         {it.events.map((e) => {
-          const { text: t, body } = describe(e);
+          const described = describe(e);
+          // The brief has its own card above; History says it was written and points there, rather than printing it
+          // a second time (#1071).
+          const brief = !!it.brief?.entry && (e.kind === "agent_result" || e.kind === "completed")
+            && JSON.stringify(e.data ?? {}).includes("what_happened");
+          const t = brief ? <>wrote the specialist brief{" "}<Button variant="link" onClick={() =>
+            document.querySelector(".case-brief")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Read it</Button></> : described.text;
+          const body = brief ? null : described.body;
           return (
             <li key={e.id} className={`ev-${e.kind}`}>
               <div className="row small"><span className="muted mono">{when(e.at)}</span> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}</div>

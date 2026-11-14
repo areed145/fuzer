@@ -504,10 +504,12 @@ test("a standing condition is shelved with a reason and an expiry, and shows as 
   await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "pat"));
   await page.reload();
   await page.getByText("Seal weeping").waitFor();
+  await page.getByRole("button", { name: "More", exact: true }).click();  // Plan and Shelve sit behind More (#1070)
+  await page.getByRole("button", { name: "Shelve until a date" }).click();
   const shelve = page.getByRole("button", { name: "Shelve", exact: true });
   assert.equal(await shelve.isDisabled(), true);
   await page.getByLabel("Shelve until").fill("2099-01-01");
-  await page.getByLabel("Why shelve it").fill("Repair at the next outage");
+  await page.getByLabel("Why it can wait").fill("Repair at the next outage");
   await shelve.click();
   await page.getByRole("button", { name: "Back on the list" }).waitFor();
   await page.getByText("Repair at the next outage", { exact: false }).waitFor();
@@ -3111,10 +3113,11 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await queue.getByRole("option", { name: "engineer queue" }).waitFor({ state: "attached" });
   assert.deepEqual(await queue.locator("option").allTextContents(), ["waits for the IOC to dispatch", "operator queue", "engineer queue"]);
   await page.goto(`${url}/#/exceptions`);
+  await page.getByRole("button", { name: "Dispatch", exact: true }).click();
   await page.getByLabel("Dispatch to").getByRole("option", { name: "fred (operator)" }).waitFor({ state: "attached" });
   await page.getByLabel("Dispatch to").selectOption("fred");
   await page.getByLabel("What to do").fill("isolate and check the gland");
-  await page.getByRole("button", { name: "Dispatch" }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expectReports(dispatched, 1);
   assert.equal(dispatched[0].to, "fred");
   assert.equal(dispatched[0].reason, "isolate and check the gland");
@@ -3223,7 +3226,7 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
   await card.getByRole("button", { name: "Dispatch" }).click();
   await card.getByLabel("Dispatch to").selectOption("sam");
   await card.getByLabel("What to do").fill("check the trip log");
-  await card.locator(".row:not(.work-card-actions)").getByRole("button", { name: "Dispatch", exact: true }).click();
+  await card.locator(".dispatch-controls").getByRole("button", { name: "Send", exact: true }).click();
   await expectReports(dispatched, 1);
   assert.equal(dispatched[0].to, "sam");
 
@@ -4718,11 +4721,12 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
   const sent = [];
   await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.goto(`${url}/#/exceptions`);
+  await page.getByRole("button", { name: "Dispatch", exact: true }).click();
   await page.getByLabel("Dispatch to").selectOption("fred");
   await page.getByText("Rod packing set: 0 in stock, 2 needed; nothing on order", { exact: false }).waitFor();
   await page.getByText("not ready", { exact: true }).waitFor();
   await page.getByLabel("What to do").fill("check the discharge valves");
-  const send = page.getByRole("button", { name: "Dispatch", exact: true });
+  const send = page.getByRole("button", { name: "Send", exact: true });
   assert.equal(await send.isDisabled(), true);  // blocked: a reason first
   await page.getByLabel("Why send it anyway").fill("valves can be changed on the 15th, inspect now");
   await send.click();
@@ -4752,6 +4756,7 @@ test("the dispatch card shows the crew's load, its permit, and a full crew block
       centers: [{ ...elec, busy: 1, full: true, jobs: [{ id: 3, title: "Look at the standby generator", assignee: "fred" }] }] }] } }));
   await page.goto(`${url}/#/exceptions`);
   await page.getByText("Generator batteries").waitFor();
+  for (const open of await page.getByRole("button", { name: "Dispatch", exact: true }).all()) await open.click();
   for (const sel of await page.getByLabel("Dispatch to").all()) await sel.selectOption("fred");
   await page.getByText("Electrical technicians: 0 of 1 busy.", { exact: false }).waitFor();
   await page.getByText("Permit PTW-24103 (electrical) valid to 2026-11-13 18:00.", { exact: false }).waitFor();
@@ -4806,6 +4811,7 @@ test("an open MOC on the equipment is a warning at dispatch and on the phone, ne
     checks: [{ check: "moc", label: "MOC", ready: true, checked: true, note: null, blockers: [], warnings: [warn] }] } }));
   await page.goto(`${url}/#/exceptions`);
   await page.getByText("HP separator level control").waitFor();
+  await page.getByRole("button", { name: "Dispatch", exact: true }).first().click();
   await page.getByLabel("Dispatch to").first().selectOption("fred");
   await page.getByText(warn).waitFor();
   await page.getByText("ready", { exact: true }).waitFor();
@@ -6532,6 +6538,11 @@ test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away
   await mine.click();
   await page.waitForURL(/#\/inbox$/);
   await bar.locator('a[aria-current="page"]', { hasText: "My work" }).waitFor();
+  // On All work the My work slot is not lit, so the bar never disagrees with the tabs above it (#1070).
+  await page.evaluate(() => { location.hash = "#/exceptions"; });
+  await page.getByRole("heading", { name: "All work", exact: true }).waitFor();
+  assert.equal(await bar.locator('a[aria-current="page"]').count(), 0);
+  await page.evaluate(() => { location.hash = "#/inbox"; });
 
   // Menu opens the drawer with everything else, and the page's foot clears the bar.
   await bar.getByRole("button", { name: "Open menu", exact: true }).click();
@@ -7160,4 +7171,33 @@ test("P5.15f On a 390 px phone the controls are one row, the chart starts in the
   for (let i = 0; i < 50 && asked.length === before; i++) await page.waitForTimeout(50);
   assert.equal(asked.length, before + 1, "a swipe to the left reads the later window");
   assert.ok(asked.at(-1).at > "2024-03-14T03:20", JSON.stringify(asked.at(-1)));
+});
+
+// #1071: the case page puts what it waits on and the next action above the evidence, says priority in words, and
+// History reads a missed SLA as a sentence.
+test("a case opens on its decision: what it waits on, the next action, and a missed SLA in words (#1071)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+  const at = "2026-11-12T18:04:00Z";
+  await page.route("**/work/items/113", (route) => route.fulfill({ json: { id: 113, title: "Low alarm on OK-J08-03", type: "upset",
+    state: "open", priority: 4026, subjects: [], created_by: "agent:sre", created_at: at, due: "2026-11-12T22:04:00Z",
+    closed_at: null, sources: [], payload: {}, agents_configured: true,
+    processes: [{ id: 9, definition_id: 1, process_key: "upset", version: 4, state: "running", outcome: null, correlation_key: "upset:13",
+      started_at: at, started_by: "agent:sre", data: {}, path: [],
+      open: [{ id: 42, kind: "user", element: "triage", name: "Triage", role: "ops_lead", assignee: null,
+        due_at: "2026-11-12T22:04:00Z", escalated_at: "2026-11-12T22:04:00Z", requires_human: true, state: "waiting" }] }],
+    events: [{ id: 3, kind: "escalated", actor: "system", element: "triage", at: "2026-11-12T22:04:00Z", data: {
+      why: "SLA PT4H on 'Triage' passed at 2026-11-12 22:04 UTC while it was with the engineer queue; moved to the ops_lead queue",
+      from: "the engineer queue", to: "role:ops_lead", due: "2026-11-12T22:04:00Z" } }] } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/cases/113`);
+  const next = page.getByRole("region", { name: "Next step" }).or(page.locator(".case-next"));
+  await next.getByText("Triage", { exact: true }).waitFor();
+  assert.equal(await next.getByRole("link", { name: "Open Triage" }).getAttribute("href"), "#/inbox/task/42");
+  await next.getByLabel("Give it to").waitFor();
+  const history = page.locator(".timeline");
+  await history.getByText("was due within 4 hours while it was with the engineer queue. It passed to the ops lead queue.", { exact: false }).waitFor();
+  assert.equal(await history.getByText("SLA PT4H", { exact: false }).count(), 0);
+  await page.getByText("priority, $4k at stake", { exact: false }).waitFor();
+  const [card, timeline] = await Promise.all([next.boundingBox(), history.boundingBox()]);
+  assert.ok(card.y < timeline.y, "the decision sits above the history");
 });

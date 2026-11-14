@@ -21,14 +21,14 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
   const e = v.entry;
   if (!e) {
     if (it.closed_at) return null;
-    return <Card title="Specialist brief"><p className="small muted">The specialist has not briefed this case yet. Due {when(v.due)}.</p></Card>;
+    return <Card className="case-brief" title="Specialist brief"><p className="small muted">The specialist has not briefed this case yet. Due {when(v.due)}.</p></Card>;
   }
-  if (e.missing) return <Card title="Specialist brief"><p className="small">No brief: {e.missing}.</p></Card>;
+  if (e.missing) return <Card className="case-brief" title="Specialist brief"><p className="small">No brief: {e.missing}.</p></Card>;
   const b = e.brief ?? {};
   const p = b.proposal ?? {};
   const evidence = b.evidence ?? [], analysis = b.analysis ?? [], similar = b.similar ?? [], gaps = b.could_not_check ?? [];
   return (
-    <Card title="Specialist brief" actions={<span className="small">
+    <Card className="case-brief" title="Specialist brief" actions={<span className="small">
       {usd(e.ledger?.cost_usd)}{e.budget_usd ? <> of {usd(e.budget_usd)} budget</> : null}{" "}
       {e.over_budget && <Badge tone="warn">over budget</Badge>}{" "}
       {e.late && <Badge tone="warn">late</Badge>}</span>}>

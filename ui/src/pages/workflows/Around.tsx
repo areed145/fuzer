@@ -45,6 +45,16 @@ export function CaseAround({ id }: { id: number }) {
   );
 }
 
+/** When an alarm was on, short enough for a phone (#1071): "Dec 30, 6:45 PM to 8:10 PM", the end's date only when it
+ * is another day. */
+function span(start: string, end: string | null): string {
+  const s = new Date(start), e = end ? new Date(end) : null;
+  const day = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const time = (d: Date) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (!e) return `${day(s)}, ${time(s)}, still on`;
+  return `${day(s)}, ${time(s)} to ${day(e) === day(s) ? "" : `${day(e)}, `}${time(e)}`;
+}
+
 function AroundCard({ d }: { d: CaseAroundData & { window: { start: string; end: string } } }) {
   return (
     <Card className="case-around" title="Around the event">
@@ -53,11 +63,11 @@ function AroundCard({ d }: { d: CaseAroundData & { window: { start: string; end:
       </p>
       {d.alarms.length > 0 && <Disclosure open label={<strong>Alarms ({d.alarms.length})</strong>}>
         <Table density="compact">
-          <thead><tr><th>Point</th><th>Alarm</th><th>Limit</th><th>Peak</th><th>From</th><th>To</th></tr></thead>
+          <thead><tr><th>Point</th><th>Alarm</th><th>Limit</th><th>Peak</th><th>When</th></tr></thead>
           <tbody>{d.alarms.map((a) => (
             <tr key={`${a.point_id}-${a.type}-${a.start}`}>
               <td><a href={entityHref(a.point_id)}>{a.point}</a></td><td>{ALARM[a.type] ?? a.type}</td>
-              <td>{number(a.limit)}</td><td>{number(a.peak)}</td><td>{when(a.start)}</td><td>{a.end ? when(a.end) : "still on"}</td>
+              <td>{number(a.limit)}</td><td>{number(a.peak)}</td><td>{span(a.start, a.end)}</td>
             </tr>))}
           </tbody>
         </Table>
