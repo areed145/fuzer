@@ -2,6 +2,7 @@ import "./styles.css";
 import "./styles/shell.css";
 import "./styles/shared.css";
 import "./styles/workflows.css";
+import "./styles/ios.css";
 import { Badge as UIBadge } from "./ui";
 import { StrictMode, Suspense, lazy, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
@@ -30,6 +31,7 @@ import { TeamsPage } from "./pages/workflows/Teams";
 import { Identity } from "./Identity";
 import { AreaNavigation, BackButton, Breadcrumbs, Sidebar } from "./nav";
 import { startAppHistory } from "./appHistory";
+import { startIos } from "./ios";
 import { lockPageZoom } from "./zoomLock";
 import { DrawingFullscreen } from "./DrawingFullscreen";
 import { DocumentFullscreen } from "./DocumentViewer";
@@ -273,6 +275,7 @@ function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuil
 }
 
 // Before the first render, so a cold launch of the installed app resumes on the last page (P5.14a).
+startIos();
 startAppHistory();
 lockPageZoom();
 // The offline shell (P5.14d): the installed app opens without signal. Only on a secure origin, as browsers require.

@@ -253,6 +253,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
         <a className="brand" href={href("/")}>
           <Logo />
         </a>
+        <span className="topbar-title" aria-hidden="true" />
         <ShareButton />
         {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). It reloads this page, in place. */}
         <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" onClick={() => location.reload()}>

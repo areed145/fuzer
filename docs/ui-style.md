@@ -136,6 +136,20 @@ Tailwind v4 utilities and colors mapped from these variables are available throu
 
 Keep `ui/src/styles.css` limited to theme tokens and app-wide base styles. Put shared primitive styles in `ui/src/styles/ui-kit.css`; keep page and visualization styles in `ui/src/styles/` and import them from the component that owns the markup.
 
+## On an iPhone or iPad
+
+On iOS the app follows iOS. When in doubt, do what iOS does. `ui/src/ios.ts` puts the `ios` class on the page for an iPhone or iPad. `?ios=1` or `?ios=0` forces it on or off for one tab, for previews and screenshots. All the styles sit under `:root.ios` in `ui/src/styles/ios.css`, so desktop and Android are unchanged. Fuzer's colour tokens stay the same; iOS brings the type, shapes, Liquid Glass and gestures:
+
+- The system font (SF Pro). Large page titles fold into the top bar as the page scrolls.
+- No solid top bar: Back and other bar buttons are round glass buttons. The tab bar is a floating glass capsule, with the current tab in a lens.
+- Inset grouped cards and lists with chevrons. The Menu is a sheet with one grouped list and plain line icons in the tint colour.
+- A row of segments that fits the screen is a segmented control. One that doesn't fit becomes a pull-down: the chosen segment is a capsule button that opens an iOS menu of every choice. This works for any `.tabs`, `.area-navigation`, Board stage row or Home filter row with no extra markup, so keep using those components.
+- Work cards swipe left to bring up their actions. Keyboard focus and VoiceOver reach the same buttons.
+- On/off checkboxes look like iOS switches. Sheets float with deep corners.
+- In the installed app, where Safari's own gestures are missing, you can swipe in from the left edge to go Back (this uses the app's Back button), and you can pull down to refresh.
+
+Add a new control by extending the shared components rather than adding iOS-only markup. Check it at iPhone size with `?ios=1` in both light and dark.
+
 ## Preferences, state and guided use
 
 Settings -> Appearance offers System, Light and Dark, persisted per browser.

@@ -6806,6 +6806,49 @@ test("an asset's Overview says what it is; work orders and spares sit under Main
   assert.deepEqual(errors, []);
 });
 
+test("on an iPhone the app follows iOS: a row too wide becomes a pull-down menu, rows that fit stay segmented, desktop is untouched", async () => {
+  const id = "fz-tag-0000000c40ab";
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "tag", label: "20-K-2300A",
+    golden: { description: { value: "Train A 3rd Stage Compressor", source: "sap", rule: "priority" } },
+    values: {}, keys: [], edge_counts: {}, edges: [], records: [] } }));
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}/profile`, (route) => route.fulfill({ json: { description: "Train A 3rd Stage Compressor",
+    manufacturer: "Solar Turbines", model: "C40", serial: "SN79550", criticality: "A", template: "Compressor",
+    equipment_model: null, equipment_class: null, installed: null, position: null, location: [], manuals: [] } }));
+  await page.route(`**/entities/${id}/drawings`, (route) => route.fulfill({ json: { highlight: [id], drawings: [] } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/?ios=1#/e/${id}`);
+  const views = page.getByRole("navigation", { name: "Views of this record" });
+  await views.getByRole("link").first().waitFor();
+  await page.waitForFunction(() => document.documentElement.classList.contains("ios"));
+  // Six views don't fit a phone: only the chosen one shows, as the button that opens the menu.
+  await page.waitForFunction(() => document.querySelector("nav.page-tabs")?.hasAttribute("data-ios-menu"));
+  const current = views.getByRole("link", { name: "Overview" });
+  assert.equal(await current.getAttribute("aria-haspopup"), "menu");
+  assert.equal(await views.getByRole("link", { name: "Maintenance" }).isVisible(), false);
+  // Explore's four areas fit: still a segmented control.
+  assert.equal(await page.locator(".area-navigation").getAttribute("data-ios-menu"), null);
+  await current.click();
+  const menu = page.getByRole("menu");
+  assert.deepEqual(await menu.getByRole("menuitemradio").allInnerTexts().then((t) => t.map((s) => s.replace(/\s+/g, " ").replace("✓", "").trim())),
+    ["Overview", "Maintenance", "Timeline", "Documents", "Record", "Graph"]);
+  assert.equal(await current.getAttribute("aria-expanded"), "true");
+  assert.equal(await menu.getByRole("menuitemradio", { name: /Overview/ }).getAttribute("aria-checked"), "true");
+  // Escape closes it and returns focus; choosing an item goes to that view.
+  await page.keyboard.press("Escape");
+  await menu.waitFor({ state: "detached" });
+  await current.click();
+  await menu.getByRole("menuitemradio", { name: /Maintenance/ }).click();
+  await page.waitForFunction(() => location.hash.includes("tab=maintenance"));
+  await menu.waitFor({ state: "detached" });
+  // ?ios=0 turns it off for the tab; a desktop browser never had it.
+  await page.goto(`${url}/?ios=0#/e/${id}`);
+  await views.getByRole("link").first().waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains("ios")), false);
+  assert.equal(await views.getByRole("link", { name: "Maintenance" }).isVisible(), true);
+  assert.deepEqual(errors, []);
+});
+
 test("P5.14e A dispatched job walked in the installed app at 390 px: My work, the step, its asset, the trend, and Back to the step", async () => {
   // Installed on a phone: standalone display, no browser back button, a gloved thumb.
   await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
