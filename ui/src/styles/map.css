@@ -6,13 +6,18 @@
   border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font: inherit; font-size: 12px; }
 .map-legend .chip.off { opacity: 0.45; }
 .map-frame { position: relative; z-index: 0; isolation: isolate; min-width: 0; }
-.map-basemap-light .leaflet-tile-pane { filter: saturate(.65) brightness(1.04); }
-.map-basemap-dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.86); }
+/* OpenTopoMap has no dark tiles: dim them so the terrain map doesn't glare in a dark theme. */
+.map-basemap-terrain-dark .leaflet-tile-pane { filter: brightness(.62) contrast(1.12) saturate(.75); }
 .map-controls { position: absolute; z-index: 1000; top: 10px; right: 10px; display: flex; flex-wrap: wrap; align-items: end;
   justify-content: flex-end; gap: 6px; max-width: calc(100% - 20px); }
-.map-controls label { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 8px; border: 1px solid var(--line);
-  border-radius: 6px; background: var(--panel); color: var(--text); box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
-.map-controls select { min-height: 34px; padding: 3px 6px; font-size: 12px; }
+/* Base map: a segmented control of three short words, as wide as a phone allows. */
+.map-basemaps { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
+.map-basemaps > .ui-button.map-basemap { min-height: 36px; padding: 0 12px; border: 0; box-shadow: none; border-radius: 7px; background: none; color: var(--muted);
+  font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.map-basemaps > .ui-button.map-basemap:hover { color: var(--text); }
+.map-basemaps > .ui-button.map-basemap.on { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.map-basemaps > .ui-button.map-basemap:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .map-controls .ui-button { box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
 .map-controls .map-control-button { min-width: 44px; min-height: 44px; padding: 8px; }
 .map-legend .chip { min-height: 44px; }
@@ -27,6 +32,7 @@
 @media (max-width: 600px) { .map-frame.map-fullscreen:not(.mapview-compact *) > .map-controls { left: calc(10px + env(safe-area-inset-left)); } }
 .map-frame.map-fullscreen .map { height: 100vh !important; height: 100dvh !important; border: 0; border-radius: 0; }
 .leaflet-container { font: inherit; }
+.leaflet-control-zoom a { background: var(--panel) !important; color: var(--text) !important; border-color: var(--line) !important; }
 .leaflet-control-zoom a { width: 44px !important; height: 44px !important; line-height: 42px !important; font-size: 24px !important; }
 .viewer .mark .hl-ring { animation: hl-pulse 1.6s ease-in-out infinite; }
 .viewer .mark.hl text { fill: var(--accent); }
@@ -40,8 +46,12 @@ h2 select { font: inherit; font-size: 15px; }
   .map-legend::-webkit-scrollbar { display: none; }
   .map-legend .chip { flex: none; white-space: nowrap; }
   .map-controls { left: 10px; justify-content: flex-start; }
-  .map-controls label { flex: 1; justify-content: space-between; }
-  .map-controls select { min-width: 0; }
+  .map-basemaps { flex: 1; min-width: 0; }
+  .map-basemaps > .ui-button.map-basemap { flex: 1; min-height: 38px; padding: 0 6px; }
+  /* The controls span the top, so the zoom buttons and any message start under them. */
+  .mapview:not(.mapview-compact) .leaflet-top.leaflet-left { top: 54px; }
+  .mapview:not(.mapview-compact) .map-fullscreen .leaflet-top.leaflet-left { top: calc(54px + env(safe-area-inset-top)); }
+  .mapview:not(.mapview-compact) .map-message { left: 64px; right: 10px; }
 }
 
 /* Hotspots (Home): colour is the highest band, the number how much is open, a clock badge something overdue. */
