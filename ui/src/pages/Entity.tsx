@@ -39,6 +39,7 @@ import { WatchButton } from "../Watch";
 import { Related } from "../Related";
 import { kindColor, relColor } from "../kinds";
 import { nodeLabel } from "../entityRefs";
+import { usePermission } from "../Auth";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -100,6 +101,7 @@ function entityTabs(e: EntityDetail): EntityTab[] {
 export function Entity({ id, tab }: { id: string; tab: string }) {
   const [asOf, setAsOf] = useState("");
   const ent = useAsync(() => api.entity(id, asOf || undefined), [id, asOf]);
+  const configure = usePermission("configure");
 
   if (!ent.data) return <section><PageHeader>Asset and evidence</PageHeader>
     <Status loading={ent.loading} error={ent.error} onRetry={ent.reload} />
@@ -129,7 +131,10 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
         <div>
           <PageHeader className="mono" subtitle={description}>{e.label ?? fid}</PageHeader>
           <div className="row">
-            <KindBadge kind={e.kind} />
+            {/* The kind links to where it is defined, for those who can see the ontology. */}
+            {configure
+              ? <a className="kind-link" href={href("/ontology", { kind: e.kind })} title="See this kind in the ontology"><KindBadge kind={e.kind} /></a>
+              : <KindBadge kind={e.kind} />}
             <WatchButton target={fid} label="asset" />
             <a className="small" href={href("/ask", { subject: fid })}>Ask about this asset</a>
           </div>

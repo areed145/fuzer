@@ -23,7 +23,8 @@ export function Ontology({ query }: { query?: URLSearchParams }) {
   const data = useAsync(() => api.ontology(), []);
   const [view, setView] = useState<string>("all");
   const [tab, setTab] = useState<"graph" | "model">(query?.get("tab") === "model" ? "model" : "graph");
-  const [selected, setSelected] = useState<string | null>(null);
+  // An asset page links here with ?kind=… to open on its kind.
+  const [selected, setSelected] = useState<string | null>(query?.get("kind") ?? null);
   const [editing, setEditing] = useState<Editing | null>(null);
 
   const elements = useMemo(() => (data.data ? ontologyElements(data.data, view) : []), [data.data, view]);
