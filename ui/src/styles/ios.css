@@ -1,6 +1,6 @@
-/* iOS look and feel (prototype, see ios.ts). Everything here sits under :root.ios, which only an iPhone or iPad
-   (or ?ios=1) turns on, so desktop and Android are untouched. Colours are Apple's system colours; the tint stays
-   Fuzer's teal. */
+/* iOS look and feel (see ios.ts). Everything here sits under :root.ios, which only an iPhone or iPad (or ?ios=1)
+   turns on, so desktop and Android are untouched. Fuzer's colours stay; iOS brings the shapes, Liquid Glass, type
+   and gestures. When in doubt, do what iOS does. */
 :root.ios {
   /* Fuzer's own colours stay; iOS brings shape, glass and motion. */
   --fill: color-mix(in srgb, var(--muted) 14%, transparent);
@@ -133,16 +133,16 @@
   :root.ios .work-board-controls .ui-field { flex-direction: row; align-items: center; gap: 8px; width: auto; }
   :root.ios .work-board-controls .ui-field > span { font-size: 15px; }
   /* Switches for on/off settings, the iOS way. */
-  :root.ios input[type=checkbox]:not(.ui-table-select-cell input) {
+  :root.ios input[type=checkbox]:not(td input) {
     appearance: none; -webkit-appearance: none; width: 51px; height: 31px; flex: none; border-radius: 16px; margin: 0;
     background: rgb(120 120 128 / .16); position: relative; transition: background-color .2s; vertical-align: middle;
   }
-  :root.ios input[type=checkbox]::after {
+  :root.ios input[type=checkbox]:not(td input)::after {
     content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff;
     box-shadow: 0 3px 8px rgb(0 0 0 / .15), 0 3px 1px rgb(0 0 0 / .06); transition: transform .2s;
   }
-  :root.ios input[type=checkbox]:checked { background: var(--ok); }
-  :root.ios input[type=checkbox]:checked::after { transform: translateX(20px); }
+  :root.ios input[type=checkbox]:not(td input):checked { background: var(--ok); }
+  :root.ios input[type=checkbox]:not(td input):checked::after { transform: translateX(20px); }
 
   /* ---- Lists with chevrons: the board's stage list ---- */
   :root.ios .work-board-column { padding: 0; border: 0; background: none; }
@@ -171,6 +171,13 @@
   :root.ios .work-card-actions .ui-button-primary { background: var(--accent); color: #fff; }
   :root.ios .work-card-actions .ui-button-secondary { background: var(--warn); color: #fff; }
   :root.ios .work-card.swiped { transform: translateX(-104px); }
+  /* Keyboard and VoiceOver reach the same actions: focus inside a card slides them in. */
+  :root.ios .work-card:focus-within { transform: translateX(-104px); }
+  /* Dispatch chosen: the card settles back and its choices open inline beneath it. */
+  :root.ios .work-card:has(.work-card-actions [aria-expanded="true"]) { transform: none; padding-right: 16px; }
+  :root.ios .work-card:has(.work-card-actions [aria-expanded="true"])::after { display: none; }
+  :root.ios .work-card:has(.work-card-actions [aria-expanded="true"]) .work-card-actions { position: static; margin-top: 8px; }
+  :root.ios .work-card:has(.work-card-actions [aria-expanded="true"]) .work-card-actions .ui-button { height: auto; min-height: 44px; border-radius: 999px; }
 
   /* ---- Sheets: the chosen place on Home's map rises as an iOS sheet with a grab handle ---- */
   :root.ios .attention-detail {
