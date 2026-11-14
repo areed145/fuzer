@@ -7,7 +7,9 @@ import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, Input } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
-import { OUTBOX_CHANGED, clearRefused, flush, outbox, refusedReasons, sendReport, type FlushResult } from "../fieldOffline";
+import { OUTBOX_CHANGED, clearRefused, flush, outbox, refusedReasons, sendReport, useOutbox, type FlushResult } from "../fieldOffline";
+import { NEEDS_SIGNAL } from "../signal";
+import { useSignal } from "../useSignal";
 
 /** Reports kept on this phone while there was no signal (P5.3c): the app's one sender (P5.17a) sends them as soon as
  * the signal returns, from whichever page is open; this card counts them and can send now by hand. */
@@ -233,6 +235,9 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
   const [why, setWhy] = useState("");
   const [inHand, setInHand] = useState(false);
   const blocked = !!job.permit?.blocked;
+  const signal = useSignal();
+  // Reports for this job still on the phone (P5.17b): shown as waiting, not as done, until the server has them.
+  const waiting = useOutbox().waiting.filter((w) => w.kind === "field_report" && (w.payload as { exception_id?: number }).exception_id === job.id);
   const dictate = useDictation((t) => setNote((n) => (n.trim() ? `${n.trim()} ${t}` : t)));
   const reading: FieldReading | undefined = value.trim() ? { value: Number(value), unit: unit.trim(), what: what.trim() || null } : undefined;
   const say = (status: string) => {
@@ -263,12 +268,15 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
     <Card className="field-job" title={<>{job.title} <Badge>{job.label}</Badge></>}>
       {job.handover && <HandoverNote h={job.handover} />}
       {job.handover?.mine_to_accept && <div className="row field-actions">
-        <Button variant="primary" disabled={!!busy}
+        <Button variant="primary" disabled={!!busy || !signal.live} title={signal.live ? undefined : NEEDS_SIGNAL}
           onClick={() => run("Accepting", () => api.acceptHandover(job.id, person), onChange)}>Accept the handover</Button>
+        {!signal.live && <span className="small muted">{NEEDS_SIGNAL}</span>}
       </div>}
       <p className="row small">
         <Due at={job.due} />
         {last && <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
+        {waiting.length > 0 && <Badge tone="warn">{waiting.length === 1 ? `${SAID[(waiting[0].payload as { status: string }).status] ?? "Report"} waiting to send`
+          : `${waiting.length} reports waiting to send`}</Badge>}
         <span className="muted">seen {job.reports ?? job.raised_count}× since {when(job.first_seen)}</span>
       </p>
       {job.sent && (job.sent.reason || !job.queued) && <p className="field-sent">
@@ -314,8 +322,9 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
       </div>}
       {job.handover?.mine_to_accept ? null : job.queued ? <div className="row field-actions">
         <p className="small muted">Waiting in the {job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.</p>
-        <Button variant="primary" disabled={!!busy}
+        <Button variant="primary" disabled={!!busy || !signal.live}
           onClick={() => run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), onChange)}>Take it</Button>
+        {!signal.live && <span className="small muted">{NEEDS_SIGNAL}</span>}
       </div> : <>
       <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC (a reading, what you found, why it couldn't be done)</label>
       <textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />

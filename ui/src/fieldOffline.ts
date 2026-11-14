@@ -8,6 +8,7 @@
  * the app returns to the foreground and every 30 s while it is on screen, from whichever page is open. iOS has no
  * background sync, so nothing is sent while the app is closed. Only writes that never reached the server are sent
  * again; one the server refused is not resent (AGENTS.md), and an expired session holds the outbox until sign-in. */
+import { useEffect, useState } from "react";
 import { api, type FieldJob, type FieldReading, type PlanItem } from "./api";
 import { getProject } from "./authState";
 import * as store from "./fieldStore";
@@ -152,6 +153,8 @@ export const sendReport = ({ photos, ...r }: Omit<QueuedReport, "client_id" | "a
   sendOrQueue("field_report", r, photos ?? []);
 
 let flushing = false;
+/** True while the sender is sending, for the shell's status (P5.17b). */
+export const sending = () => flushing;
 let lastRefused: string[] = [];
 /** The reasons the last send was refused, so a page opened after it can still say so. */
 export const refusedReasons = () => lastRefused;
@@ -162,8 +165,9 @@ export const clearRefused = () => { lastRefused = []; changed(); };
  * needs signing in again. One send at a time, across tabs where the browser offers locks. */
 export async function flush(): Promise<FlushResult> {
   const out: FlushResult = { sent: 0, refused: [], held: false };
-  if (flushing || !live) return out;
+  if (flushing || !live || !(await outbox()).length || flushing) return out;
   flushing = true;
+  changed();
   const run = async () => {
     for (const w of await outbox()) {
       try {
@@ -184,7 +188,7 @@ export async function flush(): Promise<FlushResult> {
   } finally {
     flushing = false;
     if (out.refused.length) lastRefused = out.refused;
-    if (out.sent || out.refused.length || out.held) changed(out);
+    changed(out);
   }
   return out;
 }
@@ -198,4 +202,20 @@ export function startOutbox() {
   window.addEventListener("online", () => void flush());
   document.addEventListener("visibilitychange", () => { if (visible()) void flush(); });
   window.setInterval(() => { if (visible()) void flush(); }, 30_000);
+}
+
+export interface OutboxState { waiting: QueuedWrite[]; refused: string[]; sending: boolean }
+/** What waits on the phone, what the server refused and whether it is sending now, kept current. */
+export function useOutbox(): OutboxState {
+  const [state, setState] = useState<OutboxState>({ waiting: [], refused: lastRefused, sending: flushing });
+  useEffect(() => {
+    let active = true;
+    const read = () => void outbox().then((waiting) => {
+      if (active) setState({ waiting, refused: lastRefused, sending: flushing });
+    });
+    window.addEventListener(OUTBOX_CHANGED, read);
+    read();
+    return () => { active = false; window.removeEventListener(OUTBOX_CHANGED, read); };
+  }, []);
+  return state;
 }
