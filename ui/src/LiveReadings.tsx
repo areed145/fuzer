@@ -53,8 +53,12 @@ export function running(traces: TrendTrace[]): boolean | null {
 const at = (iso: string) => new Date(`${iso.slice(0, 16)}Z`).toLocaleString(undefined,
   { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
-export function LiveReadings({ id }: { id: string }) {
-  const v = useAsync(() => api.trendView(id, "latest", 6, 0).catch(() => null), [id]).data;
+/** The latest readings' read, shared with the asset page so it can draw its overview at once (#1069). */
+export const readLatest = (id: string) => api.trendView(id, "latest", 6, 0).catch(() => null);
+
+export function LiveReadings({ id, data }: { id: string; data?: Awaited<ReturnType<typeof readLatest>> }) {
+  const own = useAsync(() => (data === undefined ? readLatest(id) : Promise.resolve(null)), [id, data === undefined]).data;
+  const v = data === undefined ? own : data;
   if (!v || v.error || !Array.isArray(v.groups)) return null;
   const traces = v.groups.flatMap((g) => g.traces);
   const shown = keyReadings(traces);

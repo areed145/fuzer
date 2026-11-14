@@ -1,4 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+// The toolbar and legend styles come with the page, not with the lazy 3D chunk: arriving with it, they rewrapped the
+// toolbar after it drew and pushed the drawing down (#1069).
+import "../styles/scene3d.css";
 import { api, type RelationDef, type Scene, type SceneLink, type SceneStatus, type SceneTrip } from "../api";
 import { commonName } from "../entityRefs";
 import { GraphCanvas } from "../graph";

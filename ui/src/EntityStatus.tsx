@@ -8,8 +8,12 @@ const words = (name: string) => name.replace(/_/g, " ").replace(/^gor$/, "GOR");
 /** One line at the top of an operated asset's page that answers "is it OK right now": whether a downtime is open,
  * how much work is open on it, its newest incident and, for a well, what its latest test measured. It says only
  * what the records say, so no open downtime is not a claim that the unit is running. */
-export function EntityStatus({ id }: { id: string }) {
-  const s = useAsync(() => api.entityStatus(id), [id]).data;
+/** The status read, shared with the asset page so it can draw its overview at once (#1069). */
+export const readStatus = (id: string) => api.entityStatus(id).catch(() => null);
+
+export function EntityStatus({ id, data }: { id: string; data?: Awaited<ReturnType<typeof readStatus>> }) {
+  const own = useAsync(() => (data === undefined ? readStatus(id) : Promise.resolve(null)), [id, data === undefined]).data;
+  const s = data === undefined ? own : data;
   if (!s || typeof s.open_work !== "number") return null;
   const day = (t: string | null) => t?.slice(0, 10) ?? "an unknown date";
   const rates = (s.well_test?.values ?? []).filter((v) => RATES.includes(v.quantity))

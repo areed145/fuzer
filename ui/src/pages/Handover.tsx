@@ -38,10 +38,12 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
       {operate && <p className="small"><Button variant="secondary" disabled={!!a.busy} onClick={() =>
         a.run("draft", () => api.draftHandover(person), reload)}>Draft (or refresh) the handover for the last shift change</Button>
         {a.error && <span className="error"> {a.error}</span>}</p>}
-      <Status loading={list.loading && !list.data} error={list.error} />
+      {/* The handover shown leads and the past ones follow once it is in: drawn sooner, its lines filling in pushed the
+          past handovers out of view (#1069). */}
+      <Status loading={(list.loading && !list.data) || (!!id && h.data === undefined && !h.error)} error={list.error ?? h.error} />
       {list.data?.length === 0 && <Empty>No handover yet. One is drafted at each shift change.</Empty>}
       {h.data && <HandoverView h={h.data} person={person} canAct={operate} reload={reload} />}
-      {(list.data?.length ?? 0) > 0 && (
+      {(list.data?.length ?? 0) > 0 && (!id || h.data !== undefined || !!h.error) && (
         <Card title="Past handovers">
           <Table density="compact">
             <thead><tr><th>Shift</th><th>Lines</th><th>Acknowledged</th></tr></thead>

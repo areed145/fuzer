@@ -54,3 +54,41 @@ def test_one_read_of_a_scenes_status_serves_the_next_minute(monkeypatch):
     clock[0] += graph.SCENE_STATUS_SECONDS
     graph.scene_status(at="fz-area", conn=None)  # a minute on, it is read again
     assert len(reads) == 3 and "as_of" in first
+
+
+def test_one_computation_serves_everyone_until_the_database_changes(monkeypatch):
+    import threading
+
+    from fuzer.api import shared_reads
+
+    class Conn:  # pg_current_wal_lsn(): moves when anything is written
+        position = "0/1"
+
+        def execute(self, _sql):
+            return self
+
+        def fetchone(self):
+            return (self.position,)
+
+    monkeypatch.setattr(shared_reads.db, "database_url", lambda: "postgresql:///test")
+    shared_reads._values.clear()
+    conn, calls, gate = Conn(), [], threading.Event()
+
+    def read():
+        calls.append(1)
+        gate.wait(2)
+        return {"alarms": len(calls)}
+
+    # five people opening the same case together: one computation, everyone gets its answer
+    out = []
+    ts = [threading.Thread(target=lambda: out.append(shared_reads.shared(conn, "around", (113,), read))) for _ in range(5)]
+    [t.start() for t in ts]
+    gate.set()
+    [t.join() for t in ts]
+    assert len(calls) == 1 and out == [{"alarms": 1}] * 5
+    assert shared_reads.shared(conn, "around", (108,), read) == {"alarms": 2}  # another case is its own
+    conn.position = "0/2"  # something was written
+    assert shared_reads.shared(conn, "around", (113,), read) == {"alarms": 3}
+    monkeypatch.setattr(shared_reads, "SECONDS", 0)  # off: every ask computes
+    shared_reads.shared(conn, "around", (113,), read)
+    assert len(calls) == 4

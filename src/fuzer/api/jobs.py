@@ -297,7 +297,7 @@ def _materializations(instance, run_id: str) -> list:
 
 # --- routes -----------------------------------------------------------------------------------------
 
-SHARED_SECONDS = 15.0  # how long one reading of the scheduler's storage serves everyone who asks
+SHARED_SECONDS = 60.0  # how long one reading of the scheduler's storage serves everyone who asks (the nav asks each minute)
 _shared: dict[str, tuple[float, Any, Any]] = {}
 _shared_locks = {"health": threading.Lock(), "overview": threading.Lock()}
 

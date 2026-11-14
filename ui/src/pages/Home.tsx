@@ -161,17 +161,20 @@ function AllWorkCard() {
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
   const c = open.data ? iocCounts(open.data, operators) : null;
   const top = board.data?.cards.slice(0, 3) ?? [];
+  // The counts and the highest value together: drawn as each answered, the list growing under the counts pushed the
+  // rest of Home down (#1069). It leads a dispatcher's Home.
+  const ready = [open, people, board].every((r) => r.data !== undefined || !!r.error);
   return (
     <UICard className="home-card" as="section">
       <div className="row spread"><h2>All work</h2><a href={workHref("dispatch")}>Open All work</a></div>
-      <Status loading={open.loading && !open.data} error={open.error} onRetry={open.reload} />
-      {c && <ul className="home-counts">
+      <Status loading={!ready} error={open.error} onRetry={open.reload} />
+      {ready && c && <ul className="home-counts">
         <Count n={c.dispatch} to={workHref("dispatch")} late>to dispatch</Count>
         <Count n={c.field} to={workHref("field")}>with the field</Count>
         <Count n={c.back} to={workHref("back")}>back from the field</Count>
         <Count n={c.open} to={workHref("open")}>open</Count>
       </ul>}
-      {top.length > 0 && <>
+      {ready && top.length > 0 && <>
         <h3>Highest value</h3>
         <ol className="home-list">{top.map((card) => <li key={card.key}>
           <a href={card.item_id ? caseHref(card.item_id) : workHref("ranked")}>{card.title}</a>

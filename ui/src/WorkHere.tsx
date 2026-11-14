@@ -7,11 +7,15 @@ import { holder, when } from "./work";
 
 const day = (at: string) => new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
-export function WorkHere({ id, area }: { id: string; area: boolean }) {
-  const open = useAsync(() => api.exceptions({ state: "open", subject: id }), [id]);
-  const planned = useAsync(() => api.plan(area ? { area: id } : { subject: id }), [id, area]);
-  const exceptions = open.data ?? [];
-  const items = (planned.data ?? []).filter((i) => i.status !== "done" && i.status !== "cancelled");
+/** What the card reads, shared with the asset page so it can draw its overview at once (#1069). */
+export const readWork = (id: string, area: boolean) =>
+  Promise.all([api.exceptions({ state: "open", subject: id }).catch(() => []), api.plan(area ? { area: id } : { subject: id }).catch(() => [])]);
+
+export function WorkHere({ id, area, data }: { id: string; area: boolean; data?: Awaited<ReturnType<typeof readWork>> }) {
+  const own = useAsync(() => (data === undefined ? readWork(id, area) : Promise.resolve(undefined)), [id, area, data === undefined]).data;
+  const [open, planned] = data ?? own ?? [[], []];
+  const exceptions = open ?? [];
+  const items = (planned ?? []).filter((i) => i.status !== "done" && i.status !== "cancelled");
   if (!exceptions.length && !items.length) return null;
   return (
     <Card as="section" title="Work here" className="work-here">

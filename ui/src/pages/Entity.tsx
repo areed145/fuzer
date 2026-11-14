@@ -32,10 +32,10 @@ import { IncidentDetail, IncidentList } from "./Incidents";
 import { MeasurementsCard } from "../Trend";
 import { TrendView } from "../TrendView";
 import { MemoryCard } from "../Memory";
-import { WorkHere } from "../WorkHere";
-import { EntityStatus } from "../EntityStatus";
-import { AssetProfile } from "../AssetProfile";
-import { LiveReadings } from "../LiveReadings";
+import { WorkHere, readWork } from "../WorkHere";
+import { EntityStatus, readStatus } from "../EntityStatus";
+import { AssetProfile, readProfile } from "../AssetProfile";
+import { LiveReadings, readLatest } from "../LiveReadings";
 import { WatchButton } from "../Watch";
 import { Related } from "../Related";
 import { kindColor, relColor } from "../kinds";
@@ -109,6 +109,21 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
   const [dated, setDated] = useState(false);
   const ent = useAsync(() => api.entity(id, asOf || undefined), [id, asOf]);
   const configure = usePermission("configure");
+  // The overview's cards, read together and drawn together: each drawn as it answered, the later ones pushed the
+  // earlier down the page (#1069).
+  const oid = ent.data?.fuzer_id, okind = ent.data?.kind;
+  const onOverview = !tab || tab === "overview";
+  const overview = useAsync(async () => {
+    if (!oid || !okind || !onOverview) return null;
+    const worked = ASSET_KINDS.includes(okind);
+    const [status, latest, work, profile] = await Promise.all([
+      worked ? readStatus(oid) : undefined,
+      ["tag", "equipment", "well"].includes(okind) ? readLatest(oid) : undefined,
+      worked ? readWork(oid, okind === "area") : undefined,
+      ["tag", "equipment", "equipment_model"].includes(okind) ? readProfile(oid) : undefined,
+    ]);
+    return { status, latest, work, profile };
+  }, [oid, okind, onOverview]);
 
   // No signal and not kept on this phone (P5.17c): say so, and go back to the jobs that are.
   if (!ent.data && ent.error && ent.error.startsWith("Not kept on this phone")) return <section>
@@ -178,10 +193,13 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
       {view === "overview" && (
         <>
           {/* Live picture first, then the work on it, then what it is (#1076). */}
-          {operated && <EntityStatus id={fid} />}
-          {["tag", "equipment", "well"].includes(e.kind) && <LiveReadings id={fid} />}
-          {operated && <WorkHere id={fid} area={e.kind === "area"} />}
-          {["tag", "equipment", "equipment_model"].includes(e.kind) && <AssetProfile id={fid} />}
+          {overview.data === undefined && !overview.error && <Status loading />}
+          {(overview.data !== undefined || overview.error) && <>
+            {operated && <EntityStatus id={fid} data={overview.data?.status} />}
+            {["tag", "equipment", "well"].includes(e.kind) && <LiveReadings id={fid} data={overview.data?.latest} />}
+            {operated && <WorkHere id={fid} area={e.kind === "area"} data={overview.data?.work} />}
+            {["tag", "equipment", "equipment_model"].includes(e.kind) && <AssetProfile id={fid} data={overview.data?.profile} />}
+          </>}
           {e.kind === "incident" && <IncidentDetail id={fid} />}
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
           {e.kind === "document" && e.golden.doc_type && (
