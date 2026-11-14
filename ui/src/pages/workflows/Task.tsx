@@ -40,7 +40,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
   const others = !!t.assignee && t.assignee !== person;
   const complete = (data: Record<string, unknown>) => {
     if (demo) { setCompletion(data); return; }
-    return a.run("complete", () => sendCompletion({ task: id, by: person, data }), (how) => setDone(how === "queued"
+    return a.run("complete", () => sendCompletion({ task: id, by: person, data, item: v.item.id }), (how) => setDone(how === "queued"
       ? `Done on this phone: "${t.name ?? t.element}" sends, with this time, when the signal returns.`
       : `Done: "${t.name ?? t.element}" on ${v.item.title}.`));
   };

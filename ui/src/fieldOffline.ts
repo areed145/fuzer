@@ -30,6 +30,8 @@ export interface QueuedWrite<P = unknown> {
   /** The signed-in account that made it ("" in local mode), and the project it was made in. */
   account: string; project: string;
   payload: P; photos?: store.KeptPhoto[];
+  /** The server said no (P5.17f): kept with its reason until the operator resends, moves or discards it. */
+  refused?: { reason: string; at: string };
 }
 
 type Jobs = { person: string; jobs: FieldJob[]; coming_up: PlanItem[]; offline?: { since: string } };
@@ -60,11 +62,14 @@ export function registerSender(kind: string, send: Sender) { senders.set(kind, s
 
 const changed = (detail?: FlushResult) => window.dispatchEvent(new CustomEvent(OUTBOX_CHANGED, { detail }));
 
-/** What waits to send for the signed-in account, oldest first. */
-export async function outbox(): Promise<QueuedWrite[]> {
+async function mine(): Promise<QueuedWrite[]> {
   await migrated;
   return (await store.all<QueuedWrite>("outbox")).filter((w) => w.account === account).sort((a, b) => a.at.localeCompare(b.at));
 }
+/** What waits to send for the signed-in account, oldest first. */
+export const outbox = async () => (await mine()).filter((w) => !w.refused);
+/** What the server refused, kept on the phone with its reason (P5.17f). */
+export const refusedWrites = async () => (await mine()).filter((w) => w.refused);
 
 const LEGACY_OUTBOX = "fuzer.field.outbox";
 const LEGACY_JOBS = "fuzer.field.jobs.";
@@ -226,7 +231,7 @@ export const sendTake = (t: QueuedTake) => sendOrQueue("round_take", t);
 
 /** The rest of what the field does at the asset (P5.17e): a task step's close-out, accepting a handover, and saying a
  * planned job has started or is done. Each is idempotent on the server (a client id, or setting a state). */
-export interface QueuedCompletion { task: number; by: string; data: Record<string, unknown> }
+export interface QueuedCompletion { task: number; by: string; data: Record<string, unknown>; item?: number }
 registerSender("task_complete", (w) => {
   const c = w.payload as QueuedCompletion;
   return api.complete(c.task, c.by, c.data, { client_id: w.client_id, at: w.at, project: w.project });
@@ -250,14 +255,10 @@ export const sendReport = ({ photos, ...r }: Omit<QueuedReport, "client_id" | "a
 let flushing = false;
 /** True while the sender is sending, for the shell's status (P5.17b). */
 export const sending = () => flushing;
-let lastRefused: string[] = [];
-/** The reasons the last send was refused, so a page opened after it can still say so. */
-export const refusedReasons = () => lastRefused;
-export const clearRefused = () => { lastRefused = []; changed(); };
-
-/** Send what waited, oldest first. A write the server refuses is dropped and its reason returned, so the operator
- * hears it; one that still can't reach the server stays for next time, and so does everything while the session
- * needs signing in again. One send at a time, across tabs where the browser offers locks. */
+/** Send what waited, oldest first. A write the server refuses is never dropped and never sent again by itself
+ * (P5.17f): it stays on the phone with the reason, for the operator to resend as a note, move or discard. One that
+ * still can't reach the server stays for next time, and so does everything while the session needs signing in again.
+ * One send at a time, across tabs where the browser offers locks. */
 export async function flush(): Promise<FlushResult> {
   const out: FlushResult = { sent: 0, refused: [], held: false };
   if (flushing || !live || !(await outbox()).length || flushing) return out;
@@ -271,7 +272,10 @@ export async function flush(): Promise<FlushResult> {
       } catch (e) {
         if (unreachable(e)) break;
         if (heldBySession(e)) { out.held = true; break; }
-        out.refused.push((e as Error).message);
+        const reason = (e as Error).message;
+        out.refused.push(reason);
+        await store.put("outbox", { ...w, refused: { reason, at: new Date().toISOString() } });
+        continue;
       }
       await store.remove("outbox", w.client_id);
     }
@@ -282,7 +286,6 @@ export async function flush(): Promise<FlushResult> {
     else await run();
   } finally {
     flushing = false;
-    if (out.refused.length) lastRefused = out.refused;
     changed(out);
   }
   return out;
@@ -299,18 +302,68 @@ export function startOutbox() {
   window.setInterval(() => { if (visible()) void flush(); }, 30_000);
 }
 
-export interface OutboxState { waiting: QueuedWrite[]; refused: string[]; sending: boolean }
+export interface OutboxState { waiting: QueuedWrite[]; refused: QueuedWrite[]; sending: boolean }
 /** What waits on the phone, what the server refused and whether it is sending now, kept current. */
 export function useOutbox(): OutboxState {
-  const [state, setState] = useState<OutboxState>({ waiting: [], refused: lastRefused, sending: flushing });
+  const [state, setState] = useState<OutboxState>({ waiting: [], refused: [], sending: flushing });
   useEffect(() => {
     let active = true;
-    const read = () => void outbox().then((waiting) => {
-      if (active) setState({ waiting, refused: lastRefused, sending: flushing });
+    const read = () => void mine().then((all) => {
+      if (active) setState({ waiting: all.filter((w) => !w.refused), refused: all.filter((w) => w.refused), sending: flushing });
     });
     window.addEventListener(OUTBOX_CHANGED, read);
     read();
     return () => { active = false; window.removeEventListener(OUTBOX_CHANGED, read); };
   }, []);
   return state;
+}
+
+/** Throw away a write the server refused (P5.17f), once the operator has confirmed it. */
+export async function discard(w: QueuedWrite): Promise<void> {
+  await store.remove("outbox", w.client_id);
+  changed();
+}
+
+/** What a refused write said, in a sentence a person can pass on. */
+export function describe(w: QueuedWrite): string {
+  const p = w.payload as Record<string, unknown>;
+  const made = new Date(w.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const reading = (p.reading as FieldReading | undefined);
+  const said: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
+  switch (w.kind) {
+    case "field_report": return `${said[String(p.status)] ?? "Report"}${p.note ? `: ${p.note}` : ""}${reading ? ` (${reading.what ?
+      `${reading.what} ` : ""}${reading.value} ${reading.unit})` : ""}${w.photos?.length ? `, ${w.photos.length} photo${w.photos.length > 1 ? "s" : ""}` : ""}, made ${made}`;
+    case "round_take": return `Round point ${p.point}: ${p.value ?? (p.passed ? "passed" : `found something: ${p.note ?? ""}`)}, taken ${made}`;
+    case "task_complete": return `Step closed out ${made}${Object.keys((p.data as object) ?? {}).length ? `: ${Object.values(p.data as object).join("; ")}` : ""}`;
+    case "handover_accept": return `Handover accepted ${made}`;
+    case "plan_change": return `Planned job marked ${p.status === "done" ? "done" : "started"} ${made}`;
+    default: return `${w.kind}, made ${made}`;
+  }
+}
+
+/** A refused write can go on as a note (P5.17f): a job report as a Note on the same job, keeping its photos; a step's
+ * close-out as a note on its case. Either way the IOC still gets what was seen. Null when it can't. */
+export function asNote(w: QueuedWrite): (() => Promise<void>) | null {
+  const p = w.payload as Record<string, unknown>;
+  const why = `Made on the phone ${new Date(w.at).toLocaleString()}, not accepted: ${w.refused?.reason ?? ""}`;
+  if (w.kind === "field_report") return async () => {
+    const photos = await Promise.all((w.photos ?? []).map(store.photoUrl));
+    await sendOrQueue("field_report", { exception_id: p.exception_id, by: p.by, status: "note", reading: p.reading,
+      note: `${describe({ ...w, photos: [] })}. ${why}` }, photos);
+    await discard(w);
+  };
+  // A comment isn't idempotent, so it is sent now (with signal) rather than queued: without signal it fails and the
+  // refused close-out stays on the phone.
+  if (w.kind === "task_complete" && typeof p.item === "number") return async () => {
+    await api.comment(p.item as number, String(p.by), `${describe(w)}. ${why}`, w.project);
+    await discard(w);
+  };
+  return null;
+}
+
+/** Send a refused job report to another of the operator's jobs instead, as it was (P5.17f). */
+export async function moveReport(w: QueuedWrite, exceptionId: number): Promise<void> {
+  const photos = await Promise.all((w.photos ?? []).map(store.photoUrl));
+  await sendOrQueue("field_report", { ...(w.payload as object), exception_id: exceptionId }, photos);
+  await discard(w);
 }

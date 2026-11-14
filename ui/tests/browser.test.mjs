@@ -4891,6 +4891,79 @@ test("P5.17e A task step closed out without signal waits on the phone and is com
   assert.ok(posts[0].client_id && Date.parse(posts[0].at) >= before - 1000, "with its id and the time it was done");
 });
 
+// P5.17f (#1095): a report the server refuses when the signal returns is never lost: it stays on the phone with the
+// reason and can go on as a note; a lapsed session holds the outbox, and it sends after signing in again.
+test("P5.17f A refused report stays on the phone and goes as a note; a lapsed session holds the outbox", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let reachable = true, answer = "ok";
+  const posts = [];
+  const job = { id: 7, type: "leak", key: "a", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [], checklist: [], sources: [], history: [], field: [], queued: false,
+    sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.fallback();
+    if (!reachable) return route.abort("internetdisconnected");
+    if (path === "/exceptions/7/report") {
+      const body = route.request().postDataJSON();
+      posts.push({ ...body, answer });
+      if (answer === "refuse" && body.status === "on_site") return route.fulfill({ status: 400, json: { detail: "This job needs a valid permit. Say why it starts anyway." } });
+      if (answer === "expired") return route.fulfill({ status: 401, json: { detail: "Sign in again" } });
+      return route.fulfill({ json: job });
+    }
+    if (path === "/exceptions/field") return route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } });
+    if (path === "/work/inbox") return route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job").first();
+  await card.getByText("Look at the gland").waitFor();
+
+  // Without signal: On site with a note. Back in signal, the server refuses it.
+  reachable = false;
+  await card.getByLabel(/Note for the IOC/).fill("Gland weeping, 12 drips a minute");
+  await card.getByRole("button", { name: "On site", exact: true }).click();
+  await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
+  answer = "refuse";
+  reachable = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  const outbox = page.locator(".field-outbox");
+  await outbox.getByText("Not accepted: This job needs a valid permit", { exact: false }).waitFor();
+  await outbox.getByText("On site: Gland weeping, 12 drips a minute", { exact: false }).waitFor();
+  await page.locator(".topbar .sync-status").filter({ hasText: "1 not accepted" }).waitFor();
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.waitForTimeout(300);
+  assert.equal(posts.length, 1, "a refused report is not sent again by itself");
+
+  // The operator sends it on as a note: the IOC gets what was seen, and the card clears.
+  await outbox.getByRole("button", { name: "Send as a note" }).click();
+  await outbox.waitFor({ state: "detached" });
+  assert.equal(posts.length, 2);
+  assert.equal(posts[1].status, "note");
+  assert.match(posts[1].note, /Gland weeping, 12 drips a minute.*not accepted: This job needs a valid permit/);
+
+  // A report made offline meets a lapsed session: nothing is dropped, and it goes once signed in again.
+  reachable = false;
+  await card.getByLabel(/Note for the IOC/).fill("Gland still weeping");
+  await card.getByRole("button", { name: "Add note", exact: true }).click();
+  await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
+  answer = "expired";
+  reachable = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  for (let i = 0; posts.length < 3 && i < 100; i++) await page.waitForTimeout(100);
+  await page.getByRole("heading", { name: "Your session has ended" }).waitFor();
+  answer = "ok";
+  await page.reload();  // signed in again
+  for (let i = 0; posts.length < 4 && i < 100; i++) await page.waitForTimeout(100);
+  assert.equal(posts.length, 4);
+  assert.equal(posts[3].note, "Gland still weeping");
+  assert.equal(posts[3].client_id, posts[2].client_id, "the same report, held and sent once signed in");
+});
+
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
 // with what changed since they last looked, and reaches an item in another field in one click from Home.
 test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {

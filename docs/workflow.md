@@ -316,6 +316,14 @@ job carry a client id the same way. What needs the server's latest state is neve
 disabled without signal and says why, and desk actions such as reassigning, a permit override or dispatch fail without
 signal like any other write, and are not retried.
 
+A write the server refuses when the signal returns is never lost (P5.17f, #1095). It stays on the phone with the
+server's reason and when it was refused, the top bar counts it as not accepted, and it is not sent again by itself. On
+My work the operator sees what they said and why it was refused, and can send it on as a note on the case (a report
+keeps its photos; a close-out goes as a comment on its case), move a report to another of their jobs, or discard it
+after confirming. A report made well before it arrived carries both times, so the IOC sees when it was made and when
+it arrived. A signed-out or lapsed session is not a refusal: the outbox is held and sent once the same account signs
+in again.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and

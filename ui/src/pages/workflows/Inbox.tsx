@@ -84,7 +84,7 @@ export function InboxPage() {
       </Notice>}
       {offline && <Notice tone="warn">No signal: these are your jobs as kept on this phone{offline.since ? ` ${when(offline.since)}` : ""}.
         Reports wait here and send when the signal returns.</Notice>}
-      <Outbox onSent={() => { field.reload(); inbox.reload(); }} />
+      <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
       {!offline && <NewForYou person={person} />}
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}

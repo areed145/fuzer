@@ -1037,8 +1037,8 @@ export const workApi = {
       "POST", "/work/tasks/bulk-complete", undefined, { by, task_ids: taskIds, action, reason }),
   briefVerdict: (itemId: number, by: string, followed: "yes" | "partly" | "no", note?: string) =>
     request<unknown>("POST", `/work/items/${itemId}/brief/verdict`, undefined, { by, followed, note }),
-  comment: (itemId: number, by: string, text: string) =>
-    request<unknown>("POST", `/work/items/${itemId}/comment`, undefined, { by, text }),
+  comment: (itemId: number, by: string, text: string, project?: string) =>
+    request<unknown>("POST", `/work/items/${itemId}/comment`, undefined, { by, text }, project),
   decideLesson: (id: number, decision: "approve" | "reject" | "edit", by: string, text?: string) =>
     request<{ id: number; status: string; version: number }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
