@@ -73,8 +73,14 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .notification-list { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }
 .notification-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .notification-list li > a { display: flex; align-items: center; min-height: 44px; min-width: 0; overflow-wrap: anywhere; }
-.notification-list li > span { color: var(--muted); white-space: nowrap; }
-@media (max-width: 640px) { .notification-list li { grid-template-columns: auto minmax(0, 1fr); } .notification-list li > span { grid-column: 2; } }
+.notification-list li > .when { color: var(--muted); white-space: nowrap; }
+/* On a phone the kind and the time share the first line and the message takes the full width under them; the kind is a
+ * span too, so the rules name the time (.when) rather than every span (#1077: the time ran off the screen). */
+@media (max-width: 640px) {
+  .notification-list li { grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; padding: 6px 0; }
+  .notification-list li > .when { grid-row: 1; grid-column: 2; }
+  .notification-list li > a { grid-column: 1 / -1; min-height: 0; }
+}
 .home-headline { margin-bottom: 12px; }
 .home-subsection { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .home-subsection h3 { font-size: 13px; }
@@ -96,6 +102,9 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .attention-card { margin-bottom: 16px; }
 .attention-bar { gap: 4px 16px; align-items: center; }
 .attention-bar .chips { margin: 0 0 10px; }
+.attention-filters { gap: 4px 20px; align-items: flex-start; }
+.attention-filters > .crews-toggle { position: relative; margin-left: 2px; }
+.attention-filters > .crews-toggle::before { content: ""; position: absolute; left: -12px; top: 4px; bottom: 4px; border-left: 1px solid var(--line); }
 .attention-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 16px; align-items: start; }
 .attention-side { display: grid; gap: 10px; min-width: 0; }
 /* The map stays in view while the longer list beside it scrolls (#1074), so no gap opens under it. */
@@ -117,7 +126,13 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .attention-grab { display: none; }
 .attention-items { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 8px; }
 .attention-items li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+/* The map and the list side by side down to an iPad in portrait (#1077); one column below that. */
 @media (max-width: 900px) {
+  .attention-split { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); }
+  /* Clear of the top bar, which sticks on a tablet in portrait. */
+  .attention-split > .mapview { top: calc(64px + env(safe-area-inset-top)); }
+}
+@media (max-width: 767px) {
   .attention-split { grid-template-columns: minmax(0, 1fr); }
   .attention-split > .mapview { position: static; }
 }

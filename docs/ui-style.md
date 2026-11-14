@@ -146,6 +146,10 @@ On iOS the app follows iOS. When in doubt, do what iOS does. `ui/src/ios.ts` put
 - A row of segments that fits the screen is a segmented control. One that doesn't fit becomes a pull-down: the chosen segment is a capsule button that opens an iOS menu of every choice. This works for any `.tabs`, `.area-navigation`, Board stage row or Home filter row with no extra markup, so keep using those components.
 - Work cards swipe left to bring up their actions. Keyboard focus and VoiceOver reach the same buttons.
 - On/off checkboxes look like iOS switches. Sheets float with deep corners.
+- When the chosen section would only repeat the large title under it, the title itself opens the sections (an iOS title menu), and the picker stays for keyboard and VoiceOver.
+- On an iPhone a large title stops at two lines, the subtitle gives way and Help is a round info button. A table with headings and the `phone-rows` class stacks each row as a list row: the first column is its title and every other cell is labelled with its heading by `Table`, so give wide tables that class rather than phone-only markup.
+- Filter chips (`.chips` > `.chip`) are compact 32-point chips. On an iPhone a row of them scrolls sideways on one line instead of wrapping; a row that holds a disclosure still wraps.
+- An iPad in landscape keeps the same look, with the sidebar as a floating glass panel. In portrait, Home's map and list sit side by side down to 768 px.
 - In the installed app, where Safari's own gestures are missing, you can swipe in from the left edge to go Back (this uses the app's Back button), and you can pull down to refresh.
 
 Add a new control by extending the shared components rather than adding iOS-only markup. Check it at iPhone size with `?ios=1` in both light and dark.

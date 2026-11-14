@@ -7295,6 +7295,67 @@ test("on an iPhone the app follows iOS: a row too wide becomes a pull-down menu,
   assert.deepEqual(errors, []);
 });
 
+test("on an iPhone a table stacks as labelled rows and a section picker that repeats the title becomes the title's menu (#1077)", async () => {
+  const route = { type: "short_gas_day", label: "Short gas day", description: "", declared_in: "source pack", source_system: "measurement",
+    joins: false, join_hours: null, starts: "queue", process: "queue_item", role: "production_engineer", case_type: "short_gas_day",
+    audience: ["ioc"], close_case_on_clear: true, due: null };
+  await page.route("**/routing", (r) => r.fulfill({ json: [route] }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/?ios=1#/routing`);
+  const title = page.getByRole("heading", { name: "Routing", exact: true });
+  await title.waitFor();
+  // Each cell carries its column heading, so the stacked row still says what each value is.
+  const row = page.locator("table.routing-table tbody tr").first();
+  await row.waitFor();
+  assert.equal(await row.locator("td").nth(1).getAttribute("data-label"), "Goes to");
+  assert.equal(await row.locator("td").first().getAttribute("data-label"), null);
+  assert.ok((await page.locator("table.routing-table thead").boundingBox()).height <= 1, "headings move into the cells");
+  // The Settings pages picker would only say "Routing" over "Routing": the title opens the sections instead.
+  await page.waitForFunction(() => document.querySelector("main h1")?.classList.contains("ios-title-menu"));
+  const picker = page.getByRole("navigation", { name: "Settings pages" });
+  assert.equal(await picker.getAttribute("data-ios-title-menu"), "");
+  await title.click();
+  const menu = page.getByRole("menu");
+  await menu.getByRole("menuitemradio", { name: /Routing/ }).waitFor();
+  assert.equal(await menu.getByRole("menuitemradio", { name: /Routing/ }).getAttribute("aria-checked"), "true");
+  await page.keyboard.press("Escape");
+  await menu.waitFor({ state: "detached" });
+  // On a desktop the table keeps its headings and the picker its tabs.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/?ios=0#/routing`);
+  await page.locator("table.routing-table tbody tr").first().waitFor();
+  assert.ok((await page.locator("table.routing-table thead").boundingBox()).height > 10, "a desktop keeps the heading row");
+  assert.deepEqual(errors, []);
+});
+
+test("My work never scrolls sideways on a phone, even holding every role (#1077)", async () => {
+  const roles = ["data_steward", "engineer", "field_operator", "ops_lead", "production_engineer", "planner", "maintenance_supervisor"];
+  await page.route("**/work/inbox*", (r) => r.fulfill({ json: { person: "demo", roles, mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 138 } } } }));
+  // A long escalation notice with its kind and time: the time used to run off the right edge.
+  const notifications = [{ id: 1, kind: "escalated", item_id: 41, token_id: null, link: "#/cases/41", channel: "in_app", delivery: null,
+    text: "'High vibration on 1st stage compressor (notification 20000067)' was escalated to you. SLA PT4H on 'Work the case' passed while it was with sam",
+    created_at: "2026-11-14T08:23:00Z", read_at: null }];
+  await page.route("**/work/notifications?*", (r) => r.fulfill({ json: { notifications, unread: 1 } }));
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "demo"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/?ios=1#/inbox`);
+  const badge = page.getByText(/unclaimed in your roles/);
+  await badge.waitFor();
+  assert.match(await badge.innerText(), /data steward, engineer/);
+  await page.getByRole("link", { name: /High vibration/ }).waitFor();
+  // Measured with the page's own clipping off, so this checks that nothing is wider than the screen.
+  const width = await page.evaluate(() => {
+    for (const el of [document.documentElement, document.body]) el.style.overflowX = "visible";
+    return document.documentElement.scrollWidth;
+  });
+  assert.ok(width <= 390, `page is ${width} px wide on a 390 px screen`);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.body).overflowX), "visible");
+  await page.evaluate(() => { for (const el of [document.documentElement, document.body]) el.style.overflowX = ""; });
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).overflowX), "clip");
+  assert.deepEqual(errors, []);
+});
+
 test("P5.14e A dispatched job walked in the installed app at 390 px: My work, the step, its asset, the trend, and Back to the step", async () => {
   // Installed on a phone: standalone display, no browser back button, a gloved thumb.
   await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));

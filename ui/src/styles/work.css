@@ -65,6 +65,15 @@ ol.timeline > li.ev-handed_off::before, ol.timeline > li.ev-message::before { bo
   .phone-rows td:nth-child(2) { flex: 1 1 calc(100% - 40px); min-width: 0; }
   .phone-rows td:nth-child(3) { flex: 1 1 auto; }
   .phone-rows td:nth-child(4) { flex: none; }
+  /* A table with headings (Routing, Work performance, Metrics) stacks as a list row: the first column is the title, each
+   * other cell a small labelled value beneath it. Table labels each cell with its heading (ui/index.tsx). */
+  /* The headings move into each cell; screen readers keep the real header row. */
+  .phone-rows thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .phone-rows:has(thead) td:first-child { flex: 1 1 100%; }
+  .phone-rows td[data-label] { flex: 0 1 auto; min-width: 0; }
+  .phone-rows td[data-label]:empty { display: none; }
+  .phone-rows td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
+  .phone-rows:has(thead) tr { gap: 8px 18px; align-items: flex-start; }
 }
 
 /* Evidence from the field (P5.3b, #642): a reading and photos on a report, and the photos where the IOC reads it. */

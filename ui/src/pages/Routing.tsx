@@ -22,7 +22,7 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
     <PageHeader subtitle="What happens to each type of work when it arrives.">Routing</PageHeader>
     {!routes.data ? <Status loading={routes.loading} error={routes.error} />
       : rows.length === 0 ? <EmptyState title="No types of work yet">Source packs and modules declare them.</EmptyState>
-      : <Table variant="list" className="routing-table">
+      : <Table variant="list" className="routing-table phone-rows">
         <thead><tr><th>Type</th><th>Goes to</th><th>Due</th><th>Also</th></tr></thead>
         <tbody>{rows.map((r) => <tr key={r.type} aria-current={r.type === type ? "true" : undefined}>
           <td><a href={href("/routing", { type: r.type })} title={r.type}><strong>{r.label}</strong></a></td>
@@ -105,7 +105,7 @@ function Explanation({ x }: { x: RouteExplanation }) {
     {nobody.length > 0 && <p role="alert" className="notice small">Nobody holds {nobody.map((s) => words(s.role)).join(", ")}:
       work there waits unseen. <a href={href("/users", { view: "workflow" })}>Assign someone</a>.</p>}
     {x.process?.published && <ProcessPicture processKey={x.process.key} steps={steps} />}
-    {steps.length > 0 && <Table variant="list">
+    {steps.length > 0 && <Table variant="list" className="phone-rows">
       <thead><tr><th>Step</th><th>Lane</th><th>Held by</th><th>SLA</th><th>Escalates to</th></tr></thead>
       <tbody>{steps.map((s) => <tr key={s.element}>
         <td>{s.step}</td>

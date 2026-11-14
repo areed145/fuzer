@@ -89,7 +89,7 @@ export function InboxPage() {
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
         <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
-        <UIBadge className="badge">{counts.queue} unclaimed in your roles ({d.roles.join(", ") || "none"})</UIBadge>
+        <UIBadge className="badge">{counts.queue} unclaimed in your roles ({d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"})</UIBadge>
         {counts.overdue > 0 && <UIBadge className="badge late">{counts.overdue} overdue</UIBadge>}
         {counts.escalated > 0 && <UIBadge className="badge late">{counts.escalated} escalated</UIBadge>}
         {undispatched > 0 && <a className="badge late" href={href("/exceptions")}>{undispatched} exceptions waiting to be dispatched</a>}
@@ -153,7 +153,7 @@ function NotificationLine({ n, onOpen }: { n: WorkNotification; onOpen: () => vo
     <li>
       <UIBadge className={`badge ${n.kind === "escalated" || n.kind === "due_soon" ? "late" : ""}`}>{KIND[n.kind]}</UIBadge>
       <a href={n.link} onClick={onOpen}>{n.text}</a>
-      <span className="small">{when(n.created_at)}</span>
+      <span className="small when">{when(n.created_at)}</span>
     </li>
   );
 }

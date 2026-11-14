@@ -142,6 +142,28 @@ function fitMenus() {
   });
 }
 
+const plain = (text: string | null | undefined) => (text ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/** A section picker whose chosen section only repeats the large title under it ("Daily reports" over "Daily reports")
+ * hides, and the title itself opens the sections, the way an iOS title menu does. The picker stays reachable by
+ * keyboard and VoiceOver. */
+function titleMenus() {
+  const title = document.querySelector<HTMLElement>("main h1");
+  let match: HTMLElement | null = null;
+  if (phone() && title) {
+    document.querySelectorAll<HTMLElement>("main [data-ios-menu]").forEach((row) => {
+      const item = Array.from(row.children).find(chosen);
+      if (!item || match) return;
+      const count = item.querySelector(".muted")?.textContent ?? "";
+      if (plain((item.textContent ?? "").replace(count, "")) === plain(title.textContent)) match = row;
+    });
+  }
+  document.querySelectorAll("[data-ios-title-menu]").forEach((row) => row !== match && row.removeAttribute("data-ios-title-menu"));
+  document.querySelectorAll(".ios-title-menu").forEach((h) => h !== title && h.classList.remove("ios-title-menu"));
+  if (match) (match as HTMLElement).setAttribute("data-ios-title-menu", "");
+  if (title && title.classList.contains("ios-title-menu") !== !!match) title.classList.toggle("ios-title-menu", !!match);
+}
+
 /** A rotation or a wider window may let a row fit again: measure afresh. */
 function refitMenus() {
   document.querySelectorAll("[data-ios-menu]").forEach((row) => row.removeAttribute("data-ios-menu"));
@@ -199,6 +221,9 @@ function openMenu(row: HTMLElement, button: HTMLElement) {
 
 function pullDowns() {
   document.addEventListener("click", (e) => {
+    const title = (e.target as Element).closest<HTMLElement>("h1.ios-title-menu");
+    const row = title && document.querySelector<HTMLElement>("[data-ios-title-menu]");
+    if (title && row) { e.preventDefault(); openMenu(row, title); return; }
     const item = (e.target as Element).closest<HTMLElement>("[data-ios-menu] > *");
     if (!item || !chosen(item)) return;
     e.preventDefault();
@@ -208,14 +233,14 @@ function pullDowns() {
   window.addEventListener("keydown", (e) => { if (e.key === "Escape" && openFor) closeMenu(true); });
   window.addEventListener("hashchange", () => closeMenu());
   let width = window.innerWidth;
-  window.addEventListener("resize", () => { if (window.innerWidth !== width) { width = window.innerWidth; closeMenu(); refitMenus(); } });
+  window.addEventListener("resize", () => { if (window.innerWidth !== width) { width = window.innerWidth; closeMenu(); refitMenus(); titleMenus(); } });
 }
 
 export function startIos() {
   if (!wanted()) return;
   document.documentElement.classList.add("ios");
   let queued = false;
-  const refold = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; foldTitle(); fitMenus(); }); } };
+  const refold = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; foldTitle(); fitMenus(); titleMenus(); }); } };
   window.addEventListener("scroll", refold, { passive: true });
   window.addEventListener("hashchange", () => setTimeout(refold, 50));
   new MutationObserver(refold).observe(document.body, { childList: true, subtree: true });
