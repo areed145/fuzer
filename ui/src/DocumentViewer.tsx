@@ -132,7 +132,7 @@ export function DocumentFullscreen({ id }: { id: string }) {
       window.removeEventListener("keydown", key);
     };
   }, []);
-  const title = fmt(e.data?.golden.title?.value ?? e.data?.label ?? "Document");
+  const title = fmt(e.data?.golden?.title?.value ?? e.data?.label ?? "Document");
   const z = ZOOMS.indexOf(zoom);
   return (
     <div className="drawing-full doc-full" role="dialog" aria-modal="true" aria-label={title}>

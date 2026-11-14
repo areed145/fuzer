@@ -99,3 +99,15 @@ html.drawing-open, html.drawing-open body { overflow: hidden; }
   overscroll-behavior: contain; }
 .doc-full-stage .doc-pages canvas.doc-page { margin: 0 auto; }
 .doc-full .df-title a { color: inherit; }
+
+/* an entity's P&ID sheets as tiles: every sheet at a glance, each opening full screen with the entity ringed */
+.sheet-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.sheet-thumb { display: flex; flex-direction: column; gap: 6px; color: inherit; text-decoration: none; min-width: 0; }
+.sheet-thumb-img { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 3 / 2;
+  overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+.sheet-thumb:hover .sheet-thumb-img, .sheet-thumb:focus-visible .sheet-thumb-img { border-color: var(--accent); }
+.sheet-thumb-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.sheet-thumb-img svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sheet-thumb-img .hl-ring { fill: none; stroke: var(--accent); stroke-width: 18; }
+.sheet-thumb-cap { display: flex; flex-direction: column; min-width: 0; }
+.sheet-thumb-cap > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

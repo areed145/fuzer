@@ -306,6 +306,12 @@ def entity_status(fuzer_id: str, conn=Depends(get_conn)):
     return {"open_work": len(exceptions.listing(conn, subject=fuzer_id, limit=1000)), **queries.status(conn, fuzer_id)}
 
 
+@router.get("/entities/{fuzer_id}/profile")
+def entity_profile(fuzer_id: str, conn=Depends(get_conn)):
+    """What the asset is: maker, model and serial of the unit there now, its class, criticality, model and location."""
+    return queries.profile(conn, fuzer_id)
+
+
 @router.get("/incidents")
 def all_incidents(since: str | None = None, until: str | None = None, limit: int = 50, conn=Depends(get_conn)):
     return queries.incidents(conn, None, since, until, min(limit, 1000))

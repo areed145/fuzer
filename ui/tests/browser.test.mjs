@@ -6425,13 +6425,9 @@ test("a manual reads inside the app and Close goes back to the asset, so the ins
     values: {}, keys: [], edge_counts: {}, edges: [], records: [{ source: "edms", record_type: "document", source_key: "c40" }] } }));
   for (const x of [asset, id]) await page.route(`**/entities/${x}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
   await page.route(`**/documents/${id}/file*`, (route) => route.fulfill({ contentType: "application/pdf", body: tinyPdf(3) }));
+  // From the asset's documents the manual opens straight in the reader, over the page, and Close comes back to it.
   await page.goto(`${url}/#/e/${asset}?tab=documents`);
   await page.getByRole("link", { name: "C40 manual" }).click();
-  // On its page the manual previews as pages drawn in the app, not the raw file in a frame or a new window.
-  await page.getByRole("link", { name: "Read full screen" }).waitFor();
-  await page.waitForFunction(() => document.querySelectorAll(".doc-preview canvas.doc-page").length === 3);
-  assert.equal(await page.locator("iframe.doc-file").count(), 0);
-  await page.getByRole("link", { name: "Read full screen" }).click();
   const reader = page.getByRole("dialog", { name: "C40 manual" });
   await reader.waitFor();
   await page.waitForFunction(() => document.querySelectorAll(".doc-full canvas.doc-page").length === 3);
@@ -6440,12 +6436,68 @@ test("a manual reads inside the app and Close goes back to the asset, so the ins
   await page.waitForFunction((w) => document.querySelector(".doc-full canvas.doc-page").getBoundingClientRect().width > w * 1.4, before);
   await reader.getByRole("button", { name: "Close document" }).click();
   await reader.waitFor({ state: "detached" });
-  assert.match(page.url(), new RegExp(`#/e/${id}$`));
-  // Escape closes it too, and a shared link opens the reader straight over the page.
-  await page.goto(`${url}/#/e/${asset}?tab=documents&doc=${id}`);
+  assert.match(page.url(), new RegExp(`#/e/${asset}\\?tab=documents$`));
+  // The document's own page previews its pages drawn in the app, never the raw file in a frame or a new window.
+  await page.getByRole("link", { name: "details" }).click();
+  await page.getByRole("link", { name: "Read full screen" }).waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".doc-preview canvas.doc-page").length === 3);
+  assert.equal(await page.locator("iframe.doc-file").count(), 0);
+  await page.getByRole("link", { name: "Read full screen" }).click();
   await reader.waitFor();
+  // Escape closes it too.
   await page.keyboard.press("Escape");
   await reader.waitFor({ state: "detached" });
-  assert.match(page.url(), new RegExp(`#/e/${asset}\\?tab=documents$`));
+  assert.match(page.url(), new RegExp(`#/e/${id}$`));
+  assert.deepEqual(errors, []);
+});
+
+test("an asset's Overview says what it is; work orders and spares sit under Maintenance; every P&ID sheet is a tile", async () => {
+  const id = "fz-tag-0000000c40aa";
+  const sheet = (n) => `fz-document-00000000pid${n}`;
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "tag", label: "20-K-2300A",
+    golden: { description: { value: "Train A 3rd Stage Compressor", source: "sap", rule: "priority" } },
+    values: {}, keys: [], edge_counts: {}, edges: [], records: [] } }));
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}/profile`, (route) => route.fulfill({ json: { description: "Train A 3rd Stage Compressor",
+    manufacturer: "Solar Turbines", model: "C40", serial: "SN79550", criticality: "A", template: "Compressor",
+    equipment_model: { id: "fz-equipment_model-c40", label: "SOLAR TURBINES C40" },
+    equipment_class: { id: "fz-equipment_class-co", label: "ISO14224:CO.CE", description: "Centrifugal compressors" },
+    installed: { id: "fz-equipment-79550", label: "S/N 79550", since: "2009-06-01" }, position: null,
+    location: [{ id: "fz-area-20", kind: "area", label: "OKAN-20", description: "Gas Compression Platform" }],
+    manuals: [{ id: "fz-document-c40", label: "OEM-C40", title: "C40 manual", doc_type: "oem_manual", revision: "A", why: "model" }] } }));
+  await page.route(`**/entities/${id}/spares`, (route) => route.fulfill({ json: [{ fuzer_id: "fz-material-1", label: "MAT-1",
+    used_by: 1, description: "Dry gas seal", mpn: "C40-DGS", stock: 2, bin: "B-12", documents: [] }] }));
+  await page.route(`**/entities/${id}/drawings`, (route) => route.fulfill({ json: { highlight: [id],
+    drawings: [1, 2, 3].map((n) => ({ id: sheet(n), label: `OKAN-20-PID-00${n}`, title: `Sheet ${n}` })) } }));
+  for (const n of [1, 2, 3]) await page.route(`**/documents/${sheet(n)}/drawing`, (route) => route.fulfill({ json: {
+    sheet: `OKAN-20-PID-00${n}`, format: "smart", title: `Sheet ${n}`, read_by: "smart file", image: `/documents/${sheet(n)}/image`,
+    width: 300, height: 200, marks: [{ text: "20-K-2300A", id, status: "linked", x: 150, y: 100 }], connections: [], findings: [] } }));
+  await page.route("**/documents/*/image*", (route) => route.fulfill({ contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="300" height="200" fill="#eee"/></svg>' }));
+  await page.goto(`${url}/#/e/${id}`);
+  const about = page.getByRole("region", { name: "About this asset" }).or(page.locator(".asset-profile"));
+  await about.getByRole("link", { name: "Solar Turbines C40" }).waitFor();
+  for (const text of ["SN79550", "Centrifugal compressors", "Gas Compression Platform", "C40 manual"]) {
+    await about.getByText(text, { exact: false }).first().waitFor();
+  }
+  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
+    ["Overview", "Maintenance", "Timeline", "Documents", "Record", "Graph"]);
+  assert.equal(await page.getByRole("heading", { name: "Spare parts" }).count(), 0);
+  // The manual opens in the reader from the card.
+  await about.getByRole("link", { name: "C40 manual" }).click();
+  await page.locator(".doc-full").waitFor();
+  await page.keyboard.press("Escape");
+  await page.locator(".doc-full").waitFor({ state: "detached" });
+  await page.getByRole("link", { name: "Maintenance", exact: true }).click();
+  await page.getByRole("heading", { name: "Spare parts" }).waitFor();
+  await page.getByText("Dry gas seal").waitFor();
+  // Every sheet is a tile, not a picker; a tile opens that sheet full screen with the asset ringed.
+  await page.getByRole("link", { name: "Documents", exact: true }).click();
+  await page.locator(".sheet-thumb").nth(2).waitFor();
+  assert.equal(await page.locator(".sheet-thumb").count(), 3);
+  assert.equal(await page.getByLabel("P&ID sheet").count(), 0);
+  await page.waitForFunction(() => document.querySelectorAll(".sheet-thumb .hl-ring").length === 3);
+  await page.getByRole("link", { name: "Open OKAN-20-PID-002 full screen" }).click();
+  await page.waitForFunction(() => new URLSearchParams(location.hash.split("?")[1]).get("drawing")?.endsWith("pid2"));
   assert.deepEqual(errors, []);
 });

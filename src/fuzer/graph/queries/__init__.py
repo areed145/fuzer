@@ -44,4 +44,4 @@ from .records import (  # noqa: F401
     source_values,
     stats,
 )
-from .status import status  # noqa: F401
+from .status import profile, status  # noqa: F401
