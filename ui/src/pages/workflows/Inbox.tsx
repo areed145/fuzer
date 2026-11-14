@@ -125,7 +125,7 @@ export function InboxPage() {
       <Group title="Unclaimed in your roles" rows={queue} person={person} picked={picked} toggle={toggle}
         hint="claim one to make it yours" />
       {waitingJobs.length > 0 && <section className="field-jobs" aria-labelledby="waiting-jobs">
-        <h2 id="waiting-jobs">Field jobs waiting in your queues <span className="muted small">{waitingJobs.length} · take one to make it yours</span></h2>
+        <h2 id="waiting-jobs">{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues <span className="muted small">{waitingJobs.length} · take one to make it yours</span></h2>
         {waitingJobs.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}

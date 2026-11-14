@@ -682,6 +682,11 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
     override = (d.override or "").strip()
+    row = conn.execute("select item_id from exception_record where id = %s", (exception_id,)).fetchone()
+    if d.by == d.to and row and row["item_id"]:
+        # A field operator taking a job the IOC already sent to their queue: readiness was the sender's call (with
+        # its reason, when it went though not ready), and the operator has no say on spares or crew.
+        return _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason)
     if not ready["ready"] and not override:
         raise HTTPException(409, "Not ready to dispatch: " + "; ".join(ready["blockers"])
                             + ". Say why it should go anyway.")

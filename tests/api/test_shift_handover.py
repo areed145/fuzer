@@ -114,6 +114,19 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
                 assert listed[0]["id"] == h["id"] and listed[0]["acknowledged_by"] == "lead-in"
                 assert ok(client.get(f"/handovers/{h['id']}"))["facts"]["sections"]["Dispatched"]
                 assert ok(client.get("/handovers/current"))["id"] == h["id"]
+
+                # nobody reads the next one: when the one after is drafted, it stops asking to be read (the persona
+                # tour found five shifts of unread handovers escalated at the top of the ops lead's My work)
+                unread = handover.at_shift_change(conn, later + timedelta(hours=12))
+                newest = handover.at_shift_change(conn, later + timedelta(hours=24))
+                conn.commit()
+                cases = {r["id"]: r for r in conn.execute(
+                    "select id, state from work_item where id = any(%s)", ([unread["item_id"], newest["item_id"]],))}
+                assert cases[unread["item_id"]]["state"] == "cancelled" and cases[newest["item_id"]]["state"] == "open"
+                why = conn.execute("select data->>'reason' as r from work_event where item_id = %s and "
+                                   "data->>'reason' like 'Superseded%%'", (unread["item_id"],)).fetchone()
+                assert why and "handover, which says what holds now" in why["r"]
+                assert ok(client.get(f"/handovers/{unread['id']}"))["state"] != "acknowledged"  # its record stays
     finally:
         _fresh_caches()
         with _admin() as a:

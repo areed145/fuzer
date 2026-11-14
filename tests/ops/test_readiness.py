@@ -239,6 +239,26 @@ def test_starting_a_job_with_no_valid_permit_is_a_gate_with_its_reason_on_the_ca
         settings.reset(conn, "readiness.permit_types", by="test")
 
 
+def test_an_operator_takes_a_job_the_ioc_queued_though_it_is_not_ready(kestrel, client):
+    """The IOC sent a job short of spares to the operator queue with its reason; an operator taking it from the queue
+    is not asked again why it should go: readiness was the sender's call (the persona tour found Take it refused)."""
+    from fuzer.core import work
+    from fuzer.graph import queries
+
+    conn, pack = kestrel
+    work.add_person(conn, "olive", ["operator"], by="test")
+    e = job(conn, "K-2001 queued", queries.resolve_ref(conn, pack, "B1-K-2001"))
+    assert client.get(f"/exceptions/{e}/readiness").json()["ready"] is False
+    assert client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "role:operator",
+                                                        "override": "look only"}).is_success
+    r = client.post(f"/exceptions/{e}/dispatch", json={"by": "olive", "to": "olive", "reason": "taken from the queue"})
+    assert r.status_code == 200, r.text
+    item = r.json()["item_id"]
+    held = conn.execute("select assignee from work_token where item_id = %s and kind = 'user' and state in "
+                        "('ready', 'waiting')", (item,)).fetchall()
+    assert held and all(t["assignee"] == "olive" for t in held), held
+
+
 def test_hot_work_beside_a_line_break_is_flagged_on_plan_and_at_dispatch(kestrel, client):
     from datetime import UTC, datetime
 

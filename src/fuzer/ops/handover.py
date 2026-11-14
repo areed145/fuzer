@@ -255,6 +255,7 @@ def draft(conn, by: str, now: datetime | None = None, force: bool = False) -> di
     from . import routing
 
     payload = {"handover_id": row["id"], **{k.lower(): v for k, v in n.items()}}
+    _supersede(conn, end, label, by)
     item_id = routing.open_process_case(conn, CASE_TYPE, {**payload, "source": "handover"}, by,
                                         f"Shift handover {label}", priority=1.0,
                                         plain={"role": ROLE, "source": "handover", "payload": payload})
@@ -301,6 +302,19 @@ def add_notes(conn, handover_id: int, by: str, notes: str) -> dict:
     if h["item_id"]:
         work.comment(conn, h["item_id"], by, f"Outgoing notes: {notes.strip()}")
     return row
+
+
+def _supersede(conn, end: datetime, label: str, by: str) -> None:
+    """Earlier handovers nobody acknowledged stop asking to be read when the next one is drafted: each was drafted from
+    the work live at its shift change, so the newest says what holds now. Left open, they piled up at the top of the
+    ops lead's My work as escalated (the persona tour found five shifts' worth, every one overdue). Their records stay
+    on the handover page; their cases close with why."""
+    for old in conn.execute(
+            "select h.item_id from shift_handover h join work_item w on w.id = h.item_id "
+            "where h.shift_end < %s and h.state <> 'acknowledged' and w.state not in ('done', 'cancelled')",
+            (end,)).fetchall():
+        work.close_case(conn, old["item_id"], "cancelled", by,
+                        reason=f"Superseded by the {label} handover, which says what holds now")
 
 
 def acknowledge(conn, handover_id: int, by: str, note: str | None = None) -> dict:

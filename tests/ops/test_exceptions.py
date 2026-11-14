@@ -855,6 +855,29 @@ def test_a_dispatched_sap_notification_is_due_by_its_priority(conn):
     conn.commit()
 
 
+def test_a_job_dispatched_after_its_time_ran_out_is_due_from_when_it_was_sent(conn):
+    """A notification that waited two days in All work before the IOC sent it is not overdue as it arrives (the
+    persona tour found a job sent at 2 PM already 19 h overdue and escalated away from the operator in 3 minutes):
+    it gets its priority's hours from the dispatch, and the history says why."""
+    from datetime import UTC, datetime, timedelta
+
+    from fuzer.ops import exceptions as ex
+    from fuzer.ops import intake  # noqa: F401  (declares sap_notification)
+
+    e = raise_exception(conn, "sap_notification", "N-LATE-1", "Seal leak (notification N-LATE-1)", "sap",
+                        refs=["tag:NO-SUCH-TAG"], finding=external("test", {"priority": "1", "status": "OSNO"}))
+    conn.execute("update exception_record set first_seen = now() - interval '48 hours' where id = %s", (e["id"],))
+    row = ex.dispatch(conn, e["id"], "ivy", "role:operator", reason="Check the seal")
+    due = conn.execute("select due from work_item where id = %s", (row["item_id"],)).fetchone()["due"]
+    assert abs((due - (datetime.now(UTC) + timedelta(hours=24))).total_seconds()) < 120, due
+    said = [r["reason"] for r in conn.execute(
+        "select data->>'reason' as reason from work_event where item_id = %s", (row["item_id"],)) if r["reason"]]
+    assert any("from when it was sent" in r for r in said), said
+    conn.execute("update work_item set state = 'done' where id = %s", (row["item_id"],))
+    conn.execute("update exception_record set state = 'closed' where id = %s", (e["id"],))
+    conn.commit()
+
+
 # ---- one front door for work: the routing table and explain (#509) --------------------------------------------------
 
 def _counts(conn) -> tuple:

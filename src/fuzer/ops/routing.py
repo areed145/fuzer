@@ -21,7 +21,7 @@ only through the Work port (`fuzer.core.work`), and it is the one module in `ops
 exception (`fuzer.ops.exceptions` hands it every intake).
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from ..core import settings, work
 from ..core.exceptions import TYPES
@@ -245,7 +245,15 @@ def _dispatched(conn, t, intake: dict, by: str, to: str, reason: str | None) -> 
         work.dispatch(conn, item_id, by, by, f"to send it to {to}")  # the IOC holds it, then sends it
     work.dispatch(conn, item_id, by, to, reason)
     if when := due(conn, intake):
-        work.set_due(conn, item_id, by, when, reason="due by its priority")
+        now = datetime.now(UTC)
+        if when <= now:
+            # Its time from raising has already gone (it waited in All work): dated from now instead, so whoever it
+            # goes to gets the priority's hours to do it, not a job that is overdue and escalated away as it arrives.
+            when = now + (when - intake["first_seen"])
+            work.set_due(conn, item_id, by, when, reason="due by its priority, from when it was sent: its time "
+                                                         "from when it was raised had passed")
+        else:
+            work.set_due(conn, item_id, by, when, reason="due by its priority")
     return item_id
 
 

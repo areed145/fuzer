@@ -360,11 +360,13 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
         <h3 className="small">Checks before restart</h3>
         <ol className="small">{job.checklist!.map((c) => <li key={c}>{c}</li>)}</ol>
       </div>}
-      <div>
+      {/* Waiting in a queue, a job is picked by what, where and how urgent: the evidence record and the asset's
+          history come with it once taken, so a queue of three jobs is not twenty screens long on a phone. */}
+      {!job.queued && <div>
         <h3 className="small">What was found</h3>
         <FindingEvidence finding={job.finding} checks={false} />
-      </div>
-      {job.history.length > 0 && <div>
+      </div>}
+      {!job.queued && job.history.length > 0 && <div>
         <h3 className="small">Lately at this asset</h3>
         <ul className="plain small">{job.history.map((h) => <li key={h.id}>
           {when(h.first_seen)} · {h.title} <span className="muted">({h.state})</span></li>)}</ul>
