@@ -6,7 +6,7 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync, useRouteState } from "../../lib";
-import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
+import { Due, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
@@ -104,7 +104,6 @@ export function InboxPage() {
         {reviews > 0 && <a className="badge" href={href("/masterdata", { tab: "questions" })}>{reviews} data items to review</a>}
         {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
       </p>
-      <ScenarioClock />
       <div className="row">
         <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select aria-label="Filter my work by case type" value={type} onChange={(e) => setType(e.target.value)}>

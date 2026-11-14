@@ -5,7 +5,7 @@ import { say } from "../../wording";
 import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
 import { Status, href, useAsync } from "../../lib";
-import { Actor, DataView, Due, EntityLinks, ScenarioClock, describe, holder, usePerson, when } from "../../work";
+import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson, when } from "../../work";
 import { AgentIdle, AssignPicker, PriorityBadge, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
@@ -84,7 +84,6 @@ export function CasesPage({ query, fixedState, filters }: {
   return (
     <section>
       {!fixedState && <PageHeader>Cases</PageHeader>}
-      <ScenarioClock />
       {state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <div className="row wrap">
         {!fixedState && <div className="tabs">
@@ -217,7 +216,6 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} reload={item.reload} />
-      <ScenarioClock />
       {typeof raised.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
         <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}

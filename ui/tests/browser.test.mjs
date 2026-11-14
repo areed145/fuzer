@@ -2543,24 +2543,6 @@ test("identity changes clear the previous person's inbox while a new response is
   await page.getByText("ben-role", { exact: false }).waitFor();
 });
 
-test("Inbox says which clock due dates use when the loaded data ends well before today (#389)", async () => {
-  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
-  await page.route("**/work/inbox?*", route => route.fulfill({ json: {
-    person: "ana", roles: ["engineer"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
-  await page.route("**/stats", route => route.fulfill({ json: {
-    facility: "OKAN", pack: "okan", records: 1, entities: {}, edges: 0, open_reviews: {}, rebuild: {}, data_through: "2025-12-30" } }));
-  await page.goto(`${url}/#/inbox`);
-  const note = page.getByRole("note").filter({ hasText: "The loaded data runs to" });
-  await note.waitFor();
-  assert.match(await note.innerText(), /due dates, SLAs and opened times are on today's clock/);
-  await page.route("**/stats", route => route.fulfill({ json: {
-    facility: "OKAN", pack: "okan", records: 1, entities: {}, edges: 0, open_reviews: {}, rebuild: {},
-    data_through: new Date().toISOString().slice(0, 10) } }));
-  await page.reload();
-  await page.getByText("unclaimed in your roles", { exact: false }).first().waitFor();
-  assert.equal(await page.getByRole("note").filter({ hasText: "The loaded data runs to" }).count(), 0);
-});
-
 test("the page heading takes focus on load without drawing a focus ring (#391)", async () => {
   await page.goto(`${url}/#/`);
   await page.locator("#main-content h1").first().waitFor();

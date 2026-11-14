@@ -21,11 +21,13 @@ held, and a follow-up is raised.
 
 import csv
 import logging
+from datetime import timedelta
 
 from psycopg.types.json import Jsonb
 
 from ..core import clock, settings, work
 from ..core.exceptions import ExceptionError
+from ..sources import relative_dates
 
 MODES = ("none", "draft", "send")
 DEFAULTS = {"sap": ("draft", "maintenance_planner")}  # a system that sets nothing
@@ -194,8 +196,10 @@ def apply_update(conn, u: dict) -> str | None:
         k = key_cols[-1]
         nums = [int(r[k]) for r in rows if str(r.get(k, "")).isdigit()]
         new[k] = str(max(nums) + 1) if nums else f"{mine[k]}-F"
+        # a rolling facility's file holds its dates as written, moved on when read (#1085): write today as it reads
+        written = clock.today() - timedelta(days=relative_dates.offset())
         for col, value in (("status", u.get("status")), ("short_text", u.get("short_text")),
-                           ("created", clock.today().isoformat()), ("notif_type", u.get("notif_type")),
+                           ("created", written.isoformat()), ("notif_type", u.get("notif_type")),
                            ("priority", u.get("priority"))):
             if col in cols and value:
                 new[col] = value

@@ -12,10 +12,17 @@ plant wall-clock times and dates, and every reader takes a time without a zone a
 Values move a day at a time, not continuously, so a timestamp reads the same all day. A file holding such
 values says so through `mentions()`, and its connector's fingerprint then includes the day, so the daily
 refresh reads it again and the records follow the calendar.
+
+A generated facility rolls forward the same way without tokens (#1085). Its project names the day its exports were
+written as today (`rolls_from: 2025-12-31`), and every whole date or time read from them moves on by the days since
+(`roll`): read on 14 November 2026, `2025-12-30T14:00` is `2026-11-13T14:00`. So its latest data day is always
+yesterday, and its records, process model and historian sit on the same clock as the work Fuzer raises. Dates inside
+identifiers (`OKLOG-2024-01-01-00295`) and free text are left as written: a key that moved every day would retire and
+recreate its record, and changed text would be read by Claude again.
 """
 
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from ..core import clock
 
@@ -48,6 +55,66 @@ def resolve_all(obj, today: date | None = None):
     if isinstance(obj, list):
         return [resolve_all(v, today) for v in obj]
     return resolve(obj, today)
+
+
+# a whole ISO date or time: 2025-12-30, 2025-12-30T14:00, 2025-12-30 14:00:05.123, 2025-12-30T14:00:00+00:00
+ISO = re.compile(r"(?P<d>\d{4}-\d{2}-\d{2})(?P<rest>[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?")
+
+
+def rolls_from() -> date | None:
+    """The day a rolling facility's exports were written as today (its project's `rolls_from`), else None."""
+    from ..core import projects
+
+    try:
+        v = projects.field("rolls_from")
+    except Exception:  # no project, or no database to read it from
+        return None
+    try:
+        return date.fromisoformat(str(v)[:10]) if v else None
+    except ValueError:
+        return None
+
+
+def offset(today: date | None = None) -> int:
+    """Days a rolling facility's dates move on today (0 when the project does not roll)."""
+    anchor = rolls_from()
+    return ((today or plant_today()) - anchor).days if anchor else 0
+
+
+def roll(value, days: int):
+    """A whole date or time moved on by `days`; anything else (numbers, identifiers, free text) unchanged."""
+    if not days:
+        return value
+    if isinstance(value, datetime | date):
+        return value + timedelta(days=days)
+    if not isinstance(value, str) or len(value) < 10 or len(value) > 35 or not value[:4].isdigit():
+        return value
+    m = ISO.fullmatch(value)
+    if not m:
+        return value
+    try:
+        d = date.fromisoformat(m["d"]) + timedelta(days=days)
+    except (ValueError, OverflowError):
+        return value
+    return d.isoformat() + (m["rest"] or "")
+
+
+def roll_all(obj, days: int):
+    """roll() through nested dicts and lists."""
+    if not days:
+        return obj
+    if isinstance(obj, dict):
+        return {k: roll_all(v, days) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [roll_all(v, days) for v in obj]
+    return roll(obj, days)
+
+
+def place(obj, today: date | None = None):
+    """Hand-written settings (a bundle's evals, a pack's dated windows) on today's calendar: a rolling facility's
+    dates moved on, then relative ones resolved."""
+    today = today or plant_today()
+    return resolve_all(roll_all(obj, offset(today)), today)
 
 
 def day() -> str:

@@ -3,7 +3,7 @@
 What it looks at comes from the facility's pack (`investigation:` in its bundle's pack.yaml), never from code:
 
     investigation:
-      title: Why investigate train B's March trips?
+      title: Why investigate train B's compressor trips?
       asset: 20-K-2200B          # a tag the register holds
       since: 2024-03-01          # the incident window, [since, until)
       until: 2024-04-01
@@ -87,7 +87,9 @@ def _month(day: str) -> str:
 
 def guided_investigation(conn, pack: Pack) -> Investigation:
     """Use existing incident/maintenance queries; never generate data, rebuild or call a model."""
-    spec = pack.investigation or {}
+    from ..sources.relative_dates import place
+
+    spec = place(pack.investigation or {})  # a rolling facility's window moves with its data (#1085)
     if not spec.get("asset") or not spec.get("since") or not spec.get("until"):
         raise InvestigationUnavailable(f"{pack.facility} has no guided investigation in its bundle.")
     ref, since, until = spec["asset"], str(spec["since"]), str(spec["until"])

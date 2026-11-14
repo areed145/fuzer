@@ -64,9 +64,16 @@ def _spares(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
     return materials, bom
 
 
+def _rel(d, today, time: str = "") -> str:
+    """A day as a date relative to the day it is read (`today-1d 06:00`, fuzer.sources.relative_dates): what is in date
+    now stays in date whenever it is read, and a facility that rolls its other dates forward (#1085) leaves it be."""
+    days = (d - today).days
+    return ("today" if not days else f"today{days:+d}d") + (f" {time}" if time else "")
+
+
 def _purchase_orders(materials: list[dict]) -> list[dict]:
     """SAP purchase orders (P5.5a): every other material out of stock is on order, due in a few days to a few weeks
-    (dated from the day it is generated), and a few delivered orders show what came in."""
+    (dated relative to the day it is read), and a few delivered orders show what came in."""
     from datetime import date, timedelta
 
     today = date.today()
@@ -74,10 +81,10 @@ def _purchase_orders(materials: list[dict]) -> list[dict]:
     for n, m in enumerate(materials):
         if m["stock"] == "0" and n % 2 == 0:
             out.append({"ebeln": f"45000{n:05d}", "matnr": m["matnr"], "quantity": "2",
-                        "delivery_date": (today + timedelta(days=3 + n % 20)).isoformat(), "status": "open", "vendor": m["manufacturer"]})
+                        "delivery_date": _rel(today + timedelta(days=3 + n % 20), today), "status": "open", "vendor": m["manufacturer"]})
         elif n % 9 == 0:
             out.append({"ebeln": f"45000{n:05d}", "matnr": m["matnr"], "quantity": "1",
-                        "delivery_date": (today - timedelta(days=5 + n % 30)).isoformat(), "status": "delivered", "vendor": m["manufacturer"]})
+                        "delivery_date": _rel(today - timedelta(days=5 + n % 30), today), "status": "delivered", "vendor": m["manufacturer"]})
     return out
 
 
@@ -90,7 +97,7 @@ def _lead_times(materials: list[dict]) -> None:
 
 def _reservations(orders: list[dict], bom: list[dict], materials: list[dict], pos: list[dict]) -> tuple[list, dict]:
     """SAP reservations (RESB, #362): the parts the BOM lists for an open work order, reserved against it for the day
-    the job starts (dated from the day it is generated). Two are planted for the late-arrival check: a part whose
+    the job starts (dated relative to the day it is read). Two are planted for the late-arrival check: a part whose
     open purchase order is due after the job needs it, and a part with none in stock, nothing on order and a planned
     delivery time longer than the time left. The answer key names them."""
     from datetime import date, timedelta
@@ -98,6 +105,7 @@ def _reservations(orders: list[dict], bom: list[dict], materials: list[dict], po
     today = date.today()
     by_mat = {m["matnr"]: m for m in materials}
     po_due = {p["matnr"]: p for p in pos if p["status"] == "open"}
+    days = lambda token: int(token.removeprefix("today").removesuffix("d") or 0)  # a purchase order's _rel() date
     parts: dict[str, list[str]] = {}
     for b in bom:
         parts.setdefault(b["equnr"], []).append(b["matnr"])
@@ -107,14 +115,14 @@ def _reservations(orders: list[dict], bom: list[dict], materials: list[dict], po
         for m in parts[o["equnr"]]:
             mat, need = by_mat[m], today + timedelta(days=14 + (n * 3) % 28)
             if late is None and m in po_due:  # the order lands five days after the job needs it
-                due = date.fromisoformat(po_due[m]["delivery_date"])
+                due = today + timedelta(days=days(po_due[m]["delivery_date"]))
                 if due - timedelta(days=5) > today:
                     need, late = due - timedelta(days=5), (o["aufnr"], m)
             elif (short is None and mat["stock"] == "0" and m not in po_due
                   and int(mat["plifz"]) > 21):  # none in stock, nothing on order, and too far off to arrive in time
                 need, short = today + timedelta(days=10), (o["aufnr"], m)
             out.append({"rsnum": f"{len(out) + 1:010d}", "rspos": "0001", "aufnr": o["aufnr"], "matnr": m,
-                        "quantity": "1", "need_date": need.isoformat(), "status": "open"})
+                        "quantity": "1", "need_date": _rel(need, today), "status": "open"})
     if late:
         key["late_order"] = {"work_order": late[0], "material": late[1]}
     if short:
@@ -149,7 +157,7 @@ def _planned_work(orders: list[dict]) -> None:
 
 def _permits(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
     """Permit-to-work permits and their isolations (P5.5c) on every seventh item now installed: most issued and in
-    date, some expired, and every third one still waiting on an isolation. Dated from the day it is generated."""
+    date, some expired, and every third one still waiting on an isolation. Dated relative to the day it is read."""
     from datetime import date, timedelta
 
     today = date.today()
@@ -161,8 +169,8 @@ def _permits(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
             (today - timedelta(days=1), today + timedelta(days=2))
         no = f"PTW-{30000 + n}"
         permits.append({"permit_no": no, "floc": e["floc"], "permit_type": "hot work" if n % 5 == 0 else "cold work",
-                        "state": "expired" if expired else "issued", "valid_from": f"{start.isoformat()} 06:00",
-                        "valid_to": f"{end.isoformat()} 18:00", "issued_to": "Mechanical maintenance crew",
+                        "state": "expired" if expired else "issued", "valid_from": _rel(start, today, "06:00"),
+                        "valid_to": _rel(end, today, "18:00"), "issued_to": "Mechanical maintenance crew",
                         "work": f"Maintenance on {e['description'].lower()}"})
         for k, (point, method) in enumerate([("inlet valve", "closed and locked"), ("outlet valve", "closed and locked"),
                                              ("casing", "drained and vented")][: 2 + n % 2]):
@@ -175,8 +183,8 @@ def _permits(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
     for n, e in enumerate(items[3::5]):
         start = today - timedelta(days=400 + 7 * n)
         permits.append({"permit_no": f"LPS-{7000 + n}", "floc": f"EQ-{e['equnr']}", "permit_type": "cold work",
-                        "state": "closed", "valid_from": f"{start.isoformat()} 06:00",
-                        "valid_to": f"{(start + timedelta(days=2)).isoformat()} 18:00",
+                        "state": "closed", "valid_from": _rel(start, today, "06:00"),
+                        "valid_to": _rel(start + timedelta(days=2), today, "18:00"),
                         "issued_to": "Mechanical maintenance crew", "work": f"Maintenance on {e['description'].lower()}"})
     return permits, isolations
 

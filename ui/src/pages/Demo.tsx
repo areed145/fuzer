@@ -46,8 +46,8 @@ export function DemoPage({ query, stats }: {
       </>}
       {step.key === "evidence" && <>
         <h3>New to Fuzer? Investigate an Okan issue</h3>
-        <p>Follow train B's March 2024 issue from its asset to source evidence and a finding.
-          Fictional, historical data. Read-only, with no setup or AI key needed.</p>
+        <p>Follow train B's compressor trips from the asset to source evidence and a finding.
+          Fictional data, rolled forward each day. Read-only, with no setup or AI key needed.</p>
         {stats?.pack === "okan" && stats.records > 0
           ? <ButtonLink variant="primary" href={href("/investigate/okan")}>Start guided investigation</ButtonLink>
           : <EmptyState title="Okan demonstration records are not confirmed loaded">

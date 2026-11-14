@@ -22,7 +22,8 @@ from psycopg.types.json import Jsonb
 from ..resources import ROOT
 
 FIELDS = {"data": "FUZER_DATA_DIR", "mappings": "FUZER_MAPPINGS",
-          "timeseries": "FUZER_TIMESERIES", "timezone": "FUZER_TIMEZONE", "cache": "FUZER_CACHE_DIR"}
+          "timeseries": "FUZER_TIMESERIES", "timezone": "FUZER_TIMEZONE", "cache": "FUZER_CACHE_DIR",
+          "rolls_from": "FUZER_ROLLS_FROM"}
 
 
 class ProjectError(LookupError):

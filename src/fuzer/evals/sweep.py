@@ -43,12 +43,12 @@ GATES = {"recall": 1.0, "precision": 0.5}  # the floors a swept detector keeps u
 
 def plan(bundle: Path) -> dict[str, dict]:
     """The bundle's declared detections, by detector, dates resolved."""
-    from ..sources.relative_dates import resolve_all
+    from ..sources.relative_dates import place
 
     path = Path(bundle) / "evals" / FILE
     if not path.exists():
         return {}
-    return resolve_all((yaml.safe_load(path.read_text()) or {}).get("detectors") or {})
+    return place((yaml.safe_load(path.read_text()) or {}).get("detectors") or {})
 
 
 def _when(v) -> datetime:
