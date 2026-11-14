@@ -63,10 +63,13 @@ ISO = re.compile(r"(?P<d>\d{4}-\d{2}-\d{2})(?P<rest>[ T]\d{2}:\d{2}(?::\d{2}(?:\
 
 def rolls_from() -> date | None:
     """The day a rolling facility's exports were written as today (its project's `rolls_from`), else None."""
-    from ..core import projects
+    import os
 
-    try:
-        v = projects.field("rolls_from")
+    from ..core import db, projects
+
+    try:  # only a project stored in this database rolls, never a shipped bundle's config read as a fallback
+        cfg = projects._cached_config(db.scope().project or os.environ.get("FUZER_PROJECT")) or {}
+        v = os.environ.get("FUZER_ROLLS_FROM") or (cfg.get("rolls_from") if cfg.get("source") == "database" else None)
     except Exception:  # no project, or no database to read it from
         return None
     try:
