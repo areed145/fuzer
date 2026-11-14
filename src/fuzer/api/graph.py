@@ -1,12 +1,14 @@
 """Graph and network views, lookup, the review queue and rebuilds."""
 
-from datetime import date, datetime
+import threading
+import time
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..core import ontology
+from ..core import db, ontology
 from ..graph import queries
 from . import deps
 from .deps import get_conn
@@ -51,16 +53,33 @@ def scene(at: str | None = None, rels: str | None = None,
     return scenes.scene(conn, at, wanted or None, deps.pack(), layout, as_of)
 
 
+SCENE_STATUS_SECONDS = 60  # how long one read of a scene's status serves everyone looking at it (#1069)
+_scene_status: dict[tuple, tuple[float, dict]] = {}
+_scene_status_lock = threading.Lock()
+
+
 @router.get("/scene/status")
 def scene_status(at: str | None = None, rels: str | None = None, conn=Depends(get_conn)):
     """Open work, active alarms and down now for every item in the scene `at` names (P5.16b), in one read: the same
-    reads as each entity's status card."""
+    reads as each entity's status card. Reading the whole facility takes seconds on a shared server, and a shift
+    opening the 3D view together would each pay it, so one read serves the project for SCENE_STATUS_SECONDS; `as_of`
+    says when it was read."""
     from ..graph import scene as scenes
     from ..ops import status_now
 
+    key = (db.database_url(), db.scope().schema, at, rels)
+    now = time.monotonic()
+    with _scene_status_lock:
+        for k in [k for k, (t, _) in _scene_status.items() if now - t >= SCENE_STATUS_SECONDS]:
+            del _scene_status[k]
+        if hit := _scene_status.get(key):
+            return hit[1]
     wanted = [r for r in (rels or "").split(",") if r]
     ids = [i["id"] for i in scenes.scene(conn, at, wanted or None, deps.pack())["items"]]
-    return status_now.status(conn, ids)
+    out = {**status_now.status(conn, ids), "as_of": datetime.now(UTC).isoformat(timespec="seconds")}
+    with _scene_status_lock:
+        _scene_status[key] = (now, out)
+    return out
 
 
 @router.get("/scene/trip")

@@ -35,8 +35,10 @@ export function HomePage({ query, stats }: {
             : <p>Ask an administrator to load the demonstration records.</p>}
         </UICard>
       )}
-      {stats && stats.records > 0 && <AttentionCard />}
-      {stats && stats.records > 0 && <div className="home-charts">
+      {/* Shown while the counts load too: they arrive after the cards start their own reads, and adding the cards
+          then pushed everything below them down the page (#1069). */}
+      {!noRecords && <AttentionCard />}
+      {!noRecords && <div className="home-charts">
         {HOME_FIGURES.map(({ kind, title }) => <UICard key={kind} title={title} className="home-card"><LiveFigure kind={kind} /></UICard>)}
       </div>}
       {/* With no records loaded, reports, priorities and incidents can only be empty: keep work and health. */}

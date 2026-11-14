@@ -40,6 +40,7 @@ import re
 
 import yaml
 
+from ..core import yamlfiles
 from . import SKILLS
 
 MANIFEST = "pack.yaml"
@@ -84,14 +85,14 @@ def load(path: str) -> dict:
 
     exempt = {b: got[path] for b, got in not_applicable().items() if path in got}
     root = SKILLS / path
-    pack = yaml.safe_load((root / MANIFEST).read_text()) or {}
+    pack = yamlfiles.load(root / MANIFEST) or {}
     questions = {}
     for b in bundles.shipped() if pack.get("eval") else ():
         if b in exempt:
             continue
         keys = bundles.find(b) / "evals" / f"{pack['eval']}.yaml"
         if keys.is_file():
-            questions[b] = yaml.safe_load(keys.read_text()) or []
+            questions[b] = yamlfiles.load(keys) or []
     return {**pack, "path": path, "playbook": (root / "SKILL.md").read_text() if (root / "SKILL.md").is_file() else "",
             "questions": questions, "not_applicable": exempt}
 

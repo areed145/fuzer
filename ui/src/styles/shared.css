@@ -87,6 +87,8 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 }
 /* Home's charts sit side by side on a desk screen and stack on a phone; no carousel. */
 .home-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+/* A chart still loading holds about the height it will take (headline, chart, tables), so the cards below stay put. */
+.home-charts .home-card:has(.status[role="status"]) { min-height: 760px; }
 @media (max-width: 1000px) { .home-charts { grid-template-columns: 1fr; } }
 /* A case's gate decisions (P5.10): went ahead or stopped, the reason, then the numbers. */
 .gate-list { display: grid; gap: 8px; margin: 0; padding: 0; }
@@ -97,6 +99,8 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 /* Where attention is needed (Home): the map and the ranked places beside it; on a phone, the list under the map and
    a chosen place as a sheet from the bottom. */
 .attention-card { margin-bottom: 16px; }
+/* The loaded card's height (filters, then the 460px map beside the list), held while it loads (#1069). */
+.attention-pending { min-height: 473px; }
 .attention-bar { gap: 4px 16px; align-items: center; }
 .attention-bar .chips { margin: 0 0 10px; }
 .attention-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 16px; align-items: start; }
@@ -118,9 +122,11 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .attention-items li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; align-items: baseline; }
 @media (max-width: 900px) {
   .attention-split { grid-template-columns: minmax(0, 1fr); }
+  .attention-pending { min-height: 960px; }  /* the map above the list */
 }
 @media (max-width: 600px) {
   .attention-card .map { height: 300px !important; }
+  .attention-pending { min-height: 870px; }
   /* A sheet over the lower half: the map stays in view above it. Swipe the handle down, tap outside or tap X to close. */
   .attention-detail { position: fixed; z-index: 1150; left: 0; right: 0; bottom: 0; max-height: 52dvh; overflow: auto;
     border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgb(0 0 0 / .25); padding: 0 16px calc(16px + env(safe-area-inset-bottom));

@@ -43,7 +43,7 @@ from pathlib import Path
 
 import yaml
 
-from . import projects, settings
+from . import projects, settings, yamlfiles
 from .pack import clear_cache, pack_from_config
 
 VERSIONS = {1}
@@ -83,7 +83,7 @@ def read(path: Path) -> dict:
         raise BundleError(f"no bundle.yaml at {path}")
     root = manifest.parent.resolve()
     try:
-        m = yaml.safe_load(manifest.read_text()) or {}
+        m = yamlfiles.load(manifest) or {}
     except yaml.YAMLError as e:
         raise BundleError(f"{manifest} isn't valid YAML: {e}") from None
     if not isinstance(m, dict):
@@ -97,7 +97,7 @@ def read(path: Path) -> dict:
     if not pack_file.is_file():
         raise BundleError(f"{manifest}: pack file {pack_file.name} is missing")
     try:
-        raw_pack = yaml.safe_load(pack_file.read_text())
+        raw_pack = yamlfiles.load(pack_file)
         pack = pack_from_config(raw_pack)
     except Exception as e:
         raise BundleError(f"{pack_file}: not a valid asset pack ({type(e).__name__}: {e})") from None
@@ -130,7 +130,7 @@ def _yaml(manifest: Path, path: Path, what: str):
     if not path.is_file():
         raise BundleError(f"{manifest}: {what} {path.name} is missing")
     try:
-        return yaml.safe_load(path.read_text())
+        return yamlfiles.load(path)
     except yaml.YAMLError as e:
         raise BundleError(f"{path} isn't valid YAML: {e}") from None
 

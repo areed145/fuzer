@@ -31,7 +31,8 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
         </tr>)}</tbody>
       </Table>}
     {chosen && <RouteDetail key={chosen.type} route={chosen} />}
-    <ExceptionTypes person={person} queues={queues} />
+    {/* Under the table once it is in place: shown sooner, the table arriving above it pushed it off the screen (#1069). */}
+    {(routes.data || routes.error) && <ExceptionTypes person={person} queues={queues} />}
   </section>;
 }
 

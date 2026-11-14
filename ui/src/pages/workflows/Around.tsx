@@ -15,10 +15,11 @@ function number(v: number): string {
 /** Around the event (P3.5a): the trend of the unit the event is on over the event's window, with its event lanes
  * (P5.13c), then the alarms that sounded on the event's assets and the operator log entries about them, beside the
  * detections and notifications that joined the case. Nothing shows when the case works no event. */
-export function CaseAround({ id }: { id: number }) {
-  const around = useAsync(() => api.workItemAround(id), [id]);
+export function CaseAround({ id, data }: { id: number; data?: CaseAroundData }) {
+  // The case page reads it beside the case itself and passes it in, so the trend's place is known when the page shows.
+  const around = useAsync(() => data ? Promise.resolve(data) : api.workItemAround(id), [id, data]);
   const [unit, setUnit] = useState<string | null>(null);
-  const d = around.data;
+  const d = data ?? around.data;
   if (!d?.window) return null;
   const units = d.units ?? []; // an older server names none: the alarms and log still show
   const shown = unit ?? units[0]?.id;

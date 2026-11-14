@@ -33,9 +33,12 @@ export function IncidentsPage() {
           </Disclosure>}
         </UICard>
       )}
-      <IncidentRepeats />
-      <FlareAttribution />
-      <RatingProgress />
+      {/* Under the latest incidents once they are in place: shown sooner, the list arriving above pushed them down (#1069). */}
+      {(list.data || list.error) && <>
+        <IncidentRepeats />
+        <FlareAttribution />
+        <RatingProgress />
+      </>}
     </section>
   );
 }
