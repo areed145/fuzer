@@ -213,9 +213,17 @@ settings and never in the repository or chat. Microsoft stays the sign-in for pe
   projects named by `FUZER_DEMO_PROJECTS` (comma-separated; default every project the
   database holds, which on the demo deployment are Okan, Kestrel and Harrier).
   It cannot open other projects unless an owner grants them.
-- It can never be an owner or hold `configure`, whatever roles an owner gives it, so
-  it cannot manage users, settings, sources or routing. It gets no `ai` permission
+- It can go anywhere and change no configuration. It opens every page, including
+  Sources, Ontology, Jobs, Settings and Users, and those pages say "View only". It can
+  never be an owner or hold `configure`, whatever roles an owner gives it, so the
+  server refuses any change to users, settings, sources or routing. The Users page
+  shows it accounts without their Microsoft identifiers. It gets no `ai` permission
   unless an owner grants it `ai_user` on Users.
+- It can be any role. It holds every human workflow role, so My work shows every
+  queue, until someone picks one under **Acting as** in the sidebar (an operator, the
+  ops lead, a data steward). The pick is kept per project and shared by every demo
+  session in that project (`PUT /work/me/roles`, demo account only; an empty list is
+  every role again).
 - Every sign-in and action is recorded as `user:demo`. Its sessions last at most
   12 hours. An owner can disable it on Users; removing `FUZER_DEMO_TOKEN` ends its
   live sessions as well as further sign-ins.

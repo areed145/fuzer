@@ -149,8 +149,12 @@ class AuthenticatedRoute(APIRoute):
                 return await handler(request)
             if db.scope().project and requested_project(request):
                 await run_in_threadpool(self._project_access, person)
-            require(person, permission(self.path, request.method))
             unsafe = request.method not in ("GET", "HEAD")
+            needed = permission(self.path, request.method)
+            if unsafe and needed == "configure" and person.inspect and not person.allows(needed):
+                raise HTTPException(403, "The demo account can look at configuration but can't change it.")
+            if unsafe or not person.reads(needed):
+                require(person, needed)
             if unsafe:
                 csrf_check(request, person)
             # Some existing GET previews can call a provider. Treat those explicitly as paid execution.

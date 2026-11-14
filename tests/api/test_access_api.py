@@ -786,8 +786,15 @@ def test_demo_account_operates_and_audits_as_demo_but_cannot_configure_or_spend(
         ("POST", "/auth/bootstrap", {"token": "test-owner-code-that-is-long-enough-for-setup"}),
     ]:
         assert runtime.request(method, path, json=body).status_code == 403, path
-    assert runtime.get("/settings").status_code == 403
-    assert runtime.get("/auth/access").status_code == 403
+    # It goes anywhere (#1068): configuration and accounts are readable, with no Microsoft identifiers, never writable.
+    assert me["inspect"] is True
+    for path in ("/settings", "/sources", "/ontology", "/jobs/tiers"):
+        assert runtime.get(path).status_code == 200, path
+    refused = runtime.put("/settings/agents.model", json={"value": "changed", "reason": "demo tries"})
+    assert refused.status_code == 403 and "can't change it" in refused.json()["detail"]
+    accounts = runtime.get("/auth/access").json()["accounts"]
+    assert [a["id"] for a in accounts] == ["demo"] and accounts[0]["tenant_id"] == "" and accounts[0]["object_id"] == ""
+    assert runtime.put("/auth/accounts/demo", json={"enabled": True, "owner": False, "roles": ["administrator"]}).status_code == 403
     with db.connect() as conn:
         assert conn.execute("select pinned_by from board_pin where key='demo-test'").fetchone()["pinned_by"] == "user:demo"
         events = conn.execute("select actor, action, data::text as data from access_event order by id").fetchall()
@@ -796,6 +803,26 @@ def test_demo_account_operates_and_audits_as_demo_but_cannot_configure_or_spend(
         assert not conn.execute("select owner from access_account where id = 'demo'").fetchone()["owner"]
         conn.execute("delete from board_pin where key = 'demo-test'")
         conn.commit()
+
+
+def test_demo_account_is_every_human_role_until_it_picks_which_to_act_as(runtime, monkeypatch):
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
+    demo_signed_in(runtime)
+    people = {r["name"] for r in runtime.get("/work/roles/catalog").json() if r["kind"] == "person"}
+    assert {"operator", "ops_lead", "engineer"} <= people
+    with db.connect() as conn:
+        assert set(work.roles_of(conn, "user:demo")) == people
+    picked = runtime.put("/work/me/roles", json={"roles": ["operator"]})
+    assert picked.status_code == 200, picked.text
+    assert picked.json()["roles"] == ["operator"]
+    with db.connect() as conn:
+        assert work.roles_of(conn, "user:demo") == ["operator"]
+        last = conn.execute("select actor, data from work_event where kind = 'roles_set' order by id desc limit 1").fetchone()
+        assert last["actor"] == "user:demo" and last["data"]["roles"] == ["operator"]
+    assert runtime.put("/work/me/roles", json={"roles": ["workflow_admin_made_up"]}).status_code == 400
+    assert set(runtime.put("/work/me/roles", json={"roles": []}).json()["roles"]) == people  # back to every role
+    signed_in(runtime, owner=True)  # only the demo account picks its own roles
+    assert runtime.put("/work/me/roles", json={"roles": ["operator"]}).status_code == 403
 
 
 def test_demo_account_never_owns_or_configures_and_an_owner_or_the_deployment_can_switch_it_off(runtime, monkeypatch):
@@ -807,7 +834,8 @@ def test_demo_account_never_owns_or_configures_and_an_owner_or_the_deployment_ca
         conn.commit()
         demo = access.principal(conn, "demo")
         assert not demo.owner and not demo.allows("configure") and demo.allows("operate")
-    assert runtime.get("/settings").status_code == 403
+    assert runtime.get("/settings").status_code == 200  # read only
+    assert runtime.put("/settings/agents.model", json={"value": "changed", "reason": "demo tries"}).status_code == 403
     signed_in(runtime, owner=True)
     assert runtime.put("/auth/accounts/demo", json={"enabled": True, "owner": True, "roles": []}).status_code == 400
     assert runtime.put("/auth/accounts/demo", json={"enabled": False, "owner": False, "roles": ["operator"]}).status_code == 200

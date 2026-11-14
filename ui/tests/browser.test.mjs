@@ -857,6 +857,39 @@ const setupSettings = {
   ],
 };
 
+test("The demo account goes anywhere, view only on configuration, and picks the role it acts as (#1068)", async () => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, id: "demo", actor: "user:demo", display_name: "Demo account", roles: ["operator"],
+      permissions: ["operate", "read"], inspect: true } } }));
+  await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
+  await page.route("**/settings", (route) => route.fulfill({ json: setupSettings }));
+  await page.route("**/sources/catalog", (route) => route.fulfill({ json: { systems: [], types: { connections: {} } } }));
+  let picked = [];
+  const sent = [];
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [
+    { name: "operator", kind: "person", members: [], processes: [] }, { name: "ops_lead", kind: "person", members: [], processes: [] },
+    { name: "sre", kind: "agent", members: [], processes: [] }] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [
+    { name: "user:demo", roles: picked.length ? picked : ["operator", "ops_lead"], assigned_roles: picked }] }));
+  await page.route("**/work/me/roles", (route) => {
+    picked = route.request().postDataJSON().roles; sent.push(picked);
+    return route.fulfill({ json: { name: "user:demo", roles: picked, picked } });
+  });
+  await page.goto(`${url}/#/sources`);
+  await page.getByRole("heading", { name: "Source readiness", exact: true }).waitFor();
+  await page.getByText("View only: the demo account can look at this page but can't change it.").waitFor();
+  const acting = page.getByRole("combobox", { name: "Acting as" });
+  await acting.locator("option", { hasText: "ops lead" }).waitFor({ state: "attached" });
+  assert.equal(await acting.inputValue(), "");  // every role until one is picked
+  assert.equal(await acting.locator("option").count(), 3);  // every role, and the two human roles; no agent role
+  await acting.selectOption("ops_lead");
+  await page.waitForFunction(() => document.querySelector('select[aria-label="Acting as"]')?.value === "ops_lead");
+  assert.deepEqual(sent, [["ops_lead"]]);
+  await page.goto(`${url}/#/inbox`);
+  assert.equal(await page.getByText("View only:", { exact: false }).count(), 0);  // work pages are the demo's to act on
+});
+
 test("Source readiness belongs in Sources and Settings remains application-wide on desktop/mobile", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
     user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));

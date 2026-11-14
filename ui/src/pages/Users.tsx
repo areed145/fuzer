@@ -8,7 +8,8 @@ import { TeamsPage, WorkflowAssignments } from "./workflows/Teams";
 export function UsersPage({ query }: { query: URLSearchParams }) {
   const session = useAuth();
   const configure = usePermission("configure");
-  const owner = !!session?.user?.owner;
+  // The demo account reads the accounts page too; the server refuses its changes.
+  const owner = !!session?.user?.owner || !!session?.user?.inspect;
   if (!owner && !configure) return <section><PageHeader>Users</PageHeader>
     <p>Users administration requires configuration access. Only an owner can approve accounts or grant application permissions.</p>
     <a href={href("/")}>Return home</a></section>;

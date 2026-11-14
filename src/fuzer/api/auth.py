@@ -184,6 +184,14 @@ def bootstrap(body: Setup, request: Request):
 
 @router.get("/access")
 def administration(request: Request):
+    """Accounts and application roles, for an owner. An inspector (the demo account) reads the same page with the
+    Microsoft identifiers left out."""
+    person = identify(request)
+    if person is not None and person.enabled and person.inspect and not person.owner:
+        with db.connect() as conn:
+            return {"accounts": [{**a, "tenant_id": "", "object_id": ""} for a in access.accounts(conn)],
+                    "roles": conn.execute("select * from access_role order by name").fetchall(),
+                    "permissions": access.PERMISSIONS}
     _owner(request)
     with db.connect() as conn:
         return {"accounts": access.accounts(conn),

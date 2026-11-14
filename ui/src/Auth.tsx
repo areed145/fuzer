@@ -28,10 +28,17 @@ function kept(): Kept | null {
 const AuthContext = createContext<AuthSession | null>(null);
 export const useAuth = () => useContext(AuthContext);
 export const refreshAccess = () => window.dispatchEvent(new Event("fuzer:access-changed"));
+/** Whether this person's pages show what `permission` covers. The demo account sees configuration too (it goes
+ * anywhere), though the server refuses its changes there: see useViewOnly. */
 export function usePermission(permission: string) {
   const session = useAuth();
   return !session || session.mode === "local" || !!session.user?.enabled &&
-    (session.user.owner || session.user.permissions.includes(permission));
+    (session.user.owner || session.user.permissions.includes(permission) || permission === "configure" && !!session.user.inspect);
+}
+/** True for an account that can look at configuration but not change it (the demo account). */
+export function useViewOnly() {
+  const user = useAuth()?.user;
+  return !!user?.enabled && !!user.inspect && !user.owner && !user.permissions.includes("configure");
 }
 
 export function AuthGate({ children }: { children: ReactNode }) {
