@@ -213,15 +213,17 @@ def _records(name: str, c, d: dict, since=None):
     from .formats import Formats
 
     fmt = Formats.of(d)
-    path = getattr(c, "path", None)  # a file of relative dates is already on today's calendar (connectors._relative)
-    days = 0 if getattr(c, "live", False) or (path is not None and connectors._relative(Path(path))) else relative_dates.offset()
+    days = 0 if getattr(c, "live", False) else relative_dates.offset()
+    today = relative_dates.plant_today()
+    # moved first, then relative dates (`today-1d`, in any table kind) resolved: a relative date is never moved
+    place = lambda row: relative_dates.resolve_all(relative_dates.roll_all(row, days), today)
     if d.get("reader"):
         for source, rtype, key, payload in c.records():
-            yield source, rtype, key, relative_dates.roll_all(fmt.row(payload), days)
+            yield source, rtype, key, place(fmt.row(payload))
         return
     cols = d["key"] or ()
     for row in c.rows(since):
-        row = relative_dates.roll_all(fmt.row(row), days)
+        row = place(fmt.row(row))
         yield d["source"], d["record_type"], ">".join(str(row[k]) for k in cols), row
 
 
