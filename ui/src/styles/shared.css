@@ -115,6 +115,8 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .attention-split > .mapview { position: sticky; top: 16px; }
 .home-lead { margin-bottom: 16px; }
 .home-lead > .home-card { margin-bottom: 0; }
+/* A dispatcher's All work card, loading, holds its loaded height (counts and the three highest value) (#1069). */
+.home-lead > .home-card:has(.status[role="status"]) { min-height: 180px; }
 .attention-list { list-style: none; margin: 0; padding: 0; display: grid; }
 .attention-list li { border-bottom: 1px solid var(--line); }
 .attention-list li.selected { background: var(--accent-soft); }

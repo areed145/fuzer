@@ -170,6 +170,8 @@ const WARM_EVERY_MS = 15 * 60_000;
 /** The most assets kept ahead, in job order. A person holding every queue (the demo's accounts) reached 113, and
  * reading each one's drawings, documents and pages kept My work busy for half a minute on every visit (#1069). */
 export const MAX_PACK_ASSETS = 10;
+/** The most of this shift's rounds kept ahead. */
+export const MAX_PACK_ROUNDS = 6;
 /** Let the page that asked for the jobs draw and read first: the pack is for later, out of signal. */
 const WARM_AFTER_MS = 3000;
 let warming = false;
@@ -215,8 +217,10 @@ export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
         api.entityMap(id)]);
     }
     // This shift's rounds and their points (kept whoever they name), so a round can be walked without signal.
+    // Only rounds still to walk, at most MAX_PACK_ROUNDS: an account in every role read all 29 of the shift's (#1069).
     const runs = await api.rounds().catch(() => []);
-    for (const r of Array.isArray(runs) ? runs : []) await api.round(r.id).catch(() => null);
+    const toWalk = (Array.isArray(runs) ? runs : []).filter((r) => r.state === "open" || r.state === "partly_done");
+    for (const r of toWalk.slice(0, MAX_PACK_ROUNDS)) await api.round(r.id).catch(() => null);
     for (const id of drawings) {
       const g = await api.drawing(id).catch(() => null);
       if (g?.image) await requestFile(projectUrl(g.image)).catch(() => null);

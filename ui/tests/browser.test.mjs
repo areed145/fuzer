@@ -4749,6 +4749,38 @@ test("P5.17b The top bar shows no signal and what waits to send on every page, a
   assert.equal(posts[0].note, "Gland weeping");
 });
 
+// #1069: an asset's overview cards (status, work here, what it is) answered in any order and each drawn as it came,
+// so a later one pushed the others down (CLS 0.09 to 0.12 live). The page reads them together and draws them at once.
+test("an asset's overview opens in place: its cards draw together, not as each answers (#1069)", async () => {
+  await page.addInitScript(() => { window.__cls = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__cls += e.value; })
+    .observe({ type: "layout-shift", buffered: true }); });
+  const id = "fz-equipment-k2200";
+  const ent = { fuzer_id: id, kind: "equipment", label: "20-K-2200B gas compressor", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} };
+  const row = (n) => ({ id: n, type: "machine_health", key: `k${n}`, title: `High vibration ${n}`, source: "screen", state: "open",
+    first_seen: "2026-11-12T05:00:00Z", last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [id], item_id: null, planned: false,
+    assignee: null, role: null });
+  const profile = { location: [{ id: "fz-area-1", label: "OKAN-20", description: "Gas compression" }], manufacturer: "Siemens",
+    model: "SGT-400", serial: "S-1", installed: null, position: null, equipment_class: null, equipment_model: null, criticality: "A", manuals: [] };
+  const late = (json, ms) => (route) => setTimeout(() => route.fulfill({ json }).catch(() => {}), ms);
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === `/entities/${id}`) return route.fulfill({ json: ent });
+    if (path === `/entities/${id}/profile`) return late(profile, 200)(route);
+    if (path === `/entities/${id}/drawings`) return late({ highlight: [], drawings: [] }, 200)(route);
+    if (path === `/entities/${id}/map`) return route.fulfill({ json: { type: "FeatureCollection", features: [], focus: id } });
+    if (path === "/exceptions") return late([row(1), row(2), row(3)], 900)(route);
+    if (path === "/plan") return late([], 900)(route);
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/e/${id}`);
+  await page.getByText("High vibration 3", { exact: true }).waitFor();
+  await page.getByText("SGT-400", { exact: false }).waitFor();
+  await page.waitForTimeout(500);
+  const cls = await page.evaluate(() => window.__cls);
+  assert.ok(cls < 0.01, `the overview moved as it loaded: CLS ${cls.toFixed(3)}`);
+});
+
 // P5.17c (#1092): with signal, the jobs' assets, their drawings and documents are kept on the phone; without it the
 // asset's page, its document list and its drawing open from the phone, labelled, and a page not kept says so.
 test("P5.17c A job's asset page, documents and drawing open without signal, and an unkept page says so", async () => {

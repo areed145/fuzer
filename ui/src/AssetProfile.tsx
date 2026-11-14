@@ -9,9 +9,13 @@ import { openDrawing } from "./DrawingFullscreen";
 import { entityHref, useAsync } from "./lib";
 import { Card } from "./ui";
 
-export function AssetProfile({ id }: { id: string }) {
-  const p = useAsync(() => api.entityProfile(id), [id]).data;
-  const sheets = useAsync(() => api.entityDrawings(id).catch(() => null), [id]).data;
+/** What the card reads, shared with the asset page so it can draw its overview at once (#1069). */
+export const readProfile = (id: string) =>
+  Promise.all([api.entityProfile(id).catch(() => null), api.entityDrawings(id).catch(() => null)]);
+
+export function AssetProfile({ id, data }: { id: string; data?: Awaited<ReturnType<typeof readProfile>> }) {
+  const own = useAsync(() => (data === undefined ? readProfile(id) : Promise.resolve(undefined)), [id, data === undefined]).data;
+  const [p, sheets] = data ?? own ?? [null, null];
   if (!p || !("location" in p)) return null;
   const make = [p.manufacturer, p.model].filter(Boolean).join(" ");
   const rows: [string, ReactNode][] = [];
