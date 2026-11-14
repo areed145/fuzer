@@ -1,6 +1,7 @@
 /** Home is my shift (P5.1a, #649): one ranked list of everything waiting on the person and overdue in their roles,
  * across every field they hold roles in, with what changed since they last looked and what is coming. A row in
  * another field opens there in one click (the tab switches field and lands on the item). */
+import { useEffect } from "react";
 import { api, type WorkHome, type WorkRow } from "../api";
 import { Badge, Button, Card, Empty } from "../ui";
 import { Status, href, useAsync } from "../lib";
@@ -27,7 +28,8 @@ type Row = WorkRow & { project: string };
 const late = (r: Row) => !!r.overdue || !!r.escalated_at;
 const ranked = (a: Row, b: Row) => Number(late(b)) - Number(late(a)) || byUrgency(a, b);
 
-export function YourShift() {
+/** `onReady` is told once the card has drawn for good, so Home can hold the cards below it until then (#1069). */
+export function YourShift({ onReady }: { onReady?: () => void } = {}) {
   const [person] = usePerson();
   const session = useAuth();
   const here = session?.project ?? "";
@@ -35,6 +37,8 @@ export function YourShift() {
   const here_ = useAsync(() => (person ? api.inbox(person) : Promise.resolve(null)), [person]);
   const since = useAsync(() => (person ? api.workHome(person, true) : Promise.resolve(null)), [person]);
   const field = useAsync(() => (person ? api.fieldJobsBrief(person) : Promise.resolve(null)), [person]);
+  const settled = !person || [here_, fields, since, field].every((r) => r.data !== undefined || !!r.error);
+  useEffect(() => { if (settled) onReady?.(); }, [settled, onReady]);
   if (!person) return <Card className="home-card home-today" title="My work" as="section"><Empty className="small">Choose your name under “You are” in the menu.</Empty></Card>;
   // This field's own work, plus every other field they hold roles in (the server lists only those they may open).
   const local: Row[] = here_.data ? [...here_.data.mine, ...here_.data.queue].map((r) => ({ ...r, project: here })) : [];
@@ -55,7 +59,6 @@ export function YourShift() {
   if (quiet) return null;
   // Draw the card once every read has settled (#1069): counts and rows arriving after "Since you last looked" pushed
   // everything below them down the page.
-  const settled = [here_, fields, since, field].every((r) => r.data !== undefined || !!r.error);
   if (!settled) return <Card className="home-card home-today" title="My work" as="section"><Status loading /></Card>;
   return (
     <Card className="home-card home-today" title="My work" as="section" actions={<a href={my}>Open My work</a>}>
