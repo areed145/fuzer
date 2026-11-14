@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, Input } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
-import { OUTBOX_CHANGED, clearRefused, flush, outbox, refusedReasons, sendReport, useOutbox, type FlushResult } from "../fieldOffline";
+import { OUTBOX_CHANGED, clearRefused, flush, outbox, refusedReasons, sendReport, sendTake, useOutbox, type FlushResult, type QueuedTake } from "../fieldOffline";
 import { NEEDS_SIGNAL } from "../signal";
 import { useSignal } from "../useSignal";
 
@@ -42,7 +42,7 @@ export function Outbox({ onSent }: { onSent: () => void }) {
     </Card>
   );
 }
-import { entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, useAsync } from "../lib";
 import { Due, reportedBy, when } from "../work";
 import { FindingEvidence } from "../Finding";
 import { taskHref, useAct } from "./workflows/shared";
@@ -84,6 +84,15 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
 export function RoundsThisShift({ person }: { person: string }) {
   const runs = useAsync(() => api.rounds(), []);
   const [open, setOpen] = useState<number | null>(null);
+  const kept = useOutbox().waiting.filter((w) => w.kind === "round_take").map((w) => w.payload as QueuedTake);
+  // Takes kept on the phone that have now gone: read the rounds again, so they show as taken by the server.
+  const [sent, setSent] = useState(0);
+  const reload = runs.reload;
+  useEffect(() => {
+    const done = (e: Event) => { if ((e as CustomEvent<FlushResult | undefined>).detail?.sent) { reload(); setSent((n) => n + 1); } };
+    window.addEventListener(OUTBOX_CHANGED, done);
+    return () => window.removeEventListener(OUTBOX_CHANGED, done);
+  }, [reload]);
   const list = Array.isArray(runs.data) ? runs.data : [];
   if (!list.length) return null;
   return (
@@ -92,35 +101,51 @@ export function RoundsThisShift({ person }: { person: string }) {
       <ul className="plain">{list.map((r) => <li key={r.id}>
         <Button size="sm" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>
           {r.round}{r.area ? ` (${r.area})` : ""}</Button>{" "}
-        <RoundProgress run={r} />
-        {open === r.id && <RoundPoints id={r.id} person={person} canTake={r.state === "open"} onTaken={runs.reload} />}
+        <RoundProgress run={r} onPhone={kept.filter((t) => t.run === r.id)} />
+        {open === r.id && <RoundPoints key={sent} id={r.id} person={person} canTake={r.state === "open"} onTaken={runs.reload}
+          onPhone={kept.filter((t) => t.run === r.id)} />}
       </li>)}</ul>
     </section>
   );
 }
 
-function RoundProgress({ run }: { run: RoundRun }) {
+function RoundProgress({ run, onPhone }: { run: RoundRun; onPhone: QueuedTake[] }) {
+  // Points taken on the phone and not yet sent (P5.17d) count too, and say so.
+  const fresh = new Set(onPhone.map((t) => t.point)).size;
+  const taken = Math.min(run.points, run.taken + fresh);
   return <span className="small">
-    <Badge tone={run.taken >= run.points ? "ok" : undefined}>{run.taken} of {run.points} taken</Badge>
+    <Badge tone={taken >= run.points ? "ok" : undefined}>{taken} of {run.points} taken</Badge>
+    {fresh > 0 && <> <Badge tone="warn">{fresh} on this phone</Badge></>}
     {(run.found ?? 0) > 0 && <> <Badge tone="warn">{run.found} found something</Badge></>}
   </span>;
 }
 
-function RoundPoints({ id, person, canTake, onTaken }: { id: number; person: string; canTake: boolean; onTaken: () => void }) {
+/** Outside a reading point's limits, from the limits kept with the round: so the phone can say so without signal. */
+const outside = (p: RoundPoint, v: number) => (p.low != null && v < p.low) || (p.high != null && v > p.high);
+const limits = (p: RoundPoint) => `${p.low ?? "…"} to ${p.high ?? "…"} ${p.unit ?? ""}`.trim();
+
+function RoundPoints({ id, person, canTake, onTaken, onPhone }: { id: number; person: string; canTake: boolean;
+  onTaken: () => void; onPhone: QueuedTake[] }) {
   const r = useAsync(() => api.round(id), [id]);
-  if (!r.data || !Array.isArray(r.data.points)) return null;
+  if (!r.data || !Array.isArray(r.data.points)) return <Status loading={r.loading} error={r.error} onRetry={r.reload} />;
   const taken = () => { r.reload(); onTaken(); };
-  return <ol className="small">{r.data.points.map((p) => <li key={p.id}>
-    <strong>{p.what}</strong> <span className="muted">{p.asset_label ?? ""}</span>
-    {p.kind === "reading" && (p.low != null || p.high != null) &&
-      <span className="muted"> · {p.low ?? "…"} to {p.high ?? "…"} {p.unit ?? ""}</span>}
-    {p.kind === "check" && <span className="muted"> · check</span>}
-    {p.taken && <> <Badge tone={p.taken.passed === false ? "warn" : "ok"}>
-      {p.kind === "reading" ? `${p.taken.value} ${p.unit ?? ""}`.trim() : p.taken.passed ? "Passed" : "Found something"}
-      {p.taken.passed === false && p.kind === "reading" ? ", outside its limits" : ""}</Badge>
-      {p.taken.exception_id != null && <span className="muted"> · sent to the IOC</span>}</>}
-    {canTake && <TakePoint run={id} point={p} person={person} onTaken={taken} />}
-  </li>)}</ol>;
+  return <ol className="small">{r.data.points.map((p) => {
+    const mine = onPhone.filter((t) => t.point === p.id).at(-1);
+    return <li key={p.id}>
+      <strong>{p.what}</strong> <span className="muted">{p.asset_label ?? ""}</span>
+      {p.kind === "reading" && (p.low != null || p.high != null) && <span className="muted"> · {limits(p)}</span>}
+      {p.kind === "check" && <span className="muted"> · check</span>}
+      {mine ? <> <Badge tone="warn">
+        {p.kind === "reading" ? `${mine.value} ${p.unit ?? ""}`.trim() : mine.passed ? "Passed" : "Found something"} · on this phone</Badge>
+        {(mine.passed === false || (p.kind === "reading" && mine.value != null && outside(p, mine.value))) &&
+          <span className="muted"> · {p.kind === "reading" ? `outside ${limits(p)}, ` : ""}goes to the IOC when sent</span>}</>
+      : p.taken && <> <Badge tone={p.taken.passed === false ? "warn" : "ok"}>
+        {p.kind === "reading" ? `${p.taken.value} ${p.unit ?? ""}`.trim() : p.taken.passed ? "Passed" : "Found something"}
+        {p.taken.passed === false && p.kind === "reading" ? ", outside its limits" : ""}</Badge>
+        {p.taken.exception_id != null && <span className="muted"> · sent to the IOC</span>}</>}
+      {canTake && <TakePoint run={id} point={p} person={person} onTaken={taken} />}
+    </li>;
+  })}</ol>;
 }
 
 function TakePoint({ run, point, person, onTaken }: { run: number; point: RoundPoint; person: string; onTaken: () => void }) {
@@ -128,9 +153,10 @@ function TakePoint({ run, point, person, onTaken }: { run: number; point: RoundP
   const [note, setNote] = useState("");
   const [failing, setFailing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Without signal the take is kept on the phone and sent with the time it was taken (P5.17d).
   const send = (t: { value?: number; passed?: boolean; note?: string }) => {
     setError(null);
-    api.takeRound(run, { point: point.id, by: person, ...t }).then(() => { setFailing(false); setNote(""); onTaken(); },
+    sendTake({ run, point: point.id, by: person, ...t }).then((how) => { setFailing(false); setNote(""); if (how === "sent") onTaken(); },
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   };
   const label = `${point.what}${point.asset_label ? ` on ${point.asset_label}` : ""}`;

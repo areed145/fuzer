@@ -4767,6 +4767,69 @@ test("P5.17c A job's asset page, documents and drawing open without signal, and 
   await page.getByRole("link", { name: "Back to My work" }).waitFor();
 });
 
+// P5.17d (#1093): this shift's rounds are kept on the phone, every point can be taken without signal, a reading
+// outside its limits says so at once, and each take reaches the server once, with its time, when signal returns.
+test("P5.17d A round is walked without signal and each take arrives once with its time", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olu"));
+  let reachable = true;
+  const posts = [];
+  const run = { id: 3, round: "Compression rounds", area: "B1", shift_start: "2026-11-14T06:00:00Z", shift_end: "2099-11-14T18:00:00Z",
+    role: "operator", points: 2, taken: 0, found: 0, state: "open" };
+  const point = (id, what, kind, over = {}) => ({ id, point_id: id, asset: "fz-k1", asset_label: "B1-K-2001", round: run.round,
+    area: "B1", what, kind, unit: null, low: null, high: null, taken: null, ...over });
+  const detail = { ...run, points: [point("R-1", "Lube oil pressure", "reading", { unit: "barg", low: 3, high: 5.5 }),
+    point("R-2", "Seal gas panel", "check")] };
+  const answers = {
+    "/exceptions/field": { person: "olu", jobs: [], coming_up: [] },
+    "/work/inbox": { person: "olu", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } },
+    "/rounds": [run], "/rounds/3": detail,
+  };
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.fallback();
+    if (!reachable) return route.abort("internetdisconnected");
+    if (path === "/rounds/3/readings") {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ json: { ...detail.points[0], exception: null } });
+    }
+    if (path in answers) return route.fulfill({ json: answers[path] });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: /Rounds this shift/ }).waitFor();
+  const keptKeys = () => page.evaluate(async () => {
+    const db = await new Promise((ok) => { const r = indexedDB.open("fuzer-field"); r.onsuccess = () => ok(r.result); });
+    return new Promise((ok) => { const r = db.transaction("kept").objectStore("kept").getAllKeys(); r.onsuccess = () => ok(r.result.map(String)); });
+  });
+  for (let i = 0; !(await keptKeys()).some((k) => k.endsWith("/rounds/3")) && i < 100; i++) await page.waitForTimeout(100);
+
+  reachable = false;
+  await page.reload();
+  await page.getByText("No signal: these are your jobs as kept on this phone", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Compression rounds (B1)" }).click();
+  const before = Date.now();
+  await page.getByLabel("Reading for Lube oil pressure on B1-K-2001").fill("2.1");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("2.1 barg · on this phone").waitFor();
+  await page.getByText("outside 3 to 5.5 barg, goes to the IOC when sent", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Passed", exact: true }).click();
+  await page.getByText("Passed · on this phone").waitFor();
+  await page.getByText("2 of 2 taken").waitFor();
+  await page.getByText("2 on this phone").waitFor();
+  assert.equal(posts.length, 0);
+
+  reachable = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  for (let i = 0; posts.length < 2 && i < 100; i++) await page.waitForTimeout(100);
+  await page.waitForTimeout(300);
+  assert.equal(posts.length, 2);
+  assert.deepEqual(posts.map((p) => [p.point, p.value ?? null, p.passed ?? null]), [["R-1", 2.1, null], ["R-2", null, true]]);
+  assert.ok(posts.every((p) => p.client_id && Date.parse(p.at) >= before - 1000), "each with its id and the time it was taken");
+  const rounds = page.locator('section[aria-labelledby="rounds-this-shift"]');
+  await rounds.getByText("on this phone", { exact: false }).first().waitFor({ state: "detached" });
+});
+
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
 // with what changed since they last looked, and reaches an item in another field in one click from Home.
 test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {
@@ -5243,14 +5306,19 @@ test("an operator sees this shift's rounds and takes a round's readings and chec
   await rounds.getByLabel("Reading for Discharge pressure on B1-K-2001").fill("65.5");
   await save.click();
   await expectReports(sent, 1);
-  assert.deepEqual(sent[0], { point: "fz-rp1", by: "olu", value: 65.5 });
+  // P5.17d (#1093): each reading carries its client id and when it was taken, so a resend is applied once
+  const { client_id, at, ...reading } = sent[0];
+  assert.deepEqual(reading, { point: "fz-rp1", by: "olu", value: 65.5 });
+  assert.match(client_id, /^[0-9a-f-]{36}$/);
+  assert.ok(!Number.isNaN(Date.parse(at)));
   await rounds.getByRole("button", { name: "Found something" }).click();
   const go = rounds.getByRole("button", { name: "Send to the IOC" });
   assert.equal(await go.isDisabled(), true);
   await rounds.getByLabel("What you found at No oil on the skid on B1-K-2001").fill("oil weeping at the drain");
   await go.click();
   await expectReports(sent, 2);
-  assert.deepEqual(sent[1], { point: "fz-rp2", by: "olu", passed: false, note: "oil weeping at the drain" });
+  const { client_id: _c, at: _a, ...check } = sent[1];
+  assert.deepEqual(check, { point: "fz-rp2", by: "olu", passed: false, note: "oil weeping at the drain" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 

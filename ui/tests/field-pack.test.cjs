@@ -11,7 +11,7 @@ function load() {
   const exports = {};
   const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/fieldPack.ts"), "utf8"),
     { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  runInNewContext(code, { exports, URL, JSON, setTimeout,
+  runInNewContext(code, { exports, URLSearchParams, JSON, setTimeout,
     require: (name) => (name.endsWith("authState") ? { getProject: () => "" } : { getScope: () => "", put: async () => true }) });
   return exports;
 }

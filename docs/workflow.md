@@ -301,6 +301,13 @@ Kept answers stay under 150 MB, the oldest going first; the job lists don't coun
 the account, but never its outbox. Maps keep each asset's position and the directions link to the phone's own maps
 app; no map tiles are kept, since public tile servers forbid it.
 
+Rounds work without signal (P5.17d, #1093). The rounds list and each round's points are kept with the field pack, so
+an operator can walk a round with no signal. Each reading is kept on the phone with its client id and the time it was
+taken, shows on its point as "on this phone", and is checked against the point's limits there, saying that a reading
+outside them goes to the IOC when sent. The server applies each client id once and records both when the reading was
+taken and when it arrived. When two readings of one point meet, the one taken later stands, whichever arrived first.
+A reading taken during the shift is accepted after the run has closed, and the run's state is counted again.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and
