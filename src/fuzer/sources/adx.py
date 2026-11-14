@@ -9,8 +9,15 @@ landing layout; FUZER_ADX_CATALOG names a different catalog table.
 Settings: FUZER_ADX_URL (cluster URI, e.g. https://mycluster.westeurope.kusto.windows.net),
 FUZER_ADX_DATABASE, FUZER_ADX_TOKEN (a bearer token; Entra ID sign-in comes with #12). A fake
 cluster to try it on: `uv run fakeplant historian`.
+
+Queries go to the query endpoint (`/v1/rest/query`) only, never the management endpoint, so a `.show` command is not
+sent. A v1 response is a sequence of tables: the result, then `@ExtendedProperties`, `QueryStatus` and a
+`TableOfContents` naming them. A query that fails after the 200 status line says so only in `QueryStatus` (a
+severity of 2 or less), so the client reads it and raises rather than return a truncated result. Proven on responses
+from Microsoft's REST reference under tests/sources/fixtures/adx (R.2b).
 """
 
+import math
 import re
 from collections.abc import Iterator
 from datetime import datetime
@@ -40,6 +47,55 @@ def quote(s: str) -> str:
     return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
+class AdxError(RuntimeError):
+    """A query ADX refused or failed, with its HTTP status (0 for a failure reported inside a 200 response)."""
+
+    def __init__(self, message: str, status: int):
+        super().__init__(message)
+        self.status = status
+
+
+def _error(r: httpx.Response) -> AdxError:
+    body = {}
+    if "json" in r.headers.get("content-type", ""):
+        try:
+            body = r.json().get("error") or {}
+        except ValueError:
+            body = {}
+    said = body.get("@message") or body.get("message") or r.text.strip()
+    return AdxError(f"ADX query failed ({r.status_code}): {said}" if said else f"ADX query failed ({r.status_code})",
+                    r.status_code)
+
+
+def _result(tables: list[dict]) -> dict:
+    """The primary result of a v1 response, after checking its QueryStatus. A response of one table (as some proxies
+    and older clusters send) is that table."""
+    if len(tables) == 1:
+        return tables[0]
+    toc = tables[-1]
+    names = [c["ColumnName"] for c in toc.get("Columns", [])]
+    if "Kind" not in names or "Ordinal" not in names:
+        return tables[0]
+    kinds = [dict(zip(names, r)) for r in toc["Rows"]]
+    for k in kinds:
+        if k["Kind"] == "QueryStatus":
+            st = tables[int(k["Ordinal"])]
+            cols = [c["ColumnName"] for c in st["Columns"]]
+            for row in (dict(zip(cols, r)) for r in st["Rows"]):
+                if row.get("Severity") is not None and int(row["Severity"]) <= 2:
+                    raise AdxError(f"ADX query failed partway: {row.get('StatusDescription') or 'no description'}", 0)
+    first = next((k for k in kinds if k["Kind"] == "QueryResult"), None)
+    return tables[int(first["Ordinal"])] if first else {"Columns": [], "Rows": []}
+
+
+def _number(v) -> float | None:
+    """A JSON number, or the strings ADX writes for non-finite reals ("NaN", "Infinity"), as None."""
+    if v is None or isinstance(v, str):
+        return None
+    v = float(v)
+    return None if math.isnan(v) or math.isinf(v) else v
+
+
 class Client:
     """An ADX cluster: `cfg` is a connection's config with its token resolved; without one, the first ADX
     connection, else the old settings."""
@@ -59,14 +115,14 @@ class Client:
             token = cfg.get("token")
             http = httpx.Client(headers={"Authorization": f"Bearer {token}"} if token else {}, timeout=120)
         self.http = http
+        self.http.headers["Accept"] = "application/json"  # required by the REST API, or an error need not be JSON
 
     def query(self, csl: str) -> list[dict]:
         """Rows of the first result table as dicts (REST API v1)."""
         r = self.http.post(f"{self.url}/v1/rest/query", json={"db": self.database, "csl": csl})
         if r.status_code >= 400:
-            err = (r.json().get("error") or {}) if "json" in r.headers.get("content-type", "") else {}
-            raise RuntimeError(f"ADX query failed ({r.status_code}): {err.get('@message') or err.get('message') or r.text}")
-        table = r.json()["Tables"][0]
+            raise _error(r)
+        table = _result(r.json()["Tables"])
         names = [c["ColumnName"] for c in table["Columns"]]
         return [dict(zip(names, row)) for row in table["Rows"]]
 
@@ -120,7 +176,7 @@ class Provider:
             f"{table} | where SeriesId == {quote(s['adx_series_id'])} and Timestamp between "
             f"(datetime({start.isoformat()}) .. datetime({end.isoformat()})) "
             f"| summarize Value = avg(Value) by bin(Timestamp, {step_minutes}m) | order by Timestamp asc")
-        return [(r["Timestamp"][:16], round(float(r["Value"]), 3)) for r in rows if r["Value"] is not None]
+        return [(r["Timestamp"][:16], round(v, 3)) for r in rows if (v := _number(r["Value"])) is not None]
 
     def high_rate(self, s: dict, start: datetime, end: datetime, step_seconds: int) -> list[tuple[str, float]]:
         """Values averaged into `step_seconds` bins (#358); the caller (timeseries.high_rate) bounds the window."""
@@ -134,4 +190,4 @@ class Provider:
             f"(datetime({start.isoformat()}) .. datetime({end.isoformat()})) "
             f"| summarize Value = avg(Value) by bin(Timestamp, {int(step_seconds)}s) | order by Timestamp asc "
             f"| take {HIGH_RATE_VALUES}")
-        return [(r["Timestamp"][:19], round(float(r["Value"]), 4)) for r in rows if r["Value"] is not None]
+        return [(r["Timestamp"][:19], round(v, 4)) for r in rows if (v := _number(r["Value"])) is not None]

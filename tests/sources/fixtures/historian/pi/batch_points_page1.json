@@ -1,0 +1,97 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2. A batch with a failed sub-request answers 207 Multi-Status; each sub-response has its own Status, Headers and Content (PIResponse).",
+ "request": {
+  "method": "POST",
+  "path": "/piwebapi/batch",
+  "params": {}
+ },
+ "status": 207,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "0": {
+   "Status": 200,
+   "Headers": {
+    "Content-Type": "application/json; charset=utf-8"
+   },
+   "Content": {
+    "Links": {},
+    "Items": [
+     {
+      "Name": "tag",
+      "Value": "SITE:FI-101.PV"
+     },
+     {
+      "Name": "descriptor",
+      "Value": "Inlet flow"
+     },
+     {
+      "Name": "engunits",
+      "Value": "Sm3/d"
+     },
+     {
+      "Name": "pointsource",
+      "Value": "OPC"
+     },
+     {
+      "Name": "pointtype",
+      "Value": "float32"
+     },
+     {
+      "Name": "compdev",
+      "Value": 0.2
+     }
+    ]
+   }
+  },
+  "1": {
+   "Status": 200,
+   "Headers": {
+    "Content-Type": "application/json; charset=utf-8"
+   },
+   "Content": {
+    "Links": {},
+    "Items": [
+     {
+      "Name": "tag",
+      "Value": "SITE:PI-102.PV"
+     },
+     {
+      "Name": "descriptor",
+      "Value": "Inlet pressure"
+     },
+     {
+      "Name": "engunits",
+      "Value": "barg"
+     },
+     {
+      "Name": "pointsource",
+      "Value": "OPC"
+     },
+     {
+      "Name": "pointtype",
+      "Value": "float32"
+     },
+     {
+      "Name": "compdev",
+      "Value": 0.2
+     }
+    ]
+   }
+  },
+  "2": {
+   "Status": 403,
+   "Headers": {
+    "Content-Type": "application/json; charset=utf-8"
+   },
+   "Content": {
+    "Errors": [
+     "[-10401] No Read Access - Secure Object"
+    ]
+   }
+  }
+ }
+}

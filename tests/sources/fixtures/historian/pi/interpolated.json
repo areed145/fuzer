@@ -1,0 +1,90 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2. Bad values are PI system digital states (I/O Timeout 246, Comm Fail 313, Bad Input 307 in the System state set) with Good false. A timestamp can carry fractions of a second.",
+ "request": {
+  "method": "GET",
+  "path": "/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/interpolated",
+  "params": {
+   "startTime": "2026-11-01T00:00:00Z",
+   "endTime": "2026-11-01T02:30:00Z",
+   "interval": "30m"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "Links": {},
+  "Items": [
+   {
+    "Timestamp": "2026-11-01T00:00:00Z",
+    "UnitsAbbreviation": "Sm3/d",
+    "Good": true,
+    "Questionable": false,
+    "Substituted": false,
+    "Annotated": false,
+    "Value": 1520.25
+   },
+   {
+    "Timestamp": "2026-11-01T00:30:00Z",
+    "UnitsAbbreviation": "Sm3/d",
+    "Good": false,
+    "Questionable": false,
+    "Substituted": false,
+    "Annotated": false,
+    "Value": {
+     "Name": "I/O Timeout",
+     "Value": 246,
+     "IsSystem": true
+    }
+   },
+   {
+    "Timestamp": "2026-11-01T01:00:00Z",
+    "UnitsAbbreviation": "Sm3/d",
+    "Good": false,
+    "Questionable": false,
+    "Substituted": false,
+    "Annotated": false,
+    "Value": {
+     "Name": "Comm Fail",
+     "Value": 313,
+     "IsSystem": true
+    }
+   },
+   {
+    "Timestamp": "2026-11-01T01:30:00Z",
+    "UnitsAbbreviation": "Sm3/d",
+    "Good": false,
+    "Questionable": false,
+    "Substituted": false,
+    "Annotated": false,
+    "Value": {
+     "Name": "Bad Input",
+     "Value": 307,
+     "IsSystem": true
+    }
+   },
+   {
+    "Timestamp": "2026-11-01T02:00:00Z",
+    "UnitsAbbreviation": "Sm3/d",
+    "Good": true,
+    "Questionable": false,
+    "Substituted": false,
+    "Annotated": false,
+    "Value": 1522
+   },
+   {
+    "Timestamp": "2026-11-01T02:30:00.5Z",
+    "UnitsAbbreviation": "Sm3/d",
+    "Good": true,
+    "Questionable": false,
+    "Substituted": false,
+    "Annotated": false,
+    "Value": 1523.75
+   }
+  ],
+  "UnitsAbbreviation": "Sm3/d"
+ }
+}

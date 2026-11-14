@@ -1,0 +1,21 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2. A point path that doesn't resolve answers 404 with PIErrors. Message written for this fixture.",
+ "request": {
+  "method": "GET",
+  "path": "/piwebapi/points",
+  "params": {
+   "path": "\\\\SITE-PI\\SITE:NOPE.PV"
+  }
+ },
+ "status": 404,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "Errors": [
+   "PI Point not found '\\\\SITE-PI\\SITE:NOPE.PV'."
+  ]
+ }
+}

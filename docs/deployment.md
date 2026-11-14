@@ -267,6 +267,29 @@ Repository changes, opening a PR and merging do not themselves verify a live Ren
 deployment. Before sharing a deployed revision, verify fresh-session login and approval,
 owner administration, desktop/mobile Okan navigation, and rejected unauthorized writes.
 
+### Deploying and rolling back at a shift-safe time
+
+A deploy restarts the service, and startup can take minutes when the deploy changes data (see Initial load and
+upgrades). The board and the phones are unavailable while it does. So a deploy the IOC depends on goes out between
+shifts, and a bad one is rolled back the same way.
+
+1. **Agree a window with the IOC lead.** Use a gap between shifts, after the handover is acknowledged. Check the Jobs
+   page first: let a running `refresh_all` or `day_close` finish, since a deploy interrupts it.
+2. **Check the deploy before the window.** CI is green on `main`, and Settings > Onboarding shows the Go live step
+   complete (or `uv run fuzer onboarding`). Note the commit that is live now, from the service's Events tab: it is
+   what a rollback returns to.
+3. **Deploy.** Render deploys `main` when it changes. To hold a change for the window, turn off auto-deploy on the
+   service and use Manual Deploy, then Deploy latest commit, in the window.
+4. **Confirm it is up.** The startup log says `already initialized; keeping settings and reviewer decisions`, not a fresh load. Then
+   check `/health`, sign in, open the Board and one dispatched job on a phone. If startup logged `Data refresh failed`,
+   the service is running on the register it had: open Sources before deciding to roll back.
+5. **Roll back if it isn't right.** In the service's Events tab, choose the deploy noted in step 2 and Rollback. A
+   rollback redeploys the earlier image only; it does not roll back the database. The earlier image re-applies its
+   own schema on start, which only adds what is missing, so tables and columns the newer image added stay and are
+   ignored. Decisions recorded since the deploy are kept. If the bad deploy damaged data rather than code, restore
+   instead (Restoring at a shift-safe time, below).
+6. **Tell the incoming shift** what changed, or that it was rolled back, in the handover notes.
+
 ## Backup and restore
 
 Everything a shift would miss lives in `fuzer-db`:
@@ -336,6 +359,23 @@ A local rehearsal on 13 Nov 2026 used Postgres 16 and the Okan register (117 tab
 Row counts in `public` matched. The restored `fuzer` schema had every row from before the backup and none from after it. On the restored database, `fuzer audit export` showed the first change and not the second. On the original, the same export over the window since the backup listed exactly the second change, which is the one a restore would lose. `fuzer projects list` worked on the restored database.
 
 A rehearsal of point-in-time recovery on Render itself hasn't been run. The recovery database is billed while it exists.
+
+## What a pilot site provides for its historian (PL.2)
+
+The PI Web API and ADX connectors are proven on recorded responses (R.2, [Time series](timeseries.md)). Reading a
+site's own historian needs these from the site, agreed before the pilot starts:
+
+| Item | PI Web API | Azure Data Explorer |
+|---|---|---|
+| Account | A read-only account (Basic, or Kerberos through a gateway) with read on the PI Data Archive points and the AF database. No write, no admin. | An Entra ID app or user with the database Viewer role only. A token is stored as a secret reference (`env:NAME`), never in settings. |
+| Address | The PI Web API URL (`https://<host>/piwebapi`) and, if self-signed, its certificate to trust. | The cluster URI (`https://<cluster>.<region>.kusto.windows.net`). |
+| Where the data is | The Data Archive server name and the AF server and database names. | The database name, the series catalog table (default `SeriesCatalog`: SeriesId, PiPoint, Description, Units, ValuesTable) and the values table (SeriesId, Timestamp, Value). |
+| Network path | HTTPS from the Fuzer service to the PI Web API host, through the site's DMZ or a read-only replica (the zones in [OT security](ot-security.md)). Nothing reaches into the control network. | HTTPS from the Fuzer service to the cluster. |
+| Limits | The server's page and batch limits, if lowered from the defaults (Fuzer pages 1000 points and batches 500 requests). | Any request throttling policy on the database (Fuzer does not retry a throttled query). |
+| A file export of the same server | The point list and AF tree as files, once, so the live load can be compared with them. | The series catalog as a file, once. |
+
+With these, add the connection on Sources and run its test (or `uv run fuzer sources test <id>`). Each step (reach,
+authenticate, list, read) says in plain words what failed and what to ask the site for.
 
 ## Performance
 

@@ -12,7 +12,8 @@ One small web server, two faces over the same signals:
   series id, PI point, description, units, values table) and a `PiValues` table (SeriesId,
   Timestamp, Value; one raw sample every 5 minutes). Queries are a small subset of KQL: `where`
   (==, in, between datetime), `project`, `summarize ... avg/min/max/count ... by bin(Timestamp, Nm)`,
-  `order by` and `take`. Anything else gets an ADX-style 400 error.
+  `order by`, `take` and `print`. Anything else gets an ADX-style 400 error. Responses carry the four v1 tables
+  ADX sends (result, @ExtendedProperties, QueryStatus, TableOfContents), as in Microsoft's REST reference.
 
 The point list and AF tree come from the fake exports (pi_points, pi_af.json). Values are the
 deterministic synthetic signals (fuzer.sources.timeseries.SyntheticProvider), and the upsets in them come
@@ -31,7 +32,7 @@ import json
 import re
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -176,8 +177,15 @@ def app(data_dir) -> FastAPI:
                 "Links": {"Self": f"{request.base_url}piwebapi/points/{wid}",
                           "InterpolatedData": f"{request.base_url}piwebapi/streams/{wid}/interpolated"}}
 
-    def page(items: list, start: int, count: int) -> dict:
-        return {"Items": items[start:start + count]}
+    def page(items: list, start: int, count: int, request: Request | None = None) -> dict:
+        """One page with PI Web API's pagination Links (First, Previous, Next, Last), as the real server sends."""
+        links = {}
+        if request is not None:
+            at = lambda i: str(request.url.include_query_params(startIndex=max(i, 0), maxCount=count))
+            last = max(len(items) - 1, 0) // max(count, 1) * count
+            links = {"First": at(0), **({"Previous": at(start - count)} if start > 0 else {}),
+                     **({"Next": at(start + count)} if start + count < len(items) else {}), "Last": at(last)}
+        return {"Links": links, "Items": items[start:start + count]}
 
     def missing(what: str) -> JSONResponse:
         return JSONResponse({"Errors": [f"{what} not found."]}, status_code=404)
@@ -198,7 +206,8 @@ def app(data_dir) -> FastAPI:
     def points(request: Request, web_id: str, nameFilter: str = "*", startIndex: int = 0, maxCount: int = 1000):
         pattern = re.compile(fnmatch_regex(nameFilter), re.IGNORECASE)
         names = [n for n in plant.points if pattern.fullmatch(n)]
-        return {"Items": [point_obj(request, n) for n in names[startIndex:startIndex + maxCount]]}
+        listed = page(names, startIndex, maxCount, request)
+        return {**listed, "Items": [point_obj(request, n) for n in listed["Items"]]}
 
     @api.get(f"{base}/points")
     def point_by_path(request: Request, path: str):
@@ -242,9 +251,10 @@ def app(data_dir) -> FastAPI:
                     e["path"].startswith(el["path"] + "\\") for e in plant.elements)}
 
     @api.get(f"{base}/assetdatabases/{{web_id}}/elements")
-    def elements(web_id: str, searchFullHierarchy: bool = False, startIndex: int = 0, maxCount: int = 1000):
+    def elements(request: Request, web_id: str, searchFullHierarchy: bool = False, startIndex: int = 0,
+                 maxCount: int = 1000):
         els = plant.elements if searchFullHierarchy else [e for e in plant.elements if "\\" not in e["path"]]
-        return page([element_obj(e) for e in els], startIndex, maxCount)
+        return page([element_obj(e) for e in els], startIndex, maxCount, request)
 
     @api.get(f"{base}/elements/{{web_id}}/attributes")
     def element_attributes(web_id: str):
@@ -310,7 +320,8 @@ def app(data_dir) -> FastAPI:
             res = point_attributes(m.group(2)) if m.group(1) == "points" else element_attributes(m.group(2))
             out[key] = ({"Status": res.status_code, "Content": json.loads(res.body)} if isinstance(res, JSONResponse)
                         else {"Status": 200, "Content": res})
-        return out
+        # Like PI Web API: a batch with any failed sub-request answers 207 Multi-Status (R.2a).
+        return JSONResponse(out, status_code=207 if any(r["Status"] >= 400 for r in out.values()) else 200)
 
     @api.post("/v1/rest/query")
     async def adx_query(request: Request):
@@ -320,11 +331,39 @@ def app(data_dir) -> FastAPI:
         except KqlError as e:
             return JSONResponse({"error": {"code": "General_BadRequest", "message": "Request is invalid and cannot "
                                            "be executed.", "@message": str(e)}}, status_code=400)
-        return {"Tables": [{"TableName": "Table_0",
-                            "Columns": [{"ColumnName": c, "DataType": t, "ColumnType": t.lower()} for c, t in cols],
-                            "Rows": rows}]}
+        return v1_tables(cols, rows)
 
     return api
+
+
+# The scalar type ADX names for each .NET DataType in a v1 response (Microsoft's REST reference, R.2b).
+COLUMN_TYPE = {"String": "string", "DateTime": "datetime", "Double": "real", "Int64": "long", "Int32": "int",
+               "Boolean": "bool", "Object": "dynamic", "TimeSpan": "timespan"}
+
+
+def v1_tables(cols: list[tuple[str, str]], rows: list[list]) -> dict:
+    """A v1 query response as ADX sends one: the result, @ExtendedProperties, QueryStatus and the TableOfContents
+    that names them (R.2b; it was one table before)."""
+    def table(name, columns, rows_):
+        return {"TableName": name, "Columns": [{"ColumnName": c, "DataType": t, "ColumnType": COLUMN_TYPE[t]}
+                                               for c, t in columns], "Rows": rows_}
+
+    activity = str(uuid.uuid4())
+    status = [[_iso(datetime.now(UTC).replace(tzinfo=None)), 4, "Info", 0, "Query completed successfully", 1, activity, activity, activity,
+               "fakeplant.historian"]]
+    return {"Tables": [
+        table("Table_0", cols, rows),
+        table("Table_1", [("Value", "String")], [['{"Visualization":null}']]),
+        table("Table_2", [("Timestamp", "DateTime"), ("Severity", "Int32"), ("SeverityName", "String"),
+                          ("StatusCode", "Int32"), ("StatusDescription", "String"), ("Count", "Int32"),
+                          ("RequestId", "String"), ("ActivityId", "String"), ("SubActivityId", "String"),
+                          ("ClientActivityId", "String")], status),
+        table("Table_3", [("Ordinal", "Int64"), ("Kind", "String"), ("Name", "String"), ("Id", "String"),
+                          ("PrettyName", "String")],
+              [[0, "QueryResult", "PrimaryResult", activity, ""], [1, "QueryProperties", "@ExtendedProperties",
+                                                                   activity, ""],
+               [2, "QueryStatus", "QueryStatus", "00000000-0000-0000-0000-000000000000", ""]]),
+    ]}
 
 
 def fnmatch_regex(pattern: str) -> str:
@@ -391,6 +430,10 @@ def kql(plant: Plant, csl: str) -> tuple[list[tuple[str, str]], list[list]]:
     """Run one query against the catalog or the values table."""
     stages = _split(csl)
     table, ops = stages[0], stages[1:]
+    if m := re.fullmatch(r"print\s+(\w+)\s*=\s*(\d+)", table):  # the connection test's sign-in check
+        return [(m.group(1), "Int64")], [[int(m.group(2))]]
+    if table.startswith("."):
+        raise KqlError("management commands are not sent to the query endpoint")
     wheres = [_conditions(op[5:]) for op in ops if op.startswith("where ")]
     conds = [c for w in wheres for c in w]
     if table == "SeriesCatalog":

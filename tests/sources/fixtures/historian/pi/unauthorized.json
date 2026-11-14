@@ -1,0 +1,16 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "A 401 when a Basic credential is wrong or expired: PI Web API (IIS-free, self-hosted) answers with WWW-Authenticate challenges and no JSON body. Written for this fixture.",
+ "request": {
+  "method": "GET",
+  "path": "/piwebapi/dataservers",
+  "params": {}
+ },
+ "status": 401,
+ "headers": {
+  "content-type": "text/html",
+  "www-authenticate": "Negotiate, Basic realm=\"pi.example.com\""
+ },
+ "body": ""
+}
