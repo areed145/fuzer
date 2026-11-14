@@ -29,6 +29,7 @@ from ..core import settings
 from ..core.exceptions import ExceptionError, exception_type, raise_exception
 from ..core.findings import DETERMINISTIC, Finding, asset, at, fact
 from ..core.jsonsafe import plain as _plain
+from ..core.wording import alarm as describe
 
 # Defaults; the values in effect are settings (#131): sre.handoff.min_detections, .max_diagnoses, .max_usd
 UPSET = exception_type("upset", "Process upset", process="upset", audience=("ioc", "field"), suppress=True,
@@ -201,6 +202,19 @@ def title(u: dict) -> str:
     return f"{what} on {where}{value} from {u['start']:%Y-%m-%d %H:%M}{spread}"
 
 
+def reword(conn) -> int:
+    """Upset cases titled in the old machine shape ("Upset: Detected alarm:lo on ... reaching 25 units") put in
+    people's words (#1072). Only the title changes; it touches nothing else and is a no-op once done."""
+    from ..core.wording import say
+
+    n = 0
+    for r in conn.execute("select id, title from work_item where type = 'upset' and title ~ '^(Upset: )?Detected '"):
+        if (new := say(r["title"])) != r["title"]:
+            conn.execute("update work_item set title = %s where id = %s", (new, r["id"]))
+            n += 1
+    return n
+
+
 def suppressed(conn) -> set[tuple]:
     return {(r["point_id"], r["detector"], r["key"]) for r in conn.execute("select point_id, detector, key from sre_suppress")}
 
@@ -279,9 +293,10 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
     max_diagnoses = settings.get(conn, "sre.handoff.max_diagnoses") if max_diagnoses is None else max_diagnoses
     max_usd = settings.get(conn, "sre.handoff.max_usd") if max_usd is None else max_usd
     sync_feedback(conn)
+    reword(conn)
     ups = candidates(conn)
     for u in ups:
-        u["label"] = f"{u['point'] or u['unit_label']} {u['key']}"
+        u["label"] = f"{describe(u['key'])} on {u['tag'] or u['point'] or u['unit_label']}"
         u["text"] = title(u)
         u["score"] = priority(conn, pack, u, today)
     ups.sort(key=lambda u: -u["score"]["value_usd"])

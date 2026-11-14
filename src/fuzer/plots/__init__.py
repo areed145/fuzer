@@ -37,9 +37,34 @@ class Figure:
     sources: list[str] = field(default_factory=list)
     by: str = "fuzer"  # "assistant" when the agent supplied the numbers (plot_custom)
 
+    def __post_init__(self) -> None:
+        # Unit symbols in every label, legend, hover and table the chart shows (#1072): °C, Sm³, µm. Data stays.
+        self.title = _worded(self.title)
+        self.data = [_worded(t) for t in self.data]
+        self.layout = _worded(self.layout)
+        self.summary = _worded(self.summary)
+
     @property
     def spec(self) -> dict:
         return {"data": self.data, "layout": self.layout}
+
+
+_DATA_KEYS = {"x", "y", "z", "customdata", "ids", "meta", "sources", "source_ids", "rows_ids", "uirevision"}
+
+
+def _worded(v, key: str | None = None):
+    """Unit spellings in a chart's text as symbols; values, ids and links to records left as they are."""
+    from ..core.wording import units
+
+    if key in _DATA_KEYS:
+        return v
+    if isinstance(v, str):
+        return units(v)
+    if isinstance(v, dict):
+        return {k: _worded(x, k) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_worded(x, key) for x in v]
+    return v
 
 
 # A chart fails for the same reasons its calc does (too few tests, no curve); one error for both.

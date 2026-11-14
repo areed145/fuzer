@@ -26,7 +26,7 @@ def _number(value: float | None) -> str:
 
 
 def _rate(value: float | None) -> str:
-    return UNKNOWN if value is None else f"{_number(value)} Sm3/d"
+    return UNKNOWN if value is None else f"{_number(value)} Sm³/d"
 
 
 def _compact(value: float) -> str:
@@ -35,6 +35,14 @@ def _compact(value: float) -> str:
 
 def _words(value: str) -> str:
     return value.replace("_", " ")
+
+
+def _constraint(c: dict) -> str:
+    """A constraint by name, with its category in words where the name doesn't already say it (#1072):
+    "Export (export)" is just "Export", "Reported well potential [wells]" is "Reported well potential"."""
+    label, category = str(c["label"]), str(c.get("category") or "").replace("_", " ")
+    stem = category.rstrip("s").lower()
+    return label if not stem or stem in label.lower() else f"{label} ({category})"
 
 
 def constraint_label(point: dict, constraints: list[dict]) -> str:
@@ -47,8 +55,8 @@ def constraint_label(point: dict, constraints: list[dict]) -> str:
         return "Reported potential · physical constraint unknown"
     if not ids:
         return UNKNOWN
-    labels = " + ".join(f"{known[id]['label']} [{known[id]['category']}]" for id in ids)
-    return f"{labels} (tied)" if len(ids) > 1 else labels
+    labels = " + ".join(_constraint(known[id]) for id in ids)
+    return f"{labels}, tied" if len(ids) > 1 else labels
 
 
 def production_efficiency(out: dict, notice: str) -> Figure:
@@ -100,12 +108,12 @@ def production_efficiency(out: dict, notice: str) -> Figure:
             # three tiles, not six (#1074): the sentence above says the rest, and the totals sit in the notes and table
             "stats": [
                 # lead with what was lost and why (#307): at ~100% efficiency the totals alone say little
-                {"label": "Unrealized gap · paired days", "value": _number(lost), "unit": "Sm3"},
+                {"label": "Short of the maximum", "value": _number(lost), "unit": "Sm³"},
                 {"label": "Weighted efficiency", "value": "Unknown" if efficiency is None else f"{_number(efficiency)}%"},
-                *([{"label": "Biggest cause", "value": cause}] if cause else []),
+                *([{"label": "Mostly held back by", "value": cause}] if cause else []),
             ] if summary["paired_days"] else [],
-            "notes": [f"Over the {summary['paired_days']} paired days: {_number(summary['allocated_sm3'])} Sm3 allocated against "
-                      f"a dynamic maximum of {_number(summary['dynamic_max_sm3'])} Sm3.",
+            "notes": [f"Over the {summary['paired_days']} days with both values: {_number(summary['allocated_sm3'])} Sm³ allocated against "
+                      f"a dynamic maximum of {_number(summary['dynamic_max_sm3'])} Sm³.",
                       "Unknown values are gaps, never zero."],
             "warnings": out["warnings"],
             "tables": [{"title": "Daily data", "columns": [

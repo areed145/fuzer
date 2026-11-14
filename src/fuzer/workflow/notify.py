@@ -92,7 +92,7 @@ def _recipients(conn, e: dict, title: str, now: datetime) -> list[tuple[str, str
     elif e["kind"] in ("step_started", "created") and (p := _person(d.get("assignee"))) and p != actor:
         out.append((p, "assigned", f"'{title}'{step} is yours."))
     elif e["kind"] == "escalated":
-        why = d.get("why") or "Its SLA passed."
+        why = d.get("why") or "It was not done in time."
         holder = conn.execute("select assignee, role from work_token where id = %s", (e["token_id"],)).fetchone()
         now_with = [holder["assignee"]] if holder and holder["assignee"] else (
             _role_people(conn, holder["role"], now) if holder and d.get("to", "").startswith("role:") else [])
@@ -193,7 +193,9 @@ def mine(conn, person: str, limit: int = 30) -> dict:
                         "from work_notification where person = %s order by id desc limit %s", (person, limit)).fetchall()
     unread = conn.execute("select count(*) as n from work_notification where person = %s and read_at is null",
                           (person,)).fetchone()["n"]
-    return {"notifications": rows, "unread": unread}
+    from ..core.wording import say
+
+    return {"notifications": [{**r, "text": say(r["text"])} for r in rows], "unread": unread}
 
 
 def mark_read(conn, person: str, ids: list[int] | None = None) -> dict:

@@ -121,6 +121,15 @@ FLOOD_TYPE, ACTOR_TYPE = _flood_type().name, _actor_type().name
 _WHAT = "Alarm performance work for the alarm owner, not an alarm to acknowledge."
 
 
+def _tag(conn, point_id: str | None) -> str | None:
+    """The instrument tag a point belongs to (10-LT-2004 for OKA_PP.10LT2004.PV), the name the console uses (#1072)."""
+    if not point_id:
+        return None
+    r = conn.execute("select t.label from edge h join entity_label t on t.fuzer_id = h.src "
+                     "where h.dst = %s and h.rel = 'has_timeseries' order by t.label limit 1", (point_id,)).fetchone()
+    return r["label"] if r else None
+
+
 def _closed(conn) -> dict[str, datetime]:
     """Each bad actor whose last case a person closed, and the end of the data its case last saw: in data time, so
     a replay of history and a live plant read the same."""
@@ -196,7 +205,8 @@ def watch(conn, pack, until: str | None = None, days: int = DAYS, by: str = "age
                    fact("Asks", "Rationalize the alarm, fix the instrument, or review the setpoint."),
                    fact("What this is", _WHAT)))
         try:
-            x = raise_exception(conn, ACTOR_TYPE, key, f"{b['point']}: {kinds} alarm", by, source="alarm_performance",
+            x = raise_exception(conn, ACTOR_TYPE, key, f"{_tag(conn, b['point_id']) or b['point']}: {kinds} alarm", by,
+                                source="alarm_performance",
                                 refs=[b["point_id"]], priority=0.3, finding=found)
         except (work.WorkError, ExceptionError) as e:
             errors.append(f"{key}: {e}")

@@ -1,6 +1,7 @@
 /** The integrated plan (Turnaround is a window on it, #554): every planned activity from every source on one timeline, by area. SAP work orders,
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
+import { acronyms } from "../wording";
 import { type CSSProperties, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
@@ -103,7 +104,7 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
           </div>
           <ul className="plan-rows">{list.map((i) => <li key={i.id} className={`plan-row status-${i.status}`}>
             <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
-              <strong>{i.title}</strong>
+              <strong>{acronyms(i.title)}</strong>
               <span className="muted small"> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${i.crew}` : ""}</span>
               {i.clashes.filter((c) => c.kind !== "bundle").length > 0 && <Badge tone="danger">clash</Badge>}
               {i.clashes.some((c) => c.kind === "bundle") && <Badge tone="ok">bundle</Badge>}
@@ -181,7 +182,7 @@ function AtRiskCard({ from }: { from: string }) {
             <span className="muted small">{w.wells.length} wells · {w.items.length} {w.items.length === 1 ? "job" : "jobs"}</span>
           </Button>
           {open === n && <div className="small">
-            <ul>{w.items.map((i) => <li key={i.id}>{i.title}: {i.hours} h down
+            <ul>{w.items.map((i) => <li key={i.id}>{acronyms(i.title)}: {i.hours} h down
               {i.units.length ? ` (${i.units.map((u) => u.label).join(", ")})` : " (not on the flow network)"}
               {i.assumed && <span className="muted"> · assumed</span>}</li>)}</ul>
             {w.assumptions.map((a) => <p key={a}>Assumption: {a}.</p>)}

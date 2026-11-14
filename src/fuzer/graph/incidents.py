@@ -65,13 +65,21 @@ def _upsets(conn) -> list[dict]:
         """
         select 'upset:' || u.id as id, 'upset' as kind, coalesce(p.dst, u.first_unit) as unit,
                left(u.start::text, 10) as day, null::numeric as lost_oil, null as failure_mode, null as event_type,
-               'detected ' || d.key || ' on ' || coalesce(l.label, '?') as text
+               d.key, l.label as point, null as text
         from upset u left join detection d on d.id = u.first_detection
         left join entity_label l on l.fuzer_id = d.point_id
         left join lateral (select p.dst from edge p join entity b on b.fuzer_id = p.dst and b.kind = 'tag'
                            where p.src = u.first_unit and p.rel = 'part_of' limit 1) p on true
         where u.kind = 'process' and u.status <> 'false_alarm' and u.first_unit is not null
         """).fetchall()
+
+
+def _upset_text(s: dict, unit_label: str) -> str:
+    """An upset signal as an operator reads it (#1072): "Low alarm on OK-J21-05 (OK_J21_05.WHP)"."""
+    from ..core.wording import alarm
+
+    point = s.get("point")
+    return f"{alarm(s.get('key'))} on {unit_label}" + (f" ({point})" if point and point != unit_label else "")
 
 
 def derive(conn) -> tuple[list[Candidate], list[Edge]]:
@@ -111,7 +119,8 @@ def _incident(unit: str, unit_label: str, group: list[dict]) -> Candidate:
     types = sorted({g["event_type"] for g in group if g["event_type"]})
     key = f"{unit_label}@{group[0]['day']}"
     fields = {
-        "description": f"{unit_label}: {titled[0]['text'] or 'incident'}",
+        "description": (_upset_text(titled[0], unit_label) if titled[0]["kind"] == "upset"
+                        else f"{unit_label}: {titled[0]['text'] or 'incident'}"),
         "unit": unit_label, "start": group[0]["day"], "end": group[-1]["day"], "timestamp": group[0]["day"],
         "signals": len(group), "events": kinds["event"], "downtime_records": kinds["downtime"],
         "notifications": kinds["notification"],

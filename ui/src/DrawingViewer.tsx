@@ -47,10 +47,10 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
     });
   const source =
     g.read_by === "smart file"
-      ? "smart P&ID: tags and piping from the file"
+      ? "Smart P&ID: tags and piping from the file"
       : g.read_by
-        ? `${g.format === "image" ? "scan" : "drawing"} read by ${g.read_by}`
-        : "not read yet (run fuzer llm-link --source pids)";
+        ? `${g.format === "image" ? "Scan" : "Drawing"} read automatically: check it against the drawing before relying on it`
+        : "Not read yet";
 
   const links = connectedSheets(g);
   const full = () => openDrawing(id, highlight);
@@ -59,7 +59,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
     <UICard as="section" className="drawing-card">
       <div className="drawing-head">
         <h2>{title ?? "Drawing"}</h2>
-        <div className="drawing-source muted small">{source}</div>
+        <div className="drawing-source muted small" title={g.read_by && g.read_by !== "smart file" ? `Read by ${g.read_by}` : undefined}>{source}</div>
       </div>
       <div className="row drawing-zoom">
         <div className="tabs">

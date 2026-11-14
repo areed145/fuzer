@@ -48,7 +48,7 @@ def test_the_charts_and_the_card_reach_people_and_agents(okan_db):
     fig = production.gas_balance(conn, since="2025-09-01", until="2025-11-01")
     assert fig.summary["episodes"] and any(t["name"].startswith("gap") for t in fig.data)
     fl = general.flare(conn, "2025-09-01", "2025-11-01")
-    assert {"fuel (kSm3/d)", "vent (kSm3/d)"} <= {t["name"] for t in fl.data}
+    assert {"fuel (kSm³/d)", "vent (kSm³/d)"} <= {t["name"] for t in fl.data}
     assert fl.summary["fuel_ksm3"] > 0 and "fuel gas and venting aren't" not in fl.summary["note"]
     with pytest.raises(ChartError):
         production.gas_balance(conn, since="2020-01-01", until="2020-02-01")

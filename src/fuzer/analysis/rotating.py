@@ -823,6 +823,10 @@ def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", wat
     from ..core.exceptions import ExceptionError, clear_exception, raise_exception
 
     s = screen(conn, until, limit=10 ** 6)
+    if not s["at"]:  # the data's day, so the case's evidence and trend open on the data, not today's clock (#1082)
+        from ..graph.operations import data_through
+
+        s["at"] = data_through(conn)
     held = {r["key"] for r in conn.execute("select key from exception_record where type = %s and state = 'open'",
                                            (HEALTH_TYPE,))}
     raised, cleared, errors, keep = [], [], [], set()

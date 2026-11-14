@@ -177,6 +177,11 @@ JOURNAL_FROM, JOURNAL_TO = datetime(2025, 9, 1), datetime(2026, 1, 1)
 CONSOLES = {"10": "PP", "20": "GGCP", "30": "ST1", "40": "ST2", "50": "NWP"}
 
 
+
+def _said(description: str) -> str:
+    """A description inside a sentence: lower case, keeping acronyms and numbered names as written (LP, ST1, 2nd)."""
+    return " ".join(w if w.isupper() or any(c.isdigit() for c in w) else w.lower() for w in description.split())
+
 def _console(tag: str) -> str:
     """The control room console a DCS tag or well SCADA point is on: plant areas by number, a jacket (area 61 to 84)
     and its wells by the platform that hosts them, NWP's wells on NWP."""
@@ -630,14 +635,14 @@ def generate(out, seed: int = 11) -> dict:
             for _ in range(sum(mrng.random() < FAILURE_RATE.get(func, 0.2) / 4 for _ in range(4))):
                 damage = mrng.choice(DAMAGE[func])
                 n = notify(tag, f"{year}-{mrng.randint(1, 12):02d}-{mrng.randint(1, 28):02d}", damage,
-                           DAMAGE_TEXT[damage].format(d=e["description"].lower()), prio=str(mrng.randint(2, 4)))
+                           DAMAGE_TEXT[damage].format(d=_said(e["description"])), prio=str(mrng.randint(2, 4)))
                 if mrng.random() < 0.85:
                     acts = ACTIONS[damage]
                     work(n, tag, _add_days(n["created"], mrng.randint(0, 4)), mrng.choice(["A01", "A02", "A03"]),
                          "PM01", acts[len(orders) % len(acts)])
             if mrng.random() < 0.6:
                 work(None, tag, f"{year}-{mrng.randint(1, 12):02d}-{mrng.randint(1, 28):02d}",
-                     mrng.choice(["A04", "A05"]), "PM02", f"Preventive maintenance {e['description'].lower()}")
+                     mrng.choice(["A04", "A05"]), "PM02", f"Preventive maintenance {_said(e['description'])}")
 
     background = {n["qmnum"] for n in notifications} | {o["aufnr"] for o in orders}  # messed up later (text.py)
 
@@ -887,11 +892,11 @@ def generate(out, seed: int = 11) -> dict:
         corrective = brng.random() < 0.5
         n = notify(tag, start, brng.choice(DAMAGE[func]), "", prio=str(brng.randint(2, 4))) if corrective else None
         if n:
-            n["short_text"] = DAMAGE_TEXT[n["damage_code"]].format(d=e["description"].lower())
+            n["short_text"] = DAMAGE_TEXT[n["damage_code"]].format(d=_said(e["description"]))
             n["status"] = "OSNO"
         work(n, tag, start, brng.choice(["A01", "A02"]) if n else brng.choice(["A04", "A05"]),
              "PM01" if n else "PM02", f"Investigate and repair: {n['short_text'].lower()}" if n
-             else f"Preventive maintenance {e['description'].lower()}",
+             else f"Preventive maintenance {_said(e['description'])}",
              status=brng.choice(["CRTD", "REL", "REL"]), priority=n["priority"] if n else str(brng.randint(3, 4)),
              due=_add_days(start, brng.choice([14, 30, 60, 90])))
     # Work that needs the plant down, flagged for the 2026 turnaround (SAP revision OK-TAR-2026).
@@ -943,7 +948,7 @@ def generate(out, seed: int = 11) -> dict:
         if done < _add_days(AS_OF, -2 * interval):  # plans get rescheduled; a few stay overdue below
             done = _add_days(AS_OF, -brng.randint(10, int(interval * 1.25)))
         plans.append({"plan": f"PM-{e['equnr']}", "kind": "PM", "equnr": e["equnr"], "floc": e["floc"],
-                      "task": f"{interval}-day preventive maintenance, {e['description'].lower()}",
+                      "task": f"{interval}-day preventive maintenance, {_said(e['description'])}",
                       "interval_days": str(interval), "last_done": done, "next_due": _add_days(done, interval),
                       "needs_shutdown": ""})
         if func in ("V", "E"):  # pressure equipment: statutory internal inspection, needs the unit down
@@ -951,12 +956,12 @@ def generate(out, seed: int = 11) -> dict:
             if e["floc"].endswith("20-V2001"):
                 done = "2021-09-30"  # overdue: the carryover story's separator
             plans.append({"plan": f"INSP-{e['equnr']}", "kind": "INSP", "equnr": e["equnr"], "floc": e["floc"],
-                          "task": f"Statutory internal inspection, {e['description'].lower()}", "interval_days": "1461",
+                          "task": f"Statutory internal inspection, {_said(e['description'])}", "interval_days": "1461",
                           "last_done": done, "next_due": _add_days(done, 1461), "needs_shutdown": "X"})
         if func == "K":
             done = _add_days(AS_OF, -brng.randint(5, 40))
             plans.append({"plan": f"VIB-{e['equnr']}", "kind": "INSP", "equnr": e["equnr"], "floc": e["floc"],
-                          "task": f"Vibration monitoring route, {e['description'].lower()}", "interval_days": "30",
+                          "task": f"Vibration monitoring route, {_said(e['description'])}", "interval_days": "30",
                           "last_done": done, "next_due": _add_days(done, 30), "needs_shutdown": ""})
     # Gas turbine hot section inspections run on fired hours (30,000 for a Taurus 60), not the calendar: SAP holds
     # the calendar equivalent, the control system counts the hours. Train B's is close: about 29,000 hours since its

@@ -1,6 +1,7 @@
 // The daily report (#98, #242), and the regulatory reports (P7.6, RegulatoryReports.tsx): one page for each production day's narrative, where its review stands, and the
 // review itself (publish, or send back with what to change). The `daily_report` case behind it is linked for
 // its history; the day's production figures are the `production_day` record (EC DAY001).
+import { units } from "../wording";
 import { useState } from "react";
 import { api, type DailyReport, type DailyStatus } from "../api";
 import { Markdown } from "../Markdown";
@@ -85,7 +86,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
           <div className="grid">
             <UICard  as="section">
               {/* The day's headline leads; how it was drafted and its versions follow it (#1078). */}
-              <Markdown text={readableCitations(d.markdown)} />
+              <Markdown text={units(readableCitations(d.markdown))} />
               <div className="row small muted report-versions">
                 <span>Version</span>
                 {d.versions.map((v) => (

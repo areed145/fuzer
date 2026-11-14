@@ -297,7 +297,7 @@ def maintenance(eq_of_floc: dict[str, dict], qmnum0: int, aufnr0: int) -> tuple[
          "confirmation": "Pilot 2 thermocouple replaced and igniter cleaned; all three pilots proven lit from the panel"}
     plans = []
     for e, kind, task, days, done, shut in [
-            (drum, "PM", "365-day preventive maintenance, hp flare knock-out drum", 365, "2025-05-12", ""),
+            (drum, "PM", "365-day preventive maintenance, HP flare knock-out drum", 365, "2025-05-12", ""),
             (drum, "INSP", "Statutory internal inspection, hp flare knock-out drum", 1461, "2022-04-20", "X"),
             (boom, "INSP", "Flare tip and pilot inspection by drone, ggcp flare boom", 365, "2025-03-03", ""),
             (eq_of_floc[_floc(STACK)], "PM", "Pilot and ignition test, alternate flare stack", 90, "2025-11-04", ""),

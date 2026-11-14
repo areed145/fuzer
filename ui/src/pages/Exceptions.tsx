@@ -10,6 +10,7 @@ import { display, type EntityNames } from "../entityRefs";
 import { PriorityBadge, SampleTeam, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
+import { queue, say } from "../wording";
 
 export type ExceptionView = "dispatch" | "field" | "back" | "open";
 
@@ -134,7 +135,7 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
         <Input aria-label="Label" placeholder="SCADA alarm" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
         <Select aria-label="Queue" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
           <option value="">waits for the IOC to dispatch</option>
-          {queues.map((q) => <option key={q} value={`role:${q}`}>{q.replace(/_/g, " ")} queue</option>)}
+          {queues.map((q) => <option key={q} value={`role:${q}`}>{queue(q)}</option>)}
         </Select>
         <label className="small"><input type="checkbox" checked={f.field} onChange={(e) => setF({ ...f, field: e.target.checked })} /> field sees it</label>
         <Button disabled={!!busy || !f.name.trim() || !f.label.trim()} onClick={save}>Define type</Button>
@@ -164,7 +165,7 @@ export const withTheField = (r: ExceptionRow, operators: Set<string>) => {
 
 const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "Field: done", could_not_do: "Field: could not do", note: "Field note" };
 
-export type Person = { name: string; roles: string[]; away_until?: string | null };
+export type Person = { name: string; roles: string[]; away_until?: string | null; display_name?: string | null };
 
 /** The same event as other systems reported it, worked on this one case (#464): each source, and a way to split one out
  * when it turns out to be a different event. */
@@ -176,7 +177,7 @@ function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | nul
     <div className="small">
       <Badge tone="ok">{reportedBy([r, ...all])}</Badge>
       <ul className="plain">{all.map((j) => <li key={j.id}>
-        {j.label}: {j.title} <span className="muted">· {j.source ?? ""} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</span>
+        {j.label}: {say(j.title)} <span className="muted">· {j.source ?? ""} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</span>
         {j.state === "open" && person && operate && <> <Button size="sm" disabled={!!busy}
           title="A different event: give it a case of its own"
           onClick={() => run("Splitting", () => api.splitException(j.id, person), onChange)}>Split out</Button></>}
@@ -210,11 +211,11 @@ const day = (at: string) => new Date(at.length === 10 ? `${at}T12:00:00` : at)
 /** The subjects worth showing: those with a name. An equipment record with neither a name nor an installed tag would
  * show as its id, which says nothing; it is left out when another subject names the place (#1070). */
 export function namedSubjects(ids: string[], names: EntityNames | null | undefined): string[] {
-  if (!names) return ids;
+  if (!names) return [];  // until the names come: never a raw id in their place (#1072)
   // Equipment reads as the tag it is installed at, so that tag beside it would say the same thing twice.
   const at = new Set(ids.map((id) => names[id]?.at).filter(Boolean));
   const named = ids.filter((id) => display(id, names) !== id && (names[id]?.at || !at.has(names[id]?.label ?? "")));
-  return named.length ? named : ids;
+  return named;
 }
 
 type Panel = null | "dispatch" | "more" | "plan" | "shelve";
@@ -240,7 +241,7 @@ function Row({ r, person, people, queues, onChange }: {
   return (
     <li className={fieldSaid?.status === "could_not_do" ? "work-card work-row attention" : "work-card work-row"}>
       <div className="work-row-what">
-        <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{r.title}</a> : r.title}</div>
+        <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
         <div className="small muted"><PriorityBadge p={r.priority} type={r.type} />{" "}
           {/* The type opens its route: where this kind of work goes, who holds it and when it is due (#1078). */}
           <a className="muted work-type-link" href={href("/routing", { type: r.type })} title="Where this type of work goes">
@@ -320,9 +321,9 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
       <Field label="Dispatch to" width="md"><Select value={to} onChange={(e) => setTo(e.target.value)}>
         <option value="">choose a person or queue</option>
         {people.length > 0 && <optgroup label="People">{people.map((p) => <option key={p.name} value={p.name}>
-          {p.name}{p.roles.length ? ` (${p.roles.join(", ").replace(/_/g, " ")})` : ""}
+          {p.display_name || p.name}{p.roles.length ? ` (${p.roles.join(", ").replace(/_/g, " ")})` : ""}
           {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ""}</option>)}</optgroup>}
-        <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{q.replace(/_/g, " ")} queue</option>)}</optgroup>
+        <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{queue(q)}</option>)}</optgroup>
       </Select></Field>
       {to.trim() && <Field label="What to do" width="lg"><Input placeholder="what to check or do (they see this)"
         value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>}

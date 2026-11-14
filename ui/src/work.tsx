@@ -7,6 +7,7 @@ import { Markdown } from "./Markdown";
 import { entityHref, fieldLabel, fmt, useAsync } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
+import { queue } from "./wording";
 
 export { loadPerson, usePerson } from "./identityStore";
 
@@ -63,12 +64,12 @@ export function Actor({ who }: { who: string }) {
 export function holder(assignee: string | null, role: string | null, kind?: string): string {
   if (assignee) return assignee;
   if (kind === "agent") return `${role} agent`;
-  return role ? `${role.replace(/_/g, " ")} queue` : "nobody";
+  return role ? queue(role) : "nobody";
 }
 
 const to = (t: unknown) => {
   const s = String(t ?? "");
-  return s.startsWith("role:") ? `the ${s.slice(5).replace(/_/g, " ")} queue` : s.startsWith("agent:") ? `the ${s.slice(6)} agent` : s;
+  return s.startsWith("role:") ? `the ${queue(s)}` : s.startsWith("agent:") ? `the ${s.slice(6)} agent` : s;
 };
 
 const UNITS: Record<string, string> = { D: "day", H: "hour", M: "minute" };
@@ -84,10 +85,11 @@ export function duration(iso: string): string {
 function escalation(e: WorkEvent): ReactNode {
   const d = e.data;
   const why = String(d.why ?? "");
-  const step = /on '([^']+)'/.exec(why)?.[1] ?? d.step ?? e.element ?? "The step";
-  const sla = /SLA (P[0-9A-Z]+)/.exec(why)?.[1];
+  const step = /^'([^']+)' was due/.exec(why)?.[1] ?? /on '([^']+)'/.exec(why)?.[1] ?? d.step ?? e.element ?? "The step";
+  const iso = /SLA (P[0-9A-Z]+)/.exec(why)?.[1];
+  const sla = iso ? duration(iso) : /was due within ([^,]+),/.exec(why)?.[1];
   const moved = d.to && d.to !== d.from;
-  return <span title={why || undefined}><strong>{step}</strong> was due{sla ? <> within {duration(sla)}</> : d.due ? <> {when(d.due)}</> : null}
+  return <span title={why || undefined}><strong>{step}</strong> was due{sla ? <> within {sla}</> : d.due ? <> {when(d.due)}</> : null}
     {d.from ? <> while it was with {to(d.from)}</> : null}.{moved ? <> It passed to {to(d.to)}.</> : <> It is overdue.</>}</span>;
 }
 

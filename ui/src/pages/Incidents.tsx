@@ -7,6 +7,7 @@ import { TrendGrid } from "../Trend";
 import { loadPerson } from "../work";
 import { IncidentRepeats } from "./IncidentRepeats";
 import { FlareAttribution } from "./FlareAttribution";
+import { plural, say } from "../wording";
 
 /** The latest incidents are on the page; earlier ones are one click away. */
 const LATEST = 8;
@@ -53,16 +54,17 @@ export function IncidentList({ items, all = items }: { items: Incident[]; all?: 
         <li key={i.id}>
           <span className="when">{i.start}</span>
           <div className="what">
-            <a href={entityHref(i.id)}>{i.description}</a>
+            <a href={entityHref(i.id)}>{say(i.description)}</a>
             <div className="row small muted">
               {i.unit && <span>on {i.unit}</span>}
               {twins(i).length > 0 && <span>also on {twins(i).map((o, n) => <span key={o.id}>{n > 0 && ", "}
                 <a href={entityHref(o.id)}>{o.unit || "another unit"}</a></span>)}</span>}
               {i.downtime_records > 0 && <UIBadge className="badge event-type">downtime</UIBadge>}
-              {i.events > 0 && <span>{i.events} events</span>}
-              {i.notifications > 0 && <span>{i.notifications} notifications</span>}
+              {i.events > 0 && <span>{plural(i.events, "event")}</span>}
+              {i.notifications > 0 && <span>{plural(i.notifications, "notification")}</span>}
               {i.lost_oil_sm3 > 0 && <span>{Math.round(i.lost_oil_sm3).toLocaleString()} Sm³ lost</span>}
-              {i.failure_modes?.map((m) => <UIBadge key={m} className="badge">{m}</UIBadge>)}
+              {i.failure_modes?.map((m) => <UIBadge key={m} className="badge" title={`ISO 14224 ${m}`}>
+                {i.failure_mode_words?.[m] ?? m}</UIBadge>)}
             </div>
           </div>
         </li>

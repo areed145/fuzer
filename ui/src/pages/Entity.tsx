@@ -43,6 +43,7 @@ import { nodeLabel } from "../entityRefs";
 import { usePermission } from "../Auth";
 import { keptAt } from "../fieldPack";
 import { when } from "../work";
+import { ASSET_KINDS, kindWord } from "../wording";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -135,7 +136,8 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
   const view: EntityTab = tabs.includes(asked as EntityTab) ? (asked as EntityTab) : "overview";
   const fid = e.fuzer_id;
   // Assets people work on open on their work and history; any other record opens on its values.
-  const operated = ["tag", "equipment", "well", "facility", "area"].includes(e.kind);
+  const operated = ASSET_KINDS.includes(e.kind);
+  const kindName = kindWord(e.kind, { template: e.golden.template?.value, doc_type: e.golden.doc_type?.value });
   const description = e.golden.description ? fmt(e.golden.description.value) : undefined;
   const kept = keptAt(e);
 
@@ -148,10 +150,10 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
           <div className="row">
             {/* The kind links to where it is defined, for those who can see the ontology. */}
             {configure
-              ? <a className="kind-link" href={href("/ontology", { kind: e.kind })} title="See this kind in the ontology"><KindBadge kind={e.kind} /></a>
-              : <KindBadge kind={e.kind} />}
-            <WatchButton target={fid} label="asset" />
-            <a className="small" href={href("/ask", { subject: fid })}>Ask about this asset</a>
+              ? <a className="kind-link" href={href("/ontology", { kind: e.kind })} title="See this kind in the ontology"><KindBadge kind={e.kind} label={kindName} /></a>
+              : <KindBadge kind={e.kind} label={kindName} />}
+            <WatchButton target={fid} label={operated ? "asset" : kindName.toLowerCase()} />
+            <a className="small" href={href("/ask", { subject: fid })}>Ask about this {operated ? "asset" : kindName.toLowerCase()}</a>
             {/* On a phone the date picker waits behind this, so the header leaves room for the page (#1076). */}
             {!asOf && !dated && <Button variant="link" size="sm" className="asof-open" onClick={() => setDated(true)}>Earlier date</Button>}
           </div>
@@ -620,7 +622,8 @@ function MaintenanceCard({ id }: { id: string }) {
                 <div className="what">
                   {/* One line that wraps as text: a flex row put a long title under its code, alone (#1076). */}
                   <div>
-                    {n.failure_mode && <><UIBadge className="badge event-type">{n.failure_mode}</UIBadge>{" "}</>}
+                    {n.failure_mode && <><UIBadge className="badge event-type" title={`ISO 14224 ${n.failure_mode}`}>
+                      {n.failure_mode_name ?? n.failure_mode}</UIBadge>{" "}</>}
                     <a href={entityHref(n.id)}>{n.text}</a>
                   </div>
                   {n.work_orders.map((w) => (

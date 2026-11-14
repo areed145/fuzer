@@ -15,6 +15,13 @@ const citeHref = (c: string) => {
     : kind === "entity" ? entityHref(id) : undefined;
 };
 
+/** A citation as words (#1072): "case 11", "exception 52", "the permit"; never the raw `case:11`. */
+const citeLabel = (c: string) => {
+  const [kind, id] = c.split(":");
+  return kind === "case" ? `case ${id}` : kind === "exception" ? `exception ${id}`
+    : kind === "entity" ? `the ${id.split("-")[1]?.replace(/_/g, " ") || "record"}` : kind.replace(/_/g, " ");
+};
+
 export function HandoverPage({ query }: { query: URLSearchParams }) {
   const picked = query.get("id");
   const list = useAsync(() => api.handovers(), []);
@@ -68,7 +75,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
             <ul className="small">
               {lines.map((l, i) => (
                 <li key={i}>{l.text}{" "}
-                  {l.cites.map((c) => <a key={c} className="muted" href={citeHref(c)}>[{c}]</a>)}</li>
+                  {l.cites.map((c, n) => <span key={c}>{n > 0 && " · "}<a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>
               ))}
               {(h.facts.more?.[name] ?? 0) > 0 && <li className="muted">and {h.facts.more![name]} more</li>}
             </ul>

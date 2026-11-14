@@ -2,6 +2,7 @@
  * shows on one screen. Each column uses the same rule as the view of the same name, so its count matches the tab and
  * Home. Lanes split the columns by source or kind. A card's button is the next step: dispatch it, or close out what
  * came back from the field on its case. On a phone one stage shows at a time. */
+import { say } from "../wording";
 import "../styles/work-board.css";
 import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
@@ -155,7 +156,7 @@ function WorkCard({ r, stage, lane, now, person, people, queues, kind, onChange 
   const canSend = !!person && r.state === "open" && (stage === "dispatch" || (stage === "back" && couldNot));
   return (
     <article className={couldNot && stage === "back" ? "work-card attention" : "work-card"}>
-      <div className="work-card-title" title={r.title}>{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{r.title}</a> : r.title}</div>
+      <div className="work-card-title" title={say(r.title)}>{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
       {subjects[0] && <a className="small" href={entityHref(subjects[0])}>{display(subjects[0], names)}
         {subjects.length > 1 ? ` +${subjects.length - 1}` : ""}</a>}
       <div className="small muted">{[lane !== "kind" ? kind : null, lane !== "source" ? r.source : null,

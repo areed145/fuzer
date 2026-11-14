@@ -1,6 +1,6 @@
 """BPMN process execution and runtime operations."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
@@ -530,7 +530,7 @@ def _escalate(conn, process_id: int, token_id: int, now: datetime) -> int:
     from . import roles
 
     n = run.defn(proc).nodes[t["element"]]
-    holder = t["assignee"] or f"the {t['role']} queue"
+    holder = t["assignee"] or f"the {t['role']} queue"  # kept as the event's `from`, which pages read
     hops = conn.execute("select count(*) as n from work_event where token_id = %s and kind = 'escalated'",
                         (token_id,)).fetchone()["n"]
     # the step's own escalateTo first; after that (and for steps naming none) the role's escalation chain
@@ -538,9 +538,10 @@ def _escalate(conn, process_id: int, token_id: int, now: datetime) -> int:
     if hops >= roles.MAX_HOPS or to == t["role"]:
         to = None
     sla_text = n.attrs.get("sla") if hops == 0 and n.attrs.get("sla") else (roles.role(conn, t["role"]) or {}).get("default_sla")
-    sla_part = f"SLA {sla_text}" if sla_text else "SLA"
-    why = (f"{sla_part} on '{n.label}' passed at {t['due_at']:%Y-%m-%d %H:%M} UTC "
-           f"while it was with {holder}") + (f"; moved to the {to} queue" if to else "")
+    from ..core.wording import escalation
+
+    due = t["due_at"].astimezone(UTC) if t["due_at"].tzinfo else t["due_at"]
+    why = escalation(n.label, sla_text, f"{due:%Y-%m-%d %H:%M}", holder, to)
     cols = {"escalated_at": now}
     if to:
         cols |= {"role": to, "assignee": roles.pick(conn, to, now)}

@@ -1,4 +1,5 @@
 import { AttentionCard } from "./HomeAttention";
+import { alarm, plural, say } from "../wording";
 import { Fragment, useState, type ReactNode } from "react";
 import { api, type Stats, type Upset } from "../api";
 import { caseHref } from "./workflows/shared";
@@ -129,12 +130,12 @@ function LatestReportCard() {
           <p className="small">Report date {latest.data.day.day}</p>
           {headlines.length > 0 ? (
             <ul className="home-list home-headline">
-              {headlines.map((fact, i) => <li key={i}>{fact.text}</li>)}
+              {headlines.map((fact, i) => <li key={i}>{say(fact.text)}</li>)}
             </ul>
           ) : <Empty className="small">This report has no headline facts.</Empty>}
           {production.length > 0 && (
             <p className="small">
-              {production.filter((fact) => fact.text.includes("7-day average")).map((fact) => fact.text).join(" · ")}
+              {production.filter((fact) => fact.text.includes("7-day average")).map((fact) => say(fact.text)).join(" · ")}
             </p>
           )}
           <a href={href("/reports", { day: latest.data.day.day })}>Read the daily report</a>
@@ -215,8 +216,9 @@ function IncidentsCard() {
         <ul className="home-list">
           {recentIncidents.map((incident) => (
             <li key={incident.id}>
-              <a href={entityHref(incident.id)}>{incident.description}</a>
-              <span className="muted small">Started {incident.start} · {Math.round(incident.lost_oil_sm3).toLocaleString()} Sm³ lost oil</span>
+              <a href={entityHref(incident.id)}>{say(incident.description)}</a>
+              <span className="muted small">Started {incident.start}{incident.lost_oil_sm3 > 0
+                && ` · ${Math.round(incident.lost_oil_sm3).toLocaleString()} Sm³ lost oil`}</span>
             </li>
           ))}
         </ul>
@@ -244,8 +246,10 @@ function UpsetItem({ upset }: { upset: Upset }) {
   return (
     <li>
       <a href={upset.work_item_id ? href(`/cases/${upset.work_item_id}`) : href("/exceptions", { list: "ranked", view: "kind" })}>
-        {upset.first_key || upset.first_point || `Upset ${upset.id}`}</a>
-      <span className="muted small">Detected from {timestamp(upset.start)} · {upset.first_unit ?? "Unknown unit"} · {upset.detections} detections</span>
+        {upset.first_key ? `${alarm(upset.first_key)}${upset.first_unit ? ` on ${upset.first_unit}` : ""}`
+          : upset.first_point || `Upset ${upset.id}`}</a>
+      <span className="muted small">From {timestamp(upset.start)} · {upset.first_key ? upset.first_point ?? "Unknown point"
+        : upset.first_unit ?? "Unknown unit"} · {plural(upset.detections, "detection")}</span>
     </li>
   );
 }
