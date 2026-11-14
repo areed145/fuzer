@@ -41,6 +41,20 @@ def aware(t: datetime) -> datetime:
     return t if t.tzinfo else t.replace(tzinfo=zone())
 
 
+def wall(v) -> datetime | None:
+    """A recorded time (an ISO string or a datetime, with or without a zone) as the plant's wall clock, without a
+    zone; None when it is empty or not a time. A source that writes "10:00+00:00" or "10:00Z" and one that writes
+    "10:00:00" both come back naive, so they compare (#1107)."""
+    if not v:
+        return None
+    if not isinstance(v, datetime):
+        try:
+            v = datetime.fromisoformat(str(v).strip())
+        except ValueError:
+            return None
+    return v.astimezone(zone()).replace(tzinfo=None) if v.tzinfo else v
+
+
 def now() -> datetime:
     """The plant's wall clock now, without a zone."""
     return datetime.now(zone()).replace(tzinfo=None)

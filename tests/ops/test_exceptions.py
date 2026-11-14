@@ -624,6 +624,40 @@ def test_a_case_shows_the_log_entries_about_its_event_around_its_window(conn, co
     conn.commit()
 
 
+def test_a_cases_window_reads_findings_written_with_and_without_a_zone(conn, compressor, three_sources, monkeypatch):
+    """#1107: one source writes a finding's start with a zone ("...+00:00", "Z"), another without; the case's window
+    reads both on the plant's wall clock instead of failing to compare them."""
+    from fuzer.core import clock
+    from fuzer.core.findings import Finding
+    from fuzer.ops import around, suppression
+
+    monkeypatch.setattr(clock, "name", lambda: "UTC")
+    trip = raise_exception(conn, "iow_hi", "IOW-ZONES", "Trip", "limits", refs=[compressor["equipment"]],
+                           finding=Finding("test", "deterministic", start="2026-11-11T03:10+00:00"))
+    raise_exception(conn, "iow_hi", "IOW-ZONES-2", "Trip", "limits", refs=[compressor["equipment"]],
+                    finding=Finding("test", "deterministic", start="2026-11-11T02:40:00", end="2026-11-11T04:05Z"))
+    conn.execute("update exception_record set item_id = %s where key = 'IOW-ZONES-2'",
+                 (trip["item_id"],))
+    a, b, _ = around.window(conn, trip["item_id"])
+    assert a.tzinfo is None and b.tzinfo is None
+    assert suppression._at({"finding": {"start": "2026-11-11T03:10Z"}}).tzinfo is None
+    conn.rollback()
+
+
+def test_a_recorded_time_reads_on_the_plants_wall_clock(monkeypatch):
+    """#1107: with or without a zone, at any precision, a recorded time comes back naive on the plant's clock."""
+    from datetime import datetime
+
+    from fuzer.core import clock
+
+    monkeypatch.setattr(clock, "name", lambda: "America/Chicago")
+    assert clock.wall("2026-11-11T09:10+00:00") == datetime(2026, 11, 11, 3, 10)
+    assert clock.wall("2026-11-11T09:10:30.5Z") == datetime(2026, 11, 11, 3, 10, 30, 500000)
+    assert clock.wall("2026-11-11T03:10") == datetime(2026, 11, 11, 3, 10)
+    assert clock.wall("2026-11-11") == datetime(2026, 11, 11)
+    assert clock.wall(None) is None and clock.wall("not a time") is None
+
+
 def test_planned_work_and_a_shutdown_suppress_a_machines_detections_and_count_them(conn, compressor, types):
     """P3.5b: a trip on the compressor while a shutdown of it runs is counted under the shutdown, not opened; a
     safety type, a type that doesn't declare it, and another asset still open cases. A person's window ended early
