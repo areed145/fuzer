@@ -1,15 +1,16 @@
-"""What each flow edge carries (P2.7, #205): `props.product` on flows_to and lift_gas_to, with `props.product_basis`
+"""What each flow edge carries (P2.7, #205): `props.product` on flows_to, lift_gas_to and relieves_to, with `props.product_basis`
 saying where it came from.
 
 A source that says what an edge carries (its `service`, kept by the mapping) is taken as it is. Otherwise it is
 worked out from the nodes' process types (`ec_type`) and a well's `well_type`, and an edge nothing settles has no
 product rather than a guess:
 
-- an edge on the lift gas network carries lift gas;
+- an edge on the lift gas network carries lift gas, and a relief edge flare gas;
 - what leaves a well carries what the well makes: gas from a gas well, an injector's water, else multiphase fluid;
 - what goes into a compressor or a flare is gas, and into a tank or a pump is liquid;
 - a node that only passes fluid on (a manifold, header, meter, compressor, tank, pipeline or sales point) has the
   same product in as out, so a product spreads along it both ways when every edge it knows of agrees;
+- a relief or blowdown line a source says carries flare gas is left out of the spreading below;
 - a separator splits fluid: an outlet keeps the product the rules above give it; a separator whose every known
   outlet is liquid takes liquid in, and one fed only gas puts out gas on any outlet still unsettled.
 
@@ -20,8 +21,8 @@ from __future__ import annotations
 
 from psycopg.types.json import Jsonb
 
-LINKS = ("flows_to", "lift_gas_to")
-GAS, LIQUID, MULTIPHASE, LIFT_GAS, WATER = "gas", "liquid", "multiphase", "lift_gas", "water"
+LINKS = ("flows_to", "lift_gas_to", "relieves_to")
+GAS, LIQUID, MULTIPHASE, LIFT_GAS, WATER, FLARE = "gas", "liquid", "multiphase", "lift_gas", "water", "flare"
 PASS_THROUGH = {
     "manifold",
     "header",
@@ -47,6 +48,8 @@ SERVICE = {
     "water": WATER,
     "liquid": LIQUID,
     "multiphase": MULTIPHASE,
+    "flare": FLARE,
+    "relief": FLARE,
 }
 
 
@@ -66,11 +69,15 @@ def infer(edges: list[dict], nodes: dict[str, dict]) -> dict[int, tuple[str, str
             out[e["id"]] = (SERVICE.get(said.lower(), said), "source")
         elif e["rel"] == "lift_gas_to":
             out[e["id"]] = (LIFT_GAS, "link type")
+        elif e["rel"] == "relieves_to":
+            out[e["id"]] = (FLARE, "link type")
         elif kind(e["src"]) == "well":
             out[e["id"]] = (_well_fluid((nodes.get(e["src"]) or {}).get("well_type")), "well type")
         elif kind(e["dst"]) in TAKES:
             out[e["id"]] = (TAKES[kind(e["dst"])], "what it feeds")
-    flow = [e for e in edges if e["rel"] == "flows_to"]
+    # a relief or blowdown line to a flare takes whatever its item holds and passes nothing on: it never decides, or
+    # blocks, what a node passes along the process
+    flow = [e for e in edges if e["rel"] == "flows_to" and out.get(e["id"], ("",))[0] != FLARE]
     ins: dict[str, list[dict]] = {}
     outs: dict[str, list[dict]] = {}
     for e in flow:

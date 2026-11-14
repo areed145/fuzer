@@ -17,6 +17,7 @@ const SERVICES: { key: string; label: string; product: string; dash?: string }[]
   { key: "gas export", label: "Gas export", product: "gas", dash: "14 6" },
   { key: "gas", label: "Gas", product: "gas", dash: "2 6" },
   { key: "production trunkline", label: "Production trunkline", product: "multiphase", dash: "18 3" },
+  { key: "flare", label: "Flare and relief", product: "flare", dash: "3 4" },
 ];
 const POINTS: { key: string; label: string; radius: number }[] = [
   { key: "area", label: "Platforms, jackets, pads", radius: 7 },

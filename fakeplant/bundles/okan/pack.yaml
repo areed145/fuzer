@@ -2,6 +2,7 @@
 # `fakeplant generate`. Installations are two-digit areas of the field "OKAN":
 #   10 OKA_PP (production platform)    20 OK_GGCP (gas gathering and compression, trains A/B/C)
 #   30 OKA_ST1, 40 OKA_ST2 (satellites) 50 OKA_NWP (new wells platform)   61-84 jackets OKJ-01..24
+#   25 the GGCP flare system (KO drum, meter, flare boom; on GGCP)   26 OKA_FLJ, the alternate flare stack's jacket
 name: okan
 facility: OKAN
 data_notice: Fictional, historical data, not a live operating update.
@@ -17,7 +18,8 @@ investigation:
 tag_grammar:
   area_digits: 2
   loop_digits: [3, 5]
-  function_codes: [P, V, K, E, GT, PT, TT, LT, FT, VT, ST, PDT, JT, HCV, FIC, LIC, PIC, TIC, XV, PSV, ZSC, ZT]
+  function_codes: [P, V, K, E, GT, PT, TT, LT, FT, VT, ST, PDT, JT, HCV, FIC, LIC, PIC, TIC, XV, PSV, BDV, PV, FL, ZSC,
+                   ZT]
 
 # Wells by site and slot: OK-J07-03 (jacket 07, slot 03), OK-NWP-05, gas producer OK-NWP-G2, water injector OK-NWP-W1.
 # Sources write them OKAN_J07_03 (EC), OK_J07_03.WHP (PI), OKAN-WELL-OKJ07-03 (SAP).
@@ -40,6 +42,14 @@ aliases:
   compression bypass: [tag, 20-XV-3100]
   escravos gas plant: [facility, EGP]
   egp: [facility, EGP]
+  ggcp flare: [area, OKAN-25]
+  flare boom: [tag, 25-FL-4010]
+  alternate flare stack: [tag, 26-FL-4030]
+  oka_flj: [area, OKAN-26]
+  flare jacket: [area, OKAN-26]
+  flare gas meter: [tag, 25-FT-4003]
+  flare meter: [tag, 25-FT-4003]
+  flare ko drum: [tag, 25-V-4001]
   # jackets as planners write them (J12, OKJ-12): area 60 + the jacket's number
   j01: [area, OKAN-61]
   okj-01: [area, OKAN-61]
@@ -128,6 +138,9 @@ classification:
     HCV: VA.CH
     JT: IP
     PSV: VA.PS
+    BDV: VA.BD
+    PV: VA.CO
+    FL: FL
     ZSC: IP
     ZT: IP
   templates:
@@ -136,11 +149,14 @@ classification:
     Heat Exchanger: HE.ST
     Pressure Vessel: VE
     Gas Turbine: GT
+    Flare: FL
   description_types:
     separator: SE
     scrubber: SC
     drum: DR
     cooler: ST
+    boom: BM
+    stack: ST
   manufacturer_aliases:
     solar: Solar Turbines
     bhge: Baker Hughes

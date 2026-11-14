@@ -93,6 +93,7 @@
   --product-gas: #b08d00;
   --product-lift_gas: #1a8f5a;
   --product-water: #0b6bcb;
+  --product-flare: #c4302b;
   --rel-flows_to: var(--product-multiphase);
   --rel-lift_gas_to: var(--product-lift_gas);
   --rel-pipes_to: #8a4fd1;
@@ -178,6 +179,7 @@
     --product-gas: #e3c84a;
     --product-lift_gas: #4cc38a;
     --product-water: #4c9eff;
+    --product-flare: #ff6b66;
     --rel-pipes_to: #b48cff;
     --rel-part_of: #a7b2c0;
     --rel-installed_at: #3fc6d4;

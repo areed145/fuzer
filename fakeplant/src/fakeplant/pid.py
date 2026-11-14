@@ -50,7 +50,7 @@ LEVELS = ("clean", "scan", "old", "poor")
 HAND_VALVES = ("gate", "globe", "ball", "check", "butterfly")
 BRANCHES = ("sample_point", "drain", "vent")  # drawn off a line, not on it: not part of what a line runs through
 INSULATION = ("", "", "-IH", "-PP", "-IC", "-ET")  # none, heat conservation, personnel protection, cold, traced
-TALL = ("V", "T", "F", "H")
+TALL = ("V", "T", "F", "H", "FL")
 ROW = 28  # data table row height
 EQ_COLS = (("TAG", 170), ("SERVICE", 330), ("DES. P (barg)", 150), ("DES. T (DEG C)", 160), ("CAPACITY", 160))
 SP_COLS = (("TAG", 160), ("LL", 110), ("L", 110), ("H", 110), ("HH", 110), ("UNITS", 120))
@@ -109,6 +109,13 @@ def _equipment(d: ImageDraw.ImageDraw, func: str, cx: float, cy: float) -> tuple
         box = (cx - 50, cy - 50, cx + 50, cy + 50)
         d.ellipse(box, outline=0, width=3)
         d.text((cx, cy), "G", font=_font(40), fill=0, anchor="mm")
+    elif func == "FL":  # flare: a stack with a tip, a pilot and a flame above it
+        box = (cx - 40, cy - 150, cx + 40, cy + 130)
+        d.rectangle([cx - 14, cy - 90, cx + 14, cy + 130], outline=0, width=3)
+        d.rectangle([cx - 22, cy - 112, cx + 22, cy - 90], outline=0, width=3)
+        d.line([(cx + 22, cy - 100), (cx + 34, cy - 100), (cx + 34, cy - 60)], fill=0, width=2)  # pilot gas line
+        d.line([(cx - 10, cy - 114), (cx - 20, cy - 132), (cx - 4, cy - 124), (cx, cy - 150), (cx + 6, cy - 124),
+                (cx + 20, cy - 134), (cx + 10, cy - 114)], fill=0, width=2)
     elif func == "E":  # shell and tube exchanger
         box = (cx - 50, cy - 50, cx + 50, cy + 50)
         d.ellipse(box, outline=0, width=3)
@@ -559,7 +566,17 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     for o in offpage:
         if o["tag"] not in boxes:
             continue
-        if o["direction"] == "to":
+        if o["direction"] == "to" and o.get("low"):  # leaves under the sheet's items, clear of a tall one beside it
+            (_, _, _, y1), (cx, _) = boxes[o["tag"]], centres[o["tag"]]
+            p0, y = (cx + 25, y1), y1 + 170  # below the corridor its sheet-mates run in
+            edge = (width - 200, y)
+            pts = [p0, (p0[0], y), edge]
+            pos = s.line(pts, o["line"], arrow=False)
+            x, yy = edge
+            d.polygon([(x, yy - 20), (x + 110, yy - 20), (x + 140, yy), (x + 110, yy + 20), (x, yy + 20)], outline=0, width=2)
+            d.text((x + 60, yy - 32), f"TO {o['sheet']}", font=s.f_small, fill=0, anchor="mm")
+            d.text((x + 62, yy), o["other"], font=s.f_small, fill=0, anchor="mm")
+        elif o["direction"] == "to":
             p0, od = outlet(o["tag"], gas=True)
             y = p0[1] - 40 - 60 * n_to if od == "up" else p0[1]  # leaves over the top, below the bubbles
             n_to += 1
@@ -571,7 +588,10 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
             d.text((x + 60, yy - 32), f"TO {o['sheet']}", font=s.f_small, fill=0, anchor="mm")
             d.text((x + 62, yy), o["other"], font=s.f_small, fill=0, anchor="mm")
         else:
-            y = inlet(o["tag"])[1] + (40 if any(c["to"] == o["tag"] for c in conns) else 0)
+            y = inlet(o["tag"])[1] + (40 if any(c["to"] == o["tag"] and "offpage" not in c for c in conns) else 0)
+            # more lines into the same item come in one under another (a relief header's many tie-ins)
+            k = sum(1 for x in off if x["direction"] == "from" and x["tag"] == o["tag"])
+            y += 64 * ((k + 1) // 2) * (1 if k % 2 else -1)
             n_from += 1
             edge = (180, y)
             target = (boxes[o["tag"]][0], y)

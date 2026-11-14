@@ -48,6 +48,40 @@ function solid(shape: SceneShape): THREE.BufferGeometry {
       ].map((g) => g.toNonIndexed());
       return mergeGeometries(parts) ?? parts[0];
     }
+    case "boom": {
+      // A flare boom: a three-chord lattice truss angled up and out along the flow from its root on the deck, with
+      // the flare tip and its windshield at the far end.
+      const root = new THREE.Vector3(0, 1, 0);
+      const tip = new THREE.Vector3(w * 0.8, h - 1, 0);
+      const r = d / 2;
+      const along = tip.clone().sub(root);
+      const side = new THREE.Vector3(0, 0, 1);
+      const up = side.clone().cross(along).normalize();
+      const chord = (k: number) => {
+        const a = (k / 3) * Math.PI * 2;
+        return up.clone().multiplyScalar(Math.cos(a) * r).add(side.clone().multiplyScalar(Math.sin(a) * r));
+      };
+      const bar = (a: THREE.Vector3, b: THREE.Vector3, t: number) => {
+        const g = new THREE.CylinderGeometry(t, t, a.distanceTo(b), 6);
+        g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()));
+        return g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+      };
+      const parts: THREE.BufferGeometry[] = [];
+      const bays = 6;
+      for (let k = 0; k < 3; k++) {
+        parts.push(bar(root.clone().add(chord(k)), tip.clone().add(chord(k)), 0.09));
+        for (let i = 0; i < bays; i++) { // a diagonal brace in each bay, to the next chord
+          const p0 = root.clone().lerp(tip, i / bays).add(chord(k));
+          const p1 = root.clone().lerp(tip, (i + 1) / bays).add(chord(k + 1));
+          parts.push(bar(p0, p1, 0.05));
+        }
+      }
+      parts.push(new THREE.CylinderGeometry(r * 0.7, r * 0.7, 1.4, 12).translate(tip.x, tip.y + 0.7, tip.z));
+      parts.push(new THREE.ConeGeometry(r * 0.9, 1.2, 12).translate(tip.x, tip.y + 2.0, tip.z));
+      parts.push(new THREE.BoxGeometry(1.2, 1, 1.4).translate(0, 0.5, 0)); // the root's foundation on the deck
+      const flat = parts.map((g) => g.toNonIndexed());
+      return mergeGeometries(flat) ?? flat[0];
+    }
     default: return new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0);
   }
 }

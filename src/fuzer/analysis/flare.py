@@ -6,7 +6,8 @@ knows a field, a flare system or a permit.
 - `events(conn, until, days)`: each flare episode in the window.
   - On a flare flow point: a run of at least `MIN_STEPS` readings above `SPIKE` times the point's own baseline (its
     median over the window, the purge level), with its peak and the volume over the baseline.
-  - On the daily reports: a day whose flare is `DAY_SPIKE` times the median of the `DAY_BASE` days before it.
+  - On the daily reports: a day whose flare is `DAY_SPIKE` times the median of the `DAY_BASE` days before it, unless a
+    flare flow point already shows an episode that day (the same flaring, read finer).
 - `attribute(conn, start, end)`: the downtime events overlapping the episode, the log entries in it that speak of
   flaring, and other detections that started in it. An episode with none is reported with its cause unknown.
 - `relief(conn, e)`: where the gas came from (API 521). The relief and vent paths into the flare system are read from
@@ -237,12 +238,20 @@ def events(conn, until: str | None = None, days: int = DAYS, src=None) -> list[d
 
     start, end = window_of(conn, days, until)
     out, plant = [], None
-    for e in _from_points(conn, start, end, src) + _from_reports(conn, start, end):
+    found = _from_points(conn, start, end, src)
+    seen = {d for e in found for d in _days(e["start"], e["end"])}
+    for e in found + [e for e in _from_reports(conn, start, end) if e["start"][:10] not in seen]:
         causes = attribute(conn, e["start"], e["end"], skip=EVENT_TYPE)
         if e["source"] == "point" and plant is None:
             plant = structure.load(conn)
         out.append({**e, "causes": causes, "attributed": bool(causes), "relief": relief(conn, e, src, plant)})
     return sorted(out, key=lambda e: e["start"], reverse=True)
+
+
+def _days(start: str, end: str) -> set[str]:
+    """The days an episode touches."""
+    a, b = datetime.fromisoformat(start), datetime.fromisoformat(end) - timedelta(minutes=1)
+    return {(a + timedelta(days=i)).date().isoformat() for i in range((b.date() - a.date()).days + 1)}
 
 
 def key_of(e: dict) -> str:

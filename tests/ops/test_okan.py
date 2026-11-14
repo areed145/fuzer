@@ -100,7 +100,7 @@ def test_train_b_story(setup):
 def test_drawings_and_guides(setup):
     conn, data, stats, _, _ = setup
     truth = json.loads((data / "pid_truth.json").read_text())
-    assert len(truth) == stats["pid_sheets"] == 11  # 9 P&IDs and 2 PFDs
+    assert len(truth) == stats["pid_sheets"] == 14  # 11 P&IDs and 3 PFDs
     assert any(t["key"] == "20-GT-2000B" and t["kind"] == "equipment" for t in truth["OKAN-20-PID-005"]["tags"])
     guide = conn.execute("select c.fuzer_id from crosswalk c where c.source = 'edms' and c.source_key = 'TG-20L-001 rev A'").fetchone()
     assert guide

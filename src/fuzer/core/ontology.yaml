@@ -394,6 +394,14 @@ relations:
     description: The gas lift network, from compression through lift gas headers and manifolds to gas lifted wells.
     from: [tag, allocation_node]
     to: [tag, allocation_node, well]
+  relieves_to:
+    label: relieves to
+    view: flow
+    dated: true
+    description: Relief, blowdown and flare gas, from the items and headers that relieve through knock-out drums and flare
+      meters to a flare.
+    from: [tag, allocation_node]
+    to: [tag, allocation_node]
   pipes_to:
     label: pipes to
     view: flow

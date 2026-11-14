@@ -11,7 +11,7 @@ import { NodePanel } from "./Network";
 const Scene3D = lazy(() => import("../Scene3D"));
 
 const words = (s: string) => s.replace(/_/g, " ");
-const FLOW_PRODUCT = { flows_to: true, lift_gas_to: true }; // the link types a product is worked out for
+const FLOW_PRODUCT = { flows_to: true, lift_gas_to: true, relieves_to: true }; // the link types a product is worked out for
 const lineColor = (l: SceneLink) => linkColor(l.rel, l.product);
 const named = (label: string, description: string | null | undefined) => {
   const name = commonName(label, description);

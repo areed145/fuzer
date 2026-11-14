@@ -11,6 +11,9 @@ One model of the field drives every source, so they agree with each other:
   producers OK-NWP-G1..G3 that are the lift gas source; NWP can also export gas to EGP.
 - Jackets OKJ-01..24 (areas 61-84), 5-10 wellheads each, mostly gas lifted (GL), some naturally
   flowing (NF), each with a gas lift supply meter and ESDV.
+- The flare system (okan_flare.py): PP's and GGCP's relief, blowdown and pressure control valves into the HP flare
+  knock-out drum and flare gas meter on GGCP (area 25), the flare boom off GGCP and the alternate flare stack on its
+  own jacket OKA_FLJ (area 26), with EC's daily allocation of the flare back to PP and GGCP.
 
 Sources: SAP (FLOCs, equipment, notifications, work orders, materials, BOM), the legacy JDE and Maximo
 equipment registers (copies of SAP items to match, see registers.py), PI points and the AF
@@ -31,7 +34,20 @@ import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import accounts, capacity, curves, docs, instruments, journal, limits, measurements, pfd, pid, process
+from . import (
+    accounts,
+    capacity,
+    curves,
+    docs,
+    instruments,
+    journal,
+    limits,
+    measurements,
+    okan_flare,
+    pfd,
+    pid,
+    process,
+)
 from . import text as messy_text
 from .common import (
     ACTIONS,
@@ -328,7 +344,7 @@ def _km(a: list[float], b: list[float]) -> float:
 # Equipment data on the P&IDs (#475): design pressure (barg) and temperature (deg C) by kind and area, as the 1998
 # datasheets set them; the capacity column carries the design basis rating where there is one.
 DESIGN_PT = {"V": (110, 120), "K": (125, 180), "E": (125, 200), "P": (60, 90)}
-DESIGN_PT_BY_AREA = {"10": {"V": (25, 110), "P": (75, 90), "E": (25, 150)}}
+DESIGN_PT_BY_AREA = {"10": {"V": (25, 110), "P": (75, 90), "E": (25, 150)}, "25": {"V": (10, 200)}, "26": {"V": (5, 200)}}
 
 
 def _sheet_data(tags: list[Tag], titles: dict[str, str], designed: dict[str, dict], point_tag: dict[str, str]) -> dict:
@@ -387,7 +403,7 @@ def _pfds(out: Path, titles: dict[str, str], designed: dict[str, dict], point_ta
         if p in designed and tag not in normal:
             normal[tag] = (designed[p]["normal"], designed[p]["unit"])
     sheets, truth = [], {}
-    for number, title, level, src, dst, phase, tags, notes in PFDS:
+    for number, title, level, src, dst, phase, tags, notes in [*PFDS, okan_flare.PFD]:
         items = [{"tag": t, "func": t.split("-")[1],
                   "title": re.sub(r"\s(Train )?A\b|^Train A ", " ", titles.get(t.split("/")[0], "")).strip()
                   if "/" in t else titles.get(t, "")} for t in tags]
@@ -1122,6 +1138,10 @@ def generate(out, seed: int = 11) -> dict:
                                           "status": "injecting", "latitude": lat, "longitude": lon}})
         spatial_truth.append({"src": name, "rel": "located_at", "dst": f"{FIELD}-50"})
 
+    # ---- the flare system (okan_flare): drawn from its own sequence, added to each export below -------
+    flare = okan_flare.register(_xy)
+    titles.update(flare["titles"])
+
     # ---- P&ID drawings --------------------------------------------------------------------------------
     sheets, pid_truth, to_draw = [], {}, []
     sheet_info = {"10-1": ("smart", "OKA_PP SEPARATION"), "10-2": ("pdf_text", "OKA_PP OIL EXPORT"),
@@ -1149,6 +1169,11 @@ def generate(out, seed: int = 11) -> dict:
     # The engineering line list (P2.7): every line on the P&IDs, from and to, whatever format its sheet is in.
     line_list = [{"line": o["line"], "from_tag": o["tag"], "to_tag": o["other"], "sheet": sheet_no[k]}
                  for k, os_ in offpage.items() for o in os_ if o["direction"] == "to"]
+    # The flare system's two sheets come after the rest; each relief header leaves its separator sheet for GGCP's
+    # flare deck (drawn on both sheets, but the line list keeps each relief device's own tie-in)
+    flare_sheets, flare_ends = okan_flare.sheets(sheet_no, len(sheet_tags) + 1)
+    for key, ends in flare_ends.items():
+        offpage.setdefault(key, []).extend(ends)
     for i, (key, tags) in enumerate(sheet_tags.items()):
         fmt, label = sheet_info[key]
         area = key.split("-")[0]
@@ -1174,6 +1199,21 @@ def generate(out, seed: int = 11) -> dict:
         # drawn once the limits are set (below): each sheet's alarm table shows them as designed
         to_draw.append((sheet, (tags, titles, drng3, conns, False, pid.EQUIPMENT_FUNCS,
                                 levels.get(key, "scan") if fmt == "image" else "clean", offpage.get(key, []))))
+        sheets.append(sheet)
+    # The flare system's two sheets: GGCP's flare deck, with every relief line coming in from the PP and GGCP sheets,
+    # and the alternate stack's jacket. Its own random sequence, drawn after the rest.
+    on_sheet = {key: sheet["sheet"] for key, sheet, *_ in flare_sheets}
+    for x in okan_flare.lines():
+        at = on_sheet["26-1"] if x["to_tag"].startswith("26-") else on_sheet["25-1"]
+        line_list.append({**x, "sheet": at})
+    frng = random.Random(seed + 71)
+    for key, sheet, tags, conns, off in flare_sheets:
+        if sheet["format"] == "smart":
+            sheet |= {"tags": [t.canonical for t in tags], "connections": conns,
+                      "offpage": [{k: v for k, v in o.items() if k != "low"} for o in off]}
+        else:
+            sheet["text"] = sheet["title"] + "\n" + "\n".join(t.fmt("{f}\n{l}{s}") for t in tags)
+        to_draw.append((sheet, (tags, titles, frng, conns, False, ("V", "FL"), "clean", off)))
         sheets.append(sheet)
 
     # ---- documents ------------------------------------------------------------------------------------
@@ -1269,12 +1309,16 @@ def generate(out, seed: int = 11) -> dict:
 
     # ---- write ----------------------------------------------------------------------------------------
     (out / "answer_keys").mkdir(exist_ok=True)
-    _write_csv(out / "sap_floc.csv", floc)
-    _write_csv(out / "sap_equipment.csv", equipment)
+    _write_csv(out / "sap_floc.csv", floc + flare["floc"])
+    _write_csv(out / "sap_equipment.csv", equipment + flare["equipment"])
     _write_csv(out / "pid_line_list.csv", line_list)
     # Messy text (#890): authors' styles, duplicate and misfiled notifications, orders closed without saying what was done.
     (out / "answer_keys" / "records_text.json").write_text(json.dumps(
         messy_text.apply(notifications, orders, logs, log_truth, background, equipment, seed + 53), indent=1))
+    flare_n, flare_o, flare_plans = okan_flare.maintenance({e["floc"]: e for e in flare["equipment"]},
+                                                           20000000 + len(notifications), 50000000 + len(orders))
+    notifications += flare_n
+    orders += flare_o
     _write_csv(out / "sap_notifications.csv", notifications)
     _planned_work(orders)
     _write_csv(out / "sap_work_orders.csv", orders)
@@ -1365,10 +1409,10 @@ def generate(out, seed: int = 11) -> dict:
         indent=1))
     (out / "answer_keys" / "control_loops.json").write_text(json.dumps(
         {d[0]: (d[9] or {}).get("kind", "healthy") for d in loop_defs}, indent=1))
-    _write_csv(out / "pi_points.csv", points + loop_rows)
+    _write_csv(out / "pi_points.csv", points + loop_rows + flare["points"])
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
     _write_csv(out / "ec_downtime.csv", downtime)
-    _write_csv(out / "sap_maintenance_plans.csv", plans)
+    _write_csv(out / "sap_maintenance_plans.csv", plans + flare_plans)
     _write_csv(out / "lims_results.csv", lab)
     # Produced water chemistry (#368): each quarter the lab samples the water at every in-service production line's
     # arrival end, with pH and temperature read in the field. Story: J03's flowline (the wet one above) carries the
@@ -1419,7 +1463,9 @@ def generate(out, seed: int = 11) -> dict:
             scoped.append((f"{parts[1]}-{func}-{parts[2][len(func):]}", parts[1], func))
     ldar, ldar_truth = [], {"repeat": {"tag": "20-K-2300A", "component": "dry gas seal vent",
                                        "surveys": ["2025-05-14", "2025-08-13", "2025-11-12"]},
-                            "unsurveyed": sorted(t for t, a, _ in scoped if a not in ("10", "20")),
+                            # the flare drums were never added to the programme
+                            "unsurveyed": sorted([*(t for t, a, _ in scoped if a not in ("10", "20")),
+                                                  okan_flare.KO_DRUM, okan_flare.SEAL_DRUM]),
                             "skipped": {"survey": "2025-08-13", "tags": []}}
     for q, when in enumerate(["2024-02-14", "2024-05-15", "2024-08-14", "2024-11-13", "2025-02-12", "2025-05-14",
                               "2025-08-13", "2025-11-12"]):
@@ -1470,7 +1516,8 @@ def generate(out, seed: int = 11) -> dict:
         {"condition_id": "PC-OK-07", "permit": env, "facility": FIELD, "quantity": "", "limit_value": "",
          "limit_type": "", "unit": "", "basis": "", "frequency": "annual", "report_due_days": "90",
          "text": "An annual environmental performance report shall be submitted within 90 days of the year's end."},
-        {"condition_id": "PC-OK-08", "permit": "OK-ENV-FLR-2021", "facility": FIELD, "quantity": "", "limit_value": "",
+        {"condition_id": "PC-OK-08", "permit": "OK-ENV-FLR-2021", "facility": FIELD, "tag": okan_flare.METER,
+         "quantity": "", "limit_value": "",
          "limit_type": "", "unit": "", "basis": "", "frequency": "once", "due_date": "2025-09-30",
          "text": "A flare gas meter shall be installed on the GGCP flare by 30 September 2025."}]
     for c in conditions:
@@ -1588,14 +1635,19 @@ def generate(out, seed: int = 11) -> dict:
     pfd_sheets, pfd_truth = _pfds(out, titles, designed, point_tag, random.Random(seed + 31))
     sheets += pfd_sheets
     pid_truth |= pfd_truth
-    _write_csv(out / "dcs_alarms.csv", alarms)
     # The DCS alarm and event journal (#859) for the last months of the history, from the same model and limits.
     alarm_log = journal.journal(model, alarms, points, JOURNAL_FROM, JOURNAL_TO, _console)
+    _write_csv(out / "dcs_alarms.csv", alarms + okan_flare.alarms())
     _write_csv(out / "dcs_alarm_journal.csv", alarm_log)
     _write_csv(out / "iow_register.csv", iows)
     (out / "answer_keys" / "limits.json").write_text(json.dumps(limit_truth, indent=1))
-    (out / "pi_af.json").write_text(json.dumps(af, indent=1))
-    (out / "ec_network.json").write_text(json.dumps({"nodes": nodes, "edges": edges}, indent=1))
+    (out / "pi_af.json").write_text(json.dumps(af + flare["af"], indent=1))
+    flare_nodes, flare_edges = okan_flare.network()
+    (out / "ec_network.json").write_text(json.dumps({"nodes": nodes + flare_nodes, "edges": edges + flare_edges},
+                                                    indent=1))
+    _write_csv(out / "ec_flare_allocation.csv", okan_flare.allocation(daily, downtime, UNEXPLAINED_FLARE))
+    flare_feats, flare_lines = okan_flare.gis(_xy, len(lines) + 1)
+    feats, lines = feats + flare_feats, lines + flare_lines
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
     (out / "pid_truth.json").write_text(json.dumps(pid_truth, indent=1))
     (out / "gis_facilities.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, indent=1))
@@ -1617,9 +1669,11 @@ def generate(out, seed: int = 11) -> dict:
     # The control loops (#355) join the model as it's written: the limits and instrument faults above don't see them.
     loop_units = {ltag: {"type": "loop", "sp": sp, "op": op, "op_swing": swing, "gain": gain, "pv_noise": 0.01 * sp}
                   for ltag, _, _, _, sp, op, swing, gain, _, _ in loop_defs}
+    flare_units, flare_points, flare_events = okan_flare.model(UNEXPLAINED_FLARE)  # joins as written, like the loops
     (out / "process_model.json").write_text(json.dumps({
-        **model, "units": {**model["units"], **loop_units}, "points": {**model["points"], **loop_points},
-        "events": model["events"] + [{"unit": d[0], **d[9]} for d in loop_defs if d[9]] + step_events
+        **model, "units": {**model["units"], **loop_units, **flare_units},
+        "points": {**model["points"], **loop_points, **flare_points},
+        "events": model["events"] + [{"unit": d[0], **d[9]} for d in loop_defs if d[9]] + step_events + flare_events
         + [{"unit": "10-FIC-1001", "kind": "retune", "at": "2025-06-12T14:00:00", "pv_noise_scale": 0.5}]}))
     # Instrument faults and interface outages over the model (#868): fuzer.sources.instruments applies them, and the
     # file is their answer key. Off alarmed and IOW points, and away from the quarter the limits are learned on.
@@ -1628,11 +1682,12 @@ def generate(out, seed: int = 11) -> dict:
     ifaces: dict[str, list[str]] = {}
     for p in points:
         ifaces.setdefault(_interface(p["tag"]), []).append(p["tag"])
-    (out / "instrument_faults.json").write_text(json.dumps(instruments.generate(
+    faults = instruments.generate(
         model, points, seed + 47, datetime(2024, 6, 1), datetime(2025, 12, 20),
         avoid=[(datetime(2024, 12, 15), datetime(2025, 4, 15))],
         skip={p["tag"] for p in points if core(p["tag"]) in watched},
-        interfaces={k: v for k, v in ifaces.items() if k.startswith("OK-J")}), indent=1))
+        interfaces={k: v for k, v in ifaces.items() if k.startswith("OK-J")})
+    (out / "instrument_faults.json").write_text(json.dumps(faults, indent=1))
     (out / "answer_keys" / "curves.json").write_text(json.dumps(
         [{**curves.truth(c), "delivered_as": list(delivery[m]), "datasheet": f"DS-{m}",
           # what the datasheet shows: a pump sheet without its table draws only head and efficiency
@@ -1651,7 +1706,7 @@ def generate(out, seed: int = 11) -> dict:
             "pipelines": len(lines), "gis_facilities": len(feats), "gis_wells": len(well_feats),
             "unlabelled_pipeline_ends": sum(1 for s in spatial_truth if s["rel"] != "located_at"),
             "well_tests": len(tests), "lab_results": len(lab), "thickness_readings": len(readings),
-            "dcs_alarms": len(alarms), "alarm_journal_events": len(alarm_log), "iows": len(iows), "jde_assets": legacy["jde"],
+            "dcs_alarms": len(alarms) + len(okan_flare.alarms()), "alarm_journal_events": len(alarm_log), "iows": len(iows), "jde_assets": legacy["jde"],
             "maximo_assets": legacy["maximo"], "match_pairs": legacy["match_pairs"]}
 
 

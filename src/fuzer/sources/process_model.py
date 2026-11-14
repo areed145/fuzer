@@ -96,7 +96,7 @@ class ProcessModel:
             times.append(t)
             t += timedelta(minutes=step_minutes)
         out = np.interp([minutes(x) for x in times], w.t, y)
-        return [(x.isoformat(timespec="minutes"), round(float(v), 3)) for x, v in zip(times, out)]
+        return [(x.isoformat(timespec="minutes"), round(float(v), 3)) for x, v in zip(times, out) if not np.isnan(v)]
 
     def fine(self, point: str, start: datetime, end: datetime, step_seconds: int) -> list[tuple[str, float]]:
         """Values every `step_seconds` (#358). The grid is 5 minutes, so between grid times a value is interpolated,
@@ -680,7 +680,8 @@ class Window:
         """A value a controller or the process holds near one level: a reboiler or heater temperature, a filter or
         column differential pressure, an analyser reading, a utility header pressure, a flare's purge flow.
         `setpoint` events step it, `drift` events add a path (a burner fouling, foaming after a restart, a trip's
-        flaring), and with a `train` it settles at `idle` while that train is down."""
+        flaring), and with a `train` it settles at `idle` while that train is down. With `since` there is no reading
+        before it (an instrument not yet installed)."""
         if var != "value":
             raise KeyError(var)
         v = np.full_like(self.t, float(u["value"]))
@@ -691,7 +692,8 @@ class Window:
             run = self.get(u["train"], "running")
             v = run * v + (1 - run) * float(u.get("idle", u["value"]))
         noise = float(u.get("noise", 0.01 * abs(float(u["value"]))))
-        return self.lag(v, float(u.get("tau", 10))) + self.cycles(unit) + noise * self.noise(unit + "c", 15)
+        v = self.lag(v, float(u.get("tau", 10))) + self.cycles(unit) + noise * self.noise(unit + "c", 15)
+        return np.where(self.t < minutes(u["since"]), np.nan, v) if u.get("since") else v
 
     def _loop(self, unit, u, var):
         """A control loop (#355): its setpoint `sp`, controller output `op` (%), mode (1 auto, 0 manual) and process

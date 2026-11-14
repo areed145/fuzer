@@ -138,7 +138,7 @@ def test_every_drawn_sheet_but_smart_is_read(setup):
 def test_read_link_and_score(setup, read):
     conn, truth = setup
     out, fake = read
-    assert out["failed_requests"] == 0 and out["stored"] == len(fake.requests) == 9  # 7 P&IDs and 2 PFDs
+    assert out["failed_requests"] == 0 and out["stored"] == len(fake.requests) == 12  # 9 P&IDs and 3 PFDs
 
     result = conn.execute("select result from llm_extraction where source = 'pid' and source_key = %s",
                           (SHEET,)).fetchone()["result"]
