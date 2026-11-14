@@ -141,7 +141,9 @@ def test_a_case_and_its_asset_reach_their_incidents_studies_and_lessons(okan_db)
         starts = [str(i["start"]) for i in r["incidents"]]
         assert starts == sorted(starts, reverse=True)
         assert [s["summary"] for s in r["studies"]] == ["suction pressure leads vibration"]
-        assert [lsn["title"] for lsn in r["lessons"]] == ["Check the coupling first"]
+        # approved first; drafts other suites suggested for the same model may follow, never another model's (#1078)
+        titles = [lsn["title"] for lsn in r["lessons"]]
+        assert titles[0] == "Check the coupling first" and "Elsewhere" not in titles
         assert context.related(c, []) == {"subjects": [], "incidents": [], "studies": [], "lessons": []}
     finally:
         c.rollback()

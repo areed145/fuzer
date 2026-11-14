@@ -91,3 +91,18 @@ def test_status_gives_the_newest_downtime_incident_and_well_test(conn):
     compressor = queries.status(conn, fid(conn, "20-K-2200B"))
     assert compressor["well_test"] is None
     assert compressor["incident"]["total"] == queries.incidents(conn, fid(conn, "20-K-2200B"))["total"] > 0
+
+
+def test_planned_apart_from_unplanned(conn):
+    """#1078: the planned shutdowns are counted apart, the rankings can leave them out, and by month adds up."""
+    total = queries.downtime(conn)
+    planned = total["planned"]
+    assert 0 < planned["events"] < total["events"]
+    unplanned = sum(r["lost_oil_sm3"] for r in queries.downtime_ranking(conn, "reason", planned=False))
+    only = sum(r["lost_oil_sm3"] for r in queries.downtime_ranking(conn, "reason", planned=True))
+    assert unplanned + only == pytest.approx(total["lost_oil_sm3"], abs=1)
+    assert only == pytest.approx(planned["lost_oil_sm3"], abs=1)
+    months = queries.downtime_monthly(conn)
+    assert [m["month"] for m in months] == sorted(m["month"] for m in months)
+    assert sum(m["planned_events"] + m["unplanned_events"] for m in months) == total["events"]
+    assert sum(m["planned_sm3"] for m in months) == pytest.approx(planned["lost_oil_sm3"], abs=1)

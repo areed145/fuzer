@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
-import { api, type Route, type RouteExplanation, type RouteStep } from "../api";
+import { api, type Route, type RouteExplanation, type RouteStep, type WorkRoleRow } from "../api";
 import { href, Status, useAsync } from "../lib";
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Table } from "../ui";
 import { usePerson } from "../work";
@@ -17,6 +17,7 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
   const [person] = usePerson();
   const roles = useAsync(() => api.rolesCatalog(), []);
   const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
+  const byRole = new Map((roles.data ?? []).map((r) => [r.name, r]));
   return <section>
     <PageHeader subtitle="What happens to each type of work when it arrives.">Routing</PageHeader>
     {!routes.data ? <Status loading={routes.loading} error={routes.error} />
@@ -26,8 +27,8 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
         <tbody>{rows.map((r) => <tr key={r.type} aria-current={r.type === type ? "true" : undefined}>
           <td><a href={href("/routing", { type: r.type })} title={r.type}><strong>{r.label}</strong></a></td>
           <td className="small"><Starts r={r} /></td>
-          <td className="small">{dueText(r)}</td>
-          <td className="small muted">{also(r)}</td>
+          <td className="small">{dueText(r, byRole.get(r.role ?? ""))}</td>
+          <td className="small muted">{also(r, byRole.get(r.role ?? ""))}</td>
         </tr>)}</tbody>
       </Table>}
     {chosen && <RouteDetail key={chosen.type} route={chosen} />}
@@ -35,7 +36,7 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
   </section>;
 }
 
-const words = (name: string) => name.replace(/_/g, " ");
+const words = (name: string | null) => (name ?? "").replace(/^role:/, "").replace(/_/g, " ");
 
 function Starts({ r }: { r: Route }) {
   if (!r.process) return <span className="muted">waits for the IOC to dispatch</span>;
@@ -45,14 +46,29 @@ function Starts({ r }: { r: Route }) {
   return <><a href={href("/teams", { role: r.role })}>{words(r.role)} queue</a>{r.process !== "queue_item" && <> via {process}</>}</>;
 }
 
-/** What is unusual about a type: where it was declared when not in code, and whether repeats join one event. */
-function also(r: Route) {
-  return [r.joins && `repeats within ${r.join_hours} h join one event`,
+/** An ISO 8601 duration ("PT4H", "P1D") as hours, or null when it isn't one. */
+export function isoHours(d: string | null | undefined): number | null {
+  const m = /^P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?)?$/.exec(d ?? "");
+  if (!m || !(m[1] || m[2] || m[3])) return null;
+  return Number(m[1] ?? 0) * 24 + Number(m[2] ?? 0) + Number(m[3] ?? 0) / 60;
+}
+const hoursText = (h: number) => (h >= 48 && h % 24 === 0 ? `${h / 24} days` : `${Number(h.toFixed(1))} h`);
+
+/** Who else hears of it and what is unusual about a type: who an overdue step escalates to, where it was declared when
+ * not in code, and whether repeats join one event (#1078). */
+function also(r: Route, role?: WorkRoleRow) {
+  return [role?.escalate_to && `escalates to the ${words(role.escalate_to)} when late`,
+    r.joins && `repeats within ${r.join_hours} h join one event`,
     r.declared_in !== "code" && `from a ${r.declared_in}${r.source_system ? ` (${r.source_system})` : ""}`].filter(Boolean).join(" · ");
 }
 
-function dueText(r: Route) {
-  if (!r.due) return <span className="muted">role SLA</span>;
+/** When it is due: the type's own hours, else its queue's SLA in hours, never the bare words "role SLA" (#1078). */
+function dueText(r: Route, role?: WorkRoleRow) {
+  if (!r.due) {
+    const h = isoHours(role?.default_sla);
+    return h == null ? <span className="muted">no time set</span>
+      : <>{hoursText(h)} <span className="muted">to act</span></>;
+  }
   const map = Object.entries(r.due.hours).map(([p, h]) => `${p}: ${h} h`).join(", ");
   return <>{map || "off"}{r.due.setting && <span className="muted"> (setting <span className="mono">{r.due.setting}</span>)</span>}</>;
 }
@@ -86,18 +102,18 @@ function Explanation({ x }: { x: RouteExplanation }) {
       {x.matched.length > 0 && <>Matches {x.matched.map((m) => m.label).join(", ")}. </>}
       {x.unmatched.length > 0 && <span className="muted">No match for {x.unmatched.join(", ")}.</span>}</p>}
     {x.due && <p className="small">Due {new Date(x.due).toLocaleString()}.</p>}
-    {nobody.length > 0 && <p role="alert" className="notice small">Nobody holds {nobody.map((s) => s.role).join(", ")}:
+    {nobody.length > 0 && <p role="alert" className="notice small">Nobody holds {nobody.map((s) => words(s.role)).join(", ")}:
       work there waits unseen. <a href={href("/users", { view: "workflow" })}>Assign someone</a>.</p>}
     {x.process?.published && <ProcessPicture processKey={x.process.key} steps={steps} />}
     {steps.length > 0 && <Table variant="list">
       <thead><tr><th>Step</th><th>Lane</th><th>Held by</th><th>SLA</th><th>Escalates to</th></tr></thead>
       <tbody>{steps.map((s) => <tr key={s.element}>
         <td>{s.step}</td>
-        <td>{s.kind === "agent" ? `${s.role} agent` : s.role}</td>
+        <td>{s.kind === "agent" ? `${words(s.role)} agent` : words(s.role)}</td>
         <td>{s.kind === "agent" ? <span className="muted">agent worker</span>
           : s.holders?.length ? s.holders.join(", ") : <Badge tone="warn">nobody</Badge>}</td>
         <td>{s.sla ?? <span className="muted">none</span>}{s.sla_from === "role" && <span className="muted small"> (role)</span>}</td>
-        <td className="small">{s.escalation.length ? s.escalation.join(" → ") : <span className="muted">stays with its role</span>}</td>
+        <td className="small">{s.escalation.length ? s.escalation.map(words).join(" → ") : <span className="muted">stays with its role</span>}</td>
       </tr>)}</tbody>
     </Table>}
     {x.process && <p className="small"><a href={href(`/processes/${x.process.key}`)}>Edit the {x.process.key} process</a>

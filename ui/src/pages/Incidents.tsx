@@ -16,6 +16,8 @@ export function IncidentsPage() {
   return (
     <section>
       <PageHeader subtitle="Events, downtime and notifications grouped per asset.">Incidents</PageHeader>
+      {/* Repeats lead: whether problems come back is what a manager reads this page for (#1078). */}
+      <IncidentRepeats />
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.total === 0}>
         No incidents yet.
       </Status>
@@ -33,7 +35,6 @@ export function IncidentsPage() {
           </Disclosure>}
         </UICard>
       )}
-      <IncidentRepeats />
       <FlareAttribution />
       <RatingProgress />
     </section>

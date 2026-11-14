@@ -10,9 +10,14 @@ that owns it, and the declaration only reads it. Its compute function takes (con
     refs     what the headline is made of: entity ids or "case:<id>"
     as_of    the date or period it is for
     note     why it is None, or what it leaves out
+    history  optional [{at, value}], the value over earlier periods, oldest first, where the computation keeps them
 
 A metric over a dated period (`dated=True`) also takes `at`, the day the period ends, so a dated document such as the
 daily report reads the value for its own day and keeps it when it is rebuilt later; without `at` it reads the latest.
+Asked for its history, a dated metric is read again for the weeks before; another gives one only if it keeps one.
+
+A metric may declare a `target`, the value it should reach (at least it when higher is better, at most when lower), so
+a page can say at a glance whether it is on target (#1078). Targets are the platform's defaults for a demonstration.
 
     metric(key, label, ...)      declare one (decorates its compute function)
     registry()                   every metric, by key
@@ -47,16 +52,18 @@ class Metric:
     better: str = "higher"  # higher | lower | none
     group: str = "Other"
     dated: bool = False
+    target: float | None = None
 
     def describe(self) -> dict:
         return {"key": self.key, "label": self.label, "group": self.group, "definition": self.definition,
                 "formula": self.formula, "unit": self.unit, "standard": self.standard, "grains": list(self.grains),
-                "period": self.period, "better": self.better, "records": self.records, "dated": self.dated}
+                "period": self.period, "better": self.better, "records": self.records, "dated": self.dated,
+                "target": self.target}
 
 
 def metric(key: str, label: str, *, definition: str, formula: str, unit: str, records: str, grains=(),
            standard: str | None = None, period: str = "now", better: str = "higher", group: str = "Other",
-           dated: bool = False):
+           dated: bool = False, target: float | None = None):
     """Declare a metric; the decorated function computes it."""
     if bad := set(grains) - set(GRAINS):
         raise ValueError(f"metric {key}: unknown grain {sorted(bad)}")
@@ -65,7 +72,7 @@ def metric(key: str, label: str, *, definition: str, formula: str, unit: str, re
         if key in _REGISTRY:
             raise ValueError(f"metric {key} is declared twice")
         _REGISTRY[key] = Metric(key, label, definition, formula, unit, records, fn, tuple(grains), standard, period,
-                                better, group, dated)
+                                better, group, dated, target)
         return fn
     return wrap
 
@@ -76,9 +83,12 @@ def registry() -> dict[str, Metric]:
     return dict(sorted(_REGISTRY.items()))
 
 
-def value(conn, pack, key: str, grain: str | None = None, at=None) -> dict:
+HISTORY_WEEKS = 8
+
+
+def value(conn, pack, key: str, grain: str | None = None, at=None, history: bool = False) -> dict:
     """One metric now (a dated one for the period ending `at`, a date): its declaration, its headline value and, with a
-    grain, its rows."""
+    grain, its rows. With `history`, its values over earlier periods, oldest first, where it has them."""
     m = registry().get(key)
     if m is None:
         raise MetricError(f"no metric {key}")
@@ -87,5 +97,15 @@ def value(conn, pack, key: str, grain: str | None = None, at=None) -> dict:
     if at is not None and not m.dated:
         raise MetricError(f"{key} is not for a dated period; it is for {m.period}")
     out = (m.compute(conn, pack, grain, at=at) if m.dated else m.compute(conn, pack, grain)) or {}
+    past = (out.get("history") or []) if history else []
+    if history and m.dated and not past and out.get("as_of"):
+        from datetime import date, timedelta
+
+        end = date.fromisoformat(str(out["as_of"])[:10])
+        for weeks in range(HISTORY_WEEKS - 1, -1, -1):
+            day = end - timedelta(weeks=weeks)
+            v = (m.compute(conn, pack, None, at=day) or {}).get("value") if weeks else out.get("value")
+            if v is not None:
+                past.append({"at": day.isoformat(), "value": v})
     return {**m.describe(), "value": out.get("value"), "rows": out.get("rows") or [], "refs": out.get("refs") or [],
-            "as_of": out.get("as_of"), "note": out.get("note"), "grain": grain}
+            "as_of": out.get("as_of"), "note": out.get("note"), "grain": grain, "history": past}

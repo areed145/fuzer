@@ -304,6 +304,7 @@ def study_start(s: StudyIn, conn=Depends(get_conn)):
 @router.get("/studies")
 def study_list(limit: int = 50, conn=Depends(get_conn)):
     from ..ops import study
+    study.sample(conn, deps.pack())  # a demo facility opens with a few studies to read (#1078)
     return study.listing(conn, min(limit, 200))
 
 

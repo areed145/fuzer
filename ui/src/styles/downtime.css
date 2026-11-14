@@ -8,3 +8,16 @@
   .downtime > .row { align-items: stretch; }
 }
 .ranking li.unattributed > span:first-child { font-style: italic; color: var(--muted); }
+/* Planned apart from unplanned (#1078): the totals' key, the month bars stacked by kind, and the event list. */
+.downtime-totals p { margin: 4px 0; }
+.downtime .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 2px; vertical-align: baseline; }
+.downtime .dot.planned, .month-stack .planned { background: var(--chart-2); }
+.downtime .dot.unplanned, .month-stack .unplanned { background: var(--accent); }
+.month-bars { display: flex; align-items: flex-start; gap: 4px; list-style: none; margin: 8px 0 0; padding: 0; overflow-x: auto; }
+.month-bars li { display: grid; grid-template-rows: auto 120px auto auto; justify-items: center; gap: 3px; min-width: 40px; flex: 1 0 40px; }
+.month-stack { display: flex; flex-direction: column; justify-content: flex-end; width: 22px; height: 120px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.month-stack > span { display: block; width: 100%; }
+.month-value { font-size: 11px; line-height: 16px; min-height: 16px; font-variant-numeric: tabular-nums; }
+.month-name { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.downtime-scope { margin: 16px 0 8px; }
+.month-planned { font-size: 10px; line-height: 1.2; text-align: center; color: var(--chart-2); font-weight: 600; min-height: 1em; }

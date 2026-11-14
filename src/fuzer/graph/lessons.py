@@ -1,7 +1,9 @@
 """Lessons learned: what has fixed a failure mode on an equipment model before.
 
 Every incident with ISO 14224 failure modes and corrective work orders is evidence for its unit's
-equipment model (or class, when the model is unknown), and so is every case Fuzer closed as a real
+equipment model (or class, when the model is unknown), and so is every maintenance notification with a failure mode and
+the work orders raised for it that no incident already includes (#1078: a plant's notification history is where
+most of its repairs are written down), and every case Fuzer closed as a real
 problem with a failure mode and the action taken (P6.2a: the structured close-out of P6.1). Per model
 and failure mode, a draft lesson lists the corrective actions, how often each one held, how many
 incidents and cases it rests on and how often the problem came back: within RECUR_DAYS for an
@@ -46,6 +48,38 @@ def _incidents(conn) -> list[dict]:
     ).fetchall()
 
 
+def _notifications(conn) -> list[dict]:
+    """Notifications with a failure mode and the work orders raised for them, in the shape of an incident on the tag
+    they concern; those an incident includes are already counted with it."""
+    return conn.execute(
+        """
+        select n.fuzer_id as id, t.dst as unit,
+               jsonb_build_object('start', c.value #>> '{}', 'end', c.value #>> '{}',
+                                  'failure_modes', jsonb_build_array(fm.value #>> '{}')) as f,
+               (select array_agg(distinct coalesce(ws.value #>> '{}', '') || '|' || coalesce(wa.value #>> '{}', ''))
+                from edge wo
+                left join golden ws on ws.fuzer_id = wo.src and ws.field = 'text'
+                left join golden wa on wa.fuzer_id = wo.src and wa.field = 'activity_name'
+                where wo.dst = n.fuzer_id and wo.rel = 'for_notification') as orders,
+               (select m.dst from edge ins
+                join edge m on m.src = ins.src and m.rel = 'instance_of'
+                where ins.dst = t.dst and ins.rel = 'installed_at'
+                  and (ins.valid_from is null or ins.valid_from <= (c.value #>> '{}')::date)
+                  and (ins.valid_to is null or ins.valid_to > (c.value #>> '{}')::date)
+                limit 1) as model,
+               (select k.dst from edge k where k.src = t.dst and k.rel = 'classified_as' limit 1) as class
+        from entity n
+        join golden fm on fm.fuzer_id = n.fuzer_id and fm.field = 'failure_mode'
+        join golden c on c.fuzer_id = n.fuzer_id and c.field = 'created'
+        join lateral (select e.dst from edge e join entity u on u.fuzer_id = e.dst and u.kind = 'tag'
+                      where e.src = n.fuzer_id and e.rel = 'concerns' limit 1) t on true
+        where n.kind = 'notification' and n.retired_at is null
+          and not exists (select 1 from edge i where i.dst = n.fuzer_id and i.rel = 'includes')
+          and exists (select 1 from edge wo where wo.dst = n.fuzer_id and wo.rel = 'for_notification')
+        """
+    ).fetchall()
+
+
 def _cases(conn, actions: dict) -> list[dict]:
     """Closed cases with a real problem's close-out, in the shape of an incident: the action taken stands for its work
     orders, and `recurred` is the re-check saying the fix did not hold, or a repeat reopening it."""
@@ -74,7 +108,7 @@ def _cases(conn, actions: dict) -> list[dict]:
 def suggest(conn, taxonomy: str = "iso14224") -> dict:
     std = load_standard(taxonomy)
     modes = std.get("failure_modes", {})
-    rows = _incidents(conn)
+    rows = [*_incidents(conn), *_notifications(conn)]
     cases = _cases(conn, std.get("maintenance_activities", {}))
     keys = {r["fuzer_id"]: (r["kind"], r["key"]) for r in conn.execute(
         "select fuzer_id, kind, key from entity_key where kind in ('equipment_model', 'equipment_class') "

@@ -23,6 +23,9 @@ const STATUS_HELP: Record<string, string> = {
   "no review": "no review case (drafted before reviews, or closed by hand)",
 };
 
+const weekday = (day: string) => new Date(`${day}T00:00Z`).toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" });
+const dayMonth = (day: string) => new Date(`${day}T00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
 export function StatusBadge({ status }: { status: DailyStatus }) {
   return <UIBadge className={`badge ${STATUS_CLASS[status] ?? ""}`} title={STATUS_HELP[status]}>{status}</UIBadge>;
 }
@@ -41,17 +44,19 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
         No reports yet: `fuzer report` closes a day.
       </Status>
       {waiting > 0 && <p className="small">{waiting} report{waiting > 1 ? "s" : ""} awaiting review.</p>}
+      {/* A strip of days, newest first, each with its status: the wrapping line of versions read as noise (#1078). */}
       {days.data && days.data.length > 0 && (
-        <div className="row wrap">
+        <nav className="report-days" aria-label="Report days">
           {days.data.map((d) => (
-            <a key={d.day} className={`badge${d.day === day ? " on" : ""} ${STATUS_CLASS[d.status] ?? ""}`}
-              href={href("/reports", { day: d.day })}
-              title={`${d.status}${d.ok ? "" : "; has lines to check"}`}>
-              {d.day}{d.version > 1 ? ` v${d.version}` : ""}{d.ok ? "" : " ⚠"}
-              {d.status !== "published" && <span className="muted"> · {d.status}</span>}
+            <a key={d.day} className={`report-day${d.day === day ? " on" : ""}`} aria-current={d.day === day ? "page" : undefined}
+              href={href("/reports", { day: d.day })} title={`${d.status}${d.ok ? "" : "; has lines to check"}`}>
+              <span className="report-day-week">{weekday(d.day)}</span>
+              <strong>{dayMonth(d.day)}</strong>
+              <StatusBadge status={d.status} />
+              {!d.ok && <span className="small warn-text">lines to check</span>}
             </a>
           ))}
-        </div>
+        </nav>
       )}
       {day && <Report key={day} day={day} onChange={days.reload} />}
       <h2>Regulatory reports</h2>
@@ -79,7 +84,9 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
           <Review d={d} onDone={() => { r.reload(); onChange(); }} />
           <div className="grid">
             <UICard  as="section">
-              <div className="row small muted">
+              {/* The day's headline leads; how it was drafted and its versions follow it (#1078). */}
+              <Markdown text={readableCitations(d.markdown)} />
+              <div className="row small muted report-versions">
                 <span>Version</span>
                 {d.versions.map((v) => (
                   <Button key={v} className={v === d.version ? "chip on" : "chip"} onClick={() => setVersion(v)}>{v}</Button>
@@ -88,7 +95,6 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
                 {d.usage?.cost_usd !== undefined && <span>${d.usage.cost_usd.toFixed(2)}</span>}
                 {d.seconds !== null && <span>{d.seconds} s</span>}
               </div>
-              <Markdown text={readableCitations(d.markdown)} />
             </UICard>
             <UICard  as="section">
               <h2>Checks</h2>
