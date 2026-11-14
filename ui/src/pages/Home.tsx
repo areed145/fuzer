@@ -59,7 +59,10 @@ export function HomePage({ query, stats }: {
   const ready = useCallback(() => setLeadReady(true), []);
   const lead = seat === "operator" ? <YourShift key="shift" onReady={ready} />
     : seat === "dispatcher" ? <AllWorkCard key="all" onReady={ready} /> : null;
-  const shown = lead && !leadReady ? ORDER[seat].slice(0, ORDER[seat].indexOf("lead") + 1) : ORDER[seat];
+  // They mount at once so their reads start with the lead's, and are only kept out of sight (and out of the layout)
+  // until it has drawn: mounting them later held their reads back too (+4 s with five sessions, perf7).
+  const at = ORDER[seat].indexOf("lead") + 1;
+  const held = !!lead && !leadReady;
   const blocks: Record<Block, ReactNode> = {
     lead: lead && <div className="home-lead">{lead}</div>,
     attention: loaded && <AttentionCard />,
@@ -88,7 +91,12 @@ export function HomePage({ query, stats }: {
             : <p>Ask an administrator to load the demonstration records.</p>}
         </UICard>
       )}
-      {seated ? shown.map((b) => <Fragment key={b}>{blocks[b]}</Fragment>) : <Status loading />}
+      {seated ? <>
+        {ORDER[seat].slice(0, at).map((b) => <Fragment key={b}>{blocks[b]}</Fragment>)}
+        <div className={held ? "home-rest home-held" : "home-rest"} aria-hidden={held || undefined}>
+          {ORDER[seat].slice(at).map((b) => <Fragment key={b}>{blocks[b]}</Fragment>)}
+        </div>
+      </> : <Status loading />}
     </section>
   );
 }

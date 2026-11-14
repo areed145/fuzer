@@ -56,6 +56,10 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .home-search input { flex: 1; min-width: 0; }
 /* Cards wrap two to a row and any card alone on its row takes the row, whichever cards a seat gets (#1074). */
 .home-grid { display: flex; flex-wrap: wrap; gap: 16px; }
+/* Home's cards under the lead card: laid out as if the wrapper were not there, and kept out of sight and out of the
+   layout while the lead card loads, so it cannot push them down when it draws (#1069). */
+.home-rest { display: contents; }
+.home-rest.home-held { display: block; height: 0; overflow: hidden; visibility: hidden; }
 .home-grid > * { flex: 1 1 380px; }
 .home-card { min-width: 0; margin-bottom: 0; }
 /* Loading, empty and failed reads sit in the card's flow, not centred like a page state. */
