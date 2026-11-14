@@ -10,8 +10,10 @@
  * again; one the server refused is not resent (AGENTS.md), and an expired session holds the outbox until sign-in. */
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type FieldReading, type PlanItem } from "./api";
-import { getProject } from "./authState";
+import { getProject, projectUrl } from "./authState";
 import * as store from "./fieldStore";
+import { clearKept, loadPack, setPack } from "./fieldPack";
+import { requestFile } from "./api/transport";
 
 export interface QueuedReport {
   client_id: string; exception_id: number; by: string; status: string; note?: string; at: string;
@@ -50,6 +52,7 @@ const heldBySession = (e: unknown) => {
 let account = "";
 let live = false;
 let migrated: Promise<void> | null = null;
+let packLoaded: Promise<void> | null = null;
 
 const senders = new Map<string, Sender>();
 /** How a kind of queued write is sent. Each sender must be idempotent on `client_id`. */
@@ -90,6 +93,7 @@ async function migrate() {
 /** Who is signed in, and whether the server confirmed it just now (`live`) or the app runs on the session the phone
  * kept. Called by the sign-in gate; the outbox sends only on a live session. */
 export function outboxSession(actor: string, isLive: boolean) {
+  if (actor !== account || !packLoaded) { store.setScope(actor); packLoaded = loadPack(); }
   account = actor;
   live = isLive;
   migrated ??= migrate().catch(() => undefined);
@@ -103,6 +107,7 @@ export async function fieldJobs(person: string): Promise<Jobs> {
   try {
     const fresh = await api.fieldJobs(person);
     void store.put("kept", { ...fresh, kept_at: new Date().toISOString() }, jobsKey(person));
+    void warmPack(fresh.jobs);
     return fresh;
   } catch (e) {
     if (!unreachable(e)) throw e;
@@ -111,6 +116,61 @@ export async function fieldJobs(person: string): Promise<Jobs> {
     if (!kept) throw e;
     return { ...kept, offline: { since: kept.kept_at ?? "" } };
   }
+}
+
+/** How often the field pack is read again while the operator's jobs stay the same. */
+const WARM_EVERY_MS = 15 * 60_000;
+let warming = false;
+
+/** Keep the day's work on the phone (P5.17c): the pack is each job's assets and their documents and drawings, and
+ * the reads an asset's page opens with are made once now, one at a time through the bounded queue, so they are kept
+ * before the operator walks out of signal. Anything else a pack page reads is kept when it is opened. Read again
+ * when the jobs change, or every 15 minutes. */
+export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
+  if (warming) return;
+  await packLoaded;
+  const list = Array.isArray(jobs) ? jobs : [];
+  const assets = [...new Set(list.flatMap((j) => (j.assets ?? []).map((a) => a.fuzer_id)))].sort();
+  const key = `warm:${account}:${getProject()}`;
+  const last = await store.get<{ at: string; assets: string }>("kept", key);
+  if (!force && last && last.assets === assets.join(",") && Date.now() - Date.parse(last.at) < WARM_EVERY_MS) return;
+  warming = true;
+  try {
+    const ids = new Set(assets);
+    await setPack(ids);
+    const drawings = new Set<string>(), documents = new Set<string>();
+    for (const id of assets) {
+      const [d, docs] = await Promise.all([api.entityDrawings(id).catch(() => null), api.documentsFor(id).catch(() => [])]);
+      (Array.isArray(d?.drawings) ? d.drawings : []).forEach((x) => drawings.add(x.id));
+      (Array.isArray(docs) ? docs : []).forEach((x) => documents.add(x.id));
+    }
+    await setPack([...ids, ...drawings, ...documents]);
+    for (const id of assets) {
+      await Promise.allSettled([api.entity(id), api.entityStatus(id), api.entityProfile(id),
+        api.exceptions({ state: "open", subject: id }), api.plan({ subject: id }), api.trendView(id, undefined, 48, 24)]);
+      await Promise.allSettled([api.incidents(id), api.related({ subject: id }), api.events(id), api.assetThreads(id),
+        api.entityMap(id)]);
+    }
+    for (const id of drawings) {
+      const g = await api.drawing(id).catch(() => null);
+      if (g?.image) await requestFile(projectUrl(g.image)).catch(() => null);
+    }
+    for (const id of documents) {
+      if (drawings.has(id)) continue;
+      await Promise.allSettled([api.entity(id), requestFile(projectUrl(`/documents/${encodeURIComponent(id)}/file`))]);
+    }
+    await store.put("kept", { at: new Date().toISOString(), assets: assets.join(",") }, key);
+  } catch {
+    // An unexpected answer: what was kept so far stays, and the next load tries again.
+  } finally {
+    warming = false;
+  }
+}
+
+/** Forget the pages kept for the signed-in account, at sign-out. Its outbox stays: that is the operator's work. */
+export async function forgetKept(): Promise<void> {
+  await clearKept(account);
+  await store.remove("kept", `warm:${account}:${getProject()}`);
 }
 
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID()
