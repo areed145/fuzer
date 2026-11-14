@@ -73,8 +73,14 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .notification-list { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }
 .notification-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .notification-list li > a { display: flex; align-items: center; min-height: 44px; min-width: 0; overflow-wrap: anywhere; }
-.notification-list li > span { color: var(--muted); white-space: nowrap; }
-@media (max-width: 640px) { .notification-list li { grid-template-columns: auto minmax(0, 1fr); } .notification-list li > span { grid-column: 2; } }
+.notification-list li > .when { color: var(--muted); white-space: nowrap; }
+/* On a phone the kind and the time share the first line and the message takes the full width under them; the kind is a
+ * span too, so the rules name the time (.when) rather than every span (#1077: the time ran off the screen). */
+@media (max-width: 640px) {
+  .notification-list li { grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; padding: 6px 0; }
+  .notification-list li > .when { grid-row: 1; grid-column: 2; }
+  .notification-list li > a { grid-column: 1 / -1; min-height: 0; }
+}
 .home-headline { margin-bottom: 12px; }
 .home-subsection { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .home-subsection h3 { font-size: 13px; }

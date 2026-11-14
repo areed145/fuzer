@@ -111,3 +111,12 @@ html.ui-fullscreen-open .bottombar { display: none; }
 .chart-frame.ui-fullscreen .chart-fullscreen { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
 /* A chart taller than the screen scrolls on its full screen; its close button stays where the thumb found it. */
 .chart-frame.ui-fullscreen .chart-fullscreen { position: fixed; }
+
+/* A phone never scrolls sideways (#1077): a long badge (a list of roles, a long name) wraps instead of pushing the page
+ * wider, and anything still too wide is clipped at the screen edge rather than letting the whole page pan. */
+@media (max-width: 600px) {
+  #main-content :is(.ui-badge, .badge) { white-space: normal; overflow-wrap: anywhere; }
+}
+@media (max-width: 900px) {
+  html, body { overflow-x: clip; }
+}

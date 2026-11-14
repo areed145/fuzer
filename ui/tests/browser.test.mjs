@@ -7328,6 +7328,34 @@ test("on an iPhone a table stacks as labelled rows and a section picker that rep
   assert.deepEqual(errors, []);
 });
 
+test("My work never scrolls sideways on a phone, even holding every role (#1077)", async () => {
+  const roles = ["data_steward", "engineer", "field_operator", "ops_lead", "production_engineer", "planner", "maintenance_supervisor"];
+  await page.route("**/work/inbox*", (r) => r.fulfill({ json: { person: "demo", roles, mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 138 } } } }));
+  // A long escalation notice with its kind and time: the time used to run off the right edge.
+  const notifications = [{ id: 1, kind: "escalated", item_id: 41, token_id: null, link: "#/cases/41", channel: "in_app", delivery: null,
+    text: "'High vibration on 1st stage compressor (notification 20000067)' was escalated to you. SLA PT4H on 'Work the case' passed while it was with sam",
+    created_at: "2026-11-14T08:23:00Z", read_at: null }];
+  await page.route("**/work/notifications?*", (r) => r.fulfill({ json: { notifications, unread: 1 } }));
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "demo"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/?ios=1#/inbox`);
+  const badge = page.getByText(/unclaimed in your roles/);
+  await badge.waitFor();
+  assert.match(await badge.innerText(), /data steward, engineer/);
+  await page.getByRole("link", { name: /High vibration/ }).waitFor();
+  // Measured with the page's own clipping off, so this checks that nothing is wider than the screen.
+  const width = await page.evaluate(() => {
+    for (const el of [document.documentElement, document.body]) el.style.overflowX = "visible";
+    return document.documentElement.scrollWidth;
+  });
+  assert.ok(width <= 390, `page is ${width} px wide on a 390 px screen`);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.body).overflowX), "visible");
+  await page.evaluate(() => { for (const el of [document.documentElement, document.body]) el.style.overflowX = ""; });
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).overflowX), "clip");
+  assert.deepEqual(errors, []);
+});
+
 test("P5.14e A dispatched job walked in the installed app at 390 px: My work, the step, its asset, the trend, and Back to the step", async () => {
   // Installed on a phone: standalone display, no browser back button, a gloved thumb.
   await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
