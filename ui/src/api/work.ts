@@ -904,7 +904,8 @@ export const workApi = {
       override: extra.override ?? null, permit_in_hand: extra.permit_in_hand ?? null }, extra.project),
   fieldHandover: (id: number, h: { by: string; to: string; done: string; left: string; unsafe?: string }) =>
     request<FieldJob>("POST", `/exceptions/${id}/handover`, undefined, { ...h, unsafe: h.unsafe ?? null }),
-  acceptHandover: (id: number, by: string) => request<FieldJob>("POST", `/exceptions/${id}/handover/accept`, undefined, { by }),
+  acceptHandover: (id: number, by: string, client_id?: string, project?: string) =>
+    request<FieldJob>("POST", `/exceptions/${id}/handover/accept`, undefined, { by, client_id: client_id ?? null }, project),
   rounds: () => request<RoundRun[]>("GET", "/rounds"),
   round: (id: number) => request<RoundDetail>("GET", `/rounds/${id}`),
   takeRound: (id: number, t: { point: string; by: string; value?: number; passed?: boolean; note?: string; client_id?: string;
@@ -912,8 +913,9 @@ export const workApi = {
     request<RoundPoint & { exception: { id: number; raised: boolean } | null }>("POST", `/rounds/${id}/readings`, undefined, t, project),
   planAtRisk: (start?: string, days = 90) => request<AtRisk>("GET", "/plan/at-risk", { start, days }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
-  planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
-    request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),
+  planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>,
+    project?: string) =>
+    request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }, project),
   planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),
   turnaround: (revision?: string) => request<TurnaroundScope>("GET", "/turnarounds", { revision }),
   turnaroundBringIn: (itemId: number, by: string, revision: string | null) =>
@@ -1025,8 +1027,9 @@ export const workApi = {
     request<unknown>("POST", `/work/processes/${id}/cancel`, undefined, { by, state: "cancelled", reason }),
   claim: (id: number, by: string) => request<unknown>("POST", `/work/tasks/${id}/claim`, undefined, { by }),
   release: (id: number, by: string) => request<unknown>("POST", `/work/tasks/${id}/release`, undefined, { by }),
-  complete: (id: number, by: string, data: Record<string, unknown>) =>
-    request<{ process_state: string }>("POST", `/work/tasks/${id}/complete`, undefined, { by, data }),
+  complete: (id: number, by: string, data: Record<string, unknown>, kept?: { client_id: string; at: string; project: string }) =>
+    request<{ process_state: string }>("POST", `/work/tasks/${id}/complete`, undefined,
+      { by, data, ...(kept ? { client_id: kept.client_id, at: kept.at } : {}) }, kept?.project),
   handOff: (id: number, by: string, to: string, reason?: string) =>
     request<unknown>("POST", `/work/tasks/${id}/hand-off`, undefined, { by, to, reason }),
   bulkComplete: (taskIds: number[], by: string, action: string, reason?: string) =>

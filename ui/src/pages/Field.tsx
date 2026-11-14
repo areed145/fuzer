@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, Input } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
-import { OUTBOX_CHANGED, clearRefused, flush, outbox, refusedReasons, sendReport, sendTake, useOutbox, type FlushResult, type QueuedTake } from "../fieldOffline";
+import { OUTBOX_CHANGED, clearRefused, flush, outbox, refusedReasons, sendHandoverAccept, sendPlanChange, sendReport, sendTake,
+  useOutbox, type FlushResult, type QueuedTake } from "../fieldOffline";
 import { NEEDS_SIGNAL } from "../signal";
 import { useSignal } from "../useSignal";
 
@@ -56,8 +57,10 @@ const day = (at: string) => new Date(at).toLocaleDateString(undefined, { weekday
 export function ComingUp({ items, person, onChange }: { items: PlanItem[]; person: string; onChange: () => void }) {
   const { busy, error, run } = useAct();
   const soon = Date.now() + 86_400_000;
+  // Said without signal, it is kept on the phone and sent when the signal returns (P5.17e).
+  const waiting = useOutbox().waiting.filter((w) => w.kind === "plan_change").map((w) => w.payload as { item: number; status: string });
   const set = (i: PlanItem, status: string) =>
-    run(status === "done" ? "Done" : "Started", () => api.planChange(i.id, person, { status }), onChange);
+    run(status === "done" ? "Done" : "Started", () => sendPlanChange(i.id, person, status), (how) => { if (how === "sent") onChange(); });
   return (
     <Card className="field-coming" title="Coming up">
       <ul className="plain">{items.map((i) => <li key={i.id}>
@@ -65,6 +68,8 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
         <span className="muted small">{i.kind.replace(/_/g, " ")}{i.needs_shutdown ? " · in the shutdown" : ""}
           {i.crew?.startsWith("role:") ? ` · for ${i.crew.slice(5)}` : ""}</span>
         {i.status === "in_progress" && <> <Badge tone="ok">started</Badge></>}
+        {waiting.filter((c) => c.item === i.id).slice(-1).map((c) => <span key="kept"> <Badge tone="warn">
+          {c.status === "done" ? "Done" : "Started"} · waiting to send</Badge></span>)}
         {i.assets.length > 0 && <div className="small">{i.assets.map((a) =>
           <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</div>}
         {i.notes && <div className="small muted">{i.notes}</div>}
@@ -263,7 +268,8 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
   const blocked = !!job.permit?.blocked;
   const signal = useSignal();
   // Reports for this job still on the phone (P5.17b): shown as waiting, not as done, until the server has them.
-  const waiting = useOutbox().waiting.filter((w) => w.kind === "field_report" && (w.payload as { exception_id?: number }).exception_id === job.id);
+  const mine = useOutbox().waiting.filter((w) => (w.payload as { exception_id?: number }).exception_id === job.id);
+  const waiting = mine.filter((w) => w.kind === "field_report");
   const dictate = useDictation((t) => setNote((n) => (n.trim() ? `${n.trim()} ${t}` : t)));
   const reading: FieldReading | undefined = value.trim() ? { value: Number(value), unit: unit.trim(), what: what.trim() || null } : undefined;
   const say = (status: string) => {
@@ -294,9 +300,9 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
     <Card className="field-job" title={<>{job.title} <Badge>{job.label}</Badge></>}>
       {job.handover && <HandoverNote h={job.handover} />}
       {job.handover?.mine_to_accept && <div className="row field-actions">
-        <Button variant="primary" disabled={!!busy || !signal.live} title={signal.live ? undefined : NEEDS_SIGNAL}
-          onClick={() => run("Accepting", () => api.acceptHandover(job.id, person), onChange)}>Accept the handover</Button>
-        {!signal.live && <span className="small muted">{NEEDS_SIGNAL}</span>}
+        {mine.some((w) => w.kind === "handover_accept") ? <Badge tone="warn">Accepted · waiting to send</Badge>
+          : <Button variant="primary" disabled={!!busy}
+          onClick={() => run("Accepting", () => sendHandoverAccept(job.id, person), (how) => { if (how === "sent") onChange(); })}>Accept the handover</Button>}
       </div>}
       <p className="row small">
         <Due at={job.due} />

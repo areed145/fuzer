@@ -308,6 +308,14 @@ outside them goes to the IOC when sent. The server applies each client id once a
 taken and when it arrived. When two readings of one point meet, the one taken later stands, whichever arrived first.
 A reading taken during the shift is accepted after the run has closed, and the run's state is counted again.
 
+Close-outs, handover accepts and plan updates wait in the outbox too (P5.17e, #1094). A task step and its case are
+kept once opened, and the job's steps are read with the field pack, so a close-out form can be filled in and done
+without signal; the step says "Done on this phone, waiting to send". Completing a step carries its client id and the
+time it was done, which the work event records, and a repeat is applied once. Accepting a handover and moving a planned
+job carry a client id the same way. What needs the server's latest state is never queued: taking a job from a queue is
+disabled without signal and says why, and desk actions such as reassigning, a permit override or dispatch fail without
+signal like any other write, and are not retried.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and

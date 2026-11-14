@@ -32,8 +32,9 @@ export async function setPack(next: Iterable<string>): Promise<void> {
 }
 export const packIds = () => ids;
 
-/** Reads kept whoever they name: this shift's rounds and their points (P5.17d). */
-const ALWAYS = /^\/rounds(\/\d+)?$/;
+/** Reads kept whoever they name: this shift's rounds and their points (P5.17d), and a task step and its case once
+ * opened (P5.17e), so a close-out form can be filled in without signal. */
+const ALWAYS = /^\/(rounds(\/\d+)?|work\/tasks\/\d+|work\/items\/\d+)$/;
 
 /** Whether a URL names a record in the pack (as a path segment or a query value), or is one of the reads always kept. */
 export function inPack(url: string, pack: Set<string> = ids): boolean {

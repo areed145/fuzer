@@ -358,6 +358,25 @@ def test_agent_cannot_complete_requires_human_step(conn):
     assert engine.item(conn, out["item_id"])["state"] == "done"
 
 
+def test_a_step_completed_on_a_phone_without_signal_is_applied_once_with_its_time(conn):
+    """P5.17e (#1094): a completion kept on the phone comes with a client id and the time it was made. Sent again
+    after the answer was lost it changes nothing, and the completed event keeps when it was made."""
+    from datetime import UTC, datetime, timedelta
+
+    publish_file(conn, (BPMN_DIR / "loop.bpmn").read_text())
+    out = engine.start(conn, "t_loop", {}, "alice")
+    draft = task(conn, out["item_id"], "draft")["id"]
+    made = (datetime.now(UTC) - timedelta(minutes=40)).isoformat()
+    first = engine.complete(conn, draft, "alice", {"draft": "text"}, client_id="phone-1", at=made)
+    again = engine.complete(conn, draft, "alice", {"draft": "text"}, client_id="phone-1", at=made)
+    assert again["repeat"] is True and again["process_id"] == first["process_id"]
+    [done] = events(conn, out["item_id"], "completed")
+    assert done["data"]["client_id"] == "phone-1"
+    assert datetime.fromisoformat(done["data"]["made_at"]) == datetime.fromisoformat(made)
+    with pytest.raises(engine.Conflict):  # without the id, a second completion is still refused
+        engine.complete(conn, draft, "alice", {"draft": "text"})
+
+
 def test_an_agent_cannot_set_what_a_person_decides_on_any_tool_surface(conn):
     """P4.4: the human-decision boundary is the server's. Whichever way an agent hands in data (finishing its step
     directly, through the worker, through the MCP work tools, or as a message), it cannot set the decision keys or

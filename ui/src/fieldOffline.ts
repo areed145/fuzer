@@ -145,6 +145,10 @@ export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
       (Array.isArray(docs) ? docs : []).forEach((x) => documents.add(x.id));
     }
     await setPack([...ids, ...drawings, ...documents]);
+    // The task steps the jobs are on, so their forms can be filled in and closed out without signal.
+    for (const t of new Set(list.map((j) => j.task_id).filter((x): x is number => typeof x === "number"))) {
+      await api.workTask(t).catch(() => null);
+    }
     for (const id of assets) {
       await Promise.allSettled([api.entity(id), api.entityStatus(id), api.entityProfile(id),
         api.exceptions({ state: "open", subject: id }), api.plan({ subject: id }), api.trendView(id, undefined, 48, 24)]);
@@ -219,6 +223,25 @@ registerSender("round_take", (w) => {
 });
 /** Take a round point now; without signal, keep it in the outbox. */
 export const sendTake = (t: QueuedTake) => sendOrQueue("round_take", t);
+
+/** The rest of what the field does at the asset (P5.17e): a task step's close-out, accepting a handover, and saying a
+ * planned job has started or is done. Each is idempotent on the server (a client id, or setting a state). */
+export interface QueuedCompletion { task: number; by: string; data: Record<string, unknown> }
+registerSender("task_complete", (w) => {
+  const c = w.payload as QueuedCompletion;
+  return api.complete(c.task, c.by, c.data, { client_id: w.client_id, at: w.at, project: w.project });
+});
+export const sendCompletion = (c: QueuedCompletion) => sendOrQueue("task_complete", c);
+registerSender("handover_accept", (w) => {
+  const h = w.payload as { exception_id: number; by: string };
+  return api.acceptHandover(h.exception_id, h.by, w.client_id, w.project);
+});
+export const sendHandoverAccept = (exception_id: number, by: string) => sendOrQueue("handover_accept", { exception_id, by });
+registerSender("plan_change", (w) => {
+  const c = w.payload as { item: number; by: string; status: string };
+  return api.planChange(c.item, c.by, { status: c.status }, w.project);
+});
+export const sendPlanChange = (item: number, by: string, status: string) => sendOrQueue("plan_change", { item, by, status });
 
 /** Send a job's report now; without signal, keep it in the outbox. */
 export const sendReport = ({ photos, ...r }: Omit<QueuedReport, "client_id" | "at">) =>
