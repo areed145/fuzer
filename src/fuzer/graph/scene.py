@@ -451,7 +451,8 @@ def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None,
     plate_ids = [a for a in areas if any(home[n] == a for n in drawn)] or areas[:1]
     plate_ids.sort(key=lambda a: (area_label.get(a) or a, a))
     plate_ids += [p for p in (ELSEWHERE, UNPLACED) if any(home[n] == p for n in drawn)]
-    names = {ELSEWHERE: "Connected elsewhere", UNPLACED: "In no area"}
+    # Said in full on the drawing (#1075): what each catch-all plate holds, not just its name.
+    names = {ELSEWHERE: "Connected elsewhere: linked from other areas", UNPLACED: "In no area: none recorded"}
     plates, items = [], {}
     for pid in plate_ids:
         mine = [n for n in drawn if home[n] == pid]

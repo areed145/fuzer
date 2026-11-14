@@ -88,6 +88,9 @@ ul.plain li { padding: 2px 0; }
   background: var(--bg); overflow: auto;
 }
 html.ui-fullscreen-open, html.ui-fullscreen-open body { overflow: hidden; }
+/* The phone's bottom bar can't cover a full-screen view's own legend and controls (#1075), whatever stacking its
+   ancestors make. */
+html.ui-fullscreen-open .bottombar { display: none; }
 .ui-fullscreen-button { display: inline-flex; align-items: center; justify-content: center; padding: 6px; }
 .ui-fullscreen-button svg { display: block; }
 @media (pointer: coarse) { .ui-fullscreen-button { min-width: 44px; min-height: 44px; } }

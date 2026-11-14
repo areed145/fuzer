@@ -14,6 +14,8 @@
 .graph-tools .ui-button { justify-content: center; min-width: 34px; min-height: 30px; padding: 3px 8px; font-size: 12px; }
 .graph-tools svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 @media (pointer: coarse), (max-width: 800px) { .graph-tools .ui-button { min-width: 44px; min-height: 44px; } }
+/* On a desktop the drawing ends in the first screen when the window is short (#1075). */
+@media (min-width: 801px) { .graph-canvas:not(.ui-fullscreen) { height: clamp(420px, calc(100dvh - 320px), var(--graph-height, 600px)); } }
 .graph-canvas.ui-fullscreen { height: 100vh; height: 100dvh; }
 .graph-panel { margin-bottom: 0; max-height: 640px; overflow: auto; }
 /* Phones: the graph takes the full width with its panel below, and stays shorter than the screen so the page

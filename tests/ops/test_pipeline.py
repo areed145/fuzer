@@ -137,6 +137,14 @@ def test_search_covers_all_fields(api):
     assert exact_first[0]["label"] == "20-V-2001"
 
 
+def test_search_lists_places_and_drawings_before_instrument_tags(api):
+    kinds = [h["kind"] for h in api.get("/entities", params={"q": "flare", "limit": 200}).json()]
+    assert "tag" in kinds and "area" in kinds
+    assert kinds.index("area") < kinds.index("tag"), "the flare system area comes before flare tags (#1075)"
+    browse = [h["kind"] for h in api.get("/entities", params={"limit": 40}).json()]
+    assert browse[0] == "facility" and "tag" not in browse, "Browse opens on facilities and areas, not tags"
+
+
 def test_api_lookup_text(api):
     out = api.get("/lookup", params={"text": "Train B down on OK_GGCP, lift gas short to OKA_ST2"}).json()
     assert {"OKAN-20", "OKAN-40"} <= {m["key"] for m in out}

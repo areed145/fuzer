@@ -100,7 +100,7 @@
   --status-work: var(--chart-4);
   --rel-flows_to: var(--product-multiphase);
   --rel-lift_gas_to: var(--product-lift_gas);
-  --rel-pipes_to: #8a4fd1;
+  --rel-pipes_to: #50708f;  /* steel, not purple: purple is open work on the 3D view (#1075) */
   --rel-part_of: #5f6b7a;
   --rel-installed_at: #0f8f9c;
   --rel-controls: #c2389b;
@@ -184,7 +184,7 @@
     --product-lift_gas: #4cc38a;
     --product-water: #4c9eff;
     --product-flare: #ff6b66;
-    --rel-pipes_to: #b48cff;
+    --rel-pipes_to: #8fa8c2;
     --rel-part_of: #a7b2c0;
     --rel-installed_at: #3fc6d4;
     --rel-controls: #e57ac8;

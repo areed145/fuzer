@@ -87,7 +87,7 @@ def test_what_it_connects_to_elsewhere_is_drawn_and_says_where(compression):
     _conn, _k, s = compression
     away = [i for i in s["items"] if i["plate"] == scene.ELSEWHERE]
     assert "10-V-2001" in {i["label"] for i in away} and all(i["area"] for i in away)
-    assert {p["label"] for p in s["plates"] if not p["area"]} >= {"Connected elsewhere"}
+    assert {p["label"] for p in s["plates"] if not p["area"]} >= {"Connected elsewhere: linked from other areas"}
 
 
 def test_everything_in_the_area_is_drawn_or_counted(compression):

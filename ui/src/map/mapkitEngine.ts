@@ -117,10 +117,12 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
         if (l.halo) overlays.push(...shapes(l.halo.color, l.halo.weight, 0.9, []));
         overlays.push(...shapes(l.color, l.weight, l.opacity, DASH(l.dash), l.popup));
       }
-      const annotations = points.map((p) => {
+      // Squares (platforms) after dots (wells): later annotations draw on top.
+      const ordered = [...points.filter((p) => p.shape !== "square"), ...points.filter((p) => p.shape === "square")];
+      const annotations = ordered.map((p) => {
         const dot = document.createElement("div");
         const d = 2 * p.radius + p.strokeWidth;
-        dot.className = "mk-point";
+        dot.className = p.shape === "square" ? "mk-point mk-square" : "mk-point";
         Object.assign(dot.style, { width: `${d}px`, height: `${d}px`, background: p.fill, borderColor: p.stroke,
                                    borderWidth: `${p.strokeWidth}px`, opacity: String(p.fillOpacity) });
         if (p.tip) dot.title = p.tip;

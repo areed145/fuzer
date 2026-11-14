@@ -93,9 +93,16 @@ export interface SceneLook {
   tint?: Map<string, string>;
   lit?: { items: Set<string>; links: Set<number> } | null;
   badges?: Map<string, { text: string; color: string; title: string }>;
+  /** One badge per area, drawn instead of the items' own when the scene is a whole facility in blocks (#1075). */
+  plateBadges?: Map<string, { text: string; color: string; title: string }>;
 }
 
+/** A whole facility with more items than this opens as blocks (#1075): its areas named and badged with their
+ * status, items unnamed until hovered or picked; a tap on an area's badge opens that area. */
+export const BLOCKS_OVER = 120;
+
 interface Built {
+  blocks: boolean;
   dispose: () => void; fit: () => void; light: () => void; lookAt: (id: string) => void;
   zoom: (factor: number) => void; top: () => void;
   /** One finger (or the left mouse button) pans instead of turning the view. Two fingers still zoom and pan. */
@@ -104,7 +111,9 @@ interface Built {
 }
 
 function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineColor: (link: SceneLink) => string,
-  labelBy: LabelBy, state: { selected: string | null; onSelect: (id: string | null) => void; look: SceneLook }): Built {
+  labelBy: LabelBy, state: { selected: string | null; onSelect: (id: string | null) => void; onPlate?: (id: string) => void;
+                             look: SceneLook }): Built {
+  const blocks = scene.root?.kind === "facility" && scene.items.length > BLOCKS_OVER;
   const colors = {
     panel: new THREE.Color(token("--panel")), line: new THREE.Color(token("--line")),
     muted: new THREE.Color(token("--muted")), accent: new THREE.Color(token("--accent")),
@@ -233,8 +242,11 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   elbows.forEach((e, i) => piece(e.link, elbowMesh, i, e.color));
   arrows.forEach((a, i) => piece(a.link, arrowMesh, i, a.color));
 
+  // Fit to the areas; the catch-all plates (connected elsewhere, in no area) sit to one side and would leave wide
+  // margins (#1075), so they count only when there is nothing else.
   const box = new THREE.Box3();
-  for (const p of scene.plates) box.expandByPoint(new THREE.Vector3(p.x, 0, p.z)).expandByPoint(new THREE.Vector3(p.x + p.w, 10, p.z + p.d));
+  const framed = scene.plates.some((p) => p.area) ? scene.plates.filter((p) => p.area) : scene.plates;
+  for (const p of framed) box.expandByPoint(new THREE.Vector3(p.x, 0, p.z)).expandByPoint(new THREE.Vector3(p.x + p.w, 10, p.z + p.d));
   if (box.isEmpty()) box.set(new THREE.Vector3(-10, 0, -10), new THREE.Vector3(10, 10, 10));
   if (scene.plates.some((p) => p.frame === "lattice")) {
     const size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
@@ -252,24 +264,50 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   const tag = (key: string, label: string, description: string | null | undefined, p: THREE.Vector3, cls: string, always: boolean) => {
     const el = document.createElement("span");
     el.className = cls;
+    el.setAttribute("aria-hidden", "true");
     const text = nameFor(label, description, labelBy);
     el.textContent = text;
     labels.appendChild(el);
     tags.set(key, { el, p, always, text, lit: nameFor(label, description, labelBy, true) });
   };
-  for (const p of scene.plates) tag(`plate:${p.id}`, p.label, p.description, new THREE.Vector3(p.x + 1, p.y, p.z + p.d), "scene-tag scene-tag-plate", true);
-  for (const it of scene.items) tag(it.id, it.label, it.description, new THREE.Vector3(it.x, at.get(it.id)!.top, it.z), "scene-tag", scene.items.length <= LABEL_ALL);
+  for (const p of scene.plates) tag(`plate:${p.id}`, p.label, p.description, new THREE.Vector3(p.x + 1, p.y, p.z + p.d),
+    `scene-tag scene-tag-plate${p.area ? "" : " scene-tag-aside"}`, true);
+  for (const it of scene.items) tag(it.id, it.label, it.description, new THREE.Vector3(it.x, at.get(it.id)!.top, it.z), "scene-tag",
+    !blocks && scene.items.length <= LABEL_ALL);
 
   // Badges: a small mark over each item with something to say (its status), always shown where it is on screen.
   let badges: { el: HTMLElement; p: THREE.Vector3 }[] = [];
   const mark = () => {
     for (const b of badges) b.el.remove();
     badges = [];
+    if (blocks) {  // one badge per area, over its middle, that opens the area
+      for (const [id, b] of state.look.plateBadges ?? []) {
+        const p = scene.plates.find((x) => x.id === id);
+        if (!p) continue;
+        const el = document.createElement("span");  // a span, so no page-wide button styling reaches it
+        el.className = "scene-badge scene-badge-plate";
+        el.textContent = b.text;
+        el.title = `${p.label}: ${b.title}`;
+        el.setAttribute("aria-label", el.title);
+        el.dataset.plate = id;
+        el.style.setProperty("--badge", b.color);
+        if (p.area) {
+          el.setAttribute("role", "button");
+          el.tabIndex = 0;
+          el.addEventListener("click", () => state.onPlate?.(id));
+          el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); state.onPlate?.(id); } });
+        }
+        labels.appendChild(el);
+        badges.push({ el, p: new THREE.Vector3(p.x + p.w / 2, p.y + 6, p.z + p.d / 2) });
+      }
+      return;
+    }
     for (const [id, b] of state.look.badges ?? []) {
       const hit = at.get(id);
       if (!hit) continue;
       const el = document.createElement("span");
       el.className = "scene-badge";
+      el.setAttribute("aria-hidden", "true");
       el.textContent = b.text;
       el.title = b.title;
       el.dataset.item = id;
@@ -430,7 +468,7 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   host.dataset.sceneItems = String(scene.items.length);
 
   return {
-    fit: () => fit(), top: () => fit(TOP), zoom, light: () => { mark(); light(); }, lookAt,
+    fit: () => fit(), top: () => fit(TOP), zoom, light: () => { mark(); light(); }, lookAt, blocks,
     pan: (on) => {
       controls.mouseButtons.LEFT = on ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
       controls.mouseButtons.RIGHT = on ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
@@ -460,7 +498,7 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   };
 }
 
-export default function Scene3D({ scene, selected, centre, onSelect, lineColor, labelBy = "names", look, footer, onUnavailable }: {
+export default function Scene3D({ scene, selected, centre, onSelect, onPlate, lineColor, labelBy = "names", look, footer, onUnavailable }: {
   scene: Scene;
   /** Status colours, the lit path and badges (SceneLook). */
   look?: SceneLook;
@@ -468,6 +506,8 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
   /** Bring this item to the middle of the view (a pick from the Find list, not from the drawing). */
   centre?: { id: string } | null;
   onSelect: (id: string | null) => void;
+  /** An area's badge was tapped on a whole facility drawn in blocks: open that area. */
+  onPlate?: (id: string) => void;
   /** The colour of a line: what it carries, else its link type (linkColor in kinds.ts). */
   lineColor: (link: SceneLink) => string;
   labelBy?: LabelBy;
@@ -483,8 +523,9 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
   const [panning, setPanning] = useState(false);
   const panRef = useRef(panning);
   panRef.current = panning;
-  const state = useRef({ selected, onSelect, look: look ?? {} });
+  const state = useRef({ selected, onSelect, onPlate, look: look ?? {} });
   state.current.onSelect = onSelect;
+  state.current.onPlate = onPlate;
 
   useEffect(() => {
     const start = () => {
@@ -537,7 +578,14 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
       <div className="graph-canvas scene3d">
         <div ref={host} className="graph-surface" role="img" tabIndex={0}
           aria-label={`Schematic 3D view of ${scene.root?.label ?? "the facility"}: ${scene.items.length} items`} />
-        <div ref={labels} className="scene-tags" aria-hidden="true" />
+        <div ref={labels} className="scene-tags" />
+        {/* What the badges mean, on the drawing where they are (#1075), not in the legend under it. */}
+        {(look?.badges?.size ?? 0) > 0 && <div className="scene-key" aria-label="What the badges mean">
+          <span><b className="scene-key-badge swatch-work">1</b>open work</span>
+          <span><b className="scene-key-badge swatch-alarm">1!</b>alarms</span>
+          <span><b className="scene-key-badge swatch-down">Down</b>down now</span>
+          {scene.root?.kind === "facility" && scene.items.length > BLOCKS_OVER && <span>Tap an area's badge to open it</span>}
+        </div>}
         <div className="graph-tools" role="toolbar" aria-label="View">
           <FullscreenButton on={full.on} onClick={() => void full.toggle()} />
           <Button variant="secondary" size="sm" className="graph-fit" onClick={() => built.current?.fit()} title="Fit to view">

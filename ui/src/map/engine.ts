@@ -18,6 +18,8 @@ export interface LineSpec {
 
 export interface PointSpec {
   at: LatLon;
+  /** A platform, pad or plant is a square, so it reads apart from a well's dot at field zoom (#1075). */
+  shape?: "circle" | "square";
   radius: number;
   stroke: string;
   strokeWidth: number;
