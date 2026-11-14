@@ -10,12 +10,14 @@ const reads = new Map<string, Promise<unknown>>();
 
 async function admit(): Promise<void> {
   if (active < CONCURRENT) { active++; return; }
-  if (waiting.length >= MAX_WAITING) throw new Error("Too many pending requests. Wait for current work to finish, then refresh.");
+  if (waiting.length >= MAX_WAITING) throw new TypeError("Too many pending requests. Wait for current work to finish, then refresh.");
   await new Promise<void>((resolve, reject) => {
     const start = () => { clearTimeout(timer); resolve(); };
     const timer = setTimeout(() => {
       waiting.splice(waiting.indexOf(start), 1);
-      reject(new Error("Timed out waiting for other requests. Wait for current work to finish, then refresh."));
+      // A TypeError, as an unreached fetch is (P5.17h): this request never left the phone, so a write the outbox can
+      // keep is kept rather than lost, and a kept read is served, when lie-fi holds every slot.
+      reject(new TypeError("Timed out waiting for other requests. Wait for current work to finish, then refresh."));
     }, WAIT_MS);
     waiting.push(start);
   });

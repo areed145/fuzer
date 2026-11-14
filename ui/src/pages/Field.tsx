@@ -5,9 +5,9 @@
  * else waiting on them. */
 import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
-import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Select } from "../ui";
+import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
-import { OUTBOX_CHANGED, asNote, describe, discard, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
+import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
   sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
 import { NEEDS_SIGNAL } from "../signal";
 import { useSignal } from "../useSignal";
@@ -20,7 +20,7 @@ import { taskHref, useAct } from "./workflows/shared";
  * the signal returns, from whichever page is open; this card counts them and can send now by hand. One the server
  * refused stays here with its reason (P5.17f), for the operator to send as a note, send to another job, or discard. */
 export function Outbox({ onSent, jobs = [] }: { onSent: () => void; jobs?: { id: number; title: string }[] }) {
-  const { waiting, refused } = useOutbox();
+  const { waiting, refused, cleared } = useOutbox();
   const [busy, setBusy] = useState(false);
   const sentRef = useRef(onSent);
   sentRef.current = onSent;
@@ -29,16 +29,22 @@ export function Outbox({ onSent, jobs = [] }: { onSent: () => void; jobs?: { id:
     window.addEventListener(OUTBOX_CHANGED, done);
     return () => window.removeEventListener(OUTBOX_CHANGED, done);
   }, []);
-  if (!waiting.length && !refused.length) return null;
+  const gone = cleared && <Notice tone={cleared.lost ? "danger" : "warn"} className="field-cleared" role="alert">
+    Your offline copy was cleared by the phone; fetching again.
+    {cleared.lost > 0 && <> {cleared.lost === 1 ? "1 report" : `${cleared.lost} reports`} made without signal went with it and
+      never reached the IOC: tell them what {cleared.lost === 1 ? "it" : "they"} said.</>}
+    {" "}<Button variant="ghost" onClick={dismissCleared}>Got it</Button>
+  </Notice>;
+  if (!waiting.length && !refused.length) return gone || null;
   const n = waiting.length;
   const send = async () => { setBusy(true); try { await flush(); } finally { setBusy(false); } };
-  return (
+  return (<>{gone}
     <Card className="field-outbox" title={n ? `${n} report${n > 1 ? "s" : ""} waiting to send` : "Not accepted"}>
       {n > 0 && <p className="small">Made without signal and kept on this phone. They send, with the time you made them, when the signal returns.</p>}
       {n > 0 && <Button disabled={busy} onClick={send}>{busy ? "Sending…" : "Send now"}</Button>}
       {refused.map((w) => <Refused key={w.client_id} w={w} jobs={jobs} />)}
     </Card>
-  );
+  </>);
 }
 
 function Refused({ w, jobs }: { w: QueuedWrite; jobs: { id: number; title: string }[] }) {

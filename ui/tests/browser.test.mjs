@@ -5041,6 +5041,229 @@ test("P5.17g Field mode: 56 px targets, 7:1 text, a job's actions in thumb reach
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
 });
 
+// P5.17h (#1097): the field's networks. A job for the tests below: Fred's, with nothing kept yet.
+const hJob = () => ({ id: 7, type: "leak", key: "a", title: "Leak at P-101", source: "walk", state: "open",
+  first_seen: "2026-11-12T05:00:00Z", last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak",
+  finding: FINDINGS.scada_alarm, priority: null, unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null,
+  raised_count: 1, due: null, task_id: null, task_name: null, assets: [], checklist: [], sources: [], history: [], field: [],
+  queued: false, sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } });
+
+// Throttled to a 3G profile (400 ms round trip, 400 kbps down, 100 kbps up), with the connection cut after a report
+// left the phone and before its answer came back: the report is sent again and the server applies it once.
+test("P5.17h On throttled 3G, a report whose answer was cut off is sent again and applied once", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = hJob();
+  const applied = new Set(), posts = [];
+  let cut = true, inFlight = 0, most = 0;
+  // The API is answered here, so it is slowed here to the same profile: a round trip, then the bytes each way.
+  const slow = async (route, json) => {
+    inFlight += 1; most = Math.max(most, inFlight);
+    const up = route.request().postData()?.length ?? 0;
+    await new Promise((r) => setTimeout(r, 400 + up / (100_000 / 8) * 1000 + JSON.stringify(json).length / (400_000 / 8) * 1000));
+    inFlight -= 1;
+  };
+  await page.route("**/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.fallback();
+    if (path === "/exceptions/7/report") {
+      const body = route.request().postDataJSON();
+      posts.push(body);
+      applied.add(body.client_id);  // the server has it...
+      await slow(route, job);
+      if (cut) { cut = false; return route.abort("connectionreset"); }  // ...and the answer never arrives
+      return route.fulfill({ json: job });
+    }
+    const json = path === "/exceptions/field" ? { person: "fred", jobs: [job], coming_up: [] }
+      : path === "/work/inbox" ? { person: "fred", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } }
+      : null;
+    if (!json) return route.fallback();
+    await slow(route, json);
+    return route.fulfill({ json });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Network.enable");
+  await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 400, downloadThroughput: 400_000 / 8,
+    uploadThroughput: 100_000 / 8 });
+  const card = page.locator(".field-job").first();
+  await card.getByText("Look at the gland").waitFor({ timeout: 15_000 });
+
+  const photo = Buffer.from(await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 400; c.height = 300;
+    const g = c.getContext("2d");
+    g.fillStyle = "#357"; g.fillRect(0, 0, 400, 300); g.fillStyle = "#eee"; g.fillRect(50, 50, 120, 80);
+    return c.toDataURL("image/jpeg", 0.8).split(",")[1];
+  }), "base64");
+  await card.locator('input[type="file"]').setInputFiles([{ name: "gland.jpg", mimeType: "image/jpeg", buffer: photo }]);
+  await card.getByText("Photos (1)").waitFor();
+  await card.getByLabel(/Note for the IOC/).fill("Gland weeping");
+  await card.getByRole("button", { name: "Add note", exact: true }).click();
+  // The answer was cut off: the report stays on the phone, then goes again when the app next sends.
+  await card.getByText("Note waiting to send").waitFor({ timeout: 15_000 });
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await card.getByText("Note waiting to send").waitFor({ state: "detached", timeout: 20_000 });
+  assert.equal(posts.length, 2, "sent again after the cut");
+  assert.equal(posts[0].client_id, posts[1].client_id, "the same report both times");
+  assert.equal(applied.size, 1, "applied once");
+  assert.equal(posts[1].photos.length, 1);
+  assert.ok(most <= 6, `requests are admitted a few at a time, not all at once (${most} at most)`);
+  await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+});
+
+// Lie-fi: the phone says it is online, but nothing answers. A report waits no more than a minute for an answer, then
+// is kept on the phone as made without signal, and the top bar says there is no signal.
+test("P5.17h On lie-fi, with the phone online but nothing answering, the report is kept and the top bar says no signal", async () => {
+  await page.clock.install();
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = hJob();
+  let liefi = false;
+  const posts = [];
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.fallback();
+    if (liefi) return undefined;  // never answered
+    if (path === "/exceptions/7/report") { posts.push(route.request().postDataJSON()); return route.fulfill({ json: job }); }
+    if (path === "/exceptions/field") return route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } });
+    if (path === "/work/inbox") return route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job").first();
+  await card.getByText("Look at the gland").waitFor();
+
+  liefi = true;
+  assert.equal(await page.evaluate(() => navigator.onLine), true);
+  await card.getByLabel(/Note for the IOC/).fill("Gland weeping");
+  await card.getByRole("button", { name: "Add note", exact: true }).click();
+  await page.waitForTimeout(200);
+  await page.clock.fastForward(61_000);
+  await card.getByText("Note waiting to send").waitFor();
+  await page.locator(".topbar .sync-status").filter({ hasText: /^No signal/ }).waitFor();
+  assert.equal(posts.length, 0);
+
+  // Answers come back. What was still waiting on the silent connection gives up (a read within 90 s), so the queue
+  // is free again, and the next send delivers the report.
+  liefi = false;
+  await page.clock.fastForward(91_000);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  for (let i = 0; !posts.length && i < 100; i++) await page.waitForTimeout(100);
+  await card.getByText("Note waiting to send").waitFor({ state: "detached" });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].note, "Gland weeping");
+  await page.locator(".topbar .sync-status").waitFor({ state: "detached" });
+});
+
+// iOS can clear an installed app's store. On the next launch the operator is told, the day's work is fetched again,
+// and reports that were waiting to send are said to be lost, never silently gone.
+test("P5.17h When the phone has cleared the app's store, the operator is told, with the reports lost", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = hJob();
+  let reachable = true, fetched = 0;
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || path === "/sw.js" || /\.(svg|png)$/.test(path)) return route.fallback();
+    if (!reachable) return route.abort("internetdisconnected");
+    if (path === "/exceptions/field") { fetched += 1; return route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }); }
+    if (path === "/work/inbox") return route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job").first();
+  await card.getByText("Look at the gland").waitFor();
+  reachable = false;
+  for (const [n, note] of ["Gland weeping", "Gland still weeping"].entries()) {
+    await card.getByLabel(/Note for the IOC/).fill(note);
+    await card.getByRole("button", { name: "Add note", exact: true }).click();
+    await page.getByRole("heading", { name: n ? "2 reports waiting to send" : "1 report waiting to send" }).waitFor();
+  }
+  assert.equal(await page.locator(".field-cleared").count(), 0);
+
+  // The phone clears the store while the app is closed (the note of what it held is all that is left).
+  await page.goto(`${url}/sw.js`);  // a page of the app's origin where the app isn't running
+  await page.evaluate(() => new Promise((ok) => {
+    const req = indexedDB.deleteDatabase("fuzer-field");
+    req.onsuccess = req.onerror = req.onblocked = () => ok();
+  }));
+  reachable = true;
+  const before = fetched;
+  await page.goto(`${url}/#/inbox`);
+  const notice = page.locator(".field-cleared");
+  await notice.getByText("Your offline copy was cleared by the phone; fetching again.").waitFor();
+  await notice.getByText("2 reports made without signal went with it and never reached the IOC", { exact: false }).waitFor();
+  await card.getByText("Look at the gland").waitFor();
+  assert.ok(fetched > before, "the day's work is fetched again");
+  await notice.getByRole("button", { name: "Got it" }).click();
+  await notice.waitFor({ state: "detached" });
+  await page.reload();
+  await card.getByText("Look at the gland").waitFor();
+  await page.waitForTimeout(300);
+  assert.equal(await notice.count(), 0, "said once");
+});
+
+// A new release arrives while the signal is failing: its page names a script the phone couldn't fetch. The app worker
+// doesn't keep that page in place of the one it has every file for, so the next launch without signal still opens.
+test("P5.17h A release fetched as the signal drops doesn't strand the installed app without signal", async () => {
+  await context.close();
+  context = await browser.newContext();
+  page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
+  let offline = false, next = false;
+  const job = hJob();
+  const fixtures = {
+    "/auth/me": { mode: "local", configured: true, user: null },
+    "/work/inbox": { person: "fred", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 1 }, queue: { total: 0 } } },
+    "/exceptions/field": { person: "fred", jobs: [job], coming_up: [] },
+    "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
+    "/demo/config": { enabled: true }, "/jobs/health": { available: false, level: "unknown", summary: "" },
+  };
+  await context.route("**/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (offline) return route.abort("internetdisconnected");
+    if (next && path === "/") {  // the new release's page, naming a script the dropping signal never delivers
+      const page = await route.fetch();
+      return route.fulfill({ response: page, body: (await page.text()).replace(/\/assets\/index-[^"]+\.js/, "/assets/index-next.js") });
+    }
+    if (path === "/assets/index-next.js") return route.abort("connectionreset");
+    if (next && path === "/sw.js") {
+      const worker = await route.fetch();
+      return route.fulfill({ response: worker, body: `${await worker.text()}\n// the next release\n` });
+    }
+    if (path.startsWith("/assets/") || path === "/" || path === "/sw.js" || /\.(svg|png|webmanifest)$/.test(path)) return route.continue();
+    await route.fulfill({ json: fixtures[path] ?? [] });
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "standalone", { value: true });
+    localStorage.setItem("fuzer.reviewer", "fred");
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout: 10_000 });
+
+  // The release: the page is opened again while its new script can't be fetched.
+  next = true;
+  let asked = false;
+  page.on("request", (request) => { if (request.url().endsWith("/assets/index-next.js")) asked = true; });
+  await page.reload();
+  for (let i = 0; !asked && i < 50; i++) await page.waitForTimeout(100);
+  assert.ok(asked, "the new page was served");
+  await page.waitForTimeout(500);
+
+  // No signal, and the phone discarded the app: the launch opens the copy kept before, with the kept job.
+  offline = true;
+  await context.setOffline(true);
+  await page.goto(`${url}/`, { waitUntil: "commit" });
+  await page.waitForFunction(() => location.hash === "#/inbox");
+  await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
+  await page.getByRole("status").filter({ hasText: "No signal" }).first().waitFor();
+});
+
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
 // with what changed since they last looked, and reaches an item in another field in one click from Home.
 test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {
