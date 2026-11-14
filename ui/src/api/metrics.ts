@@ -13,6 +13,8 @@ export interface MetricDeclaration {
   period: string;
   better: "higher" | "lower" | "none";
   records: string;
+  /** The value it should reach: at least it when higher is better, at most when lower (#1078). */
+  target?: number | null;
 }
 
 export interface MetricRow {
@@ -29,6 +31,8 @@ export interface MetricValue extends MetricDeclaration {
   as_of: string | null;
   note: string | null;
   grain: string | null;
+  /** Its values over earlier periods, oldest first, when asked for and kept (#1078). */
+  history?: { at: string; value: number }[];
 }
 
 /** One side of a scorecard KPI: a period's value and the records behind it (P7.3a, #353). */
@@ -374,6 +378,6 @@ export const metricsApi = {
   plantScorecard: (days: number, until?: string | null) =>
     request<PlantScorecard>("GET", `/plant/scorecard?days=${days}${until ? `&until=${encodeURIComponent(until)}` : ""}`),
   metrics: () => request<MetricDeclaration[]>("GET", "/metrics"),
-  metric: (key: string, grain?: string | null) =>
-    request<MetricValue>("GET", `/metrics/${encodeURIComponent(key)}${grain ? `?grain=${encodeURIComponent(grain)}` : ""}`),
+  metric: (key: string, grain?: string | null, history = false) =>
+    request<MetricValue>("GET", `/metrics/${encodeURIComponent(key)}`, { grain: grain ?? undefined, history: history ? "true" : undefined }),
 };

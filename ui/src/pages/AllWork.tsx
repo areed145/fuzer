@@ -4,7 +4,7 @@
  * unchanged. Board lays the open work out by stage, one column per view. */
 import "../styles/all-work.css";
 import { useEffect, useRef, useState } from "react";
-import { Button, Input, PageHeader, Select } from "../ui";
+import { Button, ButtonLink, Input, PageHeader, Select } from "../ui";
 import { api, type ExceptionRow } from "../api";
 import { href, useAsync, useDebounced } from "../lib";
 import { AssignPicker } from "./workflows/shared";
@@ -76,7 +76,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   return (
     <section>
       <PageHeader className="all-work-header" subtitle="Everything that came in, from every source, one row per event." help="workflow"
-        actions={<a href={href("/performance")}>How the work is running</a>}>
+        actions={<ButtonLink href={href("/performance")}>How the work is running</ButtonLink>}>
         All work</PageHeader>
       <nav ref={tabs} className="tabs work-lists" aria-label="All work views">
         {WORK_LISTS.map((l) => (

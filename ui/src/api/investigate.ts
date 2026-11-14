@@ -98,8 +98,12 @@ export interface Downtime {
   events: number;
   lost_oil_sm3: number;
   hours: number;
+  /** How much of it was planned (reason category `planned`), so the unplanned loss can be read on its own (#1078). */
+  planned?: { events: number; lost_oil_sm3: number };
   recent: DowntimeRow[];
 }
+
+export interface DowntimeMonth { month: string; planned_sm3: number; unplanned_sm3: number; planned_events: number; unplanned_events: number }
 
 export interface RankRow {
   label: string | null;
@@ -527,10 +531,11 @@ export const investigateApi = {
   maintenance: (id: string) =>
     request<Maintenance>("GET", `/entities/${encodeURIComponent(id)}/maintenance`, { limit: 25 }),
   entityStatus: (id: string) => request<EntityStatus>("GET", `/entities/${encodeURIComponent(id)}/status`),
-  downtime: (id?: string, since?: string) =>
-    request<Downtime>("GET", id ? `/entities/${encodeURIComponent(id)}/downtime` : "/downtime", { since, limit: 25 }),
-  downtimeRanking: (by: "tag" | "class" | "reason", since?: string) =>
-    request<RankRow[]>("GET", "/downtime/ranking", { by, since, limit: 15 }),
+  downtime: (id?: string, since?: string, limit = 25) =>
+    request<Downtime>("GET", id ? `/entities/${encodeURIComponent(id)}/downtime` : "/downtime", { since, limit }),
+  downtimeRanking: (by: "tag" | "class" | "reason", since?: string, planned?: boolean) =>
+    request<RankRow[]>("GET", "/downtime/ranking", { by, since, limit: 15, planned: planned === undefined ? undefined : String(planned) }),
+  downtimeMonthly: (since?: string) => request<DowntimeMonth[]>("GET", "/downtime/monthly", { since }),
   reasonChecks: () =>
     request<{ fuzer_id: string; label: string; issue: string; start: string }[]>("GET", "/downtime/reason-checks"),
   assetThreads: (id: string) => request<ChatThread[]>("GET", `/entities/${encodeURIComponent(id)}/conversations`),

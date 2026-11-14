@@ -31,17 +31,27 @@ _DOWNTIME = """
     )
 """
 
+# The same, with `planned` (true, false or null for both) keeping only planned or unplanned downtime (#1078).
+_DOWNTIME_PLANNED = _DOWNTIME.replace(
+    "and (%(until)s::text is null or f->>'start' < %(until)s)",
+    "and (%(until)s::text is null or f->>'start' < %(until)s)"
+    "\n          and (%(planned)s::boolean is null or (coalesce(f->>'reason_category', '') = 'planned') = %(planned)s)")
+
 
 def downtime(conn, fuzer_id: str | None = None, since: str | None = None, until: str | None = None,
-             limit: int = 50) -> dict:
-    """Downtime affecting a well or the facility, or caused by a tag / equipment / model / class."""
-    params = {"id": fuzer_id, "since": since, "until": until, "limit": limit}
-    totals = conn.execute(_DOWNTIME + """
+             limit: int = 50, planned: bool | None = None) -> dict:
+    """Downtime affecting a well or the facility, or caused by a tag / equipment / model / class. `planned` keeps only
+    planned (reason category `planned`) or only unplanned downtime; the totals also say how much of it was planned."""
+    params = {"id": fuzer_id, "since": since, "until": until, "limit": limit, "planned": planned}
+    totals = conn.execute(_DOWNTIME_PLANNED + """
         select count(*) as events, coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as lost_oil_sm3,
-               coalesce(sum((f->>'duration_h')::numeric), 0) as hours
+               coalesce(sum((f->>'duration_h')::numeric), 0) as hours,
+               count(*) filter (where f->>'reason_category' = 'planned') as planned_events,
+               coalesce(sum((f->>'lost_oil_sm3')::numeric) filter (where f->>'reason_category' = 'planned'), 0)
+                 as planned_lost_oil_sm3
         from dd
     """, params).fetchone()
-    rows = conn.execute(_DOWNTIME + """
+    rows = conn.execute(_DOWNTIME_PLANNED + """
         select dd.id, dd.f, l.label from dd left join entity_label l on l.fuzer_id = dd.id
         order by dd.f->>'start' desc, dd.id limit %(limit)s
     """, params).fetchall()
@@ -57,6 +67,7 @@ def downtime(conn, fuzer_id: str | None = None, since: str | None = None, until:
         links[r["src"]][r["rel"]].append({"id": r["dst"], "label": r["label"]})
     return {
         "events": totals["events"], "lost_oil_sm3": float(totals["lost_oil_sm3"]), "hours": float(totals["hours"]),
+        "planned": {"events": totals["planned_events"], "lost_oil_sm3": float(totals["planned_lost_oil_sm3"])},
         "recent": [{"id": r["id"], "label": r["label"], **{k: r["f"].get(k) for k in (
             "start", "end", "duration_h", "reason", "reason_category", "lost_oil_sm3", "comment", "reason_check")},
                     **links[r["id"]]} for r in rows],
@@ -64,11 +75,12 @@ def downtime(conn, fuzer_id: str | None = None, since: str | None = None, until:
 
 
 def downtime_ranking(conn, by: str = "tag", since: str | None = None, until: str | None = None,
-                     limit: int = 20) -> list[dict]:
+                     limit: int = 20, planned: bool | None = None) -> list[dict]:
     """Lost oil ranked by causing tag, by the class of the causing tag, or by reason. Reasons with no loss are left
     out; equipment and class rankings end with an `unattributed` row for the loss that names no equipment (or no
-    classified equipment), so each ranking accounts for the whole total (#403)."""
-    params = {"id": None, "since": since, "until": until, "limit": limit}
+    classified equipment), so each ranking accounts for the whole total (#403). `planned=False` ranks the unplanned
+    loss on its own, which a planned shutdown would otherwise dwarf (#1078)."""
+    params = {"id": None, "since": since, "until": until, "limit": limit, "planned": planned}
     if by == "reason":
         sql = """
             select coalesce(f->>'reason', 'Unknown') as label, null::text as description, null::text as fuzer_id,
@@ -93,12 +105,12 @@ def downtime_ranking(conn, by: str = "tag", since: str | None = None, until: str
     else:
         raise ValueError("by must be tag, class or reason")
     rows = [{**r, "lost_oil_sm3": float(r["lost_oil_sm3"] or 0), "hours": float(r["hours"] or 0)}
-            for r in conn.execute(_DOWNTIME + sql, params)]
+            for r in conn.execute(_DOWNTIME_PLANNED + sql, params)]
     if by in ("tag", "class"):
         named = ("exists (select 1 from edge c join edge k on k.src = c.dst and k.rel = 'classified_as' "
                  "where c.src = dd.id and c.rel = 'caused_by')" if by == "class" else
                  "exists (select 1 from edge c where c.src = dd.id and c.rel = 'caused_by')")
-        rest = conn.execute(_DOWNTIME + f"""
+        rest = conn.execute(_DOWNTIME_PLANNED + f"""
             select count(*) as events, coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as lost_oil_sm3,
                    coalesce(sum((f->>'duration_h')::numeric), 0) as hours
             from dd where not {named}
@@ -110,6 +122,24 @@ def downtime_ranking(conn, by: str = "tag", since: str | None = None, until: str
                          "fuzer_id": None, "events": rest["events"], "lost_oil_sm3": float(rest["lost_oil_sm3"]),
                          "hours": float(rest["hours"]), "unattributed": True})
     return rows
+
+
+def downtime_monthly(conn, since: str | None = None, until: str | None = None) -> list[dict]:
+    """Lost oil and events per calendar month of each downtime's start, planned and unplanned apart (#1078)."""
+    params = {"id": None, "since": since, "until": until, "planned": None}
+    rows = conn.execute(_DOWNTIME_PLANNED + """
+        select left(f->>'start', 7) as month, f->>'reason_category' = 'planned' as planned, count(*) as events,
+               coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as lost_oil_sm3
+        from dd where f->>'start' is not null group by 1, 2 order by 1
+    """, params).fetchall()
+    months: dict[str, dict] = {}
+    for r in rows:
+        m = months.setdefault(r["month"], {"month": r["month"], "planned_sm3": 0.0, "unplanned_sm3": 0.0,
+                                           "planned_events": 0, "unplanned_events": 0})
+        kind = "planned" if r["planned"] else "unplanned"
+        m[f"{kind}_sm3"] += float(r["lost_oil_sm3"])
+        m[f"{kind}_events"] += r["events"]
+    return list(months.values())
 
 
 def downtime_reason_checks(conn, limit: int = 100) -> list[dict]:

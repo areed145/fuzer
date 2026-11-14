@@ -107,6 +107,22 @@ def run(conn, pack, sid: int) -> dict:
     return get(conn, sid)
 
 
+# A demonstration facility's first studies (#1078): the three that need no point chosen, so an empty Studies page
+# shows what a study is for. Each runs in about a second on the demo data.
+SAMPLES = (("events", {}), ("cascades", {}), ("entities", {"entity": "wells"}))
+
+
+def sample(conn, pack) -> int:
+    """On a demo project with a sample crew and no studies yet, run the sample studies; how many ran."""
+    from . import sample_crew
+
+    if conn.execute("select 1 from study limit 1").fetchone() or not sample_crew.enabled(conn):
+        return 0
+    for kind, params in SAMPLES:
+        start(conn, pack, kind, params, "sample crew", now=True)
+    return len(SAMPLES)
+
+
 def queued(conn) -> bool:
     """A study is waiting for the background job (its schedule starts a run only then)."""
     return conn.execute("select 1 from study where status = 'queued' limit 1").fetchone() is not None

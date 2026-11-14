@@ -4267,7 +4267,7 @@ test("Routing lists each type of work, flags an empty lane and dry-runs a dispat
   await page.getByRole("link", { name: "Short gas day" }).click();
   await page.waitForURL(/type=short_gas_day/);
   await page.getByText(/which nobody holds/).waitFor();
-  await page.getByRole("alert").getByText(/Nobody holds production_engineer/).waitFor();
+  await page.getByRole("alert").getByText(/Nobody holds production engineer/).waitFor();
   await page.getByLabel("Refs").fill("tag:FT-7");
   await page.getByLabel("Dispatch to").fill("riley");
   await page.getByRole("button", { name: "Try it" }).click();

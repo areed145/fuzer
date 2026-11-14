@@ -13,6 +13,36 @@ const refText = (ref: string) => ref.startsWith("case:") ? `case ${ref.slice(5)}
 
 const BETTER: Record<MetricDeclaration["better"], string> = { higher: "higher is better", lower: "lower is better", none: "" };
 
+/** Whether a value meets its target (#1078): at least it when higher is better, at most when lower. Null when either is
+ * missing, so a number with no target is never coloured as good or bad. */
+export function onTarget(m: Pick<MetricDeclaration, "better" | "target">, v: number | null | undefined): boolean | null {
+  if (v == null || m.target == null || m.better === "none") return null;
+  return m.better === "higher" ? v >= m.target : v <= m.target;
+}
+
+const targetText = (m: MetricDeclaration) =>
+  m.target == null || m.better === "none" ? "" : `target ${m.better === "higher" ? "≥" : "≤"} ${show(m.target, m.unit)}`;
+
+/** The value over earlier periods as a small line, its last point marked; a dashed line at the target. */
+function Sparkline({ points, target, label }: { points: { at: string; value: number }[]; target?: number | null; label: string }) {
+  if (points.length < 2) return <span className="muted small">–</span>;
+  const vs = points.map((p) => p.value).concat(target == null ? [] : [target]);
+  const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const W = 96, H = 24;
+  const x = (i: number) => (i / (points.length - 1)) * (W - 4) + 2;
+  const y = (v: number) => H - 2 - ((v - lo) / span) * (H - 4);
+  const d = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+  const last = points[points.length - 1];
+  return (
+    <svg className="sparkline" viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img"
+         aria-label={`${label}: ${points.map((p) => `${p.at} ${p.value}`).join(", ")}`}>
+      {target != null && <line x1={0} x2={W} y1={y(target)} y2={y(target)} className="sparkline-target" />}
+      <path d={d} />
+      <circle cx={x(points.length - 1)} cy={y(last.value)} r={2.2} />
+    </svg>
+  );
+}
+
 export function MetricsPage({ metricKey, query }: { metricKey?: string; query: URLSearchParams }) {
   return metricKey ? <MetricDetail metricKey={metricKey} grain={query.get("grain")} /> : <MetricList />;
 }
@@ -28,9 +58,12 @@ function MetricList() {
       <Status loading={list.loading && !list.data} error={list.error} onRetry={list.reload} />
       {list.data && !list.data.length && <Empty>No metrics are registered.</Empty>}
       {[...groups].map(([group, ms]) => (
-        <Card key={group} title={group}>
+        // Work's measures open the queue view a manager wants, not only from All work (#1078).
+        <Card key={group} title={group} actions={group === "Work" ? <a href={href("/performance")}>How the work is running</a> : undefined}>
+          {/* One set of column widths on every group's table, so "Now" sits in one place down the page (#1078). */}
           <Table density="compact" className="metric-table phone-rows">
-            <thead><tr><th>Metric</th><th>Now</th><th>For</th><th>Cut by</th></tr></thead>
+            <colgroup><col /><col className="metric-now" /><col className="metric-trend" /><col className="metric-for" /><col className="metric-cut" /></colgroup>
+            <thead><tr><th>Metric</th><th>Now</th><th>Trend</th><th>For</th><th>Cut by</th></tr></thead>
             <tbody>{ms.map((m) => <MetricRowNow key={m.key} m={m} />)}</tbody>
           </Table>
         </Card>
@@ -40,12 +73,19 @@ function MetricList() {
 }
 
 function MetricRowNow({ m }: { m: MetricDeclaration }) {
-  const v = useAsync(() => api.metric(m.key), [m.key]);
+  const v = useAsync(() => api.metric(m.key, null, true), [m.key]);
+  const good = onTarget(m, v.data?.value);
+  const target = targetText(m);
   return (
     <tr>
       <td><a href={href(`/metrics/${m.key}`)}>{m.label}</a><div className="small muted">{m.definition}</div></td>
+      {/* The value says whether it meets its target, in colour and in words, never by colour alone (#1078). */}
       <td data-label="Now">{v.loading ? <span className="muted">…</span> : v.error ? <span className="muted">unavailable</span>
-        : <strong title={v.data?.note ?? undefined}>{show(v.data?.value ?? null, m.unit)}</strong>}</td>
+        : v.data?.value == null ? <span className="muted small" title={v.data?.note ?? undefined}>no reading{v.data?.note ? `: ${v.data.note}` : ""}</span>
+        : <><strong className={good === null ? undefined : good ? "metric-good" : "metric-bad"} title={v.data?.note ?? undefined}>
+            {show(v.data.value, m.unit)}</strong>
+          {target && <div className={`small ${good === false ? "metric-bad" : "muted"}`}>{good === false ? "off " : ""}{target}</div>}</>}</td>
+      <td data-label="Trend">{v.data ? <Sparkline points={v.data.history ?? []} target={m.target} label={m.label} /> : null}</td>
       <td data-label="For" className="small">{v.data?.as_of ? `${m.period}, ${v.data.as_of}` : m.period}</td>
       <td data-label="Cut by" className="small">{m.grains.length
         ? m.grains.map((g, i) => <span key={g}>{i ? ", " : ""}<a href={href(`/metrics/${m.key}`, { grain: g })}>{g}</a></span>)

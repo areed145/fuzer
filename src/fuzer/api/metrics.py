@@ -3,7 +3,8 @@ the records behind it.
 
     GET /metrics            every metric's declaration
     GET /metrics/{key}      its value now (?grain= one of its grains), rows by that grain and the refs behind it;
-                            a dated metric takes ?at=YYYY-MM-DD, the day its period ends
+                            a dated metric takes ?at=YYYY-MM-DD, the day its period ends; ?history=true adds its
+                            values over the weeks before, oldest first
 """
 
 from datetime import date
@@ -25,11 +26,11 @@ def listing():
 
 
 @router.get("/metrics/{key}")
-def one(key: str, grain: str | None = None, at: date | None = None, conn=Depends(get_conn)):
-    """One metric now, the same value a page, the daily report or an agent reads."""
+def one(key: str, grain: str | None = None, at: date | None = None, history: bool = False, conn=Depends(get_conn)):
+    """One metric now, the same value a page, the daily report or an agent reads; `history` adds its earlier values."""
     from ..core.jsonsafe import plain
 
     try:
-        return plain(metrics.value(conn, deps.pack(), key, grain, at))
+        return plain(metrics.value(conn, deps.pack(), key, grain, at, history))
     except metrics.MetricError as e:
         raise HTTPException(404 if "no metric" in str(e) else 400, str(e)) from e
