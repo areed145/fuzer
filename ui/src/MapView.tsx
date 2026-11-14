@@ -4,17 +4,19 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoCollection, GeoFeature } from "./api";
+import { kindColor, productColor } from "./kinds";
 import { entityHref } from "./lib";
-import { Button, Select } from "./ui";
+import { Button, FullscreenButton, Select, useFullscreen } from "./ui";
 
+// Each pipeline service in the colour of what it carries, the same as in the 3D view and the network (kinds.ts).
 // Gas services are dashed so colour is not the only cue.
-const SERVICES: { key: string; label: string; token: string; dash?: string }[] = [
-  { key: "production flowline", label: "Production flowline", token: "--map-flow" },
-  { key: "oil export", label: "Oil export", token: "--map-oil" },
-  { key: "gas lift", label: "Gas lift", token: "--map-gas-lift", dash: "6 6" },
-  { key: "gas export", label: "Gas export", token: "--map-gas-export", dash: "14 6" },
-  { key: "gas", label: "Gas", token: "--map-gas", dash: "2 6" },
-  { key: "production trunkline", label: "Production trunkline", token: "--map-trunkline" },
+const SERVICES: { key: string; label: string; product: string; dash?: string }[] = [
+  { key: "production flowline", label: "Production flowline", product: "multiphase" },
+  { key: "oil export", label: "Oil export", product: "liquid" },
+  { key: "gas lift", label: "Gas lift", product: "lift_gas", dash: "6 6" },
+  { key: "gas export", label: "Gas export", product: "gas", dash: "14 6" },
+  { key: "gas", label: "Gas", product: "gas", dash: "2 6" },
+  { key: "production trunkline", label: "Production trunkline", product: "multiphase", dash: "18 3" },
 ];
 const POINTS: { key: string; label: string; radius: number }[] = [
   { key: "area", label: "Platforms, jackets, pads", radius: 7 },
@@ -102,7 +104,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   basemap?: boolean;
 }) {
   const el = useRef<HTMLDivElement>(null);
-  const frame = useRef<HTMLDivElement>(null);
+  const full = useFullscreen();
   const map = useRef<L.Map | null>(null);
   const tiles = useRef<L.TileLayer | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -111,13 +113,12 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   const [basemapName, setBasemapName] = useState<Basemap>(basemap ? "osm" : "none");
   const [mapMessage, setMapMessage] = useState("");
   const [baseError, setBaseError] = useState(false);  // #398: say so when the base map tiles can't load
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const themeVersion = useTheme();
   const colors = {
     outline: themeValue("--map-outline"), label: themeValue("--map-label"), well: themeValue("--map-well"),
     other: themeValue("--map-other"), abandoned: themeValue("--map-abandoned"), focus: themeValue("--map-focus"),
   };
-  const serviceColors = Object.fromEntries(SERVICES.map((s) => [s.key, themeValue(s.token)]));
+  const serviceColors = Object.fromEntries(SERVICES.map((s) => [s.key, productColor(s.product)]));
   const other = colors.other;
 
   const counts = useMemo(() => {
@@ -159,16 +160,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   }, [basemapName]);
 
   useEffect(() => {
-    const onFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement === frame.current);
-      requestAnimationFrame(() => map.current?.invalidateSize());
-    };
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, []);
-  useEffect(() => {
     requestAnimationFrame(() => map.current?.invalidateSize());
-  }, [isFullscreen]);
+  }, [full.on]);
 
   const locate = () => {
     setMapMessage("");
@@ -210,28 +203,6 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     );
   };
 
-  const toggleFullscreen = async () => {
-    const target = frame.current;
-    if (!target) return;
-    setMapMessage("");
-    if (document.fullscreenElement === target) {
-      await document.exitFullscreen();
-      return;
-    }
-    if (isFullscreen) {
-      setIsFullscreen(false);
-      return;
-    }
-    try {
-      if (target.requestFullscreen) {
-        await target.requestFullscreen();
-        return;
-      }
-    } catch {
-      // Fall back to the CSS fullscreen mode if the browser blocks native fullscreen.
-    }
-    setIsFullscreen(true);
-  };
 
   useEffect(() => {
     const m = map.current;
@@ -271,7 +242,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
         radius: r,
         color: colors.outline,
         weight: kind === "well" ? 1 : 2,
-        fillColor: isFocus ? colors.focus : kind === "well" ? colors.well : colors.label,
+        fillColor: isFocus ? colors.focus : kindColor(kind),
         fillOpacity: 1,
       })
         .bindPopup(() => popup(f))
@@ -298,7 +269,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     ...SERVICES.map((s) => ({ key: `line:${s.key}`, label: s.label, color: serviceColors[s.key], dash: s.dash, line: true })),
     { key: "line:other", label: "Other lines", color: other, line: true },
     { key: "line:abandoned", label: "Abandoned", color: colors.abandoned, dash: "2 8", line: true },
-    ...POINTS.map((p) => ({ key: `point:${p.key}`, label: p.label, color: p.key === "well" ? colors.well : colors.label, line: false })),
+    ...POINTS.map((p) => ({ key: `point:${p.key}`, label: p.label, color: kindColor(p.key), line: false })),
   ].filter((e) => counts[e.key]);
 
   return (
@@ -318,7 +289,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
           </Button>
         ))}
       </div>
-      <div ref={frame} className={`map-frame${isFullscreen ? " map-fullscreen" : ""}`}>
+      <div ref={full.ref} className={`map-frame${full.on ? " map-fullscreen ui-fullscreen" : ""}`}>
         <div className="map-controls">
           <label className="small muted">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -344,23 +315,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
               <circle cx="12" cy="12" r="1.5" fill="currentColor" />
             </svg>
           </Button>
-          <Button
-            size="sm"
-            className="map-control-button"
-            onClick={() => void toggleFullscreen()}
-            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          >
-            {isFullscreen ? (
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                <path d="M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                <path d="M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5" />
-              </svg>
-            )}
-          </Button>
+          <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="map-control-button" />
         </div>
         {mapMessage && <div className="map-message" role="status">{mapMessage}</div>}
         {baseError && basemapName !== "none" && <div className="map-message" role="status">

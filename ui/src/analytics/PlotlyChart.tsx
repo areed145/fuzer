@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FigureData } from "../api";
 import { themed } from "../Figure";
-import { PLOTLY_CONFIG } from "../plotlyConfig";
+import { PLOTLY_CONFIG, fullscreenLayout, roomIn } from "../plotlyConfig";
 import { useTheme } from "../theme";
+import { FullscreenButton, useFullscreen } from "../ui";
 
 type Spec = FigureData["spec"];
 
@@ -27,6 +28,7 @@ export function PlotlyChart({ spec, label, onPoint, onZoom }: {
   onZoom?: (zoomed: boolean) => void;
 }) {
   const element = useRef<HTMLDivElement>(null);
+  const full = useFullscreen();
   const theme = useTheme();
   const [error, setError] = useState("");
   useEffect(() => {
@@ -42,7 +44,8 @@ export function PlotlyChart({ spec, label, onPoint, onZoom }: {
       const draw = (available: number) => {
         const shaped = forWidth(spec, available);
         // On touch screens a drag scrolls the page; zooming stays a mouse gesture.
-        const layout = themed({ ...shaped.layout, ...(matchMedia("(pointer: coarse)").matches ? { dragmode: false } : {}) });
+        const layout = themed(fullscreenLayout({ ...shaped.layout, ...(matchMedia("(pointer: coarse)").matches ? { dragmode: false } : {}) },
+          full.on, roomIn(full.ref.current)));
         return Plotly.react(node, shaped.data, layout, PLOTLY_CONFIG);
       };
       let width = node.parentElement?.clientWidth ?? 0;
@@ -67,9 +70,12 @@ export function PlotlyChart({ spec, label, onPoint, onZoom }: {
       dispose = () => observer.disconnect();
     }).catch((failure: Error) => { if (!gone) setError(failure.message); });
     return () => { gone = true; dispose?.(); purge?.(); };
-  }, [spec, theme, onPoint, onZoom]);
+  }, [spec, theme, onPoint, onZoom, full.on]);
   return <>
     {error && <p className="error" role="alert">Chart unavailable: {error}. Use the data table below.</p>}
-    <div ref={element} style={{ minHeight: spec.layout.height ?? 340 }} role="img" aria-label={label} />
+    <div ref={full.ref} className={`chart-frame${full.on ? " ui-fullscreen" : ""}`}>
+      <div ref={element} style={{ minHeight: spec.layout.height ?? 340 }} role="img" aria-label={label} />
+      <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="chart-fullscreen" />
+    </div>
   </>;
 }

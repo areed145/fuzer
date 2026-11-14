@@ -7,12 +7,13 @@ import dagre from "cytoscape-dagre";
 import fcose from "cytoscape-fcose";
 import { useEffect, useRef, type CSSProperties } from "react";
 import type { Subgraph } from "./api";
-import { Button } from "./ui";
+import { nodeLabel } from "./entityRefs";
+import { Button, FullscreenButton, useFullscreen } from "./ui";
 
 cytoscape.use(dagre);
 cytoscape.use(fcose);
 
-export { ALL_RELS, KIND_COLORS, REL_VIEWS, applyOntology, kindColor } from "./kinds";
+export { ALL_RELS, KIND_COLORS, REL_VIEWS, applyOntology, kindColor, linkColor, relColor } from "./kinds";
 import { kindColor } from "./kinds";
 
 export type LayoutName = "force" | "flow" | "tree";
@@ -87,7 +88,7 @@ function stylesheet(scale = 1) {
     { selector: "edge.labeled, edge:selected, edge.hover, edge.near", style: { label: "data(label)" } },
     { selector: "edge[?ended]", style: { "line-style": "dashed" } },
     // The flow diagram draws two networks together: piping read from drawings, and allocation flow (dashed).
-    { selector: "edge.piping", style: { width: 2, "line-color": t.text, "target-arrow-color": t.text, opacity: 0.8 } },
+    { selector: "edge.piping", style: { width: 2 } },
     { selector: "edge.allocation", style: { "line-style": "dashed" } },
     {
       selector: "edge:selected, edge.hover, edge.near",
@@ -117,7 +118,7 @@ export function subgraphElements(
     ...g.nodes.map((n) => ({
       data: {
         id: n.id,
-        label: n.label ?? n.id.replace(/^fz-/, ""),
+        label: nodeLabel(n.label ?? n.id.replace(/^fz-/, ""), n.description),
         kind: n.kind,
         color: kindColor(n.kind),
         size: n.id === rootId ? 34 : 22,
@@ -148,6 +149,7 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
   height?: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
+  const full = useFullscreen();
   const cyRef = useRef<Core | null>(null);
   const handlers = useRef({ onSelect, onExpand });
   handlers.current = { onSelect, onExpand };
@@ -175,13 +177,14 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     });
     window.addEventListener(THEME_CHANGED, restyle);
     // The canvas changes size when a phone turns or the side panel moves below the graph: redraw at the new
-    // size, and refit when the width changed so the graph isn't left cut off or lost in a corner.
-    let width = container.current?.clientWidth ?? 0;
+    // size, and refit when it changed much (a turn, the full screen) so the graph isn't left cut off or in a corner.
+    let width = container.current?.clientWidth ?? 0, high = container.current?.clientHeight ?? 0;
     const resized = new ResizeObserver(() => {
       cy.resize();
-      const now = container.current?.clientWidth ?? 0;
-      if (now && Math.abs(now - width) > 40 && cy.elements().length) fitGraph(cy);
+      const now = container.current?.clientWidth ?? 0, tall = container.current?.clientHeight ?? 0;
+      if (now && (Math.abs(now - width) > 40 || Math.abs(tall - high) > 120) && cy.elements().length) fitGraph(cy);
       width = now;
+      high = tall;
     });
     if (container.current) resized.observe(container.current);
     cyRef.current = cy;
@@ -221,12 +224,15 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
   return (
     // Cytoscape caches where its container sits on the page; refresh that before each press so
     // content changing above the graph (text, banners) can't make clicks land in the wrong place.
-    <div className="graph-canvas" style={{ "--graph-height": `${height}px` } as CSSProperties}
+    <div ref={full.ref} className={`graph-canvas${full.on ? " ui-fullscreen" : ""}`} style={{ "--graph-height": `${height}px` } as CSSProperties}
       onPointerDownCapture={() => cyRef.current?.resize()}>
       <div ref={container} className="graph-surface" />
-      <Button variant="secondary" size="sm" className="graph-fit" onClick={fit} title="Fit to view">
-        Fit
-      </Button>
+      <div className="graph-tools" role="toolbar" aria-label="View">
+        <FullscreenButton on={full.on} onClick={() => void full.toggle()} />
+        <Button variant="secondary" size="sm" className="graph-fit" onClick={fit} title="Fit to view">
+          Fit
+        </Button>
+      </div>
     </div>
   );
 }

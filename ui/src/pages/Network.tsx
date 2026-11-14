@@ -2,13 +2,11 @@ import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empt
 import { NetworkScene } from "./NetworkScene";
 import { useMemo } from "react";
 import { api, type GraphNode, type RelationDef, type Subgraph } from "../api";
-import { ALL_RELS, GraphCanvas, REL_VIEWS, kindColor, subgraphElements } from "../graph";
+import { ALL_RELS, GraphCanvas, REL_VIEWS, kindColor, relColor, subgraphElements } from "../graph";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
 
 const words = (s: string) => s.replace(/_/g, " ");
 const list = (v: string | null) => (v ? v.split(",").filter(Boolean) : []);
-const chartColor = (i: number) =>
-  getComputedStyle(document.documentElement).getPropertyValue(`--chart-${(i % 6) + 1}`).trim();
 
 /** One network for every asset and every link type (flow, gas lift, P&ID piping, or anything the ontology adds):
  * which links and which kinds of thing to draw are filters, kept in the address so a view can be shared. */
@@ -45,7 +43,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
   const on = none ? [] : asked.length ? asked : net.data?.rels ?? [];
   const order = (rels: string[]) => [...rels].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
   const rank = (r: string) => (ALL_RELS.indexOf(r) + 1 || 999);
-  const colors = useMemo(() => new Map(order(on).map((r, i) => [r, chartColor(i)])), [on.join(",")]);
+  const colors = useMemo(() => new Map(on.map((r) => [r, relColor(r)])), [on.join(",")]);
 
   const flowRels = REL_VIEWS.find((v) => v.id === "flow")?.rels ?? [];
   const primary = order([...new Set([...flowRels, ...(net.data?.rels ?? []), ...on])]);

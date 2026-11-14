@@ -128,7 +128,9 @@ Neither signing in nor workflow assignment grants application authorization.
 
 Use the existing spacing rhythm: 4px for tight inline gaps, 8px for control groups, 12–16px between related blocks, and 20–24px between major page areas. Keep page content within the app's existing 1200px reading width.
 
-Use theme variables for color: `--bg`, `--panel`, `--text`, `--muted`, `--line`, `--accent`, `--accent-soft`, `--ok`, `--warn`, and `--danger`. Entity graph colors use `--kind-*`; map services and points use `--map-*`. Do not add literal colors to TSX.
+Use theme variables for color: `--bg`, `--panel`, `--text`, `--muted`, `--line`, `--accent`, `--accent-soft`, `--ok`, `--warn`, and `--danger`. One palette for things and flows, used by every graph, the 3D view, maps and their legends: entity types use `--kind-*` (`kindColor`), what a line carries uses `--product-*` (`productColor`), and link types use `--rel-*` (`relColor`; a link type without a token takes a chart colour picked from its name). A drawn line takes its product's colour when that is known, else its link type's (`linkColor`, in `ui/src/kinds.ts`). The `--map-*` service tokens alias the product tokens. Do not add literal colors to TSX.
+
+Charts, graphs, maps, drawings and the 3D view open on the whole screen from their own button: use `useFullscreen` and `FullscreenButton` from the UI kit (a Plotly chart also passes its layout through `fullscreenLayout`), never a page's own full screen code.
 
 Tailwind v4 utilities and colors mapped from these variables are available throughout the UI. Its Preflight reset is intentionally omitted so existing pages remain stable while they move onto the shared components.
 

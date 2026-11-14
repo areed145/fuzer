@@ -2,15 +2,35 @@
 // pulls in cytoscape) so the app shell can load the ontology without the graph library.
 import type { OntologyDeclared } from "./api";
 
+const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
 /** Colours a person set on a kind in the Ontology (#241): a custom kind, or a shipped one recoloured. Every other
  * kind takes its colour from the theme (--kind-<name> in styles.css), so graphs follow light and dark mode. */
 export const KIND_COLORS: Record<string, string> = {};
 
-export const kindColor = (kind: string) => {
-  if (KIND_COLORS[kind]) return KIND_COLORS[kind];
-  const css = getComputedStyle(document.documentElement);
-  return css.getPropertyValue(`--kind-${kind}`).trim() || css.getPropertyValue("--kind-other").trim();
+export const kindColor = (kind: string) => KIND_COLORS[kind] || cssVar(`--kind-${kind}`) || cssVar("--kind-other");
+
+/** What a line carries (props.product on flows_to and lift_gas_to, src/fuzer/graph/products.py), in the words a
+ * legend shows. A product a source names that isn't here has no colour of its own and draws as its link type. */
+export const PRODUCTS: Record<string, string> = {
+  multiphase: "Multiphase", liquid: "Oil and liquids", gas: "Gas", lift_gas: "Lift gas", water: "Water",
 };
+
+/** The colour of a product (--product-<name> in styles.css), or "" for one with none. */
+export const productColor = (product: string | null | undefined) => (product && PRODUCTS[product] ? cssVar(`--product-${product}`) : "");
+
+/** The colour of a link type, the same on every page: its own --rel-<name> token in styles.css, else one of the
+ * chart colours picked from its name, so a link type the ontology adds keeps one colour everywhere. */
+export const relColor = (rel: string) => {
+  const own = cssVar(`--rel-${rel}`);
+  if (own) return own;
+  let h = 0;
+  for (const c of rel) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return cssVar(`--chart-${(h % 6) + 1}`);
+};
+
+/** A drawn line: the colour of what it carries when that is known, else of its link type. */
+export const linkColor = (rel: string, product?: string | null) => productColor(product) || relColor(rel);
 
 /** Link types grouped by the ontology "view" they belong to. */
 export const REL_VIEWS: { id: string; label: string; rels: string[] }[] = [
