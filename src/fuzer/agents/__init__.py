@@ -353,7 +353,11 @@ def ask_sync(question: str, **kw) -> dict:
             agent = team(chat=chat(), specialist_chat=chat(spec) if spec else None)
             return await ask(question, agent=agent, **kw)
 
-    return asyncio.run(go())
+    from ..core import usage as metering
+
+    # The loop's frames don't reach back to who asked, so the feature is named here, for every call the team makes.
+    with metering.feature(metering.current_feature()):
+        return asyncio.run(go())
 
 
 def _remembered(question: str) -> dict | None:

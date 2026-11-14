@@ -12,6 +12,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `llm.api_key` | secret | `env:ANTHROPIC_API_KEY` |  | Environment variable holding the reader provider API key. |
 | `llm.model` | str | `claude-opus-5-5` |  | Model for log links, P&IDs, documents, curves, mapping suggestions and daily report drafts. Replaces `FUZER_LLM_MODEL`. |
 | `llm.effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the readers. Replaces `FUZER_LLM_EFFORT`. |
+| `llm.budget_usd_month` | float | `20.0` | ≥ 0 | Estimated model spend all AI features may reach in a calendar month (USD, UTC months); at it they turn off until the month ends or it is raised (0: no budget). |
+| `llm.budget_alert_pct` | float | `80.0` | 0 to 100 | Tell the alert webhook when the month's model spend passes this share of its budget (percent; 0: only at the budget). |
 
 ## Agents
 

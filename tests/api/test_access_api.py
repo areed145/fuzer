@@ -177,6 +177,7 @@ def test_reader_cannot_mutate_spend_or_configure(runtime):
         assert runtime.request(method, path, json=body).status_code == 403, path
     assert runtime.get("/settings").status_code == 403
     assert runtime.get("/settings/detectors").status_code == 403
+    assert runtime.get("/settings/ai-usage").status_code == 403  # the AI spend is for administrators
     assert runtime.get("/auth/access").status_code == 403
 
 

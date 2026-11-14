@@ -104,6 +104,11 @@ register(
     Setting("llm.model", "str", models.DEFAULT_MODEL, "Model for log links, P&IDs, documents, curves, mapping "
             "suggestions and daily report drafts", "LLM", env="FUZER_LLM_MODEL"),
     Setting("llm.effort", "choice", "medium", "Effort for the readers", "LLM", choices=EFFORTS, env="FUZER_LLM_EFFORT"),
+    Setting("llm.budget_usd_month", "float", 20.0, "Estimated model spend all AI features may reach in a calendar "
+            "month (USD, UTC months); at it they turn off until the month ends or it is raised (0: no budget)", "LLM",
+            min=0, scopes=(GLOBAL,)),
+    Setting("llm.budget_alert_pct", "float", 80.0, "Tell the alert webhook when the month's model spend passes this "
+            "share of its budget (percent; 0: only at the budget)", "LLM", min=0, max=100, scopes=(GLOBAL,)),
     Setting("agents.provider", "choice", "anthropic", "Provider used for assistant and specialist agents", "Agents",
             choices=LLM_PROVIDERS, restart=True),
     Setting("agents.base_url", "str", "", "OpenAI-compatible endpoint (empty uses the provider default)", "Agents",

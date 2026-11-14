@@ -64,6 +64,15 @@ def settings_history(key: str, limit: int = 50, conn=Depends(get_conn)):
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/settings/ai-usage")
+def ai_usage(days: int = 30, conn=Depends(get_conn)):
+    """Every model call the application made in the last `days`, by day, feature, model and project, with the month's
+    estimated spend against its budget (llm.budget_usd_month). Administrators only (configure)."""
+    from ..core import usage
+
+    return usage.summary(conn, days)
+
+
 # ---- detection (P1.2): the detectors on this asset, switched and tuned through the settings history ----------------
 
 @router.get("/settings/detectors")

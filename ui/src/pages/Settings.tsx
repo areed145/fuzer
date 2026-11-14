@@ -11,6 +11,7 @@ import { HumanGates } from "./Gates";
 import { Detection } from "./Detection";
 import { Onboarding } from "./Onboarding";
 import { Standards } from "./Standards";
+import { AiUsage } from "./AiUsage";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -46,19 +47,22 @@ function Configuration({ query }: { query: URLSearchParams }) {
   const detection = query.get("view") === "detection";
   const onboarding = query.get("view") === "onboarding";
   const standards = query.get("view") === "standards";
-  const configuration = !detection && !onboarding && !standards && (query.get("view") === "configuration" || query.has("filter"));
+  const aiUsage = query.get("view") === "ai-usage";
+  const configuration = !detection && !onboarding && !standards && !aiUsage && (query.get("view") === "configuration" || query.has("filter"));
+  const readiness = !configuration && !detection && !onboarding && !standards && !aiUsage;
   return (
     <section>
       <PageHeader subtitle="Preferences and configuration.">Settings</PageHeader>
       <Appearance />
       <nav className="tabs" aria-label="Settings sections">
-        <a className={!configuration && !detection && !onboarding && !standards ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration && !detection && !onboarding && !standards ? "page" : undefined}>Readiness</a>
+        <a className={readiness ? "on" : ""} href={href("/settings", { project })} aria-current={readiness ? "page" : undefined}>Readiness</a>
         <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
         <a className={detection ? "on" : ""} href={href("/settings", { view: "detection" })} aria-current={detection ? "page" : undefined}>Detection</a>
         <a className={onboarding ? "on" : ""} href={href("/settings", { view: "onboarding" })} aria-current={onboarding ? "page" : undefined}>Onboarding</a>
         <a className={standards ? "on" : ""} href={href("/settings", { view: "standards" })} aria-current={standards ? "page" : undefined}>Standards</a>
+        <a className={aiUsage ? "on" : ""} href={href("/settings", { view: "ai-usage" })} aria-current={aiUsage ? "page" : undefined}>AI usage</a>
       </nav>
-      {detection ? <Detection focus={query.get("detector")} /> : onboarding ? <Onboarding /> : standards ? <Standards /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
+      {detection ? <Detection focus={query.get("detector")} /> : onboarding ? <Onboarding /> : standards ? <Standards /> : aiUsage ? <AiUsage /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
       <UICard className="row small">
         <label>
           Project{" "}

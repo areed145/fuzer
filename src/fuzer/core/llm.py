@@ -52,12 +52,63 @@ def _config(scope: str) -> tuple[str, str, str | None]:
 
 
 def configured(scope: str = "llm") -> bool:
+    """A provider is set up and the month's model budget isn't spent (core/usage.py): each feature asks this before
+    calling, so a spent budget turns them off the way a missing key does."""
     selected, _, key = _config(scope)
-    return selected == "ollama" or bool(key)
+    if not (selected == "ollama" or bool(key)):
+        return False
+    from . import usage as metering
+
+    return not metering.over_budget()
+
+
+def _resource(obj, path: str):
+    for part in path.split("."):
+        obj = getattr(obj, part, None)
+        if obj is None:
+            return None
+    return obj
+
+
+def _meter(provider_client, selected: str, *, is_async: bool):
+    """Record every response the client returns in fuzer.llm_usage, and refuse a call once the month's budget is
+    spent. Streams are counted when they finish, from their final message."""
+    from . import usage as metering
+
+    for path in ("messages", "beta.messages", "chat.completions"):
+        resource = _resource(provider_client, path)
+        create = getattr(resource, "create", None) if resource is not None else None
+        if create is None or getattr(create, "_fuzer_metered", False):
+            continue
+
+        if is_async:
+            async def metered(*args, _create=create, **kwargs):
+                metering.check()
+                response = await _create(*args, **kwargs)
+                if not kwargs.get("stream"):
+                    metering.record(response, selected)
+                return response
+        else:
+            def metered(*args, _create=create, **kwargs):
+                metering.check()
+                response = _create(*args, **kwargs)
+                if not kwargs.get("stream"):
+                    metering.record(response, selected)
+                return response
+        metered._fuzer_metered = True
+        try:
+            resource.create = metered
+        except AttributeError:
+            pass
+    return provider_client
 
 
 def client(scope: str = "llm", *, timeout: float | None = None):
-    """Create the configured synchronous provider client."""
+    """Create the configured synchronous provider client, metered (core/usage.py)."""
+    return _meter(_client(scope, timeout=timeout), provider(scope), is_async=False)
+
+
+def _client(scope: str, *, timeout: float | None):
     selected, endpoint, key = _config(scope)
     if selected == "anthropic":
         from anthropic import Anthropic
@@ -89,7 +140,11 @@ def client(scope: str = "llm", *, timeout: float | None = None):
 
 
 def async_client(scope: str = "agents", *, timeout: float | None = None):
-    """Create the configured async OpenAI-compatible client used by Agent Framework."""
+    """Create the configured async client used by Agent Framework, metered (core/usage.py)."""
+    return _meter(_async_client(scope, timeout=timeout), provider(scope), is_async=True)
+
+
+def _async_client(scope: str, *, timeout: float | None):
     selected, endpoint, key = _config(scope)
     if selected == "anthropic":
         from anthropic import AsyncAnthropic
@@ -330,6 +385,10 @@ def run_batch(client, requests: dict[str, dict], on_result, totals: dict, errors
         )
         from anthropic.types.messages.batch_create_params import Request
 
+        from . import usage as metering
+
+        metering.check()
+        selected = provider()
         created = client.messages.batches.create(requests=[
             Request(custom_id=cid, params=MessageCreateParamsNonStreaming(**params)) for cid, params in requests.items()
         ])
@@ -339,6 +398,7 @@ def run_batch(client, requests: dict[str, dict], on_result, totals: dict, errors
             time.sleep(poll_seconds)
         for result in client.messages.batches.results(created.id):
             if result.result.type == "succeeded":
+                metering.record(result.result.message, selected, batch=True)
                 try:
                     on_result(result.custom_id, result.result.message)
                 except Exception as e:
@@ -348,7 +408,10 @@ def run_batch(client, requests: dict[str, dict], on_result, totals: dict, errors
                 totals["failed_requests"] += 1
                 errors.append(f"{result.custom_id}: {result.result.type}")
         return
-    with ThreadPoolExecutor(max_workers=min(8, max(1, len(requests)))) as pool:
+    from . import usage as metering
+
+    with metering.feature(metering.current_feature()), \
+            ThreadPoolExecutor(max_workers=min(8, max(1, len(requests)))) as pool:  # the threads keep the feature
         futures = {pool.submit(copy_context().run, call, client, params): cid for cid, params in requests.items()}
         for future in as_completed(futures):
             cid = futures[future]

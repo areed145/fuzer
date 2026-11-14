@@ -635,6 +635,7 @@ Database, settings, projects and packs, Claude calls, tags and units: used by ev
     - `event_outbox`
     - `gate_decision`
     - `gate_policy`
+    - `llm_usage`
     - `ontology_audit`
     - `ontology_kind`
     - `ontology_relation`
@@ -642,5 +643,5 @@ Database, settings, projects and packs, Claude calls, tags and units: used by ev
     - `schema_version`
     - `setting`
     - `setting_history`
-- **Settings:** `access.session_hours`, `assistant.retention_days`, `audit.retention_days`, `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
+- **Settings:** `access.session_hours`, `assistant.retention_days`, `audit.retention_days`, `llm.budget_alert_pct`, `llm.budget_usd_month`, `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
 - **Tests:** [`tests/core`](https://github.com/areed145/fuzer/tree/main/tests/core)

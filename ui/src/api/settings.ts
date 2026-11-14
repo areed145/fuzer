@@ -138,7 +138,31 @@ export interface ModelVersions {
   rollouts: ModelRollout[];
 }
 
+/** Model usage (Settings > AI usage): every provider call the application made, with tokens and estimated cost. */
+export interface UsageGroup {
+  key: string;
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  last_at: string;
+}
+
+export interface AiUsage {
+  days: number;
+  total: { calls: number; input_tokens: number; output_tokens: number; cache_read_tokens: number;
+    cache_write_tokens: number; cost_usd: number; unpriced: boolean; last_at: string | null };
+  by_feature: UsageGroup[];
+  by_model: UsageGroup[];
+  by_project: UsageGroup[];
+  daily: { day: string; feature: string; calls: number; cost_usd: number }[];
+  recent: { at: string; project: string | null; feature: string; model: string; input_tokens: number;
+    output_tokens: number; cost_usd: number; batch: boolean }[];
+  budget: { month: string; cap_usd: number; spent_usd: number; alert_pct: number; reached: boolean };
+}
+
 export const settingsApi = {
+  aiUsage: (days = 30) => request<AiUsage>("GET", `/settings/ai-usage?days=${days}`),
   onboarding: () => request<Onboarding>("GET", "/onboarding"),
   conformance: (days = 28) => request<Conformance>("GET", `/standards/conformance?days=${days}`),
   modelVersions: () => request<ModelVersions>("GET", "/standards/versions"),
