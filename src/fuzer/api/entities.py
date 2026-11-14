@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import (
     FileResponse,
 )
@@ -216,6 +216,19 @@ def map_features(bbox: str | None = Query(None, description="min lon,min lat,max
     if box is not None and len(box) != 4:
         raise HTTPException(400, "bbox is min lon,min lat,max lon,max lat")
     return spatial.features(conn, box, kind, min(limit, 50000))
+
+
+@router.get("/mapkit/token")
+def mapkit_token(response: Response):
+    """A short-lived Apple MapKit JS token for the maps, or {"token": null} when MapKit is not set up (the maps then
+    use free tiles). The signing key stays on the server."""
+    from ..core import mapkit
+
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return mapkit.token()
+    except mapkit.MapKitError as e:
+        raise HTTPException(503, str(e)) from None
 
 
 @router.get("/entities/{fuzer_id}/map")

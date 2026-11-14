@@ -6,7 +6,9 @@
   border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font: inherit; font-size: 12px; }
 .map-legend .chip.off { opacity: 0.45; }
 .map-frame { position: relative; z-index: 0; isolation: isolate; min-width: 0; }
-/* OpenTopoMap has no dark tiles: dim them so the terrain map doesn't glare in a dark theme. */
+/* Google's tiles have no dark form: in a dark theme the roadmap is inverted to a dark map and terrain is dimmed, so
+ * neither glares. Satellite imagery needs neither. */
+.map-basemap-standard-dark .leaflet-tile-pane { filter: invert(.92) hue-rotate(180deg) brightness(.95) contrast(.9) saturate(.6); }
 .map-basemap-terrain-dark .leaflet-tile-pane { filter: brightness(.62) contrast(1.12) saturate(.75); }
 .map-controls { position: absolute; z-index: 1000; top: 10px; right: 10px; display: flex; flex-wrap: wrap; align-items: end;
   justify-content: flex-end; gap: 6px; max-width: calc(100% - 20px); }
@@ -85,3 +87,18 @@ h2 select { font: inherit; font-size: 15px; }
   .map-overlay { left: 0; right: 0; bottom: 0; width: auto; max-height: 52%; border-radius: 16px 16px 0 0; }
 }
 .map-popup-3d { display: block; margin-top: 6px; }
+
+/* Apple MapKit (map/mapkitEngine.ts): annotations hang from a 0×0 anchor at their coordinate, so the drawn element
+ * centres on it the same way a Leaflet marker does; popups are a card at the tap. */
+.mk-anchor { position: relative; width: 0; height: 0; overflow: visible; }
+.mk-anchor > * { position: absolute; box-sizing: border-box; }
+.mk-point { border-radius: 50%; border-style: solid; cursor: pointer; }
+.mk-location { cursor: default; box-shadow: 0 1px 4px rgb(0 0 0 / .35); }
+.mk-crew { pointer-events: none; }
+.map-popup { position: absolute; z-index: 1001; max-width: min(300px, calc(100% - 16px)); padding: 10px 30px 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
+  box-shadow: 0 4px 16px rgb(0 0 0 / .25); font-size: 13px; line-height: 1.4; }
+.map-popup .map-popup-close { position: absolute; top: 2px; right: 2px; width: 28px; height: 28px; border: 0; background: none;
+  color: var(--muted); font: inherit; font-size: 20px; line-height: 1; cursor: pointer; border-radius: 6px; }
+.map-popup .map-popup-close:hover { color: var(--text); }
+.map-popup .map-popup-close:focus-visible { outline: 2px solid var(--accent); }

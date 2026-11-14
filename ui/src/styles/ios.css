@@ -241,7 +241,7 @@
 
   /* The glass material, shared by bars, buttons, controls and sheets. */
   :root.ios :is(.topbar .back-button, .topbar .share-button, .bottombar, .leaflet-bar, .ui-fullscreen-button,
-      .drawer-close, .ios-glass) {
+      .drawer-close, .map-popup, .ios-glass) {
     background: var(--glass); background-image: var(--glass-sheen);
     -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%);
     border: var(--hair) solid var(--glass-edge);

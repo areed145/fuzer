@@ -47,7 +47,8 @@ TIMEOUT = 15
 PACKAGE = Path(__file__).resolve().parent.parent  # src/fuzer
 TOKEN_ENV, REPO_ENV = "FUZER_GITHUB_ISSUES_TOKEN", "FUZER_GITHUB_ISSUES_REPO"
 SECRET_ENV = (TOKEN_ENV, "FUZER_DATABASE_URL", "ANTHROPIC_API_KEY", "FUZER_ANTHROPIC_API_KEY", "OPENAI_API_KEY", "FUZER_MICROSOFT_CLIENT_SECRET",
-              "FUZER_OWNER_BOOTSTRAP_TOKEN", "FUZER_DAGSTER_PG_URL", "FUZER_ALERT_WEBHOOK")
+              "FUZER_OWNER_BOOTSTRAP_TOKEN", "FUZER_DAGSTER_PG_URL", "FUZER_ALERT_WEBHOOK",
+              "MAPKIT_PRIVATE_KEY")
 SECRET_PARAM = re.compile(r"(?i)\b(api_key|api_secret|token|secret|password|passwd|client_secret|sig|signature)"
                           r"(['\"]?\s*[=:]\s*['\"]?)([^&\s'\",)]+)")
 BEARER = re.compile(r"(?i)\b(bearer|token)\s+[a-z0-9_\-.]{12,}")

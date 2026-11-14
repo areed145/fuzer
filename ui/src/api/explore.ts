@@ -327,6 +327,8 @@ export const exploreApi = {
       "GET", `/entities/${encodeURIComponent(id)}/spares`),
   map: () => request<GeoCollection>("GET", "/map"),
   entityMap: (id: string) => request<GeoCollection>("GET", `/entities/${encodeURIComponent(id)}/map`),
+  /** A short-lived Apple MapKit JS token, or null when the deployment has no MapKit key (the maps then use free tiles). */
+  mapkitToken: () => request<{ token: string | null; expires?: number }>("GET", "/mapkit/token"),
   depths: (id: string) => request<{ trajectory: unknown[]; components: unknown[] }>(
     "GET", `/entities/${encodeURIComponent(id)}/depths`),
   along: (id: string) => request<Along>("GET", `/entities/${encodeURIComponent(id)}/along`),
