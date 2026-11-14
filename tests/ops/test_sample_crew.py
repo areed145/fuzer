@@ -153,3 +153,22 @@ def test_the_field_reports_what_it_notices_a_few_times_a_shift_once_each(crewed)
     assert all(r["source"] == "sample crew" and r["subjects"] for r in rows)
     kinds = {t["name"]: t for t in exceptions.type_listing(crewed)}
     assert "sample crew" in kinds[sample_crew.FIELD_REPORT]["label"]
+
+
+def test_desk_work_with_no_queue_goes_to_the_engineers_not_the_field(crewed):
+    """An alarm flood is "not an alarm to acknowledge": the lead sends it to the engineers' desk, never to an operator
+    (the persona tour found the field's queue holding alarm floods it could only hand back)."""
+    exception_type("crew_desk_only", "Crew test: desk only", audience=("ioc",))
+    try:
+        raised = [raise_exception(crewed, "crew_desk_only", f"crew-desk-{i}", f"Crew test desk work {i}",
+                                  "detector:test") for i in range(12)]
+        crewed.commit()
+        _run_for(crewed, 6)
+        rows = {r["id"]: r for r in exceptions.listing(crewed, state=None, type="crew_desk_only", limit=100)}
+        sent = [rows[r["id"]] for r in raised if rows[r["id"]]["item_id"]]
+        assert sent, "the lead triaged some of it"
+        for row in sent:
+            assert row["role"] != "operator" and row["assignee"] not in sample_crew.FIELD, row
+            assert not (row["evidence"] or {}).get("field")
+    finally:
+        TYPES.pop("crew_desk_only", None)

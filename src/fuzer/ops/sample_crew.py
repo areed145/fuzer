@@ -67,7 +67,10 @@ NOTICED = (  # what an operator notices on the way round, said of a tag and its 
     "Loose cable gland and missing cover bolt on {tag} ({what})",
 )
 OUTSIDE = 0.04  # readings and checks found outside their limits: the field's own work for the IOC
-FIELD_SHARE = {True: 0.7, False: 0.35}  # of desk work a field operator could check (by type) or not, the share sent out
+# Of desk work a field operator could check (by type) or not, the share sent out: work no operator can do on site
+# (an alarm flood, a register question) stays at the desk, or the field's queue fills with jobs it can only hand back.
+FIELD_SHARE = {True: 0.7, False: 0.0}
+DESK_WHY = "For the desk: nothing to check on site"
 
 DONE_NOTES = (
     "Checked on site: reading confirmed locally, no leak or damage found. Back in its normal range.",
@@ -244,7 +247,10 @@ def work_queue(t: _Tick) -> None:
         if not r["item_id"]:  # raised with no queue: the lead sends it to the field or plans it
             if r["planned"] or waited < _minutes(15, 60, r["id"], "triage"):
                 continue
-            if _u(r["id"], "plan") < PLANNED:
+            if not field and r["type"] != FIELD_REPORT:
+                # desk work (an alarm flood is "not an alarm to acknowledge"): the engineers', never the field's
+                t.act("dispatch", exceptions.dispatch, conn, r["id"], LEAD, "role:engineer", DESK_WHY)
+            elif _u(r["id"], "plan") < PLANNED:
                 start = (now + timedelta(days=1 + int(_u(r["id"], "day") * 3))).replace(hour=7, minute=0, second=0,
                                                                                         microsecond=0)
                 t.act("plan", plan.plan_exception, conn, r["id"], LEAD, start, start + timedelta(hours=4),
