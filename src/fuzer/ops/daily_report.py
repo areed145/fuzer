@@ -131,10 +131,11 @@ def facts(conn, pack, day: str) -> dict:
             at=u["start"][11:16], what=wording.alarm(u["first_key"]), point=u["first_point"], unit=u["first_unit"],
             n=u["detections"], status="still going" if u["end"] is None else "recovered"))
     for x in w["incidents"]:
-        sections["Upsets and events"].append(_f("Incident: {desc}", [x["id"]], desc=x.get("description") or x["label"]))
+        sections["Upsets and events"].append(_f("Incident: {desc}", [x["id"]],
+                                                desc=wording.say(x.get("description") or x["label"])))
     for x in w["events"]:
         sections["Upsets and events"].append(_f("{at} {type}: {summary}", [x["id"]], at=(x["at"] or "")[11:16],
-                                                type=x.get("event_type") or "event", summary=x.get("summary") or ""))
+                                                type=(x.get("event_type") or "event").replace("_", " "), summary=x.get("summary") or ""))
 
     # wells: tests against the well's previous test
     mover = settings.get(conn, "daily_report.mover_pct")
@@ -172,7 +173,7 @@ def facts(conn, pack, day: str) -> dict:
         pts = sorted({x["point"] for x in bad if x["point"]})
         sections["Maintenance and integrity"].append(_f(
             "{n} instrument faults began ({checks}), in {areas}: {points}", [x["point_id"] for x in bad][:20], n=len(bad),
-            checks=", ".join(sorted({x["check"] for x in bad})), areas=", ".join(sorted({x["area"] or "no area" for x in bad})),
+            checks=", ".join(sorted({x["check"].replace("_", " ") for x in bad})), areas=", ".join(sorted({x["area"] or "no area" for x in bad})),
             points=", ".join(pts[:8]) + (f" and {len(pts) - 8} more" if len(pts) > 8 else "")))
     comp = operations.maintenance_compliance(conn, day, horizon_days=1)
     late = [x for x in comp.get("overdue", []) if x.get("overdue_days") == 1]
@@ -382,6 +383,23 @@ def get(conn, day: str, version: int | None = None) -> dict | None:
     return _plain({k: r[k] for k in ("day", "version", "markdown", "facts", "drafted_by", "changes", "usage", "seconds",
                                      "item_id", "created_at")} | {"checks": _recheck(r), "versions": versions, "review": review,
                                                                   "production_day": prod["id"] if prod else None})
+
+
+def for_people(report: dict) -> dict:
+    """A report as the Daily reports page shows it: checked as stored, read in people's words. A version drafted
+    before the wording layer (#1072) still says "alarm:lo" and "1 detections" in its text."""
+    return {**report, "markdown": wording.say(report["markdown"]), "changes": _said(report.get("changes"))}
+
+
+def _said(v):
+    """Every string in a stored structure (a version's changes) in people's words."""
+    if isinstance(v, str):
+        return wording.say(v)
+    if isinstance(v, list):
+        return [_said(x) for x in v]
+    if isinstance(v, dict):
+        return {k: _said(x) for k, x in v.items()}
+    return v
 
 
 def days(conn, limit: int = 30) -> list[dict]:

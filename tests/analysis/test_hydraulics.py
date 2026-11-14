@@ -3,6 +3,7 @@ and the calcs find its injected stories: a flowline waxing up, the HP separator'
 well rerouted; well constraints agree with the model's own."""
 
 import json
+import re
 from datetime import datetime
 
 import pytest
@@ -111,7 +112,8 @@ def test_debottleneck_options_board_and_charts(conn, spec, monkeypatch):
     out = hydraulics.debottleneck_options(conn, PACK, "facility", "2025-11-20T00:00", limit=25)  # one scan, about 35 s
     top = out["options"][0]
     assert top["kind"] == "lower_pressure" and top["target"] == fid(conn, "10-V-2001"), out["options"][:3]
-    assert "iow" in top["action"] and top["next_constraint"] and top["confirm_by"]
+    assert "IOW limit" in top["action"] and top["next_constraint"] and top["confirm_by"]
+    assert re.search(r" of -?\d+(\.\d)? barg", top["action"]), top["action"]  # the limit is rounded to 0.1 bar
 
     m = ProcessModel(spec)  # the model's own response to the 2-bar cut it applies on 25 November
     gain = 0.0

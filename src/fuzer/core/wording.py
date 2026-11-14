@@ -39,7 +39,7 @@ def alarm(key: str | None) -> str:
     return words[0].upper() + words[1:]
 
 
-def _lower_first(s: str) -> str:
+def lower_first(s: str) -> str:
     """'Low alarm' -> 'low alarm', keeping an acronym ('IOW limit') as it is."""
     return s if len(s) > 1 and s[1].isupper() else s[:1].lower() + s[1:]
 
@@ -136,6 +136,7 @@ _ROLE = re.compile(r"\brole:(?P<role>[a-z_]+)(?P<q> queue)?")
 _OLD_ESCALATION = re.compile(r"SLA(?: (?P<sla>P[0-9WDTHM]+))? on '(?P<step>[^']+)' passed at "
                              r"(?P<at>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) UTC while it was with (?P<holder>.+?)"
                              r"(?:; moved to the (?P<to>[a-z_ ]+?) queue)?$")
+_ONE = re.compile(r"(?<![\d.,])1 (?P<word>detection|alarm|upset|notification|asset)s\b")
 _SNAKE_QUEUE = re.compile(r"\b(?P<role>[a-z]+(?:_[a-z]+)+) queue\b")
 
 
@@ -147,8 +148,9 @@ def say(text: str | None) -> str | None:
     text = _OLD_UPSET.sub(lambda m: f"{alarm(m['key'])} on {m['where']} from {m['at']}"
                           + (f", across {m['n']} assets" if int(m["n"]) > 1 else ""), text)
     text = _OLD_ESCALATION.sub(lambda m: escalation(m["step"], m["sla"], m["at"], m["holder"], m["to"]), text)
-    text = _DETECTED.sub(lambda m: f"{_lower_first(alarm(m['key']))} on ", text)
-    text = _KEY.sub(lambda m: _lower_first(alarm(m["key"])), text)
+    text = _DETECTED.sub(lambda m: f"{lower_first(alarm(m['key']))} on ", text)
+    text = _KEY.sub(lambda m: lower_first(alarm(m["key"])), text)
     text = _ROLE.sub(lambda m: queue(m["role"]) if m["q"] else queue(m["role"]).removesuffix(" queue"), text)
     text = _SNAKE_QUEUE.sub(lambda m: queue(m["role"]), text)
+    text = _ONE.sub(lambda m: f"1 {m['word']}", text)
     return units(text)
