@@ -1,6 +1,61 @@
-/* All work: the views, then one filter row. On a phone the two pickers share a line and search takes the next. */
+/* All work: the views, then one filter row. Search comes first; on a phone the two pickers fold behind Filters. */
 .work-filters { margin: 12px 0 8px; }
+.work-filters-toggle { display: none; }
 @media (max-width: 600px) {
-  .work-filters > select { flex: 1 1 0; min-width: 0; }
-  .work-filters > input { flex: 1 1 100%; }
+  .work-filters { flex-wrap: wrap; }
+  #main-content .row.work-filters > input[type=search] { order: 0; flex: 1 1 0; width: auto; min-width: 0; }
+  #main-content .row.work-filters.open > select.ui-input { flex: 1 1 40%; width: auto; max-width: none; }
+  /* Saving a view for a role is set up at a desk. */
+  .work-views { display: none; }
+  #main-content .row.work-state > select.ui-input { width: auto; flex: 0 0 auto; }
+  .work-filters > .work-filters-toggle { display: inline-flex; flex: 0 0 auto; min-height: 44px; }
+  .work-filters > select { display: none; flex: 1 1 0; min-width: 0; }
+  .work-filters.open > select { display: block; }
+  /* The first screen is for work (#1070): the subtitle and the side links give way on a phone. */
+  .ui-page-header:has(.all-work-header) .ui-page-subtitle,
+  .ui-page-header:has(.all-work-header) .ui-page-actions { display: none; }
+}
+
+/* The exception views (#1070): one row per event on a desk (what, assets, age, with, actions), one card per event on a
+ * phone, the same card the Board draws. Dispatch, Plan and Shelve open beneath the row they act on. */
+.work-list { list-style: none; margin: 0; padding: 0; }
+.work-list-head, .work-list > .work-row {
+  display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.3fr) minmax(0, .9fr) minmax(0, 1.1fr) auto;
+  gap: 4px 16px; align-items: start;
+}
+.work-list-head { padding: 0 10px 6px; border-bottom: 1px solid var(--line); }
+.work-list > .work-row {
+  margin: 0; padding: 10px; border: 0; border-bottom: 1px solid var(--line); border-left: 3px solid transparent;
+  border-radius: 0; background: none;
+}
+.work-list > .work-row.attention { border-left-color: var(--warn); }
+.work-list > .work-row:last-child { border-bottom: 0; }
+.work-row .work-card-title { font-size: 14px; }
+.work-row-what .ui-badge.priority { margin-right: 2px; }
+.work-row-where > div, .work-row-with > div { overflow-wrap: anywhere; }
+.work-row-actions { justify-content: flex-end; flex-wrap: nowrap; gap: 6px; margin: 0; }
+.work-row-panel { grid-column: 1 / -1; padding: 8px 0 2px; }
+.work-row-panel .row { gap: 8px; align-items: end; }
+.dispatch-controls { display: flex; flex-direction: column; gap: 8px; }
+.dispatch-controls .ui-field.ui-width-lg { flex: 1 1 18rem; }
+
+@media (max-width: 900px) {
+  .work-list-head { display: none; }
+  .work-list > .work-row {
+    grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 10px;
+  }
+  .work-row-what, .work-row-where, .work-row-panel { grid-column: 1 / -1; }
+  .work-row-age { grid-column: 1; grid-row: 3; }
+  .work-row-with { grid-column: 1; grid-row: 4; }
+  .work-row-actions { grid-column: 2; grid-row: 3 / span 2; align-self: center; }
+  .work-row-where { display: flex; flex-wrap: wrap; gap: 0 10px; }
+  /* On iOS the rows are the Board's cards: swipe left for Dispatch and More, which wait past the right edge. */
+  :root.ios .work-list { overflow-x: clip; border-radius: var(--radius); }
+  :root.ios .work-list > .work-row { display: grid; }
+}
+@media (max-width: 600px) {
+  .work-list-card.ui-card { padding: 0; }
+  .work-row-actions .ui-button { min-height: 44px; }
+  .work-row-panel .ui-field, .work-row-panel .ui-field .ui-input { width: 100%; }
+  .work-row-panel .ui-button { min-height: 44px; }
 }

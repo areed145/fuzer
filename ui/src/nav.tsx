@@ -267,7 +267,9 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           if (!group || !allowed(group)) return null;
           const item = group.items.find((entry) => entry.section === first && allowed(entry)) ?? group.items.find(allowed);
           if (!item) return null;
-          const on = group.items.some((entry) => isActive(entry, section));
+          // A slot named for one page (My work) lights only on that page, so it never disagrees with the tabs above
+          // it on All work or Plan (#1070); a slot named for its group lights anywhere in the group.
+          const on = tab ? isActive(item, section) : group.items.some((entry) => isActive(entry, section));
           const count = group.items.reduce((n, entry) => n + (entry.badge === "work" ? badges.work : 0), 0);
           const name = tab ?? group.label;
           return (

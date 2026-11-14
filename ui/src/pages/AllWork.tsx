@@ -75,7 +75,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   }, [list]);
   return (
     <section>
-      <PageHeader subtitle="Everything that came in, from every source, one row per event." help="workflow"
+      <PageHeader className="all-work-header" subtitle="Everything that came in, from every source, one row per event." help="workflow"
         actions={<a href={href("/performance")}>How the work is running</a>}>
         All work</PageHeader>
       <nav ref={tabs} className="tabs work-lists" aria-label="All work views">
@@ -100,6 +100,9 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
 function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchParams; filters: WorkFilters }) {
   const kinds = useAsync(() => api.exceptionKinds(), []);
   const [text, setText] = useState(filters.q ?? "");
+  // On a phone the two pickers fold behind one Filters button, so the first screen holds work (#1070).
+  const [open, setOpen] = useState(false);
+  const set_ = [filters.type, filters.who].filter(Boolean).length;
   const words = useDebounced(text);
   const set = (next: WorkFilters) => {
     const keep = Object.fromEntries([...query.entries()].filter(([k]) => k !== "list" && !FILTER_KEYS.includes(k as never)));
@@ -109,15 +112,17 @@ function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchP
   const types = (kinds.data ?? []).map((k) => [k.name, k.label] as const);
   if (filters.type && !types.some(([n]) => n === filters.type)) types.push([filters.type, filters.type.replace(/_/g, " ")]);
   return (
-    <div className="row wrap work-filters" role="search" aria-label="Filter all work">
+    <div className={open ? "row wrap work-filters open" : "row wrap work-filters"} role="search" aria-label="Filter all work">
+      <Input type="search" aria-label="Search titles" placeholder="Search titles" value={text}
+        onChange={(e) => setText(e.target.value)} />
+      <Button className="work-filters-toggle" variant="secondary" aria-expanded={open} onClick={() => setOpen(!open)}>
+        Filters{set_ ? ` (${set_})` : ""}</Button>
       <Select aria-label="Kind of work" value={filters.type ?? ""} onChange={(e) => set({ type: e.target.value || undefined })}>
         <option value="">All kinds</option>
         {types.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
       </Select>
       <AssignPicker label="Held by" value={filters.who ?? ""} placeholder="Anyone"
         onChange={(v) => set({ who: v || undefined })} />
-      <Input type="search" aria-label="Search titles" placeholder="Search titles" value={text}
-        onChange={(e) => setText(e.target.value)} />
       {filters.at && <AtPlace id={filters.at} onClear={() => set({ at: undefined })} />}
     </div>
   );

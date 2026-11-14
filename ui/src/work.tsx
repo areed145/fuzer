@@ -71,20 +71,40 @@ const to = (t: unknown) => {
   return s.startsWith("role:") ? `the ${s.slice(5).replace(/_/g, " ")} queue` : s.startsWith("agent:") ? `the ${s.slice(6)} agent` : s;
 };
 
+const UNITS: Record<string, string> = { D: "day", H: "hour", M: "minute" };
+
+/** An ISO 8601 duration as words: PT4H is "4 hours", P1DT2H is "1 day 2 hours". */
+export function duration(iso: string): string {
+  const parts = [...iso.matchAll(/(\d+)([DHM])/g)].map(([, n, u]) => `${n} ${UNITS[u]}${n === "1" ? "" : "s"}`);
+  return parts.join(" ") || iso;
+}
+
+/** A missed SLA as a person says it (#1071): "Triage was due within 4 hours. It passed to the ops lead queue." The
+ * recorded reason stays in the tooltip. */
+function escalation(e: WorkEvent): ReactNode {
+  const d = e.data;
+  const why = String(d.why ?? "");
+  const step = /on '([^']+)'/.exec(why)?.[1] ?? d.step ?? e.element ?? "The step";
+  const sla = /SLA (P[0-9A-Z]+)/.exec(why)?.[1];
+  const moved = d.to && d.to !== d.from;
+  return <span title={why || undefined}><strong>{step}</strong> was due{sla ? <> within {duration(sla)}</> : d.due ? <> {when(d.due)}</> : null}
+    {d.from ? <> while it was with {to(d.from)}</> : null}.{moved ? <> It passed to {to(d.to)}.</> : <> It is overdue.</>}</span>;
+}
+
 /** One line saying what an event did, plus anything worth showing under it. */
 export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
   const d = e.data;
   const step = d.step ?? e.element;
   switch (e.kind) {
     case "created": return { text: <>created the item{d.assignee ? <> for {d.assignee}</> : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
-    case "started": return { text: <>started process <span className="mono">{d.process_key}</span> v{d.version}</> };
+    case "started": return { text: <>started the {String(d.process_key ?? "").replace(/_/g, " ")} process</> };
     case "step_started": return { text: <><strong>{step}</strong> is waiting for {d.assignee ?? (d.agent ? `the ${d.agent} agent` : to(`role:${d.role}`))}</> };
     case "claimed": return { text: <>took <strong>{e.element}</strong>{d.worker ? ` (worker ${d.worker}, try ${d.attempt})` : ""}</> };
     case "released": return { text: <>let go of <strong>{e.element}</strong></> };
     case "completed": return { text: <>completed <strong>{step}</strong></>, body: <DataView data={d.data} /> };
     case "agent_result": return { text: <>finished <strong>{step}</strong></>, body: <DataView data={d.data} /> };
     case "handed_off": return { text: <>handed <strong>{e.element ?? "the item"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <p className="small">{d.reason}</p> };
-    case "escalated": return { text: <>escalated <strong>{e.element}</strong></>, body: <p className="small">{d.why}</p> };
+    case "escalated": return { text: escalation(e) };
     case "timer_fired": return { text: <>timer <strong>{e.element}</strong> fired</> };
     case "message": return { text: <>sent {d.name} {d.delivered ? "and the process moved on" : "(kept as evidence)"}</>, body: <DataView data={d.payload} /> };
     case "agent_failed": return { text: <>failed try {d.attempt} at <strong>{e.element}</strong>; retrying</>, body: <p className="small error">{d.error}</p> };

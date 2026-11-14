@@ -48,6 +48,32 @@ export function priorityText(p: number | null | undefined): string | null {
   return p < 2 ? p.toFixed(2) : Math.round(p).toLocaleString();
 }
 
+export type PriorityLevel = { level: "High" | "Medium" | "Low"; tone: "danger" | "warn" | "muted"; why: string };
+
+/** A priority as a person reads it (#1071): High, Medium or Low and why, whatever scale the source used. Priorities
+ * arrive on three scales: a 0–1 score (high from 0.8, medium from 0.5), an SAP notification's priority 1 (very high)
+ * to 4 (low), stored as 5 minus it so higher comes first, and a value in USD for work ranked by what is at stake. */
+export function priorityLevel(p: number | null | undefined, type?: string | null): PriorityLevel | null {
+  if (p == null || p <= 0) return null;
+  const level = (l: PriorityLevel["level"], why: string): PriorityLevel =>
+    ({ level: l, tone: l === "High" ? "danger" : l === "Medium" ? "warn" : "muted", why });
+  if ((type === "sap_notification" && p <= 4) || (p > 1 && p <= 4 && Number.isInteger(p))) {
+    const sap = 5 - Math.round(p);
+    return level(sap <= 2 ? "High" : sap === 3 ? "Medium" : "Low", `SAP priority ${sap}`);
+  }
+  if (p <= 1) return level(p >= 0.8 ? "High" : p >= 0.5 ? "Medium" : "Low", `scored ${p.toFixed(2)} of 1`);
+  const usd = p >= 1000 ? `$${Math.round(p / 1000).toLocaleString()}k` : `$${Math.round(p)}`;
+  return level(p >= 10000 ? "High" : p >= 1000 ? "Medium" : "Low", `${usd} at stake`);
+}
+
+/** High, Medium or Low in its colour; why it is that is the tooltip. Low is left out unless asked for, so it doesn't
+ * add a word to every row. */
+export function PriorityBadge({ p, type, low = false }: { p: number | null | undefined; type?: string | null; low?: boolean }) {
+  const l = priorityLevel(p, type);
+  if (!l || (l.level === "Low" && !low)) return null;
+  return <UIBadge tone={l.tone} title={l.why} className="priority">{l.level}</UIBadge>;
+}
+
 /** Most urgent first: overdue (longest first), then due soonest, then highest priority. */
 export function byUrgency<T extends { due_at?: string | null; due?: string | null; priority: number | null }>(a: T, b: T) {
   const due = (x: T) => (x.due_at ?? x.due) ? new Date((x.due_at ?? x.due)!).getTime() : Infinity;
