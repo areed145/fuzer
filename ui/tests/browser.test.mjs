@@ -3587,9 +3587,9 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   // An asset opens on its work and process values; what the register holds about it is one view away.
   await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
   assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
-    ["Overview", "Timeline", "Documents", "Record", "Graph"]);
+    ["Overview", "Timeline", "Documents", "Data"]);
   assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
-  await page.getByRole("link", { name: "Record", exact: true }).click();
+  await page.getByRole("link", { name: "Data", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
   // where it came from (#875): the system behind it, how its record was matched, and the reviewer's choice
@@ -3597,8 +3597,7 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   await page.getByText("chosen by steward-sam", { exact: false }).waitFor();
   await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).first().waitFor();
   await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
-  // The links list sits with the graph; Connections is the flow diagram, which a well off the flow network lacks.
-  await page.getByRole("link", { name: "Graph", exact: true }).click();
+  // The links list sits with the graph on Data (#1076); Connections is the flow diagram, which a well off the flow network lacks.
   await page.getByRole("link", { name: "WT-1", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
   await page.getByRole("button", { name: "Show all 24", exact: true }).click();
@@ -6440,7 +6439,7 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   await page.mouse.up();
   await card.getByRole("button", { name: "Reset zoom" }).click();
   await card.getByRole("button", { name: "Reset zoom" }).waitFor({ state: "detached" });
-  await card.getByRole("button", { name: "Lube oil, seals and thrust", exact: true }).click();
+  await card.getByRole("button", { name: /^Lube oil, seals and thrust/ }).click();
   await card.getByRole("button", { name: "Lube oil pressure", exact: true }).waitFor();
   await page.waitForFunction(() => document.querySelectorAll('.trend-view text[class$="titletext"]').length === 3);
   await card.getByRole("button", { name: "Pressures", exact: true }).click();
@@ -7029,7 +7028,7 @@ test("an asset's Overview says what it is; work orders and spares sit under Main
     await about.getByText(text, { exact: false }).first().waitFor();
   }
   assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
-    ["Overview", "Maintenance", "Timeline", "Documents", "Record", "Graph"]);
+    ["Overview", "Maintenance", "Timeline", "Documents", "Data"]);
   assert.equal(await page.getByRole("heading", { name: "Spare parts" }).count(), 0);
   // The manual opens in the reader from the card.
   await about.getByRole("link", { name: "C40 manual" }).click();
@@ -7075,7 +7074,7 @@ test("on an iPhone the app follows iOS: a row too wide becomes a pull-down menu,
   await current.click();
   const menu = page.getByRole("menu");
   assert.deepEqual(await menu.getByRole("menuitemradio").allInnerTexts().then((t) => t.map((s) => s.replace(/\s+/g, " ").replace("✓", "").trim())),
-    ["Overview", "Maintenance", "Timeline", "Documents", "Record", "Graph"]);
+    ["Overview", "Maintenance", "Timeline", "Documents", "Data"]);
   assert.equal(await current.getAttribute("aria-expanded"), "true");
   assert.equal(await menu.getByRole("menuitemradio", { name: /Overview/ }).getAttribute("aria-checked"), "true");
   // Escape closes it and returns focus; choosing an item goes to that view.
@@ -7211,7 +7210,7 @@ test("P5.15c Alarms read one row per point, crowded log entries are counted, and
   const { card, emit } = await tripTrend(page);
   // top to bottom: the lolo point, then the lo point, then the log and the case
   const rows = await card.locator(".js-plotly-plot").evaluate((node) => [...node.layout.yaxis2.categoryarray].reverse());
-  assert.deepEqual(rows, ["Alarm · OK:pt2.PV", "Alarm · OK:pt1.PV", "Log", "Cases"]);
+  assert.deepEqual(rows, ["Discharge pressure alarm", "Suction pressure alarm", "Log", "Cases"]);
   const counted = await card.locator(".js-plotly-plot").evaluate((node) => node._fullData
     .filter((t) => t.mode === "markers+text").flatMap((t) => t.text).filter(Boolean));
   assert.ok(counted.includes("3"), `three log entries in 30 min are one marker saying 3 (${counted})`);

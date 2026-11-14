@@ -69,14 +69,14 @@ export const LANE_SHORT: Record<string, string> = {
 const PANEL_PX = 170;
 const PANEL_PX_PHONE = 120; // shorter on a phone, so the chart starts in the first screen (P5.15f)
 const ALARM_ROWS = 8; // alarming points with a row of their own; the rest share one
-const LANE_PX = 30;
+const LANE_PX = 34;
 const GAP_PX = 30;
 const KEY_ROW_PX = 20;
 const LEAD_IN_MS = 12 * 3600 * 1000;
 
 /** What a trace is called on a chip and in the hover: its role, and the neighbour it is on when not the unit. */
 export function traceName(t: TrendTrace): string {
-  const what = t.role_label ?? t.description ?? t.point;
+  const what = t.role_label ?? (t.description ? sentence(t.description) : t.point);
   return t.on && t.on.relation !== "self" && t.on.label ? `${what} · ${t.on.label}` : what;
 }
 
@@ -89,11 +89,23 @@ export function names(view: TrendViewData): Map<string, string> {
     g.traces.forEach((t, i) => {
       const twins = g.traces.filter((_, j) => base[j] === base[i]);
       const twin = twins.length > 1;
-      const own = twin ? distinct(t.description ?? t.point, twins.map((x) => x.description ?? x.point)) : "";
+      const own = twin ? sentence(distinct(t.description ?? t.point, twins.map((x) => x.description ?? x.point))) : "";
       out.set(t.id, twin ? (t.on && t.on.relation !== "self" && t.on.label ? `${own} · ${t.on.label}` : own) : base[i]);
     });
   }
   return out;
+}
+
+/** A name in sentence case, as every other series reads: "Thrust Bearing Temperature" reads "Thrust bearing
+ * temperature". Codes and acronyms (all capitals, or with digits) keep their case. */
+export function sentence(s: string): string {
+  return s.split(" ").map((w, i) => (i && /^[A-Z][a-z]+(-[A-Za-z][a-z]+)*$/.test(w) ? w.toLowerCase() : w)).join(" ");
+}
+
+/** A point as a person reads it when no trace names it: its tag, without the historian's server prefix and value
+ * suffix ("OK_GGCP:20-FT-2100B.PV" reads "20-FT-2100B"). */
+export function pointTag(point: string): string {
+  return point.replace(/^[^:]*:/, "").replace(/\.(PV|CV|OUT|SP|MV)$/i, "");
 }
 
 /** A description less the words every twin starts with: "Train B Compressor Thrust Bearing Temperature" beside
@@ -191,7 +203,7 @@ function urgency(e: TimelineEvent): number {
 
 /** The lanes as rows (P5.15c): every lane one row, except alarms, one row per point, the most urgent first (a point's
  * most urgent alarm, then its first). Past `ALARM_ROWS` points, the rest share a row that says how many. */
-export function laneRows(lanes: TimelineLane[], compact = false): LaneRow[] {
+export function laneRows(lanes: TimelineLane[], compact = false, pointNames: Map<string, string> = new Map()): LaneRow[] {
   return lanes.flatMap((l) => {
     const name = LANE_SHORT[l.key] ?? l.label;
     if (l.key !== "alarms") return [{ key: l.key, lane: l.key, label: name, events: l.events }];
@@ -201,7 +213,9 @@ export function laneRows(lanes: TimelineLane[], compact = false): LaneRow[] {
       Math.min(...x.map(urgency)) - Math.min(...y.map(urgency)) || x[0].start.localeCompare(y[0].start) || a.localeCompare(b));
     const own = points.length > ALARM_ROWS ? points.slice(0, ALARM_ROWS - 1) : points;
     const rest = points.slice(own.length);
-    const label = (point: string) => (compact ? short(point, true, 14) : `Alarm · ${point}`);
+    // An alarm names what it is on in the trend's words ("Suction flow alarm"), else the point's tag, never the
+    // historian's raw name (#1076).
+    const label = (point: string) => short(`${pointNames.get(point) ?? pointTag(point)} alarm`, compact, 28);
     return [
       ...own.map(([point, events]) => ({ key: `alarms:${point}`, lane: "alarms", label: label(point), events })),
       ...(rest.length ? [{ key: "alarms:more", lane: "alarms", label: `${rest.length} more alarming points`,
@@ -241,7 +255,8 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
   const shown = drawn(panels(view, on), compact ? 1 : 2);
   const name = names(view);
   const panelPx = compact ? PANEL_PX_PHONE : PANEL_PX;
-  const lanes = laneRows((timeline?.lanes ?? []).filter((l) => l.events.length && on.has(`lane:${l.key}`)), compact);
+  const pointNames = new Map([...view.groups, { traces: view.other }].flatMap((g) => g.traces.map((t) => [t.point, name.get(t.id) ?? t.point])));
+  const lanes = laneRows((timeline?.lanes ?? []).filter((l) => l.events.length && on.has(`lane:${l.key}`)), compact, pointNames);
   const events: TimelineEvent[] = [];
   const indexes = (es: TimelineEvent[]) => ["events", ...es.map((e) => events.push(e) - 1)];
   const gap = Math.max(1, local(view.end) - local(view.start)) / (compact ? 24 : 60);
@@ -275,10 +290,14 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
       const ref = n === 1 ? "y" : `y${n}`;
       const traces = g.traces.filter((t) => t.axis === u);
       const label = traces[0].uom ?? "";
+      // A position or opening in % reads on its whole 0 to 100 scale, so a valve shut at 0 is a line on the floor,
+      // not noise blown up to fill the panel (#1076).
+      const whole = label === "%" && traces.every((t) => t.min >= 0 && t.max <= 100) ? { range: [-2, 102], autorange: false } : {};
       layout[axis] = j === 0
-        ? { domain, anchor: "x", title: { text: label, font: { size: 11 } }, fixedrange: true, zeroline: false }
+        ? { domain, anchor: "x", title: { text: label, font: { size: 11 } }, fixedrange: true, zeroline: false, ...whole }
+        // The second scale picks its own round ticks: synced to the first axis's grid it reads 3,714.6, 3,654.8 (#1076).
         : { overlaying: first === 1 ? "y" : `y${first}`, side: "right", fixedrange: true, zeroline: false, showgrid: false,
-            title: { text: label, font: { size: 11 } }, anchor: "x" };
+            tickmode: "auto", nticks: 5, title: { text: label, font: { size: 11 } }, anchor: "x", ...whole };
       if (j === 0) lowest = ref;
       for (const t of traces) {
         data.push({
@@ -308,7 +327,13 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
     const order = lanes.map((l) => l.label);
     layout[axis] = { domain: [0, Math.max(0, frac(lanesPx))], anchor: "x", type: "category", categoryorder: "array",
                      categoryarray: [...order].reverse(), fixedrange: true, showgrid: false, zeroline: false,
-                     range: [-0.6, lanes.length - 0.4], ...(compact ? { tickfont: { size: 10 } } : {}) };
+                     range: [-0.6, lanes.length - 0.4], showticklabels: false };
+    // Each row is named inside the chart, above its markers: as tick labels the names pushed the whole chart
+    // 200 px in from the card's edge and were cut off on the left (#1076).
+    for (const l of lanes) {
+      annotations.push({ text: l.label, xref: "paper", yref: ref, x: 0, y: l.label, xanchor: "left", yanchor: "bottom",
+                         yshift: 3, showarrow: false, font: { size: 10, color: palette.text }, opacity: 0.85 });
+    }
     lowest = ref;
     const hover = (e: TimelineEvent) =>
       [e.label, e.text, e.detail, e.status].filter(Boolean).join(" · ") + `<br>${e.start.replace("T", " ")}` +
@@ -368,8 +393,9 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
     data,
     events,
     layout: {
-      ...layout, shapes, annotations, height: plotPx + (keyPx[0] ?? 0) + 60,
-      margin: compact ? { t: (keyPx[0] ?? 0) + 4, r: 12, b: 44, l: 44 } : { t: (keyPx[0] ?? 0) + 4, r: 56, b: 44, l: 56 },
+      ...layout, shapes, annotations, height: plotPx + (keyPx[0] ?? 0) + (compact ? 104 : 60),
+      // On a phone the full screen button (44 px) sits above the first key, not over its first line (#1076).
+      margin: compact ? { t: (keyPx[0] ?? 0) + 48, r: 12, b: 44, l: 44 } : { t: (keyPx[0] ?? 0) + 4, r: 56, b: 44, l: 56 },
       hovermode: "x unified", hoversubplots: "axis", showlegend: true, dragmode: "zoom",
     },
   };
