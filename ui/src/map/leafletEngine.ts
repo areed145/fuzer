@@ -26,6 +26,7 @@ export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine 
   let tiles: L.TileLayer | null = null;
   // A tap on a phone opens the popup; a hover label there would stick beside it, saying the same thing twice.
   const hover = () => matchMedia("(hover: hover)").matches;
+  map.on("zoomend", () => events.onZoom?.(map.getZoom()));
 
   return {
     kind: "leaflet",
@@ -91,6 +92,9 @@ export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine 
         .bindTooltip("Your location").addTo(location);
       map.setView(at, Math.max(map.getZoom(), 14));
     },
+    zoom() { return map.getZoom(); },
+    project(at) { const p = map.latLngToContainerPoint(at); return { x: p.x, y: p.y }; },
+    setPan(on) { if (on) map.dragging.enable(); else map.dragging.disable(); },
     resize() { map.invalidateSize(); },
     destroy() { map.remove(); },
   };

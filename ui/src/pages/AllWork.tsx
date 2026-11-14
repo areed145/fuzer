@@ -131,8 +131,8 @@ function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchP
 /** Home's map sent the person here for one place's work: say which, and let them widen it again. */
 function AtPlace({ id, onClear }: { id: string; onClear: () => void }) {
   const ids = id.split(",");
-  const names = useEntityNames(ids);
-  return <span className="row">At {ids.map((x) => display(x, names)).join(" · ")}
+  const names = useEntityNames(id === "unplaced" ? [] : ids);
+  return <span className="row">{id === "unplaced" ? "Not located on the map" : `At ${ids.map((x) => display(x, names)).join(" · ")}`}
     <Button variant="ghost" size="sm" onClick={onClear}>Every place</Button></span>;
 }
 

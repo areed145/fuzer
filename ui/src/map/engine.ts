@@ -49,6 +49,13 @@ export interface MapEngine {
   reveal(at: LatLon): void;
   /** Mark the person's location and centre on it, at a street-level zoom or closer. */
   showLocation(at: LatLon, accuracyMetres: number, colors: { accent: string; panel: string }): void;
+  /** The zoom level, in Leaflet's 256-pixel-tile terms, so clustering speaks the same on both engines. */
+  zoom(): number;
+  /** Where a coordinate is drawn, in pixels from the map element's top left. */
+  project(at: LatLon): { x: number; y: number };
+  /** Whether one finger (or a mouse drag) pans the map. Off for a small map on a touch screen (Home on a phone), so a
+   * swipe scrolls the page past it; pinch still zooms, and full screen turns it back on. */
+  setPan(on: boolean): void;
   resize(): void;
   destroy(): void;
 }
@@ -58,6 +65,8 @@ export interface EngineEvents {
   onBaseError?: (failed: boolean) => void;
   /** The map library stopped working (MapKit refused its token): draw with Leaflet instead. */
   onFatal?: () => void;
+  /** The zoom level changed (after the gesture ends). */
+  onZoom?: (zoom: number) => void;
 }
 
 export const DASH = (dash?: string) => (dash ? dash.split(/\s+/).map(Number) : []);
@@ -76,4 +85,18 @@ export function pathsOf(geometry: { type: string; coordinates: unknown }): { pat
     case "MultiPolygon": return { paths: (c as number[][][][]).flat().map(ll), closed: true };
     default: return { paths: [], closed: false };
   }
+}
+
+/** Markers that would overlap on screen, gathered (#1074): items in priority order, each joining the first group whose
+ * leading marker it would touch (within `gap` pixels), else starting its own. The first item of a group leads it. */
+export function clusterOnScreen<T>(items: T[], at: (item: T) => { x: number; y: number }, size: (item: T) => number,
+                                   gap = 4): T[][] {
+  const groups: { lead: { x: number; y: number; r: number }; items: T[] }[] = [];
+  for (const item of items) {
+    const p = at(item), r = size(item) / 2;
+    const near = groups.find((g) => Math.hypot(g.lead.x - p.x, g.lead.y - p.y) < g.lead.r + r + gap);
+    if (near) near.items.push(item);
+    else groups.push({ lead: { ...p, r }, items: [item] });
+  }
+  return groups.map((g) => g.items);
 }
