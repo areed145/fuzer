@@ -621,6 +621,8 @@ export const investigateApi = {
 /** How an entity is doing right now (the status line on its page). */
 export interface EntityStatus {
   open_work: number;
+  /** Alarms still sounding on points standing for it (the 3D scene's status reads the same). */
+  alarms?: number;
   downtime: { id: string; start: string | null; end: string | null; reason: string | null; open: boolean } | null;
   incident: { id: string; start: string | null; description: string | null; total: number } | null;
   well_test: { at: string; values: { quantity: string; value: number; unit: string | null }[] } | null;

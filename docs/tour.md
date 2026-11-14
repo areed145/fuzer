@@ -54,7 +54,10 @@ are this same thing, the flow trace, the map, process values, measurements and l
 **Map** shows located wells, platforms and pipelines; **Network** shows Energy Components allocation, gas
 lift and P&ID piping as of a date, and its **3D** view draws a facility or an area as generic shapes (vessels as
 cylinders, machines as blocks, jackets on lattice frames) with the links as pipe runs. It is a schematic laid out from
-flow order, not a model of the plant: click a shape for its card and asset page. **Ontology** shows the data model itself, with circles sized by how many
+flow order, not a model of the plant: click a shape for its card and asset page. Shapes are coloured by open work,
+alarms sounding and downtime; a picked item lights its path upstream or downstream, "If this trips" estimates what
+goes down with it and the production at risk, and a well can be moved to another header in the browser to compare,
+with nothing saved. Where a device can't draw 3D, the same scene is drawn flat. **Ontology** shows the data model itself, with circles sized by how many
 entities of each kind are loaded.
 
 ![The Ontology graph](assets/screens/ontology.png){ loading=lazy }

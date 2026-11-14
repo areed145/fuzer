@@ -86,6 +86,15 @@ function solid(shape: SceneShape): THREE.BufferGeometry {
   }
 }
 
+/** What the drawing shows over its shapes (P5.16b to d): a colour per item for its status, the items and links left lit
+ * while the rest dim (a flow path, a trip, a reroute), and a small badge over an item. Changing it repaints; it never
+ * rebuilds the scene. */
+export interface SceneLook {
+  tint?: Map<string, string>;
+  lit?: { items: Set<string>; links: Set<number> } | null;
+  badges?: Map<string, { text: string; color: string; title: string }>;
+}
+
 interface Built {
   dispose: () => void; fit: () => void; light: () => void; lookAt: (id: string) => void;
   zoom: (factor: number) => void; top: () => void;
@@ -95,7 +104,7 @@ interface Built {
 }
 
 function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineColor: (link: SceneLink) => string,
-  labelBy: LabelBy, state: { selected: string | null; onSelect: (id: string | null) => void }): Built {
+  labelBy: LabelBy, state: { selected: string | null; onSelect: (id: string | null) => void; look: SceneLook }): Built {
   const colors = {
     panel: new THREE.Color(token("--panel")), line: new THREE.Color(token("--line")),
     muted: new THREE.Color(token("--muted")), accent: new THREE.Color(token("--accent")),
@@ -144,7 +153,7 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   }
 
   // Plates, with a lattice under the ones that stand in the sea.
-  const struts: { a: THREE.Vector3; b: THREE.Vector3; r: number; color: THREE.Color }[] = [];
+  const struts: { a: THREE.Vector3; b: THREE.Vector3; r: number; color: THREE.Color; link?: number }[] = [];
   const frameColor = colors.line.clone().lerp(colors.muted, 0.5);
   const plateMesh = new THREE.InstancedMesh(keep(new THREE.BoxGeometry(1, 0.4, 1)),
     keep(new THREE.MeshLambertMaterial()), scene.plates.length);
@@ -171,16 +180,16 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
 
   // Links: straight runs between the path's points, an elbow at each turn and an arrow on the longest run. Deck
   // piping sits at the equipment's level; a run between plates drops as a riser and follows the seabed (scene.py).
-  const elbows: { p: THREE.Vector3; color: THREE.Color }[] = [];
-  const arrows: { p: THREE.Vector3; dir: THREE.Vector3; color: THREE.Color }[] = [];
+  const elbows: { p: THREE.Vector3; color: THREE.Color; link: number }[] = [];
+  const arrows: { p: THREE.Vector3; dir: THREE.Vector3; color: THREE.Color; link: number }[] = [];
   for (const link of scene.links) {
     const color = new THREE.Color(lineColor(link) || token("--muted"));
     const pts = link.path.map(([x, y, z]) => new THREE.Vector3(x, y, z));
     let longest = 0, mid: THREE.Vector3 | null = null, dir: THREE.Vector3 | null = null;
     const r = pts.some((p) => p.y < 0) ? PIPE * 1.3 : PIPE; // a pipeline between plates reads heavier than deck piping
     for (let i = 1; i < pts.length; i++) {
-      struts.push({ a: pts[i - 1], b: pts[i], r, color });
-      if (i < pts.length - 1) elbows.push({ p: pts[i], color });
+      struts.push({ a: pts[i - 1], b: pts[i], r, color, link: link.id });
+      if (i < pts.length - 1) elbows.push({ p: pts[i], color, link: link.id });
       const len = pts[i].distanceTo(pts[i - 1]);
       if (len > longest && Math.abs(pts[i].y - pts[i - 1].y) < 0.01) {
         longest = len;
@@ -188,7 +197,7 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
         dir = pts[i].clone().sub(pts[i - 1]).normalize();
       }
     }
-    if (mid && dir && longest > 2) arrows.push({ p: mid, dir, color });
+    if (mid && dir && longest > 2) arrows.push({ p: mid, dir, color, link: link.id });
   }
   const up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion();
   const strutMesh = new THREE.InstancedMesh(keep(new THREE.CylinderGeometry(1, 1, 1, 8)),
@@ -214,6 +223,15 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
     arrowMesh.setColorAt(i, a.color);
   });
   world.add(arrowMesh);
+  // Each link's pieces, to dim the ones off a path without rebuilding.
+  const pieces = new Map<number, { mesh: THREE.InstancedMesh; index: number; color: THREE.Color }[]>();
+  const piece = (link: number | undefined, mesh: THREE.InstancedMesh, index: number, color: THREE.Color) => {
+    if (link === undefined) return;
+    pieces.set(link, [...(pieces.get(link) ?? []), { mesh, index, color }]);
+  };
+  struts.forEach((s, i) => piece(s.link, strutMesh, i, s.color));
+  elbows.forEach((e, i) => piece(e.link, elbowMesh, i, e.color));
+  arrows.forEach((a, i) => piece(a.link, arrowMesh, i, a.color));
 
   const box = new THREE.Box3();
   for (const p of scene.plates) box.expandByPoint(new THREE.Vector3(p.x, 0, p.z)).expandByPoint(new THREE.Vector3(p.x + p.w, 10, p.z + p.d));
@@ -242,6 +260,25 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   for (const p of scene.plates) tag(`plate:${p.id}`, p.label, p.description, new THREE.Vector3(p.x + 1, p.y, p.z + p.d), "scene-tag scene-tag-plate", true);
   for (const it of scene.items) tag(it.id, it.label, it.description, new THREE.Vector3(it.x, at.get(it.id)!.top, it.z), "scene-tag", scene.items.length <= LABEL_ALL);
 
+  // Badges: a small mark over each item with something to say (its status), always shown where it is on screen.
+  let badges: { el: HTMLElement; p: THREE.Vector3 }[] = [];
+  const mark = () => {
+    for (const b of badges) b.el.remove();
+    badges = [];
+    for (const [id, b] of state.look.badges ?? []) {
+      const hit = at.get(id);
+      if (!hit) continue;
+      const el = document.createElement("span");
+      el.className = "scene-badge";
+      el.textContent = b.text;
+      el.title = b.title;
+      el.dataset.item = id;
+      el.style.setProperty("--badge", b.color);
+      labels.appendChild(el);
+      badges.push({ el, p: new THREE.Vector3(hit.item.x, hit.top + 0.6, hit.item.z) });
+    }
+  };
+
   let hovered: string | null = null, queued = 0;
   const project = (p: THREE.Vector3) => {
     v.copy(p).project(camera);
@@ -262,6 +299,11 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
       if (s) shown.push({ ...s, w: text.length * (lit ? 7.6 : 6.3) + 10, rank: lit ? 0 : key.startsWith("plate:") ? 1 : 2,
         d: t.p.distanceToSquared(camera.position), t });
     }
+    for (const b of badges) {
+      const s = project(b.p);
+      b.el.hidden = !s;
+      if (s) b.el.style.transform = `translate(-50%, -100%) translate(${s.x.toFixed(1)}px, ${(s.y - 14).toFixed(1)}px)`;
+    }
     shown.sort((a, b) => a.rank - b.rank || a.d - b.d);
     const placed: typeof shown = [];
     for (const s of shown) {
@@ -273,15 +315,31 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   };
   const redraw = () => { if (!queued) queued = requestAnimationFrame(draw); };
 
+  const faded = colors.panel;
+  const looks = (id: string) => { // an item's colour before a hover or pick: its status, dimmed when off the lit set
+    const hit = at.get(id)!;
+    const t = state.look.tint?.get(id);
+    const c = t ? new THREE.Color(t) : hit.base.clone();
+    return state.look.lit && !state.look.lit.items.has(id) ? c.lerp(faded, 0.78) : c;
+  };
   const paint = (id: string | null, color: THREE.Color | null) => {
     const hit = id ? at.get(id) : undefined;
     if (!hit) return;
-    hit.mesh.setColorAt(hit.index, color ?? hit.base);
+    hit.mesh.setColorAt(hit.index, color ?? looks(id!));
     hit.mesh.instanceColor!.needsUpdate = true;
   };
   const light = () => {
     for (const id of at.keys()) paint(id, null);
-    if (hovered) paint(hovered, at.get(hovered)!.base.clone().lerp(colors.accent, 0.45));
+    const lit = state.look.lit;
+    for (const [link, ps] of pieces) {
+      const off = lit && !lit.links.has(link);
+      for (const p of ps) {
+        p.mesh.setColorAt(p.index, off ? p.color.clone().lerp(faded, 0.85) : p.color);
+        p.mesh.instanceColor!.needsUpdate = true;
+      }
+    }
+    host.dataset.sceneLit = lit ? String(lit.items.size) : ""; // for the browser tests, which can't see the colours
+    if (hovered) paint(hovered, looks(hovered).lerp(colors.accent, 0.45));
     paint(state.selected, colors.accent);
     redraw();
   };
@@ -367,11 +425,12 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
   el.addEventListener("pointermove", onMove);
   const resized = new ResizeObserver(resize);
   resized.observe(host);
+  mark();
   light();
   host.dataset.sceneItems = String(scene.items.length);
 
   return {
-    fit: () => fit(), top: () => fit(TOP), zoom, light, lookAt,
+    fit: () => fit(), top: () => fit(TOP), zoom, light: () => { mark(); light(); }, lookAt,
     pan: (on) => {
       controls.mouseButtons.LEFT = on ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
       controls.mouseButtons.RIGHT = on ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
@@ -396,12 +455,15 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
       el.remove();
       labels.replaceChildren();
       delete host.dataset.sceneItems;
+      delete host.dataset.sceneLit;
     },
   };
 }
 
-export default function Scene3D({ scene, selected, centre, onSelect, lineColor, labelBy = "names", footer, onUnavailable }: {
+export default function Scene3D({ scene, selected, centre, onSelect, lineColor, labelBy = "names", look, footer, onUnavailable }: {
   scene: Scene;
+  /** Status colours, the lit path and badges (SceneLook). */
+  look?: SceneLook;
   selected: string | null;
   /** Bring this item to the middle of the view (a pick from the Find list, not from the drawing). */
   centre?: { id: string } | null;
@@ -421,7 +483,7 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
   const [panning, setPanning] = useState(false);
   const panRef = useRef(panning);
   panRef.current = panning;
-  const state = useRef({ selected, onSelect });
+  const state = useRef({ selected, onSelect, look: look ?? {} });
   state.current.onSelect = onSelect;
 
   useEffect(() => {
@@ -449,6 +511,11 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
     state.current.selected = selected;
     if (moved) built.current?.light();
   }, [selected]);
+
+  useEffect(() => {
+    state.current.look = look ?? {};
+    built.current?.light();
+  }, [look]);
 
   useEffect(() => {
     if (centre) built.current?.lookAt(centre.id);

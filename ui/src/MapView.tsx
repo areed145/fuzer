@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
-import { entityHref } from "./lib";
+import { entityHref, href } from "./lib";
 import { Button, FullscreenButton, Select, useFullscreen } from "./ui";
 
 // Each pipeline service in the colour of what it carries, the same as in the 3D view and the network (kinds.ts).
@@ -93,6 +93,14 @@ function popup(f: GeoFeature): HTMLElement {
     line.className = "small";
     line.textContent = k ? `${k}: ${v}` : String(v);
     div.appendChild(line);
+  }
+  if (f.geometry.type === "Point") { // a site in 3D (P5.16e): a facility as its field, by location; else its area
+    const to = document.createElement("a");
+    const at = p.id ?? f.id;
+    to.href = href("/3d", p.kind === "facility" ? { at, layout: "geo" } : { at });
+    to.textContent = p.kind === "facility" ? "See the field in 3D" : "See it in 3D";
+    to.className = "small map-popup-3d";
+    div.appendChild(to);
   }
   return div;
 }

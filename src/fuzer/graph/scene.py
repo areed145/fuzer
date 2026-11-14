@@ -399,7 +399,10 @@ def places(conn) -> list[dict]:
         order by (en.kind = 'facility') desc, l.label""")
 
 
-def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None, layout: str = "schematic") -> dict:
+def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None, layout: str = "schematic",
+          as_of=None) -> dict:
+    """The scene of a facility or area. `as_of` (a date or time) draws the links as they were then, as a case's
+    affected path is read at the case's time (P5.16c); what is in each area is today's."""
     table = shapes.for_pack(pack)
     # A shaft is not a pipe run: what drives what sets a driver beside its machine instead.
     rels = [r for r in dict.fromkeys(rels or queries.network_rels(conn)) if r != COUPLING]
@@ -419,8 +422,9 @@ def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None,
     edges = _rows(conn, """
         select e.id, e.src, e.rel, e.dst, e.props ->> 'product' as product from edge e
         where e.rel = any(%s) and e.src <> e.dst and (e.src = any(%s) or e.dst = any(%s))
-          and (e.valid_from is null or e.valid_from <= now()) and (e.valid_to is null or e.valid_to > now())
-        order by e.id""", rels, list(home), list(home)) if home else []
+          and (e.valid_from is null or e.valid_from <= coalesce(%s::timestamptz, now()))
+          and (e.valid_to is null or e.valid_to > coalesce(%s::timestamptz, now()))
+        order by e.id""", rels, list(home), list(home), as_of, as_of) if home else []
     ends = {x for e in edges for x in (e["src"], e["dst"])}
     away = sorted(ends - set(home))
     about = _describe(conn, [*home, *away, *areas, root["id"]])
@@ -504,5 +508,5 @@ def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None,
                    "not_drawn": sum(1 for n in home if n not in drawn),
                    "by_layout": len(items), "by_geometry": 0,
                    "no_shape": sum(1 for it in items.values() if it["shape"] == shapes.FALLBACK)},
-        "truncated": truncated, "places": places(conn),
+        "truncated": truncated, "places": places(conn), "as_of": str(as_of) if as_of else None,
     }

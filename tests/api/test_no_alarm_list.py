@@ -12,6 +12,9 @@ UI = Path(__file__).resolve().parents[2] / "ui" / "src"
 READS_ALARMS = re.compile(r"\.alarms\b|alarmPerformance\b|[\"'`]/excursions")
 ASKS_TO_ACK = re.compile(r">\s*Ack(nowledge)?\b|[\"'`]Ack(nowledge)?( alarm|[\"'`])|\bonAck\b", re.IGNORECASE)
 ALLOWED_READERS = {"api/work.ts", "api/metrics.ts", "pages/workflows/Around.tsx", "pages/AlarmPerformance.tsx"}
+# How many alarms are sounding on an asset, as a count on its status card and a colour on its 3D shape (P5.16b): a
+# count beside open work and downtime, never a list of alarms and never anything to acknowledge.
+ALLOWED_COUNTS = {"EntityStatus.tsx", "pages/NetworkScene.tsx", "sceneLogic.ts"}
 HANDOVER = {"pages/Handover.tsx"}  # a shift handover is acknowledged by the incoming lead: not an alarm
 
 
@@ -23,7 +26,7 @@ def _sources():
 @pytest.mark.unit
 def test_alarm_records_are_read_only_from_a_case_or_the_alarm_performance_view():
     readers = {name for name, src in _sources() if READS_ALARMS.search(src)}
-    assert readers <= ALLOWED_READERS, readers - ALLOWED_READERS
+    assert readers <= ALLOWED_READERS | ALLOWED_COUNTS, readers - ALLOWED_READERS - ALLOWED_COUNTS
 
 
 @pytest.mark.unit

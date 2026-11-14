@@ -74,3 +74,4 @@ h2 select { font: inherit; font-size: 15px; }
 @media (max-width: 600px) {
   .map-overlay { left: 0; right: 0; bottom: 0; width: auto; max-height: 52%; border-radius: 16px 16px 0 0; }
 }
+.map-popup-3d { display: block; margin-top: 6px; }

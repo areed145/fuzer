@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { api } from "../../api";
 import type { CaseAround as CaseAroundData } from "../../api/work";
-import { entityHref, useAsync } from "../../lib";
+import { entityHref, href, useAsync } from "../../lib";
 import { TrendView } from "../../TrendView";
-import { Button, Card, Disclosure, Table } from "../../ui";
+import { Button, ButtonLink, Card, Disclosure, Table } from "../../ui";
 import { when } from "../../work";
 
 const ALARM: Record<string, string> = { hihi: "High-high", hi: "High", lo: "Low", lolo: "Low-low" };
@@ -32,6 +32,14 @@ export function CaseAround({ id }: { id: number }) {
         </div>
       )}
       {shown && <TrendView key={shown} id={shown} start={d.window.start} end={d.window.end} />}
+      {shown && (
+        // The affected path in 3D (P5.16c): what this unit feeds, lit, with the rest of its area dimmed.
+        <p className="small">
+          <ButtonLink variant="link" href={href("/3d", { at: shown, node: shown, path: "down", as_of: d.window.end })}>
+            See what {units.find((u) => u.id === shown)?.label ?? "it"} feeds in 3D
+          </ButtonLink>
+        </p>
+      )}
       {(d.alarms.length > 0 || d.log.length > 0) && <AroundCard d={{ ...d, window: d.window }} />}
     </>
   );

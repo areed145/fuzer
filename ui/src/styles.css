@@ -94,6 +94,10 @@
   --product-lift_gas: #1a8f5a;
   --product-water: #0b6bcb;
   --product-flare: #c4302b;
+  /* Status on the 3D view's shapes (P5.16b): down now, an alarm sounding, open work. */
+  --status-down: var(--danger);
+  --status-alarm: var(--warn);
+  --status-work: var(--chart-4);
   --rel-flows_to: var(--product-multiphase);
   --rel-lift_gas_to: var(--product-lift_gas);
   --rel-pipes_to: #8a4fd1;

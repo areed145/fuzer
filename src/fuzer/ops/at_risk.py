@@ -147,3 +147,54 @@ def windows(conn, start=None, days: int = HORIZON_DAYS) -> dict:
     return {"start": t0.isoformat(), "end": t1.isoformat(), "days": days, "windows": out,
             "basis": "Wells behind each unit on the flow network, at their latest test rate, for the time the unit is "
                      "down; a well is counted once however many overlapping jobs take it down."}
+
+
+TRIP_HOURS = 24
+
+
+def trip(conn, item: str, hours: float = TRIP_HOURS) -> dict:
+    """"If this trips" (P5.16d): what goes down with `item` and the production at risk over `hours`, from the same
+    reads as the windows above. The units it takes down (itself on the flow network, or the flow units that share its
+    parent), everything behind them (it has nowhere to flow), the wells among those at their latest test rate, and what
+    is downstream with nothing else feeding it. An estimate, not a hydraulic model: no rerouting, no capacity, no
+    restart time."""
+    feeds, nodes = _flow(conn)
+    units = _units(conn, [item], nodes)
+    behind = _upstream(units, feeds)
+    feeds_of = defaultdict(list)
+    for dst, srcs in feeds.items():
+        for s in srcs:
+            feeds_of[s].append(dst)
+    starved, grew = set(), True  # downstream, every feed down
+    while grew:
+        grew = False
+        for n in {d for s in behind | starved for d in feeds_of.get(s, ())} - behind - starved:
+            if all(f in behind or f in starved for f in feeds.get(n, ())):
+                starved.add(n)
+                grew = True
+    every = behind | starved
+    kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute(
+        "select fuzer_id, kind from entity where fuzer_id = any(%s)", (list(every),))} if every else {}
+    wells = sorted(n for n in behind if kinds.get(n) == "well")
+    rates = _rates(conn, wells) if wells else {}
+    labels = _labels(conn, every | {item})
+    totals: dict[str, dict] = defaultdict(lambda: {"value": 0.0, "unit": None})
+    for w in wells:
+        for q, rate in rates.get(w, {}).items():
+            totals[q]["value"] += rate["value"] * hours / 24
+            totals[q]["unit"] = (rate["unit"] or "").removesuffix("/d") or None
+
+    def named(ids) -> list[dict]:
+        return sorted(({"id": n, "label": labels.get(n) or n} for n in ids), key=lambda x: (x["label"], x["id"]))
+
+    return {
+        "item": {"id": item, "label": labels.get(item) or item}, "hours": hours,
+        "units": named(units), "behind": named(n for n in behind - set(units) if kinds.get(n) != "well"),
+        "starved": named(starved),
+        "wells": [{**w, "rates": rates.get(w["id"], {})} for w in named(wells)],
+        "untested": [labels.get(w) or w for w in wells if not rates.get(w)],
+        "at_risk": [{"quantity": q, "value": round(v["value"], 1), "unit": v["unit"]} for q, v in sorted(totals.items())],
+        "on_network": bool(units),
+        "basis": "An estimate: the wells behind it on the flow network at their latest test rate, for the window. "
+                 "It assumes nothing is rerouted and claims no hydraulics.",
+    }

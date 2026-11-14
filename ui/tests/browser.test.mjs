@@ -3826,6 +3826,125 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   }
 });
 
+test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a reroute in the link, and draws flat without WebGL", async () => {
+  const shape = (solid, size, label) => ({ solid, size, label });
+  const item = (id, kind, shape, x, z) => ({ id, label: id, kind, description: null, classes: [], shape, plate: "A1", placed: "flow order", x, y: 0, z });
+  const link = (id, src, dst, rel = "flows_to") => ({ id, src, dst, rel, product: rel === "flows_to" ? "multiphase" : null,
+    path: [[0, 1, 0], [4, 1, 0]] });
+  const scene = {
+    root: { id: "A1", kind: "area", label: "AREA-1" }, focus: null, rels: ["flows_to", "pipes_to"],
+    plates: [{ id: "A1", label: "AREA-1", area: true, frame: "slab", type: null, x: 0, y: 0, z: 0, w: 40, d: 20, items: 6 }],
+    items: [item("W1", "well", "well", 4, 4), item("W2", "well", "well", 4, 14), item("M1", "tag", "box", 12, 4),
+      item("M2", "tag", "box", 12, 14), item("K-1", "tag", "box", 22, 9), item("EXP", "tag", "box", 32, 9)],
+    links: [link(1, "W1", "M1"), link(2, "W2", "M2"), link(3, "M1", "K-1", "pipes_to"), link(4, "M2", "K-1", "pipes_to"), link(5, "K-1", "EXP")],
+    shapes: { well: shape("well", [1.4, 1.6, 1.4], "Well"), box: shape("box", [3, 2, 3], "Unit") },
+    counts: { items: 6, links: 5, not_drawn: 0, by_layout: 6, by_geometry: 0, no_shape: 0 }, truncated: false,
+    places: [{ id: "A1", kind: "area", label: "AREA-1", parent: null }],
+  };
+  const status = { status: { "K-1": { open_work: 2, alarms: 1, down: null },
+    W2: { open_work: 0, alarms: 0, down: { id: "D1", start: "2026-11-13T04:00", reason: "Trip" } } },
+  totals: { open_work: 1, alarms: 1, down: 1 }, alarm_hours: 2 };
+  const trip = { item: { id: "K-1", label: "K-1" }, hours: 24, units: [{ id: "K-1", label: "K-1" }],
+    behind: [{ id: "M1", label: "M1" }, { id: "M2", label: "M2" }], starved: [{ id: "EXP", label: "EXP" }],
+    wells: [{ id: "W1", label: "W1", rates: { oil_rate: { value: 800, unit: "Sm3/d", at: "2026-11-01" } } }, { id: "W2", label: "W2", rates: {} }],
+    untested: ["W2"], at_risk: [{ quantity: "oil_rate", value: 800, unit: "Sm3" }], on_network: true,
+    basis: "An estimate: the wells behind it on the flow network at their latest test rate, for the window. It assumes nothing is rerouted and claims no hydraulics." };
+  const reads = [];
+  await page.route(/\/scene(\/(status|trip))?(\?|$)/, (route) => {
+    const u = new URL(route.request().url());
+    reads.push(u.pathname);
+    if (u.pathname.endsWith("/scene/status")) return route.fulfill({ json: status });
+    if (u.pathname.endsWith("/scene/trip")) return route.fulfill({ json: trip });
+    return route.fulfill({ json: scene });
+  });
+  await page.goto(`${url}/#/3d?at=A1`);
+  const canvas = page.locator("[data-scene-items]");
+  await canvas.waitFor();
+
+  // Status: one read for the whole scene, as a colour and a badge, with a legend that counts each.
+  await page.locator('.scene-badge[data-item="K-1"]').waitFor({ state: "attached" });
+  assert.equal(await page.locator('.scene-badge[data-item="K-1"]').textContent(), "1! 2");
+  assert.equal(await page.locator('.scene-badge[data-item="W2"]').textContent(), "Down");
+  assert.equal(reads.filter((p) => p.endsWith("/scene/status")).length, 1);
+  const colours = page.getByLabel("What the colours say");
+  for (const words of ["Down now (1)", "Alarm sounding (1)", "Open work (1)", "Alarms over the last 2 h."]) {
+    assert.ok((await colours.textContent()).includes(words), words);
+  }
+  // Only items with open work: the rest dim, kept in the link.
+  const onlyWork = colours.getByRole("button", { name: "Only items with open work" });
+  await onlyWork.click();
+  await page.waitForFunction(() => location.hash.includes("only=work"));
+  assert.equal(await onlyWork.getAttribute("aria-pressed"), "true");
+  await page.waitForFunction(() => document.querySelector("[data-scene-items]").dataset.sceneLit === "1");
+  await onlyWork.click();
+  await page.waitForFunction(() => !location.hash.includes("only=work"));
+
+  // A picked item's card says its status as its asset page does; Upstream and Downstream light the path.
+  await page.getByLabel("Find an item in the drawing").selectOption("K-1");
+  const card = page.locator(".graph-panel");
+  await card.getByRole("heading", { name: "K-1" }).waitFor();
+  assert.equal(await card.getByTestId("scene-item-status").textContent(), "No downtime open, 2 open exceptions, 1 alarm sounding.");
+  await card.getByRole("button", { name: "Downstream" }).click();
+  await page.waitForFunction(() => location.hash.includes("path=down"));
+  assert.equal(await card.getByTestId("scene-path").textContent(), "Downstream of K-1: 1 item over 1 link, the rest dimmed.");
+  await card.getByRole("button", { name: "Upstream" }).click();
+  await page.waitForFunction(() => location.hash.includes("path=up"));
+  assert.equal(await card.getByTestId("scene-path").textContent(), "Upstream of K-1: 4 items over 4 links, the rest dimmed.");
+  assert.equal(await canvas.getAttribute("data-scene-lit"), "5");
+
+  // If this trips: what goes down and the production at risk, labelled as an estimate.
+  await card.getByRole("button", { name: "If this trips" }).click();
+  await page.waitForFunction(() => location.hash.includes("trip=1") && !location.hash.includes("path="));
+  const tripCard = card.getByTestId("scene-trip");
+  await tripCard.waitFor();
+  const said = await tripCard.textContent();
+  for (const words of ["If K-1 trips: an estimate over 24 h", "Behind it, with nowhere to flow: M1, M2", "Downstream, with nothing else feeding it: EXP",
+    "2 wells behind it", "Production at risk: oil 800 Sm3", "No well test for W2", "claims no hydraulics"]) assert.ok(said.includes(words), words);
+  await page.waitForFunction(() => document.querySelector("[data-scene-items]").dataset.sceneLit === "6");
+
+  // A reroute moves a well to another header in the browser only; a shared link restores it.
+  await page.getByLabel("Find an item in the drawing").selectOption("W1");
+  await card.getByRole("heading", { name: "W1" }).waitFor();
+  await card.getByLabel("Move this well to another header").selectOption("M2");
+  await page.waitForFunction(() => decodeURIComponent(location.hash).includes("move=W1~M2"));
+  const moved = card.getByTestId("scene-reroute");
+  await moved.waitFor();
+  assert.deepEqual(await moved.locator("tbody tr").allTextContents(), ["M110", "M212"]);
+  assert.match(await moved.textContent(), /nothing is saved or sent anywhere, and no hydraulics are claimed/);
+  await page.reload();
+  await page.locator('[data-testid="scene-reroute"]').waitFor();
+  assert.equal(await canvas.getAttribute("data-scene-lit"), "3");
+  await page.getByRole("button", { name: "Put it back" }).click();
+  await page.waitForFunction(() => !location.hash.includes("move="));
+
+  // Flat on request: the same scene, colours and card on the network canvas, kept in the link.
+  await page.getByLabel("Draw in").selectOption("2d");
+  await page.waitForFunction(() => location.hash.includes("draw=2d"));
+  await page.locator('[data-testid="scene-flat"] canvas').first().waitFor();
+  assert.ok((await page.getByLabel("What the colours say").textContent()).includes("Open work (1)"));
+  await page.getByLabel("Find an item in the drawing").selectOption("K-1");
+  await card.getByRole("button", { name: "Upstream" }).click();
+  await card.getByTestId("scene-path").waitFor();
+
+  // Without WebGL the same view is drawn flat, and on a phone every control is thumb-sized and nothing scrolls sideways.
+  await page.addInitScript(() => {
+    const real = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (kind, ...rest) { return /webgl/.test(kind) ? null : real.call(this, kind, ...rest); };
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/3d?at=A1&node=K-1&path=down&as_of=2024-03-14T09:00`);
+  await page.reload(); // a new hash alone doesn't load the page again, and the stub applies to a load
+  await page.getByText("This device can't draw 3D, so the same scene is drawn flat.").waitFor();
+  assert.match(await page.getByTestId("scene-basis").textContent(), /links as they were at 2024-03-14 09:00\./);
+  assert.ok(reads.length > 0);
+  await page.locator('[data-testid="scene-flat"] canvas').first().waitFor();
+  assert.equal(await card.getByTestId("scene-path").textContent(), "Downstream of K-1: 1 item over 1 link, the rest dimmed.");
+  for (const name of ["Upstream", "Downstream", "If this trips"]) {
+    assert.ok((await card.getByRole("button", { name }).boundingBox()).height >= 44, name);
+  }
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+});
+
 test("one network draws several link types together, filtered by link type and kind of thing", async () => {
   const nodes = [
     { id: "W1", kind: "well", label: "W1" }, { id: "MAN", kind: "allocation_node", label: "MAN" },
@@ -6213,6 +6332,8 @@ test("P5.13c A case page draws the trend of the unit its event is on, over the e
   // ten hours: two thirds before the centre and one third after, so the chart spans the event's window exactly
   assert.deepEqual(asked[0], ["2024-03-14T06:00", "7", "3"]);
   await card.getByRole("button", { name: "Suction pressure", exact: true }).waitFor();
+  // P5.16c: the case opens the affected path in 3D, downstream of the unit it is on.
+  assert.equal(await page.getByRole("link", { name: "See what K-1 feeds in 3D" }).getAttribute("href"), "#/3d?at=k1&node=k1&path=down&as_of=2024-03-14T09%3A00");
 });
 
 test("P5.14a The installed app has its own Back, never leaves the app, and resumes the last page", async () => {
@@ -6524,6 +6645,8 @@ test("P5.14 quirks from a real phone: a tap on the map opens one label, the laye
   await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
   await page.locator(".leaflet-popup").waitFor();
   assert.equal(await page.locator(".leaflet-tooltip").count(), 0);
+  // P5.16e: a site on the map opens in 3D.
+  assert.equal(await page.locator(".leaflet-popup .map-popup-3d").getAttribute("href"), "#/3d?at=OKAN-40");
 
   // A select as wide as its longest option (a P&ID sheet's title) stays within the screen.
   await page.evaluate(() => {
