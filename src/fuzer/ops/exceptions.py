@@ -511,10 +511,11 @@ def unshelve_expired(conn) -> list[dict]:
 
 
 def listing(conn, state: str | None = OPEN, type: str | None = None, subject: str | None = None,
-            audience: str | None = None, limit: int = 200) -> list[dict]:
+            audience: str | None = None, limit: int = 200, closed_since=None) -> list[dict]:
     """Exceptions, most valuable then newest first, with the case that works them and who has it, and when it is
     planned if the IOC put it on the integrated plan instead of working it now. One event is one row (#464): the
-    exceptions that joined its case are under it in `joined`, their assets in its `subjects`."""
+    exceptions that joined its case are under it in `joined`, their assets in its `subjects`. `closed_since` keeps
+    the ones closed or cleared from then on, as the work board's last column shows what the shift finished."""
     names = [n for n, t in types(conn).items() if audience is None or audience in t.audience]
     rows = conn.execute(
         """
@@ -539,9 +540,10 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
           and (%(subject)s::text is null or %(subject)s = any(e.subjects)
                or exists (select 1 from exception_record j where j.joined_to = e.id and %(subject)s = any(j.subjects)))
           and (%(all)s or e.type = any(%(types)s))
+          and (%(closed_since)s::timestamptz is null or e.closed_at >= %(closed_since)s)
         order by e.value_usd desc nulls last, e.priority desc nulls last, e.last_seen desc limit %(limit)s
         """, {"state": state, "type": type, "subject": subject, "all": audience is None, "types": names,
-              "limit": limit}).fetchall()
+              "limit": limit, "closed_since": closed_since}).fetchall()
     for r in rows:
         if r["joined"]:
             labels = {n: t.label for n, t in types(conn).items()}

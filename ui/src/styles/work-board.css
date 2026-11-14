@@ -1,0 +1,23 @@
+/* The work board: one column per stage, side by side on a desk; a phone shows the chosen stage under its chips. */
+.work-board-controls { margin: 4px 0 8px; }
+.work-board { display: grid; grid-template-columns: repeat(6, minmax(168px, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
+.work-board-column { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; min-width: 0; }
+.work-board-column > h2 { display: flex; justify-content: space-between; gap: 8px; margin: 0; font-size: 14px; }
+.work-board-column > p { margin: 2px 0 8px; }
+.work-board-lane { margin: 12px 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.work-card { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; margin-bottom: 6px; background: var(--bg); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 6px; }
+.work-card.attention { border-left-color: var(--warn); }
+.work-card-title { font-weight: 600; font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }
+.work-card-title a { color: inherit; }
+.work-card-meta { display: flex; justify-content: space-between; gap: 8px; }
+.work-card-meta > span:last-child { white-space: nowrap; }
+.work-card-actions { margin-top: 4px; gap: 6px; }
+.work-board-stages { display: none; }
+@media (max-width: 600px) {
+  .work-board-stages { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 12px; }
+  .work-board-stages .chip { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .work-board { display: block; overflow: visible; }
+  .work-board-column { display: none; }
+  .work-board-column.shown { display: block; }
+  .work-card-actions .ui-button { min-height: 44px; }
+}

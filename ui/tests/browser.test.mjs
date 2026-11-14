@@ -3039,6 +3039,81 @@ test("the field's report sits above the IOC's decision, and operators are only o
   assert.equal(await page.getByText("Compressor trip").count(), 0);
 });
 
+test("the Board lays open work out by stage, splits it into lanes, and its cards dispatch or close out", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+  const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+  const exc = (id, extra) => ({ id, type: "sap_notification", key: `k${id}`, source: "sap", state: "open", priority: null,
+    value_usd: null, subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: ago(130),
+    last_seen: ago(10), item_id: null, assignee: null, evidence: {}, ...extra });
+  const open = [
+    exc(1, { title: "3rd stage compressor tripped", value_usd: 120000, raised_count: 2 }),
+    exc(2, { title: "Separator level high", type: "iow_breach", source: "historian", first_seen: ago(15) }),
+    exc(3, { title: "Low output from export pump", item_id: 31, assignee: "riley", value_usd: 31000 }),
+    exc(4, { title: "PSV recertification overdue", planned: { id: 1, start_at: "2026-11-17T07:00:00Z", end_at: "2026-11-17T12:00:00Z", crew: "crew B" } }),
+    exc(5, { title: "Seal leak at export pump B", item_id: 32, assignee: "sam",
+      evidence: { field: [{ at: ago(185), by: "sam", status: "on_site", note: null }] } }),
+    exc(6, { title: "Drain valve weeping", type: "round_finding", source: "rounds", item_id: 33, role: "operator" }),
+    exc(7, { title: "Strainer DP high", item_id: 34, assignee: "riley",
+      evidence: { field: [{ at: ago(40), by: "sam", status: "done", note: "cleaned" }] } }),
+    exc(8, { title: "Wellhead pressure high", source: "historian", item_id: 35, assignee: "riley",
+      evidence: { field: [{ at: ago(70), by: "sam", status: "could_not_do", note: "no permit" }] } }),
+  ];
+  const closed = [exc(9, { title: "Cooler fan tripped", state: "cleared", closed_at: ago(200) })];
+  const asked = [];
+  await page.route("**/exceptions?*", (route) => {
+    const q = new URL(route.request().url()).searchParams;
+    asked.push(Object.fromEntries(q));
+    return route.fulfill({ json: q.get("closed_since") ? [...closed, open[0]] : open });
+  });
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ioc_lead"] }, { name: "sam", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person", members: [] }] }));
+  await page.route("**/exceptions/types", (route) => route.fulfill({ json: [{ name: "sap_notification", label: "SAP notification",
+    role: null, process: null, case_type: null, audience: ["ioc"], close_case_on_clear: false, description: "", defined_in: "code", open: 6 }] }));
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(`${url}/#/exceptions?list=board`);
+  const column = (name) => page.getByRole("region", { name, exact: true });
+  await column("To dispatch").getByText("3rd stage compressor tripped").waitFor();
+  const titles = async (name) => (await column(name).locator(".work-card-title").allTextContents()).sort();
+  assert.deepEqual(await titles("To dispatch"), ["3rd stage compressor tripped", "Separator level high"]);
+  assert.deepEqual(await titles("With a desk"), ["Low output from export pump"]);
+  assert.deepEqual(await titles("On the plan"), ["PSV recertification overdue"]);
+  assert.deepEqual(await titles("With the field"), ["Drain valve weeping", "Seal leak at export pump B"]);
+  assert.deepEqual(await titles("Back from the field"), ["Strainer DP high", "Wellhead pressure high"]);
+  assert.deepEqual(await titles("Closed today"), ["Cooler fan tripped"]);  // an open row in the closed answer stays put
+  assert.ok(asked.some((q) => q.state === "any" && q.closed_since));
+  await column("To dispatch").getByText("$120k at stake · oldest 2h 10m").waitFor();
+  // Back from the field: done goes to its case to close out; could not do can go out again.
+  const done = column("Back from the field").locator(".work-card", { hasText: "Strainer DP high" });
+  assert.equal(await done.getByRole("link", { name: "Close out" }).getAttribute("href"), "#/cases/34");
+  assert.equal(await done.getByRole("button", { name: "Re-dispatch" }).count(), 0);
+  await column("Back from the field").locator(".work-card", { hasText: "Wellhead pressure high" }).getByRole("button", { name: "Re-dispatch" }).waitFor();
+  assert.equal(await column("With the field").getByRole("button").count(), 0);  // only the field moves its own work
+  await page.getByLabel("Lanes").selectOption("source");
+  await page.waitForURL(/lanes=source/);
+  assert.deepEqual(await column("To dispatch").locator(".work-board-lane").allTextContents(), ["historian", "sap"]);
+  await waveScreenshot("work-board");
+
+  const dispatched = [];
+  await page.route("**/exceptions/1/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: open[0] }); });
+  const card = column("To dispatch").locator(".work-card", { hasText: "3rd stage compressor tripped" });
+  await card.getByRole("button", { name: "Dispatch" }).click();
+  await card.getByLabel("Dispatch to").selectOption("sam");
+  await card.getByLabel("What to do").fill("check the trip log");
+  await card.locator(".row:not(.work-card-actions)").getByRole("button", { name: "Dispatch", exact: true }).click();
+  await expectReports(dispatched, 1);
+  assert.equal(dispatched[0].to, "sam");
+
+  // A phone shows one stage at a time, chosen from the chips, and never scrolls sideways.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const stages = page.getByRole("navigation", { name: "Stages" });
+  await stages.getByRole("link", { name: "Field 2" }).click();
+  await page.waitForURL(/stage=field/);
+  await column("With the field").getByText("Seal leak at export pump B").waitFor();
+  assert.equal(await column("To dispatch").isVisible(), false);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await waveScreenshot("work-board-phone");
+});
+
 test("All work holds the Work board and Cases as views, and their old links land on the same view (#502)", async () => {
   const exc = (id, extra) => ({ id, type: "upset", key: `k${id}`, source: "sre", state: "open", priority: null, value_usd: null,
     subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
@@ -3058,7 +3133,7 @@ test("All work holds the Work board and Cases as views, and their old links land
   await views.getByRole("link", { name: "All open 3", exact: true }).waitFor();
   await page.getByText("Compressor trip").waitFor();
   assert.deepEqual((await views.locator("a").allTextContents()).map((t) => t.trim()),
-    ["To dispatch 1", "With the field 1", "Back from the field 1", "All open 3", "In progress", "Ranked by value", "Closed"]);
+    ["To dispatch 1", "With the field 1", "Back from the field 1", "All open 3", "In progress", "Ranked by value", "Closed", "Board"]);
   await page.getByText("Compressor trip").waitFor();
   assert.equal(await page.getByText("Packing leak").count(), 0);
   await views.getByRole("link", { name: "With the field 1" }).click();

@@ -46,7 +46,8 @@ opens its scope beside it, and `#/turnaround?revision=…` redirects there. Data
 the data steward's queue that links to it. Processes sits beside Routing
 under Settings, keeping its `#/processes` URLs.
 All work (#502) is the IOC's one list: its views are To dispatch, With the field, Back from the field, All open
-(exceptions), In progress and Closed (the former Cases list) and Ranked by value (the former Work board).
+(exceptions), In progress and Closed (the former Cases list), Ranked by value (the former Work board) and Board
+(the open work by stage, one column per view).
 `#/board?view=…` redirects to `#/exceptions?list=ranked&view=…`, and `#/cases?state=…` to the In progress or
 Closed view with its filters; case and task pages keep their URLs. One filter bar (kind of work, held by, words in
 the title) is shared by every view and kept in the URL, so switching views keeps it.

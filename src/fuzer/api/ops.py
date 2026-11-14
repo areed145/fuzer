@@ -1,7 +1,7 @@
 """The value ranking, board, daily reports, opportunities and studies."""
 
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -599,12 +599,13 @@ def _loaded_types() -> None:
 @router.get("/exceptions")
 def exception_list(state: str | None = "open", type: str | None = None, subject: str | None = None,
                    audience: Literal["ioc", "field"] | None = None, limit: int = Query(200, le=1000),
-                   conn=Depends(get_conn)):
+                   closed_since: datetime | None = None, conn=Depends(get_conn)):
     """Exceptions from every source, most valuable then newest first, with the case working each and who has it.
-    `state=any` lists every state."""
+    `state=any` lists every state; `closed_since` keeps the ones closed or cleared from then on."""
     from ..ops import exceptions
     _loaded_types()
-    return exceptions.listing(conn, state=None if state in (None, "", "any") else state, type=type, subject=subject, audience=audience, limit=limit)
+    return exceptions.listing(conn, state=None if state in (None, "", "any") else state, type=type, subject=subject, audience=audience, limit=limit,
+                              closed_since=closed_since)
 
 
 class SuppressionIn(BaseModel):
