@@ -6,9 +6,9 @@ import { projectUrl } from "./authState";
 import { useEffect, useRef, useState } from "react";
 import { api, type FigureData } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
-import { Button, Table , Card as UICard, Badge as UIBadge, Disclosure } from "./ui";
+import { Button, Table , Card as UICard, Badge as UIBadge, Disclosure, FullscreenButton, useFullscreen } from "./ui";
 import { useTheme } from "./theme";
-import { PLOTLY_CONFIG } from "./plotlyConfig";
+import { PLOTLY_CONFIG, fullscreenLayout, roomIn } from "./plotlyConfig";
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -41,6 +41,7 @@ export function FigureView({ id }: { id: string }) {
   const el = useRef<HTMLDivElement>(null);
   const [table, setTable] = useState(false);
   const theme = useTheme();
+  const full = useFullscreen();
   const d = f.data;
 
   useEffect(() => {
@@ -49,7 +50,8 @@ export function FigureView({ id }: { id: string }) {
     let gone = false;
     import("plotly.js-cartesian-dist-min").then(({ default: Plotly }) => {
       if (gone) return;
-      Plotly.react(node, d.spec.data, themed(d.spec.layout), PLOTLY_CONFIG).then(() => {
+      const layout = themed(fullscreenLayout(d.spec.layout, full.on, roomIn(full.ref.current)));
+      Plotly.react(node, d.spec.data, layout, PLOTLY_CONFIG).then(() => {
         node.on?.("plotly_click", (e: any) => {
           const p = e.points?.[0];
           const target = p?.customdata ?? p?.data?.meta?.entity;
@@ -61,15 +63,18 @@ export function FigureView({ id }: { id: string }) {
       gone = true;
       import("plotly.js-cartesian-dist-min").then(({ default: Plotly }) => Plotly.purge(node));
     };
-  }, [d, theme]);
+  }, [d, theme, full.on]);
 
   return (
     <UICard className="figure" as="figure">
       <Status loading={f.loading && !d} error={f.error} />
       {d && (
         <>
-          <div className="figure-plot" ref={el} style={{ height: d.spec.layout.height ?? 420 }}
-               role="img" aria-label={d.title} />
+          <div ref={full.ref} className={`chart-frame${full.on ? " ui-fullscreen" : ""}`}>
+            <div className="figure-plot" ref={el} style={{ height: full.on ? "100%" : d.spec.layout.height ?? 420 }}
+                 role="img" aria-label={d.title} />
+            <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="chart-fullscreen" />
+          </div>
           <figcaption className="row small muted">
             {d.by_source === "assistant" && <UIBadge className="badge">assistant-entered data</UIBadge>}
             <span className="spacer" />

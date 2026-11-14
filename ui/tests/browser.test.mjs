@@ -2701,6 +2701,12 @@ test("Home shows each server-built figure in its own card, with its tables on re
   const colors = await second.locator(".js-plotly-plot").evaluate((node) => node._fullData.map((t) => t.marker.color));
   const theme = await page.evaluate(() => [1, 2].map((i) => getComputedStyle(document.documentElement).getPropertyValue(`--chart-${i}`).trim()));
   assert.deepEqual(colors, theme, "Series take the theme colorway by position");
+  // Every chart opens on the whole screen from its own button, and comes back the height it was.
+  const before = await second.locator(".js-plotly-plot").evaluate((node) => node._fullLayout.height);
+  await second.getByRole("button", { name: "Full screen" }).click();
+  await page.waitForFunction(() => document.querySelector(".chart-frame.ui-fullscreen .js-plotly-plot")?._fullLayout?.height > 500);
+  await page.getByRole("button", { name: "Exit full screen" }).click();
+  await page.waitForFunction((h) => document.querySelectorAll(".home-charts .js-plotly-plot")[1]?._fullLayout?.height === h, before);
   await second.getByRole("button", { name: "Metadata needed to establish the bottleneck · 3 of 3 stages incomplete" }).click();
   await second.getByRole("cell", { name: "Crude terminal", exact: true }).waitFor();
   assert.equal(calls.capacity, 1);
@@ -3589,7 +3595,7 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   const scene = {
     root: { id: "A1", kind: "area", label: "AREA-1" }, focus: null, rels: ["flows_to", "pipes_to"],
     plates: [{ id: "A1", label: "AREA-1", area: true, frame: "lattice", type: "wellhead jacket", x: 0, y: 0, z: 0, w: 28, d: 13, items: 3 }],
-    items: [item("V-1", "separator", 6, 5.25), item("K-1", "compressor", 14, 5.25, { classes: ["CO.CE"] }), item("E-1", "exchanger", 22, 5.25)],
+    items: [item("V-1", "separator", 6, 5.25), item("K-1", "compressor", 14, 5.25, { classes: ["CO.CE"], description: "Booster Compressor" }), item("E-1", "exchanger", 22, 5.25)],
     links: [{ id: 1, src: "V-1", dst: "K-1", rel: "pipes_to", product: null, path: [[6, 1, 5.25], [14, 1, 5.25]] },
       { id: 2, src: "V-1", dst: "E-1", rel: "flows_to", product: "gas", path: [[6, 1, 5.25], [6, 9, 5.25], [22, 9, 5.25], [22, 1, 5.25]] }],
     shapes: { separator: shape("capsule_h", [5.6, 2.2, 2.2], "Separator"), compressor: shape("box", [3.6, 2.4, 2.6], "Compressor"),
@@ -3618,6 +3624,29 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   assert.equal(scripts.some((u) => /Scene3D/.test(u)), true);
   assert.match(await page.getByTestId("scene-basis").textContent(), /not to scale: 3 items placed from 2 links, 4 valves and instruments/);
   assert.equal(await page.getByLabel("Facility or area to draw").inputValue(), "A1");
+
+  // Lines take the colour of what they carry, else of their link type, and the legend says which is which.
+  assert.deepEqual(await page.getByLabel("What the lines are").locator("span").allTextContents(), ["Gas", "pipes to"]);
+  // Items are named as people know them; Labels switches to tags, kept in the link.
+  const names = () => page.locator(".scene-tag:not([hidden])").allTextContents();
+  await page.waitForFunction(() => [...document.querySelectorAll(".scene-tag")].some((t) => !t.hidden && t.textContent === "Booster Compressor"));
+  await page.getByLabel("Label items by").selectOption("tags");
+  await page.waitForFunction(() => location.hash.includes("labels=tags"));
+  await page.waitForFunction(() => [...document.querySelectorAll(".scene-tag")].some((t) => !t.hidden && t.textContent === "K-1"));
+  assert.ok(!(await names()).includes("Booster Compressor"));
+  await page.getByLabel("Label items by").selectOption("names");
+
+  // Full screen covers the page with the drawing, its controls and legend; Escape or the button leaves.
+  await page.getByRole("button", { name: "Full screen" }).click();
+  const frame = page.locator(".scene3d-frame.ui-fullscreen");
+  await frame.waitFor();
+  const viewport = page.viewportSize();
+  const covered = await frame.boundingBox();
+  assert.ok(covered.width >= viewport.width - 1 && covered.height >= viewport.height - 1);
+  for (const name of ["Zoom in", "Zoom out", "View from above", "Fit"]) await frame.getByRole("button", { name }).click();
+  assert.equal(await frame.getByLabel("What the lines are").isVisible(), true);
+  await frame.getByRole("button", { name: "Exit full screen" }).click();
+  await page.locator(".scene3d-frame:not(.ui-fullscreen)").waitFor();
 
   // A click on a shape opens its card, with the way to its asset page; the pick is kept in the link.
   const at = await canvas.evaluate((el) => el.screenOf("K-1"));

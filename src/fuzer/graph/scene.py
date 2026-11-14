@@ -298,8 +298,9 @@ def _route(a: dict, b: dict, lift: float) -> list[list[float]]:
 def places(conn) -> list[dict]:
     """The facilities and areas a scene can be of, for the picker."""
     return _rows(conn, """
-        select en.fuzer_id as id, en.kind, l.label, p.dst as parent from entity en
+        select en.fuzer_id as id, en.kind, l.label, d.value #>> '{}' as description, p.dst as parent from entity en
         left join entity_label l using (fuzer_id)
+        left join golden d on d.fuzer_id = en.fuzer_id and d.field = 'description'
         left join lateral (select e.dst from edge e join entity d on d.fuzer_id = e.dst
                            where e.src = en.fuzer_id and e.rel = 'part_of' and e.valid_to is null
                              and d.kind in ('facility', 'area') order by e.dst limit 1) p on true
@@ -367,6 +368,7 @@ def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None)
         lanes = max((z for _, z in cell.values()), default=0.0)
         real = pid not in names
         plates.append({"id": pid, "label": area_label.get(pid) or pid if real else names[pid], "area": real,
+                       "description": about[pid]["description"] if real else None,
                        "frame": _frame(table, about[pid]["area_type"]) if real else "slab",
                        "type": about[pid]["area_type"] if real else None,
                        "w": cols * CELL_X + 2 * MARGIN + CELL_X / 2, "d": lanes * CELL_Z + 2 * MARGIN + CELL_Z / 2,

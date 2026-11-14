@@ -27,6 +27,8 @@ test("every Plotly chart is drawn with the shared config", () => {
       const call = text.slice(m.index, text.indexOf(";", m.index));
       draws.push(f);
       assert.ok(call.includes("PLOTLY_CONFIG"), `${f}: a Plotly chart drawn without PLOTLY_CONFIG shows the toolbar`);
+      assert.ok(text.includes("<FullscreenButton") && text.includes("fullscreenLayout("),
+        `${f}: a Plotly chart without its full screen button (FullscreenButton and fullscreenLayout)`);
     }
   }
   assert.ok(draws.length >= 2, "found the charts");

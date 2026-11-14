@@ -37,7 +37,8 @@ import { EntityStatus } from "../EntityStatus";
 import { AssetProfile } from "../AssetProfile";
 import { WatchButton } from "../Watch";
 import { Related } from "../Related";
-import { kindColor } from "../kinds";
+import { kindColor, relColor } from "../kinds";
+import { nodeLabel } from "../entityRefs";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -471,7 +472,7 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
       if (off.includes(net.rel)) return;
       for (const [rows, upstream] of [[flow.data![2 * i], true], [flow.data![2 * i + 1], false]] as const) {
         for (const r of rows) {
-          nodes.set(r.fuzer_id, { id: r.fuzer_id, label: r.label ?? r.fuzer_id, kind: r.kind });
+          nodes.set(r.fuzer_id, { id: r.fuzer_id, label: nodeLabel(r.label ?? r.fuzer_id, r.description), kind: r.kind });
           const [src, dst] = upstream ? [r.fuzer_id, r.parent ?? id] : [r.parent ?? id, r.fuzer_id];
           edges.set(`${net.rel}:${src}>${dst}`, { src, dst, net });
         }
@@ -482,7 +483,7 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
       ...[...nodes.values()].map((n) => ({ data: { ...n, color: kindColor(n.kind), size: n.id === id ? 34 : 22,
         root: n.id === id } })),
       ...[...edges.values()].map((x, i) => ({ classes: x.net.cls, data: { id: `e${i}`, source: x.src, target: x.dst,
-        rel: x.net.rel, ended: false, label: x.net.label } })),
+        rel: x.net.rel, color: relColor(x.net.rel), ended: false, label: x.net.label } })),
     ];
   }, [flow.data, id, label, kind, off]);
   const none = !!flow.data && !has(0) && !has(1);

@@ -109,7 +109,8 @@ def test_a_facility_draws_every_area_and_a_jacket_stands_on_a_frame(okan_db):
             assert p["x"] + p["w"] <= q["x"] or q["x"] + q["w"] <= p["x"] or p["z"] + p["d"] <= q["z"] or q["z"] + q["d"] <= p["z"]
     wells = [i for i in s["items"] if i["kind"] == "well"]
     assert wells and {i["shape"] for i in wells} == {"well"}
-    assert {"id", "kind", "label", "parent"} <= set(s["places"][0])
+    assert {"id", "kind", "label", "description", "parent"} <= set(s["places"][0])
+    assert all(p["description"] for p in areas), "each area plate carries its description, for its common name"
 
 
 def test_something_in_no_area_says_so_instead_of_drawing_nothing(okan_db):

@@ -1,19 +1,29 @@
 // The schematic 3D view (P5.16a): a scene laid out on the server, drawn as generic solids with three.js. This file
 // is the only one that imports three, and it is loaded on demand, so no other page carries it.
 import "./styles/scene3d.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import type { Scene, SceneItem, SceneShape } from "./api";
+import type { Scene, SceneItem, SceneLink, SceneShape } from "./api";
+import { commonName } from "./entityRefs";
 import { THEME_CHANGED } from "./theme";
-import { Button } from "./ui";
+import { Button, FullscreenButton, useFullscreen } from "./ui";
 
 const PIPE = 0.22;
 const SEABED = -14;
 const SEA = -8;
 const LABEL_ALL = 400; // name items up to this many, wherever a name has room; past it, only plates and the picked item
 const views = new Map<string, { position: number[]; target: number[] }>(); // where each scene was left, for Back
+const TILT = new THREE.Vector3(-0.12, 0.72, 1).normalize(), TOP = new THREE.Vector3(0, 1, 0.0001).normalize();
+
+/** How a name reads on the drawing: what people call it, or its tag. A lit (hovered or picked) name gives both. */
+export type LabelBy = "names" | "tags";
+const nameFor = (label: string, description: string | null | undefined, by: LabelBy, lit = false) => {
+  const name = commonName(label, description);
+  if (!name || by === "tags") return lit && name ? `${label} · ${name}` : label;
+  return lit ? `${name} · ${label}` : name;
+};
 
 function token(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -44,11 +54,12 @@ function solid(shape: SceneShape): THREE.BufferGeometry {
 
 interface Built {
   dispose: () => void; fit: () => void; light: () => void; lookAt: (id: string) => void;
+  zoom: (factor: number) => void; top: () => void;
   screenOf: (id: string) => { x: number; y: number } | null;
 }
 
-function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relColor: (rel: string) => string,
-  state: { selected: string | null; onSelect: (id: string | null) => void }): Built {
+function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineColor: (link: SceneLink) => string,
+  labelBy: LabelBy, state: { selected: string | null; onSelect: (id: string | null) => void }): Built {
   const colors = {
     panel: new THREE.Color(token("--panel")), line: new THREE.Color(token("--line")),
     muted: new THREE.Color(token("--muted")), accent: new THREE.Color(token("--accent")),
@@ -71,6 +82,8 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relCo
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.maxPolarAngle = Math.PI / 2 - 0.02;
   controls.zoomToCursor = true;
+  controls.keyPanSpeed = 20;
+  controls.listenToKeyEvents(host); // arrow keys pan once the drawing has focus
   const disposables: { dispose: () => void }[] = [renderer, controls];
   const keep = <T extends { dispose: () => void }>(x: T) => { disposables.push(x); return x; };
 
@@ -124,7 +137,7 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relCo
   const elbows: { p: THREE.Vector3; color: THREE.Color }[] = [];
   const arrows: { p: THREE.Vector3; dir: THREE.Vector3; color: THREE.Color }[] = [];
   for (const link of scene.links) {
-    const color = new THREE.Color(relColor(link.rel) || token("--muted"));
+    const color = new THREE.Color(lineColor(link) || token("--muted"));
     const pts = link.path.map(([x, y, z]) => new THREE.Vector3(x, y, z));
     let longest = 0, mid: THREE.Vector3 | null = null, dir: THREE.Vector3 | null = null;
     const r = pts.length > 4 || (pts.length > 2 && pts[1].y > pts[0].y) ? PIPE * 0.6 : PIPE; // up and over: a lighter run
@@ -179,17 +192,18 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relCo
   }
 
   // Names: plates always, items when there are few, and the hovered and picked item.
-  const tags = new Map<string, { el: HTMLElement; p: THREE.Vector3; always: boolean }>();
+  const tags = new Map<string, { el: HTMLElement; p: THREE.Vector3; always: boolean; text: string; lit: string }>();
   labels.replaceChildren();
-  const tag = (key: string, text: string, p: THREE.Vector3, cls: string, always: boolean) => {
+  const tag = (key: string, label: string, description: string | null | undefined, p: THREE.Vector3, cls: string, always: boolean) => {
     const el = document.createElement("span");
     el.className = cls;
+    const text = nameFor(label, description, labelBy);
     el.textContent = text;
     labels.appendChild(el);
-    tags.set(key, { el, p, always });
+    tags.set(key, { el, p, always, text, lit: nameFor(label, description, labelBy, true) });
   };
-  for (const p of scene.plates) tag(`plate:${p.id}`, p.label, new THREE.Vector3(p.x + 1, p.y, p.z + p.d), "scene-tag scene-tag-plate", true);
-  for (const it of scene.items) tag(it.id, it.label, new THREE.Vector3(it.x, at.get(it.id)!.top, it.z), "scene-tag", scene.items.length <= LABEL_ALL);
+  for (const p of scene.plates) tag(`plate:${p.id}`, p.label, p.description, new THREE.Vector3(p.x + 1, p.y, p.z + p.d), "scene-tag scene-tag-plate", true);
+  for (const it of scene.items) tag(it.id, it.label, it.description, new THREE.Vector3(it.x, at.get(it.id)!.top, it.z), "scene-tag", scene.items.length <= LABEL_ALL);
 
   let hovered: string | null = null, queued = 0;
   const project = (p: THREE.Vector3) => {
@@ -206,7 +220,9 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relCo
       const s = (t.always || lit) && project(t.p);
       t.el.hidden = true;
       t.el.classList.toggle("on", lit);
-      if (s) shown.push({ ...s, w: t.el.textContent!.length * (lit ? 7.6 : 6.3) + 10, rank: lit ? 0 : key.startsWith("plate:") ? 1 : 2,
+      const text = lit ? t.lit : t.text;
+      if (t.el.textContent !== text) t.el.textContent = text;
+      if (s) shown.push({ ...s, w: text.length * (lit ? 7.6 : 6.3) + 10, rank: lit ? 0 : key.startsWith("plate:") ? 1 : 2,
         d: t.p.distanceToSquared(camera.position), t });
     }
     shown.sort((a, b) => a.rank - b.rank || a.d - b.d);
@@ -233,16 +249,16 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relCo
     redraw();
   };
 
-  const frame = (target: THREE.Vector3, distance: number) => {
+  const frame = (target: THREE.Vector3, distance: number, from = TILT) => {
     controls.target.copy(target);
-    camera.position.copy(target).add(new THREE.Vector3(-0.12, 0.72, 1).normalize().multiplyScalar(distance));
+    camera.position.copy(target).add(from.clone().multiplyScalar(distance));
     controls.update();
   };
-  const fit = () => { // back off until every corner of the scene is in view, with a margin
+  const fit = (from = TILT) => { // back off until every corner of the scene is in view, with a margin
     const centre = box.getCenter(new THREE.Vector3()).setY(2);
     let distance = box.getSize(new THREE.Vector3()).length();
     for (let pass = 0; pass < 4; pass++) {
-      frame(centre, distance);
+      frame(centre, distance, from);
       camera.updateMatrixWorld();
       let reach = 0;
       for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
@@ -251,8 +267,14 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relCo
       }
       distance *= Math.max(reach / 0.9, 0.2);
     }
-    frame(centre, distance);
+    frame(centre, distance, from);
     redraw();
+  };
+  const zoom = (factor: number) => { // closer (< 1) or further (> 1), towards the middle of the view
+    const offset = camera.position.clone().sub(controls.target).multiplyScalar(factor);
+    if (offset.length() < 4 || offset.length() > 5000) return;
+    camera.position.copy(controls.target).add(offset);
+    controls.update();
   };
   const lookAt = (id: string) => {
     const hit = at.get(id);
@@ -312,7 +334,7 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relCo
   host.dataset.sceneItems = String(scene.items.length);
 
   return {
-    fit, light, lookAt,
+    fit: () => fit(), top: () => fit(TOP), zoom, light, lookAt,
     screenOf: (id) => {
       const hit = at.get(id);
       if (!hit) return null;
@@ -335,19 +357,24 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, relCo
   };
 }
 
-export default function Scene3D({ scene, selected, centre, onSelect, relColor, onUnavailable }: {
+export default function Scene3D({ scene, selected, centre, onSelect, lineColor, labelBy = "names", footer, onUnavailable }: {
   scene: Scene;
   selected: string | null;
   /** Bring this item to the middle of the view (a pick from the Find list, not from the drawing). */
   centre?: { id: string } | null;
   onSelect: (id: string | null) => void;
-  relColor: (rel: string) => string;
+  /** The colour of a line: what it carries, else its link type (linkColor in kinds.ts). */
+  lineColor: (link: SceneLink) => string;
+  labelBy?: LabelBy;
+  /** Shown under the drawing, and with it on the full screen: the legend, the picked item. */
+  footer?: ReactNode;
   /** WebGL can't start here (an old device, or it is switched off). */
   onUnavailable: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const labels = useRef<HTMLDivElement>(null);
   const built = useRef<Built | null>(null);
+  const full = useFullscreen();
   const state = useRef({ selected, onSelect });
   state.current.onSelect = onSelect;
 
@@ -356,7 +383,7 @@ export default function Scene3D({ scene, selected, centre, onSelect, relColor, o
       built.current?.dispose();
       built.current = null;
       try {
-        built.current = build(host.current!, labels.current!, scene, relColor, state.current);
+        built.current = build(host.current!, labels.current!, scene, lineColor, labelBy, state.current);
       } catch {
         onUnavailable();
       }
@@ -368,7 +395,7 @@ export default function Scene3D({ scene, selected, centre, onSelect, relColor, o
       built.current?.dispose();
       built.current = null;
     };
-  }, [scene, relColor]);
+  }, [scene, lineColor, labelBy]);
 
   useEffect(() => {
     const moved = state.current.selected !== selected;
@@ -386,14 +413,27 @@ export default function Scene3D({ scene, selected, centre, onSelect, relColor, o
     if (el) el.screenOf = (id) => built.current?.screenOf(id) ?? null;
   }, []);
 
+  const tool = (label: string, onClick: () => void, icon: ReactNode) => (
+    <Button variant="secondary" size="sm" className="scene-tool" onClick={onClick} aria-label={label} title={label}>{icon}</Button>
+  );
   return (
-    <div className="graph-canvas scene3d">
-      <div ref={host} className="graph-surface" role="img"
-        aria-label={`Schematic 3D view of ${scene.root?.label ?? "the facility"}: ${scene.items.length} items`} />
-      <div ref={labels} className="scene-tags" aria-hidden="true" />
-      <Button variant="secondary" size="sm" className="graph-fit" onClick={() => built.current?.fit()} title="Fit to view">
-        Fit
-      </Button>
+    <div ref={full.ref} className={`scene3d-frame${full.on ? " ui-fullscreen" : ""}`}>
+      <div className="graph-canvas scene3d">
+        <div ref={host} className="graph-surface" role="img" tabIndex={0}
+          aria-label={`Schematic 3D view of ${scene.root?.label ?? "the facility"}: ${scene.items.length} items`} />
+        <div ref={labels} className="scene-tags" aria-hidden="true" />
+        <div className="graph-tools" role="toolbar" aria-label="View">
+          <FullscreenButton on={full.on} onClick={() => void full.toggle()} />
+          <Button variant="secondary" size="sm" className="graph-fit" onClick={() => built.current?.fit()} title="Fit to view">
+            Fit
+          </Button>
+          {tool("Zoom in", () => built.current?.zoom(0.7), <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>)}
+          {tool("Zoom out", () => built.current?.zoom(1.4), <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>)}
+          {tool("View from above", () => built.current?.top(),
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 12h16M12 4v16" /></svg>)}
+        </div>
+      </div>
+      {footer}
     </div>
   );
 }

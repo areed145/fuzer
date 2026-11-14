@@ -133,3 +133,55 @@ export function Disclosure({ label, open = false, className = "", children }: {
     {shown && <div id={id} className="ui-disclosure-body">{children}</div>}
   </div>;
 }
+
+/** A view (a chart, a drawing, a map, the 3D scene) on the whole screen. The browser's own full screen where it
+ * allows one; elsewhere (an iPhone, which has none for anything but video) the view covers the page instead. Either
+ * way the view adds `ui-fullscreen` to the element while `on`, Escape leaves, and `on` lets it redraw at its new
+ * size. */
+export function useFullscreen<T extends HTMLElement = HTMLDivElement>() {
+  const ref = useRef<T>(null);
+  const [native, setNative] = useState(false);
+  const [covering, setCovering] = useState(false);
+  const on = native || covering;
+  useEffect(() => {
+    const changed = () => setNative(!!ref.current && document.fullscreenElement === ref.current);
+    document.addEventListener("fullscreenchange", changed);
+    return () => document.removeEventListener("fullscreenchange", changed);
+  }, []);
+  useEffect(() => {
+    if (!covering) return;
+    document.documentElement.classList.add("ui-fullscreen-open");
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setCovering(false); };
+    window.addEventListener("keydown", key);
+    return () => {
+      document.documentElement.classList.remove("ui-fullscreen-open");
+      window.removeEventListener("keydown", key);
+    };
+  }, [covering]);
+  const toggle = async () => {
+    const el = ref.current;
+    if (!el) return;
+    if (document.fullscreenElement === el) return void await document.exitFullscreen().catch(() => {});
+    if (covering) return setCovering(false);
+    try {
+      if (el.requestFullscreen && document.fullscreenEnabled) return void await el.requestFullscreen();
+    } catch {
+      // Blocked (an embedded frame, a policy): cover the page instead.
+    }
+    setCovering(true);
+  };
+  return { ref, on, toggle };
+}
+
+/** The one button that opens and closes a view's full screen (useFullscreen). */
+export function FullscreenButton({ on, onClick, className = "" }: { on: boolean; onClick: () => void; className?: string }) {
+  const label = on ? "Exit full screen" : "Full screen";
+  return (
+    <Button variant="secondary" size="sm" className={`ui-fullscreen-button ${className}`.trim()} onClick={onClick}
+      aria-label={label} title={label} aria-pressed={on}>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+        <path d={on ? "M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} />
+      </svg>
+    </Button>
+  );
+}

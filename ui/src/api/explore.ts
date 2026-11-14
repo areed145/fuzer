@@ -61,6 +61,7 @@ export interface TraceRow {
   valid_to: string | null;
   kind: string;
   label: string | null;
+  description?: string | null;
   /** The step before it on the path from the asset the trace started at. */
   parent: string | null;
 }
@@ -149,7 +150,7 @@ export interface GraphEdge {
 /** A schematic scene of a facility or area (P5.16a): generic shapes on plates, laid out on the server. */
 export interface SceneShape { solid: string; size: [number, number, number]; label: string; detail?: boolean }
 export interface ScenePlate {
-  id: string; label: string; area: boolean; frame: "slab" | "lattice"; type: string | null;
+  id: string; label: string; description?: string | null; area: boolean; frame: "slab" | "lattice"; type: string | null;
   x: number; y: number; z: number; w: number; d: number; items: number;
 }
 export interface SceneItem {
@@ -168,7 +169,7 @@ export interface Scene {
   shapes: Record<string, SceneShape>;
   counts: { items: number; links: number; not_drawn: number; by_layout: number; by_geometry: number; no_shape: number };
   truncated: boolean;
-  places: { id: string; kind: string; label: string | null; parent: string | null }[];
+  places: { id: string; kind: string; label: string | null; description?: string | null; parent: string | null }[];
 }
 
 export interface Subgraph {

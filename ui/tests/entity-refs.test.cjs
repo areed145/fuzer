@@ -10,7 +10,7 @@ const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/entityRe
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(code, { exports: exportsObject });
-const { linkCitations, idsIn, display, TOKEN } = exportsObject;
+const { linkCitations, idsIn, display, commonName, TOKEN } = exportsObject;
 
 const WELL = "fz-well-2526585e8224", TERM = "fz-allocation_node-b708d0477249", DAY = "fz-daily_report-82c067e8e550", SEP = "fz-tag-94741a20e99d";
 const names = {
@@ -92,4 +92,14 @@ test("report citations that are not entities read as words, entity ids stay for 
   assert.equal(readableCitations(`- Upset [upset:12, ${WELL}]`), `- Upset [${WELL}] (upset 12)`);
   assert.equal(readableCitations(`- Oil [${DAY}]`), `- Oil [${DAY}]`);
   assert.equal(readableCitations("[[figure:f_0a1b]] and [not a cite]"), "[[figure:f_0a1b]] and [not a cite]");
+});
+
+test("a common name is the description, without a source code in front, unless it only repeats the tag", () => {
+  assert.equal(commonName("10-E-3001", "Crude Cooler"), "Crude Cooler");
+  assert.equal(commonName("OKAN-10", "OKA_PP Okan Production Platform"), "Okan Production Platform");
+  assert.equal(commonName("OKAN-61", "OKJ-01 Okan Jacket 01"), "Okan Jacket 01");
+  assert.equal(commonName("OKJ03-GLM", "OKJ-03 Gas Lift Manifold"), "OKJ-03 Gas Lift Manifold");
+  assert.equal(commonName("OK-J01-05", "Well OK-J01-05 (GL oil producer)"), null);
+  assert.equal(commonName("X", null), null);
+  assert.equal(commonName("X", "a".repeat(60)), null);
 });
