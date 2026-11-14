@@ -8,14 +8,21 @@ from datetime import timedelta
 import pytest
 
 from fuzer.core import projects
-from fuzer.core.exceptions import exception_type, raise_exception
+from fuzer.core.exceptions import TYPES, exception_type, raise_exception
 from fuzer.ops import exceptions, rounds, sample_crew
 from fuzer.workflow import engine
 
-FIELD_TYPE = exception_type("crew_field_check", "Crew test: field check", role="role:engineer",
-                            audience=("ioc", "field")).name
-DESK_TYPE = exception_type("crew_desk_review", "Crew test: desk review", role="role:data_steward",
-                           audience=("ioc",)).name
+FIELD_TYPE, DESK_TYPE = "crew_field_check", "crew_desk_review"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def crew_types():
+    """Two exception types for these tests only: declared for the module, gone after it (other suites count types)."""
+    exception_type(FIELD_TYPE, "Crew test: field check", role="role:engineer", audience=("ioc", "field"))
+    exception_type(DESK_TYPE, "Crew test: desk review", role="role:data_steward", audience=("ioc",))
+    yield
+    TYPES.pop(FIELD_TYPE, None)
+    TYPES.pop(DESK_TYPE, None)
 
 
 @pytest.fixture(scope="module")
