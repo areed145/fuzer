@@ -210,6 +210,14 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **A fresh demo's team.** Where nobody is on the roster, the demo is on and names are attribution (local mode),
   My work and All work offer a sample IOC team (riley the ops lead, sam the field operator, pat the planner)
   to follow work from triage to the field. A real deployment's roster is never touched.
+- **A demo that looks staffed** (#1073, `ops/sample_crew.py`). A project whose bundle sets `sample_crew: true` (the
+  fakeplant bundles, never a real deployment) has that sample team, with alex as a second field operator, working its
+  queue at every work tick on today's clock: riley triages and sends field work out (some to the operator queue),
+  closes what comes back done and sends could-not-dos round again; the desks take a few cases each and close them
+  after hours to days, giving what waits a realistic due date; sam and alex go on site, report done or could not do,
+  and walk this shift's rounds (the odd reading outside its limits raises a round finding); riley publishes the daily
+  reports. Each case's path is fixed by its id, about one in ten is left for nobody, and nothing is backdated, so the
+  history builds up as a staffed site's would. Work a real account holds is never touched.
 - **Agent steps nobody will run.** Without an agents provider no agent worker runs; the case says so straight away
   (not after 10 minutes) and offers **Take it over**, which hands the agent's step to you as a person step.
   If nobody takes it over and no worker picks it up within `work.agent_fallback_minutes` (30 by default), the

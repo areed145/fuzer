@@ -389,7 +389,7 @@ def in_each_project(context: dg.OpExecutionContext, fuzer: Fuzer, work) -> None:
 def work_tick_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from ..core import events, exceptions
     from ..workflow import engine
-    from . import handover, rounds
+    from . import handover, rounds, sample_crew
 
     def work(conn, say) -> None:
         say(f"work tick: {engine.tick(conn)}")
@@ -400,6 +400,8 @@ def work_tick_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
         conn.commit()
         say(f"rounds: {rounds.open_shift(conn)}")  # this shift's rounds, last shift's closed (P5.4)
         conn.commit()
+        if crew := sample_crew.run(conn):  # a demonstration facility's sample team works its queue (#1073)
+            say(f"sample crew: {crew}")
         say(f"exceptions: {closed}, events: {events.deliver(conn)}")
 
     in_each_project(context, fuzer, work)
