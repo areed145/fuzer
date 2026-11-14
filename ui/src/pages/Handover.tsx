@@ -22,6 +22,12 @@ const citeLabel = (c: string) => {
     : kind === "entity" ? `the ${id.split("-")[1]?.replace(/_/g, " ") || "record"}` : kind.replace(/_/g, " ");
 };
 
+/** Lines shown per section until the reader asks for the rest. */
+const FIRST = 5;
+const FIRST_READ = ["Escalated or overdue", "Back from the field", "In the field", "Active bypasses", "Open permits",
+  "Records to check", "New exceptions", "Dispatched", "Rounds", "Open work"];
+const rank = (name: string) => { const i = FIRST_READ.indexOf(name); return i < 0 ? FIRST_READ.length - 1 : i; };
+
 export function HandoverPage({ query }: { query: URLSearchParams }) {
   const picked = query.get("id");
   const list = useAsync(() => api.handovers(), []);
@@ -62,7 +68,14 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
 function HandoverView({ h, person, canAct, reload }: { h: Handover; person: string; canAct: boolean; reload: () => void }) {
   const [notes, setNotes] = useState<string | null>(null);
   const a = useAct();
+  const [shown, setShown] = useState<Set<string>>(new Set());
   const acked = h.state === "acknowledged";
+  // What needs the incoming lead first leads; the standing backlog (Open work) comes last, and sections with nothing
+  // fold into one line, so a handover reads in a minute on a phone instead of listing every open case.
+  const sections = Object.entries(h.facts.sections)
+    .sort(([a], [b]) => rank(a) - rank(b));
+  const busy = sections.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) > 0);
+  const quiet = sections.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) === 0).map(([name]) => name);
   return (
     <Card title={`Shift ${when(h.shift_start)} to ${when(h.shift_end)}`}>
       <p className="small">
@@ -70,20 +83,27 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
         {h.item_id && <> · <a href={caseHref(h.item_id)}>its case</a></>}
         <span className="muted"> · drafted {when(h.drafted_at)}</span>
       </p>
-      {Object.entries(h.facts.sections).map(([name, lines]) => (
-        <div key={name}>
-          <h3>{name} <span className="muted small">{lines.length + (h.facts.more?.[name] ?? 0)}</span></h3>
-          {lines.length === 0 ? <Empty className="small">Nothing.</Empty> : (
-            <ul className="small">
-              {lines.map((l, i) => (
-                <li key={i}>{l.text}{" "}
-                  {l.cites.map((c, n) => <span key={c}>{n > 0 && " · "}<a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>
-              ))}
-              {(h.facts.more?.[name] ?? 0) > 0 && <li className="muted">and {h.facts.more![name]} more</li>}
-            </ul>
-          )}
-        </div>
-      ))}
+      {busy.length === 0 && <Empty className="small">Nothing to hand over.</Empty>}
+      {busy.map(([name, lines]) => {
+        const more = h.facts.more?.[name] ?? 0;
+        const total = lines.length + more;
+        const open = shown.has(name);
+        const visible = open ? lines : lines.slice(0, FIRST);
+        return <div key={name}>
+          <h3>{name} <span className="muted small">{total}</span></h3>
+          <ul className="small">
+            {visible.map((l, i) => (
+              <li key={i}>{l.text}{" "}
+                {l.cites.map((c, n) => <span key={c}>{n > 0 && " · "}<a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>
+            ))}
+            {open && more > 0 && <li className="muted">and {more} more</li>}
+          </ul>
+          {lines.length > FIRST && <Button size="sm" variant="ghost" aria-expanded={open}
+            onClick={() => setShown((s) => { const n = new Set(s); if (open) n.delete(name); else n.add(name); return n; })}>
+            {open ? "Show fewer" : `Show all ${total}`}</Button>}
+        </div>;
+      })}
+      {quiet.length > 0 && <p className="small muted">Nothing in {quiet.join(", ").toLowerCase()}.</p>}
       <h3>Outgoing notes</h3>
       {h.notes && notes === null && <p>{h.notes} <span className="muted small">({h.notes_by}, {when(h.notes_at!)})</span></p>}
       {!acked && canAct && (
