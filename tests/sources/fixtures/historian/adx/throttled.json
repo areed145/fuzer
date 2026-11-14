@@ -1,0 +1,19 @@
+{
+ "source": "https://learn.microsoft.com/en-us/kusto/api/rest/response",
+ "mirror": "https://github.com/MicrosoftDocs/dataexplorer-docs/blob/main/data-explorer/kusto/api/rest/response.md",
+ "retrieved": "2026-11-14",
+ "how": "The status (429 TooManyRequests) is from the reference's status table; the body is in its OneApiErrors format with a message written for this fixture, since the reference shows none for 429.",
+ "request": {
+  "csl": "SeriesCatalog | project SeriesId, PiPoint, Description, Units, ValuesTable"
+ },
+ "status": 429,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "error": {
+   "code": "TooManyRequests",
+   "message": "Request was denied due to throttling."
+  }
+ }
+}

@@ -1,0 +1,62 @@
+{
+ "source": "https://learn.microsoft.com/en-us/kusto/api/rest/response-v2",
+ "mirror": "https://github.com/MicrosoftDocs/dataexplorer-docs/blob/main/data-explorer/kusto/api/rest/response-v2.md",
+ "retrieved": "2026-11-14",
+ "how": "Verbatim failure body from the reference, recorded on Microsoft's public help cluster (serviceAlias HELP, database Samples). The query endpoint answers 4xx with the same OneApiErrors body.",
+ "request": {
+  "csl": "aaa"
+ },
+ "status": 400,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "error": {
+   "code": "General_BadRequest",
+   "message": "Request is invalid and cannot be executed.",
+   "@type": "Kusto.Data.Exceptions.KustoBadRequestException",
+   "@message": "Request is invalid and cannot be processed: Semantic error: SEM0100: 'table' operator: Failed to resolve table expression named 'aaa'",
+   "@context": {
+    "timestamp": "2023-04-18T12:59:27.4855445Z",
+    "serviceAlias": "HELP",
+    "machineName": "KEngine000000",
+    "processName": "Kusto.WinSvc.Svc",
+    "processId": 12580,
+    "threadId": 10260,
+    "clientRequestId": "Kusto.Cli;b90f4260-4eac-4574-a27a-3f302db21404",
+    "activityId": "9dcc4522-7b51-41db-a7ae-7c1bfe0696b2",
+    "subActivityId": "d0f30c8c-e6c6-45b6-9275-73dd6b379ecf",
+    "activityType": "DN.FE.ExecuteQuery",
+    "parentActivityId": "6e3c8dab-0aaf-4df5-85b5-fc20b0b29a84",
+    "activityStack": "(Activity stack: CRID=Kusto.Cli;b90f4260-4eac-4574-a27a-3f302db21404 ARID=9dcc4522-7b51-41db-a7ae-7c1bfe0696b2 > KD.Query.Client.ExecuteQueryAsKustoDataStream/8191428e-7139-4c5d-9da7-839a0f21c5b9 > P.WCF.Service.ExecuteQueryAsKustoDataStream..IInterNodeCommunicationQueryContract/6e3c8dab-0aaf-4df5-85b5-fc20b0b29a84 > DN.FE.ExecuteQuery/d0f30c8c-e6c6-45b6-9275-73dd6b379ecf)"
+   },
+   "@permanent": true,
+   "@text": "aaa",
+   "@database": "Samples",
+   "@ClientRequestLogger": "",
+   "innererror": {
+    "code": "SEM0100",
+    "message": "'table' operator: Failed to resolve table expression named 'aaa'",
+    "@type": "Kusto.Data.Exceptions.SemanticException",
+    "@message": "Semantic error: SEM0100: 'table' operator: Failed to resolve table expression named 'aaa'",
+    "@context": {
+     "timestamp": "2023-04-18T12:59:27.4855445Z",
+     "serviceAlias": "HELP",
+     "machineName": "KEngine000000",
+     "processName": "Kusto.WinSvc.Svc",
+     "processId": 12580,
+     "threadId": 10260,
+     "clientRequestId": "Kusto.Cli;b90f4260-4eac-4574-a27a-3f302db21404",
+     "activityId": "9dcc4522-7b51-41db-a7ae-7c1bfe0696b2",
+     "subActivityId": "d0f30c8c-e6c6-45b6-9275-73dd6b379ecf",
+     "activityType": "DN.FE.ExecuteQuery",
+     "parentActivityId": "6e3c8dab-0aaf-4df5-85b5-fc20b0b29a84",
+     "activityStack": "(Activity stack: CRID=Kusto.Cli;b90f4260-4eac-4574-a27a-3f302db21404 ARID=9dcc4522-7b51-41db-a7ae-7c1bfe0696b2 > KD.Query.Client.ExecuteQueryAsKustoDataStream/8191428e-7139-4c5d-9da7-839a0f21c5b9 > P.WCF.Service.ExecuteQueryAsKustoDataStream..IInterNodeCommunicationQueryContract/6e3c8dab-0aaf-4df5-85b5-fc20b0b29a84 > DN.FE.ExecuteQuery/d0f30c8c-e6c6-45b6-9275-73dd6b379ecf)"
+    },
+    "@permanent": true,
+    "@errorCode": "SEM0100",
+    "@errorMessage": "'table' operator: Failed to resolve table expression named 'aaa'"
+   }
+  }
+ }
+}

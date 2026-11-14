@@ -360,6 +360,23 @@ Row counts in `public` matched. The restored `fuzer` schema had every row from b
 
 A rehearsal of point-in-time recovery on Render itself hasn't been run. The recovery database is billed while it exists.
 
+## What a pilot site provides for its historian (PL.2)
+
+The PI Web API and ADX connectors are proven on recorded responses (R.2, [Time series](timeseries.md)). Reading a
+site's own historian needs these from the site, agreed before the pilot starts:
+
+| Item | PI Web API | Azure Data Explorer |
+|---|---|---|
+| Account | A read-only account (Basic, or Kerberos through a gateway) with read on the PI Data Archive points and the AF database. No write, no admin. | An Entra ID app or user with the database Viewer role only. A token is stored as a secret reference (`env:NAME`), never in settings. |
+| Address | The PI Web API URL (`https://<host>/piwebapi`) and, if self-signed, its certificate to trust. | The cluster URI (`https://<cluster>.<region>.kusto.windows.net`). |
+| Where the data is | The Data Archive server name and the AF server and database names. | The database name, the series catalog table (default `SeriesCatalog`: SeriesId, PiPoint, Description, Units, ValuesTable) and the values table (SeriesId, Timestamp, Value). |
+| Network path | HTTPS from the Fuzer service to the PI Web API host, through the site's DMZ or a read-only replica (the zones in [OT security](ot-security.md)). Nothing reaches into the control network. | HTTPS from the Fuzer service to the cluster. |
+| Limits | The server's page and batch limits, if lowered from the defaults (Fuzer pages 1000 points and batches 500 requests). | Any request throttling policy on the database (Fuzer does not retry a throttled query). |
+| A file export of the same server | The point list and AF tree as files, once, so the live load can be compared with them. | The series catalog as a file, once. |
+
+With these, add the connection on Sources and run its test (or `uv run fuzer sources test <id>`). Each step (reach,
+authenticate, list, read) says in plain words what failed and what to ask the site for.
+
 ## Performance
 
 Okan is the only supported synthetic project and test fixture. Use

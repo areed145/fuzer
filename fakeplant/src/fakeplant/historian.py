@@ -12,7 +12,8 @@ One small web server, two faces over the same signals:
   series id, PI point, description, units, values table) and a `PiValues` table (SeriesId,
   Timestamp, Value; one raw sample every 5 minutes). Queries are a small subset of KQL: `where`
   (==, in, between datetime), `project`, `summarize ... avg/min/max/count ... by bin(Timestamp, Nm)`,
-  `order by` and `take`. Anything else gets an ADX-style 400 error.
+  `order by`, `take` and `print`. Anything else gets an ADX-style 400 error. Responses carry the four v1 tables
+  ADX sends (result, @ExtendedProperties, QueryStatus, TableOfContents), as in Microsoft's REST reference.
 
 The point list and AF tree come from the fake exports (pi_points, pi_af.json). Values are the
 deterministic synthetic signals (fuzer.sources.timeseries.SyntheticProvider), and the upsets in them come
@@ -31,7 +32,7 @@ import json
 import re
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -320,11 +321,39 @@ def app(data_dir) -> FastAPI:
         except KqlError as e:
             return JSONResponse({"error": {"code": "General_BadRequest", "message": "Request is invalid and cannot "
                                            "be executed.", "@message": str(e)}}, status_code=400)
-        return {"Tables": [{"TableName": "Table_0",
-                            "Columns": [{"ColumnName": c, "DataType": t, "ColumnType": t.lower()} for c, t in cols],
-                            "Rows": rows}]}
+        return v1_tables(cols, rows)
 
     return api
+
+
+# The scalar type ADX names for each .NET DataType in a v1 response (Microsoft's REST reference, R.2b).
+COLUMN_TYPE = {"String": "string", "DateTime": "datetime", "Double": "real", "Int64": "long", "Int32": "int",
+               "Boolean": "bool", "Object": "dynamic", "TimeSpan": "timespan"}
+
+
+def v1_tables(cols: list[tuple[str, str]], rows: list[list]) -> dict:
+    """A v1 query response as ADX sends one: the result, @ExtendedProperties, QueryStatus and the TableOfContents
+    that names them (R.2b; it was one table before)."""
+    def table(name, columns, rows_):
+        return {"TableName": name, "Columns": [{"ColumnName": c, "DataType": t, "ColumnType": COLUMN_TYPE[t]}
+                                               for c, t in columns], "Rows": rows_}
+
+    activity = str(uuid.uuid4())
+    status = [[_iso(datetime.now(UTC).replace(tzinfo=None)), 4, "Info", 0, "Query completed successfully", 1, activity, activity, activity,
+               "fakeplant.historian"]]
+    return {"Tables": [
+        table("Table_0", cols, rows),
+        table("Table_1", [("Value", "String")], [['{"Visualization":null}']]),
+        table("Table_2", [("Timestamp", "DateTime"), ("Severity", "Int32"), ("SeverityName", "String"),
+                          ("StatusCode", "Int32"), ("StatusDescription", "String"), ("Count", "Int32"),
+                          ("RequestId", "String"), ("ActivityId", "String"), ("SubActivityId", "String"),
+                          ("ClientActivityId", "String")], status),
+        table("Table_3", [("Ordinal", "Int64"), ("Kind", "String"), ("Name", "String"), ("Id", "String"),
+                          ("PrettyName", "String")],
+              [[0, "QueryResult", "PrimaryResult", activity, ""], [1, "QueryProperties", "@ExtendedProperties",
+                                                                   activity, ""],
+               [2, "QueryStatus", "QueryStatus", "00000000-0000-0000-0000-000000000000", ""]]),
+    ]}
 
 
 def fnmatch_regex(pattern: str) -> str:
@@ -391,6 +420,10 @@ def kql(plant: Plant, csl: str) -> tuple[list[tuple[str, str]], list[list]]:
     """Run one query against the catalog or the values table."""
     stages = _split(csl)
     table, ops = stages[0], stages[1:]
+    if m := re.fullmatch(r"print\s+(\w+)\s*=\s*(\d+)", table):  # the connection test's sign-in check
+        return [(m.group(1), "Int64")], [[int(m.group(2))]]
+    if table.startswith("."):
+        raise KqlError("management commands are not sent to the query endpoint")
     wheres = [_conditions(op[5:]) for op in ops if op.startswith("where ")]
     conds = [c for w in wheres for c in w]
     if table == "SeriesCatalog":

@@ -19,6 +19,23 @@ enabled connection of their type.
 over a fake plant's points, with upsets taken from the plant's own downtime and
 log records, for development and tests.
 
+### Proven on responses Fuzer did not write (R.2)
+
+The fake historian was written from the same reading of the vendor docs as the connectors, so a wrong
+assumption would pass against it. `tests/sources/test_historian_recorded.py` runs the connectors against
+responses under `tests/sources/fixtures/historian/`, each naming where it came from, when, and how much of it
+is verbatim, with no network. What they found, each fixed in the connector and in the fake:
+
+| System | What differed | Fixed |
+|---|---|---|
+| ADX | A v1 query answers with four tables (the result, `@ExtendedProperties`, `QueryStatus`, `TableOfContents`); the fake sent one. | The client finds the result through the table of contents; the fake sends all four. |
+| ADX | A query can fail after the 200 status line, saying so only in `QueryStatus` (severity 2 or less). The client read the first table and would have shown a truncated trend. | The client raises `failed partway` with ADX's own message. |
+| ADX | `ColumnType` for a real is `real` and for a long is `long`; the fake wrote `double` and `int64`. | The fake uses ADX's names. |
+| ADX | The REST API requires `Accept: application/json`; without it an error body need not be JSON. | Every request sends it. |
+| ADX | A 401 has no JSON body, and a 429 means throttled. Both read as a bare status code. | `fuzer sources test` says what failed and what to do, in plain words; Fuzer still never retries on its own. |
+| ADX | Discovering tables sent `.show tables`, a management command, to the query endpoint, which refuses it. | Discovery lists the configured catalog table; the connector sends queries only. The connection test signs in with `print ok = 1`, so a refused token fails at authenticate, not at read. |
+| ADX | A non-finite real comes back as the string `"NaN"`. | Values skip it like an empty bin. |
+
 Coupled synthetic values: a fake plant can ship a process model
 (`process_model.json`). It lists its units (compressor trains, compressors,
 coolers, vessels, lift gas headers, jackets, wells, pumps, meters, valves), which
