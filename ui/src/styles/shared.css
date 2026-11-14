@@ -123,6 +123,8 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 /* The map and the list side by side down to an iPad in portrait (#1077); one column below that. */
 @media (max-width: 900px) {
   .attention-split { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); }
+  /* Clear of the top bar, which sticks on a tablet in portrait. */
+  .attention-split > .mapview { top: calc(64px + env(safe-area-inset-top)); }
 }
 @media (max-width: 767px) {
   .attention-split { grid-template-columns: minmax(0, 1fr); }
