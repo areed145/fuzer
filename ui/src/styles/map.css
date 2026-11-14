@@ -63,3 +63,12 @@ h2 select { font: inherit; font-size: 15px; }
 .hotspot-crew span { display: grid; place-items: end center; width: 22px; height: 20px; padding-bottom: 1px; box-sizing: border-box;
   clip-path: polygon(50% 0, 100% 100%, 0 100%); background: var(--accent); color: var(--accent-text); font: 700 9px/1 inherit; }
 .mapview-compact .map-controls { left: auto; right: 10px; }
+
+/* The chosen place over a full-screen map: a panel at the bottom right, a sheet across the bottom on a phone. */
+.map-overlay { position: absolute; z-index: 1001; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+  width: min(380px, calc(100% - 24px)); max-height: 60%; overflow: auto; box-shadow: 0 6px 24px rgb(0 0 0 / .25);
+  border-radius: var(--radius); }
+.map-overlay .attention-detail { position: static; max-height: none; transform: translateY(var(--drag, 0px)); }
+@media (max-width: 600px) {
+  .map-overlay { left: 0; right: 0; bottom: 0; width: auto; max-height: 52%; border-radius: 16px 16px 0 0; }
+}

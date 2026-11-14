@@ -1,7 +1,7 @@
 /** Where attention is needed (Home): the places with open work, on the field map and as a ranked list. The list is
  * the reading; the map says where. A plant with no located assets gets the list alone. Read only: dispatch and
  * every edit stay on All work and the case pages. */
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { api, type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
 import { Badge, Button, ButtonLink, Card, Empty } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
@@ -30,6 +30,8 @@ export function AttentionCard() {
   const [selected, setSelected] = useState<string | null>(null);
   const places = useMemo(() => (spots.data?.places ?? []).filter((p) => keep(p, filter)), [spots.data, filter]);
   const chosen = places.find((p) => p.id === selected) ?? null;
+  const close = useCallback(() => setSelected(null), []);
+  const [fullscreen, setFullscreen] = useState(false);  // the map full screen carries the chosen place itself
   useEffect(() => { if (selected && !chosen) setSelected(null); }, [selected, chosen]);
   const mapped = (geo.data?.features.length ?? 0) > 0;
   const open = spots.data?.places.reduce((n, p) => n + p.open, 0) ?? 0;
@@ -59,11 +61,12 @@ export function AttentionCard() {
             {mapped && geo.data && (
               <Suspense fallback={<div className="map" />}>
                 <MapView data={geo.data} hotspots={places} selected={selected} onSelect={setSelected} crews={crews}
-                         compact height="460px" />
+                         compact height="460px" onFullscreen={setFullscreen}
+                         overlay={chosen && <PlaceDetail place={chosen} onClose={close} />} />
               </Suspense>
             )}
             <div className="attention-side">
-              {chosen && <PlaceDetail place={chosen} onClose={() => setSelected(null)} />}
+              {chosen && !fullscreen && <PlaceDetail place={chosen} onClose={close} />}
               {places.length === 0 ? <Empty>No places match this filter.</Empty> : (
                 <ol className="attention-list" aria-label="Places by urgency">
                   {places.slice(0, 8).map((p) => (
@@ -94,15 +97,64 @@ export function AttentionCard() {
   );
 }
 
-/** One place: its most urgent items and where to take them, a bottom sheet on a phone. */
+/** One place: its most urgent items and where to take them, a bottom sheet on a phone. It closes from its X, Escape, a
+ * tap anywhere outside it (a drag of the map is not a tap) or, on a phone, a swipe down. */
 function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose: () => void }) {
+  const sheet = useRef<HTMLDivElement>(null);
+  const swipe = useRef<number | null>(null);
+  const [drag, setDrag] = useState(0);
+  useEffect(() => {
+    let down: { x: number; y: number } | null = null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();  // the first Escape closes the place; a full-screen map stays until the next one
+      onClose();
+    };
+    const onDown = (e: PointerEvent) => { down = { x: e.clientX, y: e.clientY }; };
+    const onUp = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      const tap = down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 8;
+      down = null;
+      // Another place's marker or row picks that place instead; anything else outside the sheet closes it.
+      if (!tap || !target || sheet.current?.contains(target) || target.closest(".hotspot, .attention-row")) return;
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("pointerup", onUp);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("pointerup", onUp);
+    };
+  }, [onClose]);
+  useEffect(() => {  // on a phone the sheet covers the list, so bring the map up where the chosen place shows
+    if (matchMedia("(max-width: 600px)").matches && !sheet.current?.closest(".map-overlay")) {
+      sheet.current?.closest(".attention-card")?.querySelector(".mapview")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [place.id]);
+  useEffect(() => { sheet.current?.style.setProperty("--drag", `${drag}px`); }, [drag]);  // the sheet follows the finger
+  const touch = {
+    onTouchStart: (e: TouchEvent<HTMLDivElement>) => { swipe.current = e.touches[0].clientY; },
+    onTouchMove: (e: TouchEvent<HTMLDivElement>) => { if (swipe.current !== null) setDrag(Math.max(0, e.touches[0].clientY - swipe.current)); },
+    onTouchEnd: () => { if (drag > 70) onClose(); swipe.current = null; setDrag(0); },
+  };
   return (
-    <div className="attention-detail" role="region" aria-label={placeName(place)}>
-      <div className="row spread">
-        <h3>{placeName(place)} {place.name && <span className="muted small mono">{place.label}</span>}</h3>
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">Close</Button>
+    <div ref={sheet} className={`attention-detail${drag ? " dragging" : ""}`} role="region" aria-label={placeName(place)}>
+      <div className="attention-detail-head" {...touch}>
+        <span className="attention-grab" aria-hidden="true" />
+        <div className="attention-detail-title">
+          <h3>{placeName(place)}</h3>
+          <span className="small muted">
+            {place.open} open · {place.overdue} overdue · {place.unassigned} unassigned · <span className="mono">{place.label}</span>
+          </span>
+        </div>
+        <Button variant="secondary" className="attention-close" onClick={onClose} aria-label="Close" title="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </Button>
       </div>
-      <span className="small muted">{place.open} open · {place.overdue} overdue · {place.unassigned} unassigned</span>
       <ul className="attention-items">
         {place.top.map((i) => (
           <li key={i.id}>

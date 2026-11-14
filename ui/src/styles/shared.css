@@ -109,7 +109,11 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .attention-row .attention-row-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .attention-row .attention-flags { display: flex; gap: 10px; flex-wrap: wrap; }
 .attention-detail { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-.attention-detail h3 { margin: 0; font-size: 15px; }
+.attention-detail-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: start; }
+.attention-detail-title { display: grid; gap: 2px; min-width: 0; }
+.attention-detail h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.attention-detail .attention-close { min-width: 44px; min-height: 44px; padding: 0; border-radius: 50%; }
+.attention-grab { display: none; }
 .attention-items { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 8px; }
 .attention-items li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; align-items: baseline; }
 @media (max-width: 900px) {
@@ -117,6 +121,13 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 }
 @media (max-width: 600px) {
   .attention-card .map { height: 300px !important; }
-  .attention-detail { position: fixed; z-index: 1150; left: 0; right: 0; bottom: 0; max-height: 70dvh; overflow: auto;
-    border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgb(0 0 0 / .2); padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); }
+  /* A sheet over the lower half: the map stays in view above it. Swipe the handle down, tap outside or tap X to close. */
+  .attention-detail { position: fixed; z-index: 1150; left: 0; right: 0; bottom: 0; max-height: 52dvh; overflow: auto;
+    border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgb(0 0 0 / .25); padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+    transform: translateY(var(--drag, 0px)); transition: transform .15s ease-out; overscroll-behavior: contain; }
+  .attention-detail.dragging { transition: none; }
+  .attention-detail-head { position: sticky; top: 0; z-index: 1; background: var(--panel); padding-top: 6px; touch-action: none; }
+  .attention-grab { display: block; grid-column: 1 / -1; justify-self: center; width: 40px; height: 5px; border-radius: 3px;
+    background: var(--line); margin-bottom: 4px; }
+  .attention-card .mapview { scroll-margin-top: 72px; }
 }

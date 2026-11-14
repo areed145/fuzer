@@ -2,7 +2,7 @@ import "./styles/map.css";
 import { useTheme } from "./theme";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
 import { entityHref } from "./lib";
@@ -115,7 +115,7 @@ const crewIcon = (who: string) => L.divIcon({
  * network is drawn faintly under the places that need attention, and `compact` leaves out the layer and basemap
  * controls. */
 export function MapView({ data, focus, height = "70vh", basemap = true, hotspots, selected, onSelect, crews = true,
-                          compact = false }: {
+                          compact = false, overlay, onFullscreen }: {
   data: GeoCollection;
   focus?: string | null;
   height?: string;
@@ -125,9 +125,13 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   onSelect?: (id: string) => void;
   crews?: boolean;
   compact?: boolean;
+  /** Shown over the map while it is full screen (Home's chosen place), where nothing outside the map can show. */
+  overlay?: ReactNode;
+  onFullscreen?: (on: boolean) => void;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const full = useFullscreen();
+  useEffect(() => { onFullscreen?.(full.on); }, [full.on]);  // eslint-disable-line react-hooks/exhaustive-deps
   const map = useRef<L.Map | null>(null);
   const tiles = useRef<L.TileLayer | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -390,6 +394,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
         {mapMessage && <div className="map-message" role="status">{mapMessage}</div>}
         {baseError && basemapName !== "none" && !compact && <div className="map-message" role="status">
           Base map unavailable: its tiles could not load, so features are drawn on a plain background.</div>}
+        {full.on && overlay && <div className="map-overlay">{overlay}</div>}
         <div ref={el} className={`map${basemapName === "none" ? "" : ` map-basemap-${basemapName}`}`} style={{ height }} />
       </div>
     </div>

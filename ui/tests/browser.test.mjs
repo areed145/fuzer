@@ -2857,6 +2857,23 @@ test("Home's map gathers open work at places, most urgent first, and each place 
     const detail = page.getByRole("region", { name: "Jacket 07" });
     assert.equal(await detail.getByRole("link", { name: "W-73 shut in, lift gas short" }).getAttribute("href"), "#/cases/11");
     assert.equal(await detail.getByRole("link", { name: "Open 2 in All work" }).getAttribute("href"), "#/exceptions?list=open&at=fz-j7");
+    // The place closes from its X, from Escape and from a tap outside it.
+    await detail.getByRole("button", { name: "Close" }).click();
+    await detail.waitFor({ state: "detached" });
+    await card.locator(".attention-row", { hasText: "Jacket 07" }).click();
+    await page.keyboard.press("Escape");
+    await detail.waitFor({ state: "detached" });
+    await card.locator(".attention-row", { hasText: "Jacket 07" }).click();
+    await page.mouse.click(5, 5);
+    await detail.waitFor({ state: "detached" });
+    // Full screen, a marker still opens its place, over the map; Escape closes the place before the full screen.
+    await card.getByRole("button", { name: /full screen/i }).click();
+    await card.locator('.hotspot[title^="Jacket 07"]').click();
+    await card.locator(".map-overlay").getByRole("region", { name: "Jacket 07" }).waitFor();
+    assert.equal(await page.getByRole("region", { name: "Jacket 07" }).count(), 1);
+    await page.keyboard.press("Escape");
+    await detail.waitFor({ state: "detached" });
+    await card.getByRole("button", { name: /full screen/i }).click();
     await card.getByRole("button", { name: "Overdue", exact: true }).click();
     assert.deepEqual(await card.locator(".attention-list strong").allTextContents(), ["Jacket 07"]);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
