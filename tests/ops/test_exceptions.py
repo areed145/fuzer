@@ -388,6 +388,28 @@ def test_a_job_taken_from_the_queue_keeps_what_the_ioc_asked_and_goes_back_to_it
     conn.commit()
 
 
+def test_a_job_taken_from_the_queue_with_take_it_goes_back_to_the_dispatcher(conn, types):
+    """Take it claims the queue's step rather than handing it to yourself; Could not do still goes back to whoever
+    sent it to the queue, so the IOC decides, not the next operator taking it blind (#1115)."""
+    from fuzer.core import work
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    types("gland_leak", audience=("ioc", "field"))
+    e = raise_exception(conn, "gland_leak", "P-102-PK", "Gland leak on P-102", "sap", refs=["tag:P-101"])
+    item = ex.dispatch(conn, e["id"], "ivy", "role:operator", reason="Check the gland")["item_id"]
+    work.take(conn, item, "olly")
+    ex.report(conn, e["id"], "olly", "could_not_do", "Needs a scaffold")
+    held = conn.execute("select assignee from work_token where item_id = %s and kind = 'user' and state in "
+                        "('ready', 'waiting') union all select assignee from work_item where id = %s "
+                        "and not exists (select 1 from work_process where item_id = %s)",
+                        (item, item, item)).fetchall()
+    assert [h["assignee"] for h in held] == ["ivy"]
+    conn.commit()
+
+
 def test_another_system_raises_and_clears_a_type_defined_as_data(conn, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

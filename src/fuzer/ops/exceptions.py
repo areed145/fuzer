@@ -765,10 +765,14 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
             if not (has_process and work.report_field_step(conn, row["item_id"], by, status, note, back)):
                 came = (row["evidence"] or {}).get("handover") or {}
-                # handed over at shift change (P5.11c): back past the outgoing person to whoever sent it to them
-                sender = (came.get("accepted_at") and came.get("to") == by
-                          and _sent(conn, row["item_id"], came["from"]))
-                if sender and sender["by"] and not gates.machine(sender["by"]):
+                # handed over at shift change (P5.11c): back past the outgoing person to whoever sent it to them;
+                # taken from a queue: back to whoever sent it to that queue, not to the queue (#1115), so the IOC
+                # decides what happens to a could-not-do instead of the next operator taking it blind
+                if came.get("accepted_at") and came.get("to") == by:
+                    sender = _sent(conn, row["item_id"], came["from"])
+                else:
+                    sender = None if _sent_to(conn, row["item_id"], by) else _sent(conn, row["item_id"], by)
+                if sender and sender["by"] and sender["by"] != by and not gates.machine(sender["by"]):
                     work.dispatch(conn, row["item_id"], by, sender["by"], back)
                 else:
                     work.hand_back(conn, row["item_id"], by, by, reason=back)
@@ -793,6 +797,12 @@ def _sent(conn, item_id: int, person: str) -> dict | None:
                                        or (actor <> %(p)s and actor not like 'agent:%%'))))
         order by id desc limit 1
         """, {"i": item_id, "p": person}).fetchone()  # taking a job from the queue isn't being sent it
+
+
+def _sent_to(conn, item_id: int, person: str) -> bool:
+    """Whether someone handed this case (or its step) to `person` by name, rather than them taking it from a queue."""
+    return conn.execute("select 1 from work_event where item_id = %s and kind = 'handed_off' and data->>'to' = %s "
+                        "and actor <> %s limit 1", (item_id, person, person)).fetchone() is not None
 
 
 def _asked(conn, item_id: int) -> dict | None:

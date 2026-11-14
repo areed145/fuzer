@@ -349,7 +349,7 @@ def debottleneck_options(conn, pack, scope: str = "facility", at: str | None = N
             continue
         v, _ = _now(conn, {"p": p}, end.isoformat(), src=src)
         lines = limits.lines(limits.for_points(conn, pack, [p["id"]], end)[p["id"]])
-        floor = [(x["value"], f"{x['basis']} {x['type']} {x['value']:g} barg" + (f" ({x['iow']})" if x.get("iow") else ""))
+        floor = [(x["value"], f"{x['basis']} {x['type']} {round(x['value'], 1):g} barg" + (f" ({x['iow']})" if x.get("iow") else ""))
                  for x in lines if x["type"] in ("lo", "lolo") and x["value"] < v["p"]]
         if not floor:
             continue

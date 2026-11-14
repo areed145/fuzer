@@ -58,3 +58,20 @@ test("request queue rejects overflow and expired waiting explicitly without exec
   assert.equal(executed, 0);
   assert.equal(await schedule(async () => "available"), "available");
 });
+
+test("a read asked for after a write finishes is read again, not joined to one started before it", async () => {
+  const { schedule } = queue();
+  const releases = [];
+  let calls = 0;
+  const run = () => new Promise((resolve) => { calls++; releases.push(() => resolve(calls)); });
+  const before = schedule(run, "session:/work/inbox");
+  const write = schedule(async () => "reported");
+  assert.equal(await write, "reported");
+  const after = schedule(run, "session:/work/inbox");
+  assert.notEqual(after, before);
+  await turn();
+  assert.equal(calls, 2);
+  while (releases.length) releases.shift()();
+  await Promise.all([before, after]);
+  assert.equal(schedule(run, "session:/work/inbox") === after, false);
+});
