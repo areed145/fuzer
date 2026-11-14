@@ -28,7 +28,8 @@ export function NetworkScene({ query, set, relDef }: {
   const at = query.get("at") ?? undefined;
   const picked = query.get("node");
   const labelBy: LabelBy = query.get("labels") === "tags" ? "tags" : "names";
-  const scene = useAsync(() => api.scene(at), [at]);
+  const geo = query.get("layout") === "geo";
+  const scene = useAsync(() => api.scene(at, undefined, geo ? "geo" : undefined), [at, geo]);
   const [noWebGL, setNoWebGL] = useState(false);
   const [centre, setCentre] = useState<{ id: string } | null>(null);
   const s = scene.data;
@@ -88,6 +89,14 @@ export function NetworkScene({ query, set, relDef }: {
               </Select>
             </label>
             <label>
+              Layout
+              <Select value={geo ? "geo" : "schematic"} aria-label="Lay the drawing out"
+                onChange={(e) => set({ layout: e.target.value === "geo" ? "geo" : undefined })}>
+                <option value="schematic">Schematic</option>
+                <option value="geo">By location, compacted</option>
+              </Select>
+            </label>
+            <label>
               Labels
               <Select value={labelBy} aria-label="Label items by" onChange={(e) => set({ labels: e.target.value === "tags" ? "tags" : undefined })}>
                 <option value="names">Names</option>
@@ -95,7 +104,9 @@ export function NetworkScene({ query, set, relDef }: {
               </Select>
             </label>
             <span className="small muted" data-testid="scene-basis">
-              Schematic, not to scale: {s.counts.items} items placed from {s.counts.links} links
+              {s.layout === "geo" ? "Areas where they are, long distances shortened"
+                : geo ? "No area here has a location, so this is the schematic" : "Schematic, not to scale"}
+              : {s.counts.items} items placed from {s.counts.links} links
               {s.counts.not_drawn > 0 && `, ${s.counts.not_drawn} valves and instruments on no link left out`}.
             </span>
           </div>

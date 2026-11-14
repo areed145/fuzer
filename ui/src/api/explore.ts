@@ -161,6 +161,8 @@ export interface SceneLink { id: number; src: string; dst: string; rel: string; 
 export interface Scene {
   root: { id: string; kind: string; label: string } | null;
   focus: string | null;
+  /** How the plates were placed: in rows, or where their areas are, compacted (asked for with layout=geo). */
+  layout?: "schematic" | "geo";
   basis?: string;
   rels: string[];
   plates: ScenePlate[];
@@ -342,7 +344,7 @@ export const exploreApi = {
   network: (asOf?: string, rels?: string[]) =>
     request<Subgraph & { rels: string[] }>("GET", "/network", { as_of: asOf, rels: rels?.join(",") }),
   /** The schematic scene of a facility, an area, or the area of anything inside one (default: the main facility). */
-  scene: (at?: string, rels?: string[]) => request<Scene>("GET", "/scene", { at, rels: rels?.join(",") }),
+  scene: (at?: string, rels?: string[], layout?: "geo") => request<Scene>("GET", "/scene", { at, rels: rels?.join(","), layout }),
 };
 
 type Ref = { id: string; label: string | null };
