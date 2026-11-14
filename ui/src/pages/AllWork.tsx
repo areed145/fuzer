@@ -8,6 +8,8 @@ import { Button, Input, PageHeader, Select } from "../ui";
 import { api, type ExceptionRow } from "../api";
 import { href, useAsync, useDebounced } from "../lib";
 import { AssignPicker } from "./workflows/shared";
+import { useEntityNames } from "../useEntityNames";
+import { display } from "../entityRefs";
 import { usePerson } from "../work";
 import { ExceptionsPage, backFromField, waitingToDispatch, withTheField, type ExceptionView } from "./Exceptions";
 import { BoardPage } from "./Board";
@@ -49,9 +51,9 @@ export function legacyWorkHref(section: "board" | "cases", query: URLSearchParam
 
 /** The filters every view of All work shares, kept in the URL so a link or Back keeps them: the kind of work, who
  * holds it (a person, or `role:<name>` for a queue) and words in its title. */
-export interface WorkFilters { type?: string; who?: string; q?: string }
+export interface WorkFilters { type?: string; who?: string; q?: string; at?: string }
 
-const FILTER_KEYS = ["type", "who", "q"] as const;
+const FILTER_KEYS = ["type", "who", "q", "at"] as const;
 
 export function AllWorkPage({ query }: { query: URLSearchParams }) {
   const filters: WorkFilters = Object.fromEntries(FILTER_KEYS.map((k) => [k, query.get(k) || undefined]));
@@ -116,8 +118,16 @@ function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchP
         onChange={(v) => set({ who: v || undefined })} />
       <Input type="search" aria-label="Search titles" placeholder="Search titles" value={text}
         onChange={(e) => setText(e.target.value)} />
+      {filters.at && <AtPlace id={filters.at} onClear={() => set({ at: undefined })} />}
     </div>
   );
+}
+
+/** Home's map sent the person here for one place's work: say which, and let them widen it again. */
+function AtPlace({ id, onClear }: { id: string; onClear: () => void }) {
+  const names = useEntityNames([id]);
+  return <span className="row">At {display(id, names)}
+    <Button variant="ghost" size="sm" onClick={onClear}>Every place</Button></span>;
 }
 
 /** Saved views per role (P5.1c, #651): pick one saved for your roles, or save the filters you have as a view for a

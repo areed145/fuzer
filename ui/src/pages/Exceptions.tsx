@@ -23,12 +23,13 @@ const EMPTY: Record<ExceptionView, string> = {
 /** The exception views of All work (#502): to dispatch, with the field, back from the field, and every exception in
  * a chosen state. */
 export function ExceptionsPage({ query, view = "open", filters = {} }: {
-  query?: URLSearchParams; view?: ExceptionView; filters?: { type?: string; who?: string; q?: string };
+  query?: URLSearchParams; view?: ExceptionView; filters?: { type?: string; who?: string; q?: string; at?: string };
 }) {
   const [person] = usePerson();
   const [state, setState] = useState(view === "open" ? query?.get("state") ?? "open" : "open");
   const type = filters.type ?? "";
-  const rows = useAsync(() => api.exceptions({ state: state || "any", type: type || undefined }), [state, type]);
+  const rows = useAsync(() => api.exceptions({ state: state || "any", type: type || undefined, at: filters.at }),
+                        [state, type, filters.at]);
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
   const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);

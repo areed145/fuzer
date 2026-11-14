@@ -598,14 +598,24 @@ def _loaded_types() -> None:
 
 @router.get("/exceptions")
 def exception_list(state: str | None = "open", type: str | None = None, subject: str | None = None,
-                   audience: Literal["ioc", "field"] | None = None, limit: int = Query(200, le=1000),
-                   closed_since: datetime | None = None, conn=Depends(get_conn)):
+                   audience: Literal["ioc", "field"] | None = None, at: str | None = None,
+                   limit: int = Query(200, le=1000), closed_since: datetime | None = None, conn=Depends(get_conn)):
     """Exceptions from every source, most valuable then newest first, with the case working each and who has it.
-    `state=any` lists every state; `closed_since` keeps the ones closed or cleared from then on."""
-    from ..ops import exceptions
+    `state=any` lists every state; `closed_since` keeps the ones closed or cleared from then on; `at` keeps those
+    gathered at a place on Home's map (a platform, pad, facility; comma-separated place ids)."""
+    from ..ops import attention, exceptions
     _loaded_types()
-    return exceptions.listing(conn, state=None if state in (None, "", "any") else state, type=type, subject=subject, audience=audience, limit=limit,
-                              closed_since=closed_since)
+    rows = exceptions.listing(conn, state=None if state in (None, "", "any") else state, type=type, subject=subject,
+                              audience=audience, limit=1000 if at else limit, closed_since=closed_since)
+    return attention.only_at(conn, rows, at)[:limit] if at else rows
+
+
+@router.get("/attention")
+def attention(conn=Depends(get_conn)):
+    """Where attention is needed: open exceptions gathered at the located places they are about (platforms, pads,
+    facilities), most urgent first, with counts, top items and crews out there. Read only."""
+    from ..ops import attention as at
+    return at.hotspots(conn)
 
 
 class SuppressionIn(BaseModel):
