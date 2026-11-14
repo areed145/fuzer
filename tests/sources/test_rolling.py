@@ -96,6 +96,9 @@ def test_read_today_the_latest_data_day_is_yesterday(okan, monkeypatch):
     log = conn.execute("select payload from source_record where source = 'oplog' and source_key = %s",
                        (first_log["entry_id"],)).fetchone()["payload"]  # its key is as written...
     assert log["timestamp"] == roll(first_log["timestamp"], DAYS) and log["text"] == first_log["text"]  # ...its text too
+    permit = conn.execute("select payload->>'valid_from' as v from source_record where source = 'ptw' "
+                          "and payload->>'state' = 'issued' limit 1").fetchone()["v"]
+    assert permit[:10] == (TODAY - timedelta(days=1)).isoformat()  # written relative to today: not moved again
     assert ingest.ingest(conn, data)["updated"] == 0  # read again the same day: nothing to do
     pipeline.rebuild(conn, PACK)
     pipeline.follow_register(conn, PACK)
