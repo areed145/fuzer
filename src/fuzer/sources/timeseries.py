@@ -217,7 +217,15 @@ def _unit_points(conn, unit: str, n: int, children: bool = True) -> list[dict]:
 
 def _point(conn, fuzer_id: str) -> dict | None:
     """One timeseries entity as a series to read: its PI point name, units and ADX pointer."""
-    row = conn.execute(
+    return _points(conn, [fuzer_id]).get(fuzer_id)
+
+
+def _points(conn, fuzer_ids: list[str]) -> dict[str, dict]:
+    """Many timeseries entities as series to read, in one query: {id: as `_point` gives it}, leaving out ids with
+    no point name. A status read checks hundreds of points; one round trip each held the page (#1069)."""
+    if not fuzer_ids:
+        return {}
+    rows = conn.execute(
         """
         select e.fuzer_id as id, l.label as point,
                max(g.value #>> '{}') filter (where g.field = 'description') as description,
@@ -227,11 +235,11 @@ def _point(conn, fuzer_id: str) -> dict | None:
                max(g.value #>> '{}') filter (where g.field = 'adx_table') as adx_table,
                max(g.value #>> '{}') filter (where g.field = 'adx_series_id') as adx_series_id
         from entity e left join entity_label l using (fuzer_id) left join golden g using (fuzer_id)
-        where e.fuzer_id = %s group by e.fuzer_id, l.label
+        where e.fuzer_id = any(%s) group by e.fuzer_id, l.label
         """,
-        (fuzer_id,),
-    ).fetchone()
-    return row if row and row["point"] else None
+        (list(fuzer_ids),),
+    ).fetchall()
+    return {r["id"]: r for r in rows if r["point"]}
 
 
 def summary(vals: list[tuple[str, float]], centre: datetime) -> dict:

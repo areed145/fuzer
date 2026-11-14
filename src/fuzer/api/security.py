@@ -5,6 +5,7 @@ import functools
 import hmac
 import inspect
 import json
+import re
 from contextvars import ContextVar
 
 from fastapi import HTTPException, Request
@@ -23,6 +24,7 @@ ROOT_ICONS = ("/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precom
               "/apple-touch-icon-180x180.png", "/apple-touch-icon-180x180-precomposed.png",
               "/apple-touch-icon-120x120.png", "/apple-touch-icon-120x120-precomposed.png")
 PUBLIC_SHELL = ("/", "/sw.js", "/health", *ROOT_ICONS)
+HASHED_ASSET = re.compile(r"/assets/[^/]+-[A-Za-z0-9_-]{8}\.[a-z0-9]+$")  # Vite's name-<content hash>.ext
 MAX_BODY = 32 * 1024 * 1024  # Four existing 5 MB assistant images, base64 encoded, plus JSON.
 _active = 0
 ADMISSION_WAIT_SECONDS = 10.0  # how long a request over access.api_concurrency waits for a place
@@ -391,6 +393,8 @@ class RequestBounds:
                                 (b"x-frame-options", b"SAMEORIGIN")])
                 if not scope["path"].startswith("/assets/"):
                     headers.append((b"cache-control", b"no-store"))
+                elif HASHED_ASSET.search(scope["path"]):  # a new build gives it a new name: never ask again (#1069)
+                    headers.append((b"cache-control", b"public, max-age=31536000, immutable"))
                 message["headers"] = headers
             await send(message)
         await self.app(scope, bounded_receive, secure_send)

@@ -54,6 +54,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   /** When the server can't be reached and the app runs on the session kept at this time. */
   const [offline, setOffline] = useState("");
   const reload = () => { setChecking(true); setRevision((value) => value + 1); };
+  // The first check usually answers in a moment: showing the sign-in card for it, then swapping in the app, moved the
+  // whole page as it opened (#1069). The card shows only when the check is slow.
+  const [slowCheck, setSlowCheck] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlowCheck(true), 800); return () => clearTimeout(t); }, []);
   useEffect(() => {
     let active = true;
     api.authSession().then((value) => {
@@ -126,6 +130,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     "sign-in-failed": signInResult === "unavailable" ? "Microsoft sign-in is unreachable" : "Sign-in did not complete",
     "sign-in": "Investigate with evidence, not guesswork", admitted: "",
   }[state];
+  if (state === "checking" && !slowCheck) return null;
   const check = (label: string) => <Button onClick={reload} disabled={checking}>{checking ? "Checking..." : label}</Button>;
   return (
     <main className="auth-page" id="main-content">

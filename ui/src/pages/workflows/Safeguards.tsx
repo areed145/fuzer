@@ -1,4 +1,5 @@
 import { api } from "../../api";
+import type { CaseSafeguards as CaseSafeguardsData } from "../../api/work";
 import { entityHref, useAsync } from "../../lib";
 import { Notice } from "../../ui";
 import { when } from "../../work";
@@ -6,9 +7,10 @@ import { when } from "../../work";
 /** Safeguards out on this case's system (P3.9b): the bypasses in place on what the case is about, or the rest of its
  * train, and the open change records on it. It leads the evidence, so nobody reads a trend or acts on a trip without
  * knowing a safeguard is out. Nothing shows when there are none. */
-export function CaseSafeguards({ id }: { id: number }) {
-  const got = useAsync(() => api.workItemSafeguards(id), [id]);
-  const d = { bypasses: got.data?.bypasses ?? [], changes: got.data?.changes ?? [] };  // an older server sends neither
+export function CaseSafeguards({ id, data }: { id: number; data?: CaseSafeguardsData }) {
+  const got = useAsync(() => data ? Promise.resolve(data) : api.workItemSafeguards(id), [id, data]);
+  const shown = data ?? got.data;
+  const d = { bypasses: shown?.bypasses ?? [], changes: shown?.changes ?? [] };  // an older server sends neither
   if (!d.bypasses.length && !d.changes.length) return null;
   const late = d.bypasses.some((b) => b.overdue);
   return (

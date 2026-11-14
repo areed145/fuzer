@@ -46,7 +46,10 @@ export function HomePage({ query, stats }: {
   const roles = inbox.data?.roles ?? [];
   const seat = seatOf(roles);
   const noRecords = stats?.records === 0;
-  const loaded = !!stats && stats.records > 0;
+  // Shown while the counts load too: adding the cards once /stats answered pushed everything below them down (#1069).
+  const loaded = !noRecords;
+  // The seat sets the order, so the blocks wait for the inbox that names it rather than reorder under the reader.
+  const seated = !person || inbox.data !== undefined || !!inbox.error;
   const steward = roles.includes("data_steward") || configure;
   // The seat's own card leads; the rest of the work cards sit in the grid with reports, incidents and health.
   const lead = seat === "operator" ? <YourShift key="shift" /> : seat === "dispatcher" ? <AllWorkCard key="all" /> : null;
@@ -78,7 +81,7 @@ export function HomePage({ query, stats }: {
             : <p>Ask an administrator to load the demonstration records.</p>}
         </UICard>
       )}
-      {ORDER[seat].map((b) => <Fragment key={b}>{blocks[b]}</Fragment>)}
+      {seated ? ORDER[seat].map((b) => <Fragment key={b}>{blocks[b]}</Fragment>) : <Status loading />}
     </section>
   );
 }

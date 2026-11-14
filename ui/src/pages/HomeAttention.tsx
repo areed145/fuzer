@@ -44,14 +44,16 @@ export function AttentionCard() {
     return span(0) < 0.015 && span(1) < 0.015;  // every located point within about 1.5 km: one site, not a field
   }, [geo.data]);
   const mapped = (geo.data?.features.length ?? 0) > 0 && !oneSite;
-  const open = spots.data?.places.reduce((n, p) => n + p.open, 0) ?? 0;
+  const ready = spots.data !== undefined && (geo.data !== undefined || !!geo.error);
+  const open = (spots.data?.places ?? []).reduce((n, p) => n + p.open, 0) ?? 0;
   return (
     <Card as="section" className="home-card attention-card" title="Where attention is needed"
           actions={<a href={workHref("open")}>All work</a>}>
-      <Status loading={spots.loading && !spots.data} error={spots.error} onRetry={spots.reload}>
-        Loading open work.
-      </Status>
-      {spots.data && <>
+      {/* The list and the map show together, in the space they take once loaded, so nothing below them jumps (#1069). */}
+      {!ready && <div className={spots.error ? undefined : "attention-pending"}>
+        <Status loading={!spots.error} error={spots.error} onRetry={spots.reload}>Loading open work.</Status>
+      </div>}
+      {ready && spots.data && <>
         <div className="row spread wrap attention-bar">
           <div className="row attention-filters">
             <div className="chips" role="group" aria-label="Show places with">

@@ -173,7 +173,11 @@ def prepare(conn, item_id: int, ask=None, now: datetime | None = None) -> dict:
 
 
 def briefed_types() -> set[str]:
-    return {t for path in packs.shipped() for t in (packs.load(path).get("briefs") or ())}
+    """The work types some pack briefs, read from the packs' manifests alone: every case page asks (#1069)."""
+    from ..core import yamlfiles
+
+    return {t for path in packs.shipped()
+            for t in ((yamlfiles.load(packs.SKILLS / path / packs.MANIFEST) or {}).get("briefs") or ())}
 
 
 def pending(conn, limit: int = 20) -> list[int]:

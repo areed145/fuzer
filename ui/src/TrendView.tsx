@@ -68,6 +68,9 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
   const v = useAsync(() => api.trendView(id, at, before, hours - before), [id, at, hours]);
   const d = v.data;
   const t = useAsync(() => (d && !d.error ? api.timeline(id, d.start, d.end) : Promise.resolve(null)), [id, d?.start, d?.end]);
+  // The chart is drawn once its event lanes are read too, in the space it takes: drawn first and grown by the lanes
+  // later, it pushed the rest of the page down twice (#1069).
+  const pending = !d ? !v.error : !d.error && t.data === undefined && !t.error;
   useEffect(() => { setZoom(null); setPins([]); setChosen(null); }, [d]); // a new window draws unzoomed, unpinned
   // Zoomed in, the values are read again for the range at the finest step that keeps it to a chart's worth (P5.15e).
   const zoomHours = zoom ? Math.max(1, Math.ceil((Date.parse(`${zoom[1]}Z`) - Date.parse(`${zoom[0]}Z`)) / 3600000)) : 0;
@@ -157,7 +160,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
   // Nothing measured here (a document, a pipeline without points): no card at all, the page's other views carry on.
   if (d && !d.error && !at && groups.every((g) => !g.traces.length)) return null;
   return (
-    <Card as="section" className="trend-view">
+    <Card as="section" className={pending ? "trend-view trend-view-pending" : "trend-view"}>
       <h2>
         {d?.unit_label ? `${d.unit_label} · ` : ""}{d?.template.title ?? "Trend"}{" "}
         {d && !d.error && (
@@ -186,11 +189,11 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
           ? d && !d.error && <span className="muted small">{d.upsets.length ? "Latest incident" : "Latest values"}</span>
           : <Button variant="link" size="sm" onClick={() => setAt(undefined)}>{d?.upsets.length ? "Back to latest incident" : "Back to latest"}</Button>}
       </div>
-      <Status loading={v.loading && !d} error={v.error ?? d?.error} empty={!!d && !d.error && groups.every((g) => !g.traces.length)}>
+      <Status loading={pending} error={v.error ?? d?.error} empty={!!d && !d.error && groups.every((g) => !g.traces.length)}>
         No values between {d?.start.replace("T", " ")} and {d?.end.replace("T", " ")}{d?.errors?.length ? `: ${d.errors[0]}` : "."}
       </Status>
-      {!compact && chipsBlock}
-      {figure && (shownTraces.length > 0 || lanes.length > 0) && (
+      {!compact && !pending && chipsBlock}
+      {figure && !pending && (shownTraces.length > 0 || lanes.length > 0) && (
         // On a phone a sideways swipe moves the window (P5.15f); a drag there scrolls the page, not the chart.
         <div className="trend-view-plot"
              onTouchStart={(e) => { const p = e.touches[0]; swipe.current = { x: p.clientX, y: p.clientY }; }}
@@ -258,9 +261,9 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
           </Table>
         </Card>
       )}
-      {compact && chipsBlock}
+      {compact && !pending && chipsBlock}
       {t.error && <p className="small error">Events unavailable: {t.error}</p>}
-      {shownTraces.length > 0 && (
+      {!pending && shownTraces.length > 0 && (
         <Disclosure className="small" label={<>Table</>}>
           <Table variant="list" density="compact">
             <thead><tr><th>Trace</th><th>Point</th><th>Min</th><th>Max</th><th>Last</th><th>Units</th></tr></thead>

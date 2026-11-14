@@ -381,7 +381,7 @@ def run_signals(conn, pack, unit_ids: set[str]) -> dict[str, dict]:
     """Each unit's run signal: {unit: {point (as timeseries._point), on, off}}, the unit's own or the ones
     it follows ({"follow": [units]}) when it has none: units in the same area and train (`graph.structure`, from
     piping and drives), else all units in the area that have one."""
-    from ..sources.timeseries import _point
+    from ..sources.timeseries import _points
 
     rules = config(pack)["run_signals"]
     of_unit: dict[str, list[dict]] = {}
@@ -392,12 +392,18 @@ def run_signals(conn, pack, unit_ids: set[str]) -> dict[str, dict]:
         select l.fuzer_id, l.label, (select g.value #>> '{}' from golden g where g.fuzer_id = l.fuzer_id and g.field = 'uom') as uom
         from entity_label l join entity e using (fuzer_id) where e.kind = 'timeseries'
         """)}
-    own: dict[str, dict] = {}
+    candidates: dict[str, list[tuple[dict, str]]] = {}  # each unit's first matching point under each rule, in rule order
     for unit, pts in of_unit.items():
         for rule in rules:
             match = sorted(p for p in pts if p in labels and (
                 ("uom" in rule and labels[p][1] == rule["uom"]) or ("point" in rule and re.search(rule["point"], labels[p][0]))))
-            if match and (pt := _point(conn, match[0])):
+            if match:
+                candidates.setdefault(unit, []).append((rule, match[0]))
+    points = _points(conn, sorted({pid for c in candidates.values() for _, pid in c}))  # one read, not one per unit
+    own: dict[str, dict] = {}
+    for unit, tried in candidates.items():
+        for rule, pid in tried:
+            if pt := points.get(pid):
                 on = float(rule["above"])
                 own[unit] = {"point": pt, "on": on, "off": float(rule.get("below", on / 3))}
                 break
@@ -459,10 +465,11 @@ def modes(conn, pack, unit_ids: set[str], start: datetime, end: datetime, step: 
 # ---- learned normal ranges ------------------------------------------------------------------------
 
 def _all_points(conn) -> list[dict]:
-    from ..sources.timeseries import _point
+    from ..sources.timeseries import _points
 
     ids = [r["fuzer_id"] for r in conn.execute("select fuzer_id from entity where kind = 'timeseries' order by fuzer_id")]
-    return [p for p in (_point(conn, i) for i in ids) if p]
+    got = _points(conn, ids)
+    return [got[i] for i in ids if i in got]
 
 
 def _values(src, p: dict, start: datetime, end: datetime, step: int, n: int) -> np.ndarray:
@@ -591,7 +598,7 @@ def _limits_to_check(rows: list[dict], normals: dict | None, priority: list[str]
 def excursions(conn, pack, point_ids: list[str], start: datetime, end: datetime, step: int = 10, src=None) -> list[dict]:
     """Excursions on these points in [start, end] while their units run (not stored; see scan). Limits
     the checks flag as standing, implausible or out of order are not used."""
-    from ..sources.timeseries import _point, provider
+    from ..sources.timeseries import _points, provider
 
     src = src or provider()
     n = int((end - start).total_seconds() // 60 // step) + 1
@@ -604,9 +611,10 @@ def excursions(conn, pack, point_ids: list[str], start: datetime, end: datetime,
     unit = units(conn, point_ids)
     mode = modes(conn, pack, set(unit.values()), start, end, step, src)
     out = []
+    points = _points(conn, point_ids)
     for pid in point_ids:
         checks = _limits_to_check(limits.get(pid, []), normals.get(pid), pri, start, end)
-        if not checks or not (p := _point(conn, pid)):
+        if not checks or not (p := points.get(pid)):
             continue
         v = _values(src, p, start, end, step, n)
         m = mode.get(unit.get(pid), np.full(n, "unknown", dtype=object))

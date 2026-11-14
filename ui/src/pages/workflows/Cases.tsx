@@ -151,6 +151,11 @@ function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; 
 
 export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
+  // Read beside the case, not after it, and shown with the rest of the evidence once they answer: arriving one by one,
+  // each pushed down what was already on screen (#1069).
+  const around = useAsync(() => api.workItemAround(id), [id]);
+  const safeguards = useAsync(() => api.workItemSafeguards(id), [id]);
+  const evidenceReady = (around.data !== undefined || !!around.error) && (safeguards.data !== undefined || !!safeguards.error);
   const [person] = usePerson();
   const people = useAsync(() => api.workPeople(), []);
   const it = item.data;
@@ -170,18 +175,20 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   const fieldOnly = !demo && roles.length > 0 && roles.every((r) => r === "operator");
   const evidence = <>
     <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
-    <CaseSafeguards id={it.id} />
-    <CaseFindings sources={it.sources} />
-    <CaseAround id={it.id} />
-    <Related about={{ case: it.id }} />
-    <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
-    <CaseGates id={it.id} />
-    <AgentWork it={it} />
-    {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
-    {Object.keys(payload).length > 0 && (
-      <Disclosure className="card" open={typeof raised.summary === "string"} label={<>Details</>}><DataView data={payload} /></Disclosure>
-    )}
-    <Timeline it={it} person={person} readOnly={demo} />
+    {!evidenceReady ? <Status loading /> : <>
+      <CaseSafeguards id={it.id} data={safeguards.data} />
+      <CaseFindings sources={it.sources} />
+      <CaseAround id={it.id} data={around.data} />
+      <Related about={{ case: it.id }} />
+      <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
+      <CaseGates id={it.id} />
+      <AgentWork it={it} />
+      {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
+      {Object.keys(payload).length > 0 && (
+        <Disclosure className="card" open={typeof raised.summary === "string"} label={<>Details</>}><DataView data={payload} /></Disclosure>
+      )}
+      <Timeline it={it} person={person} readOnly={demo} />
+    </>}
   </>;
   return (
     <section>

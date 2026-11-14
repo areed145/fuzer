@@ -67,7 +67,8 @@ def _from_points(conn, start: datetime, end: datetime, src) -> list[dict]:
     from .calcs import read
 
     rows = _points(conn)
-    pts = {r["point_id"]: p for r in rows if (p := timeseries._point(conn, r["point_id"]))}
+    got = timeseries._points(conn, [r["point_id"] for r in rows])
+    pts = {r["point_id"]: got[r["point_id"]] for r in rows if r["point_id"] in got}
     if not pts:
         return []
     src = src or timeseries.provider()
@@ -207,7 +208,8 @@ def relief(conn, e: dict, src=None, plant=None) -> list[dict]:
         return []
     roles = conn.execute("select point_id, asset, role from measurement_role where asset = any(%s) and role = any(%s)",
                          (list(by), list(RELIEF_ROLES))).fetchall()
-    pts = {r["point_id"]: pt for r in roles if (pt := timeseries._point(conn, r["point_id"]))}
+    got = timeseries._points(conn, [r["point_id"] for r in roles])
+    pts = {r["point_id"]: got[r["point_id"]] for r in roles if r["point_id"] in got}
     if not pts:
         return []
     a, b = datetime.fromisoformat(e["start"]), datetime.fromisoformat(e["end"])
