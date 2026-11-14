@@ -31,3 +31,6 @@ ul.others li { display: flex; gap: 6px; align-items: center; }
 .quote { color: var(--muted); font-style: italic; font-size: 12px; }
 .sources { margin-left: auto; display: flex; gap: 4px; }
 .entity .page-tabs { margin-bottom: 16px; }
+.entity-head a.kind-link { text-decoration: none; }
+.entity-head a.kind-link .badge { color: var(--accent); }
+.entity-head a.kind-link:hover .badge { text-decoration: underline; }

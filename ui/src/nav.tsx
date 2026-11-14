@@ -48,7 +48,6 @@ export const NAV: NavGroup[] = [
       { label: "Browse", section: "browse", also: ["e"] },
       { label: "Map", section: "map" },
       { label: "Network", section: "network" },
-      { label: "Ontology", section: "ontology", permission: "configure" },
     ],
   },
   {
@@ -75,7 +74,9 @@ export const NAV: NavGroup[] = [
       { label: "Master data", section: "masterdata", also: ["review"], badge: "review" },
     ],
   },
-  { label: "Sources", icon: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6", permission: "configure", items: [{ label: "Sources", section: "sources" }] },
+  { label: "Sources", icon: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6", permission: "configure",
+    // The ontology is the model sources map onto, so it sits beside them; #/ontology keeps its URL.
+    items: [{ label: "Sources", section: "sources" }, { label: "Ontology", section: "ontology", permission: "configure" }] },
   { label: "Jobs", icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2", permission: "configure", items: [{ label: "Jobs", section: "jobs" }] },
   {
     label: "Settings",

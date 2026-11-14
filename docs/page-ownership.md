@@ -15,10 +15,10 @@ Direct links select their owning primary destination.
 |---|---|---|
 | Home | `#/`, legacy `#/?q=…` search entry, compatible `#/analytics` redirect | Orientation, the production Chart Show and brief readiness links. Work is summarized, not copied (#556): counts for the person's roles (My work for everyone, All work's views for the ops lead, Master data for the steward and configurers), each linking to the view that shows the same number, and the next few titles. No work rows, actions or embedded configuration. Search reuses Browse. |
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
-| Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/ontology` | Assets and connected evidence. All entity links reuse the existing entity viewer. Ontology is configure-protected. |
+| Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network` | Assets and connected evidence. All entity links reuse the existing entity viewer. An asset's kind links to it in the Ontology for configurers. |
 | Investigate | `#/ask`, `#/incidents`, `#/downtime`, `#/reports`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. Paid Ask remains AI-permission gated. |
 | Work | `#/exceptions` (All work, with compatible `#/board` and `#/cases` redirects into its views), `#/inbox` (My work, with `#/field` redirecting into it), `#/inbox/task/:id`, contextual `#/teams` and `#/handover`, `#/plan` (with `#/turnaround` redirecting into it), `#/masterdata` (its Questions tab answers what `#/review` did, which redirects there), `#/cases/:id`, `#/processes`, `#/processes/:key`, `#/processes/forms/:key` (listed under Settings) | Human priorities, read-only team workload, review decisions, tasks, cases and process definitions. Data review decides; Sources owns the subsequent load/recovery action. |
-| Sources | `#/sources` with existing dataset/system/rule/add query views | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
+| Sources | `#/sources` with existing dataset/system/rule/add query views, configure-protected `#/ontology` (`?kind=…` opens on a kind) | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
 | Users (Settings subdestination) | `#/users`, `#/users?view=workflow` | Unified account approval, application roles and human workflow assignments/routing. Only owners grant application access; configure administrators manage routing. Work's contextual Team workload links to this administration owner. |
 | Settings | `#/settings`, existing configuration/filter/project queries | Application-wide defaults, optional AI/resource policies, deployment references and restart requirements. Browser Appearance remains available to readers. Secret values remain deployment-managed. |
@@ -36,7 +36,8 @@ All existing route URLs remain compatible. The legacy `#/work`, `#/work/item/:id
 Navigation grouping is presentation, not authorization: keep server permission checks and existing
 owner-only/configure/AI visibility rules.
 
-Explore secondary pages are Browse, Map, Network and configure-protected Ontology.
+Explore secondary pages are Browse, Map and Network. Sources secondary pages are Sources and configure-protected
+Ontology, the model each source maps onto.
 Demo is one entry, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Investigate contains AI-gated Ask, Downtime, Incidents, Daily reports,
 Lessons and Studies. Work contains four entries: All work, My work, Plan and Master data (#554). Shift handover is
 reached from My work, which shows a banner from shift change until the incoming lead acknowledges it; `#/handover`

@@ -1761,8 +1761,10 @@ test("optional Demo preserves existing primary destinations and specialist route
     await page.goto(`${url}/${route}`);
     await page.getByRole("navigation", { name: area, exact: true }).locator(`a[aria-current="page"]`, { hasText: owner }).waitFor();
   }
-  await nav.getByRole("link", { name: "Explore", exact: true }).click();
-  await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
+  await nav.getByRole("link", { name: "Sources", exact: true }).click();
+  await page.getByRole("navigation", { name: "Sources pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
+  await page.goto(`${url}/#/ontology`);
+  await nav.locator('a[href="#/sources"][aria-current="page"]').waitFor();
   await nav.getByRole("link", { name: "Settings", exact: true }).click();
   await page.getByRole("navigation", { name: "Settings pages", exact: true }).getByRole("link", { name: "Docs", exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -3414,6 +3416,39 @@ test("Ontology header buttons stay on one line and All views explains its hidden
   const box = await add.boundingBox();
   assert.ok(box.height < lineHeight * 2, `Add link type wraps (${box.height}px)`);
   await page.getByText("Link names show when you point at a link or a kind", { exact: false }).waitFor();
+});
+
+test("an asset's kind links to it in the ontology, which sits beside Sources and opens on that kind", async () => {
+  const me = (permissions) => page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions } } }));
+  await me(["read", "configure"]);
+  await page.route("**/entities/fz-log-kind/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/fz-log-kind", (route) => route.fulfill({ json: { fuzer_id: "fz-log-kind", kind: "log_entry",
+    label: "Shift log 14 Nov", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.route("**/ontology", (route) => route.fulfill({ json: {
+    kinds: [{ kind: "well", label: "Well", count: 12 }, { kind: "log_entry", label: "Log entry", count: 40,
+      fields: [{ field: "text", count: 40 }], sources: [{ source: "shift_log", records: 40 }] }],
+    relations: [{ src_kind: "log_entry", rel: "mentions", dst_kind: "well", n: 30 }],
+    groups: [], views: [], model: { kinds: [], relations: [] },
+    needs_definition: { kinds: [], relations: [], not_allowed: [] },
+  } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/e/fz-log-kind`);
+  const kind = page.locator(".entity-head a.kind-link");
+  await kind.waitFor();
+  assert.equal(await kind.getAttribute("href"), "#/ontology?kind=log_entry");
+  await kind.click();
+  await page.locator(".graph-panel h2", { hasText: "Log entry" }).waitFor();
+  await page.getByRole("navigation", { name: "Main" }).locator('a[href="#/sources"][aria-current="page"]').waitFor();
+  await page.getByRole("navigation", { name: "Sources pages", exact: true })
+    .locator('a[aria-current="page"]', { hasText: "Ontology" }).waitFor();
+  // Readers can't open the ontology, so the kind is plain text for them.
+  await page.unroute("**/auth/me");
+  await me(["read"]);
+  await page.goto(`${url}/#/e/fz-log-kind`);
+  await page.reload();
+  await page.locator(".entity-head .badge.kind").waitFor();
+  assert.equal(await page.locator(".entity-head a.kind-link").count(), 0);
 });
 
 test("sidebar and Jobs agree when the scheduler isn't running, and Jobs says how to start it (#325)", async () => {
