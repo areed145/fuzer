@@ -11,6 +11,7 @@ import { appDepth } from "./appHistory";
 import { projectUrl } from "./authState";
 import { entityHref, useAsync } from "./lib";
 import { MARK_STATUS, MarkShape } from "./DrawingViewer";
+import { lockPageScroll } from "./scrollLock";
 import { Button } from "./ui";
 
 type View = { s: number; x: number; y: number };
@@ -57,11 +58,11 @@ export function DrawingFullscreen({ id, ring }: { id: string; ring: string[] }) 
   const d = useAsync(() => api.drawing(id).catch(() => null), [id]);
   const g = d.data;
   useEffect(() => {
-    document.documentElement.classList.add("drawing-open");
+    const unlock = lockPageScroll("drawing-open");
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") closeDrawing(); };
     window.addEventListener("keydown", key);
     return () => {
-      document.documentElement.classList.remove("drawing-open");
+      unlock();
       window.removeEventListener("keydown", key);
     };
   }, []);
@@ -294,7 +295,8 @@ function FullMark({ i, m, ringed, on }: { i: number; m: DrawingMark; ringed: boo
       {/* a wider, invisible target than the ring, for a finger */}
       <circle className="hit" cx={m.x} cy={m.y} r={56} />
       <MarkShape m={m} />
-      {(on || ringed) && <text x={(m.x ?? 0) + 46} y={(m.y ?? 0) - 40}>{m.key ?? m.text}</text>}
+      {/* the full tag, where the sheet shows less of it (a bubble's "LT 4001"); never the drawn tag twice */}
+      {(on || ringed) && m.key && m.key !== m.text && <text x={(m.x ?? 0) + 46} y={(m.y ?? 0) - 40}>{m.key}</text>}
     </g>
   );
 }

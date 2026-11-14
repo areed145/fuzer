@@ -1,6 +1,7 @@
 import "../styles/ui-kit.css";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes } from "react";
 import { useEffect, useId, useRef, useState } from "react";
+import { lockPageScroll } from "../scrollLock";
 
 export function ActionStatus({ busy, error, children }: { busy?: string | null; error?: string | null; children?: ReactNode }) {
   return <>{busy && <p role="status">{busy}</p>}
@@ -150,11 +151,11 @@ export function useFullscreen<T extends HTMLElement = HTMLDivElement>() {
   }, []);
   useEffect(() => {
     if (!covering) return;
-    document.documentElement.classList.add("ui-fullscreen-open");
+    const unlock = lockPageScroll("ui-fullscreen-open");
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") setCovering(false); };
     window.addEventListener("keydown", key);
     return () => {
-      document.documentElement.classList.remove("ui-fullscreen-open");
+      unlock();
       window.removeEventListener("keydown", key);
     };
   }, [covering]);
@@ -173,14 +174,16 @@ export function useFullscreen<T extends HTMLElement = HTMLDivElement>() {
   return { ref, on, toggle };
 }
 
-/** The one button that opens and closes a view's full screen (useFullscreen). */
+/** The one button that opens and closes a view's full screen (useFullscreen). On the full screen it becomes a plain
+ * close (X): the views carry no other way out on a phone, so it must read as the exit and stay clear of the notch. */
 export function FullscreenButton({ on, onClick, className = "" }: { on: boolean; onClick: () => void; className?: string }) {
-  const label = on ? "Exit full screen" : "Full screen";
+  const label = on ? "Close full screen" : "Full screen";
   return (
-    <Button variant="secondary" size="sm" className={`ui-fullscreen-button ${className}`.trim()} onClick={onClick}
-      aria-label={label} title={label} aria-pressed={on}>
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-        <path d={on ? "M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} />
+    <Button variant="secondary" size="sm" className={`ui-fullscreen-button${on ? " ui-fullscreen-close" : ""} ${className}`.trim()}
+      onClick={onClick} aria-label={label} title={on ? "Close full screen (Esc)" : label}>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth={on ? 2.2 : 1.8}
+        strokeLinecap="round" aria-hidden="true">
+        <path d={on ? "M6 6l12 12M18 6L6 18" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} />
       </svg>
     </Button>
   );

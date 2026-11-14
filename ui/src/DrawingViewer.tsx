@@ -269,9 +269,9 @@ function Mark({ m, focus, highlight, onHover }: {
       <title>{label}</title>
       {highlight && <circle className="hl-ring" cx={m.x} cy={m.y} r={70} />}
       <MarkShape m={m} />
-      {(focus || highlight) && (
+      {(focus || highlight) && m.key && m.key !== m.text && (  // never the drawn tag twice
         <text x={(m.x ?? 0) + 46} y={(m.y ?? 0) - 40}>
-          {m.key ?? m.text}
+          {m.key}
         </text>
       )}
     </g>

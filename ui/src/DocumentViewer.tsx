@@ -14,6 +14,7 @@ import { requestFile } from "./api/transport";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { Markdown } from "./Markdown";
 import { Status, entityHref, fmt, useAsync } from "./lib";
+import { lockPageScroll } from "./scrollLock";
 import { Button } from "./ui";
 
 /** The depth the reader was opened at, so Close can step back to the page it was opened from. */
@@ -124,11 +125,11 @@ export function DocumentFullscreen({ id }: { id: string }) {
   const e = useAsync(() => api.entity(id).catch(() => null), [id]);
   const [zoom, setZoom] = useState(1);
   useEffect(() => {
-    document.documentElement.classList.add("drawing-open");
+    const unlock = lockPageScroll("drawing-open");
     const key = (ev: KeyboardEvent) => { if (ev.key === "Escape") closeDocument(); };
     window.addEventListener("keydown", key);
     return () => {
-      document.documentElement.classList.remove("drawing-open");
+      unlock();
       window.removeEventListener("keydown", key);
     };
   }, []);

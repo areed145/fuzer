@@ -2707,10 +2707,24 @@ test("Home shows each server-built figure in its own card, with its tables on re
   assert.deepEqual(colors, theme, "Series take the theme colorway by position");
   // Every chart opens on the whole screen from its own button, and comes back the height it was.
   const before = await second.locator(".js-plotly-plot").evaluate((node) => node._fullLayout.height);
+  // Opened from part way down the page, it still covers the screen from its top with its close button in view (an
+  // iPhone drew it shifted up by the page's scroll, close button off the top), and closing returns to the same place.
+  await second.scrollIntoViewIfNeeded();
+  const scrolled = await page.evaluate(() => {
+    Object.defineProperty(document, "fullscreenEnabled", { value: false, configurable: true });  // as on an iPhone
+    return scrollY;
+  });
   await second.getByRole("button", { name: "Full screen" }).click();
   await page.waitForFunction(() => document.querySelector(".chart-frame.ui-fullscreen .js-plotly-plot")?._fullLayout?.height > 500);
-  await page.getByRole("button", { name: "Exit full screen" }).click();
+  const cover = await page.locator(".chart-frame.ui-fullscreen").boundingBox();
+  const viewport = page.viewportSize();
+  assert.ok(Math.abs(cover.y) < 1 && cover.height >= viewport.height - 1, `the cover fills the screen: ${JSON.stringify(cover)}`);
+  const close = await page.getByRole("button", { name: "Close full screen" }).boundingBox();
+  assert.ok(close.y >= 0 && close.y + close.height <= viewport.height, "the close button is on screen");
+  await page.keyboard.press("Escape");
+  await page.locator(".chart-frame:not(.ui-fullscreen)").first().waitFor();
   await page.waitForFunction((h) => document.querySelectorAll(".home-charts .js-plotly-plot")[1]?._fullLayout?.height === h, before);
+  assert.equal(await page.evaluate(() => scrollY), scrolled, "closing returns to where the page was");
   await second.getByRole("button", { name: "Metadata needed to establish the bottleneck · 3 of 3 stages incomplete" }).click();
   await second.getByRole("cell", { name: "Crude terminal", exact: true }).waitFor();
   assert.equal(calls.capacity, 1);
@@ -3675,6 +3689,19 @@ test("on a phone the ontology graph takes the full width, its panel sits below, 
   assert.ok(graph.width > 300, `graph is squeezed to ${graph.width}px`);
   assert.ok(graph.height < 844 * 0.7, `graph (${graph.height}px) leaves no room to scroll the page past it`);
   assert.ok(panel.y >= graph.y + graph.height, "panel sits below the graph");
+  // Full screen from part way down the page covers the screen with a close button in view, and closes (#trap).
+  await page.evaluate(() => {
+    Object.defineProperty(document, "fullscreenEnabled", { value: false, configurable: true });  // as on an iPhone
+    scrollTo(0, 200);
+  });
+  await canvas.getByRole("button", { name: "Full screen" }).click();
+  const cover = await page.locator(".graph-canvas.ui-fullscreen").boundingBox();
+  assert.ok(Math.abs(cover.y) < 1 && cover.height >= 843, `the graph covers the screen: ${JSON.stringify(cover)}`);
+  const close = page.getByRole("button", { name: "Close full screen" });
+  const shut = await close.boundingBox();
+  assert.ok(shut.y >= 0 && shut.x + shut.width <= 390, "the close button is on screen");
+  await close.click();
+  await page.locator(".graph-canvas:not(.ui-fullscreen)").waitFor();
   await page.getByText("Kinds & link types", { exact: true }).click();
   const row = page.locator(".model-table tr").filter({ hasText: "A long description" }).first();
   const rowBox = await row.boundingBox();
@@ -3766,7 +3793,7 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   await pan.click();
   assert.equal(await pan.getAttribute("aria-pressed"), "false");
   assert.equal(await frame.getByLabel("What the lines are").isVisible(), true);
-  await frame.getByRole("button", { name: "Exit full screen" }).click();
+  await frame.getByRole("button", { name: "Close full screen" }).click();
   await page.locator(".scene3d-frame:not(.ui-fullscreen)").waitFor();
 
   // A click on a shape opens its card, with the way to its asset page; the pick is kept in the link.
