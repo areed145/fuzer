@@ -35,6 +35,12 @@ services:
         sync: false
       - key: FUZER_GITHUB_ISSUES_REPO
         sync: false
+      - key: MAPKIT_TEAM_ID  # Apple MapKit JS for the maps; all three unset = free tiles (core/mapkit.py)
+        sync: false
+      - key: MAPKIT_KEY_ID
+        sync: false
+      - key: MAPKIT_PRIVATE_KEY  # the .p8 file's contents
+        sync: false
 
 databases:
   - name: fuzer-db

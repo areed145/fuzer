@@ -100,6 +100,9 @@ disk, and set these environment values (or sync the Blueprint):
 | `DAGSTER_HOME` | `/var/lib/fuzer/dagster` |
 | `FUZER_GITHUB_ISSUES_TOKEN` | Optional: a fine-grained GitHub token for this repository with Issues: read and write. With it, a crash in any process (supervisor, API, workers, Dagster), a 500 and a failed Dagster run open an `auto-report` issue, deduplicated by fingerprint (`fuzer.core.bugreports`) |
 | `FUZER_GITHUB_ISSUES_REPO` | The repository those issues go to, as `owner/name` |
+| `MAPKIT_TEAM_ID` | Optional: your Apple Developer Team ID. With all three `MAPKIT_*` set, every map draws on Apple Maps (MapKit JS); without them the maps use Google's public roadmap, satellite and terrain tiles (`fuzer.core.mapkit`) |
+| `MAPKIT_KEY_ID` | The Key ID of a key created under Certificates, Identifiers & Profiles → Keys with MapKit JS enabled |
+| `MAPKIT_PRIVATE_KEY` | That key's `.p8` file contents. The server signs 30-minute tokens with it, bound to `FUZER_PUBLIC_URL`; the key never reaches the browser |
 
 ### Jobs on their own service (optional)
 

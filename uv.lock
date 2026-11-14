@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -972,6 +972,7 @@ dependencies = [
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pyarrow" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "pypdf" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -1025,6 +1026,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=12.3,<14" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pyarrow", specifier = ">=25.0,<26" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8" },
     { name = "pypdf", specifier = ">=6.20,<6.22" },
     { name = "python-dotenv", specifier = ">=1.2" },
     { name = "pyyaml", specifier = ">=6.0" },

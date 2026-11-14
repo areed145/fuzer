@@ -1421,8 +1421,8 @@ test("the map fits the field's wells and platforms, not the export line, and say
     { type: "Feature", id: "L1", geometry: { type: "LineString", coordinates: [[5.005, 4.005], [6.5, 5.5]] },
       properties: { kind: "pipeline", service: "oil export", label: "Export" } }] } }));
   const zooms = [];
-  await page.route("https://*.basemaps.cartocdn.com/**", (route) => {
-    zooms.push(Number(new URL(route.request().url()).pathname.split("/")[3]));
+  await page.route("https://*.google.com/vt/**", (route) => {
+    zooms.push(Number(/[&?]z=(\d+)/.exec(route.request().url())?.[1]));
     return route.fulfill({ status: 503, body: "" });
   });
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -1438,8 +1438,7 @@ test("the base map is Standard, Satellite or Terrain, and Standard follows the t
     pt("W1", "well", 5.000, 4.000), pt("P1", "area", 5.005, 4.005)] } }));
   const hosts = [];
   const tile = (route) => { hosts.push(route.request().url()); return route.fulfill({ status: 503, body: "" }); };
-  for (const host of ["https://*.basemaps.cartocdn.com/**", "https://server.arcgisonline.com/**", "https://*.tile.opentopomap.org/**"])
-    await page.route(host, tile);
+  await page.route("https://*.google.com/vt/**", tile);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/`);
   await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.setItem("fuzer.theme", "light"); });
@@ -1452,21 +1451,99 @@ test("the base map is Standard, Satellite or Terrain, and Standard follows the t
   assert.equal(await page.locator(".map-controls select").count(), 0, "no dropdown");
   const box = await group.boundingBox();
   assert.ok(box.x >= 0 && box.x + box.width <= 390, "the control fits a phone");
-  await expectHost(hosts, "/rastertiles/voyager/");
+  await expectHost(hosts, "google.com/vt/lyrs=m&");
   await group.getByRole("button", { name: "Satellite" }).click();
-  await expectHost(hosts, "arcgisonline.com/ArcGIS/rest/services/World_Imagery/");
+  await expectHost(hosts, "google.com/vt/lyrs=y&");
   await group.getByRole("button", { name: "Terrain" }).click();
-  await expectHost(hosts, "tile.opentopomap.org/");
-  // The choice is remembered; a dark theme gives the dark standard map.
+  await expectHost(hosts, "google.com/vt/lyrs=p&");
+  // The choice is remembered; a dark theme darkens the standard map.
   await group.getByRole("button", { name: "Standard" }).click();
   await page.evaluate(() => localStorage.setItem("fuzer.theme", "dark"));
   hosts.length = 0;
   await page.reload();
-  await expectHost(hosts, "/dark_all/");
+  await expectHost(hosts, "google.com/vt/lyrs=m&");
+  await page.locator(".map-basemap-standard-dark").waitFor();
   await page.getByRole("group", { name: "Base map" }).getByRole("button", { name: "Terrain" }).click();
   await page.locator(".map-basemap-terrain-dark").waitFor();
   await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.removeItem("fuzer.theme"); });
   await page.setViewportSize({ width: 1280, height: 900 });
+});
+
+// A stand-in for Apple's MapKit JS: enough of its API to draw, recorded on window.__mk for the assertions.
+const MAPKIT_STUB = `(() => {
+  const listeners = {};
+  const rec = window.__mk = { maps: [], tokens: [] };
+  class Coordinate { constructor(latitude, longitude) { this.latitude = latitude; this.longitude = longitude; } }
+  class CoordinateSpan { constructor(latitudeDelta, longitudeDelta) { this.latitudeDelta = latitudeDelta; this.longitudeDelta = longitudeDelta; } }
+  class CoordinateRegion { constructor(center, span) { this.center = center; this.span = span; } }
+  class Style { constructor(o) { Object.assign(this, o); } }
+  class Overlay { constructor(points, o = {}) { this.points = points; Object.assign(this, o); } }
+  class Annotation { constructor(coordinate, factory, o = {}) { this.coordinate = coordinate; this.element = factory(); Object.assign(this, o); } }
+  class Map {
+    constructor(el, o) { this.el = el; this.options = o; this.overlays = []; this.annotations = []; this.events = {};
+      this.region = new CoordinateRegion(new Coordinate(0, 0), new CoordinateSpan(100, 100)); rec.maps.push(this); }
+    addEventListener(t, f) { (this.events[t] ??= []).push(f); }
+    addOverlays(list) { this.overlays.push(...list); } addOverlay(o) { this.overlays.push(o); }
+    removeOverlays(list) { this.overlays = this.overlays.filter((o) => !list.includes(o)); }
+    addAnnotations(list) { for (const a of list) { this.annotations.push(a); this.el.appendChild(a.element); } }
+    addAnnotation(a) { this.addAnnotations([a]); }
+    removeAnnotations(list) { for (const a of list) a.element.remove(); this.annotations = this.annotations.filter((a) => !list.includes(a)); }
+    setRegionAnimated(r) { this.region = r; } setCenterAnimated(c) { this.region = new CoordinateRegion(c, this.region.span); }
+    destroy() { this.destroyed = true; for (const a of this.annotations) a.element.remove(); }
+  }
+  Map.MapTypes = { Standard: "standard", MutedStandard: "mutedStandard", Hybrid: "hybrid", Satellite: "satellite" };
+  Map.ColorSchemes = { Light: "light", Dark: "dark" };
+  window.mapkit = {
+    Coordinate, CoordinateSpan, CoordinateRegion, Style, Map, Annotation,
+    PolylineOverlay: Overlay, PolygonOverlay: Overlay, CircleOverlay: Overlay,
+    FeatureVisibility: { Hidden: "hidden", Adaptive: "adaptive" },
+    addEventListener(t, f) { (listeners[t] ??= []).push(f); },
+    fail(status) { for (const f of listeners.error ?? []) f({ status }); },
+    init(o) { o.authorizationCallback((t) => { rec.tokens.push(t);
+      setTimeout(() => { for (const f of listeners["configuration-change"] ?? []) f({ status: "Initialized" }); }); }); },
+  };
+})();`;
+
+test("with a MapKit key the maps are Apple Maps: Standard, Satellite or Muted by the theme, popups at the tap, Leaflet if Apple refuses", async () => {
+  const pt = (id, kind, lon, lat) => ({ type: "Feature", id, geometry: { type: "Point", coordinates: [lon, lat] }, properties: { kind, label: id } });
+  await page.route("**/mapkit/token", (route) => route.fulfill({ json: { token: "signed.jwt.token", expires: 1 } }));
+  await page.route("https://cdn.apple-mapkit.com/**", (route) => route.fulfill({ contentType: "text/javascript", body: MAPKIT_STUB }));
+  await page.route("**/map", (route) => route.fulfill({ json: { type: "FeatureCollection", features: [
+    pt("W1", "well", 5.000, 4.000), pt("P1", "area", 5.010, 4.010),
+    { type: "Feature", id: "L1", geometry: { type: "LineString", coordinates: [[5.0, 4.0], [5.01, 4.01]] },
+      properties: { kind: "pipeline", service: "gas lift", label: "Lift line" } }] } }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/`);
+  await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.setItem("fuzer.theme", "dark"); });
+  await page.goto(`${url}/#/map`);
+  await page.reload();
+  const group = page.getByRole("group", { name: "Base map" });
+  await group.waitFor();
+  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite", "Muted"]);
+  const state = () => page.evaluate(() => { const m = window.__mk.maps.at(-1);
+    return { type: m.mapType, scheme: m.colorScheme, tokens: window.__mk.tokens, overlays: m.overlays.length,
+             dashes: m.overlays.map((o) => o.style.lineDash.join(" ")), span: m.region.span.longitudeDelta }; });
+  let s = await state();
+  assert.deepEqual([s.type, s.scheme, s.tokens], ["standard", "dark", ["signed.jwt.token"]]);
+  assert.equal(s.overlays, 2, "the line and its halo");
+  assert.ok(s.dashes.includes("6 6"), "gas lift keeps its dash");
+  assert.ok(s.span < 0.1, `fitted to the field, span ${s.span}`);
+  assert.equal(await page.locator(".leaflet-container").count(), 0, "no Leaflet map");
+  await group.getByRole("button", { name: "Satellite" }).click();
+  assert.equal((await state()).type, "hybrid");
+  await group.getByRole("button", { name: "Muted" }).click();
+  assert.equal((await state()).type, "mutedStandard");
+  // A point opens its popup at the tap, with the link to the asset.
+  await page.locator('.mk-point[title="P1"]').click();
+  await page.locator(".map-popup").getByRole("link", { name: "P1" }).waitFor();
+  await page.locator(".map-popup").getByRole("button", { name: "Close" }).click();
+  assert.equal(await page.locator(".map-popup").count(), 0);
+  // Apple refuses the token later: the same map redraws on free tiles.
+  await page.evaluate(() => window.mapkit.fail("Unauthorized"));
+  await page.locator(".leaflet-container").waitFor();
+  assert.deepEqual(await page.getByRole("group", { name: "Base map" }).getByRole("button").allInnerTexts(),
+                   ["Standard", "Satellite", "Terrain"]);
+  await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.removeItem("fuzer.theme"); });
 });
 
 async function expectHost(hosts, part) {
@@ -6661,7 +6738,7 @@ test("P5.14 quirks from a real phone: a tap on the map opens one label, the laye
   await page.route("**/*", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.startsWith("/assets/") || path === "/" || /\.(svg|png|webmanifest)$/.test(path)) return route.continue();
-    if (/^https:\/\/[a-z]\.basemaps\.cartocdn\.com\//.test(route.request().url())) return route.fulfill({ status: 503, body: "" });
+    if (/^https:\/\/mt\d\.google\.com\/vt\//.test(route.request().url())) return route.fulfill({ status: 503, body: "" });
     if (path === "/map") return route.fulfill({ json: { type: "FeatureCollection", features: [
       pt("OKAN-40", "area", 5.005, 4.005), pt("W1", "well", 5.000, 4.000), pt("W2", "well", 5.010, 4.010),
       ...services.map((service, i) => ({ type: "Feature", id: `L${i}`, geometry: { type: "LineString",

@@ -1,12 +1,15 @@
 import "./styles/map.css";
 import { useTheme } from "./theme";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
 import { entityHref, href } from "./lib";
 import { Button, FullscreenButton, useFullscreen } from "./ui";
+import { pathsOf, vertices, type BasemapName, type HotspotSpec, type LatLon, type LineSpec, type MapEngine,
+         type PointSpec } from "./map/engine";
+import { leafletEngine } from "./map/leafletEngine";
+import { mapkitEngine } from "./map/mapkitEngine";
+import { loadMapKit } from "./map/mapkitLoader";
 
 // Each pipeline service in the colour of what it carries, the same as in the 3D view and the network (kinds.ts).
 // Gas services are dashed so colour is not the only cue.
@@ -24,33 +27,17 @@ const POINTS: { key: string; label: string; radius: number }[] = [
   { key: "facility", label: "Plants and terminals", radius: 8 },
   { key: "well", label: "Wells", radius: 3 },
 ];
-const OSM = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-type Tiles = { url: string; attribution: string; maxNativeZoom: number; subdomains?: string };
-/* Three base maps, each in a light and a dark form that follows the app's theme (System by default), so there is no
- * separate dark or light choice. All are free to use with attribution and need no key or account: CARTO for the
- * standard map, Esri World Imagery for satellite, OpenTopoMap for terrain. Apple MapKit JS needs a paid developer
- * account token and Google's Map Tiles API a billed key, and neither allows their tiles in Leaflet otherwise. */
-const IMAGERY: Tiles = { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-  maxNativeZoom: 19 };
-const TOPO: Tiles = { url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", subdomains: "abc",
-  attribution: `${OSM}, SRTM | Style &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`, maxNativeZoom: 17 };
-const BASEMAPS: Record<"standard" | "satellite" | "terrain", { label: string; light: Tiles; dark: Tiles }> = {
-  standard: {
-    label: "Standard",
-    light: { url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", subdomains: "abcd",
-      attribution: `${OSM} &copy; <a href="https://carto.com/attributions">CARTO</a>`, maxNativeZoom: 20 },
-    dark: { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd",
-      attribution: `${OSM} &copy; <a href="https://carto.com/attributions">CARTO</a>`, maxNativeZoom: 20 },
-  },
-  // Imagery has no dark form and needs none.
-  satellite: { label: "Satellite", light: IMAGERY, dark: IMAGERY },
-  // OpenTopoMap has no dark form either; the dark theme dims it in CSS (.map-basemap-terrain-dark).
-  terrain: { label: "Terrain", light: TOPO, dark: TOPO },
+/* Three base maps, each light or dark by the app's theme (System by default), so there is no separate dark or light
+ * choice. With a MapKit key on the deployment they are Apple Maps (standard, satellite with names, muted); without one,
+ * Google's public tiles (roadmap, satellite with names, terrain). See map/leafletEngine.ts and map/mapkitEngine.ts. */
+const BASEMAPS: Record<BasemapName, { label: string; apple: string }> = {
+  standard: { label: "Standard", apple: "Standard" },
+  satellite: { label: "Satellite", apple: "Satellite" },
+  terrain: { label: "Terrain", apple: "Muted" },  // MapKit JS has no terrain map; its muted map is the quiet one
 };
-type Basemap = keyof typeof BASEMAPS | "none";
+type Basemap = BasemapName | "none";
 const BASEMAP_KEY = "fuzer.basemap";
-const savedBasemap = (): keyof typeof BASEMAPS => {
+const savedBasemap = (): BasemapName => {
   try {
     const v = localStorage.getItem(BASEMAP_KEY);
     if (v === "satellite" || v === "terrain") return v;
@@ -61,8 +48,7 @@ const savedBasemap = (): keyof typeof BASEMAPS => {
 const themeValue = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const tip = (f: GeoFeature) =>
-  esc(`${f.properties.label ?? f.id}${f.properties.description ? ` · ${f.properties.description}` : ""}`);
+const tip = (f: GeoFeature) => `${f.properties.label ?? f.id}${f.properties.description ? ` · ${f.properties.description}` : ""}`;
 
 function serviceOf(f: GeoFeature) {
   const s = String(f.properties.service ?? "");
@@ -112,21 +98,22 @@ function popup(f: GeoFeature): HTMLElement {
 }
 
 /** A hotspot: a place with open work, drawn by its highest band, how much is open and whether any is overdue. */
-function hotspotIcon(p: AttentionPlace, selected: boolean, labelled: boolean): L.DivIcon {
+function hotspotSpec(p: AttentionPlace, selected: boolean, labelled: boolean,
+                     crew: { who: string | null; status: string } | undefined, onSelect: () => void): HotspotSpec {
   const size = Math.round(Math.min(46, 26 + 4 * Math.sqrt(p.open)));
+  const name = p.name ?? p.label;
   const html = `<span class="hotspot-dot" style="width:${size}px;height:${size}px">${p.open}</span>`
     + (p.overdue ? `<span class="hotspot-late" aria-hidden="true"><svg viewBox="-8 -8 16 16"><path d="M0,-4 L0,0 L3,2"/></svg></span>` : "")
-    + (labelled ? `<span class="hotspot-label">${esc(p.name ?? p.label)}</span>` : "");
-  return L.divIcon({ className: `hotspot hotspot-${p.band}${selected ? " selected" : ""}`, html,
-                     iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+    + (labelled ? `<span class="hotspot-label">${esc(name)}</span>` : "");
+  return {
+    at: [p.lat, p.lon], className: `hotspot hotspot-${p.band}${selected ? " selected" : ""}`, html, size, name, selected,
+    title: `${name}: ${p.open} open${p.overdue ? `, ${p.overdue} overdue` : ""}`, onSelect,
+    crew: crew && { html: `<span>${esc((crew.who ?? "?").replace(/^role:/, "").slice(0, 1).toUpperCase())}</span>`,
+                    title: `${crew.who} ${crew.status}` },
+  };
 }
 
-const crewIcon = (who: string) => L.divIcon({
-  className: "hotspot-crew", html: `<span>${esc(who.replace(/^role:/, "").slice(0, 1).toUpperCase())}</span>`,
-  iconSize: [22, 20], iconAnchor: [11, 30],
-});
-
-/** Leaflet map of GeoJSON features with a legend that shows and hides each layer. With `hotspots` (Home), the
+/** A map of GeoJSON features (Apple MapKit when the deployment has a key, else Leaflet on free tiles) with a legend that shows and hides each layer. With `hotspots` (Home), the
  * network is drawn faintly under the places that need attention, and `compact` leaves out the layer and basemap
  * controls. */
 export function MapView({ data, focus, height = "70vh", basemap = true, hotspots, selected, onSelect, crews = true,
@@ -147,17 +134,16 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   const el = useRef<HTMLDivElement>(null);
   const full = useFullscreen();
   useEffect(() => { onFullscreen?.(full.on); }, [full.on]);  // eslint-disable-line react-hooks/exhaustive-deps
-  const map = useRef<L.Map | null>(null);
-  const tiles = useRef<L.TileLayer | null>(null);
-  const layer = useRef<L.LayerGroup | null>(null);
-  const location = useRef<L.LayerGroup | null>(null);
-  const spots = useRef<L.LayerGroup | null>(null);
+  // Apple MapKit when the deployment has a key and Apple accepts it; Leaflet otherwise, or with no base map at all.
+  const [library, setLibrary] = useState<"pending" | "mapkit" | "leaflet">(basemap ? "pending" : "leaflet");
+  const [engine, setEngine] = useState<MapEngine | null>(null);
   const fitted = useRef(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [basemapName, setBasemapName] = useState<Basemap>(basemap ? savedBasemap : "none");
   const [mapMessage, setMapMessage] = useState("");
   const [baseError, setBaseError] = useState(false);  // #398: say so when the base map tiles can't load
   const themeVersion = useTheme();
+  const dark = themeVersion === "dark";
   const colors = {
     outline: themeValue("--map-outline"), label: themeValue("--map-label"), well: themeValue("--map-well"),
     other: themeValue("--map-other"), abandoned: themeValue("--map-abandoned"), focus: themeValue("--map-focus"),
@@ -172,49 +158,39 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   }, [data]);
 
   useEffect(() => {
-    if (!el.current || map.current) return;
-    map.current = L.map(el.current, { preferCanvas: true, zoomSnap: 0.5 });
-    layer.current = L.layerGroup().addTo(map.current);
-    location.current = L.layerGroup().addTo(map.current);
-    spots.current = L.layerGroup().addTo(map.current);
-    return () => {
-      map.current?.remove();
-      map.current = null;
-      tiles.current = null;
-      layer.current = null;
-      location.current = null;
-      spots.current = null;
-    };
-  }, []);
+    if (library !== "pending") return;
+    let live = true;
+    void loadMapKit().then((mk) => { if (live) setLibrary(mk ? "mapkit" : "leaflet"); });
+    return () => { live = false; };
+  }, [library]);
 
   useEffect(() => {
-    const m = map.current;
-    if (!m) return;
-    tiles.current?.remove();
-    tiles.current = null;
-    if (basemapName !== "none") {
-      const selected = BASEMAPS[basemapName][themeVersion === "dark" ? "dark" : "light"];
-      setBaseError(false);
-      let loaded = false;
-      tiles.current = L.tileLayer(selected.url, {
-        maxZoom: 20,
-        maxNativeZoom: selected.maxNativeZoom,
-        subdomains: selected.subdomains ?? "abc",
-        attribution: selected.attribution,
-      }).on("tileload", () => { loaded = true; setBaseError(false); })
-        .on("tileerror", () => { if (!loaded) setBaseError(true); })
-        .addTo(m);
+    if (!el.current || library === "pending") return;
+    const events = { onBaseError: setBaseError, onFatal: () => setLibrary("leaflet") };
+    let made: MapEngine;
+    try {
+      made = library === "mapkit" && window.mapkit ? mapkitEngine(window.mapkit, el.current, events)
+        : leafletEngine(el.current, events);
+    } catch {
+      if (library === "mapkit") setLibrary("leaflet");
+      return;
     }
-  }, [basemapName, themeVersion === "dark"]);  // eslint-disable-line react-hooks/exhaustive-deps
+    fitted.current = false;
+    setBaseError(false);
+    setEngine(made);
+    return () => { made.destroy(); setEngine(null); };
+  }, [library]);
 
-  const chooseBasemap = (name: keyof typeof BASEMAPS) => {
+  useEffect(() => { engine?.setBasemap(basemapName, dark); }, [engine, basemapName, dark]);
+
+  const chooseBasemap = (name: BasemapName) => {
     setBasemapName(name);
     try { localStorage.setItem(BASEMAP_KEY, name); } catch { /* storage blocked: the choice lasts this visit */ }
   };
 
   useEffect(() => {
-    requestAnimationFrame(() => map.current?.invalidateSize());
-  }, [full.on]);
+    requestAnimationFrame(() => engine?.resize());
+  }, [full.on]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const locate = () => {
     setMapMessage("");
@@ -224,26 +200,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        const m = map.current;
-        const markers = location.current;
-        if (!m || !markers) return;
-        const point: L.LatLngExpression = [coords.latitude, coords.longitude];
-        markers.clearLayers();
-        L.circle(point, {
-          radius: coords.accuracy,
-          color: themeValue("--accent"),
-          fillColor: themeValue("--accent"),
-          fillOpacity: 0.12,
-          weight: 1,
-        }).addTo(markers);
-        L.circleMarker(point, {
-          radius: 7,
-          color: themeValue("--panel"),
-          fillColor: themeValue("--accent"),
-          fillOpacity: 1,
-          weight: 3,
-        }).bindTooltip("Your location").addTo(markers);
-        m.setView(point, Math.max(m.getZoom(), 14));
+        engine?.showLocation([coords.latitude, coords.longitude], coords.accuracy,
+                             { accent: themeValue("--accent"), panel: themeValue("--panel") });
       },
       (error) => {
         setMapMessage(error.code === error.PERMISSION_DENIED
@@ -258,100 +216,65 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
 
 
   useEffect(() => {
-    const m = map.current;
-    const g = layer.current;
-    if (!m || !g) return;
-    g.clearLayers();
+    if (!engine) return;
     const shown = data.features.filter((f) => !hidden.has(layerKey(f)));
-    // Lines under points; a white halo under each line keeps it readable on any basemap.
-    const lines = shown.filter((f) => f.geometry.type !== "Point");
-    const points = shown.filter((f) => f.geometry.type === "Point");
-    // A tap on a phone opens the popup; a hover label there would stick beside it, saying the same thing twice.
-    const hover = matchMedia("(hover: hover)").matches;
+    // Lines under points; a halo under each line keeps it readable on any basemap.
     const faint = hotspots !== undefined;  // under hotspots the network is context, not the subject
-    for (const f of lines) {
+    const lines: LineSpec[] = shown.filter((f) => f.geometry.type !== "Point").map((f) => {
       const s = serviceOf(f);
       const isFocus = f.id === focus;
       const abandoned = f.properties.status === "abandoned";
       const weight = Math.max(2, Math.min(6, Number(f.properties.diameter_in ?? 6) / 3)) + (isFocus ? 3 : 0);
-      if (!faint) L.geoJSON(f as GeoJSON.Feature, { style: { color: colors.outline, weight: weight + 3, opacity: 0.9 } }).addTo(g);
-      const line = L.geoJSON(f as GeoJSON.Feature, {
-        style: {
-          color: abandoned ? colors.abandoned : (s ? serviceColors[s.key] : other),
-          weight,
-          dashArray: abandoned ? "2 8" : s?.dash,
-          opacity: faint ? 0.5 : 0.95,
-        },
-      })
-        .bindPopup(() => popup(f))
-        .addTo(g);
-      if (hover) line.bindTooltip(tip(f), { sticky: true });
-    }
-    for (const f of points) {
+      return {
+        ...pathsOf(f.geometry), weight,
+        color: abandoned ? colors.abandoned : (s ? serviceColors[s.key] : other),
+        dash: abandoned ? "2 8" : s?.dash,
+        opacity: faint ? 0.5 : 0.95,
+        halo: faint ? undefined : { color: colors.outline, weight: weight + 3 },
+        popup: () => popup(f), tip: tip(f),
+      };
+    });
+    const points: PointSpec[] = shown.filter((f) => f.geometry.type === "Point").map((f) => {
       const [lon, lat] = f.geometry.coordinates as number[];
       const kind = String(f.properties.kind);
       const isFocus = f.id === focus;
-      const r = ((POINTS.find((p) => p.key === kind)?.radius ?? 5) + (isFocus ? 4 : 0)) * (faint ? 0.6 : 1);
-      const marker = L.circleMarker([lat, lon], {
-        radius: r,
-        color: colors.outline,
-        weight: kind === "well" ? 1 : 2,
-        fillColor: isFocus ? colors.focus : kindColor(kind),
-        fillOpacity: faint ? 0.6 : 1,
-      })
-        .bindPopup(() => popup(f))
-        .addTo(g);
-      if (hover) marker.bindTooltip(tip(f));
-    }
+      return {
+        at: [lat, lon],
+        radius: ((POINTS.find((p) => p.key === kind)?.radius ?? 5) + (isFocus ? 4 : 0)) * (faint ? 0.6 : 1),
+        stroke: colors.outline, strokeWidth: kind === "well" ? 1 : 2,
+        fill: isFocus ? colors.focus : kindColor(kind), fillOpacity: faint ? 0.6 : 1,
+        popup: () => popup(f), tip: tip(f),
+      };
+    });
+    engine.drawNetwork(lines, points);
     if (shown.length && !(hotspots?.length)) {
       // Fit to the wells and platforms where the work is, not the export lines running off to a terminal (#398);
       // lines count only when no points are shown.
-      const fit = points.length ? points : shown;
-      const bounds = L.geoJSON({ type: "FeatureCollection", features: fit } as GeoJSON.FeatureCollection).getBounds();
-      if (bounds.isValid()) m.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
+      const fit: LatLon[] = points.length ? points.map((p) => p.at) : vertices(lines);
+      engine.fit(fit, 24, 15);
     }
-  }, [data, hidden, focus, themeVersion, hotspots === undefined]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [engine, data, hidden, focus, themeVersion, hotspots === undefined]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const m = map.current;
-    const g = spots.current;
-    if (!m || !g || !hotspots) return;
-    g.clearLayers();
+    if (!engine || !hotspots) return;
     // Least urgent first, so the most urgent sit on top where markers overlap. The chosen place is named on the map;
     // the rest name themselves on hover, with every name in the list beside the map.
     const narrow = matchMedia("(max-width: 600px)").matches;  // a phone names only the chosen place
     const rank = { high: 0, medium: 1, low: 2 };
-    for (const p of [...hotspots].sort((a, b) => rank[b.band] - rank[a.band])) {
-      const marker = L.marker([p.lat, p.lon], {
-        icon: hotspotIcon(p, p.id === selected, p.id === selected || (!narrow && hotspots.length <= 3)),
-        title: `${p.name ?? p.label}: ${p.open} open${p.overdue ? `, ${p.overdue} overdue` : ""}`,
-        alt: p.name ?? p.label, riseOnHover: true, zIndexOffset: p.id === selected ? 1000 : 0,
-      }).on("click", () => onSelect?.(p.id)).addTo(g);
-      if (p.id !== selected) marker.bindTooltip(esc(p.name ?? p.label), { direction: "right", offset: [14, 0] });
-      marker.on("keypress", (e: L.LeafletKeyboardEvent) => {
-        if (e.originalEvent.key === "Enter" || e.originalEvent.key === " ") onSelect?.(p.id);
-      });
-      if (crews) {
-        for (const c of p.crews.filter((x) => x.status === "on site" || x.status === "planned").slice(0, 1)) {
-          L.marker([p.lat, p.lon], { icon: crewIcon(c.who ?? "?"), interactive: false, keyboard: false,
-                                     title: `${c.who} ${c.status}` }).addTo(g);
-        }
-      }
-    }
-    if (!fitted.current) {
+    engine.drawHotspots([...hotspots].sort((a, b) => rank[b.band] - rank[a.band]).map((p) => hotspotSpec(
+      p, p.id === selected, p.id === selected || (!narrow && hotspots.length <= 3),
+      crews ? p.crews.find((x) => x.status === "on site" || x.status === "planned") : undefined,
+      () => onSelect?.(p.id))));
+    if (!fitted.current && hotspots.length) {
       // Fit to where the work is the first time; afterwards a person's pan and zoom stay put.
-      const pts = hotspots.map((p) => L.latLng(p.lat, p.lon));
-      if (pts.length) {
-        fitted.current = true;
-        m.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 13 });
-      }
+      fitted.current = true;
+      engine.fit(hotspots.map((p) => [p.lat, p.lon]), 48, 13);
     }
-  }, [hotspots, selected, crews, themeVersion]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [engine, hotspots, selected, crews, themeVersion]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {  // a place picked in the list comes into view
     const p = hotspots?.find((x) => x.id === selected);
-    const m = map.current;
-    if (p && m && !m.getBounds().pad(-0.1).contains([p.lat, p.lon])) m.panTo([p.lat, p.lon]);
+    if (p) engine?.reveal([p.lat, p.lon]);
   }, [selected]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (k: string) =>
@@ -387,11 +310,12 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
       </div>}
       <div ref={full.ref} className={`map-frame${full.on ? " map-fullscreen ui-fullscreen" : ""}`}>
         <div className="map-controls">
-          {!compact && basemapName !== "none" && <div className="map-basemaps" role="group" aria-label="Base map">
-            {(Object.keys(BASEMAPS) as (keyof typeof BASEMAPS)[]).map((name) => (
+          {!compact && basemapName !== "none" && library !== "pending" && <div className="map-basemaps" role="group" aria-label="Base map">
+            {(Object.keys(BASEMAPS) as BasemapName[]).map((name) => (
               <Button key={name} type="button" variant="ghost" size="sm" aria-pressed={basemapName === name}
                       className={`map-basemap${basemapName === name ? " on" : ""}`}
-                      onClick={() => chooseBasemap(name)}>{BASEMAPS[name].label}</Button>
+                      onClick={() => chooseBasemap(name)}>
+                {library === "mapkit" ? BASEMAPS[name].apple : BASEMAPS[name].label}</Button>
             ))}
           </div>}
           {!compact && <Button size="sm" className="map-control-button" onClick={locate} aria-label="Find my location" title="Find my location">
@@ -407,7 +331,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
         {baseError && basemapName !== "none" && !compact && <div className="map-message" role="status">
           Base map unavailable: its tiles could not load, so features are drawn on a plain background.</div>}
         {full.on && overlay && <div className="map-overlay">{overlay}</div>}
-        <div ref={el} className={`map${basemapName === "none" ? "" : ` map-basemap-${basemapName}-${themeVersion === "dark" ? "dark" : "light"}`}`} style={{ height }} />
+        <div key={library} ref={el} className={`map map-${library}${basemapName === "none" ? "" : ` map-basemap-${basemapName}-${dark ? "dark" : "light"}`}`}
+             style={{ height }} />
       </div>
     </div>
   );
