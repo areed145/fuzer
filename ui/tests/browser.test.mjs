@@ -3090,7 +3090,10 @@ test("Home with no records keeps only work and health, and readers see no admini
 
   const reader = await browser.newContext();
   const readerPage = await reader.newPage();
-  const fixtures = { ...homePopulated, "/auth/me": { mode: "microsoft", configured: true, user: signedInUser }, "/demo/config": { enabled: true } };
+  const fixtures = { ...homePopulated, "/auth/me": { mode: "microsoft", configured: true, user: signedInUser }, "/demo/config": { enabled: true },
+    // the map card reads while the cards below load, so its reads answer in their own shape, not the catch-all list
+    "/attention": { places: [], open: 0, unplaced: 0, data_work: 0, truncated: false },
+    "/map": { type: "FeatureCollection", features: [], truncated: false } };
   const administrative = [];
   await readerPage.route("**/*", (route) => {
     const path = new URL(route.request().url()).pathname;

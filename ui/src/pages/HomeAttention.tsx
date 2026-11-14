@@ -45,7 +45,7 @@ export function AttentionCard() {
   }, [geo.data]);
   const mapped = (geo.data?.features.length ?? 0) > 0 && !oneSite;
   const ready = spots.data !== undefined && (geo.data !== undefined || !!geo.error);
-  const open = spots.data?.places.reduce((n, p) => n + p.open, 0) ?? 0;
+  const open = (spots.data?.places ?? []).reduce((n, p) => n + p.open, 0) ?? 0;
   return (
     <Card as="section" className="home-card attention-card" title="Where attention is needed"
           actions={<a href={workHref("open")}>All work</a>}>
