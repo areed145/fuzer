@@ -72,6 +72,15 @@ def test_links_run_from_their_source_to_their_target_and_a_shaft_is_no_pipe(comp
             assert sum(1 for u, v in zip(p, q, strict=True) if u != v) == 1, "runs are square to the axes"
     gas = [link for link in s["links"] if link["rel"] == "lift_gas_to"]
     assert gas and all(link["product"] == "lift_gas" for link in gas)
+    # Deck piping stays at the equipment's level; a run between plates drops below the deck and comes back up.
+    top = scene.NOZZLE + scene.SEPARATE * len(s["rels"])
+    for link in s["links"]:
+        a, b = at[link["src"]], at[link["dst"]]
+        heights = [p[1] for p in link["path"]]
+        if a["plate"] == b["plate"]:
+            assert 0 < min(heights) and max(heights) <= top
+        else:
+            assert min(heights) < 0 and max(heights) <= top
 
 
 def test_what_it_connects_to_elsewhere_is_drawn_and_says_where(compression):

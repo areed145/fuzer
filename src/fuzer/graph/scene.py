@@ -40,7 +40,9 @@ CLIMB = 5  # steps from an item up to its area
 CELL_X, CELL_Z = 8.0, 5.0  # one column of flow, one lane
 MARGIN = 4.0
 PLATE_GAP = 10.0
-NOZZLE, RACK, BRIDGE = 1.0, 9.0, 12.0  # heights of a run between neighbours, across a plate, between plates
+NOZZLE = 1.0  # a run on a deck sits at the equipment's nozzles
+SUBSEA, BURIED = -13.5, -1.0  # a run between plates: along the seabed where a jacket stands in the sea, else just below grade
+SEPARATE = 0.35  # each link type a little apart, so runs of different types don't sit inside each other
 LOOSE_PER_ROW = 8
 MAX_ITEMS = 3000
 ELSEWHERE, UNPLACED = "elsewhere", "unplaced"
@@ -285,21 +287,36 @@ def _frame(table: dict, area_type: str | None) -> str:
     return next((table["frames"][w] for w in words if w in table["frames"]), "slab")
 
 
-def _route(a: dict, b: dict, lift: float) -> list[list[float]]:
-    """A pipe run from a to b: straight along the flow, through the gap between columns, or up and over."""
+def _route(a: dict, b: dict, lane: int, plates: dict[str, dict]) -> list[list[float]]:
+    """A pipe run from a to b. On one deck it stays at the equipment's level, running in the gaps between rows and
+    columns. Between plates it leaves by the deck's edge facing the other, drops as a riser to the seabed (or below
+    grade onshore), runs along the bottom and rises at the other plate's edge."""
     ax, az, bx, bz = a["x"], a["z"], b["x"], b["z"]
-    ya, yb = a["y"] + NOZZLE, b["y"] + NOZZLE
-    if a["plate"] == b["plate"] and abs((bx - ax) - CELL_X) < 0.01:
-        if az == bz:
-            return [[ax, ya, az], [bx, yb, bz]]
-        mid = (ax + bx) / 2
-        return [[ax, ya, az], [mid, ya, az], [mid, yb, bz], [bx, yb, bz]]
-    top = max(a["y"], b["y"]) + (RACK if a["plate"] == b["plate"] else BRIDGE) + lift
-    pts = [[ax, ya, az], [ax, top, az]]
-    if az != bz and ax != bx:
-        turn = bx - CELL_X / 2 if bx > ax else bx + CELL_X / 2
-        pts += [[turn, top, az], [turn, top, bz]]
-    pts += [[bx, top, bz], [bx, yb, bz]]
+    off = lane * SEPARATE
+    ya, yb = a["y"] + NOZZLE + off, b["y"] + NOZZLE + off
+    pts: list[list[float]]
+    if a["plate"] == b["plate"]:
+        if az == bz and abs((bx - ax) - CELL_X) < 0.01:  # next in line: straight across
+            pts = [[ax, ya, az], [bx, yb, bz]]
+        else:  # out to the gap beside its row, along it to the gap before b's column, across, and in
+            gz = az + CELL_Z / 2 - off
+            gx = bx - CELL_X / 2 + off if bx >= ax else bx + CELL_X / 2 - off
+            pts = [[ax, ya, az], [ax, ya, gz], [gx, ya, gz], [gx, yb, bz], [bx, yb, bz]]
+    else:
+        pa, pb = plates[a["plate"]], plates[b["plate"]]
+        sea = "lattice" in (pa["frame"], pb["frame"])
+        low = (SUBSEA if sea else BURIED) + off
+
+        def edge(p: dict, x: float, z: float, tx: float, tz: float) -> list[float]:
+            cx, cz = p["x"] + p["w"] / 2, p["z"] + p["d"] / 2
+            if abs(tx - cx) * p["d"] >= abs(tz - cz) * p["w"]:  # leave by the east or west side
+                return [p["x"] + p["w"] if tx > cx else p["x"], 0.0, z]
+            return [x, 0.0, p["z"] + p["d"] if tz > cz else p["z"]]
+
+        ea = edge(pa, ax, az, pb["x"] + pb["w"] / 2, pb["z"] + pb["d"] / 2)
+        eb = edge(pb, bx, bz, pa["x"] + pa["w"] / 2, pa["z"] + pa["d"] / 2)
+        pts = [[ax, ya, az], [ea[0], ya, ea[2]], [ea[0], low, ea[2]], [eb[0], low, ea[2]],
+               [eb[0], low, eb[2]], [eb[0], yb, eb[2]], [bx, yb, bz]]
     return [p for i, p in enumerate(pts) if i == 0 or p != pts[i - 1]]
 
 
@@ -473,9 +490,9 @@ def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None,
         it["x"] = p["x"] + MARGIN + CELL_X / 4 + c * CELL_X
         it["z"] = p["z"] + MARGIN + CELL_Z / 4 + lane * CELL_Z
         it["y"] = p["y"]
-    lift = {r: 0.5 * i for i, r in enumerate(rels)}
+    lane = {r: i for i, r in enumerate(rels)}
     links = [{"id": e["id"], "src": e["src"], "dst": e["dst"], "rel": e["rel"], "product": e["product"],
-              "path": _route(items[e["src"]], items[e["dst"]], lift[e["rel"]])} for e in edges]
+              "path": _route(items[e["src"]], items[e["dst"]], lane[e["rel"]], at_plate)} for e in edges]
     used = sorted({it["shape"] for it in items.values()})
     out_focus = focus if focus in items else None
     return {
