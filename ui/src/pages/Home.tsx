@@ -1,3 +1,4 @@
+import { AttentionCard } from "./HomeAttention";
 import { useState } from "react";
 import { api, type Stats, type Upset } from "../api";
 import { caseHref } from "./workflows/shared";
@@ -34,6 +35,7 @@ export function HomePage({ query, stats }: {
             : <p>Ask an administrator to load the demonstration records.</p>}
         </UICard>
       )}
+      {stats && stats.records > 0 && <AttentionCard />}
       {stats && stats.records > 0 && <div className="home-charts">
         {HOME_FIGURES.map(({ kind, title }) => <UICard key={kind} title={title} className="home-card"><LiveFigure kind={kind} /></UICard>)}
       </div>}

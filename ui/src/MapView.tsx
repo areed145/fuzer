@@ -3,7 +3,7 @@ import { useTheme } from "./theme";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { GeoCollection, GeoFeature } from "./api";
+import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
 import { entityHref } from "./lib";
 import { Button, FullscreenButton, Select, useFullscreen } from "./ui";
@@ -96,12 +96,35 @@ function popup(f: GeoFeature): HTMLElement {
   return div;
 }
 
-/** Leaflet map of GeoJSON features with a legend that shows and hides each layer. */
-export function MapView({ data, focus, height = "70vh", basemap = true }: {
+/** A hotspot: a place with open work, drawn by its highest band, how much is open and whether any is overdue. */
+function hotspotIcon(p: AttentionPlace, selected: boolean, labelled: boolean): L.DivIcon {
+  const size = Math.round(Math.min(46, 26 + 4 * Math.sqrt(p.open)));
+  const html = `<span class="hotspot-dot" style="width:${size}px;height:${size}px">${p.open}</span>`
+    + (p.overdue ? `<span class="hotspot-late" aria-hidden="true"><svg viewBox="-8 -8 16 16"><path d="M0,-4 L0,0 L3,2"/></svg></span>` : "")
+    + (labelled ? `<span class="hotspot-label">${esc(p.name ?? p.label)}</span>` : "");
+  return L.divIcon({ className: `hotspot hotspot-${p.band}${selected ? " selected" : ""}`, html,
+                     iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+}
+
+const crewIcon = (who: string) => L.divIcon({
+  className: "hotspot-crew", html: `<span>${esc(who.replace(/^role:/, "").slice(0, 1).toUpperCase())}</span>`,
+  iconSize: [22, 20], iconAnchor: [11, 30],
+});
+
+/** Leaflet map of GeoJSON features with a legend that shows and hides each layer. With `hotspots` (Home), the
+ * network is drawn faintly under the places that need attention, and `compact` leaves out the layer and basemap
+ * controls. */
+export function MapView({ data, focus, height = "70vh", basemap = true, hotspots, selected, onSelect, crews = true,
+                          compact = false }: {
   data: GeoCollection;
   focus?: string | null;
   height?: string;
   basemap?: boolean;
+  hotspots?: AttentionPlace[];
+  selected?: string | null;
+  onSelect?: (id: string) => void;
+  crews?: boolean;
+  compact?: boolean;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const full = useFullscreen();
@@ -109,6 +132,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   const tiles = useRef<L.TileLayer | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
   const location = useRef<L.LayerGroup | null>(null);
+  const spots = useRef<L.LayerGroup | null>(null);
+  const fitted = useRef(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [basemapName, setBasemapName] = useState<Basemap>(basemap ? "osm" : "none");
   const [mapMessage, setMapMessage] = useState("");
@@ -132,12 +157,14 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     map.current = L.map(el.current, { preferCanvas: true, zoomSnap: 0.5 });
     layer.current = L.layerGroup().addTo(map.current);
     location.current = L.layerGroup().addTo(map.current);
+    spots.current = L.layerGroup().addTo(map.current);
     return () => {
       map.current?.remove();
       map.current = null;
       tiles.current = null;
       layer.current = null;
       location.current = null;
+      spots.current = null;
     };
   }, []);
 
@@ -215,18 +242,19 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     const points = shown.filter((f) => f.geometry.type === "Point");
     // A tap on a phone opens the popup; a hover label there would stick beside it, saying the same thing twice.
     const hover = matchMedia("(hover: hover)").matches;
+    const faint = hotspots !== undefined;  // under hotspots the network is context, not the subject
     for (const f of lines) {
       const s = serviceOf(f);
       const isFocus = f.id === focus;
       const abandoned = f.properties.status === "abandoned";
       const weight = Math.max(2, Math.min(6, Number(f.properties.diameter_in ?? 6) / 3)) + (isFocus ? 3 : 0);
-      L.geoJSON(f as GeoJSON.Feature, { style: { color: colors.outline, weight: weight + 3, opacity: 0.9 } }).addTo(g);
+      if (!faint) L.geoJSON(f as GeoJSON.Feature, { style: { color: colors.outline, weight: weight + 3, opacity: 0.9 } }).addTo(g);
       const line = L.geoJSON(f as GeoJSON.Feature, {
         style: {
           color: abandoned ? colors.abandoned : (s ? serviceColors[s.key] : other),
           weight,
           dashArray: abandoned ? "2 8" : s?.dash,
-          opacity: 0.95,
+          opacity: faint ? 0.5 : 0.95,
         },
       })
         .bindPopup(() => popup(f))
@@ -237,26 +265,68 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
       const [lon, lat] = f.geometry.coordinates as number[];
       const kind = String(f.properties.kind);
       const isFocus = f.id === focus;
-      const r = (POINTS.find((p) => p.key === kind)?.radius ?? 5) + (isFocus ? 4 : 0);
+      const r = ((POINTS.find((p) => p.key === kind)?.radius ?? 5) + (isFocus ? 4 : 0)) * (faint ? 0.6 : 1);
       const marker = L.circleMarker([lat, lon], {
         radius: r,
         color: colors.outline,
         weight: kind === "well" ? 1 : 2,
         fillColor: isFocus ? colors.focus : kindColor(kind),
-        fillOpacity: 1,
+        fillOpacity: faint ? 0.6 : 1,
       })
         .bindPopup(() => popup(f))
         .addTo(g);
       if (hover) marker.bindTooltip(tip(f));
     }
-    if (shown.length) {
+    if (shown.length && !(hotspots?.length)) {
       // Fit to the wells and platforms where the work is, not the export lines running off to a terminal (#398);
       // lines count only when no points are shown.
       const fit = points.length ? points : shown;
       const bounds = L.geoJSON({ type: "FeatureCollection", features: fit } as GeoJSON.FeatureCollection).getBounds();
       if (bounds.isValid()) m.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
     }
-  }, [data, hidden, focus, themeVersion]);
+  }, [data, hidden, focus, themeVersion, hotspots === undefined]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const m = map.current;
+    const g = spots.current;
+    if (!m || !g || !hotspots) return;
+    g.clearLayers();
+    // Least urgent first, so the most urgent sit on top where markers overlap. The chosen place is named on the map;
+    // the rest name themselves on hover, with every name in the list beside the map.
+    const narrow = matchMedia("(max-width: 600px)").matches;  // a phone names only the chosen place
+    const rank = { high: 0, medium: 1, low: 2 };
+    for (const p of [...hotspots].sort((a, b) => rank[b.band] - rank[a.band])) {
+      const marker = L.marker([p.lat, p.lon], {
+        icon: hotspotIcon(p, p.id === selected, p.id === selected || (!narrow && hotspots.length <= 3)),
+        title: `${p.name ?? p.label}: ${p.open} open${p.overdue ? `, ${p.overdue} overdue` : ""}`,
+        alt: p.name ?? p.label, riseOnHover: true, zIndexOffset: p.id === selected ? 1000 : 0,
+      }).on("click", () => onSelect?.(p.id)).addTo(g);
+      if (p.id !== selected) marker.bindTooltip(esc(p.name ?? p.label), { direction: "right", offset: [14, 0] });
+      marker.on("keypress", (e: L.LeafletKeyboardEvent) => {
+        if (e.originalEvent.key === "Enter" || e.originalEvent.key === " ") onSelect?.(p.id);
+      });
+      if (crews) {
+        for (const c of p.crews.filter((x) => x.status === "on site" || x.status === "planned").slice(0, 1)) {
+          L.marker([p.lat, p.lon], { icon: crewIcon(c.who ?? "?"), interactive: false, keyboard: false,
+                                     title: `${c.who} ${c.status}` }).addTo(g);
+        }
+      }
+    }
+    if (!fitted.current) {
+      // Fit to where the work is the first time; afterwards a person's pan and zoom stay put.
+      const pts = hotspots.map((p) => L.latLng(p.lat, p.lon));
+      if (pts.length) {
+        fitted.current = true;
+        m.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 13 });
+      }
+    }
+  }, [hotspots, selected, crews, themeVersion]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {  // a place picked in the list comes into view
+    const p = hotspots?.find((x) => x.id === selected);
+    const m = map.current;
+    if (p && m && !m.getBounds().pad(-0.1).contains([p.lat, p.lon])) m.panTo([p.lat, p.lon]);
+  }, [selected]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (k: string) =>
     setHidden((h) => {
@@ -273,8 +343,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   ].filter((e) => counts[e.key]);
 
   return (
-    <div className="mapview">
-      <div className="map-legend" aria-label="Show or hide map layers">
+    <div className={`mapview${compact ? " mapview-compact" : ""}`}>
+      {!compact && <div className="map-legend" aria-label="Show or hide map layers">
         {entries.map((e) => (
           <Button key={e.key} className={`chip ${hidden.has(e.key) ? "off" : ""}`} aria-pressed={!hidden.has(e.key)}
                   onClick={() => toggle(e.key)}>
@@ -288,10 +358,10 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
             {e.label} <span className="muted">{counts[e.key]}</span>
           </Button>
         ))}
-      </div>
+      </div>}
       <div ref={full.ref} className={`map-frame${full.on ? " map-fullscreen ui-fullscreen" : ""}`}>
         <div className="map-controls">
-          <label className="small muted">
+          {!compact && <label className="small muted">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path d="m12 3 9 5-9 5-9-5 9-5Z" />
               <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
@@ -307,18 +377,18 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
               <option value="satellite">{BASEMAPS.satellite.label}</option>
               <option value="none">None</option>
             </Select>
-          </label>
-          <Button size="sm" className="map-control-button" onClick={locate} aria-label="Find my location" title="Find my location">
+          </label>}
+          {!compact && <Button size="sm" className="map-control-button" onClick={locate} aria-label="Find my location" title="Find my location">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <circle cx="12" cy="12" r="7" />
               <path d="M12 2v3m0 14v3M2 12h3m14 0h3" />
               <circle cx="12" cy="12" r="1.5" fill="currentColor" />
             </svg>
-          </Button>
+          </Button>}
           <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="map-control-button" />
         </div>
         {mapMessage && <div className="map-message" role="status">{mapMessage}</div>}
-        {baseError && basemapName !== "none" && <div className="map-message" role="status">
+        {baseError && basemapName !== "none" && !compact && <div className="map-message" role="status">
           Base map unavailable: its tiles could not load, so features are drawn on a plain background.</div>}
         <div ref={el} className={`map${basemapName === "none" ? "" : ` map-basemap-${basemapName}`}`} style={{ height }} />
       </div>

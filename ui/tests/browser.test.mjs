@@ -37,6 +37,8 @@ beforeEach(async () => {
     "/demo/config": { enabled: true },
     "/assistant/agents": { agents: [], unavailable: [] },
     "/work/items": { items: [], total: 0, overdue: 0, due_soon: 0 },
+    "/attention": { places: [], open: 0, unplaced: 0, data_work: 0, truncated: false },
+    "/map": { type: "FeatureCollection", features: [], truncated: false },
     "/board": { cards: [], total: 0, page: 1, per_page: 50 },
     "/incidents": { items: [], total: 0 },
     "/related": { subjects: [], incidents: [], studies: [], lessons: [] },
@@ -2818,6 +2820,47 @@ test("Home leads with the facility search, labels times and links each item to i
     await page.getByText("Detected from 2025-12-22T03:00 (timezone not supplied)", { exact: false }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await waveScreenshot(`home-populated-${width}`);
+  }
+});
+
+test("Home's map gathers open work at places, most urgent first, and each place opens its own work", async () => {
+  const item = (id, title, band, extra = {}) => ({ id, title, type: "upset", label: "Process upset", source: "sre",
+    priority: band === "high" ? 0.9 : 0.6, band, value_usd: null, assignee: null, role: null, item_id: null, due: null,
+    overdue: false, first_seen: "2026-11-01T00:00:00Z", crew: null, ...extra });
+  const place = (id, name, lon, band, items, extra = {}) => ({ id, places: [id], label: id.toUpperCase(), name, kind: "area",
+    lon, lat: 5.4, band, open: items.length, counts: { high: items.filter((i) => i.band === "high").length,
+    medium: items.filter((i) => i.band === "medium").length, low: 0 }, overdue: items.filter((i) => i.overdue).length,
+    unassigned: items.filter((i) => !i.assignee).length, top: items, exceptions: items.map((i) => i.id), crews: [], ...extra });
+  const jacket = place("fz-j7", "Jacket 07", 4.94, "high", [
+    item(1, "W-73 shut in, lift gas short", "high", { overdue: true, assignee: "fred", item_id: 11 }),
+    item(2, "Wellhead seepage", "medium")]);
+  const sat = place("fz-s2", "Satellite 2", 4.99, "medium", [item(3, "Dump valve passing", "medium")],
+    { crews: [{ who: "instrument crew", status: "planned", at: null }] });
+  await homeFixture({ ...homePopulated,
+    "/attention": { places: [jacket, sat], open: 3, unplaced: 1, data_work: 4, truncated: false },
+    "/map": { type: "FeatureCollection", truncated: false, features: [
+      { type: "Feature", id: "fz-j7", geometry: { type: "Point", coordinates: [4.94, 5.4] }, properties: { id: "fz-j7", kind: "area", label: "J7" } },
+      { type: "Feature", id: "fz-s2", geometry: { type: "Point", coordinates: [4.99, 5.4] }, properties: { id: "fz-s2", kind: "area", label: "S2" } }] } });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${url}/#/`);
+    await page.reload();  // the same URL again would keep the last width's filter
+    const card = page.locator(".attention-card");
+    await card.getByText("3 open across 2 places · 1 not located").waitFor();
+    // One marker per place, and the list beside it in the same order: most urgent first.
+    await card.locator(".hotspot").nth(1).waitFor();
+    assert.deepEqual(await card.locator(".attention-list strong").allTextContents(), ["Jacket 07", "Satellite 2"]);
+    await card.getByText("instrument crew planned").waitFor();
+    await card.locator('.hotspot[title^="Satellite 2"]').click();  // a marker picks its place, as its row does
+    await page.getByRole("region", { name: "Satellite 2" }).waitFor();
+    await card.locator(".attention-row", { hasText: "Jacket 07" }).click();
+    const detail = page.getByRole("region", { name: "Jacket 07" });
+    assert.equal(await detail.getByRole("link", { name: "W-73 shut in, lift gas short" }).getAttribute("href"), "#/cases/11");
+    assert.equal(await detail.getByRole("link", { name: "Open 2 in All work" }).getAttribute("href"), "#/exceptions?list=open&at=fz-j7");
+    await card.getByRole("button", { name: "Overdue", exact: true }).click();
+    assert.deepEqual(await card.locator(".attention-list strong").allTextContents(), ["Jacket 07"]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await waveScreenshot(`home-attention-${width}`);
   }
 });
 

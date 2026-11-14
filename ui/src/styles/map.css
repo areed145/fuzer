@@ -41,3 +41,25 @@ h2 select { font: inherit; font-size: 15px; }
   .map-controls label { flex: 1; justify-content: space-between; }
   .map-controls select { min-width: 0; }
 }
+
+/* Hotspots (Home): colour is the highest band, the number how much is open, a clock badge something overdue. */
+.hotspot { background: none; border: 0; }
+.hotspot-dot { display: grid; place-items: center; border-radius: 50%; border: 2.5px solid var(--panel); color: #fff;
+  font-weight: 700; font-size: 13px; box-shadow: 0 1px 4px rgb(0 0 0 / .35); cursor: pointer; box-sizing: border-box; }
+.hotspot-high .hotspot-dot { background: var(--danger); box-shadow: 0 0 0 7px color-mix(in srgb, var(--danger) 22%, transparent),
+  0 0 0 15px color-mix(in srgb, var(--danger) 10%, transparent); }
+.hotspot-medium .hotspot-dot { background: var(--warn); }
+.hotspot-low .hotspot-dot { background: var(--muted); }
+.hotspot.selected .hotspot-dot { border-color: var(--text); border-width: 3.5px; }
+.hotspot:focus-visible { outline: none; }
+.hotspot:focus-visible .hotspot-dot { outline: 3px solid var(--accent); outline-offset: 3px; }
+.hotspot-late { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 17px; height: 17px;
+  border-radius: 50%; background: var(--panel); border: 1.6px solid var(--danger); box-sizing: border-box; color: var(--danger); }
+.hotspot-late svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.hotspot-label { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); white-space: nowrap;
+  font-weight: 600; font-size: 12px; color: var(--text); pointer-events: none;
+  text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel), 0 0 3px var(--panel); }
+.hotspot-crew { background: none; border: 0; }
+.hotspot-crew span { display: grid; place-items: end center; width: 22px; height: 20px; padding-bottom: 1px; box-sizing: border-box;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%); background: var(--accent); color: var(--accent-text); font: 700 9px/1 inherit; }
+.mapview-compact .map-controls { left: auto; right: 10px; }

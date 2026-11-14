@@ -695,6 +695,21 @@ export interface ExceptionRow {
   joined?: JoinedException[];
 }
 
+/** Where attention is needed (Home's map): open exceptions gathered at the located places they are about. */
+export type AttentionBand = "high" | "medium" | "low";
+export interface AttentionCrew { who: string | null; status: "on site" | "planned"; at: string | null }
+export interface AttentionItem {
+  id: number; title: string; type: string; label: string; source: string | null; priority: number | null;
+  band: AttentionBand; value_usd: number | null; assignee: string | null; role: string | null; item_id: number | null;
+  due: string | null; overdue: boolean; first_seen: string; crew: AttentionCrew | null;
+}
+export interface AttentionPlace {
+  id: string; places: string[]; label: string; name: string | null; kind: string; lon: number; lat: number; band: AttentionBand;
+  open: number; counts: Record<AttentionBand, number>; overdue: number; unassigned: number;
+  top: AttentionItem[]; exceptions: number[]; crews: AttentionCrew[];
+}
+export interface Attention { places: AttentionPlace[]; open: number; unplaced: number; data_work: number; truncated: boolean }
+
 /** An exception that joined another's case: the same event reported by another source. */
 export interface JoinedException {
   id: number; type: string; key: string; title: string; source: string | null; state: string;
@@ -848,8 +863,9 @@ export const workApi = {
     request<NotifyPreference>("PUT", `/work/people/${encodeURIComponent(person)}/notify`, undefined, { ...p, by }),
   markNotificationsRead: (person: string, ids?: number[]) =>
     request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
-  exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string; closed_since?: string } = {}) =>
+  exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string; closed_since?: string; at?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
+  attention: () => request<Attention>("GET", "/attention"),
   exceptionsSuppressed: () => request<SuppressedView>("GET", "/exceptions/suppressed"),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),
   handover: (id: number) => request<Handover>("GET", `/handovers/${id}`),
