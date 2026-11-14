@@ -1,0 +1,211 @@
+/* iOS look and feel (prototype, see ios.ts). Everything here sits under :root.ios, which only an iPhone or iPad
+   (or ?ios=1) turns on, so desktop and Android are untouched. Colours are Apple's system colours; the tint stays
+   Fuzer's teal. */
+:root.ios {
+  --bg: #f2f2f7;               /* systemGroupedBackground */
+  --panel: #ffffff;            /* secondarySystemGroupedBackground */
+  --text: #000000;
+  --muted: rgb(60 60 67 / .6); /* secondaryLabel */
+  --line: rgb(60 60 67 / .18); /* separator */
+  --fill: rgb(118 118 128 / .12);
+  --ok: #248a3d; --warn: #c93400; --danger: #d70015;
+  --bar: rgb(249 249 249 / .78);
+  --radius: 12px;
+  --shadow: none;
+  --hair: .5px;
+}
+:root.ios[data-theme="dark"] {
+  --bg: #000000;
+  --panel: #1c1c1e;
+  --text: #ffffff;
+  --muted: rgb(235 235 245 / .6);
+  --line: rgb(84 84 88 / .55);
+  --fill: rgb(118 118 128 / .24);
+  --ok: #30d158; --warn: #ff9f0a; --danger: #ff453a;
+  --bar: rgb(22 22 24 / .72);
+}
+:root.ios body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
+  font-size: 15px; letter-spacing: -.01em; -webkit-tap-highlight-color: transparent;
+}
+:root.ios :is(h1, h2, h3) { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Display", Inter, system-ui, sans-serif; }
+
+@media (max-width: 900px) {
+  /* ---- Top bar: translucent, Back as a tinted chevron, the page title folds in once the large title scrolls away ---- */
+  :root.ios .topbar {
+    position: sticky; min-height: 44px; padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 4px;
+    background: var(--bg); border-bottom: var(--hair) solid transparent;
+    transition: background-color .2s, border-color .2s;
+  }
+  :root.ios.ios-scrolled .topbar {
+    background: var(--bar); border-bottom-color: var(--line);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  }
+  :root.ios .topbar .back-button { border: 0; background: none; color: var(--accent); font-size: 17px; padding-left: 0; gap: 0; }
+  :root.ios .topbar .back-button svg { width: 26px; height: 26px; stroke-width: 2.4; }
+  :root.ios .topbar:has(.back-button) .brand { display: none; }
+  :root.ios .topbar .brand .logo { height: 24px; }
+  :root.ios .topbar-title {
+    position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 4px); max-width: 58%;
+    height: 44px; line-height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 17px; font-weight: 600; opacity: 0; transition: opacity .18s, transform .18s; pointer-events: none;
+  }
+  :root.ios.ios-folded .topbar-title { opacity: 1; transform: translate(-50%, 0); }
+  :root.ios.ios-folded .topbar .brand { opacity: 0; }
+  :root.ios .topbar .refresh-button { display: none !important; }  /* pull to refresh replaces it */
+  :root.ios .topbar .share-button { border: 0; background: none; color: var(--accent); }
+
+  /* ---- Large titles ---- */
+  :root.ios main { padding: 4px 16px 16px; }
+  :root.ios main h1, :root.ios .ui-page-header h1 { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: .01em; margin: 0; }
+  :root.ios .entity-head .ui-page-header h1.mono, :root.ios .ui-page-header.mono h1 { font-size: 30px; }
+  :root.ios .ui-page-header { margin-bottom: 12px; gap: 6px; }
+  :root.ios .ui-page-subtitle, :root.ios .ui-page-header p { font-size: 15px; }
+  :root.ios .crumbs { display: none; }  /* Back and the folded title say where you are */
+
+  /* ---- Bottom tab bar: translucent, tinted icon for the current tab ---- */
+  :root.ios .bottombar {
+    background: var(--bar); border-top: var(--hair) solid var(--line);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  }
+  :root.ios .bottombar > a, :root.ios .bottombar > .menu-button { min-height: 50px; padding-top: 6px; justify-content: flex-start; font-size: 10px; color: rgb(153 153 153); }
+  :root.ios .bottombar > a.on { color: var(--accent); box-shadow: none; }
+  :root.ios .bottombar .tab-icon svg { width: 25px; height: 25px; stroke-width: 1.7; }
+  :root.ios .bottombar > a.on .tab-icon svg { stroke-width: 2.1; }
+  :root.ios .bottombar .tab-icon .count { background: #ff3b30; color: #fff; top: -4px; left: 16px; }
+
+  /* ---- Segmented controls: area navigation and record views ---- */
+  :root.ios .area-navigation, :root.ios .tabs, :root.ios .work-board-stages, :root.ios .attention-bar .chips {
+    display: flex; gap: 2px; margin: 4px 0 16px; padding: 2px; border: 0; border-radius: 9px; background: var(--fill);
+    overflow-x: auto; scrollbar-width: none; width: 100%; max-width: 100%;
+  }
+  :root.ios .tabs > *, :root.ios .area-navigation a, :root.ios .work-board-stages .chip, :root.ios .attention-bar .chip {
+    flex: 1 0 auto; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 0 12px; margin: 0; border: 0; border-radius: 7px; background: none; color: var(--text);
+    font-size: 13px; font-weight: 500; white-space: nowrap;
+  }
+  :root.ios .tabs > * + * { border-left: 0; }
+  :root.ios .tabs > .on, :root.ios .area-navigation a[aria-current="page"], :root.ios .work-board-stages .chip.on, :root.ios .attention-bar .chip.on {
+    background: var(--panel); font-weight: 600; box-shadow: 0 3px 8px rgb(0 0 0 / .12), 0 3px 1px rgb(0 0 0 / .04);
+    border: 0;
+  }
+  :root.ios[data-theme="dark"] .tabs > .on, :root.ios[data-theme="dark"] .area-navigation a[aria-current="page"],
+  :root.ios[data-theme="dark"] .work-board-stages .chip.on, :root.ios[data-theme="dark"] .attention-bar .chip.on { background: #636366; }
+  :root.ios .attention-bar .chips { flex-wrap: nowrap; margin: 0 0 10px; }
+  :root.ios .attention-bar .chip { padding: 0 8px; min-height: 30px; }
+  :root.ios .attention-bar { gap: 0; }
+  :root.ios .area-navigation { margin-inline: 0; padding-inline: 2px; }
+
+  /* ---- Inset grouped cards ---- */
+  :root.ios .ui-card { border: 0; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; box-shadow: none; }
+  :root.ios .ui-card h2 { border-left: 0; padding-left: 0; font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: uppercase; color: var(--muted); }
+  :root.ios .ui-card-header { margin-bottom: 8px; }
+  :root.ios .entity-status { border: 0; border-radius: var(--radius); padding: 12px 16px; }
+  :root.ios .ui-stat { border: 0; border-radius: var(--radius); }
+
+  /* ---- Controls: 44-point targets, tinted buttons, search field, menus ---- */
+  :root.ios .ui-button { min-height: 44px; border-radius: 10px; border: 0; font-size: 15px; font-weight: 600; padding: 0 16px; }
+  :root.ios .ui-button-sm { min-height: 34px; font-size: 14px; padding: 0 14px; border-radius: 8px; }
+  :root.ios .ui-button-secondary { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  :root.ios .ui-button-ghost, :root.ios .ui-button-link { background: none; color: var(--accent); }
+  :root.ios .ui-button:active { opacity: .55; }
+  :root.ios input:not([type=checkbox]):not([type=radio]):not([type=range]), :root.ios select {
+    min-height: 36px; border: 0; border-radius: 10px; background-color: var(--fill); color: var(--text); font-size: 17px; padding: 6px 12px;
+  }
+  :root.ios .home-search { gap: 0; }
+  :root.ios .home-search input, :root.ios input[type=search], :root.ios input[placeholder^="Search"] {
+    padding-left: 34px !important; background-repeat: no-repeat; background-position: 10px 50%; background-size: 17px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='m20 20-4.8-4.8'/%3E%3C/svg%3E");
+  }
+  :root.ios .home-search button[type=submit] { display: none; }  /* the keyboard's Search key submits */
+  :root.ios .home-search input { width: 100%; flex: 1; }
+  :root.ios .asof { color: var(--muted); }
+  :root.ios .bottombar > .menu-button { background: none; }
+  /* Filters: the search field across the top, then each filter as a compact capsule menu. */
+  :root.ios .work-filters { gap: 8px; margin-bottom: 12px; }
+  :root.ios .work-filters > input[type=search] { order: -1; flex: 1 1 100%; }
+  :root.ios .work-filters select, :root.ios .work-board-controls select {
+    width: auto; min-height: 32px; padding: 4px 30px 4px 14px; border-radius: 16px; font-size: 15px; font-weight: 500;
+    color: var(--accent); background-color: color-mix(in srgb, var(--accent) 12%, transparent); appearance: none; -webkit-appearance: none;
+    background-repeat: no-repeat; background-position: right 10px center; background-size: 11px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%230b7f8c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E");
+  }
+  :root.ios .work-board-controls .ui-field { flex-direction: row; align-items: center; gap: 8px; width: auto; }
+  :root.ios .work-board-controls .ui-field > span { font-size: 15px; }
+  /* Switches for on/off settings, the iOS way. */
+  :root.ios input[type=checkbox]:not(.ui-table-select-cell input) {
+    appearance: none; -webkit-appearance: none; width: 51px; height: 31px; flex: none; border-radius: 16px; margin: 0;
+    background: rgb(120 120 128 / .16); position: relative; transition: background-color .2s; vertical-align: middle;
+  }
+  :root.ios input[type=checkbox]::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff;
+    box-shadow: 0 3px 8px rgb(0 0 0 / .15), 0 3px 1px rgb(0 0 0 / .06); transition: transform .2s;
+  }
+  :root.ios input[type=checkbox]:checked { background: #34c759; }
+  :root.ios input[type=checkbox]:checked::after { transform: translateX(20px); }
+
+  /* ---- Lists with chevrons: the board's stage list ---- */
+  :root.ios .work-board-column { padding: 0; border: 0; background: none; }
+  :root.ios .work-board-column > h2 { padding: 0 16px 6px; font-size: 13px; font-weight: 400; text-transform: uppercase; color: var(--muted); }
+  :root.ios .work-board-column > p { padding: 0 16px; margin: 0 0 8px; }
+  :root.ios .work-board-column > div, :root.ios .work-board-column { overflow-x: clip; }
+  :root.ios .work-card {
+    position: relative; margin: 0; padding: 11px 36px 11px 16px; border: 0; border-radius: 0; background: var(--panel);
+    gap: 2px; transition: transform .25s cubic-bezier(.2,.8,.2,1);
+  }
+  :root.ios .work-card + .work-card::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: var(--hair) solid var(--line); }
+  :root.ios .work-board-column .work-card:first-of-type { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+  :root.ios .work-board-column .work-card:last-of-type { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+  :root.ios .work-card.attention { box-shadow: inset 3px 0 0 var(--warn); }
+  :root.ios .work-card::after {
+    content: ""; position: absolute; right: 16px; top: 50%; width: 8px; height: 8px; margin-top: -4px;
+    border-right: 2px solid rgb(60 60 67 / .3); border-top: 2px solid rgb(60 60 67 / .3); transform: rotate(45deg);
+  }
+  :root.ios[data-theme="dark"] .work-card::after { border-color: rgb(235 235 245 / .3); }
+  :root.ios .work-card-title { font-size: 17px; font-weight: 400; line-height: 22px; }
+  :root.ios .work-card .small { font-size: 13px; }
+  /* Swipe left for actions: they wait off the card's right edge and slide in with it. */
+  :root.ios .work-card-actions {
+    position: absolute; top: 0; bottom: 0; left: 100%; margin: 0; gap: 0; flex-wrap: nowrap; align-items: stretch;
+  }
+  :root.ios .work-card-actions .ui-button { min-height: 0; height: 100%; border-radius: 0; padding: 0 18px; font-size: 15px; }
+  :root.ios .work-card-actions .ui-button-primary { background: var(--accent); color: #fff; }
+  :root.ios .work-card-actions .ui-button-secondary { background: #ff9500; color: #fff; }
+  :root.ios .work-card.swiped { transform: translateX(-104px); }
+
+  /* ---- Sheets: the chosen place on Home's map rises as an iOS sheet with a grab handle ---- */
+  :root.ios .attention-detail {
+    border-radius: 14px 14px 0 0; border: 0; background: var(--panel);
+    box-shadow: 0 -1px 0 var(--line), 0 -10px 40px rgb(0 0 0 / .18);
+  }
+  :root.ios .attention-detail-head { background: var(--panel); }
+  :root.ios .attention-grab { width: 36px; height: 5px; border-radius: 3px; background: rgb(127 127 127 / .4); margin: 2px 0 8px; }
+  :root.ios .attention-detail .attention-close.ui-button { width: 30px; height: 30px; min-width: 30px; min-height: 30px; padding: 0; border-radius: 50%; background: var(--fill); color: var(--muted); font-size: 13px; }
+  :root.ios .ios-scrim-sheet { background: rgb(0 0 0 / .2); }
+
+  /* ---- Pull to refresh ---- */
+  :root.ios .ios-pull {
+    --pull: 0px; position: fixed; z-index: 1099; left: 50%; top: calc(env(safe-area-inset-top) + 48px);
+    width: 26px; height: 26px; margin-left: -13px; border-radius: 50%;
+    border: 2.5px solid var(--line); border-top-color: var(--muted);
+    opacity: min(1, calc(var(--pull) / 80px)); transform: translateY(calc(var(--pull) / 3)) rotate(calc(var(--pull) * 3deg));
+    pointer-events: none;
+  }
+  :root.ios .ios-pull.spinning { animation: ios-spin .7s linear infinite; }
+  @keyframes ios-spin { to { transform: translateY(30px) rotate(360deg); } }
+}
+:root:not(.ios) .ios-pull, :root:not(.ios) .topbar-title { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root.ios .work-card, :root.ios .topbar-title { transition: none; }
+}
+
+@media (max-width: 900px) {
+  :root.ios #main-content .work-filters.row > select.ui-input { flex: 0 1 auto; width: auto; max-width: 48%; }
+  /* Map buttons as frosted rounded squares. */
+  :root.ios .leaflet-bar { border: 0 !important; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgb(0 0 0 / .15);
+    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+  :root.ios .leaflet-bar a { background: var(--bar); color: var(--text); border-bottom-color: var(--line); }
+  :root.ios .ui-fullscreen-button, :root.ios .map-fullscreen { border-radius: 10px; background: var(--bar); color: var(--text);
+    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 2px 10px rgb(0 0 0 / .15); }
+}
