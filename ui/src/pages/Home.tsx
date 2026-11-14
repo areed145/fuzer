@@ -1,5 +1,5 @@
 import { AttentionCard } from "./HomeAttention";
-import { useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { api, type Stats, type Upset } from "../api";
 import { caseHref } from "./workflows/shared";
 import { iocCounts, workHref } from "./AllWork";
@@ -16,6 +16,24 @@ const HOME_FIGURES = [
   { kind: "flow-capacity", title: "System capacity and bottleneck" },
 ];
 
+/** Whose Home this is (#1074): it leads with what that seat acts on first. A field operator gets their work, a
+ * dispatcher (ops lead) the dispatch counts, a manager or engineer production; anyone else the map. Presentation
+ * only: every card stays reachable, and none of this changes what a person may see or do. */
+export type Seat = "dispatcher" | "operator" | "manager" | "default";
+export function seatOf(roles: string[]): Seat {
+  if (roles.includes("ops_lead")) return "dispatcher";
+  if (roles.includes("operator")) return "operator";
+  if (roles.some((r) => r === "production_engineer" || r === "engineer")) return "manager";
+  return "default";
+}
+type Block = "lead" | "attention" | "charts" | "grid";
+const ORDER: Record<Seat, Block[]> = {
+  dispatcher: ["lead", "attention", "grid", "charts"],
+  operator: ["lead", "attention", "grid", "charts"],
+  manager: ["charts", "attention", "grid"],
+  default: ["attention", "charts", "grid"],
+};
+
 export function HomePage({ query, stats }: {
   query: URLSearchParams;
   stats?: Stats;
@@ -23,9 +41,34 @@ export function HomePage({ query, stats }: {
   statsError?: string;
 }) {
   const configure = usePermission("configure");
+  const [person] = usePerson();
+  const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(null), [person]);
+  const roles = inbox.data?.roles ?? [];
+  const seat = seatOf(roles);
   const noRecords = stats?.records === 0;
+  const loaded = !!stats && stats.records > 0;
+  const steward = roles.includes("data_steward") || configure;
+  // The seat's own card leads; the rest of the work cards sit in the grid with reports, incidents and health.
+  const lead = seat === "operator" ? <YourShift key="shift" /> : seat === "dispatcher" ? <AllWorkCard key="all" /> : null;
+  const blocks: Record<Block, ReactNode> = {
+    lead: lead && <div className="home-lead">{lead}</div>,
+    attention: loaded && <AttentionCard />,
+    charts: loaded && <div className="home-charts">
+      {HOME_FIGURES.map(({ kind, title }) => <LiveFigure key={kind} kind={kind} hideEmpty
+        frame={(body) => <UICard title={title} className="home-card">{body}</UICard>} />)}
+    </div>,
+    // With no records loaded, reports, priorities and incidents can only be empty: keep work and health.
+    grid: <div className="home-grid">
+      {seat !== "operator" && <YourShift />}
+      {seat !== "dispatcher" && roles.includes("ops_lead") && <AllWorkCard />}
+      {steward && <MasterDataCard stats={stats} />}
+      {!noRecords && <LatestReportCard />}
+      {!noRecords && <IncidentsCard />}
+      {configure && <HealthCard />}
+    </div>,
+  };
   return (
-    <section className="home">
+    <section className="home" data-seat={seat}>
       <PageHeader>Home</PageHeader>
       <HomeSearch query={query} />
       {noRecords && (
@@ -35,17 +78,7 @@ export function HomePage({ query, stats }: {
             : <p>Ask an administrator to load the demonstration records.</p>}
         </UICard>
       )}
-      {stats && stats.records > 0 && <AttentionCard />}
-      {stats && stats.records > 0 && <div className="home-charts">
-        {HOME_FIGURES.map(({ kind, title }) => <UICard key={kind} title={title} className="home-card"><LiveFigure kind={kind} /></UICard>)}
-      </div>}
-      {/* With no records loaded, reports, priorities and incidents can only be empty: keep work and health. */}
-      <div className="home-grid">
-        <ShiftCards stats={stats} />
-        {!noRecords && <LatestReportCard />}
-        {!noRecords && <IncidentsCard />}
-        {configure && <HealthCard />}
-      </div>
+      {ORDER[seat].map((b) => <Fragment key={b}>{blocks[b]}</Fragment>)}
     </section>
   );
 }
@@ -108,19 +141,8 @@ function LatestReportCard() {
   );
 }
 
-/** Home summarizes and links (#508, #556): counts for the person's roles, each linking to the view that shows the
+/* Home summarizes and links (#508, #556): counts for the person's roles, each linking to the view that shows the
  * same number, and the next few titles. The rows themselves live on My work, All work and Master data. */
-function ShiftCards({ stats }: { stats?: Stats }) {
-  const [person] = usePerson();
-  const configure = usePermission("configure");
-  const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(null), [person]);
-  const roles = inbox.data?.roles ?? [];
-  return <>
-    <YourShift />
-    {roles.includes("ops_lead") && <AllWorkCard />}
-    {(roles.includes("data_steward") || configure) && <MasterDataCard stats={stats} />}
-  </>;
-}
 
 /** One count linking to its view. `children` is "one|many" when the noun changes with the number. */
 function Count({ n, to, children, late }: { n: number; to: string; children: string; late?: boolean }) {

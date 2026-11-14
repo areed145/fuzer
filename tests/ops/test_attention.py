@@ -77,6 +77,15 @@ def test_all_work_filtered_to_a_place_holds_what_its_marker_counts(conn, raised)
         "W-73 shut in, lift gas short", "Wellhead seepage"]
 
 
+def test_all_work_filtered_to_not_located_holds_what_home_counts(conn, raised):
+    from fuzer.ops import exceptions
+
+    rows = exceptions.listing(conn, state="open", limit=1000)
+    unplaced = attention.only_at(conn, rows, attention.UNPLACED)
+    assert [r["title"] for r in unplaced] == ["Something with no place"]
+    assert len(unplaced) == attention.hotspots(conn)["unplaced"]
+
+
 def test_a_cleared_condition_leaves_the_map(conn, raised):
     at_platform = lambda: {p["id"]: p["open"] for p in attention.hotspots(conn)["places"]}.get("fz-plat")
     raise_exception(conn, "trip", "p201-trip", "P-201 tripped", "sre", refs=["tag:P-201"], priority=0.9)

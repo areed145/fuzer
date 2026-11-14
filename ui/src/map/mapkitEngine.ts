@@ -75,6 +75,12 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
   map.addEventListener("deselect", closeUnlessJustOpened);
   map.addEventListener("single-tap", closeUnlessJustOpened);
   map.addEventListener("region-change-start", closeUnlessJustOpened);
+  const zoomNow = () => Math.log2(((el.clientWidth || 600) * 360) / (TILE * Math.max(map.region.span.longitudeDelta, 1e-9)));
+  let lastZoom = NaN;
+  map.addEventListener("region-change-end", () => {  // a pan ends here too: only a change of zoom is news
+    const z = zoomNow();
+    if (!(Math.abs(z - lastZoom) < 0.05)) { lastZoom = z; events.onZoom?.(z); }
+  });
 
   const style = (o: Record<string, unknown>) => new mapkit.Style({ lineCap: "round", lineJoin: "round", ...o });
   const spanForZoom = (zoom: number) => {
@@ -196,6 +202,13 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
         map.setCenterAnimated(coord(at), true);
       }
     },
+    zoom: zoomNow,
+    project(at) {
+      const p = map.convertCoordinateToPointOnPage(coord(at));
+      const r = el.getBoundingClientRect();
+      return { x: p.x - r.left - window.scrollX, y: p.y - r.top - window.scrollY };
+    },
+    setPan(on) { map.isScrollEnabled = on; },
     resize() { /* MapKit follows its element's size by itself */ },
     destroy() {
       unsubscribe();

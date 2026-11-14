@@ -2886,7 +2886,7 @@ test("Home shows each server-built figure in its own card, with its tables on re
   assert.deepEqual(errors, []);
 });
 
-test("A failed home figure recovers by explicit retry and a figure with no plot still shows", async () => {
+test("A failed home figure recovers by explicit retry, and Home leaves out a figure with nothing to plot (#1074)", async () => {
   await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
   await page.route("**/analytics/figures/production-efficiency*", (route) => route.fulfill({ json: efficiency }));
   let fail = true;
@@ -2898,8 +2898,9 @@ test("A failed home figure recovers by explicit retry and a figure with no plot 
   await card.getByText("Capacity unavailable").waitFor();
   fail = false;
   await card.getByRole("button", { name: "Try again" }).click();
-  await card.getByText("No flow network reaches this facility on its latest report day.").waitFor();
-  assert.equal(await card.locator(".js-plotly-plot").count(), 0);
+  await page.locator(".home-charts .home-card").nth(1).waitFor({ state: "detached" });
+  assert.equal(await page.locator(".home-charts .home-card").count(), 1);
+  assert.equal(await page.getByText("No flow network reaches this facility on its latest report day.").count(), 0);
 });
 
 test("A malformed figure is contained to its card", async () => {

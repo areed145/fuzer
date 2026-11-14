@@ -5,7 +5,7 @@ import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
 import { entityHref, href } from "./lib";
 import { Button, FullscreenButton, useFullscreen } from "./ui";
-import { pathsOf, vertices, type BasemapName, type HotspotSpec, type LatLon, type LineSpec, type MapEngine,
+import { clusterOnScreen, pathsOf, vertices, type BasemapName, type HotspotSpec, type LatLon, type LineSpec, type MapEngine,
          type PointSpec } from "./map/engine";
 import { leafletEngine } from "./map/leafletEngine";
 import { mapkitEngine } from "./map/mapkitEngine";
@@ -97,16 +97,31 @@ function popup(f: GeoFeature): HTMLElement {
   return div;
 }
 
+const hotspotSize = (open: number) => Math.round(Math.min(46, 26 + 4 * Math.sqrt(open)));
+const RANK = { high: 0, medium: 1, low: 2 };
+const CLUSTER_UNTIL = 15;  // past this zoom a gathered marker's tap picks its most urgent place instead of zooming in
+
+/** Places whose markers would overlap at this zoom, as one marker (#1074): the most urgent place leads it and names
+ * it, and its counts are the group's. */
+function gathered(group: AttentionPlace[]): AttentionPlace {
+  const [lead, ...rest] = group;
+  if (!rest.length) return lead;
+  const sum = (f: (p: AttentionPlace) => number) => group.reduce((n, p) => n + f(p), 0);
+  return { ...lead, open: sum((p) => p.open), overdue: sum((p) => p.overdue), unassigned: sum((p) => p.unassigned),
+           name: `${lead.name ?? lead.label} and ${rest.length} more`, crews: group.flatMap((p) => p.crews) };
+}
+
 /** A hotspot: a place with open work, drawn by its highest band, how much is open and whether any is overdue. */
 function hotspotSpec(p: AttentionPlace, selected: boolean, labelled: boolean,
-                     crew: { who: string | null; status: string } | undefined, onSelect: () => void): HotspotSpec {
-  const size = Math.round(Math.min(46, 26 + 4 * Math.sqrt(p.open)));
+                     crew: { who: string | null; status: string } | undefined, onSelect: () => void, cluster = false): HotspotSpec {
+  const size = hotspotSize(p.open);
   const name = p.name ?? p.label;
   const html = `<span class="hotspot-dot" style="width:${size}px;height:${size}px">${p.open}</span>`
     + (p.overdue ? `<span class="hotspot-late" aria-hidden="true"><svg viewBox="-8 -8 16 16"><path d="M0,-4 L0,0 L3,2"/></svg></span>` : "")
     + (labelled ? `<span class="hotspot-label">${esc(name)}</span>` : "");
   return {
-    at: [p.lat, p.lon], className: `hotspot hotspot-${p.band}${selected ? " selected" : ""}`, html, size, name, selected,
+    at: [p.lat, p.lon], className: `hotspot hotspot-${p.band}${selected ? " selected" : ""}${cluster ? " hotspot-cluster" : ""}`,
+    html, size, name, selected,
     title: `${name}: ${p.open} open${p.overdue ? `, ${p.overdue} overdue` : ""}`, onSelect,
     crew: crew && { html: `<span>${esc((crew.who ?? "?").replace(/^role:/, "").slice(0, 1).toUpperCase())}</span>`,
                     title: `${crew.who} ${crew.status}` },
@@ -138,6 +153,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   const [library, setLibrary] = useState<"pending" | "mapkit" | "leaflet">(basemap ? "pending" : "leaflet");
   const [engine, setEngine] = useState<MapEngine | null>(null);
   const fitted = useRef(false);
+  const [zoomed, setZoomed] = useState(0);  // counts zoom changes, so overlapping hotspots gather again
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [basemapName, setBasemapName] = useState<Basemap>(basemap ? savedBasemap : "none");
   const [mapMessage, setMapMessage] = useState("");
@@ -166,7 +182,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
 
   useEffect(() => {
     if (!el.current || library === "pending") return;
-    const events = { onBaseError: setBaseError, onFatal: () => setLibrary("leaflet") };
+    const events = { onBaseError: setBaseError, onFatal: () => setLibrary("leaflet"), onZoom: () => setZoomed((n) => n + 1) };
     let made: MapEngine;
     try {
       made = library === "mapkit" && window.mapkit ? mapkitEngine(window.mapkit, el.current, events)
@@ -191,6 +207,12 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   useEffect(() => {
     requestAnimationFrame(() => engine?.resize());
   }, [full.on]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A small map on a touch screen lets a one-finger swipe scroll the page past it (#1074); pinch zooms, and full
+  // screen pans as usual.
+  useEffect(() => {
+    engine?.setPan(full.on || !compact || !matchMedia("(pointer: coarse)").matches);
+  }, [engine, full.on, compact]);
 
   const locate = () => {
     setMapMessage("");
@@ -258,19 +280,29 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   useEffect(() => {
     if (!engine || !hotspots) return;
     // Least urgent first, so the most urgent sit on top where markers overlap. The chosen place is named on the map;
-    // the rest name themselves on hover, with every name in the list beside the map.
-    const narrow = matchMedia("(max-width: 600px)").matches;  // a phone names only the chosen place
-    const rank = { high: 0, medium: 1, low: 2 };
-    engine.drawHotspots([...hotspots].sort((a, b) => rank[b.band] - rank[a.band]).map((p) => hotspotSpec(
-      p, p.id === selected, p.id === selected || (!narrow && hotspots.length <= 3),
-      crews ? p.crews.find((x) => x.status === "on site" || x.status === "planned") : undefined,
-      () => onSelect?.(p.id))));
+    // the rest name themselves on hover, with every name in the list beside the map. Places whose markers would
+    // overlap at this zoom are one marker, which zooms in to part them (#1074); the chosen place always stands alone.
     if (!fitted.current && hotspots.length) {
-      // Fit to where the work is the first time; afterwards a person's pan and zoom stay put.
+      // Fit to where the work is the first time (before gathering, which reads the view); afterwards a person's pan
+      // and zoom stay put.
       fitted.current = true;
       engine.fit(hotspots.map((p) => [p.lat, p.lon]), 48, 13);
     }
-  }, [engine, hotspots, selected, crews, themeVersion]);  // eslint-disable-line react-hooks/exhaustive-deps
+    const narrow = matchMedia("(max-width: 600px)").matches;  // a phone names only the chosen place
+    const urgent = [...hotspots].sort((a, b) => RANK[a.band] - RANK[b.band] || b.overdue - a.overdue || b.open - a.open);
+    const groups = [
+      ...clusterOnScreen(urgent.filter((p) => p.id !== selected), (p) => engine.project([p.lat, p.lon]), (p) => hotspotSize(p.open)),
+      ...urgent.filter((p) => p.id === selected).map((p) => [p]),
+    ];
+    const pick = (group: AttentionPlace[]) => () => {
+      if (group.length > 1 && engine.zoom() < CLUSTER_UNTIL) engine.fit(group.map((p) => [p.lat, p.lon]), 64, CLUSTER_UNTIL + 1);
+      else onSelect?.(group[0].id);
+    };
+    engine.drawHotspots(groups.map((g) => ({ g, p: gathered(g) })).sort((a, b) => RANK[b.p.band] - RANK[a.p.band]).map(({ g, p }) => hotspotSpec(
+      p, p.id === selected, p.id === selected || (!narrow && groups.length <= 3),
+      crews ? p.crews.find((x) => x.status === "on site" || x.status === "planned") : undefined,
+      pick(g), g.length > 1)));
+  }, [engine, hotspots, selected, crews, themeVersion, zoomed]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {  // a place picked in the list comes into view
     const p = hotspots?.find((x) => x.id === selected);
