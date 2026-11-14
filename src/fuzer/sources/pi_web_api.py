@@ -138,20 +138,37 @@ class PiAf(LiveTable):
         db = self.client.af_database()
         prefix = db["Path"] + "\\"
         elements = list(self.client.items(f"assetdatabases/{db['WebId']}/elements", searchFullHierarchy="true"))
-        attrs = self.client.batch([f"{self.client.url}/elements/{e['WebId']}/attributes" for e in elements])
-        for e, a in zip(elements, attrs):
+        attrs = [(a or {}).get("Items", []) for a in
+                 self.client.batch([f"{self.client.url}/elements/{e['WebId']}/attributes" for e in elements])]
+        # An attribute whose ConfigString holds a template's substitution parameters (\\%Server%\%Element%...)
+        # names its point only through Links.Point: read those points' names, one batch for the lot (R.2a).
+        templated = [x for items in attrs for x in items if _templated(x)]
+        named = self.client.batch([x["Links"]["Point"] for x in templated])
+        points = {x["WebId"]: (p or {}).get("Name") for x, p in zip(templated, named)}
+        for e, items in zip(elements, attrs):
             yield {"path": e["Path"].removeprefix(prefix), "template": e.get("TemplateName") or "",
-                   "attributes": [_attribute(x) for x in (a or {}).get("Items", [])]}
+                   "attributes": [_attribute(x, points.get(x.get("WebId"))) for x in items]}
 
     def records(self):
         for el in self.rows():
             yield "pi_af", "element", el["path"], el
 
 
-def _attribute(a: dict) -> dict:
+def _templated(a: dict) -> bool:
+    return (a.get("DataReferencePlugIn") == "PI Point" and "%" in (a.get("ConfigString") or "")
+            and bool((a.get("Links") or {}).get("Point")))
+
+
+def _attribute(a: dict, point: str | None = None) -> dict:
+    """An element attribute: its name, units and, for a PI Point data reference, the point's name. AF writes the
+    ConfigString as \\\\server\\tag;options, and once resolved as \\\\server?id\\tag?id;options (R.2a: the IDs were
+    read as part of the name); a template's substitution parameters are resolved by the caller (`point`)."""
     out = {"name": a["Name"]}
     if a.get("DataReferencePlugIn") == "PI Point" and a.get("ConfigString"):
-        out["pi_point"] = a["ConfigString"].split(";")[0].rsplit("\\", 1)[-1]
+        if point:
+            out["pi_point"] = point
+        elif "%" not in a["ConfigString"]:
+            out["pi_point"] = a["ConfigString"].split(";")[0].rsplit("\\", 1)[-1].split("?")[0]
     return out | {"uom": a.get("DefaultUnitsName") or ""}
 
 

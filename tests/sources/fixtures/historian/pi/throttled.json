@@ -1,0 +1,19 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "A 503 from a busy server or the gateway in front of it, with PI Web API's error body (PIErrors: an Errors list). Written for this fixture.",
+ "request": {
+  "method": "GET",
+  "path": "/piwebapi/dataservers",
+  "params": {}
+ },
+ "status": 503,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "Errors": [
+   "The service is unavailable."
+  ]
+ }
+}

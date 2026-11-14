@@ -1,0 +1,59 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2.",
+ "request": {
+  "method": "GET",
+  "path": "/piwebapi/assetdatabases/F1RDAAAAAAAAAAAAAAAAAAAAAAU0lURS1BRlxTSVRF/elements",
+  "params": {
+   "startIndex": "0",
+   "maxCount": "3",
+   "searchFullHierarchy": "true"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "Links": {},
+  "Items": [
+   {
+    "WebId": "F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001",
+    "Id": "0e1a0000-0000-4000-8000-000000000001",
+    "Name": "Inlet",
+    "Description": "",
+    "Path": "\\\\SITE-AF\\SITE\\Inlet",
+    "TemplateName": "Area",
+    "HasChildren": true,
+    "CategoryNames": [],
+    "ExtendedProperties": {},
+    "Links": {
+     "Self": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001",
+     "Attributes": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/attributes",
+     "Elements": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/elements",
+     "Database": "https://pi.example.com/piwebapi/assetdatabases/F1RDAAAAAAAAAAAAAAAAAAAAAAU0lURS1BRlxTSVRF",
+     "Parent": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001"
+    }
+   },
+   {
+    "WebId": "F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002",
+    "Id": "0e1a0000-0000-4000-8000-000000000002",
+    "Name": "P-101",
+    "Description": "",
+    "Path": "\\\\SITE-AF\\SITE\\Inlet\\P-101",
+    "TemplateName": "Pump",
+    "HasChildren": false,
+    "CategoryNames": [],
+    "ExtendedProperties": {},
+    "Links": {
+     "Self": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002",
+     "Attributes": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/attributes",
+     "Elements": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/elements",
+     "Database": "https://pi.example.com/piwebapi/assetdatabases/F1RDAAAAAAAAAAAAAAAAAAAAAAU0lURS1BRlxTSVRF",
+     "Parent": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001"
+    }
+   }
+  ]
+ }
+}

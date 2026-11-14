@@ -1,0 +1,32 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2.",
+ "request": {
+  "method": "GET",
+  "path": "/piwebapi/dataservers",
+  "params": {}
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "Links": {},
+  "Items": [
+   {
+    "WebId": "F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ",
+    "Id": "9c1f8f0e-0000-4000-8000-000000000001",
+    "Name": "SITE-PI",
+    "Path": "\\\\SITE-PI",
+    "IsConnected": true,
+    "ServerVersion": "3.4.445.688",
+    "Links": {
+     "Self": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ",
+     "Points": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ/points",
+     "EnumerationSets": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ/enumerationsets"
+    }
+   }
+  ]
+ }
+}

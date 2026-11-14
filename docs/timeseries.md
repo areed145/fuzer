@@ -35,6 +35,16 @@ is verbatim, with no network. What they found, each fixed in the connector and i
 | ADX | A 401 has no JSON body, and a 429 means throttled. Both read as a bare status code. | `fuzer sources test` says what failed and what to do, in plain words; Fuzer still never retries on its own. |
 | ADX | Discovering tables sent `.show tables`, a management command, to the query endpoint, which refuses it. | Discovery lists the configured catalog table; the connector sends queries only. The connection test signs in with `print ok = 1`, so a refused token fails at authenticate, not at read. |
 | ADX | A non-finite real comes back as the string `"NaN"`. | Values skip it like an empty bin. |
+| PI Web API | AF writes a resolved PI Point reference as `\\server?id\tag?id;options`. The connector read `tag?id` as the point's name. | The IDs are dropped. |
+| PI Web API | An attribute on a template usually names its point with substitution parameters (`\\%Server%\%Element%.%Attribute%`), which the connector read literally. | Those points are read through the attribute's `Links.Point`, one batch for the lot. |
+| PI Web API | A batch with a failed sub-request answers 207 Multi-Status; the fake answered 200. A refused sub-request (403, no read access) leaves that point's attributes empty, and the point still loads. | The fake answers 207. |
+| PI Web API | Lists carry pagination `Links` (First, Previous, Next, Last); the fake sent none. | The fake sends them. The connector still pages by `startIndex` and stops on a short page. |
+| PI Web API | A 401 carries no JSON body, and a busy server or gateway answers 503 with an `Errors` list. Both read as a bare status. | `fuzer sources test` says what failed and what to do, with the server's `Errors`. |
+
+The ADX responses come from Microsoft's REST reference, including an error recorded on its public help cluster. The
+PI Web API ones follow the object model AVEVA published (the PI Developers Club client generated from the PI Web
+API specification) with synthetic values, since no public PI Web API server can be read: they prove the shapes, not
+a server's behaviour, and are re-recorded from the pilot's own server under PL.2.
 
 Coupled synthetic values: a fake plant can ship a process model
 (`process_model.json`). It lists its units (compressor trains, compressors,

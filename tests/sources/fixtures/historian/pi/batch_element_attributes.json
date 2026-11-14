@@ -1,0 +1,186 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2.",
+ "request": {
+  "method": "POST",
+  "path": "/piwebapi/batch",
+  "params": {}
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "0": {
+   "Status": 200,
+   "Headers": {
+    "Content-Type": "application/json; charset=utf-8"
+   },
+   "Content": {
+    "Links": {},
+    "Items": [
+     {
+      "WebId": "F1AbE000127764094AAAAAAAAAAAA",
+      "Id": "a77b0000-0000-4000-8000-000000000000",
+      "Name": "Area code",
+      "Description": "",
+      "Path": "",
+      "Type": "String",
+      "TypeQualifier": "",
+      "DefaultUnitsName": "",
+      "DisplayDigits": -5,
+      "DataReferencePlugIn": "",
+      "ConfigString": "",
+      "IsConfigurationItem": true,
+      "IsExcluded": false,
+      "IsHidden": false,
+      "IsManualDataEntry": false,
+      "HasChildren": false,
+      "CategoryNames": [],
+      "Step": false,
+      "TraitName": "",
+      "DefaultUnitsNameAbbreviation": "",
+      "Links": {
+       "Self": "https://pi.example.com/piwebapi/attributes/F1AbE000127764094AAAAAAAAAAAA",
+       "Element": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001",
+       "Value": "https://pi.example.com/piwebapi/streams/F1AbE000127764094AAAAAAAAAAAA/value",
+       "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1AbE000127764094AAAAAAAAAAAA/interpolated",
+       "RecordedData": "https://pi.example.com/piwebapi/streams/F1AbE000127764094AAAAAAAAAAAA/recorded"
+      }
+     }
+    ]
+   }
+  },
+  "1": {
+   "Status": 200,
+   "Headers": {
+    "Content-Type": "application/json; charset=utf-8"
+   },
+   "Content": {
+    "Links": {},
+    "Items": [
+     {
+      "WebId": "F1AbE000229359646AAAAAAAAAAAA",
+      "Id": "a77b0000-0000-4000-8000-000000000000",
+      "Name": "Flow",
+      "Description": "",
+      "Path": "",
+      "Type": "Double",
+      "TypeQualifier": "",
+      "DefaultUnitsName": "Sm3/d",
+      "DisplayDigits": -5,
+      "DataReferencePlugIn": "PI Point",
+      "ConfigString": "\\\\SITE-PI?9c1f8f0e-0000-4000-8000-000000000001\\SITE:FI-101.PV?1;ReadOnly=False;ptclassname=classic;pointtype=Float32",
+      "IsConfigurationItem": false,
+      "IsExcluded": false,
+      "IsHidden": false,
+      "IsManualDataEntry": false,
+      "HasChildren": false,
+      "CategoryNames": [],
+      "Step": false,
+      "TraitName": "",
+      "DefaultUnitsNameAbbreviation": "Sm3/d",
+      "Links": {
+       "Self": "https://pi.example.com/piwebapi/attributes/F1AbE000229359646AAAAAAAAAAAA",
+       "Element": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002",
+       "Value": "https://pi.example.com/piwebapi/streams/F1AbE000229359646AAAAAAAAAAAA/value",
+       "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1AbE000229359646AAAAAAAAAAAA/interpolated",
+       "RecordedData": "https://pi.example.com/piwebapi/streams/F1AbE000229359646AAAAAAAAAAAA/recorded",
+       "Point": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001"
+      }
+     },
+     {
+      "WebId": "F1AbE000289621342AAAAAAAAAAAA",
+      "Id": "a77b0000-0000-4000-8000-000000000000",
+      "Name": "Discharge temperature",
+      "Description": "",
+      "Path": "",
+      "Type": "Double",
+      "TypeQualifier": "",
+      "DefaultUnitsName": "degC",
+      "DisplayDigits": -5,
+      "DataReferencePlugIn": "PI Point",
+      "ConfigString": "\\\\%Server%\\%Element%.%Attribute%;ReadOnly=False",
+      "IsConfigurationItem": false,
+      "IsExcluded": false,
+      "IsHidden": false,
+      "IsManualDataEntry": false,
+      "HasChildren": false,
+      "CategoryNames": [],
+      "Step": false,
+      "TraitName": "",
+      "DefaultUnitsNameAbbreviation": "degC",
+      "Links": {
+       "Self": "https://pi.example.com/piwebapi/attributes/F1AbE000289621342AAAAAAAAAAAA",
+       "Element": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002",
+       "Value": "https://pi.example.com/piwebapi/streams/F1AbE000289621342AAAAAAAAAAAA/value",
+       "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1AbE000289621342AAAAAAAAAAAA/interpolated",
+       "RecordedData": "https://pi.example.com/piwebapi/streams/F1AbE000289621342AAAAAAAAAAAA/recorded",
+       "Point": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004"
+      }
+     },
+     {
+      "WebId": "F1AbE000241992407AAAAAAAAAAAA",
+      "Id": "a77b0000-0000-4000-8000-000000000000",
+      "Name": "Running",
+      "Description": "",
+      "Path": "",
+      "Type": "EnumerationValue",
+      "TypeQualifier": "",
+      "DefaultUnitsName": "",
+      "DisplayDigits": -5,
+      "DataReferencePlugIn": "PI Point",
+      "ConfigString": "\\\\SITE-PI\\SITE:XS-103.PV",
+      "IsConfigurationItem": false,
+      "IsExcluded": false,
+      "IsHidden": false,
+      "IsManualDataEntry": false,
+      "HasChildren": false,
+      "CategoryNames": [],
+      "Step": false,
+      "TraitName": "",
+      "DefaultUnitsNameAbbreviation": "",
+      "Links": {
+       "Self": "https://pi.example.com/piwebapi/attributes/F1AbE000241992407AAAAAAAAAAAA",
+       "Element": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002",
+       "Value": "https://pi.example.com/piwebapi/streams/F1AbE000241992407AAAAAAAAAAAA/value",
+       "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1AbE000241992407AAAAAAAAAAAA/interpolated",
+       "RecordedData": "https://pi.example.com/piwebapi/streams/F1AbE000241992407AAAAAAAAAAAA/recorded",
+       "Point": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003"
+      }
+     },
+     {
+      "WebId": "F1AbE000244448059AAAAAAAAAAAA",
+      "Id": "a77b0000-0000-4000-8000-000000000000",
+      "Name": "Rated power",
+      "Description": "",
+      "Path": "",
+      "Type": "Double",
+      "TypeQualifier": "",
+      "DefaultUnitsName": "kW",
+      "DisplayDigits": -5,
+      "DataReferencePlugIn": "",
+      "ConfigString": "",
+      "IsConfigurationItem": true,
+      "IsExcluded": false,
+      "IsHidden": false,
+      "IsManualDataEntry": false,
+      "HasChildren": false,
+      "CategoryNames": [],
+      "Step": false,
+      "TraitName": "",
+      "DefaultUnitsNameAbbreviation": "kW",
+      "Links": {
+       "Self": "https://pi.example.com/piwebapi/attributes/F1AbE000244448059AAAAAAAAAAAA",
+       "Element": "https://pi.example.com/piwebapi/elements/F1EmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002",
+       "Value": "https://pi.example.com/piwebapi/streams/F1AbE000244448059AAAAAAAAAAAA/value",
+       "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1AbE000244448059AAAAAAAAAAAA/interpolated",
+       "RecordedData": "https://pi.example.com/piwebapi/streams/F1AbE000244448059AAAAAAAAAAAA/recorded"
+      }
+     }
+    ]
+   }
+  }
+ }
+}

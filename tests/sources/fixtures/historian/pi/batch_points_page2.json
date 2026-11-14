@@ -1,0 +1,51 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2.",
+ "request": {
+  "method": "POST",
+  "path": "/piwebapi/batch",
+  "params": {}
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "0": {
+   "Status": 200,
+   "Headers": {
+    "Content-Type": "application/json; charset=utf-8"
+   },
+   "Content": {
+    "Links": {},
+    "Items": [
+     {
+      "Name": "tag",
+      "Value": "SITE:TI-104.PV"
+     },
+     {
+      "Name": "descriptor",
+      "Value": "Discharge temperature"
+     },
+     {
+      "Name": "engunits",
+      "Value": "degC"
+     },
+     {
+      "Name": "pointsource",
+      "Value": "OPC"
+     },
+     {
+      "Name": "pointtype",
+      "Value": "float32"
+     },
+     {
+      "Name": "compdev",
+      "Value": 0.2
+     }
+    ]
+   }
+  }
+ }
+}

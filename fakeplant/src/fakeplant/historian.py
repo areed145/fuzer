@@ -177,8 +177,15 @@ def app(data_dir) -> FastAPI:
                 "Links": {"Self": f"{request.base_url}piwebapi/points/{wid}",
                           "InterpolatedData": f"{request.base_url}piwebapi/streams/{wid}/interpolated"}}
 
-    def page(items: list, start: int, count: int) -> dict:
-        return {"Items": items[start:start + count]}
+    def page(items: list, start: int, count: int, request: Request | None = None) -> dict:
+        """One page with PI Web API's pagination Links (First, Previous, Next, Last), as the real server sends."""
+        links = {}
+        if request is not None:
+            at = lambda i: str(request.url.include_query_params(startIndex=max(i, 0), maxCount=count))
+            last = max(len(items) - 1, 0) // max(count, 1) * count
+            links = {"First": at(0), **({"Previous": at(start - count)} if start > 0 else {}),
+                     **({"Next": at(start + count)} if start + count < len(items) else {}), "Last": at(last)}
+        return {"Links": links, "Items": items[start:start + count]}
 
     def missing(what: str) -> JSONResponse:
         return JSONResponse({"Errors": [f"{what} not found."]}, status_code=404)
@@ -199,7 +206,8 @@ def app(data_dir) -> FastAPI:
     def points(request: Request, web_id: str, nameFilter: str = "*", startIndex: int = 0, maxCount: int = 1000):
         pattern = re.compile(fnmatch_regex(nameFilter), re.IGNORECASE)
         names = [n for n in plant.points if pattern.fullmatch(n)]
-        return {"Items": [point_obj(request, n) for n in names[startIndex:startIndex + maxCount]]}
+        listed = page(names, startIndex, maxCount, request)
+        return {**listed, "Items": [point_obj(request, n) for n in listed["Items"]]}
 
     @api.get(f"{base}/points")
     def point_by_path(request: Request, path: str):
@@ -243,9 +251,10 @@ def app(data_dir) -> FastAPI:
                     e["path"].startswith(el["path"] + "\\") for e in plant.elements)}
 
     @api.get(f"{base}/assetdatabases/{{web_id}}/elements")
-    def elements(web_id: str, searchFullHierarchy: bool = False, startIndex: int = 0, maxCount: int = 1000):
+    def elements(request: Request, web_id: str, searchFullHierarchy: bool = False, startIndex: int = 0,
+                 maxCount: int = 1000):
         els = plant.elements if searchFullHierarchy else [e for e in plant.elements if "\\" not in e["path"]]
-        return page([element_obj(e) for e in els], startIndex, maxCount)
+        return page([element_obj(e) for e in els], startIndex, maxCount, request)
 
     @api.get(f"{base}/elements/{{web_id}}/attributes")
     def element_attributes(web_id: str):
@@ -311,7 +320,8 @@ def app(data_dir) -> FastAPI:
             res = point_attributes(m.group(2)) if m.group(1) == "points" else element_attributes(m.group(2))
             out[key] = ({"Status": res.status_code, "Content": json.loads(res.body)} if isinstance(res, JSONResponse)
                         else {"Status": 200, "Content": res})
-        return out
+        # Like PI Web API: a batch with any failed sub-request answers 207 Multi-Status (R.2a).
+        return JSONResponse(out, status_code=207 if any(r["Status"] >= 400 for r in out.values()) else 200)
 
     @api.post("/v1/rest/query")
     async def adx_query(request: Request):
