@@ -74,7 +74,7 @@ def queue(role: str | None) -> str:
     return f"{name} queue" if name else "no queue"
 
 
-def plural(n: int | float, word: str, many: str | None = None) -> str:
+def plural(n: float, word: str, many: str | None = None) -> str:
     """'1 detection', '7 detections', '1,204 notifications'."""
     count = f"{n:,}" if isinstance(n, int) else f"{n:,g}"
     return f"{count} {word if n == 1 else many or word + 's'}"

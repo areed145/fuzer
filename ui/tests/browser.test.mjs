@@ -4341,11 +4341,11 @@ for (const [type, found] of Object.entries(FINDINGS)) {
       await page.goto(`${url}/#${path}`);
       // On the case, what was found reads as one sentence first and the fields are a tap away (#1082)
       const details = page.getByRole("button", { name: "How it was found and the values" });
-      if (path.startsWith("/cases/")) {
+      if (path.startsWith("/cases/") || path.startsWith("/inbox/task/")) {
         const sentence = await page.locator(".finding-sentence").innerText();
         assert.match(sentence, /^(A rule|An agent|Another system) found this/);
         assert.ok(sentence.includes(`A ${type} title`), sentence);
-        await details.click();
+        if (await details.getAttribute("aria-expanded") !== "true") await details.click();
       }
       const box = page.locator(".finding dl").first();
       await box.waitFor();
