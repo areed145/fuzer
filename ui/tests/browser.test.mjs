@@ -7309,7 +7309,7 @@ test("on an iPhone a table stacks as labelled rows and a section picker that rep
   await row.waitFor();
   assert.equal(await row.locator("td").nth(1).getAttribute("data-label"), "Goes to");
   assert.equal(await row.locator("td").first().getAttribute("data-label"), null);
-  assert.equal(await page.locator("table.routing-table thead").isVisible(), false);
+  assert.ok((await page.locator("table.routing-table thead").boundingBox()).height <= 1, "headings move into the cells");
   // The Settings pages picker would only say "Routing" over "Routing": the title opens the sections instead.
   await page.waitForFunction(() => document.querySelector("main h1")?.classList.contains("ios-title-menu"));
   const picker = page.getByRole("navigation", { name: "Settings pages" });
@@ -7324,7 +7324,7 @@ test("on an iPhone a table stacks as labelled rows and a section picker that rep
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${url}/?ios=0#/routing`);
   await page.locator("table.routing-table tbody tr").first().waitFor();
-  assert.equal(await page.locator("table.routing-table thead").isVisible(), true);
+  assert.ok((await page.locator("table.routing-table thead").boundingBox()).height > 10, "a desktop keeps the heading row");
   assert.deepEqual(errors, []);
 });
 
