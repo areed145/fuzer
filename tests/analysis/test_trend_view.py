@@ -181,3 +181,13 @@ def test_a_control_loop_opens_on_its_four_points(okan):
         "Mode (1 auto, 0 manual)"]["axis"]
     assert all(t["show"] for t in g["traces"])
     assert 40 < by["Process value"]["last"] < 60  # held near 50 %, read in its own units
+
+
+def test_latest_reads_the_newest_values_whatever_the_incidents(okan):
+    """An asset page's Now card (#1076) reads the end of the data, not the window around its latest incident."""
+    from fuzer.analysis import values
+
+    unit = _compressor(okan)
+    v = trend_view.view(okan, unit, "latest", 6, 0)
+    assert v["groups"] and v["end"] == v["centre"]
+    assert v["centre"] == values._latest(okan, values.provider(), 0)[:16]

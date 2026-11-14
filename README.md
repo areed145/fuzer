@@ -502,8 +502,9 @@ npm run dev                             # or: live-reload UI at :5173 (keep `fuz
 Screens:
 
 - **Browse**: search everything. **Map**: everything with a location.
-- **Entity detail**: chosen values and what each source says, source records,
-  dated links, flow trace, all with an "as of" date. Its **Graph** tab draws
+- **Entity detail**: opens on the asset now (running or stopped, key readings against their limits) and
+  the work on it; chosen values and what each source says, source records,
+  dated links, flow trace, all with an "as of" date. Its **Data** tab ends with a graph of
   the neighbourhood (click a node for details, double-click to expand, filter
   by link type, choose a layout).
 - **Network**: the whole production / allocation flow, left to right, as of

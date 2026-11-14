@@ -12,7 +12,7 @@ import { caseHref } from "./pages/workflows/shared";
 import { useTheme } from "./theme";
 import { buildFigure, fromQuery, LANE_SHORT, names, OTHER, reading, toQuery, valueAt, type Palette, type TimelineEvent,
   type TrendTrace } from "./trendFigure";
-import { Button, Card, Disclosure, Input, Table } from "./ui";
+import { Badge, Button, Card, Disclosure, Input, Table } from "./ui";
 
 const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
 const local = (iso: string) => iso.slice(0, 16);
@@ -121,7 +121,11 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
             const any = ids.some((i) => on.has(i));
             return (
               <div key={g.key} className="chips">
-                <Button className="chip trend-view-group" aria-pressed={all} onClick={() => toggle(ids, !all)}>{g.label}</Button>
+                {/* A group that is off says how many points it holds, so it doesn't read as empty (#1076). */}
+                <Button className="chip trend-view-group" aria-pressed={all} onClick={() => toggle(ids, !all)}
+                        title={any ? undefined : `Show ${ids.length} point${ids.length === 1 ? "" : "s"}`}>
+                  {g.label}{!any && <span className="muted"> · {ids.length} hidden</span>}
+                </Button>
                 {/* a group that is off is one chip; its traces show once it is on */}
                 {any && g.traces.map((x, i) => (
                   <Button key={x.id} className="chip" aria-pressed={on.has(x.id)} title={`${x.point}${x.description ? `: ${x.description}` : ""}`}
@@ -158,8 +162,11 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         {d?.unit_label ? `${d.unit_label} · ` : ""}{d?.template.title ?? "Trend"}{" "}
         {d && !d.error && (
           <span className="muted small">
-            {d.provider === "synthetic" ? "synthetic values: no PI / ADX connection configured" : `from ${d.provider.toUpperCase()}`}
-            {" "}· every {shown?.step_minutes ?? d.step_minutes} min{d.upsets.length > 0 && " · shaded: the 12 h leading into each incident"}
+            {/* Generated values are labelled, as a chip rather than a sentence that read as a fault (#1076). */}
+            {d.provider === "synthetic"
+              ? <Badge title="Generated values: no PI or ADX historian is connected">Demo data</Badge>
+              : `from ${d.provider.toUpperCase()}`}
+            {" "}every {shown?.step_minutes ?? d.step_minutes} min{d.upsets.length > 0 && " · shaded: the 12 h leading into each incident"}
           </span>
         )}
       </h2>
@@ -173,7 +180,11 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         <Input type="datetime-local" aria-label="Centre the window on" value={d && !d.error ? local(d.centre) : ""}
                onChange={(e) => e.target.value && setAt(e.target.value)} />
         <Button size="sm" onClick={() => shift(1)} disabled={!d}>Later →</Button>
-        <Button variant="link" size="sm" onClick={() => setAt(undefined)} disabled={at === undefined}>Latest incident</Button>
+        {/* The window opens on the latest incident, else the latest values; once moved, one press returns there.
+            A greyed button on the opening window gave no reason (#1076). */}
+        {at === undefined
+          ? d && !d.error && <span className="muted small">{d.upsets.length ? "Latest incident" : "Latest values"}</span>
+          : <Button variant="link" size="sm" onClick={() => setAt(undefined)}>{d?.upsets.length ? "Back to latest incident" : "Back to latest"}</Button>}
       </div>
       <Status loading={v.loading && !d} error={v.error ?? d?.error} empty={!!d && !d.error && groups.every((g) => !g.traces.length)}>
         No values between {d?.start.replace("T", " ")} and {d?.end.replace("T", " ")}{d?.errors?.length ? `: ${d.errors[0]}` : "."}

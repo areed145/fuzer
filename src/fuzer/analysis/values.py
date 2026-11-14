@@ -24,7 +24,8 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     incident, `at` defaults to its first timed signal (a log entry or downtime start), else its start
     day, and its unit is used. For a timeseries, only that point; with `direct`, only the points linked
     to the entity itself, not its instruments'. Anything but an incident is centred by default on the
-    latest incident on its tag or well (else now). The step is chosen from the window (about
+    latest incident on its tag or well (else now); `at="latest"` centres on now (the loaded data's end for synthetic
+    values) whatever the incidents. The step is chosen from the window (about
     150 values) unless given. Each series has a summary for agents: min / max / mean / last, and
     `lead_in`: the mean before the last 12 h against the mean and peak in them; and its `limits` at the
     centre (alarm limits, IOWs, or the learned normal range; limits.lines). `points` reads those points instead of
@@ -32,6 +33,9 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     row, unit = unit_of(conn, fuzer_id)
     if not row:
         return {"error": "unknown entity"}
+    if at == "latest":  # the newest values, whatever happened on the unit: an asset page's "now" (#1076)
+        src = src or provider()
+        at = _latest(conn, src, hours_after)
     if not at and row["kind"] == "incident":
         at = conn.execute(f"select ({FIRST_TIMED.format(incident='%s')}) as t", (fuzer_id,)).fetchone()["t"]
     upsets = sorted(datetime.fromisoformat(r["start"]) for r in conn.execute(

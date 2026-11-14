@@ -51,7 +51,7 @@ test("each panel shares an axis per unit, on one time axis, with lanes beneath",
   assert.deepEqual(plain(lines.map((d) => d.yaxis)), ["y", "y", "y2", "y3"]); // pressures share one; speed and power two
   assert.equal(f.layout.yaxis3.overlaying, "y2");
   assert.equal(f.layout.yaxis4.type, "category"); // the lanes
-  assert.deepEqual(plain(f.layout.yaxis4.categoryarray), ["Log", "Alarm · P.1"]); // empty lanes are left out
+  assert.deepEqual(plain(f.layout.yaxis4.categoryarray), ["Log", "P.1 alarm"]); // empty lanes are left out
   assert.equal(f.layout.xaxis.anchor, "y4");
   assert.ok(f.layout.yaxis.domain[0] > f.layout.yaxis4.domain[1]);
   const marker = f.data.find((d) => d.mode === "markers");
@@ -65,7 +65,7 @@ test("switching a group off removes its panel; a lone trace draws its limits", (
   const f = buildFigure(view, timeline, on, palette);
   assert.equal(f.data.filter((d) => d.mode === "lines" && d.yaxis === "y").length, 1);
   assert.equal(f.layout.shapes.filter((s) => s.type === "line").length, 1);
-  assert.deepEqual(plain(f.layout.yaxis2.categoryarray), ["Alarm · P.1"]);
+  assert.deepEqual(plain(f.layout.yaxis2.categoryarray), ["P.1 alarm"]);
   assert.ok(f.layout.legend.title.text.includes("Lube oil")); // each panel's key is titled with it
 });
 
@@ -75,8 +75,8 @@ test("two traces that would read the same are told apart by what differs in thei
     trace("b", "degc", { role_label: "Bearing temperature", description: "Train B Compressor Journal Bearing Temperature" }),
     trace("c", "mm/s", { role_label: "Casing vibration" })] }], other: [] };
   const n = names(twins);
-  assert.equal(n.get("a"), "Thrust Bearing Temperature");
-  assert.equal(n.get("b"), "Journal Bearing Temperature");
+  assert.equal(n.get("a"), "Thrust bearing temperature");
+  assert.equal(n.get("b"), "Journal bearing temperature");
   assert.equal(n.get("c"), "Casing vibration");
 });
 
@@ -149,13 +149,13 @@ test("P5.15c alarms get a row per point, the most urgent first, and the rest sha
   const lane = { key: "alarms", label: "Alarms", events: [alarm("A", "hi", "2024-07-24T01:00"), alarm("B", "hihi", "2024-07-24T02:00"),
     alarm("A", "hi", "2024-07-24T03:00"), ...Array.from({ length: 9 }, (_, i) => alarm(`Z${i}`, "lo", `2024-07-24T0${4 + (i % 5)}:00`))] };
   const rows = laneRows([lane, timeline.lanes[1]]);
-  assert.deepEqual(plain(rows.slice(0, 2).map((r) => r.label)), ["Alarm · B", "Alarm · A"]); // hihi before hi
+  assert.deepEqual(plain(rows.slice(0, 2).map((r) => r.label)), ["B alarm", "A alarm"]); // hihi before hi
   assert.equal(rows.filter((r) => r.lane === "alarms").length, 8);
   assert.equal(rows.find((r) => r.key === "alarms:more").label, "4 more alarming points");
   assert.equal(rows[0].events.length, 1);
   assert.equal(rows[1].events.length, 2);
   assert.deepEqual(plain(rows.map((r) => r.lane).slice(-1)), ["log"]);
-  assert.equal(laneRows([lane], true)[0].label, "B"); // a phone names the point alone
+  assert.equal(laneRows([lane], true)[0].label, "B alarm"); // a point no trace names reads as its tag
 });
 
 test("P5.15c markers too close to tell apart are one, counted", () => {
@@ -186,4 +186,26 @@ test("P5.15f panels are shorter on a phone", () => {
   // a panel's height in pixels: its share of the plot area (the figure less its top and bottom margins)
   const px = (f) => (f.layout.yaxis.domain[1] - f.layout.yaxis.domain[0]) * (f.layout.height - f.layout.margin.t - f.layout.margin.b);
   assert.ok(px(phone) < px(desk) - 30, `${px(phone)} vs ${px(desk)}`);
+});
+
+test("#1076 an alarm row names its trace, a second scale picks round ticks, and lane names sit inside the chart", () => {
+  const pv = { ...view, groups: [{ key: "flow", label: "Flow", show: true, traces: [
+    trace("flow", "Am3/h", { point: "OK_GGCP:20-FT-2100B.PV", role_label: "Suction flow" }),
+    trace("asv", "%", { point: "OK_GGCP:20-ZT-2100B.PV", role_label: "Anti-surge valve position", min: 0, max: 0 })] }], other: [] };
+  const alarms = { ...timeline, lanes: [{ key: "alarms", label: "Alarms", events: [
+    { id: "p", kind: "alarm", label: "OK_GGCP:20-FT-2100B.PV", start: "2024-07-24T13:00", end: null, text: "hi 5", detail: null },
+    { id: "q", kind: "alarm", label: "OK_GGCP:20-PT-9999.PV", start: "2024-07-24T14:00", end: null, text: "hi 5", detail: null }] }] };
+  const f = buildFigure(pv, alarms, defaults(pv), palette);
+  assert.deepEqual(plain(f.layout.yaxis3.categoryarray), ["20-PT-9999 alarm", "Suction flow alarm"]);
+  assert.equal(f.layout.yaxis3.showticklabels, false);
+  assert.ok(f.layout.annotations.some((a) => a.text === "Suction flow alarm" && a.x === 0 && a.xanchor === "left"));
+  assert.equal(f.layout.yaxis2.tickmode, "auto"); // not synced to the first axis's grid
+  assert.deepEqual(plain(f.layout.yaxis2.range), [-2, 102]); // a valve in % on its whole scale
+});
+
+test("#1076 descriptions read in sentence case, codes keep theirs", () => {
+  const { sentence, pointTag } = exportsObject;
+  assert.equal(sentence("Thrust Bearing Temperature"), "Thrust bearing temperature");
+  assert.equal(sentence("Train B LP Compressor 20-K-2100B Speed"), "Train B LP compressor 20-K-2100B speed");
+  assert.equal(pointTag("OK_GGCP:20-FT-2100B.PV"), "20-FT-2100B");
 });

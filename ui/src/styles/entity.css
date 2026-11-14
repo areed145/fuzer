@@ -41,3 +41,35 @@ ul.others li { display: flex; gap: 6px; align-items: center; }
 .profile-facts dt { font-size: 12px; color: var(--muted); }
 .profile-facts dd { margin: 2px 0 0; overflow-wrap: anywhere; }
 .profile-links { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+/* Now (LiveReadings): running or stopped and the key readings against their limits, first on an asset's overview. */
+.live-readings-head { align-items: center; gap: 6px 12px; flex-wrap: wrap; }
+.live-readings-head h2 { margin: 0; }
+.live-readings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px 20px; margin: 12px 0 0; }
+.live-readings-grid > div { min-width: 0; }
+.live-readings-grid dt { font-size: 12px; color: var(--muted); }
+.live-readings-grid dd { margin: 2px 0 0; }
+.live-readings-grid strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+/* A value lines up with its label: the row's tall touch targets ("why?") no longer push the value below the label
+   (#1076), and on a phone the label sits above its value so a long value can't run past the screen. */
+table.ui-table--keyValue th, table.ui-table--keyValue td { vertical-align: top; }
+table.ui-table--keyValue td > .row { align-items: baseline; flex-wrap: wrap; min-width: 0; }
+table.ui-table--keyValue td > .row > span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  table.ui-table--keyValue, table.ui-table--keyValue tbody, table.ui-table--keyValue tr { display: block; width: 100%; }
+  table.ui-table--keyValue th, table.ui-table--keyValue td { display: block; width: auto; padding-left: 0; padding-right: 0; }
+  table.ui-table--keyValue th { padding-bottom: 0; border-bottom: 0; }
+  table.ui-table--keyValue td { padding-top: 2px; }
+  .entity .ui-card { min-width: 0; max-width: 100%; overflow-x: auto; }
+}
+/* "As of" is a desk tool: on a phone it waits behind "Earlier date" until asked for (#1076). */
+.asof-open { display: none; }
+@media (max-width: 640px) {
+  .asof:not(.asof-shown) { display: none; }
+  .asof-open { display: inline-flex; }
+}
+/* Maintenance: failure modes as name, bar and count beside the recent notifications, the list taking the room. */
+.maintenance-split { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr); gap: 16px 32px; }
+@media (max-width: 760px) { .maintenance-split { grid-template-columns: 1fr; } }
+.failure-modes li { display: grid; grid-template-columns: minmax(7em, auto) 1fr 2.5em; align-items: center; gap: 10px; padding: 4px 0; }
+.failure-modes .ui-bar { width: 100%; }
+.failure-modes li > :last-child { text-align: right; font-variant-numeric: tabular-nums; }
