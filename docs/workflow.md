@@ -328,6 +328,41 @@ For gloves and sunlight, field mode (Settings -> Appearance, offered once on My 
 targets at least 56 px, raises contrast to 7:1 and keeps a job's actions in thumb reach (P5.17g, #1096); see
 docs/ui-style.md.
 
+The field's networks are tested in the browser (P5.17h, #1097): a 3G profile with the answer to a report cut off after
+it left (sent again, applied once), lie-fi with the phone saying it is online and nothing answering, a store the
+phone cleared, and a release fetched as the signal drops. On lie-fi nothing waits for ever: a read the phone keeps
+waits 15 s for an answer to start and then comes from the phone, any other read 90 s, and a write with a client id 60 s
+before it is kept in the outbox; a request that never got a place in the queue counts as never reaching the server,
+so a report is kept, not lost. When iOS clears the app's store, the next launch says "Your offline copy was cleared by
+the phone; fetching again", with how many reports waiting to send went with it, from a note the app keeps outside the
+store; when the phone clears everything, the note goes too and the app simply fetches again. The app worker keeps a
+new page only once every file it names is kept, and a new worker installs only with the whole app, so a release
+fetched on a dropping signal never strands the phone on a page without its script.
+
+What stays online only: taking a job from a queue, reassigning, permit overrides, dispatch, and every desk page outside
+the operator's pack (Explore, 3D, analytics). Map tiles are never kept.
+
+#### Checking on real phones
+
+Run this on an iPhone (the app added to the home screen) and an Android phone before a pilot, and record the results
+on #1097.
+
+1. On site Wi-Fi, sign in as an operator with two dispatched jobs and a round this shift. Open My work and wait a
+   minute so the day's work is kept. Turn on field mode in Settings -> Appearance.
+2. On the iPhone, check Settings -> Safari -> Advanced -> Website Data: the home screen app keeps its own storage,
+   apart from Safari, so its size shows under the app's address only once the app has been opened from the home
+   screen. Expect a few MB for a day's pack, more with drawings.
+3. Turn on airplane mode, and keep it on for the length of a shift if you can.
+4. With gloves on, for each job: open the asset, its drawing, its trend and a document; report On site, then Done with
+   a reading and two photos. Walk the round and take every point, one reading outside its limits.
+5. Send the app to the background for ten minutes, then kill it from the app switcher. Reopen it from the home screen:
+   My work opens, the top bar says no signal and how many wait, and the reports and readings are still there.
+6. Turn airplane mode off. Within a minute the top bar clears. In the IOC, each report, reading and close-out is
+   there once, with the time it was made and, for those made well before, when it arrived; the out-of-limits reading
+   raised its exception.
+7. Repeat steps 3 to 6 with the phone on a weak signal (the edge of site coverage, or a phone's hotspot with Wi-Fi
+   assist off) instead of airplane mode, and once with Wi-Fi joined but no internet behind it.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and

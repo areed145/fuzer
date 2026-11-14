@@ -60,7 +60,43 @@ const senders = new Map<string, Sender>();
 /** How a kind of queued write is sent. Each sender must be idempotent on `client_id`. */
 export function registerSender(kind: string, send: Sender) { senders.set(kind, send); }
 
-const changed = (detail?: FlushResult) => window.dispatchEvent(new CustomEvent(OUTBOX_CHANGED, { detail }));
+const changed = (detail?: FlushResult) => {
+  window.dispatchEvent(new CustomEvent(OUTBOX_CHANGED, { detail }));
+  void mine().then((all) => note({ waiting: all.length }));
+};
+
+/** What the phone should still hold for each account, noted in `localStorage` (P5.17h): iOS can clear an installed
+ * app's IndexedDB under storage pressure or after weeks unused, and without the note an emptied store would look like
+ * a first launch. When the whole origin is cleared the note goes too, and the next load with signal fetches again. */
+const MARKER = "fuzer.field.marker";
+type Marker = { kept?: boolean; waiting?: number };
+let checked = false;
+const readMarker = (): Record<string, Marker> => {
+  try { return JSON.parse(localStorage.getItem(MARKER) ?? "{}") as Record<string, Marker>; } catch { return {}; }
+};
+function note(m: Marker) {
+  if (!checked) return;  // not before the store has been checked against the note
+  try {
+    const all = readMarker();
+    localStorage.setItem(MARKER, JSON.stringify({ ...all, [account]: { ...all[account], ...m } }));
+  } catch { /* storage unavailable */ }
+}
+
+/** The phone cleared what it kept, and how many writes went with it, once noticed; until the operator dismisses it. */
+let cleared: { lost: number } | null = null;
+export const dismissCleared = () => { cleared = null; changed(); };
+
+async function noticeCleared() {
+  try {
+    const was = readMarker()[account];
+    if (!was || (!was.kept && !was.waiting) || !(await store.durable())) return;
+    const kept = (await store.keys("kept")).some((k) => k.startsWith(`jobs:${account}:`));
+    const queued = (await store.all<QueuedWrite>("outbox")).some((w) => w.account === account);
+    if (!kept && !queued) cleared = { lost: was.waiting ?? 0 };
+  } finally {
+    checked = true;
+  }
+}
 
 async function mine(): Promise<QueuedWrite[]> {
   await migrated;
@@ -102,7 +138,12 @@ export function outboxSession(actor: string, isLive: boolean) {
   account = actor;
   live = isLive;
   migrated ??= migrate().catch(() => undefined);
-  void migrated.then(() => { changed(); if (live) void flush(); });
+  void migrated.then(async () => {
+    if (!checked) await noticeCleared();
+    if (cleared) note({ kept: false });
+    changed();
+    if (live) void flush();
+  });
 }
 
 const jobsKey = (person: string) => `jobs:${account}:${getProject()}:${person}`;
@@ -111,7 +152,8 @@ const jobsKey = (person: string) => `jobs:${account}:${getProject()}:${person}`;
 export async function fieldJobs(person: string): Promise<Jobs> {
   try {
     const fresh = await api.fieldJobs(person);
-    void store.put("kept", { ...fresh, kept_at: new Date().toISOString() }, jobsKey(person));
+    void store.put("kept", { ...fresh, kept_at: new Date().toISOString() }, jobsKey(person))
+      .then((ok) => { if (ok) note({ kept: true }); });
     void warmPack(fresh.jobs);
     return fresh;
   } catch (e) {
@@ -183,6 +225,7 @@ export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
 export async function forgetKept(): Promise<void> {
   await clearKept(account);
   await store.remove("kept", `warm:${account}:${getProject()}`);
+  note({ kept: false });
 }
 
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID()
@@ -302,14 +345,17 @@ export function startOutbox() {
   window.setInterval(() => { if (visible()) void flush(); }, 30_000);
 }
 
-export interface OutboxState { waiting: QueuedWrite[]; refused: QueuedWrite[]; sending: boolean }
+export interface OutboxState { waiting: QueuedWrite[]; refused: QueuedWrite[]; sending: boolean;
+  /** The phone cleared what it kept (P5.17h), with how many writes waiting to send went with it. */
+  cleared: { lost: number } | null }
 /** What waits on the phone, what the server refused and whether it is sending now, kept current. */
 export function useOutbox(): OutboxState {
-  const [state, setState] = useState<OutboxState>({ waiting: [], refused: [], sending: flushing });
+  const [state, setState] = useState<OutboxState>({ waiting: [], refused: [], sending: flushing, cleared });
   useEffect(() => {
     let active = true;
     const read = () => void mine().then((all) => {
-      if (active) setState({ waiting: all.filter((w) => !w.refused), refused: all.filter((w) => w.refused), sending: flushing });
+      if (active) setState({ waiting: all.filter((w) => !w.refused), refused: all.filter((w) => w.refused), sending: flushing,
+        cleared });
     });
     window.addEventListener(OUTBOX_CHANGED, read);
     read();
