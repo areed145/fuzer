@@ -283,6 +283,12 @@ expired session confirmation, holds the outbox until the same account signs in a
 its storage (`navigator.storage.persist()`) the first time it keeps something. An outbox kept by an earlier version in
 `localStorage` moves across on the next launch.
 
+The signal is read from what requests did (`ui/src/signal.ts`), not `navigator.onLine` alone: a request that never
+reached the server marks it lost, any answer marks it back (P5.17b, #1091). On a phone the top bar says so on every
+page, only when there is something to say: no signal and since when, how many reports wait or are sending, or how many
+were not accepted; it opens My work. A report still on the phone shows on its job as waiting to send. Taking a job
+from a queue and accepting a handover need signal and say so.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and

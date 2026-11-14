@@ -1,5 +1,18 @@
 import { getCsrf, getProject, switchProject } from "../authState";
 import { scheduleRequest } from "../requestQueue";
+import { lost, reached } from "../signal";
+
+/** A fetch that tells the signal (P5.17b) whether the server was reached. */
+async function reach(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    const res = await fetch(input, init);
+    reached();
+    return res;
+  } catch (e) {
+    if (e instanceof TypeError) lost();
+    throw e;
+  }
+}
 
 type Params = Record<string, string | number | undefined | null>;
 
@@ -14,7 +27,7 @@ export async function request<T>(method: string, path: string, params?: Params, 
   const csrf = getCsrf();
   const readOnly = method === "GET" && !params?.claude && !path.endsWith("generate");
   return scheduleRequest(async () => {
-    const res = await fetch(url, {
+    const res = await reach(url, {
       method,
       headers: { ...(body ? { "Content-Type": "application/json" } : {}),
         ...(csrf ? { "X-Fuzer-CSRF": csrf } : {}),
@@ -35,7 +48,7 @@ export async function request<T>(method: string, path: string, params?: Params, 
 export async function requestText(path: string): Promise<string> {
   return scheduleRequest(async () => {
     const project = getProject();
-    const res = await (project ? fetch(path, { headers: { "X-Fuzer-Project": project } }) : fetch(path));
+    const res = await (project ? reach(path, { headers: { "X-Fuzer-Project": project } }) : reach(path));
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.text();
   }, `${getCsrf()}:${getProject()}:text:${path}`);
@@ -45,7 +58,7 @@ export async function requestText(path: string): Promise<string> {
 export async function requestFile(path: string): Promise<{ type: string; bytes: ArrayBuffer }> {
   return scheduleRequest(async () => {
     const project = getProject();
-    const res = await (project ? fetch(path, { headers: { "X-Fuzer-Project": project } }) : fetch(path));
+    const res = await (project ? reach(path, { headers: { "X-Fuzer-Project": project } }) : reach(path));
     if (!res.ok) throw new Error(res.status === 404 ? "No file is loaded for this document." : `${res.status} ${res.statusText}`);
     return { type: res.headers.get("content-type") ?? "", bytes: await res.arrayBuffer() };
   });

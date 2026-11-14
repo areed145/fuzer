@@ -4649,6 +4649,63 @@ test("P5.17a Ten reports with four photos each wait on the phone and are sent on
   assert.deepEqual(posts.slice(1).map((p) => p.note), Array.from({ length: 10 }, (_, i) => `Report ${i + 1}`));
 });
 
+// P5.17b (#1091): the top bar says when there is no signal and since when, and what waits to send, on every page; a
+// report on the phone shows on its job as waiting, and taking a job from a queue needs signal.
+test("P5.17b The top bar shows no signal and what waits to send on every page, and Take it needs signal", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let reachable = true;
+  const posts = [];
+  const base = { type: "leak", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z", last_seen: "2026-11-12T05:00:00Z",
+    joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null, unmatched: [], case_state: "open",
+    raised_count: 1, due: null, task_id: null, task_name: null, assets: [], checklist: [], sources: [], history: [], field: [] };
+  const mine = { ...base, id: 7, key: "a", title: "Leak at P-101", item_id: 7, assignee: "fred", role: null, queued: false,
+    sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const queued = { ...base, id: 8, key: "b", title: "Drip at V-200", item_id: 8, assignee: null, role: "operator", queued: true, sent: null };
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (reachable || path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.fallback();
+    return route.abort("internetdisconnected");
+  });
+  const live = (json) => (route) => (reachable ? route.fulfill({ json }) : route.abort("internetdisconnected"));
+  await page.route("**/exceptions/field?*", live({ person: "fred", jobs: [mine, queued], coming_up: [] }));
+  await page.route("**/work/inbox?*", live({ person: "fred", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } }));
+  await page.route("**/exceptions/7/report", (route) => {
+    if (!reachable) return route.abort("internetdisconnected");
+    posts.push(route.request().postDataJSON());
+    return route.fulfill({ json: mine });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const status = page.locator(".topbar .sync-status");
+  const card = page.locator(".field-job").filter({ hasText: "Leak at P-101" });
+  await card.getByText("Look at the gland").waitFor();
+  assert.equal(await status.count(), 0, "quiet while live with nothing waiting");
+
+  reachable = false;
+  await page.reload();
+  await card.getByText("Look at the gland").waitFor();
+  await status.filter({ hasText: /^No signal since \d/ }).waitFor();
+  const take = page.locator(".field-job").filter({ hasText: "Drip at V-200" });
+  assert.equal(await take.getByRole("button", { name: "Take it" }).isDisabled(), true);
+  await take.getByText("Needs signal", { exact: false }).waitFor();
+
+  await card.getByLabel(/Note for the IOC/).fill("Gland weeping");
+  await card.getByRole("button", { name: "Add note", exact: true }).click();
+  await card.getByText("Note waiting to send").waitFor();
+  await status.filter({ hasText: "· 1 waiting" }).waitFor();
+
+  // Elsewhere in the app the top bar still says so, and opens My work.
+  await page.evaluate(() => { location.hash = "#/"; });
+  await status.filter({ hasText: "· 1 waiting" }).waitFor();
+
+  reachable = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await status.waitFor({ state: "detached" });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].note, "Gland weeping");
+});
+
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
 // with what changed since they last looked, and reaches an item in another field in one click from Home.
 test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {
