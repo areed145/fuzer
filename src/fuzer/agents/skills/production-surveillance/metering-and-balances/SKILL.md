@@ -27,7 +27,8 @@ the window, the meter it was checked against and what could not be checked.
   Quote the factor, `flags` (low, high, drifting) and the factor ignoring downtime. Well status history isn't
   loaded, so a well shut in without a downtime record still offers its test and pulls the factor down: say so, and
   that `test_staleness()` shows which tests are old.
-- **Meter against meter** (`calc("meter_agreement", ref)`): the daily ratio to the nearest other meter on the same
+- **Meter against meter** (`calc("meter_agreement", ref)`, run it for every meter question rather than deciding
+  by search that there is no other meter; it finds the nearest meter on the stream, up or down the network): the daily ratio to the nearest other meter on the same
   stream over the last week against its level over the 30 days before. `meter_drift` (2 % or more) is one of the two
   drifting. Two meters can't say which: run the allocation factor on both, and the one whose factor moved is the
   one to prove. Say so, and that a prover run or the meter's last calibration settles it.

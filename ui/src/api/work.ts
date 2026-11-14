@@ -296,7 +296,7 @@ export interface WorkPerformance {
 
 export interface Readiness {
   ready: boolean; blockers: string[];
-  /** What whoever sends the job should know that never holds it: an open MOC on the equipment. */
+  /** What whoever sends the job should know that never holds it: an open MOC on the equipment, a permit to confirm. */
   warnings?: string[];
   checks: { check: string; label: string; ready: boolean; blockers: string[]; checked: boolean; note: string | null;
     parts?: { material: string; label: string; description: string | null; needed: number; stock: number; short: number;
@@ -304,6 +304,8 @@ export interface Readiness {
     centers?: { id: string; label: string; description: string | null; crew: number | null; busy: number;
       full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[];
     needed?: boolean;
+    /** Needs a permit and no permit records are loaded (#742): confirm one is in hand, never a block. */
+    confirm?: boolean;
     permits?: { id: string; label: string; type: string | null; state: string | null; valid_to: string | null;
       location_label: string | null; valid: boolean; why_not: string | null }[] }[];
 }
@@ -682,6 +684,8 @@ export interface ExceptionRow {
   priority: number | null; value_usd: number | null; subjects: string[]; unmatched: string[];
   item_id: number | null; case_state: string | null; assignee: string | null; role: string | null;
   raised_count: number; reports?: number; first_seen: string; last_seen: string;
+  /** When it was closed or cleared, and when anything about it last changed. */
+  closed_at?: string | null; updated_at?: string;
   planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
   /** Set aside by a person until then, with why (P3.5c). */
   shelved_until?: string | null; shelved_by?: string | null; shelved_reason?: string | null;
@@ -814,6 +818,8 @@ export interface FieldHandover {
 
 export interface FieldPermit {
   needed: boolean; blocked: boolean; blocker: string | null;
+  /** No permit records are loaded, so none could be checked (#742): the phone asks for one in hand. */
+  unchecked?: boolean; note?: string | null;
   permit: { label: string; type: string | null; state: string | null; valid_from: string | null; valid_to: string | null;
     work: string | null; location_label: string | null; valid: boolean; why_not: string | null;
     isolations: { isolation: string; point: string | null; method: string | null; state: string | null }[] } | null;
@@ -842,7 +848,7 @@ export const workApi = {
     request<NotifyPreference>("PUT", `/work/people/${encodeURIComponent(person)}/notify`, undefined, { ...p, by }),
   markNotificationsRead: (person: string, ids?: number[]) =>
     request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
-  exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
+  exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string; closed_since?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
   exceptionsSuppressed: () => request<SuppressedView>("GET", "/exceptions/suppressed"),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),
@@ -873,10 +879,11 @@ export const workApi = {
   /** The same jobs without what is looked up per job, for a page that only counts them. */
   fieldJobsBrief: (person: string) => request<{ person: string; jobs: Pick<FieldJob, "item_id" | "queued">[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person, brief: "true" }),
   fieldReport: (id: number, by: string, status: string, note?: string,
-    extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string; override?: string } = {}) =>
+    extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string; override?: string;
+      permit_in_hand?: boolean } = {}) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
       reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null,
-      override: extra.override ?? null }),
+      override: extra.override ?? null, permit_in_hand: extra.permit_in_hand ?? null }),
   fieldHandover: (id: number, h: { by: string; to: string; done: string; left: string; unsafe?: string }) =>
     request<FieldJob>("POST", `/exceptions/${id}/handover`, undefined, { ...h, unsafe: h.unsafe ?? null }),
   acceptHandover: (id: number, by: string) => request<FieldJob>("POST", `/exceptions/${id}/handover/accept`, undefined, { by }),

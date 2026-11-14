@@ -1,0 +1,543 @@
+{
+  "date": "2026-11-13",
+  "kind": "packs",
+  "model": "claude-sonnet-5-5",
+  "effort": "high",
+  "specialist_effort": "medium",
+  "bundle": "kestrel",
+  "passed": 9,
+  "asked": 9,
+  "not_applicable": {},
+  "packs": {
+    "field-operations-facilities/alarms-and-instruments": {
+      "questions": 2,
+      "mentions": 0.835,
+      "cited": 0.5,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.5,
+      "looked_at_charts": 0,
+      "cost_usd": 0.44,
+      "cost_per_answer_usd": 0.218,
+      "seconds_per_answer": 27.4,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Over the last seven days, is the alarm rate within target, and which alarms are standing?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 4,
+          "seconds": 25.1,
+          "cost_usd": 0.2294
+        },
+        {
+          "domain": null,
+          "question": "Is the amine reboiler D1-E-4006 holding its temperature steady over the last few days?",
+          "mentions": 0.67,
+          "missing": [
+            [
+              "cycling",
+              "cycles",
+              "oscillat"
+            ]
+          ],
+          "citations": 2,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [
+            "operating_window"
+          ],
+          "charted": null,
+          "tool_calls": 8,
+          "seconds": 29.6,
+          "cost_usd": 0.2071
+        }
+      ]
+    },
+    "field-operations-facilities/gas-treating": {
+      "questions": 3,
+      "mentions": 0.917,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.67,
+      "looked_at_charts": 0,
+      "cost_usd": 0.86,
+      "cost_per_answer_usd": 0.288,
+      "seconds_per_answer": 38.9,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "The amine contactor D1-V-4001 has been acting up since yesterday's restart. What is going on?",
+          "mentions": 0.75,
+          "missing": [
+            "differential pressure"
+          ],
+          "citations": 6,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [
+            "trend"
+          ],
+          "charted": null,
+          "tool_calls": 25,
+          "seconds": 47.3,
+          "cost_usd": 0.3247
+        },
+        {
+          "domain": null,
+          "question": "Is our dry gas on spec for water, and if not, why?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 16,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [
+            "trend"
+          ],
+          "charted": null,
+          "tool_calls": 18,
+          "seconds": 37.3,
+          "cost_usd": 0.2653
+        },
+        {
+          "domain": null,
+          "question": "Is the propane chiller holding the dew point?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 7,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 24,
+          "seconds": 32.1,
+          "cost_usd": 0.2741
+        }
+      ]
+    },
+    "hse-incident-management/safety-systems": {
+      "questions": 3,
+      "mentions": 0.89,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.53,
+      "cost_per_answer_usd": 0.177,
+      "seconds_per_answer": 30.7,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Is the suction scrubber B1-V-2005 still protected by its high-high level trip?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "hse-incident-management"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 5,
+          "seconds": 25.4,
+          "cost_usd": 0.1425
+        },
+        {
+          "domain": null,
+          "question": "Has the compressor B1-K-2001's vibration trip been demanded more than it was designed for?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 6,
+          "operating_instructions": [],
+          "specialists": [
+            "hse-incident-management"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 3,
+          "seconds": 27.3,
+          "cost_usd": 0.1433
+        },
+        {
+          "domain": null,
+          "question": "Where did yesterday's flare at the knockout drum H1-V-8001 come from?",
+          "mentions": 0.67,
+          "missing": [
+            "A1-V-1001"
+          ],
+          "citations": 6,
+          "operating_instructions": [],
+          "specialists": [
+            "hse-incident-management"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 19,
+          "seconds": 39.4,
+          "cost_usd": 0.2449
+        }
+      ]
+    },
+    "maintenance-integrity/compression": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 0.5,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.75,
+      "cost_per_answer_usd": 0.373,
+      "seconds_per_answer": 34.0,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "How is compressor B1-K-2001 today, and what should we do about it?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 27,
+          "seconds": 41.8,
+          "cost_usd": 0.5359
+        },
+        {
+          "domain": null,
+          "question": "Which stage of B1-K-2001 lost capacity, and how do you know?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 1,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 5,
+          "seconds": 26.3,
+          "cost_usd": 0.21
+        }
+      ]
+    },
+    "maintenance-integrity/pumps-and-drivers": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 0.5,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.5,
+      "looked_at_charts": 0,
+      "cost_usd": 0.67,
+      "cost_per_answer_usd": 0.334,
+      "seconds_per_answer": 35.8,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "Is the gas engine driving compressor B1-K-2001 running right, and what should we check?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 7,
+          "operating_instructions": [],
+          "specialists": [
+            "field-operations-facilities",
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [
+            "trend"
+          ],
+          "charted": null,
+          "tool_calls": 26,
+          "seconds": 49.1,
+          "cost_usd": 0.5061
+        },
+        {
+          "domain": null,
+          "question": "Is condensate transfer pump A1-P-1007A running to its curve, and is its motor overloaded?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 1,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 6,
+          "seconds": 22.5,
+          "cost_usd": 0.1626
+        }
+      ]
+    },
+    "maintenance-integrity/reliability": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.55,
+      "cost_per_answer_usd": 0.275,
+      "seconds_per_answer": 35.8,
+      "results": [
+        {
+          "domain": null,
+          "question": "If B1-K-2001 fails, do we have the spares to repair it?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 7,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 8,
+          "seconds": 28.7,
+          "cost_usd": 0.2172
+        },
+        {
+          "domain": null,
+          "question": "Is the PM interval right for Kestrel's reciprocating compressors?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 11,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 23,
+          "seconds": 42.8,
+          "cost_usd": 0.3328
+        }
+      ],
+      "passed": true,
+      "short": []
+    },
+    "maintenance-integrity/static-equipment": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 0.5,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": 0.0,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.45,
+      "cost_per_answer_usd": 0.227,
+      "seconds_per_answer": 36.0,
+      "passed": true,
+      "short": [],
+      "results": [
+        {
+          "domain": null,
+          "question": "How much life does the amine contactor D1-V-4001 have left, and is its inspection plan right?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 2,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": false,
+          "tool_calls": 9,
+          "seconds": 37.8,
+          "cost_usd": 0.2286
+        },
+        {
+          "domain": null,
+          "question": "Is the inlet separator A1-V-1001 inspected often enough for its corrosion rate?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 3,
+          "operating_instructions": [],
+          "specialists": [
+            "maintenance-integrity"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 8,
+          "seconds": 34.1,
+          "cost_usd": 0.2255
+        }
+      ]
+    },
+    "production-surveillance/metering-and-balances": {
+      "questions": 2,
+      "mentions": 1.0,
+      "cited": 1.0,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": null,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.49,
+      "cost_per_answer_usd": 0.245,
+      "seconds_per_answer": 29.9,
+      "results": [
+        {
+          "domain": null,
+          "question": "Sales gas looks short this week. Is the sales meter H1-FT-8010 reading right?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "production-surveillance"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 12,
+          "seconds": 30.8,
+          "cost_usd": 0.2648
+        },
+        {
+          "domain": null,
+          "question": "What is the allocation factor at the dry gas meter C1-FT-3005, and can it be trusted?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 7,
+          "operating_instructions": [],
+          "specialists": [
+            "production-surveillance"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 9,
+          "seconds": 28.9,
+          "cost_usd": 0.2261
+        }
+      ],
+      "passed": true,
+      "short": []
+    },
+    "wells-subsurface/wells-and-lift": {
+      "questions": 3,
+      "mentions": 1.0,
+      "cited": 0.667,
+      "safe": 1.0,
+      "routed": 1.0,
+      "charted": 0.0,
+      "charts_per_answer": 0.0,
+      "looked_at_charts": 0,
+      "cost_usd": 0.58,
+      "cost_per_answer_usd": 0.193,
+      "seconds_per_answer": 29.6,
+      "results": [
+        {
+          "domain": null,
+          "question": "How fast is KR 12-03H declining, and what will it make in a year?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 4,
+          "operating_instructions": [],
+          "specialists": [
+            "wells-subsurface"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 13,
+          "seconds": 35.8,
+          "cost_usd": 0.2147
+        },
+        {
+          "domain": null,
+          "question": "What limits KR 12-04H's rate?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 7,
+          "operating_instructions": [],
+          "specialists": [
+            "wells-subsurface"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": null,
+          "tool_calls": 14,
+          "seconds": 31.6,
+          "cost_usd": 0.1983
+        },
+        {
+          "domain": null,
+          "question": "Where are KR 12-03H's frac stages, and what does the gamma ray read across them?",
+          "mentions": 1.0,
+          "missing": [],
+          "citations": 2,
+          "operating_instructions": [],
+          "specialists": [
+            "wells-subsurface"
+          ],
+          "routed": true,
+          "charts": [],
+          "charted": false,
+          "tool_calls": 3,
+          "seconds": 21.3,
+          "cost_usd": 0.1655
+        }
+      ],
+      "passed": true,
+      "short": []
+    }
+  }
+}

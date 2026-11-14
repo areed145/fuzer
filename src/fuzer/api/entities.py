@@ -55,6 +55,17 @@ def entity_history(fuzer_id: str, limit: int = 50, conn=Depends(get_conn)):
     return queries.record_history(conn, deps.pack(), fuzer_id, min(limit, 500))
 
 
+@router.get("/entities/{fuzer_id}/lineage")
+def entity_lineage(fuzer_id: str, conn=Depends(get_conn)):
+    """Where this entity's values came from (#875): its systems and records, the rule behind each value, reviewer
+    choices, merges and splits, and the work and write-backs that touched it."""
+    from ..graph import lineage
+
+    if (out := lineage.lineage(conn, fuzer_id)) is None:
+        raise HTTPException(404, "unknown fuzer_id")
+    return out
+
+
 @router.get("/entities/{fuzer_id}/spares")
 def entity_spares(fuzer_id: str, conn=Depends(get_conn)):
     """Spare parts (SAP materials from equipment BOMs) with stock and the manual sections naming them."""
@@ -293,6 +304,12 @@ def entity_status(fuzer_id: str, conn=Depends(get_conn)):
     """How the entity is doing right now: open work on it, its newest downtime and incident, a well's latest test."""
     from ..ops import exceptions
     return {"open_work": len(exceptions.listing(conn, subject=fuzer_id, limit=1000)), **queries.status(conn, fuzer_id)}
+
+
+@router.get("/entities/{fuzer_id}/profile")
+def entity_profile(fuzer_id: str, conn=Depends(get_conn)):
+    """What the asset is: maker, model and serial of the unit there now, its class, criticality, model and location."""
+    return queries.profile(conn, fuzer_id)
 
 
 @router.get("/incidents")

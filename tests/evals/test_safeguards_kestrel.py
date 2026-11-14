@@ -219,3 +219,48 @@ def test_the_specialist_sees_all_three_checks_on_an_item(kestrel_db):
     assert [p["label"] for p in got["proof_tests_overdue"]] == ["SG-KR-003"]
     assert [(d["label"], d["over"]) for d in got["demands"]] == [("SG-KR-002", True), ("SG-KR-004", False)]
     assert len(safeguard_status()["proof_tests_overdue"]) == 2 and "error" in safeguard_status("no-such-thing")
+
+
+def test_a_temporary_moc_past_its_end_date_is_work_until_it_closes(kestrel_db):
+    """#755: the change records say which changes are temporary, whether the pre-startup review is done, who owns them
+    and the work order carrying them out. The temporary clamp-on meter on the lean amine circulation is five days past
+    its end date: work for the engineer, with its owner, until the change closes. Dispatch and the phone warn about a
+    change implemented before its review, and never hold the job."""
+    from fuzer.ops import readiness
+
+    conn = kestrel_db
+    by = {c["label"]: c for c in safeguards.changes(conn)}
+    assert set(by) == {"MOC-KR-0129", "MOC-KR-0138", "MOC-KR-0142", "MOC-KR-0151"}  # MOC-KR-0117 is closed
+    meter, rerange = by["MOC-KR-0129"], by["MOC-KR-0151"]
+    assert safeguards.stage(meter)["expired"] and 4 <= safeguards.stage(meter)["overdue_days"] <= 6
+    assert not safeguards.stage(by["MOC-KR-0142"])["expired"]  # temporary, but not due for two days
+    assert safeguards.stage(rerange)["pssr_pending"] and rerange["work_orders"] == ["40007002"]
+    assert rerange["owner"] == "Instrument Engineer" and rerange["change_class"] == "permanent"
+
+    r = readiness.check(conn, [_fid(conn, "A1-LT-1001")])
+    moc = next(c for c in r["checks"] if c["check"] == "moc")
+    assert moc["ready"] and not any("MOC" in b for b in r["blockers"])
+    assert [m["moc"] for m in moc["mocs"]] == ["MOC-KR-0151"] and moc["mocs"][0]["pssr_pending"]
+    assert any(w.startswith("MOC MOC-KR-0151 on A1-LT-1001 is implemented but its pre-startup safety review is not "
+                            "done") and w.endswith("Carried out by work order 40007002") for w in r["warnings"])
+    w = readiness.mocs(conn, [_fid(conn, "D1-FT-4009")])["warnings"]
+    assert len(w) == 1 and w[0].startswith("Temporary MOC MOC-KR-0129 on D1-FT-4009 is past its end date")
+
+    engine.load_defaults(conn)
+    loop._people(conn)
+    conn.commit()
+    out = detectors.run(conn, resolve(conn), "temporary_moc_overdue")
+    assert [r["change"] for r in out["raised"]] == ["MOC-KR-0129"] and not out["errors"], out
+    x = conn.execute("select * from exception_record where type = 'temporary_moc_overdue' and state = 'open'").fetchone()
+    assert x["key"] == "MOC-KR-0129" and "D1-FT-4009" in x["title"] and "days past its end date" in x["title"]
+    assert conn.execute("select role from work_item where id = %s", (x["item_id"],)).fetchone()["role"] == "engineer"
+
+    fid = _fid(conn, "MOC-KR-0129")
+    conn.execute("update golden set value = to_jsonb('closed'::text) where field = 'state' and fuzer_id = %s", (fid,))
+    try:
+        out = detectors.run(conn, resolve(conn), "temporary_moc_overdue")
+        assert out["cleared"] == ["MOC-KR-0129"] and not out["raised"]
+    finally:  # open again, for the other tests on this database
+        conn.execute("update golden set value = to_jsonb('implemented'::text) where field = 'state' and fuzer_id = %s",
+                     (fid,))
+        conn.commit()

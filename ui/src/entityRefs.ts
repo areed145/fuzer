@@ -21,6 +21,25 @@ export const display = (id: string, names?: EntityNames) => {
   return n?.at ? [n.at, n.description].filter(Boolean).join(" ") : n?.label || id;
 };
 
+/** What people call a thing, when its description says more than its tag: "Crude Cooler" for 10-E-3001, "Okan
+ * Production Platform" for OKAN-10 (described "OKA_PP Okan Production Platform"). A leading source code is dropped
+ * when it has an underscore or the rest still says which one it is ("OKJ-01 Okan Jacket 01" reads "Okan Jacket 01",
+ * "OKJ-03 Gas Lift Manifold" stays whole). Null when the description only repeats the tag ("Well OK-J01-05 (GL oil
+ * producer)"), is missing, or is too long to sit on a drawing. */
+export function commonName(label: string | null | undefined, description: string | null | undefined): string | null {
+  let d = (description ?? "").trim().replace(/\s+/g, " ");
+  if (!d || (label && d.toLowerCase().includes(label.toLowerCase()))) return null;
+  const code = /^([A-Z0-9][A-Z0-9_\-./]*[A-Z0-9])\s+(.+)$/.exec(d);
+  if (code && /[\d_]/.test(code[1]) && (code[1].includes("_") || /\d/.test(code[2]))) d = code[2];
+  return d.length > 48 ? null : d;
+}
+
+/** A node's name on a graph: its tag, with what people call it on the line below when that says more. */
+export const nodeLabel = (label: string, description?: string | null) => {
+  const name = commonName(label, description);
+  return name ? `${label}\n${name}` : label;
+};
+
 export function idsIn(text: string): string[] {
   return [...new Set(text.match(new RegExp(ID, "g")) ?? [])];
 }

@@ -39,3 +39,13 @@ export async function requestText(path: string): Promise<string> {
     return res.text();
   }, `${getCsrf()}:${getProject()}:text:${path}`);
 }
+
+/** A file the API serves (a document's PDF or text), with its media type, through the same queue and project. */
+export async function requestFile(path: string): Promise<{ type: string; bytes: ArrayBuffer }> {
+  return scheduleRequest(async () => {
+    const project = getProject();
+    const res = await (project ? fetch(path, { headers: { "X-Fuzer-Project": project } }) : fetch(path));
+    if (!res.ok) throw new Error(res.status === 404 ? "No file is loaded for this document." : `${res.status} ${res.statusText}`);
+    return { type: res.headers.get("content-type") ?? "", bytes: await res.arrayBuffer() };
+  });
+}

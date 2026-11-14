@@ -261,6 +261,17 @@ card moved ("up 4 places: value 12,000 -> 40,000", "pinned", "new"). The board r
 register build and every SRE run, and with `fuzer board refresh`. Pages are read in rank order from
 indexes on rank, area and unit.
 
+**All work, Board.** `#/exceptions?list=board` lays the open work out as columns, in the order it moves: To
+dispatch, With a desk (a case held in the IOC), On the plan, With the field, Back from the field and Closed today
+(closed or cleared since midnight). Each column uses the same rule as the view of that name, so its count matches
+the tab and Home. A column's header gives its count, the value at stake and how long its oldest item has been in.
+Lanes (`lanes=source` or `lanes=kind`) split every column by where the work came from or what kind it is; the
+filter bar applies as on every view. A card shows the title, the asset, its kind and source, the field's last
+report, who holds it, how long it has waited and its value. Its button is the next step: Dispatch on a new item
+(the same control as the To dispatch list), Close out on its case once the field is done, and Re-dispatch when
+the field could not do it. Work with the field has no button: only the field reports on site and done. On a phone
+one stage shows at a time, picked from the chips above it (`stage=field`).
+
 ![The work board, ranked by value](assets/screens/board.png){ loading=lazy }
 
 **All work, Ranked by value.** The board is a view of All work (`#/exceptions?list=ranked`; old `#/board` links

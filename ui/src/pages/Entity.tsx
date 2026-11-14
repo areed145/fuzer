@@ -1,11 +1,12 @@
-import { projectUrl } from "../authState";
 import "../styles/entity.css";
-import { Bar, Button, ButtonLink, PageHeader, Table, Tabs, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
+import { Bar, Button, ButtonLink, PageHeader, Table, Tabs, Input,  Card as UICard, Badge as UIBadge} from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
-import { DrawingViewer } from "../DrawingViewer";
+import { DrawingViewer, SheetThumb } from "../DrawingViewer";
+import { DocumentPages, documentHref, openDocument } from "../DocumentViewer";
 import { NotThisRecord, SameAs } from "./masterdata/Curation";
 import { AssetContextCard } from "./masterdata/Context";
+import { caseHref } from "./workflows/shared";
 
 const EntityMapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));
 const LiveFigure = lazy(() => import("../analytics/LiveFigure").then((m) => ({ default: m.LiveFigure })));
@@ -33,9 +34,11 @@ import { TrendView } from "../TrendView";
 import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
 import { EntityStatus } from "../EntityStatus";
+import { AssetProfile } from "../AssetProfile";
 import { WatchButton } from "../Watch";
 import { Related } from "../Related";
-import { kindColor } from "../kinds";
+import { kindColor, relColor } from "../kinds";
+import { nodeLabel } from "../entityRefs";
 import { usePermission } from "../Auth";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
@@ -75,9 +78,9 @@ const REL_LABELS: Record<string, [string, string]> = {
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1]
   ?? `${e.rel.charAt(0).toUpperCase()}${e.rel.slice(1).replaceAll("_", " ")} (${e.direction === "out" ? "to" : "from"})`;
 
-type EntityTab = "overview" | "trends" | "connections" | "documents" | "record" | "graph";
+type EntityTab = "overview" | "maintenance" | "trends" | "connections" | "documents" | "record" | "graph";
 const TAB_LABELS: Record<EntityTab, string> = {
-  overview: "Overview", trends: "Timeline", connections: "Connections", documents: "Documents", record: "Record",
+  overview: "Overview", maintenance: "Maintenance", trends: "Timeline", connections: "Connections", documents: "Documents", record: "Record",
   graph: "Graph",
 };
 const NO_TRENDS = ["document", "document_section", "log_entry"];
@@ -89,7 +92,9 @@ function entityTabs(e: EntityDetail): EntityTab[] {
   // Connections is the flow diagram, so only a record on the piping or allocation network has it; its links are on Graph.
   const flow = e.edges.some((x) => x.rel === "flows_to" || x.rel === "pipes_to");
   const documents = [...MAINTAINED, "area", "well", "facility", "pipeline"].includes(e.kind);
-  return ["overview", ...(trends ? ["trends" as const] : []), ...(flow ? ["connections" as const] : []),
+  // Maintenance is the field technician's view: work orders and notifications, spare parts, and downtime.
+  const maintained = MAINTAINED.includes(e.kind);
+  return ["overview", ...(maintained ? ["maintenance" as const] : []), ...(trends ? ["trends" as const] : []), ...(flow ? ["connections" as const] : []),
     ...(documents ? ["documents" as const] : []), "record", "graph"];
 }
 
@@ -160,6 +165,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
       {view === "overview" && (
         <>
           {operated && <EntityStatus id={fid} />}
+          {["tag", "equipment", "equipment_model"].includes(e.kind) && <AssetProfile id={fid} />}
           {operated && <WorkHere id={fid} area={e.kind === "area"} />}
           {e.kind === "incident" && <IncidentDetail id={fid} />}
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
@@ -173,17 +179,13 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
                     {fmt(e.golden.status?.value)}
                   </span>
                 </h2>
-                <ButtonLink href={projectUrl(`/documents/${encodeURIComponent(fid)}/file`)} target="_blank"
-                   rel="noreferrer">Open document</ButtonLink>
+                <ButtonLink href={documentHref(fid)} onClick={(ev) => { ev.preventDefault(); openDocument(fid); }}>
+                  Read full screen</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
                 <p className="error small">This revision is superseded; see "Superseded by" under Graph.</p>
               )}
-              <iframe
-                className="doc-file"
-                title={fmt(e.golden.title?.value)}
-                src={projectUrl(`/documents/${encodeURIComponent(fid)}/file`)}
-              />
+              <DocumentPages id={fid} className="doc-preview" />
             </UICard>
           )}
           {e.kind === "document_section" && (
@@ -200,9 +202,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             <><IncidentsCard id={fid} />
             <Related about={{ subject: fid }} incidents={false} /></>
           )}
-          {MAINTAINED.includes(e.kind) && <MaintenanceCard id={fid} />}
-          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={fid} />}
-          {[...MAINTAINED, "well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
+          {["well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
           {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={fid} />}
           {e.kind !== "event" && <Events id={fid} />}
           <Suspense fallback={null}>
@@ -212,6 +212,14 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             <Fields e={e} />
             <Records e={e} />
           </div>}
+        </>
+      )}
+
+      {view === "maintenance" && (
+        <>
+          <MaintenanceCard id={fid} />
+          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={fid} />}
+          <DowntimeCard id={fid} />
         </>
       )}
 
@@ -232,8 +240,8 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
       {view === "documents" && (
         <>
-          <LinkedDrawings id={fid} />
           <KnowledgeCard id={fid} />
+          <LinkedDrawings id={fid} />
         </>
       )}
 
@@ -243,6 +251,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             <Fields e={e} />
             <Records e={e} />
           </div>}
+          <LineageCard id={fid} />
           {["tag", "equipment", "well"].includes(e.kind) && <AssetContextCard id={fid} />}
           {!NO_TRENDS.includes(e.kind) && e.kind !== "timeseries" && <MemoryCard id={fid} />}
           <HistoryCard id={fid} />
@@ -254,24 +263,16 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
 function LinkedDrawings({ id }: { id: string }) {
   const d = useAsync(() => api.entityDrawings(id), [id]);
-  const [pick, setPick] = useState<string>();
   const sheets = d.data?.drawings ?? [];
   if (sheets.length === 0) return null;
-  const sheet = sheets.find((x) => x.id === pick) ?? sheets[0];
-  const title = (
-    <>
-      On P&ID{" "}
-      {sheets.length > 1 ? (
-        <Select value={sheet.id} onChange={(ev) => setPick(ev.target.value)} aria-label="P&ID sheet">
-          {sheets.map((x) => <option key={x.id} value={x.id}>{x.label}{x.title ? ` · ${x.title}` : ""}</option>)}
-        </Select>
-      ) : (
-        <>{sheet.label}{sheet.title && <span className="muted"> · {sheet.title}</span>}</>
-      )}{" "}
-      <a className="small" href={entityHref(sheet.id)}>open</a>
-    </>
+  return (
+    <UICard as="section">
+      <h2>On P&ID <span className="muted small">{sheets.length === 1 ? "one sheet" : `${sheets.length} sheets`}, ringed where this is</span></h2>
+      <div className="sheet-thumbs">
+        {sheets.map((x) => <SheetThumb key={x.id} id={x.id} label={x.label ?? x.id} title={x.title} highlight={d.data!.highlight} />)}
+      </div>
+    </UICard>
   );
-  return <DrawingViewer key={sheet.id} id={sheet.id} highlight={d.data!.highlight} title={title} compact />;
 }
 
 /** Why a value says what it says (#225): the rule, and each record that states one with its mapping and load. */
@@ -476,7 +477,7 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
       if (off.includes(net.rel)) return;
       for (const [rows, upstream] of [[flow.data![2 * i], true], [flow.data![2 * i + 1], false]] as const) {
         for (const r of rows) {
-          nodes.set(r.fuzer_id, { id: r.fuzer_id, label: r.label ?? r.fuzer_id, kind: r.kind });
+          nodes.set(r.fuzer_id, { id: r.fuzer_id, label: nodeLabel(r.label ?? r.fuzer_id, r.description), kind: r.kind });
           const [src, dst] = upstream ? [r.fuzer_id, r.parent ?? id] : [r.parent ?? id, r.fuzer_id];
           edges.set(`${net.rel}:${src}>${dst}`, { src, dst, net });
         }
@@ -487,7 +488,7 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
       ...[...nodes.values()].map((n) => ({ data: { ...n, color: kindColor(n.kind), size: n.id === id ? 34 : 22,
         root: n.id === id } })),
       ...[...edges.values()].map((x, i) => ({ classes: x.net.cls, data: { id: `e${i}`, source: x.src, target: x.dst,
-        rel: x.net.rel, ended: false, label: x.net.label } })),
+        rel: x.net.rel, color: relColor(x.net.rel), ended: false, label: x.net.label } })),
     ];
   }, [flow.data, id, label, kind, off]);
   const none = !!flow.data && !has(0) && !has(1);
@@ -648,12 +649,12 @@ function IncidentsCard({ id }: { id: string }) {
   const d = useAsync(() => api.incidents(id), [id]);
   if (!d.data?.total) return null;
   return (
-    <section>
+    <UICard as="section">
       <h2>
         Incidents <span className="muted small">{d.data.total.toLocaleString()}</span>
       </h2>
       <IncidentList items={d.data.items.slice(0, 8)} />
-    </section>
+    </UICard>
   );
 }
 
@@ -700,9 +701,9 @@ function KnowledgeCard({ id }: { id: string }) {
       <ul className="plain">
         {docs.data.map((d) => (
           <li key={d.id} className="small">
-            <a href={entityHref(d.id)}>{d.title ?? d.label}</a>{" "}
+            <a href={documentHref(d.id)} onClick={(ev) => { ev.preventDefault(); openDocument(d.id); }}>{d.title ?? d.label}</a>{" "}
             <span className="muted">
-              {d.doc_type?.replace("_", " ")} · rev {d.revision} · via {d.why}
+              {d.doc_type?.replace("_", " ")} · rev {d.revision} · via {d.why} · <a href={entityHref(d.id)}>details</a>
             </span>
           </li>
         ))}
@@ -724,6 +725,100 @@ function KnowledgeCard({ id }: { id: string }) {
                 <span className="small"><Highlighted text={r.snippet} /></span>
                 {r.why && <span className="muted small">{r.why}</span>}
               </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </UICard>
+  );
+}
+
+const RULE_SAYS: Record<string, string> = { priority: "by system priority", review: "by a reviewer",
+  derived: "worked out from other values" };
+
+/** Where this came from (#875): the systems behind the record and how each record was matched, the rule behind its
+ * values, reviewer choices and fixes, merges and splits, and the work and write-backs that touched it. */
+function LineageCard({ id }: { id: string }) {
+  const l = useAsync(() => api.lineage(id), [id]);
+  if (!l.data?.systems) return <Status loading={l.loading} error={l.error} onRetry={l.reload} />;
+  const d = l.data;
+  const rules = Object.entries(d.rules).map(([r, n]) => `${n} ${RULE_SAYS[r] ?? r}`).join(", ");
+  return (
+    <UICard as="section">
+      <h2>Where this came from <span className="muted small">the systems, choices and work behind this record</span></h2>
+      <h3>Systems</h3>
+      {!d.systems.length && <p>No source system's record is matched to this one.</p>}
+      <Table headingCase="verbatim">
+        <thead><tr><th>System</th><th>Records, and how each was matched</th><th>Values it supplies</th></tr></thead>
+        <tbody>
+          {d.systems.map((s) => (
+            <tr key={s.source}>
+              <td><SourceBadge source={s.source} /></td>
+              <td className="small">
+                {s.records.map((r) => (
+                  <div key={r.record}><code>{sourceKey(s.source, r.key)}</code> <span className="muted">
+                    {r.record_type.replace(/_/g, " ")} · {r.matched_by}{r.confidence < 1 ? ` (${r.confidence})` : ""}</span></div>
+                ))}
+                {!s.records.length && <span className="muted">none matched</span>}
+              </td>
+              <td className="small">{s.chosen_fields.map(fieldLabel).join(", ") || <span className="muted">none chosen</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+      {rules && <p className="small">Values chosen {rules}. {d.note}</p>}
+      {(d.reviewed.length > 0 || d.fixes.length > 0) && <>
+        <h3>Reviewer choices</h3>
+        <ul className="small">
+          {d.reviewed.map((r) => (
+            <li key={`r-${r.field}`}><b>{fieldLabel(r.field)}</b>: {fmt(r.value)}{" "}
+              <span className="muted">chosen by {r.by ?? "a reviewer"}{r.at ? `, ${timestamp(r.at)}` : ""}</span></li>
+          ))}
+          {d.fixes.map((f, i) => (
+            <li key={`f-${i}`}><b>{fieldLabel(f.field)}</b>: {fmt(f.old_value)} → {fmt(f.new_value)}{" "}
+              <span className="muted">fixed by {f.by}, {timestamp(f.at)}{f.reason ? `: ${f.reason}` : ""}</span></li>
+          ))}
+        </ul>
+      </>}
+      {(d.identity.length > 0 || d.pins.length > 0) && <>
+        <h3>Merges and splits</h3>
+        <ul className="small">
+          {d.identity.map((x, i) => (
+            <li key={`i-${i}`}>
+              {x.event === "merge" ? "Merged in " : "Split off from "}
+              <a href={entityHref(x.other)}>{x.other_label ?? x.other}</a>{" "}
+              <span className="muted">{timestamp(x.at)}</span>
+            </li>
+          ))}
+          {d.pins.map((p, i) => (
+            <li key={`p-${i}`}>
+              <code>{p.left_ref}</code> {p.rule === "must" ? "is the same item as" : "is not the same item as"}{" "}
+              <code>{p.right_ref}</code>{" "}
+              <span className="muted">by {p.by ?? "a steward"}, {timestamp(p.at)}{p.reason ? `: ${p.reason}` : ""}</span>
+            </li>
+          ))}
+        </ul>
+      </>}
+      <h3>Work and write-backs</h3>
+      {!d.work.count && <p className="small">No work has been about this record.</p>}
+      {d.work.count > 0 && (
+        <ul className="small">
+          {d.work.recent.map((w) => (
+            <li key={w.id}><a href={caseHref(w.id)}>{w.title}</a> <span className="muted">{w.state} · {timestamp(w.created_at)}</span></li>
+          ))}
+          {d.work.count > d.work.recent.length && (
+            <li className="muted">and {d.work.count - d.work.recent.length} earlier</li>
+          )}
+        </ul>
+      )}
+      {d.writebacks.length > 0 && (
+        <ul className="small">
+          {d.writebacks.map((w) => (
+            <li key={w.id}>
+              <SourceBadge source={w.system} /> {w.kind.replace(/_/g, " ")} {w.record ? <code>{w.record}</code> : null}{" "}
+              <span className="muted">{w.state}{w.approved_by ? `, approved by ${w.approved_by}` : ""}
+                {w.confirmed_at ? `, confirmed ${timestamp(w.confirmed_at)}` : ""}</span>{" "}
+              <a href={caseHref(w.item_id)}>case</a>
             </li>
           ))}
         </ul>

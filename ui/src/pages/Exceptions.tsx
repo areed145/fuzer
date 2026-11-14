@@ -161,7 +161,7 @@ export const withTheField = (r: ExceptionRow, operators: Set<string>) => {
 
 const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "Field: done", could_not_do: "Field: could not do", note: "Field note" };
 
-type Person = { name: string; roles: string[]; away_until?: string | null };
+export type Person = { name: string; roles: string[]; away_until?: string | null };
 
 /** The same event as other systems reported it, worked on this one case (#464): each source, and a way to split one out
  * when it turns out to be a different event. */
@@ -188,14 +188,9 @@ function Row({ r, person, people, queues, onChange }: {
 }) {
   const names = useEntityNames(r.subjects);
   const { busy, error, run } = useAct();
-  const [to, setTo] = useState("");
-  const [ask, setAsk] = useState("");
   const [planOn, setPlanOn] = useState("");
-  const [why, setWhy] = useState("");
   const [shelveTo, setShelveTo] = useState("");
   const [shelveWhy, setShelveWhy] = useState("");
-  const [ready, setReady] = useState<Readiness | null>(null);
-  const blocked = !!ready && !ready.ready;
   const fieldSaid = r.evidence?.field?.[r.evidence.field.length - 1];
   return (
     <tr>
@@ -216,26 +211,8 @@ function Row({ r, person, people, queues, onChange }: {
           <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>
             {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <span className="muted">{fieldSaid.by} · {when(fieldSaid.at)}</span>
           {fieldSaid.note && <div className="muted">{fieldSaid.note}</div>}</div>}</td>
-      <td className="small">{r.state === "open" && person && <div className="row">
-        <Select aria-label="Dispatch to" value={to} onChange={(e) => setTo(e.target.value)} style={{ maxWidth: "12rem" }}>
-          <option value="">send to…</option>
-          {people.length > 0 && <optgroup label="People">{people.map((p) => <option key={p.name} value={p.name}>
-            {p.name}{p.roles.length ? ` (${p.roles.join(", ").replace(/_/g, " ")})` : ""}
-            {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ""}</option>)}</optgroup>}
-          <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{q.replace(/_/g, " ")} queue</option>)}</optgroup>
-        </Select>
-        <Button size="sm" disabled={!to.trim() || !!busy || (!r.item_id && !ask.trim()) || (blocked && !why.trim())}
-          title={!r.item_id && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job"
-            : blocked && !why.trim() ? "Not ready: say why it should go anyway" : undefined}
-          onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
-            blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onChange(); })}>
-          {r.item_id ? "Hand to" : "Dispatch"}</Button>
-      </div>}
-      {r.state === "open" && person && to.trim() && <Input aria-label="What to do" placeholder="what to check or do (they see this)"
-        value={ask} onChange={(e) => setAsk(e.target.value)} style={{ width: "100%" }} />}
-      {r.state === "open" && person && to.trim() && <ReadyToDispatch id={r.id} onResult={setReady} />}
-      {r.state === "open" && person && to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
-        placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => setWhy(e.target.value)} />}
+      <td className="small">{r.state === "open" && person && <DispatchControls r={r} person={person} people={people}
+        queues={queues} onDone={onChange} />}
       {r.state === "open" && person && <div className="row">
         <Input type="date" aria-label="Plan for" value={planOn} onChange={(e) => setPlanOn(e.target.value)} style={{ width: "9rem" }} />
         <Button size="sm" disabled={!planOn || !!busy} title="Put it on the integrated plan instead of working it now"
@@ -259,6 +236,42 @@ function Row({ r, person, people, queues, onChange }: {
   );
 }
 
+/** Who to send it to, what they should do, and whether it is ready to go (P5.5): the one dispatch control, used by
+ * the All work lists and the board's cards. */
+export function DispatchControls({ r, person, people, queues, onDone }: {
+  r: ExceptionRow; person: string; people: Person[]; queues: string[]; onDone: () => void;
+}) {
+  const { busy, error, run } = useAct();
+  const [to, setTo] = useState("");
+  const [ask, setAsk] = useState("");
+  const [why, setWhy] = useState("");
+  const [ready, setReady] = useState<Readiness | null>(null);
+  const blocked = !!ready && !ready.ready;
+  return <>
+    <div className="row">
+      <Select aria-label="Dispatch to" value={to} onChange={(e) => setTo(e.target.value)} style={{ maxWidth: "12rem" }}>
+        <option value="">send to…</option>
+        {people.length > 0 && <optgroup label="People">{people.map((p) => <option key={p.name} value={p.name}>
+          {p.name}{p.roles.length ? ` (${p.roles.join(", ").replace(/_/g, " ")})` : ""}
+          {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ""}</option>)}</optgroup>}
+        <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{q.replace(/_/g, " ")} queue</option>)}</optgroup>
+      </Select>
+      <Button size="sm" disabled={!to.trim() || !!busy || (!r.item_id && !ask.trim()) || (blocked && !why.trim())}
+        title={!r.item_id && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job"
+          : blocked && !why.trim() ? "Not ready: say why it should go anyway" : undefined}
+        onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
+          blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onDone(); })}>
+        {r.item_id ? "Hand to" : "Dispatch"}</Button>
+    </div>
+    {to.trim() && <Input aria-label="What to do" placeholder="what to check or do (they see this)"
+      value={ask} onChange={(e) => setAsk(e.target.value)} style={{ width: "100%" }} />}
+    {to.trim() && <ReadyToDispatch id={r.id} onResult={setReady} />}
+    {to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
+      placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => setWhy(e.target.value)} />}
+    {error && <p role="alert" className="error">{error}</p>}
+  </>;
+}
+
 /** Ready to dispatch (P5.5, #684): ready, or each blocker by name, read from the job's equipment records. */
 function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness | null) => void }) {
   const check = useAsync(() => api.exceptionReadiness(id), [id]);
@@ -267,13 +280,14 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
   if (!r) return check.error ? <p className="small error">Readiness not checked: {check.error}</p> : null;
   const warned = r.warnings?.length ? <ul className="plain small ready-warnings" aria-label="Before you send it">
     {r.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul> : null;
+  const confirm = r.checks.some((c) => c.confirm);  // needs a permit, none to check it against (#742)
   return <>{warned}{r.ready
-    ? <p className="small ready-note"><Badge tone="ok">ready</Badge>{" "}
+    ? <p className="small ready-note">{confirm ? <Badge tone="warn">check permit</Badge> : <Badge tone="ok">ready</Badge>}{" "}
       {[...r.checks.flatMap((c) => (c.centers ?? []).filter((w) => w.crew != null)
         .map((w) => `${w.description ?? w.label}: ${w.busy} of ${w.crew} busy.`)),
         ...r.checks.flatMap((c) => (c.permits ?? []).filter((p) => p.valid).slice(0, 1)
           .map((p) => `Permit ${p.label} (${p.type ?? "permit"}) valid to ${p.valid_to ?? "?"}.`)),
-        ...r.checks.filter((c) => !c.checked).map((c) => c.note)].filter(Boolean).join(" ")}</p>
+        ...r.checks.filter((c) => !c.checked && !c.confirm).map((c) => c.note)].filter(Boolean).join(" ")}</p>
     : <div className="small ready-note" role="status"><Badge tone="warn">not ready</Badge>
       <ul className="plain">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>}</>;
 }

@@ -1388,6 +1388,30 @@ test("an event grouped on two units says which unit each incident is on and link
   assert.equal(await first.getByRole("link", { name: "20-V-2101C", exact: true }).getAttribute("href"), "#/e/fz-incident-000000000002");
 });
 
+test("incident lists sit inside one titled card with padding, on the Incidents page and an asset's page", async () => {
+  const id = "fz-equipment-0123456789ab";
+  const inc = { id: "fz-incident-000000000001", description: "Level alarm on 10-V-2004", unit: "10-V-2004", start: "2025-12-30",
+    end: "2025-12-30", signals: 1, events: 1, downtime_records: 0, notifications: 0, lost_oil_sm3: 0 };
+  await page.route("**/incidents?*", (route) => route.fulfill({ json: { total: 1, items: [inc] } }));
+  await page.route("**/feedback/briefs", (route) => route.fulfill({ json: { incidents: 0, rated: 0, ratings: 0, items: [] } }));
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}/incidents?*`, (route) => route.fulfill({ json: { total: 1, items: [inc] } }));
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "equipment", label: "10-V-2004",
+    golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const path of ["/#/incidents", `/#/e/${id}`]) {
+    await page.goto(`${url}${path}`);
+    const row = page.locator(".timeline li").first();
+    await row.waitFor();
+    const card = page.locator(".card", { has: page.locator(".timeline") }).last();
+    assert.equal(await card.locator(".timeline").count(), 1, `${path}: the list is drawn once, inside a card`);
+    assert.equal(await card.locator("h2").count(), 1, `${path}: the card carries its own heading`);
+    const [c, r] = [await card.boundingBox(), await row.boundingBox()];
+    assert.ok(r.x - c.x >= 12, `${path}: rows are padded from the card edge`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+});
+
 test("the map fits the field's wells and platforms, not the export line, and says when base tiles fail (#398)", async () => {
   const pt = (id, kind, lon, lat) => ({ type: "Feature", id, geometry: { type: "Point", coordinates: [lon, lat] }, properties: { kind, label: id } });
   await page.route("**/map", (route) => route.fulfill({ json: { type: "FeatureCollection", features: [
@@ -1686,6 +1710,9 @@ test("an asset says what is known, what is missing and what each gap holds back;
       kinds: ["class_guide"], basis: ["it applies to its equipment class"] }] } }));
   const answers = [];
   await page.route("**/entities/tag-e5002/placement", (route) => { answers.push(route.request().postDataJSON()); return route.fulfill({ json: { accepted: true } }); });
+  await page.route("**/entities/tag-e5002/lineage", (route) => route.fulfill({ json: { fuzer_id: "tag-e5002", kind: "tag",
+    merged_into: null, systems: [], rules: {}, reviewed: [], fixes: [], pins: [], identity: [], work: { count: 0, recent: [] },
+    writebacks: [], note: "" } }));
   await page.goto(`${url}/#/e/tag-e5002?tab=record`);
   const panel = page.locator(".asset-context");
   await panel.getByText("Holds back Process excursions; IOW breaches; excursion and IOW cases. 89% of heat exchangers have it.").waitFor();
@@ -2676,6 +2703,12 @@ test("Home shows each server-built figure in its own card, with its tables on re
   const colors = await second.locator(".js-plotly-plot").evaluate((node) => node._fullData.map((t) => t.marker.color));
   const theme = await page.evaluate(() => [1, 2].map((i) => getComputedStyle(document.documentElement).getPropertyValue(`--chart-${i}`).trim()));
   assert.deepEqual(colors, theme, "Series take the theme colorway by position");
+  // Every chart opens on the whole screen from its own button, and comes back the height it was.
+  const before = await second.locator(".js-plotly-plot").evaluate((node) => node._fullLayout.height);
+  await second.getByRole("button", { name: "Full screen" }).click();
+  await page.waitForFunction(() => document.querySelector(".chart-frame.ui-fullscreen .js-plotly-plot")?._fullLayout?.height > 500);
+  await page.getByRole("button", { name: "Exit full screen" }).click();
+  await page.waitForFunction((h) => document.querySelectorAll(".home-charts .js-plotly-plot")[1]?._fullLayout?.height === h, before);
   await second.getByRole("button", { name: "Metadata needed to establish the bottleneck · 3 of 3 stages incomplete" }).click();
   await second.getByRole("cell", { name: "Crude terminal", exact: true }).waitFor();
   assert.equal(calls.capacity, 1);
@@ -3014,6 +3047,81 @@ test("the field's report sits above the IOC's decision, and operators are only o
   assert.equal(await page.getByText("Compressor trip").count(), 0);
 });
 
+test("the Board lays open work out by stage, splits it into lanes, and its cards dispatch or close out", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+  const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+  const exc = (id, extra) => ({ id, type: "sap_notification", key: `k${id}`, source: "sap", state: "open", priority: null,
+    value_usd: null, subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: ago(130),
+    last_seen: ago(10), item_id: null, assignee: null, evidence: {}, ...extra });
+  const open = [
+    exc(1, { title: "3rd stage compressor tripped", value_usd: 120000, raised_count: 2 }),
+    exc(2, { title: "Separator level high", type: "iow_breach", source: "historian", first_seen: ago(15) }),
+    exc(3, { title: "Low output from export pump", item_id: 31, assignee: "riley", value_usd: 31000 }),
+    exc(4, { title: "PSV recertification overdue", planned: { id: 1, start_at: "2026-11-17T07:00:00Z", end_at: "2026-11-17T12:00:00Z", crew: "crew B" } }),
+    exc(5, { title: "Seal leak at export pump B", item_id: 32, assignee: "sam",
+      evidence: { field: [{ at: ago(185), by: "sam", status: "on_site", note: null }] } }),
+    exc(6, { title: "Drain valve weeping", type: "round_finding", source: "rounds", item_id: 33, role: "operator" }),
+    exc(7, { title: "Strainer DP high", item_id: 34, assignee: "riley",
+      evidence: { field: [{ at: ago(40), by: "sam", status: "done", note: "cleaned" }] } }),
+    exc(8, { title: "Wellhead pressure high", source: "historian", item_id: 35, assignee: "riley",
+      evidence: { field: [{ at: ago(70), by: "sam", status: "could_not_do", note: "no permit" }] } }),
+  ];
+  const closed = [exc(9, { title: "Cooler fan tripped", state: "cleared", closed_at: ago(200) })];
+  const asked = [];
+  await page.route("**/exceptions?*", (route) => {
+    const q = new URL(route.request().url()).searchParams;
+    asked.push(Object.fromEntries(q));
+    return route.fulfill({ json: q.get("closed_since") ? [...closed, open[0]] : open });
+  });
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ioc_lead"] }, { name: "sam", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person", members: [] }] }));
+  await page.route("**/exceptions/types", (route) => route.fulfill({ json: [{ name: "sap_notification", label: "SAP notification",
+    role: null, process: null, case_type: null, audience: ["ioc"], close_case_on_clear: false, description: "", defined_in: "code", open: 6 }] }));
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(`${url}/#/exceptions?list=board`);
+  const column = (name) => page.getByRole("region", { name, exact: true });
+  await column("To dispatch").getByText("3rd stage compressor tripped").waitFor();
+  const titles = async (name) => (await column(name).locator(".work-card-title").allTextContents()).sort();
+  assert.deepEqual(await titles("To dispatch"), ["3rd stage compressor tripped", "Separator level high"]);
+  assert.deepEqual(await titles("With a desk"), ["Low output from export pump"]);
+  assert.deepEqual(await titles("On the plan"), ["PSV recertification overdue"]);
+  assert.deepEqual(await titles("With the field"), ["Drain valve weeping", "Seal leak at export pump B"]);
+  assert.deepEqual(await titles("Back from the field"), ["Strainer DP high", "Wellhead pressure high"]);
+  assert.deepEqual(await titles("Closed today"), ["Cooler fan tripped"]);  // an open row in the closed answer stays put
+  assert.ok(asked.some((q) => q.state === "any" && q.closed_since));
+  await column("To dispatch").getByText("$120k at stake · oldest 2h 10m").waitFor();
+  // Back from the field: done goes to its case to close out; could not do can go out again.
+  const done = column("Back from the field").locator(".work-card", { hasText: "Strainer DP high" });
+  assert.equal(await done.getByRole("link", { name: "Close out" }).getAttribute("href"), "#/cases/34");
+  assert.equal(await done.getByRole("button", { name: "Re-dispatch" }).count(), 0);
+  await column("Back from the field").locator(".work-card", { hasText: "Wellhead pressure high" }).getByRole("button", { name: "Re-dispatch" }).waitFor();
+  assert.equal(await column("With the field").getByRole("button").count(), 0);  // only the field moves its own work
+  await page.getByLabel("Lanes").selectOption("source");
+  await page.waitForURL(/lanes=source/);
+  assert.deepEqual(await column("To dispatch").locator(".work-board-lane").allTextContents(), ["historian", "sap"]);
+  await waveScreenshot("work-board");
+
+  const dispatched = [];
+  await page.route("**/exceptions/1/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: open[0] }); });
+  const card = column("To dispatch").locator(".work-card", { hasText: "3rd stage compressor tripped" });
+  await card.getByRole("button", { name: "Dispatch" }).click();
+  await card.getByLabel("Dispatch to").selectOption("sam");
+  await card.getByLabel("What to do").fill("check the trip log");
+  await card.locator(".row:not(.work-card-actions)").getByRole("button", { name: "Dispatch", exact: true }).click();
+  await expectReports(dispatched, 1);
+  assert.equal(dispatched[0].to, "sam");
+
+  // A phone shows one stage at a time, chosen from the chips, and never scrolls sideways.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const stages = page.getByRole("navigation", { name: "Stages" });
+  await stages.getByRole("link", { name: "Field 2" }).click();
+  await page.waitForURL(/stage=field/);
+  await column("With the field").getByText("Seal leak at export pump B").waitFor();
+  assert.equal(await column("To dispatch").isVisible(), false);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await waveScreenshot("work-board-phone");
+});
+
 test("All work holds the Work board and Cases as views, and their old links land on the same view (#502)", async () => {
   const exc = (id, extra) => ({ id, type: "upset", key: `k${id}`, source: "sre", state: "open", priority: null, value_usd: null,
     subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
@@ -3033,7 +3141,7 @@ test("All work holds the Work board and Cases as views, and their old links land
   await views.getByRole("link", { name: "All open 3", exact: true }).waitFor();
   await page.getByText("Compressor trip").waitFor();
   assert.deepEqual((await views.locator("a").allTextContents()).map((t) => t.trim()),
-    ["To dispatch 1", "With the field 1", "Back from the field 1", "All open 3", "In progress", "Ranked by value", "Closed"]);
+    ["To dispatch 1", "With the field 1", "Back from the field 1", "All open 3", "In progress", "Ranked by value", "Closed", "Board"]);
   await page.getByText("Compressor trip").waitFor();
   assert.equal(await page.getByText("Packing leak").count(), 0);
   await views.getByRole("link", { name: "With the field 1" }).click();
@@ -3241,6 +3349,11 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
       longitude: { value: 5.2, source: "gis", rule: "priority" }, geometry: { value: { type: "Point" }, source: "gis", rule: "priority" } },
     values: {}, keys: [], edge_counts: {}, edges: Array.from({ length: 24 }, (_, i) => edge(i + 1)),
     records: [{ source: "pi_af", record_type: "element", source_key: "OKAN\\20 OK_GGCP\\20-K-2300A", method: "singleton", confidence: 1 }] } }));
+  await page.route(`**/entities/${id}/lineage`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "well", merged_into: null,
+    systems: [{ source: "pi_af", chosen_fields: ["isa95_level"], records: [{ record: "pi_af:element:OKAN\\20 OK_GGCP\\20-K-2300A",
+      record_type: "element", key: "OKAN\\20 OK_GGCP\\20-K-2300A", matched_by: "singleton", confidence: 1 }] }],
+    rules: { priority: 4 }, reviewed: [{ field: "isa95_level", value: "unit", by: "steward-sam", at: "2026-11-12T10:00:00Z" }], fixes: [],
+    pins: [], identity: [], work: { count: 0, recent: [] }, writebacks: [], note: "Each value's own records are under why? on Values." } }));
   await page.goto(`${url}/#/e/${id}`);
   // An asset opens on its work and process values; what the register holds about it is one view away.
   await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
@@ -3250,7 +3363,10 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   await page.getByRole("link", { name: "Record", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
-  await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).waitFor();
+  // where it came from (#875): the system behind it, how its record was matched, and the reviewer's choice
+  await page.getByRole("heading", { name: /Where this came from/ }).waitFor();
+  await page.getByText("chosen by steward-sam", { exact: false }).waitFor();
+  await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).first().waitFor();
   await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
   // The links list sits with the graph; Connections is the flow diagram, which a well off the flow network lacks.
   await page.getByRole("link", { name: "Graph", exact: true }).click();
@@ -3514,7 +3630,7 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   const scene = {
     root: { id: "A1", kind: "area", label: "AREA-1" }, focus: null, rels: ["flows_to", "pipes_to"],
     plates: [{ id: "A1", label: "AREA-1", area: true, frame: "lattice", type: "wellhead jacket", x: 0, y: 0, z: 0, w: 28, d: 13, items: 3 }],
-    items: [item("V-1", "separator", 6, 5.25), item("K-1", "compressor", 14, 5.25, { classes: ["CO.CE"] }), item("E-1", "exchanger", 22, 5.25)],
+    items: [item("V-1", "separator", 6, 5.25), item("K-1", "compressor", 14, 5.25, { classes: ["CO.CE"], description: "Booster Compressor" }), item("E-1", "exchanger", 22, 5.25)],
     links: [{ id: 1, src: "V-1", dst: "K-1", rel: "pipes_to", product: null, path: [[6, 1, 5.25], [14, 1, 5.25]] },
       { id: 2, src: "V-1", dst: "E-1", rel: "flows_to", product: "gas", path: [[6, 1, 5.25], [6, 9, 5.25], [22, 9, 5.25], [22, 1, 5.25]] }],
     shapes: { separator: shape("capsule_h", [5.6, 2.2, 2.2], "Separator"), compressor: shape("box", [3.6, 2.4, 2.6], "Compressor"),
@@ -3543,6 +3659,29 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   assert.equal(scripts.some((u) => /Scene3D/.test(u)), true);
   assert.match(await page.getByTestId("scene-basis").textContent(), /not to scale: 3 items placed from 2 links, 4 valves and instruments/);
   assert.equal(await page.getByLabel("Facility or area to draw").inputValue(), "A1");
+
+  // Lines take the colour of what they carry, else of their link type, and the legend says which is which.
+  assert.deepEqual(await page.getByLabel("What the lines are").locator("span").allTextContents(), ["Gas", "pipes to"]);
+  // Items are named as people know them; Labels switches to tags, kept in the link.
+  const names = () => page.locator(".scene-tag:not([hidden])").allTextContents();
+  await page.waitForFunction(() => [...document.querySelectorAll(".scene-tag")].some((t) => !t.hidden && t.textContent === "Booster Compressor"));
+  await page.getByLabel("Label items by").selectOption("tags");
+  await page.waitForFunction(() => location.hash.includes("labels=tags"));
+  await page.waitForFunction(() => [...document.querySelectorAll(".scene-tag")].some((t) => !t.hidden && t.textContent === "K-1"));
+  assert.ok(!(await names()).includes("Booster Compressor"));
+  await page.getByLabel("Label items by").selectOption("names");
+
+  // Full screen covers the page with the drawing, its controls and legend; Escape or the button leaves.
+  await page.getByRole("button", { name: "Full screen" }).click();
+  const frame = page.locator(".scene3d-frame.ui-fullscreen");
+  await frame.waitFor();
+  const viewport = page.viewportSize();
+  const covered = await frame.boundingBox();
+  assert.ok(covered.width >= viewport.width - 1 && covered.height >= viewport.height - 1);
+  for (const name of ["Zoom in", "Zoom out", "View from above", "Fit"]) await frame.getByRole("button", { name }).click();
+  assert.equal(await frame.getByLabel("What the lines are").isVisible(), true);
+  await frame.getByRole("button", { name: "Exit full screen" }).click();
+  await page.locator(".scene3d-frame:not(.ui-fullscreen)").waitFor();
 
   // A click on a shape opens its card, with the way to its asset page; the pick is kept in the link.
   const at = await canvas.evaluate((el) => el.screenOf("K-1"));
@@ -6362,5 +6501,142 @@ test("P5.14 a P&ID on the whole screen: zoom, pan, a tap opens a tag, connected 
   assert.equal(await page.getByRole("dialog").count(), 0);
   assert.equal(new URL(page.url()).hash, `#/e/${doc(3)}`);
   await page.getByAltText("P&ID OKAN-20-PID-003").waitFor();
+  assert.deepEqual(errors, []);
+});
+
+test("on a phone the page itself doesn't zoom: no double-tap zoom, fields at 16px, the viewport locked", async () => {
+  const phone = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p = await phone.newPage();
+  await p.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || path.endsWith(".svg") || path.endsWith(".png")) return route.continue();
+    return route.fulfill({ json: path === "/auth/me" ? { mode: "local", configured: true, user: null } : [] });
+  });
+  await p.goto(`${url}/#/search`);
+  const viewport = await p.getAttribute('meta[name="viewport"]', "content");
+  assert.match(viewport, /maximum-scale=1/);
+  assert.equal(await p.evaluate(() => getComputedStyle(document.documentElement).touchAction), "manipulation");
+  const size = await p.evaluate(() => {
+    const field = document.createElement("input");
+    field.className = "yaml";
+    document.body.append(field);
+    return getComputedStyle(field).fontSize;
+  });
+  assert.equal(size, "16px");
+  const cancelled = await p.evaluate(() => {
+    const gesture = new Event("gesturestart", { cancelable: true, bubbles: true });
+    document.body.dispatchEvent(gesture);
+    return gesture.defaultPrevented;
+  });
+  assert.equal(cancelled, true);
+  await phone.close();
+});
+
+/** A small PDF with `n` pages of one line each, with correct cross-reference offsets. */
+function tinyPdf(n) {
+  const objs = ["<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${Array.from({ length: n }, (_, i) => `${4 + 2 * i} 0 R`).join(" ")}] /Count ${n} >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  for (let i = 0; i < n; i++) {
+    const text = `BT /F1 24 Tf 72 700 Td (Manual page ${i + 1}) Tj ET`;
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + 2 * i} 0 R >>`);
+    objs.push(`<< /Length ${text.length} >>\nstream\n${text}\nendstream`);
+  }
+  let out = "%PDF-1.4\n";
+  const at = [];
+  objs.forEach((o, i) => { at.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${at.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}
+
+test("a manual reads inside the app and Close goes back to the asset, so the installed app never strands anyone", async () => {
+  const asset = "fz-equipment-00000000c040";
+  const id = "fz-document-00000000c040";
+  await page.route(`**/entities/${asset}`, (route) => route.fulfill({ json: { fuzer_id: asset, kind: "equipment_model",
+    label: "Solar C40", golden: {}, values: {}, keys: [], edge_counts: {}, edges: [], records: [] } }));
+  await page.route(`**/entities/${asset}/documents`, (route) => route.fulfill({ json: [{ id, label: "DOC-C40", title: "C40 manual",
+    doc_type: "oem_manual", revision: "A", why: "this" }] }));
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "document", label: "DOC-C40",
+    golden: { title: { value: "C40 manual", source: "edms", rule: "priority" }, doc_type: { value: "oem_manual", source: "edms", rule: "priority" },
+      revision: { value: "A", source: "edms", rule: "priority" }, status: { value: "current", source: "edms", rule: "priority" } },
+    values: {}, keys: [], edge_counts: {}, edges: [], records: [{ source: "edms", record_type: "document", source_key: "c40" }] } }));
+  for (const x of [asset, id]) await page.route(`**/entities/${x}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/documents/${id}/file*`, (route) => route.fulfill({ contentType: "application/pdf", body: tinyPdf(3) }));
+  // From the asset's documents the manual opens straight in the reader, over the page, and Close comes back to it.
+  await page.goto(`${url}/#/e/${asset}?tab=documents`);
+  await page.getByRole("link", { name: "C40 manual" }).click();
+  const reader = page.getByRole("dialog", { name: "C40 manual" });
+  await reader.waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".doc-full canvas.doc-page").length === 3);
+  const before = await reader.locator("canvas.doc-page").first().evaluate((c) => c.getBoundingClientRect().width);
+  await reader.getByRole("button", { name: "Larger" }).click();
+  await page.waitForFunction((w) => document.querySelector(".doc-full canvas.doc-page").getBoundingClientRect().width > w * 1.4, before);
+  await reader.getByRole("button", { name: "Close document" }).click();
+  await reader.waitFor({ state: "detached" });
+  assert.match(page.url(), new RegExp(`#/e/${asset}\\?tab=documents$`));
+  // The document's own page previews its pages drawn in the app, never the raw file in a frame or a new window.
+  await page.getByRole("link", { name: "details" }).click();
+  await page.getByRole("link", { name: "Read full screen" }).waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".doc-preview canvas.doc-page").length === 3);
+  assert.equal(await page.locator("iframe.doc-file").count(), 0);
+  await page.getByRole("link", { name: "Read full screen" }).click();
+  await reader.waitFor();
+  // Escape closes it too.
+  await page.keyboard.press("Escape");
+  await reader.waitFor({ state: "detached" });
+  assert.match(page.url(), new RegExp(`#/e/${id}$`));
+  assert.deepEqual(errors, []);
+});
+
+test("an asset's Overview says what it is; work orders and spares sit under Maintenance; every P&ID sheet is a tile", async () => {
+  const id = "fz-tag-0000000c40aa";
+  const sheet = (n) => `fz-document-00000000pid${n}`;
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "tag", label: "20-K-2300A",
+    golden: { description: { value: "Train A 3rd Stage Compressor", source: "sap", rule: "priority" } },
+    values: {}, keys: [], edge_counts: {}, edges: [], records: [] } }));
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}/profile`, (route) => route.fulfill({ json: { description: "Train A 3rd Stage Compressor",
+    manufacturer: "Solar Turbines", model: "C40", serial: "SN79550", criticality: "A", template: "Compressor",
+    equipment_model: { id: "fz-equipment_model-c40", label: "SOLAR TURBINES C40" },
+    equipment_class: { id: "fz-equipment_class-co", label: "ISO14224:CO.CE", description: "Centrifugal compressors" },
+    installed: { id: "fz-equipment-79550", label: "S/N 79550", since: "2009-06-01" }, position: null,
+    location: [{ id: "fz-area-20", kind: "area", label: "OKAN-20", description: "Gas Compression Platform" }],
+    manuals: [{ id: "fz-document-c40", label: "OEM-C40", title: "C40 manual", doc_type: "oem_manual", revision: "A", why: "model" }] } }));
+  await page.route(`**/entities/${id}/spares`, (route) => route.fulfill({ json: [{ fuzer_id: "fz-material-1", label: "MAT-1",
+    used_by: 1, description: "Dry gas seal", mpn: "C40-DGS", stock: 2, bin: "B-12", documents: [] }] }));
+  await page.route(`**/entities/${id}/drawings`, (route) => route.fulfill({ json: { highlight: [id],
+    drawings: [1, 2, 3].map((n) => ({ id: sheet(n), label: `OKAN-20-PID-00${n}`, title: `Sheet ${n}` })) } }));
+  for (const n of [1, 2, 3]) await page.route(`**/documents/${sheet(n)}/drawing`, (route) => route.fulfill({ json: {
+    sheet: `OKAN-20-PID-00${n}`, format: "smart", title: `Sheet ${n}`, read_by: "smart file", image: `/documents/${sheet(n)}/image`,
+    width: 300, height: 200, marks: [{ text: "20-K-2300A", id, status: "linked", x: 150, y: 100 }], connections: [], findings: [] } }));
+  await page.route("**/documents/*/image*", (route) => route.fulfill({ contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="300" height="200" fill="#eee"/></svg>' }));
+  await page.goto(`${url}/#/e/${id}`);
+  const about = page.getByRole("region", { name: "About this asset" }).or(page.locator(".asset-profile"));
+  await about.getByRole("link", { name: "Solar Turbines C40" }).waitFor();
+  for (const text of ["SN79550", "Centrifugal compressors", "Gas Compression Platform", "C40 manual"]) {
+    await about.getByText(text, { exact: false }).first().waitFor();
+  }
+  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
+    ["Overview", "Maintenance", "Timeline", "Documents", "Record", "Graph"]);
+  assert.equal(await page.getByRole("heading", { name: "Spare parts" }).count(), 0);
+  // The manual opens in the reader from the card.
+  await about.getByRole("link", { name: "C40 manual" }).click();
+  await page.locator(".doc-full").waitFor();
+  await page.keyboard.press("Escape");
+  await page.locator(".doc-full").waitFor({ state: "detached" });
+  await page.getByRole("link", { name: "Maintenance", exact: true }).click();
+  await page.getByRole("heading", { name: "Spare parts" }).waitFor();
+  await page.getByText("Dry gas seal").waitFor();
+  // Every sheet is a tile, not a picker; a tile opens that sheet full screen with the asset ringed.
+  await page.getByRole("link", { name: "Documents", exact: true }).click();
+  await page.locator(".sheet-thumb").nth(2).waitFor();
+  assert.equal(await page.locator(".sheet-thumb").count(), 3);
+  assert.equal(await page.getByLabel("P&ID sheet").count(), 0);
+  await page.waitForFunction(() => document.querySelectorAll(".sheet-thumb .hl-ring").length === 3);
+  await page.getByRole("link", { name: "Open OKAN-20-PID-002 full screen" }).click();
+  await page.waitForFunction(() => new URLSearchParams(location.hash.split("?")[1]).get("drawing")?.endsWith("pid2"));
   assert.deepEqual(errors, []);
 });

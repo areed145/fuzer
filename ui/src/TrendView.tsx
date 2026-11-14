@@ -152,7 +152,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         </div>
       )}
       {figure && (shownTraces.length > 0 || lanes.length > 0) && (
-        <PlotlyChart key={redraw} spec={figure as never} onPoint={open} onZoom={setZoomed} bare
+        <PlotlyChart key={redraw} spec={figure as never} onPoint={open} onZoom={setZoomed}
                      label={`${d?.unit_label ?? id}: ${shownTraces.length} traces and ${lanes.length} event lanes from ${d?.start} to ${d?.end}`} />
       )}
       {t.error && <p className="small error">Events unavailable: {t.error}</p>}

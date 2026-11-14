@@ -9,7 +9,9 @@
 .ui-page-actions > * { white-space: nowrap; }
 @media (min-width: 700px) { .ui-page-actions { flex: none; max-width: 50%; justify-content: flex-end; } }
 /* Phones: the actions go under the title, so a long subtitle isn't squeezed into a narrow column beside them. */
-@media (max-width: 699px) { .ui-page-header { flex-direction: column; gap: 10px; } }
+@media (max-width: 699px) { .ui-page-header { flex-direction: column; gap: 10px; }
+  /* A long title or control wraps or ellipsises instead of widening the page, which can no longer zoom out to fit. */
+  .ui-page-header, .ui-page-header > * { max-width: 100%; min-width: 0; } }
 .ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-weight: 500; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; text-decoration: none; }
 .ui-button-md { padding: 6px 10px; }
 .ui-button-sm { padding: 3px 8px; font-size: 12px; }
@@ -77,3 +79,20 @@ ul.plain li { padding: 2px 0; }
 .ui-disclosure-toggle:hover { text-decoration: underline; }
 .ui-disclosure-toggle[aria-expanded="true"] { color: var(--text); font-weight: 600; }
 .ui-disclosure-body { margin-top: 8px; }
+/* Full screen (useFullscreen): the view fills the screen, inside the notch and home-bar insets, above the bars. */
+.ui-fullscreen {
+  position: fixed !important; inset: 0; z-index: 1200; width: 100vw !important; height: 100vh; height: 100dvh;
+  max-width: none !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--bg); overflow: auto;
+}
+html.ui-fullscreen-open, html.ui-fullscreen-open body { overflow: hidden; }
+.ui-fullscreen-button { display: inline-flex; align-items: center; justify-content: center; padding: 6px; }
+.ui-fullscreen-button svg { display: block; }
+@media (pointer: coarse) { .ui-fullscreen-button { min-width: 44px; min-height: 44px; } }
+/* A chart's full screen button sits in its top right corner, where the toolbar was. */
+.chart-frame { position: relative; }
+.chart-frame .chart-fullscreen { position: absolute; top: 0; right: 0; z-index: 2; opacity: .75; }
+.chart-frame .chart-fullscreen:hover, .chart-frame .chart-fullscreen:focus-visible, .chart-frame.ui-fullscreen .chart-fullscreen { opacity: 1; }
+.chart-frame.ui-fullscreen { padding: calc(60px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left)); }
+.chart-frame.ui-fullscreen .chart-fullscreen { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }

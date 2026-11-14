@@ -100,10 +100,14 @@ def _describe(conn, ids: list[str]) -> dict[str, dict]:
         left join golden ft on ft.fuzer_id = en.fuzer_id and ft.field = 'facility_type'
         where en.fuzer_id = any(%s)""", ids)}
     for r in _rows(conn, """
-        select t.id, cl.label from unnest(%s::text[]) t(id)
-        join edge c on c.rel = 'classified_as' and c.valid_to is null and (c.src = t.id or c.src in (
-            select i.src from edge i where i.dst = t.id and i.rel = 'installed_at' and i.valid_to is null))
-        join entity_label cl on cl.fuzer_id = c.dst order by cl.label""", ids):
+        with of (id, src) as (  -- its own class and that of the equipment installed at it: two index walks
+            select t.id, t.id from unnest(%s::text[]) t(id)
+            union
+            select i.dst, i.src from edge i
+            where i.dst = any(%s::text[]) and i.rel = 'installed_at' and i.valid_to is null)
+        select distinct o.id, cl.label from of o
+        join edge c on c.src = o.src and c.rel = 'classified_as' and c.valid_to is null
+        join entity_label cl on cl.fuzer_id = c.dst order by cl.label""", ids, ids):
         code = r["label"].split(":", 1)[-1]
         if code not in out[r["id"]]["classes"]:
             out[r["id"]]["classes"].append(code)
@@ -294,8 +298,9 @@ def _route(a: dict, b: dict, lift: float) -> list[list[float]]:
 def places(conn) -> list[dict]:
     """The facilities and areas a scene can be of, for the picker."""
     return _rows(conn, """
-        select en.fuzer_id as id, en.kind, l.label, p.dst as parent from entity en
+        select en.fuzer_id as id, en.kind, l.label, d.value #>> '{}' as description, p.dst as parent from entity en
         left join entity_label l using (fuzer_id)
+        left join golden d on d.fuzer_id = en.fuzer_id and d.field = 'description'
         left join lateral (select e.dst from edge e join entity d on d.fuzer_id = e.dst
                            where e.src = en.fuzer_id and e.rel = 'part_of' and e.valid_to is null
                              and d.kind in ('facility', 'area') order by e.dst limit 1) p on true
@@ -363,6 +368,7 @@ def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None)
         lanes = max((z for _, z in cell.values()), default=0.0)
         real = pid not in names
         plates.append({"id": pid, "label": area_label.get(pid) or pid if real else names[pid], "area": real,
+                       "description": about[pid]["description"] if real else None,
                        "frame": _frame(table, about[pid]["area_type"]) if real else "slab",
                        "type": about[pid]["area_type"] if real else None,
                        "w": cols * CELL_X + 2 * MARGIN + CELL_X / 2, "d": lanes * CELL_Z + 2 * MARGIN + CELL_Z / 2,

@@ -1,2 +1,3 @@
-moc_no,title,change_type,state,tag,opened,closes
-MOC-HR-0207,Replace the origin surge tank level transmitter with a guided wave radar,instrument,closed,A1-LT-1001,today-300d 09:00,today-280d 17:00
+moc_no,title,change_type,state,tag,opened,closes,change_class,pssr,owner,work_order
+MOC-HR-0207,Replace the origin surge tank level transmitter with a guided wave radar,instrument,closed,A1-LT-1001,today-300d 09:00,today-280d 17:00,permanent,done,Instrument Engineer,
+MOC-HR-0214,Temporary gauge on the mainline suction while its pressure transmitter is replaced,instrument,implemented,A1-PT-1004,today-30d 09:00,today-3d 17:00,temporary,done,Instrument Engineer,

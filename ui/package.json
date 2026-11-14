@@ -19,6 +19,7 @@
     "cytoscape-fcose": "^2.2.0",
     "leaflet": "1.9.4",
     "mermaid": "12.2.0",
+    "pdfjs-dist": "6.4.299",
     "plotly.js-cartesian-dist-min": "4.1.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

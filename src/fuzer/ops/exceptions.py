@@ -511,10 +511,11 @@ def unshelve_expired(conn) -> list[dict]:
 
 
 def listing(conn, state: str | None = OPEN, type: str | None = None, subject: str | None = None,
-            audience: str | None = None, limit: int = 200) -> list[dict]:
+            audience: str | None = None, limit: int = 200, closed_since=None) -> list[dict]:
     """Exceptions, most valuable then newest first, with the case that works them and who has it, and when it is
     planned if the IOC put it on the integrated plan instead of working it now. One event is one row (#464): the
-    exceptions that joined its case are under it in `joined`, their assets in its `subjects`."""
+    exceptions that joined its case are under it in `joined`, their assets in its `subjects`. `closed_since` keeps
+    the ones closed or cleared from then on, as the work board's last column shows what the shift finished."""
     names = [n for n, t in types(conn).items() if audience is None or audience in t.audience]
     rows = conn.execute(
         """
@@ -539,9 +540,10 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
           and (%(subject)s::text is null or %(subject)s = any(e.subjects)
                or exists (select 1 from exception_record j where j.joined_to = e.id and %(subject)s = any(j.subjects)))
           and (%(all)s or e.type = any(%(types)s))
+          and (%(closed_since)s::timestamptz is null or e.closed_at >= %(closed_since)s)
         order by e.value_usd desc nulls last, e.priority desc nulls last, e.last_seen desc limit %(limit)s
         """, {"state": state, "type": type, "subject": subject, "all": audience is None, "types": names,
-              "limit": limit}).fetchall()
+              "limit": limit, "closed_since": closed_since}).fetchall()
     for r in rows:
         if r["joined"]:
             labels = {n: t.label for n, t in types(conn).items()}
@@ -674,7 +676,8 @@ def _when(conn, at) -> tuple[str, bool]:
 
 
 def report(conn, exception_id: int, by: str, status: str, note: str | None = None, *, reading: dict | None = None,
-           photos=(), client_id: str | None = None, at: str | None = None, override: str | None = None) -> dict:
+           photos=(), client_id: str | None = None, at: str | None = None, override: str | None = None,
+           permit_in_hand: bool | None = None) -> dict:
     """What a field operator says back: on site, done, could not do (with why) or a note. Kept on the exception's
     evidence (`field`) and its case's history, and published as exception.reported for the IOC. `done` on a case
     without a process closes it. `done` on a process case, or `could_not_do` on any, hands what was sent to them
@@ -683,7 +686,9 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
     A report the phone kept while it had no signal (P5.3c) comes with its `client_id` and the time it was made: it is
     applied once (a resend changes nothing) and keeps that time.
     "On site" starts the work: on a job whose work type needs a permit to work and has no valid one (P5.11a), it is
-    refused unless the person says why it starts anyway (`override`), a fixed human gate kept on the case."""
+    refused unless the person says why it starts anyway (`override`), a fixed human gate kept on the case. Where it
+    needs a permit and no permit records are loaded (#742), nothing is refused: whether the person confirmed a permit
+    in hand (`permit_in_hand`) is kept on the case."""
     if status not in FIELD_STATUSES:
         raise ExceptionError(f"status must be one of {FIELD_STATUSES}")
     if status in ("could_not_do", "note") and not (note or "").strip():
@@ -693,14 +698,15 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
     row = _row(conn, exception_id, lock=True)
     if row["joined_to"]:  # the field reports on the event, which its host carries
         return report(conn, row["joined_to"], by, status, note, reading=reading, photos=photos, client_id=client_id,
-                      at=at, override=override)
+                      at=at, override=override, permit_in_hand=permit_in_hand)
     if client_id and any(f.get("client_id") == client_id for f in (row["evidence"] or {}).get("field") or []):
         return row  # already here: the phone sent it again after losing the answer
-    unpermitted = None
+    unpermitted, unchecked = None, False
     if status == "on_site":
         from . import readiness
 
         permit = readiness.permits(conn, list(row["subjects"] or []), row["id"])
+        unchecked = bool(permit.get("confirm"))
         if not permit["ready"]:
             override = (override or "").strip()
             if not override:
@@ -712,6 +718,8 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
     entry = {"at": made, "by": by, "status": status, "note": note}
     if unpermitted:
         entry["without_permit"] = {"blocker": unpermitted, "why": override}
+    if unchecked:
+        entry["permit_in_hand"] = bool(permit_in_hand)
     if client_id:
         entry["client_id"] = client_id
     if late:
@@ -736,6 +744,9 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             {"kind": "photo", "exception_id": exception_id, "photo_id": i} for i in entry.get("photos", [])])
         if unpermitted:
             work.comment(conn, row["item_id"], by, f"Started without a valid permit ({unpermitted}). Why: {override}")
+        if unchecked:
+            work.comment(conn, row["item_id"], by, "Permit in hand: confirmed on site (no permit records to check)"
+                         if permit_in_hand else "Permit in hand: not confirmed on site (no permit records to check)")
         from . import routing
 
         # a queue_item case (#509) is a plain queue case run as a process: Done closes it as before
@@ -1024,8 +1035,9 @@ def _permit(conn, subjects: list[str], exception_id: int) -> dict | None:
 
 
 def _permit_shown(p: dict) -> dict | None:
-    if not p["checked"]:
-        return None
+    if not p["checked"]:  # no permit records: only work that needs a permit asks for one in hand (#742)
+        return {"needed": True, "blocked": False, "blocker": None, "unchecked": True, "permit": None,
+                "note": p["warnings"][0]} if p.get("confirm") else None
     shown = next((x for x in p["permits"] if x["valid"]), p["permits"][0] if p["permits"] else None)
     return {"needed": p["needed"], "blocked": not p["ready"], "blocker": p["blockers"][0] if p["blockers"] else None,
             "permit": shown and {k: shown[k] for k in ("label", "type", "state", "valid_from", "valid_to", "work",

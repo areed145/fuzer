@@ -300,3 +300,26 @@ function End({ id, text }: { id: string | null; text: string }) {
     <span className="mono">{text}</span>
   );
 }
+
+/** One P&ID sheet as a tile: the whole sheet with this entity ringed and the sheet's number and title under it. A tap
+ * opens it on the whole screen, ringed, to zoom and follow lines to other sheets. */
+export function SheetThumb({ id, label, title, highlight }: { id: string; label: string; title?: string | null; highlight: string[] }) {
+  const d = useAsync(() => api.drawing(id).catch(() => null), [id]);
+  const g = d.data;
+  const ringed = (g?.marks ?? []).filter((m) => !!m.id && highlight.includes(m.id) && m.x !== undefined && m.y !== undefined);
+  return (
+    <a className="sheet-thumb" href={entityHref(id)} aria-label={`Open ${label} full screen`}
+       onClick={(ev) => { ev.preventDefault(); openDrawing(id, highlight); }}>
+      <span className="sheet-thumb-img">
+        {g ? <>
+          <img src={projectUrl(g.image)} alt="" loading="lazy" />
+          <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            {ringed.map((m, i) => <circle key={i} className="hl-ring" cx={m.x} cy={m.y} r={90} />)}
+          </svg>
+        </> : <span className="muted small">{d.loading ? "Loading…" : "No image"}</span>}
+      </span>
+      <span className="sheet-thumb-cap"><span className="mono">{label}</span>
+        {title && <span className="muted small">{title}</span>}</span>
+    </a>
+  );
+}

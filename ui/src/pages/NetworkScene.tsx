@@ -1,7 +1,9 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
-import { api, type RelationDef } from "../api";
-import { ALL_RELS } from "../kinds";
-import { href, Status, useAsync } from "../lib";
+import { api, type RelationDef, type SceneLink } from "../api";
+import { commonName } from "../entityRefs";
+import { ALL_RELS, PRODUCTS, linkColor } from "../kinds";
+import { entityHref, href, Status, useAsync } from "../lib";
+import type { LabelBy } from "../Scene3D";
 import { ButtonLink, Card as UICard, Empty, Notice, Select } from "../ui";
 import { NodePanel } from "./Network";
 
@@ -9,8 +11,12 @@ import { NodePanel } from "./Network";
 const Scene3D = lazy(() => import("../Scene3D"));
 
 const words = (s: string) => s.replace(/_/g, " ");
-const chartColor = (i: number) =>
-  getComputedStyle(document.documentElement).getPropertyValue(`--chart-${(i % 6) + 1}`).trim();
+const FLOW_PRODUCT = { flows_to: true, lift_gas_to: true }; // the link types a product is worked out for
+const lineColor = (l: SceneLink) => linkColor(l.rel, l.product);
+const named = (label: string, description: string | null | undefined) => {
+  const name = commonName(label, description);
+  return name ? `${label} ${name}` : label;
+};
 
 /** The Network page's 3D view: a facility or an area as generic shapes, laid out from its links on the server.
  * What it shows (`at`) and the picked item (`node`) live in the address, so a view can be shared and Back returns. */
@@ -21,6 +27,7 @@ export function NetworkScene({ query, set, relDef }: {
 }) {
   const at = query.get("at") ?? undefined;
   const picked = query.get("node");
+  const labelBy: LabelBy = query.get("labels") === "tags" ? "tags" : "names";
   const scene = useAsync(() => api.scene(at), [at]);
   const [noWebGL, setNoWebGL] = useState(false);
   const [centre, setCentre] = useState<{ id: string } | null>(null);
@@ -29,7 +36,20 @@ export function NetworkScene({ query, set, relDef }: {
   const selected = picked ?? s?.focus ?? null;
   const rels = useMemo(() => [...(s?.rels ?? [])].sort((a, b) =>
     (ALL_RELS.indexOf(a) + 1 || 999) - (ALL_RELS.indexOf(b) + 1 || 999) || a.localeCompare(b)), [s]);
-  const relColor = useCallback((rel: string) => chartColor(Math.max(rels.indexOf(rel), 0)), [rels]);
+  // The legend says what each colour of line is: a product where a line's is known, else its link type.
+  const legend = useMemo(() => {
+    const seen = new Map<string, { label: string; color: string; order: number }>();
+    for (const l of s?.links ?? []) {
+      const product = l.product && PRODUCTS[l.product] ? l.product : null;
+      const key = product ? `p:${product}` : `r:${l.rel}`;
+      if (seen.has(key)) continue;
+      seen.set(key, product
+        ? { label: PRODUCTS[product], color: lineColor(l), order: Object.keys(PRODUCTS).indexOf(product) }
+        : { label: `${relDef(l.rel)?.label ?? words(l.rel)}${l.rel in FLOW_PRODUCT ? ", product not known" : ""}`, color: lineColor(l),
+          order: 100 + rels.indexOf(l.rel) });
+    }
+    return [...seen.values()].sort((a, b) => a.order - b.order);
+  }, [s, rels, relDef]);
   const item = s?.items.find((i) => i.id === selected);
   const places = s?.places ?? [];
   const facilities = places.filter((p) => p.kind === "facility");
@@ -52,11 +72,11 @@ export function NetworkScene({ query, set, relDef }: {
                 {facilities.map((f) => (
                   <optgroup key={f.id} label={f.label ?? f.id}>
                     <option value={f.id}>All of {f.label ?? f.id}</option>
-                    {under(f.id).map((a) => <option key={a.id} value={a.id}>{a.label ?? a.id}</option>)}
+                    {under(f.id).map((a) => <option key={a.id} value={a.id}>{named(a.label ?? a.id, a.description)}</option>)}
                   </optgroup>
                 ))}
                 {places.filter((p) => p.kind === "area" && !facilities.some((f) => f.id === p.parent))
-                  .map((a) => <option key={a.id} value={a.id}>{a.label ?? a.id}</option>)}
+                  .map((a) => <option key={a.id} value={a.id}>{named(a.label ?? a.id, a.description)}</option>)}
               </Select>
             </label>
             <label>
@@ -64,7 +84,14 @@ export function NetworkScene({ query, set, relDef }: {
               <Select value={selected ?? ""} aria-label="Find an item in the drawing"
                 onChange={(e) => { select(e.target.value || null); if (e.target.value) setCentre({ id: e.target.value }); }}>
                 <option value="">an item ({s.counts.items})</option>
-                {s.items.map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
+                {s.items.map((i) => <option key={i.id} value={i.id}>{named(i.label, i.description)}</option>)}
+              </Select>
+            </label>
+            <label>
+              Labels
+              <Select value={labelBy} aria-label="Label items by" onChange={(e) => set({ labels: e.target.value === "tags" ? "tags" : undefined })}>
+                <option value="names">Names</option>
+                <option value="tags">Tags</option>
               </Select>
             </label>
             <span className="small muted" data-testid="scene-basis">
@@ -82,14 +109,26 @@ export function NetworkScene({ query, set, relDef }: {
             <div className="graph-layout">
               <div>
                 <Suspense fallback={<Status loading />}>
-                  <Scene3D scene={s} selected={selected} centre={centre} onSelect={select} relColor={relColor}
-                    onUnavailable={() => setNoWebGL(true)} />
+                  <Scene3D scene={s} selected={selected} centre={centre} onSelect={select} lineColor={lineColor}
+                    labelBy={labelBy} onUnavailable={() => setNoWebGL(true)} footer={<>
+                      <div className="legend" aria-label="What the lines are">
+                        {legend.map((e) => (
+                          <span key={e.label}>
+                            <svg className="scene-line" width="18" height="6" aria-hidden="true"><line x1="1" y1="3" x2="17" y2="3" stroke={e.color} strokeWidth="4" strokeLinecap="round" /></svg>
+                            {e.label}
+                          </span>
+                        ))}
+                      </div>
+                      {item && (
+                        <div className="scene-pick" aria-live="polite">
+                          <strong>{item.label}</strong>
+                          {commonName(item.label, item.description) && <span>{commonName(item.label, item.description)}</span>}
+                          <span className="muted">{s.shapes[item.shape]?.label}{item.area ? `, in ${item.area}` : ""}</span>
+                          <ButtonLink size="sm" href={entityHref(item.id)}>Open</ButtonLink>
+                        </div>
+                      )}
+                    </>} />
                 </Suspense>
-                <div className="legend" aria-label="What the lines are">
-                  {rels.filter((r) => s.links.some((l) => l.rel === r)).map((r) => (
-                    <span key={r}><i className={`scene-line scene-tone-${(rels.indexOf(r) % 6) + 1}`} /> {relDef(r)?.label ?? words(r)}</span>
-                  ))}
-                </div>
               </div>
               <UICard className="graph-panel" as="aside">
                 {item ? (

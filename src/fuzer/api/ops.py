@@ -1,7 +1,7 @@
 """The value ranking, board, daily reports, opportunities and studies."""
 
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -586,6 +586,7 @@ class FieldReport(BaseModel):
     client_id: str | None = None           # a report the phone kept offline: applied once (P5.3c)
     at: str | None = None                  # when it was made, on the phone
     override: str | None = None            # why it starts without a valid permit (P5.11a): required when it has none
+    permit_in_hand: bool | None = None     # confirmed on site where no permit records are loaded (#742): kept, never required
 
 
 def _loaded_types() -> None:
@@ -598,12 +599,13 @@ def _loaded_types() -> None:
 @router.get("/exceptions")
 def exception_list(state: str | None = "open", type: str | None = None, subject: str | None = None,
                    audience: Literal["ioc", "field"] | None = None, limit: int = Query(200, le=1000),
-                   conn=Depends(get_conn)):
+                   closed_since: datetime | None = None, conn=Depends(get_conn)):
     """Exceptions from every source, most valuable then newest first, with the case working each and who has it.
-    `state=any` lists every state."""
+    `state=any` lists every state; `closed_since` keeps the ones closed or cleared from then on."""
     from ..ops import exceptions
     _loaded_types()
-    return exceptions.listing(conn, state=None if state in (None, "", "any") else state, type=type, subject=subject, audience=audience, limit=limit)
+    return exceptions.listing(conn, state=None if state in (None, "", "any") else state, type=type, subject=subject, audience=audience, limit=limit,
+                              closed_since=closed_since)
 
 
 class SuppressionIn(BaseModel):
@@ -752,7 +754,8 @@ def exception_report(exception_id: int, r: FieldReport, conn=Depends(get_conn)):
     """A field operator reports back: on site, done, could not do (with why), or a note."""
     from ..ops import exceptions
     return _exception_call(conn, exceptions.report, exception_id, r.by, r.status, r.note, reading=r.reading,
-                           photos=r.photos, client_id=r.client_id, at=r.at, override=r.override)
+                           photos=r.photos, client_id=r.client_id, at=r.at, override=r.override,
+                           permit_in_hand=r.permit_in_hand)
 
 
 @router.get("/exceptions/{exception_id}/photos/{photo_id}")

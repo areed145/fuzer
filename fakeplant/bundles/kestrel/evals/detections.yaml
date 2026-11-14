@@ -64,6 +64,13 @@ detectors:
     events:
       - {key: "B1LT2005", from: "today-3d", to: "today"}  # its HH alarm moved with no change record
 
+  temporary_moc_overdue:
+    since: "today-30d"
+    until: "today"
+    every_days: 3
+    events:
+      - {key: "MOC-KR-0129", from: "today-5d", to: "today"}  # the temporary clamp-on meter, past its end date
+
   proof_test_overdue:
     since: "today-30d"
     until: "today"

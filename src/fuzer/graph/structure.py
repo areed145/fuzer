@@ -55,11 +55,15 @@ def load(conn) -> Plant:
         "where e.kind in ('tag', 'area') and e.merged_into is null")}
     for r in conn.execute(
         """
-        select t.fuzer_id, cl.label from entity t
-        join edge c on c.rel = 'classified_as' and (c.src = t.fuzer_id or c.src in (
-            select i.src from edge i where i.dst = t.fuzer_id and i.rel = 'installed_at' and i.valid_to is null))
+        with of (tag, src) as (  -- a tag's own class and that of the equipment installed at it: two index walks
+            select t.fuzer_id, t.fuzer_id from entity t where t.kind = 'tag' and t.merged_into is null
+            union
+            select t.fuzer_id, i.src from entity t
+            join edge i on i.dst = t.fuzer_id and i.rel = 'installed_at' and i.valid_to is null
+            where t.kind = 'tag' and t.merged_into is null)
+        select distinct o.tag as fuzer_id, cl.label from of o
+        join edge c on c.src = o.src and c.rel = 'classified_as'
         join entity_label cl on cl.fuzer_id = c.dst
-        where t.kind = 'tag' and t.merged_into is null
         """):
         if code := _code(r["label"]):
             p.classes.setdefault(r["fuzer_id"], set()).add(code)

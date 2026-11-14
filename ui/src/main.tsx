@@ -30,7 +30,9 @@ import { TeamsPage } from "./pages/workflows/Teams";
 import { Identity } from "./Identity";
 import { AreaNavigation, BackButton, Breadcrumbs, Sidebar } from "./nav";
 import { startAppHistory } from "./appHistory";
+import { lockPageZoom } from "./zoomLock";
 import { DrawingFullscreen } from "./DrawingFullscreen";
+import { DocumentFullscreen } from "./DocumentViewer";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
 import { InvestigationPage } from "./pages/Investigation";
@@ -227,6 +229,7 @@ function App() {
       {query.get("drawing") && (
         <DrawingFullscreen id={query.get("drawing")!} ring={(query.get("ring") ?? "").split(",").filter(Boolean)} />
       )}
+      {query.get("doc") && <DocumentFullscreen id={query.get("doc")!} />}
     </div>
   );
 }
@@ -263,6 +266,7 @@ function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuil
 
 // Before the first render, so a cold launch of the installed app resumes on the last page (P5.14a).
 startAppHistory();
+lockPageZoom();
 // The offline shell (P5.14d): the installed app opens without signal. Only on a secure origin, as browsers require.
 if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname)))
   navigator.serviceWorker.register("/sw.js").catch(() => undefined);

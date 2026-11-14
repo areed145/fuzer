@@ -85,16 +85,31 @@
   --chart-4: #8a4fd1;
   --chart-5: #c4302b;
   --chart-6: #0f8f9c;
-  --map-flow: #0072B2;
-  --map-oil: #E69F00;
-  --map-gas-lift: #009E73;
-  --map-gas-export: #D55E00;
-  --map-gas: #CC79A7;
-  --map-trunkline: #56B4E9;
+  /* What a line carries and what kind of link it is: one palette for the 3D view, the network diagram, the
+   * flow trace, maps and their legends, read through productColor / relColor / linkColor in kinds.ts. A flow link
+   * takes the colour of its product when that is known, so the link types match the products they usually carry. */
+  --product-multiphase: #d9770b;
+  --product-liquid: #8b5a2b;
+  --product-gas: #b08d00;
+  --product-lift_gas: #1a8f5a;
+  --product-water: #0b6bcb;
+  --rel-flows_to: var(--product-multiphase);
+  --rel-lift_gas_to: var(--product-lift_gas);
+  --rel-pipes_to: #8a4fd1;
+  --rel-part_of: #5f6b7a;
+  --rel-installed_at: #0f8f9c;
+  --rel-controls: #c2389b;
+  --rel-drives: #7f8c3d;
+  --map-flow: var(--product-multiphase);
+  --map-oil: var(--product-liquid);
+  --map-gas-lift: var(--product-lift_gas);
+  --map-gas-export: var(--product-gas);
+  --map-gas: var(--product-gas);
+  --map-trunkline: var(--product-multiphase);
   --map-other: #7a8594;
   --map-abandoned: #7a8594;
   --map-label: #1b1f24;
-  --map-well: #5f6b7a;
+  --map-well: var(--kind-well);
   --map-focus: #c4302b;
   --map-outline: #ffffff;
   --kind-facility: #5f6b7a;
@@ -158,17 +173,20 @@
     --chart-4: #b48cff;
     --chart-5: #ff6b66;
     --chart-6: #3fc6d4;
+    --product-multiphase: #f5a13d;
+    --product-liquid: #c9965f;
+    --product-gas: #e3c84a;
+    --product-lift_gas: #4cc38a;
+    --product-water: #4c9eff;
+    --rel-pipes_to: #b48cff;
+    --rel-part_of: #a7b2c0;
+    --rel-installed_at: #3fc6d4;
+    --rel-controls: #e57ac8;
+    --rel-drives: #c2cc76;
     --map-outline: #e6e9ee;
-    --map-flow: #56b4e9;
-    --map-oil: #f5a13d;
-    --map-gas-lift: #4cc38a;
-    --map-gas-export: #ff806e;
-    --map-gas: #dba0c8;
-    --map-trunkline: #83c9f0;
     --map-other: #a7b2c0;
     --map-abandoned: #a7b2c0;
     --map-label: #e6e9ee;
-    --map-well: #8d98a7;
     --map-other: #a7b2c0;
     --kind-facility: #a7b2c0;
     --kind-area: #4cc6c6;
@@ -209,6 +227,9 @@
 
 * { box-sizing: border-box; }
 
+/* No double-tap zoom on the page (pinch stays with the views that zoom on purpose; see zoomLock.ts). */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -241,6 +262,10 @@ select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 button { cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: default; }
+/* iOS zooms the page into any field whose text is under 16px when it gets focus; on a touch screen fields are 16px. */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+}
 input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }

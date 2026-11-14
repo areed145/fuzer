@@ -1,6 +1,7 @@
 """REST API: search, entity detail, lookup, flow tracing, the review queue and the work engine."""
 
 import logging
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 
@@ -39,6 +40,9 @@ from .deps import (  # noqa: F401  (fuzer.api.rebuilder and the rest, as before)
     rebuilder,
 )
 from .security import ProjectScope, RequestBounds, query_timeout, server_error
+
+# The pdf.js worker is an ES module (.mjs); a module worker loads only when served as JavaScript.
+mimetypes.add_type("text/javascript", ".mjs")
 
 
 @asynccontextmanager

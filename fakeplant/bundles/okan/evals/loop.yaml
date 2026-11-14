@@ -77,6 +77,9 @@ arrive:
   # about the probe (in the change register's first delivery) is from long before
   unrecorded_change: {deliver: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,
                       rebuild: true, detector: unrecorded_changes}
+  # The same delivery's change register: a temporary gauge on train B's 2nd stage discharge, four days past its end
+  temporary_moc_overdue: {deliver: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,
+                          rebuild: true, detector: temporary_moc_overdue}
   # A difference from the standard the ops lead named a year ago, whose review date has passed (P8.2)
   deviation_review_due: {deviation: {part: settings, key: handover.shift_times, owner: ops_lead, review_by: "today-1d",
                                      reason: "The night crew's handover moved to 19:00 while the camp bus ran late"},

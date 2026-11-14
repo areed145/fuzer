@@ -61,6 +61,7 @@ export interface TraceRow {
   valid_to: string | null;
   kind: string;
   label: string | null;
+  description?: string | null;
   /** The step before it on the path from the asset the trace started at. */
   parent: string | null;
 }
@@ -149,7 +150,7 @@ export interface GraphEdge {
 /** A schematic scene of a facility or area (P5.16a): generic shapes on plates, laid out on the server. */
 export interface SceneShape { solid: string; size: [number, number, number]; label: string; detail?: boolean }
 export interface ScenePlate {
-  id: string; label: string; area: boolean; frame: "slab" | "lattice"; type: string | null;
+  id: string; label: string; description?: string | null; area: boolean; frame: "slab" | "lattice"; type: string | null;
   x: number; y: number; z: number; w: number; d: number; items: number;
 }
 export interface SceneItem {
@@ -168,7 +169,7 @@ export interface Scene {
   shapes: Record<string, SceneShape>;
   counts: { items: number; links: number; not_drawn: number; by_layout: number; by_geometry: number; no_shape: number };
   truncated: boolean;
-  places: { id: string; kind: string; label: string | null; parent: string | null }[];
+  places: { id: string; kind: string; label: string | null; description?: string | null; parent: string | null }[];
 }
 
 export interface Subgraph {
@@ -273,6 +274,25 @@ export type KindIn = Partial<Pick<KindDef, "name" | "label" | "description" | "g
 
 export type RelationIn = Partial<Pick<RelationDef, "name" | "label" | "description" | "view" | "dated" | "from_kinds" | "to_kinds" | "status">>;
 
+/** Where an entity's values came from (#875). */
+export interface Lineage {
+  fuzer_id: string;
+  kind: string;
+  merged_into: string | null;
+  systems: { source: string; chosen_fields: string[];
+             records: { record: string; record_type: string; key: string; matched_by: string; confidence: number }[] }[];
+  rules: Record<string, number>;
+  reviewed: { field: string; value: unknown; by: string | null; at: string | null }[];
+  fixes: { field: string; old_value: unknown; new_value: unknown; by: string; at: string; reason: string | null }[];
+  pins: { left_ref: string; right_ref: string; rule: "must" | "cannot"; by: string | null; at: string; reason: string | null }[];
+  identity: { event: "merge" | "split"; other: string; other_label: string | null; at: string }[];
+  work: { count: number; recent: { id: number; type: string; title: string; state: string; created_at: string;
+                                   closed_at: string | null }[] };
+  writebacks: { id: number; system: string; kind: string; record: string | null; action: string; state: string;
+                approved_by: string | null; approved_at: string | null; confirmed_at: string | null; item_id: number }[];
+  note: string;
+}
+
 export const exploreApi = {
   stats: () => request<Stats>("GET", "/stats"),
   entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`),
@@ -284,6 +304,7 @@ export const exploreApi = {
   history: (id: string) =>
     request<{ record: string; at: string; change: string; fields: Record<string, { from: unknown; to: unknown }> }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/history`, { limit: 20 }),
+  lineage: (id: string) => request<Lineage>("GET", `/entities/${encodeURIComponent(id)}/lineage`),
   spares: (id: string) =>
     request<{ fuzer_id: string; label: string; description: string; mpn: string; stock: number; bin: string;
               used_by: number; documents: { id: string; label: string }[] }[]>(
@@ -298,6 +319,7 @@ export const exploreApi = {
       "GET", `/entities/${encodeURIComponent(id)}/drawings`),
   drawing: (id: string) => request<Drawing>("GET", `/documents/${encodeURIComponent(id)}/drawing`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
+  entityProfile: (id: string) => request<EntityProfile>("GET", `/entities/${encodeURIComponent(id)}/profile`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   ontologyDeclared: () => request<OntologyDeclared>("GET", "/ontology/declared"),
   ontologyHistory: (object?: "kind" | "relation", name?: string) =>
@@ -322,3 +344,14 @@ export const exploreApi = {
   /** The schematic scene of a facility, an area, or the area of anything inside one (default: the main facility). */
   scene: (at?: string, rels?: string[]) => request<Scene>("GET", "/scene", { at, rels: rels?.join(",") }),
 };
+
+type Ref = { id: string; label: string | null };
+/** What an asset is: maker, model and serial of the unit there now, its class, criticality, model and location. */
+export interface EntityProfile {
+  description: string | null; manufacturer: string | null; model: string | null; serial: string | null;
+  criticality: string | null; template: string | null;
+  equipment_model: Ref | null; equipment_class: (Ref & { description: string | null }) | null;
+  installed: (Ref & { since: string | null }) | null; position: (Ref & { since: string | null }) | null;
+  location: (Ref & { kind: string; description: string | null })[];
+  manuals: DocRef[];
+}

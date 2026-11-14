@@ -128,7 +128,7 @@ kinds:
     label: Change record
     group: Maintenance
     colour: "#9a6fb0"
-    description: A management of change record, with its type, state, and when it opened and must close.
+    description: A management of change record, with its type, state, and when it opened and must close; whether it is temporary, its pre-startup review and its owner where the MOC system says.
   round_point:
     label: Round point
     group: Maintenance
@@ -454,6 +454,12 @@ relations:
     description: A notification, work order, plan or change record and the tag, equipment, area or facility it is for.
     from: [notification, work_order, maintenance_plan, change]
     to: [tag, equipment, area, facility]
+  carried_out_by:
+    label: carried out by
+    view: maintenance
+    description: A change record and the work order that carries the modification out.
+    from: [change]
+    to: [work_order]
   for_notification:
     label: for notification
     view: maintenance
