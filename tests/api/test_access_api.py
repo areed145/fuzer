@@ -836,6 +836,8 @@ def test_demo_account_never_owns_or_configures_and_an_owner_or_the_deployment_ca
         demo = access.principal(conn, "demo")
         assert not demo.owner and not demo.allows("configure") and demo.allows("operate")
     assert runtime.get("/settings").status_code == 200  # read only
+    assert runtime.get("/auth/audit/coverage").status_code == 200  # reads the Users page it is shown
+    assert runtime.put("/auth/projects/okan/document-groups", json={"restricted": {}}).status_code == 403
     assert runtime.put("/settings/agents.model", json={"value": "changed", "reason": "demo tries"}).status_code == 403
     signed_in(runtime, owner=True)
     assert runtime.put("/auth/accounts/demo", json={"enabled": True, "owner": True, "roles": []}).status_code == 400

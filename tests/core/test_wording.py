@@ -75,3 +75,9 @@ def test_an_escalation_reads_as_a_sentence_on_the_plant_clock():
     assert wording.duration("P1D") == "1 day" and wording.duration("P1DT2H") == "1 day 2 hours"
     assert wording.say("SLA P1D on 'Work the case' passed at 2026-11-14 02:44 UTC while it was with the "
                        "engineer queue; moved to the ops_lead queue").startswith("'Work the case' was due within 1 day")
+
+
+def test_one_reads_singular_in_text_already_written():
+    assert wording.say("Upset from 20:50: alarm:lo on X, 1 detections, still going") == \
+        "Upset from 20:50: low alarm on X, 1 detection, still going"
+    assert wording.say("11 detections and 2.1 alarms") == "11 detections and 2.1 alarms"

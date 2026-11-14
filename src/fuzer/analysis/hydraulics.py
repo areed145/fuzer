@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from ..core import wording
 from .calcs import CalcError, _label, result, window_of
 
 RISE_BAR, RISE_SHARE = 0.7, 0.4  # a rising pressure drop must be up this much (bar) and this share
@@ -349,11 +350,13 @@ def debottleneck_options(conn, pack, scope: str = "facility", at: str | None = N
             continue
         v, _ = _now(conn, {"p": p}, end.isoformat(), src=src)
         lines = limits.lines(limits.for_points(conn, pack, [p["id"]], end)[p["id"]])
-        floor = [(x["value"], f"{x['basis']} {x['type']} {x['value']:g} barg" + (f" ({x['iow']})" if x.get("iow") else ""))
+        floor = [(x["value"], f"{wording.lower_first(wording.alarm(x['basis'] + ':' + x['type']))} of "
+                              f"{round(x['value'], 1):g} barg" + (f" ({x['iow']})" if x.get("iow") else ""),
+                  x["basis"] == "iow" or bool(x.get("iow")))
                  for x in lines if x["type"] in ("lo", "lolo") and x["value"] < v["p"]]
         if not floor:
             continue
-        bound, what = max(floor, key=lambda f: f[0] if "iow" in f[1] else f[0] - 100)  # an IOW binds before an alarm
+        bound, what, _ = max(floor, key=lambda f: f[0] if f[2] else f[0] - 100)  # an IOW binds before an alarm
         room = round(v["p"] - bound, 2)
         per_bar = -sum(r["model_sm3d_per_bar"] for r in ws)
         if room > 0.1:

@@ -188,20 +188,39 @@ def pending(conn, now: datetime | None = None) -> bool:
     ).fetchone() is not None
 
 
+def _acting_roles(conn, person: str) -> list[str] | None:
+    """The roles the demo account picked to act as (#1068), else None. Its notices follow the pick (#1115): acting as
+    the planner, it is not shown what it was told as the ops lead. Other accounts see every notice of theirs."""
+    from ..core import access
+
+    if person != access.ACTOR_PREFIX + access.DEMO_ID:
+        return None
+    row = conn.execute("select roles from work_person where name = %s", (person,)).fetchone()
+    return list(row["roles"]) if row and row["roles"] else None
+
+
+# A notice counts for a role when the step (else the case) it is about sits in that role's queue.
+_FOR_ROLES = ("(%(roles)s::text[] is null or exists (select 1 from work_item i left join work_token t on t.id = n.token_id "
+              "where i.id = n.item_id and coalesce(t.role, i.role) = any(%(roles)s)))")
+
+
 def mine(conn, person: str, limit: int = 30) -> dict:
-    rows = conn.execute("select id, kind, item_id, token_id, text, link, channel, delivery, created_at, read_at "
-                        "from work_notification where person = %s order by id desc limit %s", (person, limit)).fetchall()
-    unread = conn.execute("select count(*) as n from work_notification where person = %s and read_at is null",
-                          (person,)).fetchone()["n"]
+    q = {"p": person, "roles": _acting_roles(conn, person), "limit": limit}
+    rows = conn.execute("select n.id, n.kind, n.item_id, n.token_id, n.text, n.link, n.channel, n.delivery, n.created_at, "
+                        f"n.read_at from work_notification n where n.person = %(p)s and {_FOR_ROLES} "
+                        "order by n.id desc limit %(limit)s", q).fetchall()
+    unread = conn.execute(f"select count(*) as n from work_notification n where n.person = %(p)s and n.read_at is null "
+                          f"and {_FOR_ROLES}", q).fetchone()["n"]
     from ..core.wording import say
 
     return {"notifications": [{**r, "text": say(r["text"])} for r in rows], "unread": unread}
 
 
 def mark_read(conn, person: str, ids: list[int] | None = None) -> dict:
-    """Mark `ids` (all of the person's, when None) read; returns how many changed."""
-    n = conn.execute("update work_notification set read_at = now() where person = %s and read_at is null "
-                     "and (%s::bigint[] is null or id = any(%s::bigint[]))", (person, ids, ids)).rowcount
+    """Mark `ids` (all of the person's that `mine` shows, when None) read; returns how many changed."""
+    n = conn.execute(f"update work_notification n set read_at = now() where n.person = %(p)s and n.read_at is null "
+                     f"and (%(ids)s::bigint[] is null or n.id = any(%(ids)s::bigint[])) and {_FOR_ROLES}",
+                     {"p": person, "ids": ids, "roles": _acting_roles(conn, person)}).rowcount
     conn.commit()
     return {"read": n}
 

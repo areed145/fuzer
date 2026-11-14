@@ -37,6 +37,8 @@
 .sidebar-status .facts strong { flex-basis: 100%; }
 .sidebar-status .facts strong { color: var(--text); font-weight: 600; }
 .sidebar-status:empty { display: none; }
+.sidebar-status > * { min-width: 0; }  /* a grid item: the Acting as and Project pickers fit the rail, not their longest option */
+.sidebar-status select { max-width: 100%; }
 .topbar { display: none; }
 .bottombar { display: none; }
 /* In-app Back (P5.14a): in the phone top bar, and above the page in the installed app on a tablet, where the browser's

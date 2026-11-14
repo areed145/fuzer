@@ -203,3 +203,24 @@ def test_email_goes_through_the_mail_server_and_a_failure_is_kept(conn, monkeypa
     assert ("login", "fz@x", "pw") in mails
     assert any(m[0] == "mail" and m[1] == "olav@example.com" and "Grease the other valve" in m[2] for m in mails)
     notify.set_preference(conn, "olav", "in_app", None, None, None, "olav")
+
+
+def test_the_demo_accounts_notices_follow_the_role_it_acts_as(conn):
+    demo = "user:demo"
+    lead = case(conn, "Read the shift log", role="ops_lead")
+    field = case(conn, "Walk the separator skid", role="operator")
+    for item in (lead, field):
+        engine.dispatch_item(conn, item, "ines", demo)
+    conn.commit()
+    row = conn.execute("select assignee, role from work_item where id = %s", (field,)).fetchone()
+    assert (row["assignee"], row["role"]) == (demo, "operator")  # an account is a person, not a queue
+    assert {n["item_id"] for n in told(conn, demo)} >= {lead, field}  # acting as every role: every notice
+    engine.act_as(conn, ["operator"])
+    conn.commit()
+    shown = told(conn, demo)
+    assert field in {n["item_id"] for n in shown} and lead not in {n["item_id"] for n in shown}
+    assert notify.mine(conn, demo)["unread"] == len([n for n in shown if not n["read_at"]])
+    assert notify.mark_read(conn, demo)["read"] == len([n for n in shown if not n["read_at"]])
+    engine.act_as(conn, [])
+    conn.commit()
+    assert [n for n in told(conn, demo) if n["item_id"] == lead and not n["read_at"]]  # still there for the ops lead

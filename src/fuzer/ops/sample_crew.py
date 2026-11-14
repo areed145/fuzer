@@ -32,6 +32,7 @@ from ..core import projects
 log = logging.getLogger(__name__)
 
 LEAD = "riley"
+LEAD_ROLE = "ops_lead"
 FIELD = ("sam", "alex")
 # The shipped sample team (ui SAMPLE_TEAM, offered on a fresh local demo) and alex, a second field operator: the
 # roster template staffs two operator seats.
@@ -54,6 +55,10 @@ LEFT = 0.10  # share of work nobody takes for days (genuinely overdue, or there 
 PLANNED = 0.35  # of the work raised with no queue, the share the lead plans instead of sending now
 TO_QUEUE = 0.3  # of the field jobs, the share sent to the operator queue rather than to an operator
 COULD_NOT = 0.15  # field jobs that come back could not do on a first visit
+# Of the field's reports, the share the lead leaves in the ops lead queue for the next shift lead to close out (#1115):
+# without it every report is closed within the hour and a visitor acting as ops lead never sees the IOC's close-out.
+BACK_LEFT = 0.35
+LEFT_WHY = "left in the ops lead queue to close out"
 ROUND_PARTLY, ROUND_MISSED = 0.08, 0.03  # rounds left part done, or not walked, this shift
 REPORTS_PER_SHIFT = 8  # things the field notices and reports each shift
 FIELD_REPORT = "field_report"
@@ -260,9 +265,19 @@ def work_queue(t: _Tick) -> None:
             continue
 
         back = (last and last["status"] in ("done", "could_not_do") and r["assignee"] != last["by"]
-                and r["role"] != "operator" and r["assignee"] not in FIELD)  # sent round again: handled below
+                and r["assignee"] not in FIELD
+                and not (r["role"] == "operator" and not r["assignee"]))  # sent round again: handled below
         if back:  # back from the field: the lead closes what was done, sends a could-not-do round again once
-            if r["assignee"] not in (None, LEAD) or waited < _minutes(30, 120, r["id"], "back", _visits(r)):
+            if r["assignee"] not in (None, LEAD):
+                continue
+            left = _u(r["id"], "back_left", _visits(r)) < BACK_LEFT
+            if left and r["assignee"] == LEAD and waited >= _minutes(10, 30, r["id"], "leave", _visits(r)):
+                said = "done" if last["status"] == "done" else "could not do"
+                t.act("leave", work.dispatch, conn, r["item_id"], LEAD, f"role:{LEAD_ROLE}",
+                      f"Back from the field: {said}: {LEFT_WHY}")
+                continue
+            if waited < (_minutes(180, 420, r["id"], "back", _visits(r)) if left
+                         else _minutes(30, 120, r["id"], "back", _visits(r))):
                 continue
             if last["status"] == "done":
                 t.act("close", work.close_case, conn, r["item_id"], "done", LEAD,

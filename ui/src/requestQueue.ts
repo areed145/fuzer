@@ -37,7 +37,13 @@ export function scheduleRequest<T>(run: () => Promise<T>, readKey?: string): Pro
   })();
   if (readKey) {
     reads.set(readKey, result);
-    result.then(() => reads.delete(readKey), () => reads.delete(readKey));
+    const forget = () => { if (reads.get(readKey) === result) reads.delete(readKey); };
+    result.then(forget, forget);
+  } else {
+    // A write may change what an in-flight read answers: a read asked for after it is read again, never joined to
+    // one that started before it (the field's On site or Done, then My work and its badge read again).
+    const forget = () => reads.clear();
+    result.then(forget, forget);
   }
   return result;
 }

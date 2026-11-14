@@ -26,6 +26,14 @@ def _owner(request):
     return person
 
 
+def _owner_or_inspector(request):
+    """An owner, or the demo account reading an owner's page without changing it (#1068)."""
+    person = identify(request)
+    if person is not None and person.enabled and person.inspect and not person.owner:
+        return person
+    return _owner(request)
+
+
 def _cookie(response, kind, value, max_age):
     response.set_cookie(cookie_name(kind), value, max_age=max_age, httponly=True,
                         secure=access.public_url().startswith("https://"), samesite="lax", path="/")
@@ -305,8 +313,8 @@ def _document_scope(project: str):
 @router.get("/projects/{project}/document-groups")
 def document_groups(project: str, request: Request):
     """The document classes restricted to a group in one project, and every class its register holds with how
-    many documents (owners only)."""
-    _owner(request)
+    many documents (owners; the demo account reads it)."""
+    _owner_or_inspector(request)
     with db.use(_document_scope(project)), db.connect() as conn:
         classes = conn.execute(
             "select g.value #>> '{}' as doc_type, count(*) as documents from golden g "
@@ -367,10 +375,11 @@ def audit_export(request: Request, project: str | None = None, since: datetime |
 
 @router.get("/audit/coverage")
 def audit_coverage(request: Request, project: str | None = None):
-    """Which records the audit reads, which keep every change, and which are left out and why (owners only)."""
+    """Which records the audit reads, which keep every change, and which are left out and why (owners; the demo
+    account reads it)."""
     from ..core import audit
 
-    _owner(request)
+    _owner_or_inspector(request)
     with db.connect() as conn:
         try:
             scope = projects.scope(conn, project or projects.current(conn))

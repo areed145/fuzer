@@ -152,7 +152,8 @@ def assign_item(conn, item_id: int, by: str, to: str, reason: str | None = None)
             hand_off.__wrapped__(conn, step["id"], by, to, reason)
             return {"item_id": item_id, "to": to}
         raise Conflict("this item moves with its process: hand off its open step instead")
-    person, role = (None, to.split(":", 1)[1]) if ":" in to else (to, item["role"])
+    # A signed-in account's actor (`user:<id>`) is a person, not a queue: it keeps the case's role (#1115).
+    person, role = (None, to.split(":", 1)[1]) if ":" in to and not to.startswith("user:") else (to, item["role"])
     conn.execute("update work_item set assignee = %s, role = %s, updated_at = now() where id = %s", (person, role, item_id))
     _event(conn, "handed_off", by, item_id=item_id,
            data={"from": item["assignee"] or item["role"], "to": to, "reason": reason})

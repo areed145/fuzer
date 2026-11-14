@@ -106,6 +106,24 @@ def test_field_work_goes_out_comes_back_and_closes(crewed):
     assert {"riley"} & {h["actor"] for h in history}
 
 
+def test_some_reports_back_from_the_field_wait_for_the_ops_lead_to_close_out(crewed, monkeypatch):
+    """The persona tour never saw anything under Back from the field: the lead closed every report within the hour.
+    Some now wait in the ops lead queue, still reading as back from the field, for a visitor to close out (#1115)."""
+    monkeypatch.setattr(sample_crew, "LEFT", 0.0)
+    monkeypatch.setattr(sample_crew, "COULD_NOT", 1.0)  # every first visit comes back for the IOC to decide
+    monkeypatch.setattr(sample_crew, "BACK_LEFT", 1.0)
+    raised = [raise_exception(crewed, FIELD_TYPE, f"crew-back-{i}", f"Crew test back {i}", "detector:test")
+              for i in range(6)]
+    crewed.commit()
+    _run_for(crewed, 12)
+    items = [r["item_id"] for r in exceptions.listing(crewed, state=None, type=FIELD_TYPE, limit=100)
+             if r["id"] in {x["id"] for x in raised} and r["item_id"]]
+    left = crewed.execute(
+        "select count(*) as n from work_event where item_id = any(%s) and kind = 'handed_off' "
+        "and data->>'to' = 'role:ops_lead' and data->>'reason' like 'Back from the field:%%'", (items,)).fetchone()["n"]
+    assert left, "some of the field's reports were left for the ops lead to close out"
+
+
 def test_desks_take_work_and_close_it_and_a_real_persons_work_is_theirs(crewed):
     raised = [raise_exception(crewed, DESK_TYPE, f"crew-desk-{i}", f"Crew test desk review {i}", "detector:test")
               for i in range(10)]
