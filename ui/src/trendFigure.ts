@@ -56,6 +56,8 @@ export interface TimelineEvent {
   status?: string | null;
 }
 export interface TimelineLane { key: string; label: string; events: TimelineEvent[] }
+/** A row of the lanes as drawn: a lane, or one alarming point of the alarms lane (P5.15c). */
+export interface LaneRow { key: string; lane: string; label: string; events: TimelineEvent[] }
 export interface TimelineData { unit: string; start: string; end: string; lanes: TimelineLane[] }
 
 export interface Palette { series: string[]; lanes: Record<string, string>; limit: string; shade: string; text: string }
@@ -65,6 +67,8 @@ export const LANE_SHORT: Record<string, string> = {
   alarms: "Alarms", log: "Log", cases: "Cases", maintenance: "Work orders", downtime: "Downtime",
 };
 const PANEL_PX = 170;
+const PANEL_PX_PHONE = 120; // shorter on a phone, so the chart starts in the first screen (P5.15f)
+const ALARM_ROWS = 8; // alarming points with a row of their own; the rest share one
 const LANE_PX = 30;
 const GAP_PX = 30;
 const KEY_ROW_PX = 20;
@@ -177,19 +181,75 @@ export function short(s: string, compact: boolean, max = 30): string {
   return !compact || s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
 }
 
+/** How urgent an alarm reads: its priority where the record gives one, else its limit (hihi and lolo before hi and lo). */
+function urgency(e: TimelineEvent): number {
+  const level = ({ critical: 0, emergency: 0, urgent: 1, high: 1, medium: 2, low: 3 } as Record<string, number>)[(e.detail ?? "").toLowerCase()];
+  if (level !== undefined) return level;
+  const type = (e.text ?? "").split(" ")[0].toLowerCase();
+  return type === "hihi" || type === "lolo" ? 0.5 : type === "hi" || type === "lo" ? 1.5 : 4;
+}
+
+/** The lanes as rows (P5.15c): every lane one row, except alarms, one row per point, the most urgent first (a point's
+ * most urgent alarm, then its first). Past `ALARM_ROWS` points, the rest share a row that says how many. */
+export function laneRows(lanes: TimelineLane[], compact = false): LaneRow[] {
+  return lanes.flatMap((l) => {
+    const name = LANE_SHORT[l.key] ?? l.label;
+    if (l.key !== "alarms") return [{ key: l.key, lane: l.key, label: name, events: l.events }];
+    const by = new Map<string, TimelineEvent[]>();
+    for (const e of l.events) by.set(e.label ?? e.id ?? "?", [...(by.get(e.label ?? e.id ?? "?") ?? []), e]);
+    const points = [...by.entries()].sort(([a, x], [b, y]) =>
+      Math.min(...x.map(urgency)) - Math.min(...y.map(urgency)) || x[0].start.localeCompare(y[0].start) || a.localeCompare(b));
+    const own = points.length > ALARM_ROWS ? points.slice(0, ALARM_ROWS - 1) : points;
+    const rest = points.slice(own.length);
+    const label = (point: string) => (compact ? short(point, true, 14) : `Alarm · ${point}`);
+    return [
+      ...own.map(([point, events]) => ({ key: `alarms:${point}`, lane: "alarms", label: label(point), events })),
+      ...(rest.length ? [{ key: "alarms:more", lane: "alarms", label: `${rest.length} more alarming points`,
+                           events: rest.flatMap(([, events]) => events) }] : []),
+    ];
+  });
+}
+
+/** Markers too close to tell apart at this width, as groups (P5.15c): each group starts at its first marker and
+ * takes every marker within `gap` ms of that one. */
+export function crowded(events: TimelineEvent[], gap: number): TimelineEvent[][] {
+  const out: TimelineEvent[][] = [];
+  for (const e of [...events].sort((a, b) => a.start.localeCompare(b.start))) {
+    const last = out[out.length - 1];
+    if (last && local(e.start) - local(last[0].start) <= gap) last.push(e);
+    else out.push([e]);
+  }
+  return out;
+}
+
+/** A trace's value at a time: the reading nearest it, if one is within two steps (P5.15d). */
+export function valueAt(t: TrendTrace, at: string, stepMinutes: number): number | null {
+  const want = local(at);
+  let best: [string, number] | null = null;
+  for (const v of t.values) if (!best || Math.abs(local(v[0]) - want) < Math.abs(local(best[0]) - want)) best = v;
+  return best && Math.abs(local(best[0]) - want) <= 2 * stepMinutes * 60000 ? best[1] : null;
+}
+
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 16);
 const local = (s: string) => Date.parse(s.length === 10 ? `${s}T00:00Z` : `${s.slice(0, 16)}Z`);
 
+/** The chart. `pins` are the times pinned on it (P5.15d), drawn as lines marked A and B. The figure carries `events`,
+ * every lane event once: a lane marker's customdata is ["events", ...its indexes in that list], so a click can say
+ * what it was without leaving the page (P5.15c). */
 export function buildFigure(view: TrendViewData, timeline: TimelineData | null, on: Set<string>, palette: Palette,
-                            compact = false) {
+                            compact = false, pins: string[] = []) {
   const shown = drawn(panels(view, on), compact ? 1 : 2);
   const name = names(view);
-  const lanes = (timeline?.lanes ?? []).filter((l) => l.events.length && on.has(`lane:${l.key}`));
+  const panelPx = compact ? PANEL_PX_PHONE : PANEL_PX;
+  const lanes = laneRows((timeline?.lanes ?? []).filter((l) => l.events.length && on.has(`lane:${l.key}`)), compact);
+  const events: TimelineEvent[] = [];
+  const indexes = (es: TimelineEvent[]) => ["events", ...es.map((e) => events.push(e) - 1)];
+  const gap = Math.max(1, local(view.end) - local(view.start)) / (compact ? 24 : 60);
   const colour = colours(view, palette);
   // Above each panel, its key: the panel's name, then each trace's name and last value in its colour (P5.15b).
   const keyPx = shown.map((g) => 8 + KEY_ROW_PX * keyRows(g, name, compact));
   const lanesPx = lanes.length ? lanes.length * LANE_PX + 12 : 0;
-  const plotPx = shown.length * PANEL_PX + keyPx.reduce((a, b) => a + b, 0) - (keyPx[0] ?? 0) + (lanesPx ? GAP_PX + lanesPx : 0);
+  const plotPx = shown.length * panelPx + keyPx.reduce((a, b) => a + b, 0) - (keyPx[0] ?? 0) + (lanesPx ? GAP_PX + lanesPx : 0);
   const frac = (px: number) => px / Math.max(1, plotPx);
   const data: Record<string, unknown>[] = [];
   const shapes: Record<string, unknown>[] = [];
@@ -200,7 +260,7 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
   let lowest = "y";
   shown.forEach((g, k) => {
     if (k) top -= frac(keyPx[k]);
-    const bottom = Math.max(0, top - frac(PANEL_PX));
+    const bottom = Math.max(0, top - frac(panelPx));
     const legend = k ? `legend${k + 1}` : "legend";
     layout[legend] = { visible: true, x: 0, y: top, xref: "paper", yref: "paper", xanchor: "left", yanchor: "bottom", orientation: compact ? "v" : "h",
                        bgcolor: "rgba(0,0,0,0)", font: { size: 11, color: palette.text }, itemclick: false,
@@ -245,34 +305,42 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
     n += 1;
     const axis = n === 1 ? "yaxis" : `yaxis${n}`;
     const ref = n === 1 ? "y" : `y${n}`;
-    const order = lanes.map((l) => LANE_SHORT[l.key] ?? l.label);
+    const order = lanes.map((l) => l.label);
     layout[axis] = { domain: [0, Math.max(0, frac(lanesPx))], anchor: "x", type: "category", categoryorder: "array",
                      categoryarray: [...order].reverse(), fixedrange: true, showgrid: false, zeroline: false,
-                     range: [-0.6, lanes.length - 0.4] };
+                     range: [-0.6, lanes.length - 0.4], ...(compact ? { tickfont: { size: 10 } } : {}) };
     lowest = ref;
+    const hover = (e: TimelineEvent) =>
+      [e.label, e.text, e.detail, e.status].filter(Boolean).join(" · ") + `<br>${e.start.replace("T", " ")}` +
+      (e.end && e.end !== e.start ? ` to ${e.end.replace("T", " ")}` : "");
     for (const l of lanes) {
-      const y = LANE_SHORT[l.key] ?? l.label;
-      const c = palette.lanes[l.key] ?? palette.text;
+      const y = l.label;
+      const c = palette.lanes[l.lane] ?? palette.text;
       const spans = l.events.filter((e) => e.end && e.end !== e.start);
       const moments = l.events.filter((e) => !e.end || e.end === e.start);
-      const hover = (e: TimelineEvent) =>
-        [e.label, e.text, e.detail, e.status].filter(Boolean).join(" · ") + `<br>${e.start.replace("T", " ")}` +
-        (e.end && e.end !== e.start ? ` to ${e.end.replace("T", " ")}` : "");
       if (spans.length) {
+        const ids = spans.map((e) => indexes([e]));
         data.push({
           type: "scatter", mode: "lines", yaxis: ref, showlegend: false, line: { width: 10, color: c },
           x: spans.flatMap((e) => [e.start, e.end, null]), y: spans.flatMap(() => [y, y, null]),
           text: spans.flatMap((e) => [hover(e), hover(e), null]), hovertemplate: "%{text}<extra></extra>",
-          customdata: spans.flatMap((e) => [[e.kind, e.id, e.item_id ?? null], [e.kind, e.id, e.item_id ?? null], null]),
-          opacity: 0.75, name: y,
+          customdata: ids.flatMap((d) => [d, d, null]), opacity: 0.75, name: y,
         });
       }
       if (moments.length) {
+        // Markers too close to tell apart are one, with how many it holds (P5.15c).
+        const groups = crowded(moments, gap);
         data.push({
-          type: "scatter", mode: "markers", yaxis: ref, showlegend: false, name: y,
-          marker: { size: 10, symbol: "diamond", color: c, line: { width: 1, color: palette.text } },
-          x: moments.map((e) => e.start), y: moments.map(() => y), text: moments.map(hover),
-          hovertemplate: "%{text}<extra></extra>", customdata: moments.map((e) => [e.kind, e.id, e.item_id ?? null]),
+          type: "scatter", mode: groups.some((g) => g.length > 1) ? "markers+text" : "markers", yaxis: ref, showlegend: false, name: y,
+          marker: { size: groups.map((g) => (g.length > 1 ? 14 : 10)), symbol: "diamond", color: c, line: { width: 1, color: palette.text } },
+          x: groups.map((g) => g[0].start), y: groups.map(() => y),
+          text: groups.map((g) => (g.length > 1 ? String(g.length) : "")), textposition: "top center",
+          textfont: { size: 10, color: palette.text },
+          hovertext: groups.map((g) => g.length > 1
+            ? `${g.length} ${LANE_SHORT[l.lane]?.toLowerCase() ?? "events"} entries: ` +
+              g.slice(0, 4).map((e) => e.text ?? e.label).join("; ") + (g.length > 4 ? "; …" : "") + "<br>click to list them"
+            : hover(g[0])),
+          hovertemplate: "%{hovertext}<extra></extra>", customdata: groups.map(indexes),
         });
       }
     }
@@ -288,11 +356,17 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
                          opacity: 0.7 });
     }
   }
+  pins.forEach((at, i) => {
+    shapes.push({ type: "line", xref: "x", yref: "paper", x0: at, x1: at, y0: 0, y1: 1, line: { color: palette.text, width: 1.5 } });
+    annotations.push({ text: `<b>${"AB"[i]}</b>`, xref: "x", yref: "paper", x: at, y: 1, yanchor: "bottom", showarrow: false,
+                       font: { size: 11, color: palette.text } });
+  });
   layout.xaxis = { type: "date", range: [view.start, view.end], anchor: lowest, domain: [0, 1],
                    showspikes: true, spikemode: "across", spikesnap: "cursor", spikethickness: 1, spikedash: "solid",
                    spikecolor: palette.text, ...(compact ? { nticks: 4 } : {}) };
   return {
     data,
+    events,
     layout: {
       ...layout, shapes, annotations, height: plotPx + (keyPx[0] ?? 0) + 60,
       margin: compact ? { t: (keyPx[0] ?? 0) + 4, r: 12, b: 44, l: 44 } : { t: (keyPx[0] ?? 0) + 4, r: 56, b: 44, l: 56 },

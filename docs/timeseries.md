@@ -144,6 +144,16 @@ one trace a line, a long name cut and whole in the hover). A panel carries at mo
 "continued" panel under it. The heading names the unit. Plotly's floating toolbar is gone: drag to zoom, and a
 Reset zoom button shows once zoomed.
 
+The lanes read too (P5.15c). Alarms get a row per point, the most urgent first: a point's priority where the record
+gives one, else its limit (hihi and lolo before hi and lo). Past eight points the rest share a row that says how many.
+Markers too close to tell apart at the chart's width are one, with the count on it. A click on a marker or a span
+opens a card under the chart listing what it holds, each with a link to its record, and the page stays where it is.
+A click anywhere else pins that time and lists every shown trace's value there; a second click pins a second time and
+adds each value's change between them, both times drawn on the chart as A and B (P5.15d). Zooming in reads the values
+again for the zoomed range, at the finest step that keeps it to a chart's worth (5 minutes for an hour), and the
+heading says the step (P5.15e). On a phone the panels are shorter, the chips go under the chart so it starts in the
+first screen, and a sideways swipe moves the window earlier or later (P5.15f).
+
 ## Operating limits, IOWs and excursions
 
 An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI

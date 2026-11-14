@@ -24,10 +24,13 @@ function forWidth(spec: Spec, width: number): Spec {
 }
 
 /** A server-built figure in the page's theme: colours, fonts and colorway all come from `themed`. */
-export function PlotlyChart({ spec, label, onPoint, onZoom }: {
+export function PlotlyChart({ spec, label, onPoint, onZoom, onTime }: {
   spec: Spec; label: string; onPoint?: (customdata: unknown) => void;
-  /** Told whether the time axis is zoomed, so a page can offer its own reset (no chart has the toolbar). */
-  onZoom?: (zoomed: boolean) => void;
+  /** Told whether the time axis is zoomed, and to what range, so a page can offer its own reset (no chart has the
+   * toolbar) and read finer values for the range (P5.15e). */
+  onZoom?: (zoomed: boolean, range?: [string, string]) => void;
+  /** Told the time of a click that lands on no record: a page can pin it (P5.15d). */
+  onTime?: (x: string) => void;
 }) {
   const element = useRef<HTMLDivElement>(null);
   const full = useFullscreen();
@@ -54,10 +57,17 @@ export function PlotlyChart({ spec, label, onPoint, onZoom }: {
       await draw(width);
       if (gone) return;
       const events = node as HTMLDivElement & { on?: (ev: string, fn: (e: any) => void) => void };
-      if (onPoint) events.on?.("plotly_click", (e: any) => { const d = e?.points?.[0]?.customdata; if (d) onPoint(d); });
+      if (onPoint || onTime) {
+        events.on?.("plotly_click", (e: any) => {
+          const p = e?.points?.find((x: any) => x?.customdata) ?? e?.points?.[0];
+          if (p?.customdata && onPoint) onPoint(p.customdata);
+          else if (p?.x !== undefined && onTime) onTime(String(p.x));
+        });
+      }
       if (onZoom) {
         events.on?.("plotly_relayout", (e: any) => {
-          if (e?.["xaxis.range[0]"] !== undefined || e?.["xaxis.range"] !== undefined) onZoom(true);
+          const range = e?.["xaxis.range"] ?? (e?.["xaxis.range[0]"] !== undefined ? [e["xaxis.range[0]"], e["xaxis.range[1]"]] : null);
+          if (range) onZoom(true, [String(range[0]), String(range[1])]);
           else if (e?.["xaxis.autorange"]) onZoom(false);
         });
       }
@@ -72,7 +82,7 @@ export function PlotlyChart({ spec, label, onPoint, onZoom }: {
       dispose = () => observer.disconnect();
     }).catch((failure: Error) => { if (!gone) setError(failure.message); });
     return () => { gone = true; dispose?.(); purge?.(); };
-  }, [spec, theme, onPoint, onZoom, full.on]);
+  }, [spec, theme, onPoint, onZoom, onTime, full.on]);
   return <>
     {error && <p className="error" role="alert">Chart unavailable: {error}. Use the data table below.</p>}
     <div ref={full.ref} className={`chart-frame${full.on ? " ui-fullscreen" : ""}`}>

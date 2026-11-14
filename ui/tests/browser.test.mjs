@@ -6836,3 +6836,120 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
   await page.getByRole("heading", { name: /Pump P-101 vibration/ }).waitFor();
   await fits("My work, after Back");
 });
+
+// P5.15c to f (#1012): the Okan 20-K-2200B trip, read from the chart itself.
+async function tripTrend(page, { width = 1280, height = 900 } = {}) {
+  const vals = [["2024-03-14T02:00", 17], ["2024-03-14T02:30", 17], ["2024-03-14T03:00", 16.5], ["2024-03-14T03:30", 1], ["2024-03-14T04:00", 1]];
+  const trace = (id, role_label, uom, scale = 1) => ({ id, point: `OK:${id}.PV`, description: `Compressor ${role_label}`, uom,
+    axis: uom.toLowerCase(), show: true, values: vals.map(([t, v]) => [t, v * scale]), min: 1, max: 17 * scale, mean: 10, last: scale,
+    role_label, on: { id: "k1", label: "K-1", relation: "self" }, limits: [] });
+  const view = (start, end, step) => ({ provider: "synthetic", centre: "2024-03-14T03:20", start, end, step_minutes: step,
+    upsets: ["2024-03-14T03:20"], unit: "k1", unit_label: "20-K-2200B", classes: ["CO"], template: { key: "CO", title: "Compressor" },
+    missing: [], other: [], groups: [{ key: "pressures", label: "Pressures", show: true,
+      traces: [trace("pt1", "Suction pressure", "barg"), trace("pt2", "Discharge pressure", "barg", 3)] }] });
+  const alarm = (id, type, start) => ({ id, kind: "alarm", label: `OK:${id}.PV`, start, end: null, text: `${type} 5`, detail: null });
+  const timeline = { unit: "k1", start: "2024-03-12T03:20", end: "2024-03-15T03:20", lanes: [
+    { key: "alarms", label: "Alarms", events: [alarm("pt1", "lo", "2024-03-14T03:25"), alarm("pt2", "lolo", "2024-03-14T03:30"),
+      alarm("pt1", "lo", "2024-03-14T05:00")] },
+    { key: "log", label: "Operator log", events: [
+      { id: "log1", kind: "log_entry", label: "op", start: "2024-03-14T03:25", end: null, text: "K-1 tripped", detail: null },
+      { id: "log2", kind: "log_entry", label: "op", start: "2024-03-14T03:40", end: null, text: "Restart attempted", detail: null },
+      { id: "log3", kind: "log_entry", label: "op", start: "2024-03-14T03:55", end: null, text: "Restart failed", detail: null }] },
+    { key: "cases", label: "Cases", events: [{ id: null, item_id: 7, kind: "case", label: "Compressor trip", start: "2024-03-14T03:20",
+      end: "2024-03-14T09:00", text: "Compressor trip", detail: "machine_trip", status: "open" }] },
+  ] };
+  const asked = [];
+  await page.route("**/entities/k1", route => route.fulfill({ json: { fuzer_id: "k1", kind: "tag", label: "20-K-2200B",
+    golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.route("**/entities/k1/trend-view*", route => {
+    const q = Object.fromEntries(new URL(route.request().url()).searchParams);
+    asked.push(q);
+    // a window of an hour or two reads at the provider's finest step
+    const fine = q.hours_before === "0" && Number(q.hours_after) <= 2;
+    return route.fulfill({ json: fine ? view(q.at, "2024-03-14T04:00", 5) : view("2024-03-12T03:20", "2024-03-15T03:20", 30) });
+  });
+  await page.route("**/entities/k1/timeline*", route => route.fulfill({ json: timeline }));
+  await page.route("**/entities/k1/measurements*", route => route.fulfill({ json: { id: "k1", series: [], truncated: false } }));
+  await page.setViewportSize({ width, height });
+  await page.goto(`${url}/#/e/k1?tab=trends`);
+  const card = page.locator(".trend-view");
+  await card.locator(".main-svg").first().waitFor();
+  const emit = (name, data) => card.locator(".js-plotly-plot").evaluate((node, [n, d]) => node.emit(n, d), [name, data]);
+  return { card, asked, emit };
+}
+
+test("P5.15c Alarms read one row per point, crowded log entries are counted, and a marker opens a card under the chart", async () => {
+  const { card, emit } = await tripTrend(page);
+  // top to bottom: the lolo point, then the lo point, then the log and the case
+  const rows = await card.locator(".js-plotly-plot").evaluate((node) => [...node.layout.yaxis2.categoryarray].reverse());
+  assert.deepEqual(rows, ["Alarm · OK:pt2.PV", "Alarm · OK:pt1.PV", "Log", "Cases"]);
+  const counted = await card.locator(".js-plotly-plot").evaluate((node) => node._fullData
+    .filter((t) => t.mode === "markers+text").flatMap((t) => t.text).filter(Boolean));
+  assert.ok(counted.includes("3"), `three log entries in 30 min are one marker saying 3 (${counted})`);
+  // a click on that marker lists the three entries under the chart, and the page stays
+  const log = await card.locator(".js-plotly-plot").evaluate((node) => node._fullData.find((t) => t.mode === "markers+text").customdata[0]);
+  await emit("plotly_click", { points: [{ customdata: log, x: "2024-03-14 03:25" }] });
+  const detail = page.getByRole("region", { name: "Selected events" });
+  await detail.getByRole("heading", { name: "3 events" }).waitFor();
+  await detail.getByText("K-1 tripped", { exact: false }).waitFor();
+  await detail.getByText("Restart failed", { exact: false }).waitFor();
+  assert.match(page.url(), /#\/e\/k1\?tab=trends/);
+  // the case span opens its case from the card
+  const caseRef = await card.locator(".js-plotly-plot").evaluate((node) => node._fullData
+    .find((t) => t.mode === "lines" && (t.customdata ?? []).some(Boolean) && t.name === "Cases").customdata[0]);
+  await emit("plotly_click", { points: [{ customdata: caseRef, x: "2024-03-14 03:20" }] });
+  await detail.getByRole("heading", { name: "Case" }).waitFor();
+  assert.equal(await detail.getByRole("link", { name: "Open case" }).getAttribute("href"), "#/cases/7");
+  await detail.getByRole("button", { name: "Close" }).click();
+  await detail.waitFor({ state: "detached" });
+});
+
+test("P5.15d Two pinned times read the trip's drop in every value", async () => {
+  const { card, emit } = await tripTrend(page);
+  await emit("plotly_click", { points: [{ x: "2024-03-14 02:30" }] });
+  const pins = page.getByRole("region", { name: "Pinned times" });
+  await pins.getByRole("heading", { name: "At 2024-03-14 02:30" }).waitFor();
+  await emit("plotly_click", { points: [{ x: "2024-03-14 03:30" }] });
+  await pins.getByRole("heading", { name: "2024-03-14 02:30 to 2024-03-14 03:30" }).waitFor();
+  const cells = await pins.locator("tbody tr").evaluateAll((rows) => rows.map((r) => [...r.cells].map((c) => c.textContent)));
+  assert.deepEqual(cells, [["Suction pressure", "17 barg", "1 barg", "−16 barg (−94%)"],
+                           ["Discharge pressure", "51 barg", "3 barg", "−48 barg (−94%)"]]);
+  // the two times are drawn on the chart, marked A and B
+  const marks = await card.locator(".js-plotly-plot").evaluate((node) => node.layout.annotations.map((a) => a.text).filter((t) => t.startsWith("<b>")));
+  assert.deepEqual(marks, ["<b>A</b>", "<b>B</b>"]);
+  await pins.getByRole("button", { name: "Unpin" }).click();
+  await pins.waitFor({ state: "detached" });
+});
+
+test("P5.15e Zooming to an hour reads the values again at the provider's finest step, and says so", async () => {
+  const { card, asked, emit } = await tripTrend(page);
+  await card.getByText("every 30 min", { exact: false }).waitFor();
+  await emit("plotly_relayout", { "xaxis.range[0]": "2024-03-14 03:00:00", "xaxis.range[1]": "2024-03-14 04:00:00" });
+  await card.getByText("every 5 min", { exact: false }).waitFor();
+  assert.deepEqual(asked.at(-1), { at: "2024-03-14T03:00", hours_before: "0", hours_after: "1" });
+  const range = await card.locator(".js-plotly-plot").evaluate((node) => node.layout.xaxis.range);
+  assert.deepEqual(range, ["2024-03-14T03:00", "2024-03-14T04:00"]);  // the zoomed range stays, at the finer step
+  await card.getByRole("button", { name: "Reset zoom" }).click();
+  await card.getByText("every 30 min", { exact: false }).waitFor();
+});
+
+test("P5.15f On a 390 px phone the controls are one row, the chart starts in the first screen, and a swipe moves the window", async () => {
+  const { card, asked } = await tripTrend(page, { width: 390, height: 844 });
+  const controls = await card.locator(".trend-controls").boundingBox();
+  assert.ok(controls.height < 60, `one control row (${controls.height}px)`);
+  const plot = await card.locator(".js-plotly-plot").boundingBox();
+  assert.ok(plot.y + 120 < 844, `the chart starts in the first screen (${plot.y}px)`);
+  const chips = await card.locator(".trend-view-chips").boundingBox();
+  assert.ok(chips.y > plot.y, "the chips sit under the chart");
+  await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 10_000 })
+    .catch(() => assert.fail("no sideways scroll"));
+  const before = asked.length;
+  await card.locator(".trend-view-plot").evaluate((node) => {
+    const touch = (x) => new Touch({ identifier: 1, target: node, clientX: x, clientY: 300 });
+    node.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, touches: [touch(300)], changedTouches: [touch(300)] }));
+    node.dispatchEvent(new TouchEvent("touchend", { bubbles: true, touches: [], changedTouches: [touch(120)] }));
+  });
+  for (let i = 0; i < 50 && asked.length === before; i++) await page.waitForTimeout(50);
+  assert.equal(asked.length, before + 1, "a swipe to the left reads the later window");
+  assert.ok(asked.at(-1).at > "2024-03-14T03:20", JSON.stringify(asked.at(-1)));
+});
