@@ -8,6 +8,8 @@ export interface SignedInUser {
   permissions: string[];
   csrf: string;
   projects?: string[];
+  /** Reads every configuration page without being able to change it (the demo account). */
+  inspect?: boolean;
 }
 
 export interface AuthSession {

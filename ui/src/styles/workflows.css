@@ -1,6 +1,8 @@
 /* Workflows */
 .identity { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .identity input { width: 100%; }
+.acting-as { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.acting-as select { flex: 1; min-width: 0; }
 .task-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 1100px) { .task-layout { grid-template-columns: 1fr; } }
 .nowrap { white-space: nowrap; }
@@ -20,3 +22,17 @@ details.exception-types { margin-top: 16px; }
 .lifecycle li { flex: 1 1 12rem; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
 .lifecycle li.on { border-color: var(--accent); }
 .lifecycle li.done strong::after { content: " ✓"; color: var(--ok); }
+
+/* The case's decision card (#1071): what it waits on and the next action, above the evidence. */
+.case-next > h2 { margin: 0 0 6px; font-size: 15px; }
+.case-next-steps li { gap: 8px; align-items: center; padding: 2px 0; }
+.case-next-actions { margin: 10px 0 4px; gap: 8px; }
+.case-actions { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.case-actions .row { gap: 8px; align-items: end; }
+.case-full { margin-top: 12px; }
+/* A long generated case title is a heading, not a large title, on a phone (#1071). */
+@media (max-width: 600px) {
+  :root .ui-page-header h1.case-title-long, :root.ios main .ui-page-header h1.case-title-long { font-size: 22px; line-height: 28px; }
+  .case-next-actions .ui-button, .case-actions .ui-button { min-height: 44px; }
+  .case-actions .ui-field, .case-actions .ui-field .ui-input { width: 100%; }
+}

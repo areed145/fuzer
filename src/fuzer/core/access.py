@@ -27,7 +27,9 @@ BUILTINS = {
 }
 ACTOR_PREFIX = "user:"
 # The demo account (D.1): a fixed, non-Microsoft account for demonstrations and automated checks of a deployment.
-# It exists only while FUZER_DEMO_TOKEN is set, can never own or configure, and audits as `user:demo`.
+# It exists only while FUZER_DEMO_TOKEN is set, can never own or change configuration, and audits as `user:demo`.
+# It can go anywhere (#1068): it reads every configuration page (`inspect`) and holds every human workflow role, or
+# the ones it picks to act as (workflow.definitions.roles_of).
 DEMO_ID = "demo"
 DEMO_TENANT = "fuzer-demo"  # never a UUID, so no Microsoft identity can collide with it
 DEMO_NAME = "Demo account"
@@ -49,6 +51,7 @@ class Principal:
     permissions: frozenset[str]
     csrf: str = ""
     project: str | None = None  # the project these roles and permissions are for (None: the database's first)
+    inspect: bool = False  # reads configuration without being able to change it (the demo account)
 
     @property
     def actor(self):
@@ -56,6 +59,10 @@ class Principal:
 
     def allows(self, permission: str) -> bool:
         return self.enabled and (self.owner or permission in self.permissions)
+
+    def reads(self, permission: str) -> bool:
+        """Whether a request that changes nothing may go ahead: what `allows`, plus configuration for an inspector."""
+        return self.allows(permission) or (self.enabled and self.inspect and permission == "configure")
 
 
 def mode() -> str:
@@ -152,10 +159,11 @@ def principal(conn, account_id: str, csrf: str = "", project: str | None = None)
             "where m.account_id = %s order by r.name", (account_id,)).fetchall()
     permissions = frozenset(p for r in roles for p in r["permissions"])
     owner = row["owner"]
-    if row["id"] == DEMO_ID:  # whatever an owner grants it, the demo account never owns or configures
+    demo = row["id"] == DEMO_ID
+    if demo:  # whatever an owner grants it, the demo account never owns or changes configuration; it may read it
         owner, permissions = False, permissions - DEMO_DENIED
     return Principal(row["id"], row["display_name"], row["enabled"], owner,
-                     tuple(r["name"] for r in roles), permissions, csrf, project)
+                     tuple(r["name"] for r in roles), permissions, csrf, project, inspect=demo)
 
 
 def project_roles(conn, account_id: str) -> dict[str, list[str]]:
@@ -260,7 +268,8 @@ def demo_projects(conn) -> list[str]:
 def demo_sign_in(conn, token: str) -> tuple[Principal, str]:
     """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN. The account is created enabled with the
     operator role in the demo projects (demo_projects); an owner can disable it or change its roles on Users, and a
-    disabled demo account stays signed out. It never owns or configures (see principal)."""
+    disabled demo account stays signed out. It never owns or changes configuration, and reads all of it (see
+    principal)."""
     expected = os.environ.get("FUZER_DEMO_TOKEN", "")
     if not demo_enabled() or not hmac.compare_digest(token.encode(), expected.encode()):
         raise AccessError("Demo sign-in is not available")

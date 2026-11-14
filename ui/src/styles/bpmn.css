@@ -1,4 +1,5 @@
-/* The diagram keeps bpmn-js's light canvas in both themes, like the drawing viewer. */
+/* The diagram keeps bpmn-js's light canvas, except in the dark theme, where the drawing is inverted onto the panel so
+   it is not a bright box on a dark page (#1071). Hues are turned back, so done stays green and waiting stays blue. */
 .bpmn-canvas { height: 360px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; margin: 8px 0; }
 .bpmn-canvas .djs-element.fz-done .djs-visual > :first-child { stroke: #1a7f4b !important; fill: #e3f4ea !important; }
 .bpmn-canvas .djs-element.fz-open .djs-visual > :first-child { stroke: #0b6bcb !important; stroke-width: 3px !important; fill: #e6f0fb !important; }
@@ -64,3 +65,6 @@
 .bpmn-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .bpmn-legend i.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .bpmn-zoom { justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+:root[data-theme="dark"] .bpmn-canvas { background: var(--panel); }
+:root[data-theme="dark"] .bpmn-canvas svg, :root[data-theme="dark"] .bpmn-canvas .bjs-powered-by { filter: invert(.9) hue-rotate(180deg); }

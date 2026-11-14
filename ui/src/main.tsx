@@ -45,7 +45,10 @@ import { AppErrorBoundary } from "./AppErrorBoundary";
 import { Button, EmptyState, PageHeader } from "./ui";
 import { Status } from "./lib";
 import "./theme";
-import { AuthGate } from "./Auth";
+import { AuthGate, useViewOnly } from "./Auth";
+
+/** Pages that change configuration, where the demo account looks but can't change (#1068). */
+const VIEW_ONLY_SECTIONS = new Set(["sources", "ontology", "jobs", "settings", "users", "access", "processes", "routing"]);
 import { UsersPage } from "./pages/Users";
 import { RoutingPage } from "./pages/Routing";
 
@@ -70,6 +73,7 @@ function App() {
   const s = stats.data;
   const openReviews = s ? Object.values(s.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const section = path[0] ?? "";
+  const viewOnly = useViewOnly();
   const navSection = !section && query.has("q") ? "browse" : section;
   const work = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
   // The old Work pages' links (#/work, #/work/item/3, #/work/processes/upset, #/work/forms/x) still land right.
@@ -149,6 +153,8 @@ function App() {
         <BackButton path={path} className="page-back" />
         <Breadcrumbs path={path} />
         <AreaNavigation section={navSection} demoEnabled={demo.data?.enabled === true} />
+        {viewOnly && VIEW_ONLY_SECTIONS.has(section) &&
+          <p className="notice view-only" role="note">View only: the demo account can look at this page but can't change it.</p>}
         <Suspense fallback={<div className="status" role="status" aria-live="polite">Loading…</div>}>
           {section === "" && query.has("q") ? (
             <Search query={query} stats={s} />

@@ -1,7 +1,7 @@
 /** Signed-in identity; attribution-only names are limited to explicit trusted local mode. */
 import { useEffect, useState } from "react";
 import { api } from "./api";
-import { href, useAsync } from "./lib";
+import { href, notifyChanged, useAsync } from "./lib";
 import { usePerson } from "./work";
 import { Button, Input, Select } from "./ui";
 import { getProject, switchProject, type AuthSession } from "./authState";
@@ -35,12 +35,42 @@ export function Identity() {
     const user = session.user;
     return <><ProjectPicker session={session} /><div className="identity small">
       <strong>{user?.display_name}</strong>
-      <p>{user?.owner ? "Owner · all human roles" : user?.roles.join(", ") || "No application roles"}</p>
-      {configure && <p><a href={href("/users")}>Manage users</a></p>}
+      {user?.inspect ? <ActingAs actor={user.actor} />
+        : <p>{user?.owner ? "Owner · all human roles" : user?.roles.join(", ") || "No application roles"}</p>}
+      {configure && <p><a href={href("/users")}>{user?.inspect ? "See users" : "Manage users"}</a></p>}
       <SignOut />
     </div></>;
   }
   return <><ProjectPicker session={session} /><LocalIdentity /></>;
+}
+
+const spaced = (role: string) => role.replace(/_/g, " ");
+
+/** The demo account can be any role: it holds every human role until one is picked here, and then gets that role's
+ * queue, jobs and Home. Kept per project on the server, so every demo session in the project acts as the same role. */
+function ActingAs({ actor }: { actor: string }) {
+  const data = useAsync(async () => {
+    const [roles, people] = await Promise.all([api.rolesCatalog(), api.workPeople()]);
+    return { roles: roles.filter((r) => r.kind === "person").map((r) => r.name).sort(),
+      picked: people.find((p) => p.name === actor)?.assigned_roles ?? [] };
+  }, [actor]);
+  const [error, setError] = useState("");
+  const picked = data.data?.picked ?? [];
+  const value = picked.length === 1 ? picked[0] : "";
+  const pick = (role: string) => {
+    setError("");
+    api.actAs(role ? [role] : []).then(() => notifyChanged()).catch((e: Error) => setError(e.message));
+  };
+  return <>
+    <label className="acting-as">
+      <span className="muted">Acting as</span>
+      <Select value={value} aria-label="Acting as" disabled={!data.data} onChange={(e) => pick(e.target.value)}>
+        <option value="">{picked.length > 1 ? picked.map(spaced).join(", ") : "Every role"}</option>
+        {(data.data?.roles ?? []).map((role) => <option key={role} value={role}>{spaced(role)}</option>)}
+      </Select>
+    </label>
+    {error && <p className="error" role="alert">{error}</p>}
+  </>;
 }
 
 function LocalIdentity() {
