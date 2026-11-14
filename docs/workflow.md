@@ -210,6 +210,15 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **A fresh demo's team.** Where nobody is on the roster, the demo is on and names are attribution (local mode),
   My work and All work offer a sample IOC team (riley the ops lead, sam the field operator, pat the planner)
   to follow work from triage to the field. A real deployment's roster is never touched.
+- **A demo that looks staffed** (#1073, `ops/sample_crew.py`). A project whose bundle sets `sample_crew: true` (the
+  fakeplant bundles, never a real deployment) has that sample team, with alex as a second field operator, working its
+  queue at every work tick on today's clock: riley triages and sends field work out (some to the operator queue),
+  closes what comes back done and sends could-not-dos round again; the desks take a few cases each and close them
+  after hours to days, giving what waits a realistic due date; sam and alex go on site, report done or could not do,
+  and walk this shift's rounds (the odd reading outside its limits raises a round finding); riley publishes the daily
+  reports. A few times a shift sam or alex reports something they noticed on an asset, a `field_report` labelled
+  "sample crew", so new work keeps arriving though the demo's own data is historical (#1085 rolls it forward). Each case's path is fixed by its id, about one in ten is left for nobody, and nothing is backdated, so the
+  history builds up as a staffed site's would. Work a real account holds is never touched.
 - **Agent steps nobody will run.** Without an agents provider no agent worker runs; the case says so straight away
   (not after 10 minutes) and offers **Take it over**, which hands the agent's step to you as a person step.
   If nobody takes it over and no worker picks it up within `work.agent_fallback_minutes` (30 by default), the
@@ -260,6 +269,19 @@ They emulate a phone and can't prove a real one, so check a real device before a
 | Links in | A notification link opens the job. A link shared from the app (Share in the top bar) opens the same page. | A link to the site opens in the app. |
 
 Note the phone, the OS version and anything that failed, and file it as an issue against P5.14 (#984).
+
+### Work kept on the phone
+
+What the field does without signal is kept in the phone's IndexedDB (`ui/src/fieldStore.ts`), not `localStorage`, so
+photos are kept as files and a shift of reports fits (P5.17a, #1090). Each write waits in the outbox with its client
+id, the time it was made, the signed-in account and the project it was made in. One sender for the whole app
+(`startOutbox` in `ui/src/fieldOffline.ts`) sends oldest first on a confirmed session: on launch, when the signal
+returns, when the app comes back to the foreground, and every 30 s while it is on screen, whichever page is open.
+iOS has no background sync, so nothing sends while the app is closed. A write that never reached the server is sent
+again; the server applies each client id once. A write the server refuses is not resent. A signed-out session, or an
+expired session confirmation, holds the outbox until the same account signs in again. The app asks the browser to keep
+its storage (`navigator.storage.persist()`) the first time it keeps something. An outbox kept by an earlier version in
+`localStorage` moves across on the next launch.
 
 ## The work board
 

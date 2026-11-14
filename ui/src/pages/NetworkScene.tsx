@@ -101,18 +101,30 @@ export function NetworkScene({ query, set, relDef }: {
   }, [s, rerouted, trip, tripRead.data, path, selected, only, st]);
   const look = useMemo<SceneLook>(() => {
     const tint = new Map<string, string>(), badges = new Map<string, { text: string; color: string; title: string }>();
+    const perPlate = new Map<string, ItemStatus>();
+    const plateOf = new Map((s?.items ?? []).map((i) => [i.id, i.plate]));
     for (const [id, x] of Object.entries(st)) {
       const w = worst(x);
       if (!w) continue;
       const color = cssVar(STATUS[w].token);
       tint.set(id, color);
       badges.set(id, { text: badge(x), color, title: describe(x) });
+      const plate = plateOf.get(id);
+      if (!plate) continue;
+      const sum: ItemStatus = perPlate.get(plate) ?? { down: null, open_work: 0, alarms: 0 };
+      perPlate.set(plate, { ...sum, down: sum.down ?? x.down, open_work: sum.open_work + x.open_work, alarms: sum.alarms + x.alarms });
     }
-    return { tint, badges, lit };
-  }, [st, lit, theme]);
+    // A whole facility in blocks badges each area with its items' status summed (#1075).
+    const plateBadges = new Map([...perPlate].map(([id, x]) => [id, { text: badge(x), color: cssVar(STATUS[worst(x)!].token), title: describe(x) }]));
+    return { tint, badges, plateBadges, lit };
+  }, [st, lit, theme, s]);
   const places = s?.places ?? [];
   const facilities = places.filter((p) => p.kind === "facility");
-  const under = (id: string) => places.filter((p) => p.parent === id);
+  // Areas in their number's order (OKAN-25 before OKAN-84), not by the words after it (#1075).
+  const byLabel = (a: { id: string; label?: string | null }, b: { id: string; label?: string | null }) =>
+    (a.label ?? a.id).localeCompare(b.label ?? b.id, undefined, { numeric: true });
+  const under = (id: string) => places.filter((p) => p.parent === id).sort(byLabel);
+  const [options, setOptions] = useState(false);  // on a phone the controls past Show sit behind Options (#1075)
   const select = useCallback((id: string | null) => set({ node: id ?? undefined }), [set]);
   const wellNow = item && routes?.now.get(item.id);
 
@@ -148,8 +160,8 @@ export function NetworkScene({ query, set, relDef }: {
         : "No facility or area is loaded yet."}</Empty>}
       {s?.root && (
         <>
-          <div className="scene-controls">
-            <label>
+          <div className={`scene-controls${options ? " open" : ""}`}>
+            <label className="scene-show">
               Show
               <Select value={s.root.id} aria-label="Facility or area to draw"
                 onChange={(e) => set({ at: e.target.value, node: undefined })}>
@@ -160,11 +172,12 @@ export function NetworkScene({ query, set, relDef }: {
                     {under(f.id).map((a) => <option key={a.id} value={a.id}>{named(a.label ?? a.id, a.description)}</option>)}
                   </optgroup>
                 ))}
-                {places.filter((p) => p.kind === "area" && !facilities.some((f) => f.id === p.parent))
+                {places.filter((p) => p.kind === "area" && !facilities.some((f) => f.id === p.parent)).sort(byLabel)
                   .map((a) => <option key={a.id} value={a.id}>{named(a.label ?? a.id, a.description)}</option>)}
               </Select>
             </label>
-            <label>
+            <Button size="sm" className="scene-options" aria-expanded={options} onClick={() => setOptions(!options)}>Options</Button>
+            <label className="scene-opt">
               Find
               <Select value={selected ?? ""} aria-label="Find an item in the drawing"
                 onChange={(e) => { select(e.target.value || null); if (e.target.value) setCentre({ id: e.target.value }); }}>
@@ -172,7 +185,7 @@ export function NetworkScene({ query, set, relDef }: {
                 {s.items.map((i) => <option key={i.id} value={i.id}>{named(i.label, i.description)}</option>)}
               </Select>
             </label>
-            <label>
+            <label className="scene-opt">
               Layout
               <Select value={geo ? "geo" : "schematic"} aria-label="Lay the drawing out"
                 onChange={(e) => set({ layout: e.target.value === "geo" ? "geo" : undefined })}>
@@ -180,14 +193,14 @@ export function NetworkScene({ query, set, relDef }: {
                 <option value="geo">By location, compacted</option>
               </Select>
             </label>
-            <label>
+            <label className="scene-opt">
               Labels
               <Select value={labelBy} aria-label="Label items by" onChange={(e) => set({ labels: e.target.value === "tags" ? "tags" : undefined })}>
                 <option value="names">Names</option>
                 <option value="tags">Tags</option>
               </Select>
             </label>
-            <label>
+            <label className="scene-opt">
               Drawing
               <Select value={flat || noWebGL ? "2d" : "3d"} aria-label="Draw in" disabled={noWebGL}
                 onChange={(e) => set({ draw: e.target.value === "2d" ? "2d" : undefined })}>
@@ -195,7 +208,7 @@ export function NetworkScene({ query, set, relDef }: {
                 <option value="2d">Flat (2D)</option>
               </Select>
             </label>
-            <span className="small muted" data-testid="scene-basis">
+            <span className="small muted scene-opt scene-basis" data-testid="scene-basis">
               {s.layout === "geo" ? "Areas where they are, long distances shortened"
                 : geo ? "No area here has a location, so this is the schematic" : "Schematic, not to scale"}
               : {s.counts.items} items placed from {s.counts.links} links
@@ -217,6 +230,7 @@ export function NetworkScene({ query, set, relDef }: {
                 ) : (
                   <Suspense fallback={<Status loading />}>
                     <Scene3D scene={drawn!} selected={selected} centre={centre} onSelect={select} lineColor={lineColor}
+                      onPlate={(id) => set({ at: id, node: undefined })}
                       labelBy={labelBy} look={look} onUnavailable={() => setNoWebGL(true)} footer={footer(item ? (
                         <div className="scene-pick" aria-live="polite">
                           <strong>{item.label}</strong>

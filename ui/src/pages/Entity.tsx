@@ -35,6 +35,7 @@ import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
 import { EntityStatus } from "../EntityStatus";
 import { AssetProfile } from "../AssetProfile";
+import { LiveReadings } from "../LiveReadings";
 import { WatchButton } from "../Watch";
 import { Related } from "../Related";
 import { kindColor, relColor } from "../kinds";
@@ -81,8 +82,8 @@ const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1]
 
 type EntityTab = "overview" | "maintenance" | "trends" | "connections" | "documents" | "record" | "graph";
 const TAB_LABELS: Record<EntityTab, string> = {
-  overview: "Overview", maintenance: "Maintenance", trends: "Timeline", connections: "Connections", documents: "Documents", record: "Record",
-  graph: "Graph",
+  overview: "Overview", maintenance: "Maintenance", trends: "Timeline", connections: "Connections", documents: "Documents", record: "Data",
+  graph: "Data",
 };
 const NO_TRENDS = ["document", "document_section", "log_entry"];
 const MAINTAINED = ["tag", "equipment", "equipment_model", "equipment_class"];
@@ -96,11 +97,13 @@ function entityTabs(e: EntityDetail): EntityTab[] {
   // Maintenance is the field technician's view: work orders and notifications, spare parts, and downtime.
   const maintained = MAINTAINED.includes(e.kind);
   return ["overview", ...(maintained ? ["maintenance" as const] : []), ...(trends ? ["trends" as const] : []), ...(flow ? ["connections" as const] : []),
-    ...(documents ? ["documents" as const] : []), "record", "graph"];
+    // Record and Graph serve the data steward; they are one Data tab, and a `tab=graph` link still opens it (#1076).
+    ...(documents ? ["documents" as const] : []), "record"];
 }
 
 export function Entity({ id, tab }: { id: string; tab: string }) {
   const [asOf, setAsOf] = useState("");
+  const [dated, setDated] = useState(false);
   const ent = useAsync(() => api.entity(id, asOf || undefined), [id, asOf]);
   const configure = usePermission("configure");
 
@@ -120,7 +123,8 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
   }
 
   const tabs = entityTabs(e);
-  const view: EntityTab = tabs.includes(tab as EntityTab) ? (tab as EntityTab) : "overview";
+  const asked = tab === "graph" ? "record" : tab;
+  const view: EntityTab = tabs.includes(asked as EntityTab) ? (asked as EntityTab) : "overview";
   const fid = e.fuzer_id;
   // Assets people work on open on their work and history; any other record opens on its values.
   const operated = ["tag", "equipment", "well", "facility", "area"].includes(e.kind);
@@ -138,9 +142,11 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
               : <KindBadge kind={e.kind} />}
             <WatchButton target={fid} label="asset" />
             <a className="small" href={href("/ask", { subject: fid })}>Ask about this asset</a>
+            {/* On a phone the date picker waits behind this, so the header leaves room for the page (#1076). */}
+            {!asOf && !dated && <Button variant="link" size="sm" className="asof-open" onClick={() => setDated(true)}>Earlier date</Button>}
           </div>
         </div>
-        <label className="asof">
+        <label className={`asof${asOf || dated ? " asof-shown" : ""}`}>
           As of
           <Input type="date" value={asOf} onChange={(x) => setAsOf(x.target.value)} />
           {asOf && (
@@ -156,18 +162,14 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
         href: href(`/e/${encodeURIComponent(id)}`, t === "overview" ? undefined : { tab: t }),
       }))} />
 
-      {view === "graph" && (
-        <Suspense fallback={<Status loading />}>
-          <EntityGraph id={fid} asOf={asOf || undefined} />
-          <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
-        </Suspense>
-      )}
 
       {view === "overview" && (
         <>
+          {/* Live picture first, then the work on it, then what it is (#1076). */}
           {operated && <EntityStatus id={fid} />}
-          {["tag", "equipment", "equipment_model"].includes(e.kind) && <AssetProfile id={fid} />}
+          {["tag", "equipment", "well"].includes(e.kind) && <LiveReadings id={fid} />}
           {operated && <WorkHere id={fid} area={e.kind === "area"} />}
+          {["tag", "equipment", "equipment_model"].includes(e.kind) && <AssetProfile id={fid} />}
           {e.kind === "incident" && <IncidentDetail id={fid} />}
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
           {e.kind === "document" && e.golden.doc_type && (
@@ -184,7 +186,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
                   Read full screen</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
-                <p className="error small">This revision is superseded; see "Superseded by" under Graph.</p>
+                <p className="error small">This revision is superseded; see "Superseded by" under Data.</p>
               )}
               <DocumentPages id={fid} className="doc-preview" />
             </UICard>
@@ -206,9 +208,10 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
           {["well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
           {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={fid} />}
           {e.kind !== "event" && <Events id={fid} />}
-          <Suspense fallback={null}>
-            <EntityMap id={fid} />
-          </Suspense>
+          {/* A machine is placed on its P&ID, ringed; a map zoomed out to the export line said little (#1076). */}
+          {["tag", "equipment"].includes(e.kind)
+            ? <LinkedDrawings id={fid} fallback={<Suspense fallback={null}><EntityMap id={fid} /></Suspense>} />
+            : <Suspense fallback={null}><EntityMap id={fid} /></Suspense>}
           {!operated && <div className="grid">
             <Fields e={e} />
             <Records e={e} />
@@ -256,16 +259,21 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
           {["tag", "equipment", "well"].includes(e.kind) && <AssetContextCard id={fid} />}
           {!NO_TRENDS.includes(e.kind) && e.kind !== "timeseries" && <MemoryCard id={fid} />}
           <HistoryCard id={fid} />
+          <Suspense fallback={<Status loading />}>
+            <EntityGraph id={fid} asOf={asOf || undefined} />
+            <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
+          </Suspense>
         </>
       )}
     </article>
   );
 }
 
-function LinkedDrawings({ id }: { id: string }) {
+function LinkedDrawings({ id, fallback = null }: { id: string; fallback?: ReactNode }) {
   const d = useAsync(() => api.entityDrawings(id), [id]);
   const sheets = d.data?.drawings ?? [];
-  if (sheets.length === 0) return null;
+  if (d.loading) return null;
+  if (sheets.length === 0) return <>{fallback}</>;
   return (
     <UICard as="section">
       <h2>On P&ID <span className="muted small">{sheets.length === 1 ? "one sheet" : `${sheets.length} sheets`}, ringed where this is</span></h2>
@@ -489,7 +497,9 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
       ...[...nodes.values()].map((n) => ({ data: { ...n, color: kindColor(n.kind), size: n.id === id ? 34 : 22,
         root: n.id === id } })),
       ...[...edges.values()].map((x, i) => ({ classes: x.net.cls, data: { id: `e${i}`, source: x.src, target: x.dst,
-        rel: x.net.rel, color: relColor(x.net.rel), ended: false, label: x.net.label } })),
+        // The key above names each network and the arrows give the direction; a label on every link only showed on
+        // the ones Cytoscape had room for, two of four (#1076).
+        rel: x.net.rel, color: relColor(x.net.rel), ended: false, label: "" } })),
     ];
   }, [flow.data, id, label, kind, off]);
   const none = !!flow.data && !has(0) && !has(1);
@@ -516,7 +526,9 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
             : <span key={n.rel} className={`flow-network ${n.cls}`}>{n.name} <span className="muted">{n.from}</span></span>))}
         </p>
         <Suspense fallback={<Status loading />}>
-          <GraphCanvas elements={elements} layout="flow" selectedId={id} height={all ? 600 : 320}
+          {/* A short chain of neighbours takes a short canvas, not a tall empty one (#1076). */}
+          <GraphCanvas elements={elements} layout="flow" selectedId={id}
+            height={all ? 600 : elements.filter((x) => !("source" in x.data)).length > 8 ? 320 : 200}
             onSelect={(to) => { if (to && to !== id) location.hash = entityHref(to); }} />
         </Suspense>
       </>}
@@ -575,10 +587,11 @@ function MaintenanceCard({ id }: { id: string }) {
       <h2>
         Maintenance <span className="muted small">{m.data.total.toLocaleString()} SAP notifications</span>
       </h2>
-      <div className="grid">
+      <div className="maintenance-split">
         <div>
           <h3>Failure modes (ISO 14224)</h3>
-          <ul className="coverage">
+          {/* Name, a bar to compare and the count, in columns: the count read as a superscript stuck to the word (#1076). */}
+          <ul className="plain failure-modes">
             {m.data.failure_modes.map((f) => (
               <li key={f.code ?? "none"}>
                 <span>{f.name ?? "Not coded"}</span>
@@ -595,8 +608,9 @@ function MaintenanceCard({ id }: { id: string }) {
               <li key={n.id}>
                 <span className="when">{n.created}</span>
                 <div className="what">
-                  <div className="row">
-                    {n.failure_mode && <UIBadge className="badge event-type">{n.failure_mode}</UIBadge>}
+                  {/* One line that wraps as text: a flex row put a long title under its code, alone (#1076). */}
+                  <div>
+                    {n.failure_mode && <><UIBadge className="badge event-type">{n.failure_mode}</UIBadge>{" "}</>}
                     <a href={entityHref(n.id)}>{n.text}</a>
                   </div>
                   {n.work_orders.map((w) => (

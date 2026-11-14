@@ -11,6 +11,7 @@
     project:                  # project config (see core.projects): data, timeseries, timezone, ...
       data: exports           # paths are relative to the bundle
       timeseries: none
+      sample_crew: true       # a fictional demo only: a sample team works its queue on today's clock (ops/sample_crew)
     source_packs: [packs/measurement.yaml]   # optional: the source packs (sources/_catalog_packs) it brings
     roster: roster.yaml       # optional: the roster template, the human workflow roles it staffs and their seats
     operating_model:          # optional: the operating model it follows (P8.1), and its named deviations from it

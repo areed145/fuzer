@@ -69,7 +69,7 @@ def test_a_spec_holds_no_colours(fig):
 def test_a_series_keeps_its_colorway_position_when_it_has_no_data():
     fig = flow_capacity(capacity([stage("HP", 90, "declared", "moc")]), NOTICE)
     assert [t.get("showlegend") for t in fig.data] == [True, True, False, False, False]
-    assert fig.data[1]["offsetgroup"] == "system"
+    assert fig.data[1]["type"] == "scatter" and fig.data[1]["mode"] == "lines+text", "the limit is one line, not a bar per stage"
     assert all(t["offsetgroup"] == "stage" for i, t in enumerate(fig.data) if i != 1)
 
 
@@ -84,11 +84,12 @@ def test_wording_follows_the_data():
 
     done = flow_capacity(capacity([stage("Wells", 130, "reported_potential"), stage("HP", 90, "declared", "moc", True)],
                                   basis="declared_limits", established=True, limit_sm3d=90, binding_stages=["HP"]), NOTICE)
-    assert done.summary["headline"] == "Bottleneck: HP at 90 Sm3/d. Every stage has a capacity."
+    assert done.summary["headline"] == "Bottleneck: HP at 90 Sm3/d. Next is Wells at 130 Sm3/d, 44.4% more."
     assert done.summary["tables"] == []
     assert not any("≥" in note or "well test" in note for note in done.summary["notes"])
     assert trace(done, "Approved")["text"] == ["130", "◆ 90"]
     assert trace(done, "System bottleneck")["y"] == [90, 90]
+    assert trace(done, "System bottleneck")["text"] == ["", "90"], "the limit is labelled once"
 
 
 def test_a_partial_declaration_claims_no_bottleneck():
@@ -124,6 +125,8 @@ def test_production_keeps_gaps_and_names_ties():
     assert fig.data[0]["connectgaps"] is False
     assert fig.data[2]["yaxis"] == "y2", "the gap has its own fitted axis so it shows at ~100% efficiency"
     assert fig.summary["stats"][0]["label"].startswith("Unrealized gap")
+    assert len(fig.summary["stats"]) <= 3, "a few tiles, not a spreadsheet"
+    assert "% of potential over" in fig.summary["headline"]
     assert fig.layout["yaxis"]["rangemode"] == "tozero", "A rate axis starts at zero, so small moves stay small"
     assert "Binding: Export [export]" in fig.data[0]["text"][12]
     assert fig.summary["tables"][0]["rows"][0][1] == "Unknown"
@@ -148,3 +151,15 @@ def test_every_live_figure_builds_on_okan_and_passes_the_checks(okan_db):
 def test_an_unknown_kind_is_refused():
     with pytest.raises(ChartError):
         analytics.live(None, None, "nope", "f")
+
+
+def test_a_window_with_nothing_paired_says_so_without_tiles_or_a_plot():
+    out = calculate([], [], date(2026, 10, 14))
+    fig = production_efficiency({**out, "facility": {"id": "f", "label": "Plant"}, "source": "Reports"}, NOTICE)
+    assert fig.data == [] and fig.summary["stats"] == []
+    assert fig.summary["headline"] == "No paired production and capacity values in this window."
+
+
+def test_a_facility_with_no_production_report_gets_a_figure_saying_so():
+    fig = analytics._no_reports("flow-capacity", "System capacity and bottleneck", "Kestrel", NOTICE)
+    assert fig.data == [] and fig.summary["headline"] == "No daily production reports are loaded for Kestrel."

@@ -61,30 +61,45 @@ def _housekeeping(kinds: dict, r: dict) -> bool:
 
 def _merge(places: list[dict]) -> list[dict]:
     """Places closer than MERGE_M (a bridge-linked complex: production and compression platforms side by side) are
-    one spot, named by each, so one marker never hides another. `places` lists every place id it holds."""
+    one spot, so one marker never hides another. Two places are named by both; more are named by the one with the most
+    work "and N more" (#1074), so the name fits on a map label. `places` lists every place id it holds, `names` each
+    place's own name."""
     from ..graph.spatial import metres
 
     spots: list[dict] = []
     for p in sorted(places, key=lambda p: -len(p["items"])):
         near = next((s for s in spots if metres((s["lon"], s["lat"]), (p["lon"], p["lat"])) < MERGE_M), None)
         if near is None:
-            spots.append({**p, "places": [p["id"]], "items": list(p["items"]), "crews": list(p["crews"])})
+            spots.append({**p, "places": [p["id"]], "names": [p["name"] or p["label"]], "labels": [p["label"]],
+                          "items": list(p["items"]), "crews": list(p["crews"])})
             continue
         near["places"].append(p["id"])
-        near["name"] = f"{near['name'] or near['label']} · {p['name'] or p['label']}"
-        near["label"] = f"{near['label']} · {p['label']}"
+        near["names"].append(p["name"] or p["label"])
+        near["labels"].append(p["label"])
         near["items"] += p["items"]
         near["crews"] += [c for c in p["crews"] if c not in near["crews"]]
+    for s in spots:
+        names, labels = s.pop("names"), s.pop("labels")
+        if len(names) == 2:
+            s["name"], s["label"] = " · ".join(names), " · ".join(labels)
+        elif len(names) > 2:
+            s["name"] = f"{names[0]} and {len(names) - 1} more areas"
+            s["label"] = f"{labels[0]} and {len(labels) - 1} more"
     return spots
+
+
+UNPLACED = "unplaced"
 
 
 def only_at(conn, rows: list[dict], place: str) -> list[dict]:
     """The rows (an exception listing) that `hotspots` gathers at a spot (its place ids, comma-separated): All
-    work's "at a place" filter."""
+    work's "at a place" filter. `unplaced` keeps the ones `hotspots` counts as not located (#1074)."""
     ids = set(place.split(","))
     kinds = exceptions.types(conn)
     rows = [r for r in rows if not _housekeeping(kinds, r)]
     located = _places(conn, sorted({s for r in rows for s in r["subjects"]}))
+    if place == UNPLACED:
+        return [r for r in rows if not any(s in located for s in r["subjects"])]
     return [r for r in rows if any(located.get(s, {}).get("id") in ids for s in r["subjects"])]
 
 

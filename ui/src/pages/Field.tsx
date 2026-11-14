@@ -7,38 +7,36 @@ import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, Input } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
-import { OUTBOX_CHANGED, flush, outbox, sendReport } from "../fieldOffline";
+import { OUTBOX_CHANGED, clearRefused, flush, outbox, refusedReasons, sendReport, type FlushResult } from "../fieldOffline";
 
-/** Reports kept on this phone while there was no signal (P5.3c): sent as soon as it returns, or now by hand. */
+/** Reports kept on this phone while there was no signal (P5.3c): the app's one sender (P5.17a) sends them as soon as
+ * the signal returns, from whichever page is open; this card counts them and can send now by hand. */
 export function Outbox({ onSent }: { onSent: () => void }) {
-  const [waiting, setWaiting] = useState(outbox().length);
-  const [refused, setRefused] = useState<string[]>([]);
+  const [waiting, setWaiting] = useState(0);
+  const [refused, setRefused] = useState<string[]>(refusedReasons());
   const [busy, setBusy] = useState(false);
   const sentRef = useRef(onSent);
   sentRef.current = onSent;
   useEffect(() => {
-    const count = () => setWaiting(outbox().length);
-    const send = async () => {
-      if (!outbox().length) return;
-      setBusy(true);
-      const r = await flush();
-      setBusy(false);
-      count();
-      if (r.refused.length) setRefused(r.refused);
-      if (r.sent) sentRef.current();
+    let active = true;
+    const count = (e?: Event) => {
+      const r = (e as CustomEvent<FlushResult | undefined> | undefined)?.detail;
+      if (r?.sent) sentRef.current();
+      setRefused(refusedReasons());
+      void outbox().then((w) => { if (active) setWaiting(w.length); });
     };
     window.addEventListener(OUTBOX_CHANGED, count);
-    window.addEventListener("online", send);
-    void send();
-    const timer = window.setInterval(send, 30_000);
-    return () => { window.removeEventListener(OUTBOX_CHANGED, count); window.removeEventListener("online", send); clearInterval(timer); };
+    count();
+    return () => { active = false; window.removeEventListener(OUTBOX_CHANGED, count); };
   }, []);
   if (!waiting && !refused.length) return null;
+  const send = async () => { setBusy(true); try { await flush(); } finally { setBusy(false); } };
   return (
     <Card className="field-outbox" title={waiting ? `${waiting} report${waiting > 1 ? "s" : ""} waiting to send` : "Reports not accepted"}>
       {waiting > 0 && <p className="small">Made without signal and kept on this phone. They send, with the time you made them, when the signal returns.</p>}
       {refused.map((r, i) => <p key={i} role="alert" className="error small">Not accepted: {r}</p>)}
-      {waiting > 0 && <Button disabled={busy} onClick={() => window.dispatchEvent(new Event("online"))}>{busy ? "Sending…" : "Send now"}</Button>}
+      {waiting > 0 && <Button disabled={busy} onClick={send}>{busy ? "Sending…" : "Send now"}</Button>}
+      {!waiting && <Button onClick={clearRefused}>Dismiss</Button>}
     </Card>
   );
 }

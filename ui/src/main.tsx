@@ -46,6 +46,7 @@ import { Button, EmptyState, PageHeader } from "./ui";
 import { Status } from "./lib";
 import "./theme";
 import { AuthGate, useViewOnly } from "./Auth";
+import { startOutbox } from "./fieldOffline";
 
 /** Pages that change configuration, where the demo account looks but can't change (#1068). */
 const VIEW_ONLY_SECTIONS = new Set(["sources", "ontology", "jobs", "settings", "users", "access", "processes", "routing"]);
@@ -284,6 +285,8 @@ function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuil
 startIos();
 startAppHistory();
 lockPageZoom();
+// One sender for reports kept without signal (P5.17a), from whichever page is open.
+startOutbox();
 // The offline shell (P5.14d): the installed app opens without signal. Only on a secure origin, as browsers require.
 if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname)))
   navigator.serviceWorker.register("/sw.js").catch(() => undefined);

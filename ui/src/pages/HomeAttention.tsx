@@ -20,6 +20,8 @@ const BAND: Record<AttentionBand, { label: string; tone: "danger" | "warn" | "mu
 const keep = (p: AttentionPlace, f: Filter) =>
   f === "all" || (f === "high" ? p.counts.high > 0 : f === "overdue" ? p.overdue > 0 : p.unassigned > 0);
 const placeName = (p: AttentionPlace) => p.name ?? p.label;
+/** All work's place filter for the open work no place on the map holds (#1074). */
+export const UNPLACED = "unplaced";
 const holder = (i: AttentionItem) => i.assignee ?? (i.role ? `${i.role.replace(/_/g, " ")} queue` : "Unassigned");
 
 export function AttentionCard() {
@@ -33,7 +35,15 @@ export function AttentionCard() {
   const close = useCallback(() => setSelected(null), []);
   const [fullscreen, setFullscreen] = useState(false);  // the map full screen carries the chosen place itself
   useEffect(() => { if (selected && !chosen) setSelected(null); }, [selected, chosen]);
-  const mapped = (geo.data?.features.length ?? 0) > 0;
+  // One site (every place with work at one spot, as at Kestrel) gets the list and its 3D view, not a near-empty map
+  // with one marker on it (#1074).
+  const oneSite = useMemo(() => {
+    const pts = (geo.data?.features ?? []).filter((f) => f.geometry.type === "Point").map((f) => f.geometry.coordinates as number[]);
+    if (!pts.length) return false;
+    const span = (i: number) => Math.max(...pts.map((p) => p[i])) - Math.min(...pts.map((p) => p[i]));
+    return span(0) < 0.015 && span(1) < 0.015;  // every located point within about 1.5 km: one site, not a field
+  }, [geo.data]);
+  const mapped = (geo.data?.features.length ?? 0) > 0 && !oneSite;
   const ready = spots.data !== undefined && (geo.data !== undefined || !!geo.error);
   const open = spots.data?.places.reduce((n, p) => n + p.open, 0) ?? 0;
   return (
@@ -54,8 +64,8 @@ export function AttentionCard() {
               Crews</Button>}
           </div>
           <span className="small muted">
-            {open.toLocaleString()} open across {spots.data.places.length.toLocaleString()} places
-            {spots.data.unplaced ? ` · ${spots.data.unplaced} not located` : ""}
+            {open.toLocaleString()} open across {spots.data.places.length.toLocaleString()} {spots.data.places.length === 1 ? "place" : "places"}
+            {spots.data.unplaced ? <> · <a href={workHref("open", { at: UNPLACED })}>{spots.data.unplaced} not located</a></> : ""}
           </span>
         </div>
         {spots.data.places.length === 0 ? <Empty>No open work at any place.</Empty> : (
@@ -91,6 +101,7 @@ export function AttentionCard() {
                 </ol>
               )}
               {places.length > 8 && <a href={workHref("open")}>{places.length - 8} more places in All work</a>}
+              {oneSite && places[0] && <a href={href("/3d", { at: places[0].id })}>See {placeName(places[0])} in 3D</a>}
             </div>
           </div>
         )}

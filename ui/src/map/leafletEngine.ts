@@ -26,6 +26,7 @@ export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine 
   let tiles: L.TileLayer | null = null;
   // A tap on a phone opens the popup; a hover label there would stick beside it, saying the same thing twice.
   const hover = () => matchMedia("(hover: hover)").matches;
+  map.on("zoomend", () => events.onZoom?.(map.getZoom()));
 
   return {
     kind: "leaflet",
@@ -51,10 +52,14 @@ export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine 
         const line = (l.closed ? L.polygon(l.paths, style) : L.polyline(l.paths, style)).bindPopup(l.popup).addTo(network);
         if (tips && l.tip) line.bindTooltip(esc(l.tip), { sticky: true });
       }
+      // Dots on the canvas; squares as small DOM markers above them, so a platform sits over the wells on it.
       for (const p of points) {
-        const marker = L.circleMarker(p.at, { radius: p.radius, color: p.stroke, weight: p.strokeWidth, fillColor: p.fill,
-                                              fillOpacity: p.fillOpacity })
-          .bindPopup(p.popup).addTo(network);
+        const d = 2 * p.radius + p.strokeWidth;
+        const marker = p.shape === "square"
+          ? L.marker(p.at, { keyboard: false, icon: L.divIcon({ className: "map-square", iconSize: [d, d], iconAnchor: [d / 2, d / 2],
+              html: `<span style="background:${p.fill};border:${p.strokeWidth}px solid ${p.stroke};opacity:${p.fillOpacity}"></span>` }) })
+          : L.circleMarker(p.at, { radius: p.radius, color: p.stroke, weight: p.strokeWidth, fillColor: p.fill, fillOpacity: p.fillOpacity });
+        marker.bindPopup(p.popup).addTo(network);
         if (tips && p.tip) marker.bindTooltip(esc(p.tip));
       }
     },
@@ -91,6 +96,9 @@ export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine 
         .bindTooltip("Your location").addTo(location);
       map.setView(at, Math.max(map.getZoom(), 14));
     },
+    zoom() { return map.getZoom(); },
+    project(at) { const p = map.latLngToContainerPoint(at); return { x: p.x, y: p.y }; },
+    setPan(on) { if (on) map.dragging.enable(); else map.dragging.disable(); },
     resize() { map.invalidateSize(); },
     destroy() { map.remove(); },
   };

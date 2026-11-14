@@ -5,7 +5,7 @@ import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
 import { entityHref, href } from "./lib";
 import { Button, FullscreenButton, useFullscreen } from "./ui";
-import { pathsOf, vertices, type BasemapName, type HotspotSpec, type LatLon, type LineSpec, type MapEngine,
+import { clusterOnScreen, pathsOf, vertices, type BasemapName, type HotspotSpec, type LatLon, type LineSpec, type MapEngine,
          type PointSpec } from "./map/engine";
 import { leafletEngine } from "./map/leafletEngine";
 import { mapkitEngine } from "./map/mapkitEngine";
@@ -22,9 +22,9 @@ const SERVICES: { key: string; label: string; product: string; dash?: string }[]
   { key: "production trunkline", label: "Production trunkline", product: "multiphase", dash: "18 3" },
   { key: "flare", label: "Flare and relief", product: "flare", dash: "3 4" },
 ];
-const POINTS: { key: string; label: string; radius: number }[] = [
-  { key: "area", label: "Platforms, jackets, pads", radius: 7 },
-  { key: "facility", label: "Plants and terminals", radius: 8 },
+const POINTS: { key: string; label: string; radius: number; square?: boolean }[] = [
+  { key: "area", label: "Platforms, jackets, pads", radius: 7, square: true },
+  { key: "facility", label: "Plants and terminals", radius: 8, square: true },
   { key: "well", label: "Wells", radius: 3 },
 ];
 /* Three base maps, each light or dark by the app's theme (System by default), so there is no separate dark or light
@@ -97,16 +97,31 @@ function popup(f: GeoFeature): HTMLElement {
   return div;
 }
 
+const hotspotSize = (open: number) => Math.round(Math.min(46, 26 + 4 * Math.sqrt(open)));
+const RANK = { high: 0, medium: 1, low: 2 };
+const CLUSTER_UNTIL = 15;  // past this zoom a gathered marker's tap picks its most urgent place instead of zooming in
+
+/** Places whose markers would overlap at this zoom, as one marker (#1074): the most urgent place leads it and names
+ * it, and its counts are the group's. */
+function gathered(group: AttentionPlace[]): AttentionPlace {
+  const [lead, ...rest] = group;
+  if (!rest.length) return lead;
+  const sum = (f: (p: AttentionPlace) => number) => group.reduce((n, p) => n + f(p), 0);
+  return { ...lead, open: sum((p) => p.open), overdue: sum((p) => p.overdue), unassigned: sum((p) => p.unassigned),
+           name: `${lead.name ?? lead.label} and ${rest.length} more`, crews: group.flatMap((p) => p.crews) };
+}
+
 /** A hotspot: a place with open work, drawn by its highest band, how much is open and whether any is overdue. */
 function hotspotSpec(p: AttentionPlace, selected: boolean, labelled: boolean,
-                     crew: { who: string | null; status: string } | undefined, onSelect: () => void): HotspotSpec {
-  const size = Math.round(Math.min(46, 26 + 4 * Math.sqrt(p.open)));
+                     crew: { who: string | null; status: string } | undefined, onSelect: () => void, cluster = false): HotspotSpec {
+  const size = hotspotSize(p.open);
   const name = p.name ?? p.label;
   const html = `<span class="hotspot-dot" style="width:${size}px;height:${size}px">${p.open}</span>`
     + (p.overdue ? `<span class="hotspot-late" aria-hidden="true"><svg viewBox="-8 -8 16 16"><path d="M0,-4 L0,0 L3,2"/></svg></span>` : "")
     + (labelled ? `<span class="hotspot-label">${esc(name)}</span>` : "");
   return {
-    at: [p.lat, p.lon], className: `hotspot hotspot-${p.band}${selected ? " selected" : ""}`, html, size, name, selected,
+    at: [p.lat, p.lon], className: `hotspot hotspot-${p.band}${selected ? " selected" : ""}${cluster ? " hotspot-cluster" : ""}`,
+    html, size, name, selected,
     title: `${name}: ${p.open} open${p.overdue ? `, ${p.overdue} overdue` : ""}`, onSelect,
     crew: crew && { html: `<span>${esc((crew.who ?? "?").replace(/^role:/, "").slice(0, 1).toUpperCase())}</span>`,
                     title: `${crew.who} ${crew.status}` },
@@ -138,9 +153,11 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   const [library, setLibrary] = useState<"pending" | "mapkit" | "leaflet">(basemap ? "pending" : "leaflet");
   const [engine, setEngine] = useState<MapEngine | null>(null);
   const fitted = useRef(false);
+  const [zoomed, setZoomed] = useState(0);  // counts zoom changes, so overlapping hotspots gather again
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [basemapName, setBasemapName] = useState<Basemap>(basemap ? savedBasemap : "none");
   const [mapMessage, setMapMessage] = useState("");
+  const [whole, setWhole] = useState(false);  // fit the whole network, export routes and terminals too
   const [baseError, setBaseError] = useState(false);  // #398: say so when the base map tiles can't load
   const themeVersion = useTheme();
   const dark = themeVersion === "dark";
@@ -166,7 +183,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
 
   useEffect(() => {
     if (!el.current || library === "pending") return;
-    const events = { onBaseError: setBaseError, onFatal: () => setLibrary("leaflet") };
+    const events = { onBaseError: setBaseError, onFatal: () => setLibrary("leaflet"), onZoom: () => setZoomed((n) => n + 1) };
     let made: MapEngine;
     try {
       made = library === "mapkit" && window.mapkit ? mapkitEngine(window.mapkit, el.current, events)
@@ -191,6 +208,12 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   useEffect(() => {
     requestAnimationFrame(() => engine?.resize());
   }, [full.on]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A small map on a touch screen lets a one-finger swipe scroll the page past it (#1074); pinch zooms, and full
+  // screen pans as usual.
+  useEffect(() => {
+    engine?.setPan(full.on || !compact || !matchMedia("(pointer: coarse)").matches);
+  }, [engine, full.on, compact]);
 
   const locate = () => {
     setMapMessage("");
@@ -234,13 +257,14 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
         popup: () => popup(f), tip: tip(f),
       };
     });
-    const points: PointSpec[] = shown.filter((f) => f.geometry.type === "Point").map((f) => {
+    const points: (PointSpec & { kind: string })[] = shown.filter((f) => f.geometry.type === "Point").map((f) => {
       const [lon, lat] = f.geometry.coordinates as number[];
       const kind = String(f.properties.kind);
       const isFocus = f.id === focus;
+      const def = POINTS.find((p) => p.key === kind);
       return {
-        at: [lat, lon],
-        radius: ((POINTS.find((p) => p.key === kind)?.radius ?? 5) + (isFocus ? 4 : 0)) * (faint ? 0.6 : 1),
+        at: [lat, lon], kind, shape: def?.square ? "square" : "circle",
+        radius: ((def?.radius ?? 5) + (isFocus ? 4 : 0)) * (faint ? 0.6 : 1),
         stroke: colors.outline, strokeWidth: kind === "well" ? 1 : 2,
         fill: isFocus ? colors.focus : kindColor(kind), fillOpacity: faint ? 0.6 : 1,
         popup: () => popup(f), tip: tip(f),
@@ -248,29 +272,41 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     });
     engine.drawNetwork(lines, points);
     if (shown.length && !(hotspots?.length)) {
-      // Fit to the wells and platforms where the work is, not the export lines running off to a terminal (#398);
-      // lines count only when no points are shown.
-      const fit: LatLon[] = points.length ? points.map((p) => p.at) : vertices(lines);
+      // Fit to the field: the wells and platforms where the work is, not the plants and terminals at the end of the
+      // export lines (#398, #1075); the whole network is one tap away. Lines count only when no points are shown.
+      const field = points.filter((p) => p.kind === "area" || p.kind === "well");
+      const fit: LatLon[] = whole ? [...points.map((p) => p.at), ...vertices(lines)]
+        : field.length ? field.map((p) => p.at) : points.length ? points.map((p) => p.at) : vertices(lines);
       engine.fit(fit, 24, 15);
     }
-  }, [engine, data, hidden, focus, themeVersion, hotspots === undefined]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [engine, data, hidden, focus, themeVersion, hotspots === undefined, whole]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!engine || !hotspots) return;
     // Least urgent first, so the most urgent sit on top where markers overlap. The chosen place is named on the map;
-    // the rest name themselves on hover, with every name in the list beside the map.
-    const narrow = matchMedia("(max-width: 600px)").matches;  // a phone names only the chosen place
-    const rank = { high: 0, medium: 1, low: 2 };
-    engine.drawHotspots([...hotspots].sort((a, b) => rank[b.band] - rank[a.band]).map((p) => hotspotSpec(
-      p, p.id === selected, p.id === selected || (!narrow && hotspots.length <= 3),
-      crews ? p.crews.find((x) => x.status === "on site" || x.status === "planned") : undefined,
-      () => onSelect?.(p.id))));
+    // the rest name themselves on hover, with every name in the list beside the map. Places whose markers would
+    // overlap at this zoom are one marker, which zooms in to part them (#1074); the chosen place always stands alone.
     if (!fitted.current && hotspots.length) {
-      // Fit to where the work is the first time; afterwards a person's pan and zoom stay put.
+      // Fit to where the work is the first time (before gathering, which reads the view); afterwards a person's pan
+      // and zoom stay put.
       fitted.current = true;
       engine.fit(hotspots.map((p) => [p.lat, p.lon]), 48, 13);
     }
-  }, [engine, hotspots, selected, crews, themeVersion]);  // eslint-disable-line react-hooks/exhaustive-deps
+    const narrow = matchMedia("(max-width: 600px)").matches;  // a phone names only the chosen place
+    const urgent = [...hotspots].sort((a, b) => RANK[a.band] - RANK[b.band] || b.overdue - a.overdue || b.open - a.open);
+    const groups = [
+      ...clusterOnScreen(urgent.filter((p) => p.id !== selected), (p) => engine.project([p.lat, p.lon]), (p) => hotspotSize(p.open)),
+      ...urgent.filter((p) => p.id === selected).map((p) => [p]),
+    ];
+    const pick = (group: AttentionPlace[]) => () => {
+      if (group.length > 1 && engine.zoom() < CLUSTER_UNTIL) engine.fit(group.map((p) => [p.lat, p.lon]), 64, CLUSTER_UNTIL + 1);
+      else onSelect?.(group[0].id);
+    };
+    engine.drawHotspots(groups.map((g) => ({ g, p: gathered(g) })).sort((a, b) => RANK[b.p.band] - RANK[a.p.band]).map(({ g, p }) => hotspotSpec(
+      p, p.id === selected, p.id === selected || (!narrow && groups.length <= 3),
+      crews ? p.crews.find((x) => x.status === "on site" || x.status === "planned") : undefined,
+      pick(g), g.length > 1)));
+  }, [engine, hotspots, selected, crews, themeVersion, zoomed]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {  // a place picked in the list comes into view
     const p = hotspots?.find((x) => x.id === selected);
@@ -284,11 +320,11 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
       else n.add(k);
       return n;
     });
-  const entries: { key: string; label: string; color: string; dash?: string; line: boolean }[] = [
+  const entries: { key: string; label: string; color: string; dash?: string; line: boolean; square?: boolean }[] = [
     ...SERVICES.map((s) => ({ key: `line:${s.key}`, label: s.label, color: serviceColors[s.key], dash: s.dash, line: true })),
     { key: "line:other", label: "Other lines", color: other, line: true },
     { key: "line:abandoned", label: "Abandoned", color: colors.abandoned, dash: "2 8", line: true },
-    ...POINTS.map((p) => ({ key: `point:${p.key}`, label: p.label, color: kindColor(p.key), line: false })),
+    ...POINTS.map((p) => ({ key: `point:${p.key}`, label: p.label, color: kindColor(p.key), line: false, square: p.square })),
   ].filter((e) => counts[e.key]);
 
   return (
@@ -300,6 +336,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
             <svg width="26" height="12" aria-hidden="true">
               {e.line ? (
                 <line x1="1" y1="6" x2="25" y2="6" stroke={e.color} strokeWidth="4" strokeDasharray={e.dash} />
+              ) : e.square ? (
+                <rect x="8" y="1" width="10" height="10" rx="2" fill={e.color} stroke="var(--panel)" strokeWidth="1.5" />
               ) : (
                 <circle cx="13" cy="6" r="5" fill={e.color} stroke="var(--panel)" strokeWidth="1.5" />
               )}
@@ -318,6 +356,9 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
                 {library === "mapkit" ? BASEMAPS[name].apple : BASEMAPS[name].label}</Button>
             ))}
           </div>}
+          {!compact && data.features.some((f) => f.properties.kind === "facility") && (
+            <Button size="sm" className="map-control-button map-extent" aria-pressed={whole} onClick={() => setWhole(!whole)}
+                    title={whole ? "Fit to the field" : "Show the whole network, export routes too"}>{whole ? "Field" : "All"}</Button>)}
           {!compact && <Button size="sm" className="map-control-button" onClick={locate} aria-label="Find my location" title="Find my location">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <circle cx="12" cy="12" r="7" />

@@ -85,7 +85,7 @@ def production_efficiency(out: dict, notice: str) -> Figure:
              _number(p["efficiency_pct"]), constraint_label(p, constraints),
              _words(p["capacity_basis"]) + (f" · {', '.join(p['flags'])}" if p["flags"] else "")] for p in points]
     return Figure(
-        kind="production-efficiency", title="Production efficiency", data=data,
+        kind="production-efficiency", title="Production efficiency", data=data if summary["paired_days"] else [],
         layout=layout("", height=HEIGHT, hovermode="x unified", margin={"t": 12, "r": 64, "b": 60, "l": 64},
                       xaxis={"title": {"text": "Production day (UTC)"}, "type": "date", "tickformat": "%d %b"},
                       yaxis={"title": {"text": "Oil rate (Sm3/d)"}, "rangemode": "tozero"},
@@ -96,17 +96,17 @@ def production_efficiency(out: dict, notice: str) -> Figure:
                       uirevision=f"{out['facility']['id']}:{out['end']}"),
         summary={
             "context": f"{out['facility']['label']} · {days[0]} to {out['end']} inclusive · {notice}",
-            "headline": None if summary["paired_days"] else "No paired production and capacity values in this window.",
+            "headline": _efficiency_sentence(efficiency, lost, cause, summary["paired_days"], len(points)),
+            # three tiles, not six (#1074): the sentence above says the rest, and the totals sit in the notes and table
             "stats": [
                 # lead with what was lost and why (#307): at ~100% efficiency the totals alone say little
                 {"label": "Unrealized gap · paired days", "value": _number(lost), "unit": "Sm3"},
-                *([{"label": "Biggest cause", "value": cause}] if cause else []),
                 {"label": "Weighted efficiency", "value": "Unknown" if efficiency is None else f"{_number(efficiency)}%"},
-                {"label": "Allocated · paired days", "value": _number(summary["allocated_sm3"]), "unit": "Sm3"},
-                {"label": "Dynamic maximum · paired days", "value": _number(summary["dynamic_max_sm3"]), "unit": "Sm3"},
-                {"label": "Paired days", "value": f"{summary['paired_days']} / {len(points)}"},
-            ],
-            "notes": ["Unknown values are gaps, never zero."],
+                *([{"label": "Biggest cause", "value": cause}] if cause else []),
+            ] if summary["paired_days"] else [],
+            "notes": [f"Over the {summary['paired_days']} paired days: {_number(summary['allocated_sm3'])} Sm3 allocated against "
+                      f"a dynamic maximum of {_number(summary['dynamic_max_sm3'])} Sm3.",
+                      "Unknown values are gaps, never zero."],
             "warnings": out["warnings"],
             "tables": [{"title": "Daily data", "columns": [
                 "Day", "Maximum (Sm3/d)", "Allocated (Sm3/d)", "Gap (Sm3/d)", "Efficiency (%)", "Binding constraints",
@@ -115,6 +115,18 @@ def production_efficiency(out: dict, notice: str) -> Figure:
         },
         sources=sorted({id for p in points for id in p["source_ids"]}),
     )
+
+
+def _efficiency_sentence(efficiency: float | None, lost: float | None, cause: str | None, paired: int, days: int) -> str:
+    """The figure in one sentence (#1074): how close to potential, how much short, and mostly why."""
+    if not paired:
+        return "No paired production and capacity values in this window."
+    span = f"{paired} days" if paired == days else f"{paired} of {days} days"
+    head = f"{_number(efficiency)}% of potential over {span}" if efficiency is not None else f"Efficiency unknown over {span}"
+    if not lost:
+        return f"{head}, with no unrealized gap."
+    why = f", mostly from {cause}" if cause and cause != UNKNOWN else ""
+    return f"{head}; {_number(lost)} Sm3 short{why}."
 
 
 def _system_label(system: dict) -> str:
@@ -129,7 +141,15 @@ def _verdict(out: dict) -> str:
     system = out["system"]
     binding = " + ".join(system["binding_stages"]) or UNKNOWN
     if system["established"]:
-        return f"Bottleneck: {binding} at {_rate(system['limit_sm3d'])}. Every stage has a capacity."
+        # Name the next tightest stage, so how much headroom the rest of the system has shows (#1074).
+        rest = sorted((st for st in out["stages"] if not st["binding"] and st["capacity_sm3d"] is not None),
+                      key=lambda st: st["capacity_sm3d"])
+        if rest and system["limit_sm3d"]:
+            near, limit = rest[0], system["limit_sm3d"]
+            more = (near["capacity_sm3d"] - limit) / limit * 100
+            return (f"Bottleneck: {binding} at {_rate(limit)}. Next is {near['label']} at {_rate(near['capacity_sm3d'])}, "
+                    f"{_number(round(more, 1))}% more.")
+        return f"Bottleneck: {binding} at {_rate(system['limit_sm3d'])}."
     if system["basis"] == "declared_limits":
         return (f"Lowest declared bound is {binding} at {_rate(system['limit_sm3d'])}, but some stages have no "
                 "capacity, so the bottleneck is not established.")
@@ -194,15 +214,20 @@ def flow_capacity(out: dict, notice: str) -> Figure:
     data = []
     for key, name, prefix, pattern in SERIES:
         if key == "limit":
+            # The system limit is one dashed line across the stages, labelled once at its end (#1074), not a bar
+            # repeating the same number beside every stage.
             y = [limit] * len(stages)
-            text = ["" if limit is None else _compact(limit)] * len(stages)
-            hover = [f"{escape(_system_label(system))}: {_rate(limit)}"] * len(stages)
-            name = _system_label(system)
-        else:
-            y = [s["capacity_sm3d"] if _series(s) == key else None for s in stages]
-            text = ["" if v is None else f"{'◆ ' if s['binding'] else ''}{prefix}{_compact(v)}" for v, s in zip(y, stages)]
-            hover = [_stage_hover(s, out) for s in stages]
-        data.append({"type": "bar", "name": name, "x": labels, "y": y, "offsetgroup": "system" if key == "limit" else "stage",
+            data.append({"type": "scatter", "mode": "lines+text", "name": _system_label(system), "x": labels, "y": y,
+                         "line": {"width": 2, "dash": "dash"}, "showlegend": limit is not None,
+                         "text": ["" if limit is None or i < len(stages) - 1 else _compact(limit) for i in range(len(stages))],
+                         "textposition": "top left", "cliponaxis": False,
+                         "hovertext": [f"{escape(_system_label(system))}: {_rate(limit)}"] * len(stages),
+                         "hovertemplate": "%{hovertext}<extra></extra>"})
+            continue
+        y = [s["capacity_sm3d"] if _series(s) == key else None for s in stages]
+        text = ["" if v is None else f"{'◆ ' if s['binding'] else ''}{prefix}{_compact(v)}" for v, s in zip(y, stages)]
+        hover = [_stage_hover(s, out) for s in stages]
+        data.append({"type": "bar", "name": name, "x": labels, "y": y, "offsetgroup": "stage",
                      "showlegend": any(v is not None for v in y), "text": text, "textposition": "outside",
                      "constraintext": "none", "cliponaxis": False, "hovertext": hover, "hovertemplate": "%{hovertext}<extra></extra>",
                      **({"marker": {"pattern": {"shape": pattern}}} if pattern else {})})
@@ -384,11 +409,33 @@ def well_section(conn, well: str) -> Figure:
     return _well(conn, well, current_pack(conn).notice, well=well)
 
 
+def _unreported(conn, facility: str) -> str | None:
+    """A live facility's label when it has no daily production report, else None."""
+    if pe.latest_report_date(conn, facility) is not None:
+        return None
+    row = conn.execute("select coalesce(l.label, e.fuzer_id) as label from entity e left join entity_label l using (fuzer_id) "
+                       "where e.fuzer_id = %s and e.kind = 'facility' and e.retired_at is null and e.merged_into is null",
+                       (facility,)).fetchone()
+    return row["label"] if row else None
+
+
+def _no_reports(kind: str, title: str, label: str, notice: str) -> Figure:
+    """A facility with no daily production report (#1074): a figure that says so, with nothing to plot, rather than
+    an error a page shows with a Try again button that can never help."""
+    return Figure(kind=kind, title=title, data=[], layout=layout("", height=HEIGHT),
+                  summary={"context": f"{label} · {notice}", "headline": f"No daily production reports are loaded for {label}.",
+                           "stats": [], "notes": [], "warnings": [], "tables": [], "source": "daily production reports (EC DAY001)"})
+
+
 def _production(conn, facility: str, notice: str, **_) -> Figure:
+    if label := _unreported(conn, facility):
+        return _no_reports("production-efficiency", "Production efficiency", label, notice)
     return production_efficiency(pe.production_efficiency(conn, facility), notice)
 
 
 def _capacity(conn, facility: str, notice: str, **_) -> Figure:
+    if label := _unreported(conn, facility):
+        return _no_reports("flow-capacity", "System capacity and bottleneck", label, notice)
     return flow_capacity(fc.flow_capacity(conn, facility), notice)
 
 

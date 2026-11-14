@@ -5,6 +5,7 @@ import { href } from "./lib";
 import { Button } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
+import { useEntityNames } from "./useEntityNames";
 
 export type Badge = "work" | "review";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -340,11 +341,13 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
 /** "Explore › Browse › …" above deep pages (an entity, a work item, a process). */
 export function Breadcrumbs({ path }: { path: string[] }) {
   const section = path[0] ?? "";
+  const names = useEntityNames(section === "e" && path[1] ? [decodeURIComponent(path[1])] : []);
   const found = navItemFor(section);
   if (!found || path.length < 2) return null;
   const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: found.item.path ?? `/${found.item.section}` }];
   if (found.group.label !== found.item.label) trail.unshift({ label: found.group.label });
-  if (section === "e") trail.push({ label: "Entity" });
+  // An asset's page ends in its tag, not the word "Entity" (#1076).
+  if (section === "e") trail.push({ label: names?.[decodeURIComponent(path[1])]?.label ?? decodeURIComponent(path[1]) });
   else if (section === "jobs" && path[1] === "run") trail.push({ label: `Run ${(path[2] ?? "").slice(0, 8)}`.trim() });
   else if (section === "inbox" && path[1] === "task") trail.push({ label: `Task ${path[2] ?? ""}`.trim() });
   else if (section === "cases" && path[1]) trail.push({ label: `Case ${path[1]}` });

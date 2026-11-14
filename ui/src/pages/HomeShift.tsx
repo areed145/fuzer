@@ -49,6 +49,10 @@ export function YourShift() {
   const all = since.data?.changes ?? [];
   const changes = all.filter((x) => !x.watching);
   const watched = all.filter((x) => x.watching);
+  // Nothing waiting, nothing new and nothing coming (#1074): no card saying so; My work is a tap away in the menu.
+  const quiet = here_.data && fields.data !== undefined && since.data !== undefined && field.data !== undefined
+    && !rows.length && !all.length && !(since.data?.watching?.length) && !coming.length;
+  if (quiet) return null;
   return (
     <Card className="home-card home-today" title="My work" as="section" actions={<a href={my}>Open My work</a>}>
       <Status loading={here_.loading && !here_.data} error={here_.error} onRetry={here_.reload} />

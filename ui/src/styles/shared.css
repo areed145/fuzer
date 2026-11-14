@@ -54,15 +54,13 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .grid + .card, .grid + section { margin-top: 16px; }
 .home-search { display: flex; gap: 8px; margin: 14px 0 16px; }
 .home-search input { flex: 1; min-width: 0; }
-.home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+/* Cards wrap two to a row and any card alone on its row takes the row, whichever cards a seat gets (#1074). */
+.home-grid { display: flex; flex-wrap: wrap; gap: 16px; }
+.home-grid > * { flex: 1 1 380px; }
 .home-card { min-width: 0; margin-bottom: 0; }
 /* Loading, empty and failed reads sit in the card's flow, not centred like a page state. */
 .home-card .status { padding: 8px 0; text-align: left; }
-/* A last card alone on its row takes the row (the daily report, when shown, fills the first). */
-.home-grid > .home-today ~ .home-card:last-child:nth-child(even),
-.home-grid > .home-card:first-child:not(.home-today) ~ .home-card:last-child:nth-child(odd),
-.home-grid > .home-card:only-child { grid-column: 1 / -1; }
-.home-today { grid-column: 1 / -1; }
+.home-grid > .home-today { flex-basis: 100%; }
 .home-counts { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; padding: 0; }
 .home-counts a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
 .home-counts a.late strong { color: var(--danger); }
@@ -81,8 +79,7 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .home-subsection { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .home-subsection h3 { font-size: 13px; }
 @media (max-width: 800px) {
-  .home-grid { grid-template-columns: 1fr; }
-  .home-today { grid-column: auto; }
+  .home-grid > * { flex-basis: 100%; }
   .home-search { align-items: stretch; }
 }
 /* Home's charts sit side by side on a desk screen and stack on a phone; no carousel. */
@@ -105,6 +102,10 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .attention-bar .chips { margin: 0 0 10px; }
 .attention-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 16px; align-items: start; }
 .attention-side { display: grid; gap: 10px; min-width: 0; }
+/* The map stays in view while the longer list beside it scrolls (#1074), so no gap opens under it. */
+.attention-split > .mapview { position: sticky; top: 16px; }
+.home-lead { margin-bottom: 16px; }
+.home-lead > .home-card { margin-bottom: 0; }
 .attention-list { list-style: none; margin: 0; padding: 0; display: grid; }
 .attention-list li { border-bottom: 1px solid var(--line); }
 .attention-list li.selected { background: var(--accent-soft); }
@@ -123,6 +124,7 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 @media (max-width: 900px) {
   .attention-split { grid-template-columns: minmax(0, 1fr); }
   .attention-pending { min-height: 960px; }  /* the map above the list */
+  .attention-split > .mapview { position: static; }
 }
 @media (max-width: 600px) {
   .attention-card .map { height: 300px !important; }

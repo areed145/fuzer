@@ -103,6 +103,21 @@ def report_field_step(conn, item_id: int, person: str, result: str, note: str | 
     return _engine().report_field_step(conn, item_id, person, result, note, reason)
 
 
+def take(conn, item_id: int, person: str) -> dict:
+    """A person takes a case from its queue: its open person step (or the case, when no process runs it) is theirs."""
+    return _engine().take_item(conn, item_id, person)
+
+
+def complete_step(conn, step_id: int, by: str, data: dict | None = None) -> dict:
+    """Complete a person step with its form's data, as the person doing it."""
+    return _engine().complete(conn, step_id, by, data)
+
+
+def add_person(conn, name: str, roles: list[str], by: str) -> dict:
+    """Put a person on this project's roster with these routing roles."""
+    return _engine().set_person(conn, name, roles, by=by)
+
+
 def person_roles(conn) -> list[str]:
     """The person roles (queues) work can be routed to: `role:<name>` for each."""
     return _engine().person_roles(conn)

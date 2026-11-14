@@ -2886,7 +2886,7 @@ test("Home shows each server-built figure in its own card, with its tables on re
   assert.deepEqual(errors, []);
 });
 
-test("A failed home figure recovers by explicit retry and a figure with no plot still shows", async () => {
+test("A failed home figure recovers by explicit retry, and Home leaves out a figure with nothing to plot (#1074)", async () => {
   await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
   await page.route("**/analytics/figures/production-efficiency*", (route) => route.fulfill({ json: efficiency }));
   let fail = true;
@@ -2898,8 +2898,9 @@ test("A failed home figure recovers by explicit retry and a figure with no plot 
   await card.getByText("Capacity unavailable").waitFor();
   fail = false;
   await card.getByRole("button", { name: "Try again" }).click();
-  await card.getByText("No flow network reaches this facility on its latest report day.").waitFor();
-  assert.equal(await card.locator(".js-plotly-plot").count(), 0);
+  await page.locator(".home-charts .home-card").nth(1).waitFor({ state: "detached" });
+  assert.equal(await page.locator(".home-charts .home-card").count(), 1);
+  assert.equal(await page.getByText("No flow network reaches this facility on its latest report day.").count(), 0);
 });
 
 test("A malformed figure is contained to its card", async () => {
@@ -3587,9 +3588,9 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   // An asset opens on its work and process values; what the register holds about it is one view away.
   await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
   assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
-    ["Overview", "Timeline", "Documents", "Record", "Graph"]);
+    ["Overview", "Timeline", "Documents", "Data"]);
   assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
-  await page.getByRole("link", { name: "Record", exact: true }).click();
+  await page.getByRole("link", { name: "Data", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
   // where it came from (#875): the system behind it, how its record was matched, and the reviewer's choice
@@ -3597,8 +3598,7 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   await page.getByText("chosen by steward-sam", { exact: false }).waitFor();
   await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).first().waitFor();
   await page.getByText(`Register ID ${id}`, { exact: true }).waitFor();
-  // The links list sits with the graph; Connections is the flow diagram, which a well off the flow network lacks.
-  await page.getByRole("link", { name: "Graph", exact: true }).click();
+  // The links list sits with the graph on Data (#1076); Connections is the flow diagram, which a well off the flow network lacks.
   await page.getByRole("link", { name: "WT-1", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
   await page.getByRole("button", { name: "Show all 24", exact: true }).click();
@@ -4563,6 +4563,90 @@ test("a report made without signal waits on the phone and is sent once with its 
   assert.ok(posts[0].client_id, "carries its id, so a resend is applied once");
   const made = Date.parse(posts[0].at);
   assert.ok(made >= before - 1000 && made <= posts[0].received - 1000, "keeps the time it was made, not when it was sent");
+});
+
+// P5.17a (#1090): the outbox is IndexedDB, so a shift of reports with photos fits on the phone; what P5.3c kept in
+// localStorage moves across; and the app's one sender sends from whichever page is open, once, even with two tabs.
+test("P5.17a Ten reports with four photos each wait on the phone and are sent once from any page, old outbox included", async () => {
+  await page.addInitScript(() => {
+    localStorage.setItem("fuzer.reviewer", "fred");
+    if (!sessionStorage.getItem("seeded")) {  // the outbox an earlier version kept, once
+      sessionStorage.setItem("seeded", "1");
+      localStorage.setItem("fuzer.field.outbox", JSON.stringify([{ client_id: "legacy-1", exception_id: 7, by: "fred",
+        status: "note", note: "Kept by the old outbox", at: "2026-11-12T06:00:00.000Z" }]));
+    }
+  });
+  let reachable = false;
+  const posts = [];
+  const job = { id: 7, type: "leak", key: "k", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [{ fuzer_id: "fz-p-101", label: "P-101 export pump", kind: "pump" }], checklist: [], sources: [],
+    history: [], field: [], queued: false, sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const serve = async (p) => {
+    await p.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+    await p.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    await p.route("**/exceptions/7/report", (route) => {
+      if (!reachable) return route.abort("internetdisconnected");
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ json: job });
+    });
+  };
+  await serve(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job").first();
+  await card.getByText("Look at the gland").waitFor();
+  // The old outbox moved into the store, and out of localStorage.
+  await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.field.outbox")), null);
+
+  // A phone photo: noise, so it stays large after shrinking (several hundred kB each, far past localStorage's 5 MB).
+  const photo = Buffer.from(await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 1600; c.height = 1200;
+    const g = c.getContext("2d");
+    const img = g.createImageData(c.width, c.height);
+    for (let i = 0; i < img.data.length; i++) img.data[i] = (i % 4 === 3) ? 255 : Math.random() * 255;
+    g.putImageData(img, 0, 0);
+    return c.toDataURL("image/jpeg", 0.95).split(",")[1];
+  }), "base64");
+  const files = [1, 2, 3, 4].map((n) => ({ name: `gland-${n}.jpg`, mimeType: "image/jpeg", buffer: photo }));
+  for (let n = 1; n <= 10; n++) {
+    await card.locator('input[type="file"]').setInputFiles(files);
+    await card.getByText("Photos (4)").waitFor();
+    await card.getByLabel(/Note for the IOC/).fill(`Report ${n}`);
+    await card.getByRole("button", { name: "Add note", exact: true }).click();
+    await page.getByRole("heading", { name: `${n + 1} reports waiting to send` }).waitFor();
+  }
+  assert.equal(posts.length, 0);
+
+  // Away from My work, with a second tab open too: the signal returns and each report is sent once.
+  await page.evaluate(() => { location.hash = "#/"; });
+  const other = await context.newPage();
+  other.on("pageerror", (error) => errors.push(error.message));
+  await other.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.continue();
+    return route.fulfill({ json: path === "/auth/me" ? { mode: "local", configured: true, user: null } : [] });
+  });
+  await serve(other);
+  await other.goto(`${url}/#/`);
+  reachable = true;
+  await Promise.all([page, other].map((p) => p.evaluate(() => window.dispatchEvent(new Event("online")))));
+  for (let i = 0; posts.length < 11 && i < 200; i++) await page.waitForTimeout(100);
+  await page.waitForTimeout(500);
+  assert.equal(posts.length, 11);
+  assert.equal(new Set(posts.map((p) => p.client_id)).size, 11, "each report once");
+  assert.equal(posts[0].client_id, "legacy-1", "oldest first");
+  assert.equal(posts[0].at, "2026-11-12T06:00:00.000Z", "keeps the time it was made");
+  for (const p of posts.slice(1)) {
+    assert.equal(p.photos.length, 4);
+    assert.ok(p.photos.every((x) => x.startsWith("data:image/jpeg;base64,")), "photos go as the report API takes them");
+  }
+  assert.ok(posts.reduce((n, p) => n + (p.photos ?? []).join("").length, 0) > 5_000_000, "more than localStorage could hold");
+  assert.deepEqual(posts.slice(1).map((p) => p.note), Array.from({ length: 10 }, (_, i) => `Report ${i + 1}`));
 });
 
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
@@ -6440,7 +6524,7 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   await page.mouse.up();
   await card.getByRole("button", { name: "Reset zoom" }).click();
   await card.getByRole("button", { name: "Reset zoom" }).waitFor({ state: "detached" });
-  await card.getByRole("button", { name: "Lube oil, seals and thrust", exact: true }).click();
+  await card.getByRole("button", { name: /^Lube oil, seals and thrust/ }).click();
   await card.getByRole("button", { name: "Lube oil pressure", exact: true }).waitFor();
   await page.waitForFunction(() => document.querySelectorAll('.trend-view text[class$="titletext"]').length === 3);
   await card.getByRole("button", { name: "Pressures", exact: true }).click();
@@ -7029,7 +7113,7 @@ test("an asset's Overview says what it is; work orders and spares sit under Main
     await about.getByText(text, { exact: false }).first().waitFor();
   }
   assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
-    ["Overview", "Maintenance", "Timeline", "Documents", "Record", "Graph"]);
+    ["Overview", "Maintenance", "Timeline", "Documents", "Data"]);
   assert.equal(await page.getByRole("heading", { name: "Spare parts" }).count(), 0);
   // The manual opens in the reader from the card.
   await about.getByRole("link", { name: "C40 manual" }).click();
@@ -7075,7 +7159,7 @@ test("on an iPhone the app follows iOS: a row too wide becomes a pull-down menu,
   await current.click();
   const menu = page.getByRole("menu");
   assert.deepEqual(await menu.getByRole("menuitemradio").allInnerTexts().then((t) => t.map((s) => s.replace(/\s+/g, " ").replace("✓", "").trim())),
-    ["Overview", "Maintenance", "Timeline", "Documents", "Record", "Graph"]);
+    ["Overview", "Maintenance", "Timeline", "Documents", "Data"]);
   assert.equal(await current.getAttribute("aria-expanded"), "true");
   assert.equal(await menu.getByRole("menuitemradio", { name: /Overview/ }).getAttribute("aria-checked"), "true");
   // Escape closes it and returns focus; choosing an item goes to that view.
@@ -7211,7 +7295,7 @@ test("P5.15c Alarms read one row per point, crowded log entries are counted, and
   const { card, emit } = await tripTrend(page);
   // top to bottom: the lolo point, then the lo point, then the log and the case
   const rows = await card.locator(".js-plotly-plot").evaluate((node) => [...node.layout.yaxis2.categoryarray].reverse());
-  assert.deepEqual(rows, ["Alarm · OK:pt2.PV", "Alarm · OK:pt1.PV", "Log", "Cases"]);
+  assert.deepEqual(rows, ["Discharge pressure alarm", "Suction pressure alarm", "Log", "Cases"]);
   const counted = await card.locator(".js-plotly-plot").evaluate((node) => node._fullData
     .filter((t) => t.mode === "markers+text").flatMap((t) => t.text).filter(Boolean));
   assert.ok(counted.includes("3"), `three log entries in 30 min are one marker saying 3 (${counted})`);
