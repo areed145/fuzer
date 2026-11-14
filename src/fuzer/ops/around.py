@@ -24,10 +24,8 @@ MAX_UNITS = 4  # trends a case page offers
 
 
 def _t(v) -> datetime | None:
-    try:
-        return datetime.fromisoformat(str(v)[:19]) if v else None
-    except ValueError:
-        return None
+    """A finding's start or end on the plant's wall clock: sources write some with a zone and some without (#1107)."""
+    return clock.wall(v)
 
 
 def window(conn, item_id: int) -> tuple[datetime, datetime, list[str]] | None:

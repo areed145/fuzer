@@ -29,10 +29,9 @@ PLAN_LIVE = ("scheduled", "in_progress")
 def _at(finding_evidence: dict | None):
     """When a finding says it happened (its start), or None for now."""
     s = ((finding_evidence or {}).get("finding") or {}).get("start")
-    try:
-        return datetime.fromisoformat(str(s)[:19]) if s and "T" in str(s) else None
-    except ValueError:
-        return None
+    from ..core import clock
+
+    return clock.wall(s) if s and "T" in str(s) else None
 
 
 def covering(conn, subjects: list[str], at=None) -> dict | None:
