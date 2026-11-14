@@ -5,7 +5,7 @@ import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
 import { TrendGrid } from "../Trend";
 import { loadPerson } from "../work";
-import { IncidentRepeats } from "./IncidentRepeats";
+import { IncidentRepeats, useRepeats } from "./IncidentRepeats";
 import { FlareAttribution } from "./FlareAttribution";
 import { plural, say } from "../wording";
 
@@ -14,15 +14,18 @@ const LATEST = 8;
 
 export function IncidentsPage() {
   const list = useAsync(() => api.incidents(), []);
+  const repeats = useRepeats();
+  // The repeats lead the page and the list follows: each drawn as it answered, the later pushed the other down (#1069).
+  const ready = (list.data || list.error) && (repeats.data !== undefined || repeats.error);
   return (
     <section>
       <PageHeader subtitle="Events, downtime and notifications grouped per asset.">Incidents</PageHeader>
       {/* Repeats lead: whether problems come back is what a manager reads this page for (#1078). */}
-      <IncidentRepeats />
-      <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.total === 0}>
+      {ready && <IncidentRepeats data={repeats} />}
+      <Status loading={!ready} error={list.error} empty={list.data?.total === 0}>
         No incidents yet.
       </Status>
-      {list.data && list.data.total > 0 && (
+      {ready && list.data && list.data.total > 0 && (
         <UICard as="section">
           <h2>
             Latest{" "}
@@ -37,7 +40,7 @@ export function IncidentsPage() {
         </UICard>
       )}
       {/* Under the latest incidents once they are in place: shown sooner, the list arriving above pushed them down (#1069). */}
-      {(list.data || list.error) && <>
+      {ready && <>
         <FlareAttribution />
         <RatingProgress />
       </>}
