@@ -128,8 +128,11 @@ schematic for reading flow and scenarios, not a digital twin and not to scale; w
 |---|---|---|
 | P5.16 Schematic 3D views of flow and scenarios | A scene read on the server: each item a generic shape by ISO 14224 class (a table a bundle can override), areas as plates and jackets as lattice frames, links as pipe runs, and a deterministic layout from flow order where there is no geometry. A 3D tab in Explore, loaded on demand, with a card that opens the asset page. Then status on every shape, lit flow paths, trip and reroute scenarios, the field by latitude and longitude, and a 2D fallback. | Okan, Kestrel and Harrier each draw from the register alone. Every shape shows open work, alarms and downtime and opens its asset page. Upstream and downstream of a tripped compressor light up, a trip names what goes down with it, and a rerouted well shows old and new paths without writing anything. It holds 30 frames a second on a phone, and draws in 2D where 3D is not available. |
 
-P5.16a has landed the scene, the layout and the 3D view. Slices b to f add status, paths, scenarios, the field and the
-phone and 2D work, in that order.
+P5.16a landed the scene, the layout and the 3D view. P5.16b to f added status on every shape (open work, alarms
+sounding and down now, in one read that matches each asset's status card), lit paths upstream and downstream (from a
+case, as the links were at the case's time), "if this trips" from P5.9a's reads labelled as an estimate, a well rerouted
+in the browser only, entry from the map, and the same scene drawn flat where WebGL is missing or the person asks. What
+is left is measuring 30 frames a second on a mid-range phone, which needs a real device.
 
 ## How the work is tracked
 

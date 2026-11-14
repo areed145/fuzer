@@ -22,6 +22,7 @@ export function EntityStatus({ id }: { id: string }) {
         {s.downtime && <> last <a href={entityHref(s.downtime.id)}>{day(s.downtime.start)}</a></>}</span>}
     <span>{s.open_work > 0 ? <Badge tone="warn">{s.open_work} open {s.open_work === 1 ? "exception" : "exceptions"}</Badge>
       : <Badge tone="ok">No open exceptions</Badge>}</span>
+    {(s.alarms ?? 0) > 0 && <span><Badge tone="warn">{s.alarms} {s.alarms === 1 ? "alarm" : "alarms"} sounding</Badge></span>}
     {s.incident && <span>Last incident <a href={entityHref(s.incident.id)}>{day(s.incident.start)}</a>
       {s.incident.total > 1 && <span className="muted"> of {s.incident.total}</span>}</span>}
     {s.well_test && <span>Last test {s.well_test.at}

@@ -10,7 +10,7 @@ const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/trendFig
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(code, { exports: exportsObject, Date, Math, Set, Map, Object, JSON });
-const { buildFigure, defaults, drawn, fromQuery, names, panels, reading, short, toQuery, traceName } = exportsObject;
+const { buildFigure, crowded, defaults, drawn, fromQuery, laneRows, names, panels, reading, short, toQuery, traceName, valueAt } = exportsObject;
 
 const vals = [["2024-07-24T10:00", 1], ["2024-07-24T11:00", 2]];
 const trace = (id, axis, extra = {}) => ({ id, point: `P.${id}`, description: null, uom: axis, axis, show: true, values: vals,
@@ -51,11 +51,12 @@ test("each panel shares an axis per unit, on one time axis, with lanes beneath",
   assert.deepEqual(plain(lines.map((d) => d.yaxis)), ["y", "y", "y2", "y3"]); // pressures share one; speed and power two
   assert.equal(f.layout.yaxis3.overlaying, "y2");
   assert.equal(f.layout.yaxis4.type, "category"); // the lanes
-  assert.deepEqual(plain(f.layout.yaxis4.categoryarray), ["Log", "Alarms"]); // empty lanes are left out
+  assert.deepEqual(plain(f.layout.yaxis4.categoryarray), ["Log", "Alarm · P.1"]); // empty lanes are left out
   assert.equal(f.layout.xaxis.anchor, "y4");
   assert.ok(f.layout.yaxis.domain[0] > f.layout.yaxis4.domain[1]);
   const marker = f.data.find((d) => d.mode === "markers");
-  assert.deepEqual(plain(marker.customdata[0]), ["log_entry", "l1", null]);
+  assert.deepEqual(plain(marker.customdata[0]), ["events", 1]); // the figure's second event: the log entry
+  assert.equal(f.events[1].id, "l1");
   assert.equal(f.layout.shapes.filter((s) => s.type === "rect").length, 1); // the incident's lead-in
 });
 
@@ -64,7 +65,7 @@ test("switching a group off removes its panel; a lone trace draws its limits", (
   const f = buildFigure(view, timeline, on, palette);
   assert.equal(f.data.filter((d) => d.mode === "lines" && d.yaxis === "y").length, 1);
   assert.equal(f.layout.shapes.filter((s) => s.type === "line").length, 1);
-  assert.deepEqual(plain(f.layout.yaxis2.categoryarray), ["Alarms"]);
+  assert.deepEqual(plain(f.layout.yaxis2.categoryarray), ["Alarm · P.1"]);
   assert.ok(f.layout.legend.title.text.includes("Lube oil")); // each panel's key is titled with it
 });
 
@@ -141,4 +142,48 @@ test("on a phone each panel carries one unit, so no line is read against another
   const f = buildFigure(loop, null, defaults(loop), palette, true);
   assert.equal(Object.keys(f.layout).filter((k) => /^yaxis\d*$/.test(k) && f.layout[k].overlaying).length, 0);
   assert.equal(Object.keys(f.layout).filter((k) => /^yaxis\d*$/.test(k)).length, 2);
+});
+
+test("P5.15c alarms get a row per point, the most urgent first, and the rest share one row", () => {
+  const alarm = (point, type, start) => ({ id: point, kind: "alarm", label: point, start, end: null, text: `${type} 5`, detail: null });
+  const lane = { key: "alarms", label: "Alarms", events: [alarm("A", "hi", "2024-07-24T01:00"), alarm("B", "hihi", "2024-07-24T02:00"),
+    alarm("A", "hi", "2024-07-24T03:00"), ...Array.from({ length: 9 }, (_, i) => alarm(`Z${i}`, "lo", `2024-07-24T0${4 + (i % 5)}:00`))] };
+  const rows = laneRows([lane, timeline.lanes[1]]);
+  assert.deepEqual(plain(rows.slice(0, 2).map((r) => r.label)), ["Alarm · B", "Alarm · A"]); // hihi before hi
+  assert.equal(rows.filter((r) => r.lane === "alarms").length, 8);
+  assert.equal(rows.find((r) => r.key === "alarms:more").label, "4 more alarming points");
+  assert.equal(rows[0].events.length, 1);
+  assert.equal(rows[1].events.length, 2);
+  assert.deepEqual(plain(rows.map((r) => r.lane).slice(-1)), ["log"]);
+  assert.equal(laneRows([lane], true)[0].label, "B"); // a phone names the point alone
+});
+
+test("P5.15c markers too close to tell apart are one, counted", () => {
+  const at = (t) => ({ id: t, kind: "log_entry", label: "op", start: `2024-07-24T${t}`, end: null, text: t, detail: null });
+  const groups = crowded([at("10:00"), at("10:10"), at("10:20"), at("14:00")], 30 * 60000);
+  assert.deepEqual(plain(groups.map((g) => g.length)), [3, 1]);
+  const busy = { ...timeline, lanes: [{ key: "log", label: "Operator log", events: [at("10:00"), at("10:05"), at("10:10"), at("20:00")] }] };
+  const f = buildFigure(view, busy, defaults(view), palette);
+  const marker = f.data.find((d) => d.mode === "markers+text");
+  assert.deepEqual(plain(marker.text), ["3", ""]);
+  assert.deepEqual(plain(marker.customdata[0]), ["events", 0, 1, 2]);
+});
+
+test("P5.15d a pinned time reads each trace there, and draws as a line marked A or B", () => {
+  const t = trace("x", "barg");
+  assert.equal(valueAt(t, "2024-07-24T10:05", 10), 1);
+  assert.equal(valueAt(t, "2024-07-24T10:50", 10), 2);
+  assert.equal(valueAt(t, "2024-07-24T18:00", 10), null); // nothing within two steps
+  const f = buildFigure(view, timeline, defaults(view), palette, false, ["2024-07-24T10:00", "2024-07-24T11:00"]);
+  const pins = f.layout.shapes.filter((s) => s.type === "line" && s.yref === "paper");
+  assert.deepEqual(plain(pins.map((s) => s.x0)), ["2024-07-24T10:00", "2024-07-24T11:00"]);
+  assert.deepEqual(plain(f.layout.annotations.filter((a) => a.text.startsWith("<b>")).map((a) => a.text)), ["<b>A</b>", "<b>B</b>"]);
+});
+
+test("P5.15f panels are shorter on a phone", () => {
+  const desk = buildFigure(view, null, defaults(view), palette);
+  const phone = buildFigure(view, null, defaults(view), palette, true);
+  // a panel's height in pixels: its share of the plot area (the figure less its top and bottom margins)
+  const px = (f) => (f.layout.yaxis.domain[1] - f.layout.yaxis.domain[0]) * (f.layout.height - f.layout.margin.t - f.layout.margin.b);
+  assert.ok(px(phone) < px(desk) - 30, `${px(phone)} vs ${px(desk)}`);
 });

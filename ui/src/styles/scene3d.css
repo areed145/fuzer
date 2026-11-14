@@ -24,3 +24,20 @@
 .scene3d-frame.ui-fullscreen .scene-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 12px;
   border-top: 1px solid var(--line); background: var(--panel); font-size: 13px; }
 .scene-pick strong { font-weight: 600; }
+/* Status, paths and scenarios (P5.16b to d). */
+.scene-badge {
+  position: absolute; left: 0; top: 0; min-width: 16px; padding: 0 4px; border-radius: 8px; text-align: center;
+  font: 600 10px/16px ui-monospace, Menlo, Consolas, monospace; color: #fff; background: var(--badge);
+  box-shadow: 0 0 0 1px var(--panel);
+}
+.scene-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 13px; }
+.scene-status .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.swatch-down { background: var(--status-down); }
+.swatch-alarm { background: var(--status-alarm); }
+.swatch-work { background: var(--status-work); }
+.scene-scenario { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; }
+.scene-scenario ul { margin: 4px 0; padding-left: 18px; }
+.scene-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+@media (max-width: 800px) {
+  .scene-actions .ui-button, .scene-status .ui-button, .scene-actions .ui-input { min-height: 44px; }
+}

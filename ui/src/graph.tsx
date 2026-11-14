@@ -16,7 +16,8 @@ cytoscape.use(fcose);
 export { ALL_RELS, KIND_COLORS, REL_VIEWS, applyOntology, kindColor, linkColor, relColor } from "./kinds";
 import { kindColor } from "./kinds";
 
-export type LayoutName = "force" | "flow" | "tree";
+/** "preset": each node brings its own position (the 3D view drawn flat, P5.16f). */
+export type LayoutName = "force" | "flow" | "tree" | "preset";
 
 const LAYOUTS: Record<LayoutName, LayoutOptions> = {
   force: {
@@ -30,6 +31,7 @@ const LAYOUTS: Record<LayoutName, LayoutOptions> = {
   } as LayoutOptions,
   flow: { name: "dagre", rankDir: "LR", nodeSep: 16, rankSep: 110, padding: 24, animate: false, nodeDimensionsIncludeLabels: true } as LayoutOptions,
   tree: { name: "dagre", rankDir: "TB", nodeSep: 24, rankSep: 70, padding: 24, animate: false, nodeDimensionsIncludeLabels: true } as LayoutOptions,
+  preset: { name: "preset", padding: 24, animate: false } as LayoutOptions,
 };
 
 function themeColors() {
@@ -66,6 +68,7 @@ function stylesheet(scale = 1) {
       },
     },
     { selector: "node[?root]", style: { "border-width": 3, "border-color": t.text } },
+    { selector: "node[ring]", style: { "border-width": 3, "border-color": "data(ring)" } },
     { selector: "node:selected", style: { "border-width": 4, "border-color": t.accent } },
     {
       selector: "edge",
@@ -95,6 +98,8 @@ function stylesheet(scale = 1) {
       selector: "edge:selected, edge.hover, edge.near",
       style: { "line-color": t.accent, "target-arrow-color": t.accent, opacity: 1, color: t.text },
     },
+    // Off a lit path or scenario (the 3D view drawn flat).
+    { selector: ".dim", style: { opacity: 0.15 } },
   ];
 }
 

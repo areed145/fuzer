@@ -172,6 +172,20 @@ export interface Scene {
   counts: { items: number; links: number; not_drawn: number; by_layout: number; by_geometry: number; no_shape: number };
   truncated: boolean;
   places: { id: string; kind: string; label: string | null; description?: string | null; parent: string | null }[];
+  /** The links as they were at this time (a case's), when asked for; else today's. */
+  as_of?: string | null;
+}
+
+export interface SceneStatus {
+  status: Record<string, { open_work: number; alarms: number; down: { id: string; start: string | null; reason: string | null } | null }>;
+  totals: { open_work: number; alarms: number; down: number };
+  alarm_hours: number;
+}
+type SceneRef = { id: string; label: string };
+export interface SceneTrip {
+  item: SceneRef; hours: number; units: SceneRef[]; behind: SceneRef[]; starved: SceneRef[];
+  wells: (SceneRef & { rates: Record<string, { value: number; unit: string | null; at: string }> })[];
+  untested: string[]; at_risk: { quantity: string; value: number; unit: string | null }[]; on_network: boolean; basis: string;
 }
 
 export interface Subgraph {
@@ -344,7 +358,12 @@ export const exploreApi = {
   network: (asOf?: string, rels?: string[]) =>
     request<Subgraph & { rels: string[] }>("GET", "/network", { as_of: asOf, rels: rels?.join(",") }),
   /** The schematic scene of a facility, an area, or the area of anything inside one (default: the main facility). */
-  scene: (at?: string, rels?: string[], layout?: "geo") => request<Scene>("GET", "/scene", { at, rels: rels?.join(","), layout }),
+  scene: (at?: string, rels?: string[], layout?: "geo", asOf?: string) =>
+    request<Scene>("GET", "/scene", { at, rels: rels?.join(","), layout, as_of: asOf }),
+  /** Open work, alarms sounding and down now for every item in that scene, in one read (P5.16b). */
+  sceneStatus: (at?: string) => request<SceneStatus>("GET", "/scene/status", { at }),
+  /** If this trips (P5.16d): what goes down with it and the production at risk, an estimate. */
+  sceneTrip: (item: string, hours = 24) => request<SceneTrip>("GET", "/scene/trip", { item, hours }),
 };
 
 type Ref = { id: string; label: string | null };

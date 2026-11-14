@@ -1,6 +1,6 @@
 """Graph and network views, lookup, the review queue and rebuilds."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,17 +38,39 @@ def network(rels: str | None = None, rel: str | None = None, as_of: date | None 
 
 @router.get("/scene")
 def scene(at: str | None = None, rels: str | None = None,
-          layout: Literal["schematic", "geo"] = "schematic", conn=Depends(get_conn)):
+          layout: Literal["schematic", "geo"] = "schematic", as_of: datetime | None = None, conn=Depends(get_conn)):
     """A schematic scene of a facility or area (P5.16a): its items as generic shapes on plates and the links between
     them as pipe runs. `at` is a facility, an area or anything inside one; `rels` as for the network. `layout=geo`
-    places the areas by where they are, compacted."""
+    places the areas by where they are, compacted. `as_of` draws the links as they were then (a case's time)."""
     from ..graph import scene as scenes
 
     wanted = [r for r in (rels or "").split(",") if r]
     unknown = sorted(set(wanted) - {r["name"] for r in ontology.relations(conn)})
     if unknown:
         raise HTTPException(422, f"unknown link type: {', '.join(unknown)}")
-    return scenes.scene(conn, at, wanted or None, deps.pack(), layout)
+    return scenes.scene(conn, at, wanted or None, deps.pack(), layout, as_of)
+
+
+@router.get("/scene/status")
+def scene_status(at: str | None = None, rels: str | None = None, conn=Depends(get_conn)):
+    """Open work, active alarms and down now for every item in the scene `at` names (P5.16b), in one read: the same
+    reads as each entity's status card."""
+    from ..graph import scene as scenes
+    from ..ops import status_now
+
+    wanted = [r for r in (rels or "").split(",") if r]
+    ids = [i["id"] for i in scenes.scene(conn, at, wanted or None, deps.pack())["items"]]
+    return status_now.status(conn, ids)
+
+
+@router.get("/scene/trip")
+def scene_trip(item: str, hours: float = 24, conn=Depends(get_conn)):
+    """If this trips (P5.16d): what goes down with it and the production at risk over `hours`, an estimate."""
+    from ..ops import at_risk
+
+    if not 0 < hours <= 24 * 30:
+        raise HTTPException(422, "hours is between 0 and 720")
+    return at_risk.trip(conn, item, hours)
 
 
 @router.get("/network/compare")

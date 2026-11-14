@@ -301,9 +301,11 @@ def entity_downtime(fuzer_id: str, since: str | None = None, until: str | None =
 
 @router.get("/entities/{fuzer_id}/status")
 def entity_status(fuzer_id: str, conn=Depends(get_conn)):
-    """How the entity is doing right now: open work on it, its newest downtime and incident, a well's latest test."""
-    from ..ops import exceptions
-    return {"open_work": len(exceptions.listing(conn, subject=fuzer_id, limit=1000)), **queries.status(conn, fuzer_id)}
+    """How the entity is doing right now: open work on it, the alarms sounding on it, its newest downtime and incident,
+    a well's latest test. Open work and alarms are read as the 3D scene's status reads them (ops/status_now.py)."""
+    from ..ops import exceptions, status_now
+    return {"open_work": len(exceptions.listing(conn, subject=fuzer_id, limit=1000)),
+            "alarms": len(status_now.alarms(conn, [fuzer_id]).get(fuzer_id, [])), **queries.status(conn, fuzer_id)}
 
 
 @router.get("/entities/{fuzer_id}/profile")

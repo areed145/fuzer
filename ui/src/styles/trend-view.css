@@ -1,4 +1,4 @@
-/* One trend with event lanes (TrendView.tsx): chips per group above one chart. */
+/* One trend with event lanes (TrendView.tsx): chips per group above one chart (below it on a phone). */
 .trend-view-chips .chips { align-items: center; margin: 4px 0; gap: 2px 14px; }
 .trend-view-group { min-width: 9em; text-align: left; }
 .trend-view-chips .chip .dot { display: inline-block; width: 8px; height: 8px; margin-right: 2px; border-radius: 50%; }
@@ -20,3 +20,9 @@
 }
 /* A panel's key names its traces; clicking it does nothing, the chips above switch them. */
 .trend-view .js-plotly-plot [class$="titletoggle"], .trend-view .js-plotly-plot .legendtoggle { pointer-events: none; }
+/* What a clicked marker was (P5.15c) and the pinned times (P5.15d), under the chart. */
+.trend-view-detail, .trend-view-pins { margin-top: 8px; }
+.trend-view-detail h3, .trend-view-pins h3 { margin: 0; font-size: 1rem; }
+.trend-view-detail ul.plain { margin: 6px 0 0; max-height: 16em; overflow-y: auto; }
+/* A sideways swipe moves the window on a phone; the page still scrolls up and down (P5.15f). */
+.trend-view-plot { touch-action: pan-y; }
