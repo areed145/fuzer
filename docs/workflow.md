@@ -324,6 +324,10 @@ after confirming. A report made well before it arrived carries both times, so th
 it arrived. A signed-out or lapsed session is not a refusal: the outbox is held and sent once the same account signs
 in again.
 
+For gloves and sunlight, field mode (Settings -> Appearance, offered once on My work in the installed app) makes
+targets at least 56 px, raises contrast to 7:1 and keeps a job's actions in thumb reach (P5.17g, #1096); see
+docs/ui-style.md.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and

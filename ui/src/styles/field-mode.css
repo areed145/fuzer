@@ -1,0 +1,48 @@
+/* Field mode (P5.17g, #1096): a per-phone setting for gloves and bright sun. Presentation only: larger targets with
+   room between them, larger type, a high-contrast palette (text 7:1 or better), no glass behind text, and a job's
+   actions held in thumb reach. It changes nothing about permissions, assignments or what is shown. */
+:root.field-mode, :root.field-mode.ios {
+  --bg: #ffffff; --panel: #ffffff; --text: #000000; --muted: #2b2b2b; --line: #000000;
+  --accent: #00525a; --accent-text: #ffffff; --accent-soft: #d6f0f2;
+  --ok: #0a5c33; --warn: #6b3d00; --danger: #8f1712;
+  --glass: var(--panel); --glass-thick: var(--panel); --bar: var(--panel); --fill: #e6e6e6;
+}
+:root.field-mode[data-theme="dark"], :root.field-mode.ios[data-theme="dark"] {
+  --bg: #000000; --panel: #000000; --text: #ffffff; --muted: #e0e0e0; --line: #ffffff;
+  --accent: #6fe3ee; --accent-text: #000000; --accent-soft: #0c3135;
+  --ok: #7ee2ad; --warn: #ffd27a; --danger: #ff9e9a; --fill: #1f1f1f;
+}
+:root.field-mode body { font-size: 17px; line-height: 1.45; }
+:root.field-mode .small, :root.field-mode small, :root.field-mode .muted { font-size: 15px; }
+:root.field-mode * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* Targets: 56 px tall with 8 px between, for a gloved finger. */
+:root.field-mode .ui-button, :root.field-mode .ui-input, :root.field-mode textarea,
+:root.field-mode .bottombar > a, :root.field-mode .bottombar > .menu-button, :root.field-mode .back-button,
+:root.field-mode .sync-status, :root.field-mode .area-navigation a {
+  min-height: 56px; font-size: 17px;
+}
+:root.field-mode .ui-input { height: auto; }
+:root.field-mode #main-content :is(button, select, textarea, a.ui-button,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])) { min-height: 56px; }
+:root.field-mode .ui-button { padding: 0 20px; border-width: 2px; font-weight: 600; }
+:root.field-mode .ui-button-sm { min-height: 56px; padding: 0 16px; }
+:root.field-mode .toolbar, :root.field-mode .row, :root.field-mode .actions, :root.field-mode .field-actions { gap: 8px; }
+:root.field-mode input[type="checkbox"], :root.field-mode input[type="radio"] { width: 28px; height: 28px; }
+:root.field-mode label:has(> input[type="checkbox"]), :root.field-mode label:has(> input[type="radio"]) {
+  display: inline-flex; align-items: center; gap: 12px; min-height: 56px;
+}
+:root.field-mode main a:not(.ui-button) { text-decoration: underline; text-underline-offset: 3px; }
+:root.field-mode :focus-visible { outline: 3px solid var(--accent) !important; outline-offset: 2px; }
+
+/* One hand: on a phone, a job's report buttons and a round's take buttons stay at the bottom of the screen, above
+   the bottom bar, while their card is in view; each is a full-width row. */
+@media (max-width: 900px) {
+  :root.field-mode .field-job .field-actions:last-of-type {
+    position: sticky; bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 2;
+    padding: 8px 0; background: var(--panel); border-top: 2px solid var(--line);
+  }
+  :root.field-mode .field-actions .ui-button, :root.field-mode .field-jobs .toolbar .ui-button { flex: 1 1 40%; }
+  :root.field-mode .field-jobs .toolbar { display: flex; flex-wrap: wrap; }
+  :root.field-mode .app > main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+}

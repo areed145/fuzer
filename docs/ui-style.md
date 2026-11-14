@@ -162,6 +162,13 @@ needs to repaint; never listen to OS appearance directly in individual views.
 Theme-specific CSS uses `:root[data-theme="dark"]`. Drawing and BPMN canvases
 intentionally retain their light backgrounds so source drawings stay legible.
 
+Field mode (P5.17g, #1096) is a second, per-device Appearance choice for gloves and sunlight, not a role: the class
+`field-mode` on `<html>` (`setFieldMode`, `useFieldMode` in `theme.tsx`, styles in `styles/field-mode.css`). It sets
+targets to at least 56 px with 8 px gaps, body text to 17 px, colours to 7:1 contrast in light and dark, removes
+translucency, underlines links in the page, and keeps a job's main actions at the bottom of the screen within thumb
+reach on a phone. The installed app on a phone offers it once on My work. A new control must still meet 56 px and 7:1
+under `field-mode`.
+
 Identity lives in `identityStore.ts` (re-exported from `work.tsx` for existing callers).
 Use `usePerson` for reactive UI and `loadPerson` at action time; do not read or
 write the reviewer storage key in pages. This is audit attribution, not
