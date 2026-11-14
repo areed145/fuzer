@@ -1,13 +1,18 @@
 /* The work board: one column per stage, side by side on a desk; a phone shows the chosen stage under its chips. */
 .work-board-controls { margin: 4px 0 8px; }
-.work-board { display: grid; grid-template-columns: repeat(6, minmax(168px, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
-.work-board-column { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; min-width: 0; }
+/* An empty stage folds to a narrow strip so the stages that hold work get the width (#1070). */
+.work-board { display: flex; gap: 10px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+.work-board-column { flex: 1 1 200px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; min-width: 200px; scroll-snap-align: start; }
+.work-board-column.empty { flex: 0 0 116px; min-width: 116px; }
+.work-board-column.empty > h2 { flex-direction: column; gap: 0; }
 .work-board-column > h2 { display: flex; justify-content: space-between; gap: 8px; margin: 0; font-size: 14px; }
 .work-board-column > p { margin: 2px 0 8px; }
 .work-board-lane { margin: 12px 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .work-card { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; margin-bottom: 6px; background: var(--bg); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 6px; }
 .work-card.attention { border-left-color: var(--warn); }
 .work-card-title { font-weight: 600; font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }
+/* Long generated titles stay at two lines on a card; the whole title is its tooltip and the case's heading. */
+.work-board .work-card-title { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .work-card-title a { color: inherit; }
 .work-card-meta { display: flex; justify-content: space-between; gap: 8px; }
 .work-card-meta > span:last-child { white-space: nowrap; }
@@ -17,7 +22,7 @@
   .work-board-stages { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 12px; }
   .work-board-stages .chip { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   .work-board { display: block; overflow: visible; }
-  .work-board-column { display: none; }
+  .work-board-column, .work-board-column.empty { display: none; min-width: 0; }
   .work-board-column.shown { display: block; }
   .work-card-actions .ui-button { min-height: 44px; }
 }

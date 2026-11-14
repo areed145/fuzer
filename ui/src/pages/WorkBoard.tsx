@@ -10,7 +10,7 @@ import { Status, entityHref, href, useAsync } from "../lib";
 import { holder, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
-import { DispatchControls, backFromField, waitingToDispatch, withTheField, type Person } from "./Exceptions";
+import { DispatchControls, age, backFromField, money, namedSubjects, waitingToDispatch, withTheField, type Person } from "./Exceptions";
 
 type StageKey = "dispatch" | "desk" | "plan" | "field" | "back" | "closed";
 
@@ -34,21 +34,13 @@ export function stageOf(r: ExceptionRow, operators: Set<string>): StageKey {
   return "desk";
 }
 
-export type Lanes = "none" | "source" | "kind";
+/** How the columns split into lanes. Holder is the queue or person that has it, which is how a shift lead reads the
+ * desk column (#1070). */
+export type Lanes = "none" | "holder" | "source" | "kind";
 const LANES: { key: Lanes; label: string }[] = [
-  { key: "none", label: "None" }, { key: "source", label: "Source" }, { key: "kind", label: "Kind" },
+  { key: "none", label: "None" }, { key: "holder", label: "Queue or person" }, { key: "source", label: "Source" },
+  { key: "kind", label: "Kind" },
 ];
-
-/** A span of time as an operator says it: 15m, 2h 10m, 1d 4h. */
-export function age(ms: number): string {
-  const m = Math.max(0, Math.floor(ms / 60000));
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
-  return h % 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${Math.floor(h / 24)}d`;
-}
-
-const money = (usd: number) => usd >= 1000 ? `$${Math.round(usd / 1000).toLocaleString()}k` : `$${Math.round(usd)}`;
 const lastField = (r: ExceptionRow) => r.evidence?.field?.[r.evidence.field.length - 1];
 const FIELD_SAID: Record<string, string> = { on_site: "on site", done: "field: done", could_not_do: "could not do", note: "field note" };
 
@@ -81,7 +73,8 @@ export function WorkBoardPage({ query, filters = {} }: {
     .filter((r) => !words || r.title.toLowerCase().includes(words));
   const by = new Map<StageKey, ExceptionRow[]>(STAGES.map((s) => [s.key, []]));
   for (const r of rows) by.get(stageOf(r, operators))!.push(r);
-  const laneOf = (r: ExceptionRow) => lanes === "source" ? r.source ?? "Other"
+  const laneOf = (r: ExceptionRow) => lanes === "holder" ? (r.item_id ? holder(r.assignee, r.role) : r.planned?.crew ?? "Nobody yet")
+    : lanes === "source" ? r.source ?? "Other"
     : lanes === "kind" ? kindLabel.get(r.type) ?? r.type.replace(/_/g, " ") : "";
   const refresh = () => { open.reload(); closed.reload(); };
   const keep = Object.fromEntries([...query.entries()].filter(([k]) => k !== "stage" && k !== "list"));
@@ -129,10 +122,11 @@ function Column({ stage, rows, lane, laneOf, shown, person, people, queues, kind
   }
   const sorted = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
   return (
-    <section className={shown ? "work-board-column shown" : "work-board-column"} aria-label={stage.label}>
+    <section className={["work-board-column", shown && "shown", !rows.length && "empty"].filter(Boolean).join(" ")}
+      aria-label={stage.label}>
       <h2><span>{stage.label}</span> <span className="muted">{rows.length}</span></h2>
-      <p className="small muted">{[stage.note, value > 0 && !closed ? `${money(value)} at stake` : null,
-        oldest ? `oldest ${age(oldest)}` : null].filter(Boolean).join(" · ")}</p>
+      {rows.length > 0 && <p className="small muted">{[stage.note, value > 0 && !closed ? `${money(value)} at stake` : null,
+        oldest ? `oldest ${age(oldest)}` : null].filter(Boolean).join(" · ")}</p>}
       {!rows.length ? <Empty>Nothing here.</Empty> : sorted.map(([name, items]) => <div key={name || "all"}>
         {laneOf && <h3 className="work-board-lane">{name}</h3>}
         {items.map((r) => <WorkCard key={r.id} r={r} stage={stage.key} lane={lane} now={now} person={person} people={people}
@@ -148,7 +142,8 @@ function WorkCard({ r, stage, lane, now, person, people, queues, kind, onChange 
   r: ExceptionRow; stage: StageKey; lane: Lanes; now: number; person: string | null; people: Person[]; queues: string[];
   kind: string; onChange: () => void;
 }) {
-  const names = useEntityNames(r.subjects.slice(0, 1));
+  const names = useEntityNames(r.subjects);
+  const subjects = namedSubjects(r.subjects, names);
   const [sending, setSending] = useState(false);
   const said = lastField(r);
   const couldNot = said?.status === "could_not_do";
@@ -160,9 +155,9 @@ function WorkCard({ r, stage, lane, now, person, people, queues, kind, onChange 
   const canSend = !!person && r.state === "open" && (stage === "dispatch" || (stage === "back" && couldNot));
   return (
     <article className={couldNot && stage === "back" ? "work-card attention" : "work-card"}>
-      <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{r.title}</a> : r.title}</div>
-      {r.subjects[0] && <a className="small" href={entityHref(r.subjects[0])}>{display(r.subjects[0], names)}
-        {r.subjects.length > 1 ? ` +${r.subjects.length - 1}` : ""}</a>}
+      <div className="work-card-title" title={r.title}>{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{r.title}</a> : r.title}</div>
+      {subjects[0] && <a className="small" href={entityHref(subjects[0])}>{display(subjects[0], names)}
+        {subjects.length > 1 ? ` +${subjects.length - 1}` : ""}</a>}
       <div className="small muted">{[lane !== "kind" ? kind : null, lane !== "source" ? r.source : null,
         reports > 1 ? `${reports} reports` : null].filter(Boolean).join(" · ")}</div>
       {said && stage !== "dispatch" && stage !== "closed" && <div className="small">
@@ -171,7 +166,7 @@ function WorkCard({ r, stage, lane, now, person, people, queues, kind, onChange 
         .toLocaleDateString(undefined, { day: "numeric", month: "short" })}</a>}
       <div className="work-card-meta small">
         <span className="muted">{who ?? (stage === "closed" ? r.state : "")}</span>
-        <span>{[since, r.value_usd != null && stage !== "closed" ? money(r.value_usd) : null].filter(Boolean).join(" · ")}</span>
+        <span>{[since, r.value_usd && stage !== "closed" ? money(r.value_usd) : null].filter(Boolean).join(" · ")}</span>
       </div>
       {(canSend || (stage === "back" && r.item_id)) && <div className="row work-card-actions">
         {canSend && <Button size="sm" variant={stage === "dispatch" ? "primary" : "secondary"} aria-expanded={sending}
