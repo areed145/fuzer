@@ -596,7 +596,8 @@ def test_overdue_task_escalates_and_says_why(conn):
     t = task(conn, out["item_id"], "triage")
     assert t["role"] == "ops_lead" and t["escalated_at"]
     why = events(conn, out["item_id"], "escalated")[0]["data"]["why"]
-    assert "SLA PT4H on 'Triage' passed" in why and "engineer queue" in why and "ops_lead" in why
+    assert why.startswith("'Triage' was due within 4 hours, by ") and "engineer queue" in why
+    assert why.endswith("It moved to the ops lead queue.") and "PT4H" not in why and "ops_lead" not in why
     assert any(r["task_id"] == t["id"] for r in engine.my_work(conn, "olga")["queue"])
     assert engine.tick(conn, now=triage["due_at"] + timedelta(hours=2))["escalated"] == 0  # once
 

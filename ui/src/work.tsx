@@ -85,10 +85,11 @@ export function duration(iso: string): string {
 function escalation(e: WorkEvent): ReactNode {
   const d = e.data;
   const why = String(d.why ?? "");
-  const step = /on '([^']+)'/.exec(why)?.[1] ?? d.step ?? e.element ?? "The step";
-  const sla = /SLA (P[0-9A-Z]+)/.exec(why)?.[1];
+  const step = /^'([^']+)' was due/.exec(why)?.[1] ?? /on '([^']+)'/.exec(why)?.[1] ?? d.step ?? e.element ?? "The step";
+  const iso = /SLA (P[0-9A-Z]+)/.exec(why)?.[1];
+  const sla = iso ? duration(iso) : /was due within ([^,]+),/.exec(why)?.[1];
   const moved = d.to && d.to !== d.from;
-  return <span title={why || undefined}><strong>{step}</strong> was due{sla ? <> within {duration(sla)}</> : d.due ? <> {when(d.due)}</> : null}
+  return <span title={why || undefined}><strong>{step}</strong> was due{sla ? <> within {sla}</> : d.due ? <> {when(d.due)}</> : null}
     {d.from ? <> while it was with {to(d.from)}</> : null}.{moved ? <> It passed to {to(d.to)}.</> : <> It is overdue.</>}</span>;
 }
 

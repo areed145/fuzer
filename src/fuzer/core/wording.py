@@ -67,6 +67,38 @@ def units(text: str) -> str:
     return _UNIT.sub(sub, text)
 
 
+_DURATION = re.compile(r"\bP(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?\b")
+
+
+def duration(iso: str | None) -> str:
+    """An ISO 8601 duration as words: PT4H is "4 hours", P1DT2H "1 day 2 hours"; anything else as given."""
+    m = _DURATION.fullmatch(str(iso or ""))
+    if not m or not any(m.groups()):
+        return str(iso or "")
+    return " ".join(plural(int(n), w) for n, w in zip(m.groups(), ("week", "day", "hour", "minute")) if n)
+
+
+def _local(at: str) -> str:
+    """'2026-11-12 23:29' in UTC as the plant's clock reads it: '12 Nov 18:29'."""
+    from datetime import UTC, datetime
+
+    from .clock import zone
+
+    try:
+        t = datetime.strptime(at, "%Y-%m-%d %H:%M").replace(tzinfo=UTC).astimezone(zone())
+    except (ValueError, KeyError):
+        return f"{at} UTC"
+    return f"{t.day} {t:%b %H:%M}"
+
+
+def escalation(step: str, sla: str | None, due_utc: str, holder: str, to_role: str | None) -> str:
+    """Why a step escalated, as a person says it (#1072): "'Work the case' was due within 4 hours, by 12 Nov 18:29,
+    while it was with sam. It moved to the ops lead queue." Times on the plant's clock."""
+    within = f" within {duration(sla)}" if sla else ""
+    return (f"'{step}' was due{within}, by {_local(due_utc)}, while it was with {say(holder)}."
+            + (f" It moved to the {queue(to_role)}." if to_role else ""))
+
+
 def queue(role: str | None) -> str:
     """A routing role as the queue people see: 'role:data_steward' and 'ops_lead' both read 'data steward queue',
     'ops lead queue'."""
@@ -101,6 +133,9 @@ _OLD_UPSET = re.compile(r"(?:Upset: )?Detected (?P<key>[a-z_]+(?::[a-z_]+)?) on 
 _DETECTED = re.compile(r"\bdetected (?P<key>[a-z_]+:[a-z_]+) on ")
 _KEY = re.compile(r"(?<![\w:/])(?P<key>(?:alarm|iow|learned|instrument):[a-z_]+)(?!\w)")
 _ROLE = re.compile(r"\brole:(?P<role>[a-z_]+)(?P<q> queue)?")
+_OLD_ESCALATION = re.compile(r"SLA(?: (?P<sla>P[0-9WDTHM]+))? on '(?P<step>[^']+)' passed at "
+                             r"(?P<at>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) UTC while it was with (?P<holder>.+?)"
+                             r"(?:; moved to the (?P<to>[a-z_ ]+?) queue)?$")
 _SNAKE_QUEUE = re.compile(r"\b(?P<role>[a-z]+(?:_[a-z]+)+) queue\b")
 
 
@@ -111,6 +146,7 @@ def say(text: str | None) -> str | None:
         return text
     text = _OLD_UPSET.sub(lambda m: f"{alarm(m['key'])} on {m['where']} from {m['at']}"
                           + (f", across {m['n']} assets" if int(m["n"]) > 1 else ""), text)
+    text = _OLD_ESCALATION.sub(lambda m: escalation(m["step"], m["sla"], m["at"], m["holder"], m["to"]), text)
     text = _DETECTED.sub(lambda m: f"{_lower_first(alarm(m['key']))} on ", text)
     text = _KEY.sub(lambda m: _lower_first(alarm(m["key"])), text)
     text = _ROLE.sub(lambda m: queue(m["role"]) if m["q"] else queue(m["role"]).removesuffix(" queue"), text)

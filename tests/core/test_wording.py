@@ -63,3 +63,15 @@ def test_an_upset_incident_names_the_alarm_and_the_asset():
               "failure_mode": None, "event_type": None, "key": "alarm:lo", "point": "OK_J21_05.WHP", "text": None}]
     c = _incident("fz-tag-x", "OK-J21-05", group)
     assert c.fields["description"] == "Low alarm on OK-J21-05 (OK_J21_05.WHP)"
+
+
+def test_an_escalation_reads_as_a_sentence_on_the_plant_clock():
+    old = ("'High vibration on 1st stage compressor' was escalated to you. SLA PT4H on 'Work the case' passed at "
+           "2026-11-12 23:29 UTC while it was with sam; moved to the ops_lead queue")
+    new = wording.say(old)
+    assert "PT4H" not in new and "ops_lead" not in new and "UTC" not in new, new
+    assert "'Work the case' was due within 4 hours, by " in new and new.endswith("It moved to the ops lead queue.")
+    assert wording.say(new) == new
+    assert wording.duration("P1D") == "1 day" and wording.duration("P1DT2H") == "1 day 2 hours"
+    assert wording.say("SLA P1D on 'Work the case' passed at 2026-11-14 02:44 UTC while it was with the "
+                       "engineer queue; moved to the ops_lead queue").startswith("'Work the case' was due within 1 day")
