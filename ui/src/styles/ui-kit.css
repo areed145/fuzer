@@ -115,7 +115,7 @@ html.ui-fullscreen-open .bottombar { display: none; }
 /* A phone never scrolls sideways (#1077): a long badge (a list of roles, a long name) wraps instead of pushing the page
  * wider, and anything still too wide is clipped at the screen edge rather than letting the whole page pan. */
 @media (max-width: 600px) {
-  #main-content :is(.ui-badge, .badge) { white-space: normal; overflow-wrap: anywhere; }
+  #main-content :is(.ui-badge, .badge) { white-space: normal; overflow-wrap: break-word; }
 }
 @media (max-width: 900px) {
   html, body { overflow-x: clip; }

@@ -468,3 +468,26 @@
   :root.ios .attention-bar > .small { flex: 1 1 auto; order: 2; }
   :root.ios .attention-bar .crews-toggle.chip { order: 3; min-height: 32px; }
 }
+
+/* Filter chips (Browse's kinds, Network's link types, the trend picker): compact iOS chips, 32 points tall, rather than
+   full-size capsule buttons. On an iPhone they sit on one row that scrolls sideways under the finger instead of wrapping
+   into rows that push the results down. Segmented rows (Home's filters, the Board's stages) keep their own style. */
+:root.ios .chips:not(.attention-bar .chips) { gap: 8px; align-items: center; }
+:root.ios #main-content .chips:not(.attention-bar .chips) > .chip {
+  min-height: 32px; min-width: 0; padding: 0 12px; gap: 5px; border: 0; border-radius: 999px;
+  font-size: 14px; font-weight: 500; line-height: 1; color: var(--text);
+  background: var(--fill); background-image: none; box-shadow: none;
+}
+:root.ios #main-content .chips:not(.attention-bar .chips) > .chip:is(.on, [aria-pressed="true"]) {
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 600;
+}
+:root.ios #main-content .chips:not(.attention-bar .chips) > .chip .muted,
+:root.ios #main-content .chips:not(.attention-bar .chips) > .chip .count { font-size: 13px; color: var(--muted); background: none; padding: 0; }
+@media (max-width: 600px) {
+  :root.ios #main-content .chips:not(.attention-bar .chips):not([data-ios-menu]):not(:has(.ui-disclosure)) {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+    margin-inline: -16px; padding: 2px 16px; scroll-padding-inline: 16px;
+  }
+  :root.ios #main-content .chips:not(.attention-bar .chips)::-webkit-scrollbar { display: none; }
+  :root.ios #main-content .chips:not(.attention-bar .chips) > .chip { flex: none; white-space: nowrap; }
+}
