@@ -6392,3 +6392,60 @@ test("on a phone the page itself doesn't zoom: no double-tap zoom, fields at 16p
   assert.equal(cancelled, true);
   await phone.close();
 });
+
+/** A small PDF with `n` pages of one line each, with correct cross-reference offsets. */
+function tinyPdf(n) {
+  const objs = ["<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${Array.from({ length: n }, (_, i) => `${4 + 2 * i} 0 R`).join(" ")}] /Count ${n} >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  for (let i = 0; i < n; i++) {
+    const text = `BT /F1 24 Tf 72 700 Td (Manual page ${i + 1}) Tj ET`;
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + 2 * i} 0 R >>`);
+    objs.push(`<< /Length ${text.length} >>\nstream\n${text}\nendstream`);
+  }
+  let out = "%PDF-1.4\n";
+  const at = [];
+  objs.forEach((o, i) => { at.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${at.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}
+
+test("a manual reads inside the app and Close goes back to the asset, so the installed app never strands anyone", async () => {
+  const asset = "fz-equipment-00000000c040";
+  const id = "fz-document-00000000c040";
+  await page.route(`**/entities/${asset}`, (route) => route.fulfill({ json: { fuzer_id: asset, kind: "equipment_model",
+    label: "Solar C40", golden: {}, values: {}, keys: [], edge_counts: {}, edges: [], records: [] } }));
+  await page.route(`**/entities/${asset}/documents`, (route) => route.fulfill({ json: [{ id, label: "DOC-C40", title: "C40 manual",
+    doc_type: "oem_manual", revision: "A", why: "this" }] }));
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "document", label: "DOC-C40",
+    golden: { title: { value: "C40 manual", source: "edms", rule: "priority" }, doc_type: { value: "oem_manual", source: "edms", rule: "priority" },
+      revision: { value: "A", source: "edms", rule: "priority" }, status: { value: "current", source: "edms", rule: "priority" } },
+    values: {}, keys: [], edge_counts: {}, edges: [], records: [{ source: "edms", record_type: "document", source_key: "c40" }] } }));
+  for (const x of [asset, id]) await page.route(`**/entities/${x}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/documents/${id}/file*`, (route) => route.fulfill({ contentType: "application/pdf", body: tinyPdf(3) }));
+  await page.goto(`${url}/#/e/${asset}?tab=documents`);
+  await page.getByRole("link", { name: "C40 manual" }).click();
+  // On its page the manual previews as pages drawn in the app, not the raw file in a frame or a new window.
+  await page.getByRole("link", { name: "Read full screen" }).waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".doc-preview canvas.doc-page").length === 3);
+  assert.equal(await page.locator("iframe.doc-file").count(), 0);
+  await page.getByRole("link", { name: "Read full screen" }).click();
+  const reader = page.getByRole("dialog", { name: "C40 manual" });
+  await reader.waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".doc-full canvas.doc-page").length === 3);
+  const before = await reader.locator("canvas.doc-page").first().evaluate((c) => c.getBoundingClientRect().width);
+  await reader.getByRole("button", { name: "Larger" }).click();
+  await page.waitForFunction((w) => document.querySelector(".doc-full canvas.doc-page").getBoundingClientRect().width > w * 1.4, before);
+  await reader.getByRole("button", { name: "Close document" }).click();
+  await reader.waitFor({ state: "detached" });
+  assert.match(page.url(), new RegExp(`#/e/${id}$`));
+  // Escape closes it too, and a shared link opens the reader straight over the page.
+  await page.goto(`${url}/#/e/${asset}?tab=documents&doc=${id}`);
+  await reader.waitFor();
+  await page.keyboard.press("Escape");
+  await reader.waitFor({ state: "detached" });
+  assert.match(page.url(), new RegExp(`#/e/${asset}\\?tab=documents$`));
+  assert.deepEqual(errors, []);
+});

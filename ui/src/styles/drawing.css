@@ -85,3 +85,17 @@ html.drawing-open, html.drawing-open body { overflow: hidden; }
 .viewer .mark.hl .dot, .drawing-full-sheet .mark.hl .dot { fill-opacity: 0.5; stroke: var(--accent); stroke-width: 6; }
 .viewer .mark .hl-ring, .drawing-full-sheet .mark .hl-ring { fill: none; stroke: var(--accent); stroke-width: 6; opacity: 0.85; }
 .drawing-full-sheet .mark.hl text { fill: var(--accent); }
+
+/* a manual or procedure read inside the app: a preview on its page, and the whole screen with Close */
+.doc-pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; overflow: auto;
+  background: var(--line); }
+.doc-pages canvas.doc-page { display: block; flex: none; background: #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.25); }
+.doc-pages .doc-text { align-self: stretch; margin: 0; padding: 16px; background: var(--panel); color: var(--text);
+  white-space: pre-wrap; border-radius: var(--radius); }
+.doc-preview { max-height: 75vh; border: 1px solid var(--line); border-radius: var(--radius);
+  -webkit-overflow-scrolling: touch; }
+.doc-full-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.doc-full-stage .doc-pages { flex: 1; align-items: flex-start; padding-bottom: max(12px, env(safe-area-inset-bottom));
+  overscroll-behavior: contain; }
+.doc-full-stage .doc-pages canvas.doc-page { margin: 0 auto; }
+.doc-full .df-title a { color: inherit; }

@@ -32,6 +32,7 @@ import { AreaNavigation, BackButton, Breadcrumbs, Sidebar } from "./nav";
 import { startAppHistory } from "./appHistory";
 import { lockPageZoom } from "./zoomLock";
 import { DrawingFullscreen } from "./DrawingFullscreen";
+import { DocumentFullscreen } from "./DocumentViewer";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
 import { InvestigationPage } from "./pages/Investigation";
@@ -228,6 +229,7 @@ function App() {
       {query.get("drawing") && (
         <DrawingFullscreen id={query.get("drawing")!} ring={(query.get("ring") ?? "").split(",").filter(Boolean)} />
       )}
+      {query.get("doc") && <DocumentFullscreen id={query.get("doc")!} />}
     </div>
   );
 }

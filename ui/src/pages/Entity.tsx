@@ -1,9 +1,9 @@
-import { projectUrl } from "../authState";
 import "../styles/entity.css";
 import { Bar, Button, ButtonLink, PageHeader, Table, Tabs, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
+import { DocumentPages, documentHref, openDocument } from "../DocumentViewer";
 import { NotThisRecord, SameAs } from "./masterdata/Curation";
 import { AssetContextCard } from "./masterdata/Context";
 import { caseHref } from "./workflows/shared";
@@ -169,17 +169,13 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
                     {fmt(e.golden.status?.value)}
                   </span>
                 </h2>
-                <ButtonLink href={projectUrl(`/documents/${encodeURIComponent(fid)}/file`)} target="_blank"
-                   rel="noreferrer">Open document</ButtonLink>
+                <ButtonLink href={documentHref(fid)} onClick={(ev) => { ev.preventDefault(); openDocument(fid); }}>
+                  Read full screen</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
                 <p className="error small">This revision is superseded; see "Superseded by" under Graph.</p>
               )}
-              <iframe
-                className="doc-file"
-                title={fmt(e.golden.title?.value)}
-                src={projectUrl(`/documents/${encodeURIComponent(fid)}/file`)}
-              />
+              <DocumentPages id={fid} className="doc-preview" />
             </UICard>
           )}
           {e.kind === "document_section" && (
