@@ -1,5 +1,5 @@
 import "../styles/entity.css";
-import { Bar, Button, ButtonLink, PageHeader, Table, Tabs, Input,  Card as UICard, Badge as UIBadge} from "../ui";
+import { Bar, Button, ButtonLink, Notice, PageHeader, Table, Tabs, Input,  Card as UICard, Badge as UIBadge} from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer, SheetThumb } from "../DrawingViewer";
@@ -41,6 +41,8 @@ import { Related } from "../Related";
 import { kindColor, relColor } from "../kinds";
 import { nodeLabel } from "../entityRefs";
 import { usePermission } from "../Auth";
+import { keptAt } from "../fieldPack";
+import { when } from "../work";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -107,6 +109,12 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
   const ent = useAsync(() => api.entity(id, asOf || undefined), [id, asOf]);
   const configure = usePermission("configure");
 
+  // No signal and not kept on this phone (P5.17c): say so, and go back to the jobs that are.
+  if (!ent.data && ent.error && ent.error.startsWith("Not kept on this phone")) return <section>
+    <PageHeader>Asset and evidence</PageHeader>
+    <Notice tone="warn">This page isn't kept on this phone, and there's no signal. The assets, drawings and documents of
+      your jobs are. <a href={href("/inbox")}>Back to My work</a></Notice>
+  </section>;
   if (!ent.data) return <section><PageHeader>Asset and evidence</PageHeader>
     <Status loading={ent.loading} error={ent.error} onRetry={ent.reload} />
     {ent.error && <p>The register record may be unavailable or the request may have failed.
@@ -129,9 +137,11 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
   // Assets people work on open on their work and history; any other record opens on its values.
   const operated = ["tag", "equipment", "well", "facility", "area"].includes(e.kind);
   const description = e.golden.description ? fmt(e.golden.description.value) : undefined;
+  const kept = keptAt(e);
 
   return (
     <article className="entity">
+      {kept && <Notice tone="warn">No signal: kept on this phone {when(kept)}. Parts not kept say so.</Notice>}
       <header className="entity-head">
         <div>
           <PageHeader className="mono" subtitle={description}>{e.label ?? fid}</PageHeader>

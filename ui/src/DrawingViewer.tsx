@@ -2,6 +2,7 @@ import "./styles/drawing.css";
 import { useState, type ReactNode } from "react";
 import { api, type DrawingMark, type MarkStatus } from "./api";
 import { projectUrl } from "./authState";
+import { KeptImage } from "./KeptImage";
 import { entityHref, useAsync } from "./lib";
 import { Button, Card as UICard, Disclosure, Empty } from "./ui";
 import { connectedSheets, openDrawing } from "./DrawingFullscreen";
@@ -94,7 +95,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
         {/* a tap on the sheet itself (not on a mark) opens it on the whole screen, where it can be zoomed */}
         <div className="sheet" style={{ width: zoom ? `${g.width * zoom}px` : "100%" }}
              onClick={(e) => { if (!(e.target as Element).closest("a")) full(); }}>
-          <img src={projectUrl(g.image)} alt={`P&ID ${g.sheet}`} />
+          <KeptImage src={projectUrl(g.image)} alt={`P&ID ${g.sheet}`} />
           <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="none">
             {shown
               .filter(({ m }) => m.x !== undefined && m.y !== undefined)
@@ -312,7 +313,7 @@ export function SheetThumb({ id, label, title, highlight }: { id: string; label:
        onClick={(ev) => { ev.preventDefault(); openDrawing(id, highlight); }}>
       <span className="sheet-thumb-img">
         {g ? <>
-          <img src={projectUrl(g.image)} alt="" loading="lazy" />
+          <KeptImage src={projectUrl(g.image)} alt="" loading="lazy" />
           <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
             {ringed.map((m, i) => <circle key={i} className="hl-ring" cx={m.x} cy={m.y} r={90} />)}
           </svg>

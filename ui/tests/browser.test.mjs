@@ -4706,6 +4706,67 @@ test("P5.17b The top bar shows no signal and what waits to send on every page, a
   assert.equal(posts[0].note, "Gland weeping");
 });
 
+// P5.17c (#1092): with signal, the jobs' assets, their drawings and documents are kept on the phone; without it the
+// asset's page, its document list and its drawing open from the phone, labelled, and a page not kept says so.
+test("P5.17c A job's asset page, documents and drawing open without signal, and an unkept page says so", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let reachable = true;
+  const id = "fz-equipment-p101", pid = "fz-doc-pid1", manual = "fz-doc-man1";
+  const job = { id: 7, type: "leak", key: "a", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [{ fuzer_id: id, label: "P-101 export pump", kind: "equipment" }], checklist: [], sources: [],
+    history: [], field: [], queued: false, sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const ent = (fuzer_id, kind, label) => ({ fuzer_id, kind, label, golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} });
+  const answers = {
+    "/exceptions/field": { person: "fred", jobs: [job], coming_up: [] },
+    "/work/inbox": { person: "fred", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } },
+    [`/entities/${id}`]: ent(id, "equipment", "P-101 export pump"),
+    [`/entities/${id}/drawings`]: { highlight: [id], drawings: [{ id: pid, label: "OKAN-10-PID-001", title: "Export pumps" }] },
+    [`/entities/${id}/documents`]: [{ id: manual, label: "P-101 pump manual", title: "Pump manual", doc_type: "manual", revision: null, why: "names P-101" }],
+    [`/documents/${pid}/drawing`]: { sheet: "OKAN-10-PID-001", title: "Export pumps", image: `/documents/${pid}/image`, width: 40, height: 30,
+      marks: [], offpage: [], tables: [] },
+    [`/entities/${manual}`]: ent(manual, "document", "P-101 pump manual"),
+  };
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.svg$/.test(path) || path === "/favicon.png") return route.fallback();
+    if (!reachable) return route.abort("internetdisconnected");
+    if (path === `/documents/${pid}/image`) return route.fulfill({ body: PNG, contentType: "image/png" });
+    if (path in answers) return route.fulfill({ json: answers[path] });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  await page.locator(".field-job").getByText("Look at the gland").waitFor();
+  // The pack is read in the background: wait until the drawing's sheet is kept.
+  const keptKeys = () => page.evaluate(async () => {
+    const db = await new Promise((ok) => { const r = indexedDB.open("fuzer-field"); r.onsuccess = () => ok(r.result); });
+    return new Promise((ok) => { const r = db.transaction("kept").objectStore("kept").getAllKeys(); r.onsuccess = () => ok(r.result.map(String)); });
+  });
+  for (let i = 0; !(await keptKeys()).some((k) => k.startsWith("warm:")) && i < 150; i++) await page.waitForTimeout(100);
+  const kept = await keptKeys();
+  for (const path of [`/entities/${id}`, `/entities/${id}/status`, `/documents/${pid}/drawing`, `/documents/${pid}/image`,
+    `/entities/${id}/trend-view?hours_before=48&hours_after=24`]) assert.ok(kept.some((k) => k.endsWith(path)), `kept ${path}`);
+
+  reachable = false;
+  await page.locator(".field-job").getByRole("link", { name: "P-101 export pump" }).click();
+  await page.locator("h1", { hasText: "P-101 export pump" }).waitFor();
+  await page.getByText("No signal: kept on this phone", { exact: false }).waitFor();
+  await page.evaluate((id) => { location.hash = `#/e/${id}?tab=documents`; }, id);
+  await page.getByRole("link", { name: "Pump manual" }).waitFor();
+  const sheet = page.locator(".sheet-thumb img").first();
+  await sheet.waitFor();
+  await page.waitForFunction(() => { const img = document.querySelector(".sheet-thumb img"); return img?.complete && img.naturalWidth > 0; });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll at 390 px");
+
+  // An asset no job points at was never kept: the page says so and goes back to the jobs.
+  await page.evaluate(() => { location.hash = "#/e/fz-equipment-elsewhere"; });
+  await page.getByText("This page isn't kept on this phone", { exact: false }).waitFor();
+  await page.getByRole("link", { name: "Back to My work" }).waitFor();
+});
+
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
 // with what changed since they last looked, and reaches an item in another field in one click from Home.
 test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {

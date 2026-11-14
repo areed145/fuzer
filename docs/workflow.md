@@ -289,6 +289,18 @@ page, only when there is something to say: no signal and since when, how many re
 were not accepted; it opens My work. A report still on the phone shows on its job as waiting to send. Taking a job
 from a queue and accepting a handover need signal and say so.
 
+The day's work is kept on the phone too (P5.17c, #1092; `ui/src/fieldPack.ts`). The field pack is each of the
+operator's jobs' assets and their documents and drawings. When My work loads with signal, the reads an asset's page
+opens with are made once in the background, one at a time through the bounded queue: the asset, its status, profile,
+open work, plan, a 72-hour trend, incidents, events and map; its drawings and their sheet images; its documents and
+their files. They are read again when the jobs change or every 15 minutes. After that, any read that names a record in
+the pack is kept when it is answered, and served from the phone, marked with when it was kept, when the server can't be
+reached; the asset page says "No signal: kept on this phone" and a page that wasn't kept says so and links to My work.
+Mutations, paid reads and everything outside the pack are never kept, and the service worker still keeps only the app.
+Kept answers stay under 150 MB, the oldest going first; the job lists don't count. Sign-out clears what was kept for
+the account, but never its outbox. Maps keep each asset's position and the directions link to the phone's own maps
+app; no map tiles are kept, since public tile servers forbid it.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and
