@@ -158,6 +158,16 @@ def assign_item(conn, item_id: int, by: str, to: str, reason: str | None = None)
            data={"from": item["assignee"] or item["role"], "to": to, "reason": reason})
     return {"item_id": item_id, "to": to}
 
+def take_item(conn, item_id: int, person: str) -> dict:
+    """`person` takes a case from its queue: claims its open person step, else (no process runs it) is given the case."""
+    from .assignment import claim
+
+    step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state in ('ready', 'waiting') "
+                        "order by due_at nulls last, id limit 1", (item_id,)).fetchone()
+    if step:
+        return claim(conn, step["id"], person)
+    return assign_item(conn, item_id, person, person)
+
 @_op
 def comment(conn, item_id: int, by: str, text: str, attachments: list[dict] | None = None) -> dict:
     _item(conn, item_id)

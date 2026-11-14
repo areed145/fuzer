@@ -113,12 +113,12 @@ def _pick(options: tuple, *key):
 
 def staff(conn) -> list[str]:
     """Put the crew on the roster (once): a roster entry someone changed since is left as they set it."""
-    from ..workflow import engine
+    from ..core import work
 
     added = []
     for name, roles in CREW.items():
         if not conn.execute("select 1 from work_person where name = %s", (name,)).fetchone():
-            engine.set_person(conn, name, roles, by="sample crew")
+            work.add_person(conn, name, roles, by="sample crew")
             added.append(name)
     return added
 
@@ -151,23 +151,6 @@ def _since(conn, item_id: int | None, fallback: datetime) -> datetime:
         return fallback
     row = conn.execute("select max(at) as at from work_event where item_id = %s", (item_id,)).fetchone()
     return row["at"] or fallback
-
-
-def _open_step(conn, item_id: int) -> dict | None:
-    return conn.execute("select id, assignee, role, element, created_at from work_token where item_id = %s "
-                        "and kind = 'user' and state in ('ready', 'waiting') order by due_at nulls last, id limit 1",
-                        (item_id,)).fetchone()
-
-
-def _take(conn, item_id: int, person: str) -> None:
-    """Take a case from its queue: claim its open step, or the case itself when no process runs it."""
-    from ..workflow import engine
-
-    step = _open_step(conn, item_id)
-    if step:
-        engine.claim(conn, step["id"], person)
-    else:
-        engine.assign_item(conn, item_id, person, person)
 
 
 def _field_jobs(rows: list[dict]) -> dict[str, int]:
@@ -275,7 +258,7 @@ def work_queue(t: _Tick) -> None:
 
         if r["role"] == "operator" and not r["assignee"]:  # in the operator queue: a free operator takes it
             who = free_operator()
-            if who and waited >= _minutes(20, 90, r["id"], "take") and t.act("take", _take, conn, r["item_id"], who):
+            if who and waited >= _minutes(20, 90, r["id"], "take") and t.act("take", work.take, conn, r["item_id"], who):
                 held[who] += 1
             continue
 
@@ -289,7 +272,7 @@ def work_queue(t: _Tick) -> None:
             if r["role"] != "data_steward" and _u(r["id"], "field") < FIELD_SHARE[field]:
                 send_out(r, "dispatch")
             elif desk and wip[desk] < room[desk]:
-                if t.act("take", _take, conn, r["item_id"], desk):
+                if t.act("take", work.take, conn, r["item_id"], desk):
                     wip[desk] += 1
                     hours = _desk_hours(r["id"])
                     if (due := dues.get(r["item_id"])) is not None and due < now + timedelta(hours=hours):
@@ -330,7 +313,7 @@ def _on_site(t: _Tick, r: dict, who: str) -> None:
 
 def daily_reports(t: _Tick) -> None:
     """The ops lead publishes each daily report an hour or two after its review comes up (a step nobody else holds)."""
-    from ..workflow import engine
+    from ..core import work
 
     for s in t.conn.execute(
             """
@@ -341,7 +324,7 @@ def daily_reports(t: _Tick) -> None:
         if t.now - s["created_at"] < _minutes(45, 180, s["item_id"], s["element"]):
             continue
         data = {"review_decision": "publish"} if s["element"] == "review" else {}
-        t.act("report_review", engine.complete, t.conn, s["id"], LEAD, data)
+        t.act("report_review", work.complete_step, t.conn, s["id"], LEAD, data)
 
 
 def walk_rounds(t: _Tick) -> None:
