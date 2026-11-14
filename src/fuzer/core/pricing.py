@@ -5,9 +5,10 @@ hosted model is reported as unpriced, and Ollama is free.
 """
 
 PRICES = {
+    "claude-fable-5-2": (8.0, 40.0, 0.20, 10.0),
     "claude-fable-5-1": (10.0, 50.0, 0.25, 12.5),
     "claude-opus-5-5": (4.0, 20.0, 0.20, 5.0),
-    "claude-sonnet-5-5": (2.0, 10.0, 0.20, 2.5),
+    "claude-sonnet-5-5": (2.0, 10.0, 0.10, 2.5),
     "claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125),
 }
 OPENAI_PRICES = {

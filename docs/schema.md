@@ -136,6 +136,26 @@ Settings (#131): values people set, per project ('project:<name>') or for all ('
 | `reason` | text |  |
 | `at` | timestamptz |  |
 
+### `llm_usage`
+
+Model usage: every provider call any feature makes, with its tokens and estimated cost (core/usage.py), so an administrator sees the whole AI spend on Settings > AI usage and the monthly budget (llm.budget_usd_month) holds.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `at` | timestamptz |  |
+| `project` | text |  |
+| `feature` | text |  |
+| `provider` | text |  |
+| `model` | text |  |
+| `input_tokens` | integer |  |
+| `output_tokens` | integer |  |
+| `cache_read_tokens` | integer |  |
+| `cache_write_tokens` | integer |  |
+| `cost_usd` | numeric(12, 6) |  |
+| `priced` | boolean |  |
+| `batch` | boolean |  |
+
 ### `project`
 
 Projects (#131): what one name selects (pack, data folder, mappings, time-series provider, timezone); a shipped seed bundle of the same name is the fallback when there is no row.

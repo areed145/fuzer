@@ -122,6 +122,25 @@ create table if not exists fuzer.setting_history (
 );
 create index if not exists setting_history_key on fuzer.setting_history (key, id);
 
+-- Model usage: every provider call any feature makes, with its tokens and estimated cost (core/usage.py), so an
+-- administrator sees the whole AI spend on Settings > AI usage and the monthly budget (llm.budget_usd_month) holds.
+create table if not exists fuzer.llm_usage (
+    id                 bigserial primary key,
+    at                 timestamptz not null default now(),
+    project            text,
+    feature            text not null,
+    provider           text not null,
+    model              text not null,
+    input_tokens       integer not null default 0,
+    output_tokens      integer not null default 0,
+    cache_read_tokens  integer not null default 0,
+    cache_write_tokens integer not null default 0,
+    cost_usd           numeric(12, 6) not null default 0,
+    priced             boolean not null default true,
+    batch              boolean not null default false
+);
+create index if not exists llm_usage_at on fuzer.llm_usage (at);
+
 -- Projects (#131): what one name selects (pack, data folder, mappings, time-series provider, timezone);
 -- a shipped seed bundle of the same name is the fallback when there is no row.
 create table if not exists fuzer.project (
