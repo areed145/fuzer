@@ -1,0 +1,15 @@
+{
+ "source": "https://learn.microsoft.com/en-us/kusto/api/rest/response",
+ "mirror": "https://github.com/MicrosoftDocs/dataexplorer-docs/blob/main/data-explorer/kusto/api/rest/response.md",
+ "retrieved": "2026-11-14",
+ "how": "Per the reference, a 401 carries no JSON error body (every other 4xx or 5xx does).",
+ "request": {
+  "csl": "print ok = 1"
+ },
+ "status": 401,
+ "headers": {
+  "content-type": "text/html",
+  "www-authenticate": "Bearer authorization_uri=\"https://login.microsoftonline.com/common/oauth2/authorize\""
+ },
+ "body": ""
+}

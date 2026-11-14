@@ -1,0 +1,207 @@
+{
+ "source": "https://learn.microsoft.com/en-us/kusto/api/rest/response",
+ "mirror": "https://github.com/MicrosoftDocs/dataexplorer-docs/blob/main/data-explorer/kusto/api/rest/response.md",
+ "retrieved": "2026-11-14",
+ "how": "Assembled to the v1 layout in the reference: the result table, @ExtendedProperties, QueryStatus (its columns as listed) and TableOfContents (its example rows), with column DataType/ColumnType pairs as ADX names them. The rows are synthetic (no site, tag or customer names).",
+ "request": {
+  "csl": "SeriesCatalog | project SeriesId, PiPoint, Description, Units, ValuesTable"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "Tables": [
+   {
+    "TableName": "Table_0",
+    "Columns": [
+     {
+      "ColumnName": "SeriesId",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "PiPoint",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "Description",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "Units",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "ValuesTable",
+      "DataType": "String",
+      "ColumnType": "string"
+     }
+    ],
+    "Rows": [
+     [
+      "5b0e6f8c-1d2a-4e3b-9c4d-5e6f7a8b9c0d",
+      "SITE:FI-101.PV",
+      "Inlet flow",
+      "Sm3/d",
+      "PiValues"
+     ],
+     [
+      "0c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f",
+      "SITE:PI-102.PV",
+      "Inlet pressure",
+      "barg",
+      "PiValues"
+     ],
+     [
+      "9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a",
+      "SITE:XS-103.PV",
+      "",
+      null,
+      "PiValues"
+     ]
+    ]
+   },
+   {
+    "TableName": "Table_1",
+    "Columns": [
+     {
+      "ColumnName": "Value",
+      "DataType": "String",
+      "ColumnType": "string"
+     }
+    ],
+    "Rows": [
+     [
+      "{\"Visualization\":null,\"Title\":null,\"XColumn\":null,\"Series\":null,\"YColumns\":null,\"AnomalyColumns\":null,\"XTitle\":null,\"YTitle\":null,\"XAxis\":null,\"YAxis\":null,\"Legend\":null,\"YSplit\":null,\"Accumulate\":false,\"IsQuerySorted\":false,\"Kind\":null,\"Ymin\":\"NaN\",\"Ymax\":\"NaN\",\"Xmin\":null,\"Xmax\":null}"
+     ]
+    ]
+   },
+   {
+    "TableName": "Table_2",
+    "Columns": [
+     {
+      "ColumnName": "Timestamp",
+      "DataType": "DateTime",
+      "ColumnType": "datetime"
+     },
+     {
+      "ColumnName": "Severity",
+      "DataType": "Int32",
+      "ColumnType": "int"
+     },
+     {
+      "ColumnName": "SeverityName",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "StatusCode",
+      "DataType": "Int32",
+      "ColumnType": "int"
+     },
+     {
+      "ColumnName": "StatusDescription",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "Count",
+      "DataType": "Int32",
+      "ColumnType": "int"
+     },
+     {
+      "ColumnName": "RequestId",
+      "DataType": "Guid",
+      "ColumnType": "guid"
+     },
+     {
+      "ColumnName": "ActivityId",
+      "DataType": "Guid",
+      "ColumnType": "guid"
+     },
+     {
+      "ColumnName": "SubActivityId",
+      "DataType": "Guid",
+      "ColumnType": "guid"
+     },
+     {
+      "ColumnName": "ClientActivityId",
+      "DataType": "String",
+      "ColumnType": "string"
+     }
+    ],
+    "Rows": [
+     [
+      "2026-11-14T08:12:44.1874031Z",
+      4,
+      "Info",
+      0,
+      "Query completed successfully",
+      1,
+      "6f1b2a4e-0c39-4f0a-9d7e-2b3c4d5e6f70",
+      "6f1b2a4e-0c39-4f0a-9d7e-2b3c4d5e6f70",
+      "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "fuzer;6f1b2a4e-0c39-4f0a-9d7e-2b3c4d5e6f70"
+     ]
+    ]
+   },
+   {
+    "TableName": "Table_3",
+    "Columns": [
+     {
+      "ColumnName": "Ordinal",
+      "DataType": "Int64",
+      "ColumnType": "long"
+     },
+     {
+      "ColumnName": "Kind",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "Name",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "Id",
+      "DataType": "String",
+      "ColumnType": "string"
+     },
+     {
+      "ColumnName": "PrettyName",
+      "DataType": "String",
+      "ColumnType": "string"
+     }
+    ],
+    "Rows": [
+     [
+      0,
+      "QueryResult",
+      "PrimaryResult",
+      "db9520f9-0455-4cb5-b257-53068497605a",
+      ""
+     ],
+     [
+      1,
+      "QueryProperties",
+      "@ExtendedProperties",
+      "908901f6-5319-4809-ae9e-009068c267c7",
+      ""
+     ],
+     [
+      2,
+      "QueryStatus",
+      "QueryStatus",
+      "00000000-0000-0000-0000-000000000000",
+      ""
+     ]
+    ]
+   }
+  ]
+ }
+}

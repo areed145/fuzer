@@ -1,0 +1,98 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2.",
+ "request": {
+  "method": "GET",
+  "path": "/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ/points",
+  "params": {
+   "startIndex": "0",
+   "maxCount": "3"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "Links": {
+   "First": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ/points?startIndex=0&maxCount=3",
+   "Next": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ/points?startIndex=3&maxCount=3",
+   "Last": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ/points?startIndex=3&maxCount=3"
+  },
+  "Items": [
+   {
+    "WebId": "F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001",
+    "Id": 1,
+    "Name": "SITE:FI-101.PV",
+    "Path": "\\\\SITE-PI\\SITE:FI-101.PV",
+    "Descriptor": "Inlet flow",
+    "PointClass": "classic",
+    "PointType": "Float32",
+    "DigitalSetName": "",
+    "EngineeringUnits": "Sm3/d",
+    "Step": false,
+    "Future": false,
+    "Links": {
+     "Self": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001",
+     "DataServer": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ",
+     "Attributes": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/attributes",
+     "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/interpolated",
+     "RecordedData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/recorded",
+     "PlotData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/plot",
+     "SummaryData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/summary",
+     "Value": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/value",
+     "EndValue": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0001/end"
+    }
+   },
+   {
+    "WebId": "F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002",
+    "Id": 2,
+    "Name": "SITE:PI-102.PV",
+    "Path": "\\\\SITE-PI\\SITE:PI-102.PV",
+    "Descriptor": "Inlet pressure",
+    "PointClass": "classic",
+    "PointType": "Float32",
+    "DigitalSetName": "",
+    "EngineeringUnits": "barg",
+    "Step": false,
+    "Future": false,
+    "Links": {
+     "Self": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002",
+     "DataServer": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ",
+     "Attributes": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/attributes",
+     "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/interpolated",
+     "RecordedData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/recorded",
+     "PlotData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/plot",
+     "SummaryData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/summary",
+     "Value": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/value",
+     "EndValue": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0002/end"
+    }
+   },
+   {
+    "WebId": "F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003",
+    "Id": 3,
+    "Name": "SITE:XS-103.PV",
+    "Path": "\\\\SITE-PI\\SITE:XS-103.PV",
+    "Descriptor": "Pump run status",
+    "PointClass": "classic",
+    "PointType": "Digital",
+    "DigitalSetName": "Run_Stop",
+    "EngineeringUnits": "",
+    "Step": true,
+    "Future": false,
+    "Links": {
+     "Self": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003",
+     "DataServer": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ",
+     "Attributes": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003/attributes",
+     "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003/interpolated",
+     "RecordedData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003/recorded",
+     "PlotData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003/plot",
+     "SummaryData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003/summary",
+     "Value": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003/value",
+     "EndValue": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0003/end"
+    }
+   }
+  ]
+ }
+}

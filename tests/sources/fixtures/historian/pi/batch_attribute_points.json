@@ -1,0 +1,46 @@
+{
+ "source": "https://pypi.org/project/osisoft.pidevclub.piwebapi/1.1.5/",
+ "retrieved": "2026-11-14",
+ "how": "Field names, nesting and Links from the PI Web API object model as AVEVA (then OSIsoft) published it: the PI Developers Club client generated from the PI Web API specification (osisoft.pidevclub.piwebapi 1.1.5, models PIPoint, PIAttribute, PIAttributeLinks, PIElement, PITimedValue, PIPaginationLinks, PIResponse, PIErrors). Values, names and WebIDs are synthetic. Not recorded from a server: re-record these from the pilot's own server under PL.2. The point an attribute's Links.Point names, read where its ConfigString holds substitution parameters.",
+ "request": {
+  "method": "POST",
+  "path": "/piwebapi/batch",
+  "params": {}
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "0": {
+   "Status": 200,
+   "Headers": {
+    "Content-Type": "application/json; charset=utf-8"
+   },
+   "Content": {
+    "WebId": "F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004",
+    "Id": 4,
+    "Name": "SITE:TI-104.PV",
+    "Path": "\\\\SITE-PI\\SITE:TI-104.PV",
+    "Descriptor": "Discharge temperature",
+    "PointClass": "classic",
+    "PointType": "Float32",
+    "DigitalSetName": "",
+    "EngineeringUnits": "degC",
+    "Step": false,
+    "Future": false,
+    "Links": {
+     "Self": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004",
+     "DataServer": "https://pi.example.com/piwebapi/dataservers/F1DSAAAAAAAAAAAAAAAAAAAAAAU0lURS1QSQ",
+     "Attributes": "https://pi.example.com/piwebapi/points/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004/attributes",
+     "InterpolatedData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004/interpolated",
+     "RecordedData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004/recorded",
+     "PlotData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004/plot",
+     "SummaryData": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004/summary",
+     "Value": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004/value",
+     "EndValue": "https://pi.example.com/piwebapi/streams/F1DPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0004/end"
+    }
+   }
+  }
+ }
+}

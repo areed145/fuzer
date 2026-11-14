@@ -1,0 +1,32 @@
+{
+ "source": "https://learn.microsoft.com/en-us/kusto/api/rest/response",
+ "mirror": "https://github.com/MicrosoftDocs/dataexplorer-docs/blob/main/data-explorer/kusto/api/rest/response.md",
+ "retrieved": "2026-11-14",
+ "how": "Verbatim example from the reference (its closing brace, missing on the page, restored).",
+ "request": {
+  "csl": "print Test=\"Hello, World!\""
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8"
+ },
+ "body": {
+  "Tables": [
+   {
+    "TableName": "Table_0",
+    "Columns": [
+     {
+      "ColumnName": "Text",
+      "DataType": "String",
+      "ColumnType": "string"
+     }
+    ],
+    "Rows": [
+     [
+      "Hello, World!"
+     ]
+    ]
+   }
+  ]
+ }
+}

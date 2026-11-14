@@ -60,6 +60,42 @@ class Type:
         raise NotImplementedError
 
 
+# What a failing HTTP status means to the person testing a connection (R.2): the server's own words follow.
+SAID = {401: "the server refused the credential (401): check the user and password or the token, which may have "
+             "expired",
+        403: "the credential works but may not read this (403): ask for read access",
+        404: "not found on the server (404): check the URL, server and database names",
+        429: "the server is throttling requests (429): wait and test again; Fuzer does not retry on its own",
+        503: "the server is busy or down (503): wait and test again; Fuzer does not retry on its own",
+        504: "the server timed out (504): test again with fewer rows, or ask whether it is under load"}
+
+
+def plain(e: Exception) -> str:
+    """A failure in plain words, for `fuzer sources test`: what went wrong and what to do, then what the server
+    said."""
+    import httpx
+
+    status = getattr(e, "status", None) or (e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None)
+    said = ""
+    if isinstance(e, httpx.HTTPStatusError):
+        try:
+            body = e.response.json()
+            said = "; ".join(body.get("Errors") or []) if isinstance(body, dict) else ""
+        except ValueError:
+            said = ""
+    elif status is not None:
+        said = str(e)
+    if status in SAID:
+        return SAID[status] + (f". The server said: {said}" if said else "")
+    if status:
+        return f"the server answered {status}" + (f": {said}" if said else "")
+    if isinstance(e, httpx.ConnectError):
+        return f"could not reach the server: {e}"
+    if isinstance(e, httpx.TimeoutException):
+        return "the server did not answer in time: check the network path to it"
+    return f"{type(e).__name__}: {e}"
+
+
 def _step(steps: list, name: str, fn):
     t = time.perf_counter()
     try:
@@ -67,8 +103,7 @@ def _step(steps: list, name: str, fn):
         steps.append({"step": name, "ok": True, "ms": round((time.perf_counter() - t) * 1000), "detail": detail})
         return detail
     except Exception as e:  # each step reports its own failure; later ones are skipped
-        steps.append({"step": name, "ok": False, "ms": round((time.perf_counter() - t) * 1000),
-                      "detail": f"{type(e).__name__}: {e}"})
+        steps.append({"step": name, "ok": False, "ms": round((time.perf_counter() - t) * 1000), "detail": plain(e)})
         raise _Stop from e
 
 
@@ -205,7 +240,9 @@ class Adx(Type):
         return adx.SeriesCatalog(self.client(), catalog=self.cfg.get("catalog"))
 
     def discover(self, data_dir: Path) -> list[str]:
-        return [r["TableName"] for r in self.client().query(".show tables")] if self.cfg.get("url") else []
+        """The catalog table this connection reads. Listing every table needs `.show tables`, a management command,
+        and the connector never calls the management endpoint (R.2b)."""
+        return [self.cfg.get("catalog") or "SeriesCatalog"] if self.cfg.get("url") else []
 
     def test(self, data_dir: Path, rows: int = 5) -> list[dict]:
         from . import adx
@@ -216,7 +253,8 @@ class Adx(Type):
             cat = self.cfg.get("catalog") or "SeriesCatalog"
             if not adx.IDENT.match(cat):
                 raise ConnectionError_(f"bad catalog table name {cat!r}")
-            _step(steps, "authenticate", lambda: {"database": c.database})
+            # The cheapest query there is, so a refused token fails here and not at the read.
+            _step(steps, "authenticate", lambda: {"database": c.database, "rows": c.query("print ok = 1")})
             _step(steps, "read", lambda: {"rows": c.query(f"{cat} | take {int(rows)}")})
         except _Stop:
             pass

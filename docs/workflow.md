@@ -240,6 +240,27 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (`POST /handovers/{id}/acknowledge`), which goes on the case history with who and when and closes the case. Past
   handovers are listed (`GET /handovers`) and readable. **Draft now** refreshes an unacknowledged one from live work.
 
+### The installed app on a phone
+
+A field operator adds Fuzer to the phone's home screen. It then opens on its own, without the browser's bar: an in-app
+Back walks the pages visited and never leaves the app, a cold launch resumes the last page from the last 12 hours, the
+bottom bar holds Home, My work, Explore and Investigate, and with no signal it opens to My work with the kept jobs
+(P5.14). The browser tests walk this at 390 px in standalone display (`ui/tests/browser.test.mjs`, the P5.14 tests).
+They emulate a phone and can't prove a real one, so check a real device before a site starts using it:
+
+| Check | iOS (Safari) | Android (Chrome) |
+|---|---|---|
+| Install | Share, then Add to Home Screen. The icon is the Fuzer mark, not a letter tile, and the name reads Fuzer. | Menu, then Install app (or Add to home screen). The icon and name are right, and the splash is the theme colour. |
+| Opens standalone | No Safari bar. The status bar is the theme colour. | No Chrome bar. |
+| Sign-in | Signing in returns to the installed app, not to Safari. The installed app keeps its own sign-in, separate from Safari's. | Signing in returns to the app. |
+| Back | Open My work, a job, its asset and its Timeline. Back on screen returns asset, job, My work; on a page opened from a link it goes up (an asset to Explore), never out of the app. | The same with on-screen Back, then with the system back gesture. |
+| Resume | Leave the app in the background long enough for iOS to discard it (or swipe it away), then open it: it opens on the last page. | Swipe it away and open it: it opens on the last page. |
+| Thumb reach | The bottom bar clears the home indicator, and each tab is easy to hit with a gloved thumb. The bar hides while the keyboard is up. | The bar clears the gesture area. |
+| No signal | With the job opened once, turn on airplane mode and open the app: My work shows the kept job and says there is no signal. A report made now waits in the outbox and goes when the signal returns. | The same. |
+| Links in | A notification link opens the job. A link shared from the app (Share in the top bar) opens the same page. | A link to the site opens in the app. |
+
+Note the phone, the OS version and anything that failed, and file it as an issue against P5.14 (#984).
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and

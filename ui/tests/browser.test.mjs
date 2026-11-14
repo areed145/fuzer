@@ -6763,3 +6763,76 @@ test("an asset's Overview says what it is; work orders and spares sit under Main
   await page.waitForFunction(() => new URLSearchParams(location.hash.split("?")[1]).get("drawing")?.endsWith("pid2"));
   assert.deepEqual(errors, []);
 });
+
+test("P5.14e A dispatched job walked in the installed app at 390 px: My work, the step, its asset, the trend, and Back to the step", async () => {
+  // Installed on a phone: standalone display, no browser back button, a gloved thumb.
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = { id: 7, type: "machine_health", key: "k-1", title: "Pump P-101 vibration", source: "sap", state: "open",
+    first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", joined_to: null, subjects: ["fz-p-101"],
+    label: "Machine health", finding: FINDINGS.sap_notification, priority: null, unmatched: [], item_id: 7, case_state: "open",
+    assignee: "fred", role: null, raised_count: 1, due: "2026-11-12T12:00:00Z", task_id: 42, task_name: "Review recorded evidence",
+    own_step: true, assets: [{ fuzer_id: "fz-p-101", label: "P-101 export pump", kind: "pump", lat: null, lon: null }],
+    checklist: [], sources: [], history: [], field: [], queued: false,
+    sent: { reason: "Check the drive-end bearing", by: "ines", at: "2026-11-12T05:50:00Z" } };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 1 }, queue: { total: 0 } } } }));
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
+    evidence: { ...demoTask.evidence, subjects: [{ fuzer_id: "fz-p-101" }] } } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/entities/fz-p-101", (route) => route.fulfill({ json: { fuzer_id: "fz-p-101", kind: "equipment",
+    label: "P-101 export pump", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.route("**/entities/fz-p-101/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
+  const vals = [["2026-11-11T00:00", 4.1], ["2026-11-11T12:00", 4.3], ["2026-11-12T00:00", 7.9]];
+  await page.route("**/entities/fz-p-101/trend-view*", (route) => route.fulfill({ json: { provider: "synthetic",
+    centre: "2026-11-12T00:00", start: "2026-11-10T00:00", end: "2026-11-12T06:00", step_minutes: 30, upsets: [],
+    unit: "fz-p-101", unit_label: "P-101 export pump", classes: ["PU"], template: { key: "PU", title: "Pump" }, missing: [],
+    groups: [{ key: "vibration", label: "Vibration", show: true, traces: [{ id: "vt1", point: "OK:VT101.PV",
+      description: "Pump vibration", uom: "mm/s", axis: "mm/s", show: true, values: vals, min: 4.1, max: 7.9, mean: 5.4,
+      last: 7.9, role_label: "Vibration", on: { id: "fz-p-101", label: "P-101 export pump", relation: "self" }, limits: [] }] }],
+    other: [] } }));
+  await page.route("**/entities/fz-p-101/timeline*", (route) => route.fulfill({ json: { unit: "fz-p-101",
+    start: "2026-11-10T00:00", end: "2026-11-12T06:00", lanes: [] } }));
+  await page.route("**/entities/fz-p-101/measurements*", (route) => route.fulfill({ json: { id: "fz-p-101", series: [], truncated: false } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fits = async (where) => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true,
+    `${where} fits 390 px with no sideways scroll`);
+  const back = page.locator(".topbar").getByRole("button", { name: /^Back/ });
+
+  // My work: the job the IOC sent, opened from the home screen.
+  await page.goto(`${url}/#/inbox`);
+  assert.equal(await page.locator("html").getAttribute("class"), "installed");
+  await page.getByRole("heading", { name: /Pump P-101 vibration/ }).waitFor();
+  await fits("My work");
+  // The step on that job.
+  await page.getByRole("link", { name: "Open step: Review recorded evidence" }).click();
+  await page.waitForURL(/#\/inbox\/task\/42$/);
+  await page.getByRole("heading", { name: "Review recorded evidence" }).first().waitFor();
+  await fits("the step");
+  // Its asset, from the step's evidence.
+  await page.locator('#main-content a[title="fz-p-101"]').first().click();
+  await page.waitForURL(/#\/e\/fz-p-101$/);
+  await page.getByRole("heading", { name: "P-101 export pump" }).first().waitFor();
+  await fits("the asset");
+  // Its trend.
+  await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link", { name: "Timeline", exact: true }).click();
+  await page.locator(".trend-view .main-svg").first().waitFor();
+  await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 10_000 })
+    .catch(() => assert.fail("the trend fits 390 px with no sideways scroll"));
+  const box = await back.boundingBox();
+  assert.ok(box.height >= 44 && box.width >= 44, "Back is big enough for a gloved thumb");
+
+  // Back on screen walks the way the operator came: the asset, then the step to report on, then My work.
+  await back.click();
+  await page.waitForURL(/#\/e\/fz-p-101$/);
+  await page.getByRole("heading", { name: "P-101 export pump" }).first().waitFor();
+  await back.click();
+  await page.waitForURL(/#\/inbox\/task\/42$/);
+  await page.getByRole("heading", { name: "Review recorded evidence" }).first().waitFor();
+  await fits("the step, after Back");
+  await back.click();
+  await page.waitForURL(/#\/inbox$/);
+  await page.getByRole("heading", { name: /Pump P-101 vibration/ }).waitFor();
+  await fits("My work, after Back");
+});
