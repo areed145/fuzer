@@ -998,18 +998,23 @@ def hand_over(conn, exception_id: int, by: str, to: str, done: str, left: str, u
     return _row(conn, row["id"])
 
 
-def accept_handover(conn, exception_id: int, by: str) -> dict:
-    """The incoming person takes the job handed to them (P5.11c): it moves to them, and who and when is kept."""
+def accept_handover(conn, exception_id: int, by: str, client_id: str | None = None) -> dict:
+    """The incoming person takes the job handed to them (P5.11c): it moves to them, and who and when is kept.
+    Accepted on a phone without signal (P5.17e), it comes with a `client_id` and is applied once."""
     row = _row(conn, exception_id, lock=True)
     if row["joined_to"]:
-        return accept_handover(conn, row["joined_to"], by)
+        return accept_handover(conn, row["joined_to"], by, client_id)
     h = (row["evidence"] or {}).get("handover")
+    client_id = (str(client_id).strip()[:80] or None) if client_id else None
+    if h and client_id and h.get("client_id") == client_id:
+        return row  # already accepted: the phone sent it again after losing the answer
     if not h or h.get("accepted_at"):
         raise ExceptionError("nothing is waiting to be handed over on this job")
     if h["to"] != by:
         raise ExceptionError(f"this handover is for {h['to']}")
     work.dispatch(conn, row["item_id"], h["from"], by, f"handover: {h['left']}")
-    h = {**h, "accepted_at": conn.execute("select now() as t").fetchone()["t"].isoformat()}
+    h = {**h, "accepted_at": conn.execute("select now() as t").fetchone()["t"].isoformat(),
+         **({"client_id": client_id} if client_id else {})}
     conn.execute("update exception_record set evidence = jsonb_set(evidence, '{handover}', %s) "
                  "|| jsonb_build_object('handovers', coalesce(evidence->'handovers', '[]') || %s), updated_at = now() "
                  "where id = %s", (Jsonb(h), Jsonb([h]), row["id"]))

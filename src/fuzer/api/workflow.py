@@ -51,6 +51,8 @@ class WorkStart(BaseModel):
 class WorkComplete(BaseModel):
     by: str
     data: dict[str, Any] = {}
+    client_id: str | None = None           # a completion the phone kept offline: applied once (P5.17e)
+    at: str | None = None                  # when the phone did it
 
 
 class WorkHandOff(BaseModel):
@@ -537,7 +539,7 @@ def work_release(task_id: int, b: WorkBy, conn=Depends(get_conn)):
 @router.post("/work/tasks/{task_id}/complete")
 def work_complete(task_id: int, c: WorkComplete, conn=Depends(get_conn)):
     """Complete a step with its form data. A requiresHuman step refuses agents (403)."""
-    return work.complete(conn, task_id, c.by, c.data)
+    return work.complete(conn, task_id, c.by, c.data, client_id=c.client_id, at=c.at)
 
 
 @router.post("/work/tasks/{task_id}/hand-off")

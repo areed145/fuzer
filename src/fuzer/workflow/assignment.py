@@ -74,10 +74,18 @@ def _waiting_task(t: dict) -> None:
 
 @_op
 def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str | None = None,
-             now: datetime | None = None) -> dict:
-    """Complete a person's or agent's step with its form data (merged into the process data)."""
+             now: datetime | None = None, client_id: str | None = None, at: str | None = None) -> dict:
+    """Complete a person's or agent's step with its form data (merged into the process data).
+
+    A completion the phone kept without signal (P5.17e) comes with its `client_id` and the time it was made: it is
+    applied once (sent again, it changes nothing), and that time is kept on the event as `made_at`."""
     run = _Run(conn, by, now)
     proc, t = _locked_task(run, token_id)
+    client_id = (str(client_id).strip()[:80] or None) if client_id else None
+    if client_id and conn.execute("select 1 from work_event where token_id = %s and data->>'client_id' = %s",
+                                  (token_id, client_id)).fetchone():
+        return {"task_id": token_id, "process_id": proc["id"], "item_id": proc["item_id"],
+                "process_state": proc["state"], "repeat": True}
     _waiting_task(t)
     if (t["requires_human"] or _fixed_gate(run, proc, t)) and is_agent(by):
         raise Forbidden(f"step '{t['name'] or t['element']}' needs a person; {by} can't complete it")
@@ -101,7 +109,8 @@ def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str
             return stop
     proc["data"].update(data)
     kind = "agent_result" if t["kind"] == "agent" and is_agent(by) else "completed"
-    run.event(kind, proc, t, step=t["name"] or t["element"], data=data, decision=data.get("decision"))
+    kept = {"client_id": client_id, "made_at": _made_at(run.now, at)} if client_id else {}
+    run.event(kind, proc, t, step=t["name"] or t["element"], data=data, decision=data.get("decision"), **kept)
     if t["kind"] == "fix":
         _update(run, t, state="ready", kind="auto", error=None, role=None, due_at=None)
     else:
@@ -110,6 +119,16 @@ def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str
     _advance(run, proc)
     run.flush()
     return {"task_id": token_id, "process_id": proc["id"], "item_id": proc["item_id"], "process_state": proc["state"]}
+
+def _made_at(now: datetime, at: str | None) -> str:
+    """When the phone says it was done: its own time, never in the future or more than a week back."""
+    try:
+        made = datetime.fromisoformat(str(at)) if at else now
+    except ValueError:
+        made = now
+    if made.tzinfo is None:
+        made = made.replace(tzinfo=now.tzinfo)
+    return min(max(made, now - timedelta(days=7)), now).isoformat()
 
 def _fixed_gate(run: _Run, proc: dict, t: dict) -> str | None:
     node = run.defn(proc).nodes.get(t["element"]) if proc else None

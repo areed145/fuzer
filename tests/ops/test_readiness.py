@@ -335,7 +335,9 @@ def test_a_job_handed_over_at_shift_change_stays_with_the_outgoing_operator_unti
         del conn.execute
     assert len(asked) <= 16, len(asked)
     assert client.post(f"/exceptions/{e}/handover/accept", json={"by": "otto"}).status_code == 400
-    assert client.post(f"/exceptions/{e}/handover/accept", json={"by": "gina"}).is_success
+    accept = {"by": "gina", "client_id": "phone-9"}  # accepted on the phone without signal (P5.17e)
+    assert client.post(f"/exceptions/{e}/handover/accept", json=accept).is_success
+    assert client.post(f"/exceptions/{e}/handover/accept", json=accept).is_success  # sent again: applied once
     [taken] = [j for j in exceptions.field_jobs(conn, "gina") if j["id"] == e]
     assert taken["handover"] is None and not taken["queued"]
     assert not [j for j in exceptions.field_jobs(conn, "fred") if j["id"] == e]

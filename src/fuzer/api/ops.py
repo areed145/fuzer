@@ -756,11 +756,16 @@ class ByPerson(BaseModel):
     by: str
 
 
+class HandoverAccept(BaseModel):
+    by: str
+    client_id: str | None = None           # accepted on a phone without signal: applied once (P5.17e)
+
+
 @router.post("/exceptions/{exception_id}/handover/accept")
-def exception_handover_accept(exception_id: int, b: ByPerson, conn=Depends(get_conn)):
+def exception_handover_accept(exception_id: int, b: HandoverAccept, conn=Depends(get_conn)):
     """The incoming person accepts a job handed to them (P5.11c)."""
     from ..ops import exceptions
-    return _exception_call(conn, exceptions.accept_handover, exception_id, b.by)
+    return _exception_call(conn, exceptions.accept_handover, exception_id, b.by, b.client_id)
 
 
 @router.post("/exceptions/{exception_id}/report")

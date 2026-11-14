@@ -15,6 +15,7 @@ import { UpsetPanel } from "./UpsetPanel";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
 import { FieldPhoto, photosOf } from "../../FieldPhoto";
+import { sendCompletion, useOutbox } from "../../fieldOffline";
 
 const TaskForm = lazy(() => import("../../TaskForm"));
 
@@ -28,6 +29,8 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
   const [done, setDone] = useState<string | null>(null);
   const [completion, setCompletion] = useState<Record<string, unknown> | null>(null);
   useEffect(() => { setCompletion(null); }, [v?.task.assignee, v?.task.state]);
+  // Closed out without signal (P5.17e): kept on the phone until the server has it, and shown as waiting, not done.
+  const kept = useOutbox().waiting.some((w) => w.kind === "task_complete" && (w.payload as { task: number }).task === id);
   if (!v || view.error) return <section><PageHeader>Task</PageHeader>
     {demo && <DemoContext step="workflow" />}
     <Status loading={view.loading} error={view.error} onRetry={view.reload} />
@@ -37,7 +40,9 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
   const others = !!t.assignee && t.assignee !== person;
   const complete = (data: Record<string, unknown>) => {
     if (demo) { setCompletion(data); return; }
-    return a.run("complete", () => api.complete(id, person, data), () => setDone(`Done: "${t.name ?? t.element}" on ${v.item.title}.`));
+    return a.run("complete", () => sendCompletion({ task: id, by: person, data }), (how) => setDone(how === "queued"
+      ? `Done on this phone: "${t.name ?? t.element}" sends, with this time, when the signal returns.`
+      : `Done: "${t.name ?? t.element}" on ${v.item.title}.`));
   };
   const refresh = () => { view.reload(); item.reload(); };
   const proc = item.data?.processes.find((p) => p.id === t.process_id);
@@ -64,7 +69,8 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
           <CaseAround id={v.item.id} />
           {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
             canMerge={waiting && operate && !demo} onMerged={refresh} />}
-          {demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
+          {kept && !demo ? <p className="notice small">Done on this phone, waiting to send. The case moves on when the signal
+            returns and the server has it.</p> : demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
             <Empty>This step is {t.state}{t.finished_by ? ` (by ${t.finished_by})` : ""}.</Empty>
           ) : t.kind === "agent" ? (
             <p>The {t.role} agent has this step{t.claimed_by ? ` (worker ${t.claimed_by})` : ""}. Hand it to a person to take it over.</p>

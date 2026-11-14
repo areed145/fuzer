@@ -4830,6 +4830,48 @@ test("P5.17d A round is walked without signal and each take arrives once with it
   await rounds.getByText("on this phone", { exact: false }).first().waitFor({ state: "detached" });
 });
 
+// P5.17e (#1094): a task step opened with signal is kept; closed out without it, it waits on the phone (shown as
+// waiting, not done) and reaches the server once, with its id and time, when the signal returns.
+test("P5.17e A task step closed out without signal waits on the phone and is completed once when signal returns", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let reachable = true;
+  const posts = [];
+  const view = { ...demoTask, task: { ...demoTask.task, assignee: "fred", role: "operator", name: "Check the gland" } };
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.(svg|png)$/.test(path)) return route.fallback();
+    if (!reachable) return route.abort("internetdisconnected");
+    if (path === "/work/tasks/42/complete") {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ json: { process_state: "running" } });
+    }
+    if (path === "/work/tasks/42") return route.fulfill({ json: view });
+    if (path === "/work/items/7") return route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox/task/42`);
+  await page.getByRole("heading", { name: "Check the gland", exact: true }).waitFor();
+  await page.waitForTimeout(300);  // kept as it was answered
+
+  reachable = false;
+  await page.reload();
+  await page.getByRole("heading", { name: "Check the gland", exact: true }).waitFor();
+  const before = Date.now();
+  await page.getByPlaceholder("Note").fill("Gland repacked, no weep");
+  await page.getByRole("button", { name: "Complete", exact: true }).click();
+  await page.getByText("Done on this phone, waiting to send", { exact: false }).waitFor();
+  assert.equal(posts.length, 0);
+
+  reachable = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  for (let i = 0; !posts.length && i < 100; i++) await page.waitForTimeout(100);
+  await page.waitForTimeout(300);
+  assert.equal(posts.length, 1);
+  assert.deepEqual(posts[0].data, { review_note: "Gland repacked, no weep" });
+  assert.ok(posts[0].client_id && Date.parse(posts[0].at) >= before - 1000, "with its id and the time it was done");
+});
+
 // P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
 // with what changed since they last looked, and reaches an item in another field in one click from Home.
 test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {
@@ -5273,7 +5315,10 @@ test("a job in progress is handed over at shift change and the incoming operator
   assert.equal(await theirs.getByRole("button", { name: "Take it" }).count(), 0);
   await theirs.getByRole("button", { name: "Accept the handover" }).click();
   await expectReports(accepted, 1);
-  assert.deepEqual(accepted[0], { by: "gina" });
+  // P5.17e (#1094): the accept carries a client id, so one resent after a dropped answer is applied once
+  const { client_id: acceptId, ...accept } = accepted[0];
+  assert.deepEqual(accept, { by: "gina" });
+  assert.match(acceptId, /^[0-9a-f-]{36}$/);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
