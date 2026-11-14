@@ -213,7 +213,9 @@ def _records(name: str, c, d: dict, since=None):
     from .formats import Formats
 
     fmt = Formats.of(d)
-    days = 0 if getattr(c, "live", False) else relative_dates.offset()
+    path = getattr(c, "path", None)  # a CSV or JSON of relative dates arrives resolved (connectors._relative): not moved
+    days = 0 if getattr(c, "live", False) or (path is not None and connectors._relative(Path(path))) \
+        else relative_dates.offset()
     today = relative_dates.plant_today()
     # moved first, then relative dates (`today-1d`, in any table kind) resolved: a relative date is never moved
     place = lambda row: relative_dates.resolve_all(relative_dates.roll_all(row, days), today)
