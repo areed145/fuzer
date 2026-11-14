@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Card, Field, Select } from "./ui";
+import { Button, Card, Field, Notice, Select } from "./ui";
 
 export type ThemePreference = "system" | "light" | "dark";
 const KEY = "fuzer.theme";
@@ -44,12 +44,30 @@ const subscribe = (onChange: () => void) => {
   return () => window.removeEventListener(THEME_CHANGED, onChange);
 };
 
+/** Field mode (P5.17g): larger targets, larger type and high contrast for gloves and sun, kept on this device. */
+const FIELD_KEY = "fuzer.fieldMode";
+let fieldMode = false;
+try { fieldMode = localStorage.getItem(FIELD_KEY) === "on"; } catch { /* storage unavailable: off */ }
+function applyFieldMode() {
+  document.documentElement.classList?.toggle("field-mode", fieldMode);
+  window.dispatchEvent(new Event(THEME_CHANGED));
+}
+export function setFieldMode(on: boolean) {
+  fieldMode = on;
+  try { localStorage.setItem(FIELD_KEY, on ? "on" : "off"); } catch { /* lasts for this visit */ }
+  applyFieldMode();
+}
+/** Whether this device has made a choice about field mode yet (so it is offered once). */
+export const fieldModeChosen = () => { try { return localStorage.getItem(FIELD_KEY) !== null; } catch { return true; } };
+applyFieldMode();
+export const useFieldMode = () => useSyncExternalStore(subscribe, () => fieldMode);
+
 export function useTheme() {
   return useSyncExternalStore(subscribe, () => document.documentElement.dataset.theme);
 }
 
 export function Appearance() {
-  useSyncExternalStore(subscribe, () => `${preference}|${persistenceError}|${document.documentElement.dataset.theme}`);
+  useSyncExternalStore(subscribe, () => `${preference}|${persistenceError}|${document.documentElement.dataset.theme}|${fieldMode}`);
   const theme = document.documentElement.dataset.theme;
   return (
     <Card title="Appearance">
@@ -61,7 +79,23 @@ export function Appearance() {
         </Select>
       </Field>
       <p className="small">Currently using {theme} mode.</p>
+      <label className="row">
+        <input type="checkbox" checked={fieldMode} onChange={(e) => setFieldMode(e.target.checked)} />
+        <span>Field mode: larger buttons for gloves and high contrast for sunlight, on this device</span>
+      </label>
       {persistenceError && <p role="status" className="error small">{persistenceError}</p>}
     </Card>
   );
+}
+
+/** Offered once, the first time the installed app opens on a phone (P5.17g). */
+export function FieldModeOffer() {
+  const on = useFieldMode();
+  const offer = !on && !fieldModeChosen() && document.documentElement.classList.contains("installed") && window.innerWidth <= 900;
+  if (!offer) return null;
+  return <Notice className="row">
+    <span>Gloves on, or in bright sun? Field mode makes buttons larger and the screen easier to read.</span>
+    <Button variant="primary" onClick={() => setFieldMode(true)}>Turn on field mode</Button>
+    <Button onClick={() => setFieldMode(false)}>Not now</Button>
+  </Notice>;
 }

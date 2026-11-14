@@ -5,48 +5,73 @@
  * else waiting on them. */
 import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
-import { Badge, Button, ButtonLink, Card, Input } from "../ui";
+import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
-import { OUTBOX_CHANGED, clearRefused, flush, outbox, refusedReasons, sendHandoverAccept, sendPlanChange, sendReport, sendTake,
-  useOutbox, type FlushResult, type QueuedTake } from "../fieldOffline";
+import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
+  sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
 import { NEEDS_SIGNAL } from "../signal";
 import { useSignal } from "../useSignal";
-
-/** Reports kept on this phone while there was no signal (P5.3c): the app's one sender (P5.17a) sends them as soon as
- * the signal returns, from whichever page is open; this card counts them and can send now by hand. */
-export function Outbox({ onSent }: { onSent: () => void }) {
-  const [waiting, setWaiting] = useState(0);
-  const [refused, setRefused] = useState<string[]>(refusedReasons());
-  const [busy, setBusy] = useState(false);
-  const sentRef = useRef(onSent);
-  sentRef.current = onSent;
-  useEffect(() => {
-    let active = true;
-    const count = (e?: Event) => {
-      const r = (e as CustomEvent<FlushResult | undefined> | undefined)?.detail;
-      if (r?.sent) sentRef.current();
-      setRefused(refusedReasons());
-      void outbox().then((w) => { if (active) setWaiting(w.length); });
-    };
-    window.addEventListener(OUTBOX_CHANGED, count);
-    count();
-    return () => { active = false; window.removeEventListener(OUTBOX_CHANGED, count); };
-  }, []);
-  if (!waiting && !refused.length) return null;
-  const send = async () => { setBusy(true); try { await flush(); } finally { setBusy(false); } };
-  return (
-    <Card className="field-outbox" title={waiting ? `${waiting} report${waiting > 1 ? "s" : ""} waiting to send` : "Reports not accepted"}>
-      {waiting > 0 && <p className="small">Made without signal and kept on this phone. They send, with the time you made them, when the signal returns.</p>}
-      {refused.map((r, i) => <p key={i} role="alert" className="error small">Not accepted: {r}</p>)}
-      {waiting > 0 && <Button disabled={busy} onClick={send}>{busy ? "Sending…" : "Send now"}</Button>}
-      {!waiting && <Button onClick={clearRefused}>Dismiss</Button>}
-    </Card>
-  );
-}
 import { Status, entityHref, href, useAsync } from "../lib";
 import { Due, reportedBy, when } from "../work";
 import { FindingEvidence } from "../Finding";
 import { taskHref, useAct } from "./workflows/shared";
+
+/** Reports kept on this phone while there was no signal (P5.3c): the app's one sender (P5.17a) sends them as soon as
+ * the signal returns, from whichever page is open; this card counts them and can send now by hand. One the server
+ * refused stays here with its reason (P5.17f), for the operator to send as a note, send to another job, or discard. */
+export function Outbox({ onSent, jobs = [] }: { onSent: () => void; jobs?: { id: number; title: string }[] }) {
+  const { waiting, refused, cleared } = useOutbox();
+  const [busy, setBusy] = useState(false);
+  const sentRef = useRef(onSent);
+  sentRef.current = onSent;
+  useEffect(() => {
+    const done = (e: Event) => { if ((e as CustomEvent<FlushResult | undefined>).detail?.sent) sentRef.current(); };
+    window.addEventListener(OUTBOX_CHANGED, done);
+    return () => window.removeEventListener(OUTBOX_CHANGED, done);
+  }, []);
+  const gone = cleared && <Notice tone={cleared.lost ? "danger" : "warn"} className="field-cleared" role="alert">
+    Your offline copy was cleared by the phone; fetching again.
+    {cleared.lost > 0 && <> {cleared.lost === 1 ? "1 report" : `${cleared.lost} reports`} made without signal went with it and
+      never reached the IOC: tell them what {cleared.lost === 1 ? "it" : "they"} said.</>}
+    {" "}<Button variant="ghost" onClick={dismissCleared}>Got it</Button>
+  </Notice>;
+  if (!waiting.length && !refused.length) return gone || null;
+  const n = waiting.length;
+  const send = async () => { setBusy(true); try { await flush(); } finally { setBusy(false); } };
+  return (<>{gone}
+    <Card className="field-outbox" title={n ? `${n} report${n > 1 ? "s" : ""} waiting to send` : "Not accepted"}>
+      {n > 0 && <p className="small">Made without signal and kept on this phone. They send, with the time you made them, when the signal returns.</p>}
+      {n > 0 && <Button disabled={busy} onClick={send}>{busy ? "Sending…" : "Send now"}</Button>}
+      {refused.map((w) => <Refused key={w.client_id} w={w} jobs={jobs} />)}
+    </Card>
+  </>);
+}
+
+function Refused({ w, jobs }: { w: QueuedWrite; jobs: { id: number; title: string }[] }) {
+  const { busy, error, run } = useAct();
+  const [to, setTo] = useState("");
+  const note = asNote(w);
+  const from = (w.payload as { exception_id?: number }).exception_id;
+  const others = w.kind === "field_report" ? jobs.filter((j) => j.id !== from) : [];
+  return <div className="field-refused">
+    <p role="alert" className="small"><strong>Not accepted:</strong> {w.refused?.reason}</p>
+    <p className="small">{describe(w)}. Kept on this phone.</p>
+    <div className="row field-actions">
+      {note && <Button disabled={!!busy} onClick={() => run("Sending", note)}>Send as a note</Button>}
+      {others.length > 0 && <>
+        <Select aria-label="Send it to another of your jobs" value={to} onChange={(e) => setTo(e.target.value)}>
+          <option value="">another job…</option>
+          {others.map((j) => <option key={j.id} value={j.id}>{j.title}</option>)}
+        </Select>
+        <Button disabled={!!busy || !to} onClick={() => run("Sending", () => moveReport(w, Number(to)))}>Send there</Button>
+      </>}
+      <ConfirmAction label="discard" busy={!!busy}
+        consequence="Throw this away from the phone. The IOC never gets it, and it can't be brought back."
+        onConfirm={() => void run("Discarding", () => discard(w))} />
+    </div>
+    {error && <p role="alert" className="error small">{error}</p>}
+  </div>;
+}
 
 const SAID: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
 

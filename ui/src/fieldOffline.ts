@@ -30,6 +30,8 @@ export interface QueuedWrite<P = unknown> {
   /** The signed-in account that made it ("" in local mode), and the project it was made in. */
   account: string; project: string;
   payload: P; photos?: store.KeptPhoto[];
+  /** The server said no (P5.17f): kept with its reason until the operator resends, moves or discards it. */
+  refused?: { reason: string; at: string };
 }
 
 type Jobs = { person: string; jobs: FieldJob[]; coming_up: PlanItem[]; offline?: { since: string } };
@@ -58,13 +60,52 @@ const senders = new Map<string, Sender>();
 /** How a kind of queued write is sent. Each sender must be idempotent on `client_id`. */
 export function registerSender(kind: string, send: Sender) { senders.set(kind, send); }
 
-const changed = (detail?: FlushResult) => window.dispatchEvent(new CustomEvent(OUTBOX_CHANGED, { detail }));
+const changed = (detail?: FlushResult) => {
+  window.dispatchEvent(new CustomEvent(OUTBOX_CHANGED, { detail }));
+  void mine().then((all) => note({ waiting: all.length }));
+};
 
-/** What waits to send for the signed-in account, oldest first. */
-export async function outbox(): Promise<QueuedWrite[]> {
+/** What the phone should still hold for each account, noted in `localStorage` (P5.17h): iOS can clear an installed
+ * app's IndexedDB under storage pressure or after weeks unused, and without the note an emptied store would look like
+ * a first launch. When the whole origin is cleared the note goes too, and the next load with signal fetches again. */
+const MARKER = "fuzer.field.marker";
+type Marker = { kept?: boolean; waiting?: number };
+let checked = false;
+const readMarker = (): Record<string, Marker> => {
+  try { return JSON.parse(localStorage.getItem(MARKER) ?? "{}") as Record<string, Marker>; } catch { return {}; }
+};
+function note(m: Marker) {
+  if (!checked) return;  // not before the store has been checked against the note
+  try {
+    const all = readMarker();
+    localStorage.setItem(MARKER, JSON.stringify({ ...all, [account]: { ...all[account], ...m } }));
+  } catch { /* storage unavailable */ }
+}
+
+/** The phone cleared what it kept, and how many writes went with it, once noticed; until the operator dismisses it. */
+let cleared: { lost: number } | null = null;
+export const dismissCleared = () => { cleared = null; changed(); };
+
+async function noticeCleared() {
+  try {
+    const was = readMarker()[account];
+    if (!was || (!was.kept && !was.waiting) || !(await store.durable())) return;
+    const kept = (await store.keys("kept")).some((k) => k.startsWith(`jobs:${account}:`));
+    const queued = (await store.all<QueuedWrite>("outbox")).some((w) => w.account === account);
+    if (!kept && !queued) cleared = { lost: was.waiting ?? 0 };
+  } finally {
+    checked = true;
+  }
+}
+
+async function mine(): Promise<QueuedWrite[]> {
   await migrated;
   return (await store.all<QueuedWrite>("outbox")).filter((w) => w.account === account).sort((a, b) => a.at.localeCompare(b.at));
 }
+/** What waits to send for the signed-in account, oldest first. */
+export const outbox = async () => (await mine()).filter((w) => !w.refused);
+/** What the server refused, kept on the phone with its reason (P5.17f). */
+export const refusedWrites = async () => (await mine()).filter((w) => w.refused);
 
 const LEGACY_OUTBOX = "fuzer.field.outbox";
 const LEGACY_JOBS = "fuzer.field.jobs.";
@@ -97,7 +138,12 @@ export function outboxSession(actor: string, isLive: boolean) {
   account = actor;
   live = isLive;
   migrated ??= migrate().catch(() => undefined);
-  void migrated.then(() => { changed(); if (live) void flush(); });
+  void migrated.then(async () => {
+    if (!checked) await noticeCleared();
+    if (cleared) note({ kept: false });
+    changed();
+    if (live) void flush();
+  });
 }
 
 const jobsKey = (person: string) => `jobs:${account}:${getProject()}:${person}`;
@@ -106,7 +152,8 @@ const jobsKey = (person: string) => `jobs:${account}:${getProject()}:${person}`;
 export async function fieldJobs(person: string): Promise<Jobs> {
   try {
     const fresh = await api.fieldJobs(person);
-    void store.put("kept", { ...fresh, kept_at: new Date().toISOString() }, jobsKey(person));
+    void store.put("kept", { ...fresh, kept_at: new Date().toISOString() }, jobsKey(person))
+      .then((ok) => { if (ok) note({ kept: true }); });
     setTimeout(() => void warmPack(fresh.jobs), WARM_AFTER_MS);
     return fresh;
   } catch (e) {
@@ -190,6 +237,7 @@ export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
 export async function forgetKept(): Promise<void> {
   await clearKept(account);
   await store.remove("kept", `warm:${account}:${getProject()}`);
+  note({ kept: false });
 }
 
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID()
@@ -238,7 +286,7 @@ export const sendTake = (t: QueuedTake) => sendOrQueue("round_take", t);
 
 /** The rest of what the field does at the asset (P5.17e): a task step's close-out, accepting a handover, and saying a
  * planned job has started or is done. Each is idempotent on the server (a client id, or setting a state). */
-export interface QueuedCompletion { task: number; by: string; data: Record<string, unknown> }
+export interface QueuedCompletion { task: number; by: string; data: Record<string, unknown>; item?: number }
 registerSender("task_complete", (w) => {
   const c = w.payload as QueuedCompletion;
   return api.complete(c.task, c.by, c.data, { client_id: w.client_id, at: w.at, project: w.project });
@@ -262,14 +310,10 @@ export const sendReport = ({ photos, ...r }: Omit<QueuedReport, "client_id" | "a
 let flushing = false;
 /** True while the sender is sending, for the shell's status (P5.17b). */
 export const sending = () => flushing;
-let lastRefused: string[] = [];
-/** The reasons the last send was refused, so a page opened after it can still say so. */
-export const refusedReasons = () => lastRefused;
-export const clearRefused = () => { lastRefused = []; changed(); };
-
-/** Send what waited, oldest first. A write the server refuses is dropped and its reason returned, so the operator
- * hears it; one that still can't reach the server stays for next time, and so does everything while the session
- * needs signing in again. One send at a time, across tabs where the browser offers locks. */
+/** Send what waited, oldest first. A write the server refuses is never dropped and never sent again by itself
+ * (P5.17f): it stays on the phone with the reason, for the operator to resend as a note, move or discard. One that
+ * still can't reach the server stays for next time, and so does everything while the session needs signing in again.
+ * One send at a time, across tabs where the browser offers locks. */
 export async function flush(): Promise<FlushResult> {
   const out: FlushResult = { sent: 0, refused: [], held: false };
   if (flushing || !live || !(await outbox()).length || flushing) return out;
@@ -283,7 +327,10 @@ export async function flush(): Promise<FlushResult> {
       } catch (e) {
         if (unreachable(e)) break;
         if (heldBySession(e)) { out.held = true; break; }
-        out.refused.push((e as Error).message);
+        const reason = (e as Error).message;
+        out.refused.push(reason);
+        await store.put("outbox", { ...w, refused: { reason, at: new Date().toISOString() } });
+        continue;
       }
       await store.remove("outbox", w.client_id);
     }
@@ -294,7 +341,6 @@ export async function flush(): Promise<FlushResult> {
     else await run();
   } finally {
     flushing = false;
-    if (out.refused.length) lastRefused = out.refused;
     changed(out);
   }
   return out;
@@ -311,18 +357,71 @@ export function startOutbox() {
   window.setInterval(() => { if (visible()) void flush(); }, 30_000);
 }
 
-export interface OutboxState { waiting: QueuedWrite[]; refused: string[]; sending: boolean }
+export interface OutboxState { waiting: QueuedWrite[]; refused: QueuedWrite[]; sending: boolean;
+  /** The phone cleared what it kept (P5.17h), with how many writes waiting to send went with it. */
+  cleared: { lost: number } | null }
 /** What waits on the phone, what the server refused and whether it is sending now, kept current. */
 export function useOutbox(): OutboxState {
-  const [state, setState] = useState<OutboxState>({ waiting: [], refused: lastRefused, sending: flushing });
+  const [state, setState] = useState<OutboxState>({ waiting: [], refused: [], sending: flushing, cleared });
   useEffect(() => {
     let active = true;
-    const read = () => void outbox().then((waiting) => {
-      if (active) setState({ waiting, refused: lastRefused, sending: flushing });
+    const read = () => void mine().then((all) => {
+      if (active) setState({ waiting: all.filter((w) => !w.refused), refused: all.filter((w) => w.refused), sending: flushing,
+        cleared });
     });
     window.addEventListener(OUTBOX_CHANGED, read);
     read();
     return () => { active = false; window.removeEventListener(OUTBOX_CHANGED, read); };
   }, []);
   return state;
+}
+
+/** Throw away a write the server refused (P5.17f), once the operator has confirmed it. */
+export async function discard(w: QueuedWrite): Promise<void> {
+  await store.remove("outbox", w.client_id);
+  changed();
+}
+
+/** What a refused write said, in a sentence a person can pass on. */
+export function describe(w: QueuedWrite): string {
+  const p = w.payload as Record<string, unknown>;
+  const made = new Date(w.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const reading = (p.reading as FieldReading | undefined);
+  const said: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
+  switch (w.kind) {
+    case "field_report": return `${said[String(p.status)] ?? "Report"}${p.note ? `: ${p.note}` : ""}${reading ? ` (${reading.what ?
+      `${reading.what} ` : ""}${reading.value} ${reading.unit})` : ""}${w.photos?.length ? `, ${w.photos.length} photo${w.photos.length > 1 ? "s" : ""}` : ""}, made ${made}`;
+    case "round_take": return `Round point ${p.point}: ${p.value ?? (p.passed ? "passed" : `found something: ${p.note ?? ""}`)}, taken ${made}`;
+    case "task_complete": return `Step closed out ${made}${Object.keys((p.data as object) ?? {}).length ? `: ${Object.values(p.data as object).join("; ")}` : ""}`;
+    case "handover_accept": return `Handover accepted ${made}`;
+    case "plan_change": return `Planned job marked ${p.status === "done" ? "done" : "started"} ${made}`;
+    default: return `${w.kind}, made ${made}`;
+  }
+}
+
+/** A refused write can go on as a note (P5.17f): a job report as a Note on the same job, keeping its photos; a step's
+ * close-out as a note on its case. Either way the IOC still gets what was seen. Null when it can't. */
+export function asNote(w: QueuedWrite): (() => Promise<void>) | null {
+  const p = w.payload as Record<string, unknown>;
+  const why = `Made on the phone ${new Date(w.at).toLocaleString()}, not accepted: ${w.refused?.reason ?? ""}`;
+  if (w.kind === "field_report") return async () => {
+    const photos = await Promise.all((w.photos ?? []).map(store.photoUrl));
+    await sendOrQueue("field_report", { exception_id: p.exception_id, by: p.by, status: "note", reading: p.reading,
+      note: `${describe({ ...w, photos: [] })}. ${why}` }, photos);
+    await discard(w);
+  };
+  // A comment isn't idempotent, so it is sent now (with signal) rather than queued: without signal it fails and the
+  // refused close-out stays on the phone.
+  if (w.kind === "task_complete" && typeof p.item === "number") return async () => {
+    await api.comment(p.item as number, String(p.by), `${describe(w)}. ${why}`, w.project);
+    await discard(w);
+  };
+  return null;
+}
+
+/** Send a refused job report to another of the operator's jobs instead, as it was (P5.17f). */
+export async function moveReport(w: QueuedWrite, exceptionId: number): Promise<void> {
+  const photos = await Promise.all((w.photos ?? []).map(store.photoUrl));
+  await sendOrQueue("field_report", { ...(w.payload as object), exception_id: exceptionId }, photos);
+  await discard(w);
 }

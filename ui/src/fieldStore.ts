@@ -98,6 +98,13 @@ export async function put(store: StoreName, value: unknown, key?: string): Promi
   }
 }
 
+/** Every key in a store, without reading what is kept under it. */
+export async function keys(store: StoreName): Promise<string[]> {
+  const db = await open();
+  if (!db) return Object.keys(fallbackRead(store));
+  try { return ((await commit<IDBValidKey[]>(db, store, "readonly", (s) => s.getAllKeys())) ?? []).map(String); } catch { return []; }
+}
+
 /** Every [key, value] in a store. */
 export async function entries<T>(store: StoreName): Promise<[string, T][]> {
   const db = await open();

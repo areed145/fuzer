@@ -12,6 +12,7 @@ import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
 import { ComingUp, FieldJobCard, Outbox, RoundsThisShift } from "../Field";
 import { fieldJobs } from "../../fieldOffline";
+import { FieldModeOffer } from "../../theme";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
  * A field job's card carries its case's step, so that case is not counted twice. */
@@ -90,7 +91,8 @@ export function InboxPage() {
       </Notice>}
       {offline && <Notice tone="warn">No signal: these are your jobs as kept on this phone{offline.since ? ` ${when(offline.since)}` : ""}.
         Reports wait here and send when the signal returns.</Notice>}
-      <Outbox onSent={() => { field.reload(); inbox.reload(); }} />
+      <FieldModeOffer />
+      <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
       {!offline && <NewForYou person={person} told={told} />}
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}

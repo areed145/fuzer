@@ -47,6 +47,7 @@ import { Status } from "./lib";
 import "./theme";
 import { AuthGate, useViewOnly } from "./Auth";
 import { startOutbox } from "./fieldOffline";
+import "./styles/field-mode.css";
 
 /** Pages that change configuration, where the demo account looks but can't change (#1068). */
 const VIEW_ONLY_SECTIONS = new Set(["sources", "ontology", "jobs", "settings", "users", "access", "processes", "routing"]);

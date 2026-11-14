@@ -3,19 +3,29 @@
  * API answers are never cached by this worker, so nothing it serves can be stale data passed off as live. */
 const SHELL = "fuzer-shell-v1";
 
-async function keepShell() {
-  const cache = await caches.open(SHELL);
-  const page = await fetch("/", { credentials: "same-origin", cache: "no-store" });
-  if (!page.ok) return;
+/** Keep a page and the built files it names, files first: a kept page never names a file that isn't kept (P5.17h).
+ * Throws if any of them can't be fetched, leaving the copy kept before as it was. */
+async function keepPage(page) {
   const html = await page.clone().text();
+  const cache = await caches.open(SHELL);
+  const files = [...new Set([...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]))];
+  const missing = [];
+  for (const file of files) if (!(await cache.match(file, { ignoreVary: true }))) missing.push(file);
+  await cache.addAll(missing);
   await cache.put("/", page);
-  // The page's own script, styles and icons, so the first launch without signal has them too.
-  const files = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
-  await Promise.all(files.map((file) => cache.add(file).catch(() => undefined)));
 }
 
+async function keepShell() {
+  const page = await fetch("/", { credentials: "same-origin", cache: "no-store" });
+  if (!page.ok) throw new Error(`The app's page answered ${page.status}`);
+  await keepPage(page);
+}
+
+// A new worker that can't keep the whole app (the signal dropped while it installed) fails to install, so the browser
+// keeps the worker already in place and its copy, and tries again on a later launch. A worker that installed the
+// first time with a partial copy would otherwise strand the phone on a page whose script it doesn't have.
 self.addEventListener("install", (event) => {
-  event.waitUntil(keepShell().catch(() => undefined).then(() => self.skipWaiting()));
+  event.waitUntil(keepShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -32,10 +42,7 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     // The page: from the network when there is signal (and kept for later), the kept copy when there isn't.
     event.respondWith(fetch(request).then((response) => {
-      if (response.ok && url.pathname === "/") {
-        const copy = response.clone();
-        caches.open(SHELL).then((cache) => cache.put("/", copy));
-      }
+      if (response.ok && url.pathname === "/") event.waitUntil(keepPage(response.clone()).catch(() => undefined));
       return response;
     }).catch(() => caches.match("/", { ignoreVary: true }).then((kept) => kept ?? Response.error())));
     return;
