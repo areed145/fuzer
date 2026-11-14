@@ -100,7 +100,7 @@ function popup(f: GeoFeature): HTMLElement {
 function hotspotIcon(p: AttentionPlace, selected: boolean, labelled: boolean): L.DivIcon {
   const size = Math.round(Math.min(46, 26 + 4 * Math.sqrt(p.open)));
   const html = `<span class="hotspot-dot" style="width:${size}px;height:${size}px">${p.open}</span>`
-    + (p.overdue ? `<span class="hotspot-late" aria-hidden="true"></span>` : "")
+    + (p.overdue ? `<span class="hotspot-late" aria-hidden="true"><svg viewBox="-8 -8 16 16"><path d="M0,-4 L0,0 L3,2"/></svg></span>` : "")
     + (labelled ? `<span class="hotspot-label">${esc(p.name ?? p.label)}</span>` : "");
   return L.divIcon({ className: `hotspot hotspot-${p.band}${selected ? " selected" : ""}`, html,
                      iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
@@ -291,15 +291,17 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     const g = spots.current;
     if (!m || !g || !hotspots) return;
     g.clearLayers();
-    // Least urgent first, so the most urgent sit on top where markers overlap; only high ones are named on a phone.
-    const narrow = matchMedia("(max-width: 600px)").matches;
+    // Least urgent first, so the most urgent sit on top where markers overlap. The chosen place is named on the map;
+    // the rest name themselves on hover, with every name in the list beside the map.
+    const narrow = matchMedia("(max-width: 600px)").matches;  // a phone names only the chosen place
     const rank = { high: 0, medium: 1, low: 2 };
     for (const p of [...hotspots].sort((a, b) => rank[b.band] - rank[a.band])) {
       const marker = L.marker([p.lat, p.lon], {
-        icon: hotspotIcon(p, p.id === selected, !narrow || p.band === "high" || p.id === selected),
+        icon: hotspotIcon(p, p.id === selected, p.id === selected || (!narrow && hotspots.length <= 3)),
         title: `${p.name ?? p.label}: ${p.open} open${p.overdue ? `, ${p.overdue} overdue` : ""}`,
         alt: p.name ?? p.label, riseOnHover: true, zIndexOffset: p.id === selected ? 1000 : 0,
       }).on("click", () => onSelect?.(p.id)).addTo(g);
+      if (p.id !== selected) marker.bindTooltip(esc(p.name ?? p.label), { direction: "right", offset: [14, 0] });
       marker.on("keypress", (e: L.LeafletKeyboardEvent) => {
         if (e.originalEvent.key === "Enter" || e.originalEvent.key === " ") onSelect?.(p.id);
       });
@@ -386,7 +388,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
           <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="map-control-button" />
         </div>
         {mapMessage && <div className="map-message" role="status">{mapMessage}</div>}
-        {baseError && basemapName !== "none" && <div className="map-message" role="status">
+        {baseError && basemapName !== "none" && !compact && <div className="map-message" role="status">
           Base map unavailable: its tiles could not load, so features are drawn on a plain background.</div>}
         <div ref={el} className={`map${basemapName === "none" ? "" : ` map-basemap-${basemapName}`}`} style={{ height }} />
       </div>

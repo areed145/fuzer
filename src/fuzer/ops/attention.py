@@ -20,6 +20,7 @@ RELS = ("part_of", "installed_at", "located_at")
 HIGH, MEDIUM = 0.8, 0.5
 TOP = 3
 DATA_ROLE = "role:data_steward"
+MERGE_M = 250
 
 
 def band(priority: float | None) -> str:
@@ -53,10 +54,38 @@ def _places(conn, ids: list[str]) -> dict[str, dict]:
     return {r["start"]: dict(r) for r in rows}
 
 
+def _housekeeping(kinds: dict, r: dict) -> bool:
+    """Register work for the data steward: an event is only when everything that reported it is."""
+    return all(getattr(kinds.get(t), "role", None) == DATA_ROLE for t in [r["type"], *(j["type"] for j in r.get("joined") or [])])
+
+
+def _merge(places: list[dict]) -> list[dict]:
+    """Places closer than MERGE_M (a bridge-linked complex: production and compression platforms side by side) are
+    one spot, named by each, so one marker never hides another. `places` lists every place id it holds."""
+    from ..graph.spatial import metres
+
+    spots: list[dict] = []
+    for p in sorted(places, key=lambda p: -len(p["items"])):
+        near = next((s for s in spots if metres((s["lon"], s["lat"]), (p["lon"], p["lat"])) < MERGE_M), None)
+        if near is None:
+            spots.append({**p, "places": [p["id"]], "items": list(p["items"]), "crews": list(p["crews"])})
+            continue
+        near["places"].append(p["id"])
+        near["name"] = f"{near['name'] or near['label']} · {p['name'] or p['label']}"
+        near["label"] = f"{near['label']} · {p['label']}"
+        near["items"] += p["items"]
+        near["crews"] += [c for c in p["crews"] if c not in near["crews"]]
+    return spots
+
+
 def only_at(conn, rows: list[dict], place: str) -> list[dict]:
-    """The rows (an exception listing) that `hotspots` gathers at this place: All work's "at a place" filter."""
+    """The rows (an exception listing) that `hotspots` gathers at a spot (its place ids, comma-separated): All
+    work's "at a place" filter."""
+    ids = set(place.split(","))
+    kinds = exceptions.types(conn)
+    rows = [r for r in rows if not _housekeeping(kinds, r)]
     located = _places(conn, sorted({s for r in rows for s in r["subjects"]}))
-    return [r for r in rows if any(located.get(s, {}).get("id") == place for s in r["subjects"])]
+    return [r for r in rows if any(located.get(s, {}).get("id") in ids for s in r["subjects"])]
 
 
 def _dues(conn, item_ids: list[int]) -> dict[int, dict]:
@@ -93,8 +122,8 @@ def hotspots(conn, limit: int = 1000) -> dict:
     contract.load()  # every declared type, so labels and roles resolve
     rows = exceptions.listing(conn, state=exceptions.OPEN, limit=limit)
     kinds = exceptions.types(conn)
-    data_work = sum(1 for r in rows if getattr(kinds.get(r["type"]), "role", None) == DATA_ROLE)
-    rows = [r for r in rows if getattr(kinds.get(r["type"]), "role", None) != DATA_ROLE]
+    data_work = sum(1 for r in rows if _housekeeping(kinds, r))
+    rows = [r for r in rows if not _housekeeping(kinds, r)]
     located = _places(conn, sorted({s for r in rows for s in r["subjects"]}))
     dues = _dues(conn, sorted({r["item_id"] for r in rows if r["item_id"]}))
     labels = {n: t.label for n, t in kinds.items()}
@@ -118,8 +147,8 @@ def hotspots(conn, limit: int = 1000) -> dict:
             if crew and crew not in spot["crews"]:
                 spot["crews"].append(crew)
     out = []
-    for spot in places.values():
-        items = sorted(spot.pop("items"), key=lambda i: (RANK[i["band"]], not i["overdue"], -(i["priority"] or 0)))
+    for spot in _merge(list(places.values())):
+        items = sorted({i["id"]: i for i in spot.pop("items")}.values(), key=lambda i: (RANK[i["band"]], not i["overdue"], -(i["priority"] or 0)))
         counts = {b: sum(i["band"] == b for i in items) for b in RANK}
         out.append({**spot, "band": items[0]["band"], "open": len(items), "counts": counts,
                     "overdue": sum(i["overdue"] for i in items),

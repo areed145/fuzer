@@ -704,7 +704,7 @@ export interface AttentionItem {
   due: string | null; overdue: boolean; first_seen: string; crew: AttentionCrew | null;
 }
 export interface AttentionPlace {
-  id: string; label: string; name: string | null; kind: string; lon: number; lat: number; band: AttentionBand;
+  id: string; places: string[]; label: string; name: string | null; kind: string; lon: number; lat: number; band: AttentionBand;
   open: number; counts: Record<AttentionBand, number>; overdue: number; unassigned: number;
   top: AttentionItem[]; exceptions: number[]; crews: AttentionCrew[];
 }

@@ -1,12 +1,13 @@
 /** Where attention is needed (Home): the places with open work, on the field map and as a ranked list. The list is
  * the reading; the map says where. A plant with no located assets gets the list alone. Read only: dispatch and
  * every edit stay on All work and the case pages. */
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { api, type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
 import { Badge, Button, ButtonLink, Card, Empty } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
-import { MapView } from "../MapView";
 import { workHref } from "./AllWork";
+
+const MapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));  // Leaflet loads with the map
 
 type Filter = "all" | "high" | "overdue" | "unassigned";
 const FILTERS: { key: Filter; label: string }[] = [
@@ -56,8 +57,10 @@ export function AttentionCard() {
         {spots.data.places.length === 0 ? <Empty>No open work at any place.</Empty> : (
           <div className={mapped ? "attention-split" : ""}>
             {mapped && geo.data && (
-              <MapView data={geo.data} hotspots={places} selected={selected} onSelect={setSelected} crews={crews}
-                       compact height="460px" />
+              <Suspense fallback={<div className="map" />}>
+                <MapView data={geo.data} hotspots={places} selected={selected} onSelect={setSelected} crews={crews}
+                         compact height="460px" />
+              </Suspense>
             )}
             <div className="attention-side">
               {chosen && <PlaceDetail place={chosen} onClose={() => setSelected(null)} />}
@@ -113,7 +116,7 @@ function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose: () =>
         ))}
       </ul>
       <div className="row wrap">
-        <ButtonLink variant="primary" href={workHref("open", { at: place.id })}>Open {place.open} in All work</ButtonLink>
+        <ButtonLink variant="primary" href={workHref("open", { at: place.places.join(",") })}>Open {place.open} in All work</ButtonLink>
         <a href={entityHref(place.id)}>Asset page</a>
       </div>
     </div>

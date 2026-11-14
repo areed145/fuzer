@@ -93,3 +93,30 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .gate-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; }
 .gate-list li > .small { grid-column: 2; color: var(--muted); }
 .more-kinds { margin: -4px 0 12px; }
+
+/* Where attention is needed (Home): the map and the ranked places beside it; on a phone, the list under the map and
+   a chosen place as a sheet from the bottom. */
+.attention-card { margin-bottom: 16px; }
+.attention-bar { gap: 4px 16px; align-items: center; }
+.attention-bar .chips { margin: 0 0 10px; }
+.attention-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 16px; align-items: start; }
+.attention-side { display: grid; gap: 10px; min-width: 0; }
+.attention-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.attention-list li { border-bottom: 1px solid var(--line); }
+.attention-list li.selected { background: var(--accent-soft); }
+.attention-list .attention-row.ui-button { display: grid; justify-content: stretch; gap: 3px; width: 100%; min-height: 44px; padding: 8px 6px; text-align: left; justify-items: start;
+  white-space: normal; border-radius: 0; }
+.attention-row .attention-row-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.attention-row .attention-flags { display: flex; gap: 10px; flex-wrap: wrap; }
+.attention-detail { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.attention-detail h3 { margin: 0; font-size: 15px; }
+.attention-items { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 8px; }
+.attention-items li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+@media (max-width: 900px) {
+  .attention-split { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .attention-card .map { height: 300px !important; }
+  .attention-detail { position: fixed; z-index: 1150; left: 0; right: 0; bottom: 0; max-height: 70dvh; overflow: auto;
+    border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgb(0 0 0 / .2); padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); }
+}

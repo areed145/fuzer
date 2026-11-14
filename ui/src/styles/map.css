@@ -53,9 +53,9 @@ h2 select { font: inherit; font-size: 15px; }
 .hotspot.selected .hotspot-dot { border-color: var(--text); border-width: 3.5px; }
 .hotspot:focus-visible { outline: none; }
 .hotspot:focus-visible .hotspot-dot { outline: 3px solid var(--accent); outline-offset: 3px; }
-.hotspot-late { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%;
-  background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpath d='M0,-4 L0,0 L3,2' stroke='%23c4302b' stroke-width='1.8' fill='none'/%3E%3C/svg%3E") center / 14px no-repeat;
-  border: 1.6px solid var(--danger); box-sizing: border-box; }
+.hotspot-late { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 17px; height: 17px;
+  border-radius: 50%; background: var(--panel); border: 1.6px solid var(--danger); box-sizing: border-box; color: var(--danger); }
+.hotspot-late svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .hotspot-label { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); white-space: nowrap;
   font-weight: 600; font-size: 12px; color: var(--text); pointer-events: none;
   text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel), 0 0 3px var(--panel); }

@@ -125,8 +125,9 @@ function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchP
 
 /** Home's map sent the person here for one place's work: say which, and let them widen it again. */
 function AtPlace({ id, onClear }: { id: string; onClear: () => void }) {
-  const names = useEntityNames([id]);
-  return <span className="row">At {display(id, names)}
+  const ids = id.split(",");
+  const names = useEntityNames(ids);
+  return <span className="row">At {ids.map((x) => display(x, names)).join(" · ")}
     <Button variant="ghost" size="sm" onClick={onClear}>Every place</Button></span>;
 }
 
