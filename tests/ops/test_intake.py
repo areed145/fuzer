@@ -7,7 +7,7 @@ from datetime import date, timedelta
 import pytest
 from psycopg.types.json import Jsonb
 
-from fuzer.core import db
+from fuzer.core import db, work
 from fuzer.ops import intake
 
 TODAY = date.today().isoformat()
@@ -100,7 +100,10 @@ def test_a_notification_done_in_the_field_is_held_until_sap_moves(conn):
         intake.sync_notifications(conn, enabled=True)
         n = _open(conn)["1005"]
         ex.dispatch(conn, n["id"], "ioc-ann", "fred", reason="check the flange")
-        assert ex.report(conn, n["id"], "fred", "done", note="flange bolts torqued")["state"] == "closed"
+        back = ex.report(conn, n["id"], "fred", "done", note="flange bolts torqued")
+        assert back["state"] == "open"  # back with the IOC to close out (#1115)
+        work.close_case(conn, back["item_id"], "done", "ioc-ann", reason="flange bolts torqued")
+        ex.reconcile(conn)
         out = intake.sync_notifications(conn, enabled=True)
         assert out["raised"] == 0 and out["held"] == 1 and "1005" not in _open(conn)
         status("NOPR")

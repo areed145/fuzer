@@ -6,7 +6,7 @@ import tempfile
 
 import pytest
 
-from fuzer.core import db, events
+from fuzer.core import db, events, work
 from fuzer.core.exceptions import (
     TYPES,
     ExceptionError,
@@ -233,9 +233,15 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
         ex.report(conn, e["id"], "fred", "could_not_do")
     done = ex.report(conn, e["id"], "fred", "done", note="tightened the gland")
     assert [f["status"] for f in done["evidence"]["field"]] == ["on_site", "done"]
-    assert done["state"] == "closed"  # with its case, so the IOC doesn't see finished work as open
-    assert conn.execute("select state from work_item where id = %s", (sent["item_id"],)).fetchone()["state"] == "done"
+    # back with the IOC to close out, saying what it was (#1115), not closed by the field's Done
+    case = conn.execute("select state, assignee from work_item where id = %s", (sent["item_id"],)).fetchone()
+    assert done["state"] == "open" and case == {"state": "open", "assignee": "ioc-ann"}
+    assert conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
+                        "order by id desc limit 1", (sent["item_id"],)).fetchone()["r"].startswith("Back from the field: done")
     assert not [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]  # done: off their list
+    work.close_case(conn, sent["item_id"], "done", "ioc-ann", reason="gland tightened, closed out")
+    ex.reconcile(conn)
+    assert {r["id"]: r for r in ex.listing(conn, state=None, type="leak", limit=100)}[e["id"]]["state"] == "closed"
     topics = {x["topic"] for x in events.pending(conn) if x["ref"] == f"exception:{e['id']}"}
     assert {"exception.raised", "exception.dispatched", "exception.reported"} <= topics
     conn.commit()
@@ -1051,8 +1057,14 @@ def test_a_queue_type_runs_as_the_queue_item_process(conn, types):
     assert back["state"] == "open" and step["assignee"] != "fred"  # back with the IOC, not left with the operator
     ex.dispatch(conn, f["id"], "ioc-ann", "fred", reason="key is at the gate")
     done = ex.report(conn, f["id"], "fred", "done", note="meter reset")
-    assert done["state"] == "closed"
-    assert conn.execute("select state from work_item where id = %s", (f["item_id"],)).fetchone()["state"] == "done"
+    step = conn.execute("select assignee from work_token where item_id = %s and kind = 'user' and state = 'waiting'",
+                        (f["item_id"],)).fetchone()
+    assert done["state"] == "open" and step["assignee"] == "ioc-ann"  # the IOC closes it out (#1115)
+
+    g = raise_exception(conn, "gas_day_short", "GD-3", "Gas day short a third time", "kestrel", refs=["tag:NOPE-3"])
+    work.take(conn, g["item_id"], "fred")  # nobody sent it: it was raised straight into the field's queue
+    assert ex.report(conn, g["id"], "fred", "done", note="meter reset")["state"] == "closed"
+    assert conn.execute("select state from work_item where id = %s", (g["item_id"],)).fetchone()["state"] == "done"
 
     from fuzer.workflow import engine
 

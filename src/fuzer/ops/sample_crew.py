@@ -279,9 +279,8 @@ def work_queue(t: _Tick) -> None:
             if waited < (_minutes(180, 420, r["id"], "back", _visits(r)) if left
                          else _minutes(30, 120, r["id"], "back", _visits(r))):
                 continue
-            if last["status"] == "done":
-                t.act("close", work.close_case, conn, r["item_id"], "done", LEAD,
-                      reason=f"Closed on the field's report: {last.get('note') or 'done'}")
+            if last["status"] == "done":  # the lead closes it out, saying what it was (#1115)
+                t.act("close out", close_out, conn, r["item_id"], last.get("note") or "")
             elif _visits(r) < 2:
                 send_out(r, "redispatch", f"Try again when you can: {last.get('note') or 'could not do'}")
             else:  # twice could not: it needs planning, not another visit
@@ -341,6 +340,23 @@ def work_queue(t: _Tick) -> None:
 
 
 QUICK = ("field_report", "round_finding")  # what the field found: a desk plans or closes it within the shift
+
+
+def close_out(conn, item_id: int, note: str) -> dict:
+    """The lead's close-out of a job the field reported done: the form's own pre-fill from the case's words, with what
+    a real problem still needs filled the way a lead would for a routine field fix (cause: operation and maintenance;
+    action: a check)."""
+    from ..core.pack import resolve
+    from . import disposition
+
+    pack = resolve(conn)
+    s = disposition.suggest(conn, pack, item_id)
+    what = s.get("disposition") or "real"
+    real = what == "real"
+    return disposition.record(conn, pack, item_id, LEAD, what, failure_mode=(s.get("failure_mode") or "OTH") if real else None,
+                              cause=(s.get("cause") or "3") if real else None, activity=(s.get("activity") or "6") if real else None,
+                              outcome="fixed" if real else None, note=f"On the field's report: {note or 'done'}"[:300],
+                              suggested=s)
 
 
 def _desk_hours(exception_id: int, type: str | None = None) -> float:
