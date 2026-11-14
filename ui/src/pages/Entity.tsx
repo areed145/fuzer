@@ -194,12 +194,13 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
         <>
           {/* Live picture first, then the work on it, then what it is (#1076). */}
           {overview.data === undefined && !overview.error && <Status loading />}
+          {/* Everything else waits for the overview too: drawn first, the cards below sat at the top and were pushed
+              down when it answered (#1069). */}
           {(overview.data !== undefined || overview.error) && <>
             {operated && <EntityStatus id={fid} data={overview.data?.status} />}
             {["tag", "equipment", "well"].includes(e.kind) && <LiveReadings id={fid} data={overview.data?.latest} />}
             {operated && <WorkHere id={fid} area={e.kind === "area"} data={overview.data?.work} />}
             {["tag", "equipment", "equipment_model"].includes(e.kind) && <AssetProfile id={fid} data={overview.data?.profile} />}
-          </>}
           {e.kind === "incident" && <IncidentDetail id={fid} />}
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
           {e.kind === "document" && e.golden.doc_type && (
@@ -246,6 +247,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             <Fields e={e} />
             <Records e={e} />
           </div>}
+          </>}
         </>
       )}
 

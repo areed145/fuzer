@@ -53,9 +53,13 @@ export function YourShift() {
   const quiet = here_.data && fields.data !== undefined && since.data !== undefined && field.data !== undefined
     && !rows.length && !all.length && !(since.data?.watching?.length) && !coming.length;
   if (quiet) return null;
+  // Draw the card once every read has settled (#1069): counts and rows arriving after "Since you last looked" pushed
+  // everything below them down the page.
+  const settled = [here_, fields, since, field].every((r) => r.data !== undefined || !!r.error);
+  if (!settled) return <Card className="home-card home-today" title="My work" as="section"><Status loading /></Card>;
   return (
     <Card className="home-card home-today" title="My work" as="section" actions={<a href={my}>Open My work</a>}>
-      <Status loading={here_.loading && !here_.data} error={here_.error} onRetry={here_.reload} />
+      <Status error={here_.error} onRetry={here_.reload} />
       {c && <ul className="home-counts">
         {c.escalated > 0 && <Count n={c.escalated} to={my} late>escalated to you</Count>}
         {c.sent > 0 && <Count n={c.sent} to={my}>sent to you</Count>}
