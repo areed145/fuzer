@@ -151,6 +151,9 @@ export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
       await Promise.allSettled([api.incidents(id), api.related({ subject: id }), api.events(id), api.assetThreads(id),
         api.entityMap(id)]);
     }
+    // This shift's rounds and their points (kept whoever they name), so a round can be walked without signal.
+    const runs = await api.rounds().catch(() => []);
+    for (const r of Array.isArray(runs) ? runs : []) await api.round(r.id).catch(() => null);
     for (const id of drawings) {
       const g = await api.drawing(id).catch(() => null);
       if (g?.image) await requestFile(projectUrl(g.image)).catch(() => null);
@@ -207,6 +210,15 @@ registerSender("field_report", (w, photos) => {
   return api.fieldReport(q.exception_id, q.by, q.status, q.note, { reading: q.reading, photos, client_id: w.client_id,
     at: w.at, override: q.override, permit_in_hand: q.permit_in_hand, project: w.project });
 });
+
+/** A reading or check on a round point (P5.17d). */
+export interface QueuedTake { run: number; point: string; by: string; value?: number; passed?: boolean; note?: string }
+registerSender("round_take", (w) => {
+  const { run, ...t } = w.payload as QueuedTake;
+  return api.takeRound(run, { ...t, client_id: w.client_id, at: w.at }, w.project);
+});
+/** Take a round point now; without signal, keep it in the outbox. */
+export const sendTake = (t: QueuedTake) => sendOrQueue("round_take", t);
 
 /** Send a job's report now; without signal, keep it in the outbox. */
 export const sendReport = ({ photos, ...r }: Omit<QueuedReport, "client_id" | "at">) =>

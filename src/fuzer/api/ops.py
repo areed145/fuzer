@@ -722,6 +722,8 @@ class RoundTaken(BaseModel):
     value: float | None = None
     passed: bool | None = None
     note: str | None = None
+    client_id: str | None = None           # a reading the phone kept offline: applied once (P5.17d)
+    at: str | None = None                  # when the phone took it
 
 
 @router.post("/rounds/{run_id}/readings")
@@ -729,7 +731,8 @@ def round_reading(run_id: int, t: RoundTaken, conn=Depends(get_conn)):
     """An operator's reading or check on a point of a round (P5.4b): kept as a measurement on its asset, and outside
     its limits (or a failed check) a round_finding that routes a case to the IOC."""
     from ..ops import rounds
-    out = _exception_call(conn, rounds.take, run_id, t.point, t.by, value=t.value, passed=t.passed, note=t.note)
+    out = _exception_call(conn, rounds.take, run_id, t.point, t.by, value=t.value, passed=t.passed, note=t.note,
+                          at=t.at, client_id=t.client_id)
     conn.commit()
     return out
 

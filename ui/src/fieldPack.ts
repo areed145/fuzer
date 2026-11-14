@@ -32,11 +32,16 @@ export async function setPack(next: Iterable<string>): Promise<void> {
 }
 export const packIds = () => ids;
 
-/** Whether a URL names a record in the pack: as a path segment or a query value. */
+/** Reads kept whoever they name: this shift's rounds and their points (P5.17d). */
+const ALWAYS = /^\/rounds(\/\d+)?$/;
+
+/** Whether a URL names a record in the pack (as a path segment or a query value), or is one of the reads always kept. */
 export function inPack(url: string, pack: Set<string> = ids): boolean {
+  const [path, query = ""] = url.replace(/^https?:\/\/[^/]+/, "").split("?", 2);
+  if (ALWAYS.test(path)) return true;
   if (!pack.size) return false;
-  const u = new URL(url, "http://x");
-  const parts = u.pathname.split("/").map((p) => { try { return decodeURIComponent(p); } catch { return p; } });
+  const u = { searchParams: new URLSearchParams(query) };
+  const parts = path.split("/").map((p) => { try { return decodeURIComponent(p); } catch { return p; } });
   return parts.some((p) => pack.has(p)) || [...u.searchParams.values()].some((v) => pack.has(v));
 }
 

@@ -168,25 +168,59 @@ def _finding(r: dict, p: dict, value: float | None, passed: bool, note: str | No
                findings.asset("On", p["asset"])))
 
 
+def _taken_at(conn, at) -> tuple[datetime, bool]:
+    """When a reading the phone kept was taken (P5.17d): its own time, never in the future or more than a week back.
+    Also whether it reached the server well after it was taken."""
+    now = conn.execute("select now() as t").fetchone()["t"]
+    if at is None:
+        return now, False
+    if not isinstance(at, datetime):
+        try:
+            at = datetime.fromisoformat(str(at))
+        except ValueError:
+            raise ExceptionError("the reading's time is not a date and time") from None
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=now.tzinfo)
+    at = min(max(at, now - timedelta(days=7)), now)
+    return at, now - at > timedelta(minutes=2)
+
+
 def take(conn, run_id: int, point: str, by: str, value: float | None = None, passed: bool | None = None,
-         note: str | None = None, at: datetime | None = None) -> dict:
+         note: str | None = None, at: datetime | str | None = None, client_id: str | None = None) -> dict:
     """An operator's reading (a number) or check (passed or not) on one point of an open round. Taking it again
     corrects it. A reading is kept as a measurement on its asset; one outside its limits, or a failed check, raises
     a round_finding on the point (one open per point, so a second bad reading adds to it) with the reading as
-    evidence. Returns the point as taken, with the exception it raised."""
+    evidence. Returns the point as taken, with the exception it raised.
+
+    A reading the phone kept without signal (P5.17d) comes with its `client_id` and the time it was taken: it is
+    applied once (a resend changes nothing), keeps that time, and an earlier-taken one never overwrites a later one,
+    whatever order they arrive in. One taken during the shift is accepted after the shift's run has closed, and the
+    run's state is counted again."""
     by = (by or "").strip()
     if not by:
         raise ExceptionError("say who took it")
     note = (note or "").strip() or None
-    at = at or datetime.now(UTC)
+    client_id = (str(client_id).strip()[:80] or None) if client_id else None
+    if client_id:
+        at, late = _taken_at(conn, at)
+    else:
+        at, late = at if isinstance(at, datetime) else datetime.now(UTC), False
     r = conn.execute("select * from round_run where id = %s for update", (run_id,)).fetchone()
     if r is None:
         raise ExceptionError(f"no round run {run_id}")
-    if r["state"] != "open":
+    taken_in_shift = client_id is not None and r["shift_start"] <= at <= r["shift_end"]
+    if r["state"] != "open" and not taken_in_shift:
         raise ExceptionError(f"{r['round']} for that shift is closed ({r['state'].replace('_', ' ')})")
     p = next((x for x in rounds(conn).get(r["round"], []) if point in (x["id"], x["point_id"])), None)
     if p is None:
         raise ExceptionError(f"{point} is not on {r['round']}")
+    if client_id:
+        before = conn.execute("select * from round_reading where run_id = %s and point = %s",
+                              (run_id, p["id"])).fetchone()
+        if before and (before["client_id"] == client_id or before["at"] > at):
+            # Sent again after the answer was lost, or a later reading of this point is already here: it stands.
+            return {**p, "taken": before, "exception": None, "kept": "repeat" if before["client_id"] == client_id
+                    else "later_reading_stands"}
     if p["kind"] == "reading":
         if value is None:
             raise ExceptionError(f"enter the reading for {p['what']}")
@@ -207,13 +241,21 @@ def take(conn, run_id: int, point: str, by: str, value: float | None = None, pas
             finding=_finding(r, p, value, passed, note, by, at))
     taken = conn.execute(
         """
-        insert into round_reading (run_id, point, value, passed, note, by, at, exception_id)
-        values (%s, %s, %s, %s, %s, %s, %s, %s)
+        insert into round_reading (run_id, point, value, passed, note, by, at, exception_id, client_id, received_at)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, case when %s then now() end)
         on conflict (run_id, point) do update set value = excluded.value, passed = excluded.passed,
             note = excluded.note, by = excluded.by, at = excluded.at,
-            exception_id = coalesce(excluded.exception_id, round_reading.exception_id)
+            exception_id = coalesce(excluded.exception_id, round_reading.exception_id),
+            client_id = excluded.client_id, received_at = excluded.received_at
         returning *
-        """, (run_id, p["id"], value, passed, note, by, at, raised and raised["id"])).fetchone()
+        """, (run_id, p["id"], value, passed, note, by, at, raised and raised["id"], client_id, late)).fetchone()
+    if r["state"] != "open":  # taken in the shift, arrived after it closed: count the run again
+        conn.execute(
+            """
+            update round_run set state = case when x.taken >= points then 'done' when x.taken > 0 then 'partly_done'
+                else 'missed' end
+            from (select count(*) as taken from round_reading where run_id = %(id)s) x where id = %(id)s
+            """, {"id": run_id})
     if value is not None and p["asset"]:
         conn.execute(
             """

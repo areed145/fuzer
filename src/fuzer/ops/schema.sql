@@ -560,6 +560,10 @@ create table if not exists round_reading (
     exception_id  bigint,                        -- what an out-of-limit reading or a failed check raised
     unique (run_id, point)
 );
+-- A reading the phone kept without signal (P5.17d): its id, so a resend is applied once, and when it reached the server
+-- if that was well after it was taken (`at` keeps the time taken).
+alter table round_reading add column if not exists client_id text;
+alter table round_reading add column if not exists received_at timestamptz;
 
 -- The agentic watch (P3.3a, ops/watch.py): what the watch agent proposed for an area over a window, that no detector
 -- raised. In shadow (wave 4) a proposal is kept and scored, never routed.

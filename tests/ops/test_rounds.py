@@ -190,3 +190,34 @@ def test_rounds_done_partly_done_and_missed_are_counted_per_shift_and_in_the_han
                      "1 found something", "Utilities rounds: missed"]
     shown = {r["shift_start"]: r for r in performance.measures(conn)["rounds"]}
     assert shown[first["shift_start"].isoformat()]["missed"] == 1
+
+
+def test_a_reading_taken_without_signal_arrives_once_with_its_time_and_a_later_one_stands(kestrel):
+    """P5.17d (#1093): the phone keeps a reading with an id and the time it was taken. Sent twice it is applied once;
+    out of limits it raises one round_finding timed when it was taken; of two takes of one point, the later-taken
+    stands whatever order they arrive in; and one taken in the shift is accepted after the shift's run has closed."""
+    conn, _ = kestrel
+    comp = next(r for r in rounds.runs(conn) if r["round"] == "Compression rounds")
+    now = conn.execute("select now() as t").fetchone()["t"]
+    earlier, later = (now - timedelta(minutes=50)).isoformat(), (now - timedelta(minutes=20)).isoformat()
+    first = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=2.1, at=earlier, client_id="phone-1")
+    assert first["exception"]["raised"] is True
+    assert first["taken"]["at"] == datetime.fromisoformat(earlier) and first["taken"]["received_at"] is not None
+    again = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=2.1, at=earlier, client_id="phone-1")
+    assert again["kept"] == "repeat" and again["exception"] is None
+    assert conn.execute("select count(*) as n from exception_record where type = 'round_finding' and state = 'open'"
+                        ).fetchone()["n"] == 1
+    e = conn.execute("select evidence from exception_record where id = %s", (first["exception"]["id"],)).fetchone()
+    taken = next(i for i in e["evidence"]["finding"]["items"] if i["label"] == "Taken")
+    assert datetime.fromisoformat(taken["value"]) == datetime.fromisoformat(earlier).replace(second=0, microsecond=0)
+    # A correction taken later on the phone arrives first; the earlier one arriving after it doesn't overwrite it.
+    rounds.take(conn, comp["id"], "R-B1-02", "olu", value=4.4, at=later, client_id="phone-3")
+    stale = rounds.take(conn, comp["id"], "R-B1-02", "olu", value=9.9, at=earlier, client_id="phone-2")
+    assert stale["kept"] == "later_reading_stands" and stale["taken"]["value"] == 4.4
+    # The shift ends before the signal returns: a reading taken in the shift is still accepted, and counted.
+    conn.execute("update round_run set state = 'missed', shift_end = %s where id = %s",
+                 (now - timedelta(minutes=10), comp["id"]))
+    rounds.take(conn, comp["id"], "R-B1-03", "olu", passed=True, value=4.0, at=later, client_id="phone-4")
+    assert conn.execute("select state from round_run where id = %s", (comp["id"],)).fetchone()["state"] == "partly_done"
+    with pytest.raises(Exception, match="closed"):
+        rounds.take(conn, comp["id"], "R-B1-04", "olu", value=4.0, client_id="phone-5")  # taken after it ended
