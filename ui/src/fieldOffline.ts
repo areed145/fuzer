@@ -154,7 +154,7 @@ export async function fieldJobs(person: string): Promise<Jobs> {
     const fresh = await api.fieldJobs(person);
     void store.put("kept", { ...fresh, kept_at: new Date().toISOString() }, jobsKey(person))
       .then((ok) => { if (ok) note({ kept: true }); });
-    void warmPack(fresh.jobs);
+    setTimeout(() => void warmPack(fresh.jobs), WARM_AFTER_MS);
     return fresh;
   } catch (e) {
     if (!unreachable(e)) throw e;
@@ -167,17 +167,29 @@ export async function fieldJobs(person: string): Promise<Jobs> {
 
 /** How often the field pack is read again while the operator's jobs stay the same. */
 const WARM_EVERY_MS = 15 * 60_000;
+/** The most assets kept ahead, in job order. A person holding every queue (the demo's accounts) reached 113, and
+ * reading each one's drawings, documents and pages kept My work busy for half a minute on every visit (#1069). */
+export const MAX_PACK_ASSETS = 10;
+/** Let the page that asked for the jobs draw and read first: the pack is for later, out of signal. */
+const WARM_AFTER_MS = 3000;
 let warming = false;
 
-/** Keep the day's work on the phone (P5.17c): the pack is each job's assets and their documents and drawings, and
+/** The assets kept ahead: those of the jobs sent to the person (not ones waiting unclaimed in a queue), in job
+ * order, at most MAX_PACK_ASSETS. */
+export function packAssets(jobs: FieldJob[]): string[] {
+  const mine = (Array.isArray(jobs) ? jobs : []).filter((j) => !j.queued);
+  return [...new Set(mine.flatMap((j) => (j.assets ?? []).map((a) => a.fuzer_id)))].slice(0, MAX_PACK_ASSETS);
+}
+
+/** Keep the day's work on the phone (P5.17c): the pack is the assets of the person's own jobs (packAssets) and their documents and drawings, and
  * the reads an asset's page opens with are made once now, one at a time through the bounded queue, so they are kept
  * before the operator walks out of signal. Anything else a pack page reads is kept when it is opened. Read again
  * when the jobs change, or every 15 minutes. */
 export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
   if (warming) return;
   await packLoaded;
-  const list = Array.isArray(jobs) ? jobs : [];
-  const assets = [...new Set(list.flatMap((j) => (j.assets ?? []).map((a) => a.fuzer_id)))].sort();
+  const list = (Array.isArray(jobs) ? jobs : []).filter((j) => !j.queued);
+  const assets = packAssets(list).sort();
   const key = `warm:${account}:${getProject()}`;
   const last = await store.get<{ at: string; assets: string }>("kept", key);
   if (!force && last && last.assets === assets.join(",") && Date.now() - Date.parse(last.at) < WARM_EVERY_MS) return;

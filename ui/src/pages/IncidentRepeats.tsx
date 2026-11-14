@@ -11,8 +11,10 @@ const LINK: Record<LinkedOrder["link"], string> = {
   on_unit_after: "corrective order on the unit soon after",
 };
 
-export function IncidentRepeats() {
-  const data = useAsync(() => api.incidentRepeats(), []);
+export const useRepeats = () => useAsync(() => api.incidentRepeats(), []);
+
+/** `data` is the page's read of the repeats (useRepeats), so the page draws them with the list below (#1069). */
+export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> }) {
   const d = data.data;
   if (d && !d.units?.length) return null;  // none in the window (or a list that isn't this shape)
   const once = (d?.units ?? []).filter((u) => !u.repeat);

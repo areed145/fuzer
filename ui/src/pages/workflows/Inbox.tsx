@@ -37,6 +37,8 @@ export function InboxPage() {
   const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
   // The shift handover is reached from here, not the nav (#504): a banner until the incoming lead acknowledges it.
   const handovers = useAsync(() => api.handovers(), []);
+  // What is new for them, read here so the page can wait for it (NewForYou draws it).
+  const told = useAsync(() => (person ? api.notifications(person) : Promise.resolve(null)), [person]);
   // Kept in the link, so Back from a job returns to My work filtered as it was (P5.14c).
   const [q, setQ] = useRouteState("q");
   const [type, setType] = useRouteState("type");
@@ -49,6 +51,10 @@ export function InboxPage() {
   </UICard></section>;
   const offline = field.data?.offline;
   if (!inbox.data && !offline) return <Status loading={inbox.loading} error={inbox.error} />;
+  // The handover banner, what is new, the counts and the jobs sent to them all sit above the lists: drawn as each
+  // answered, every one pushed the lists down the page (#1069). The page waits for them, failures included.
+  const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
+  if (!offline && ![field, handovers, told, stats, exceptions].every(settled)) return <Status loading />;
   const none = { total: 0, overdue: 0, due_soon: 0 };
   const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&
@@ -87,7 +93,7 @@ export function InboxPage() {
         Reports wait here and send when the signal returns.</Notice>}
       <FieldModeOffer />
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
-      {!offline && <NewForYou person={person} />}
+      {!offline && <NewForYou person={person} told={told} />}
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
         <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
@@ -131,8 +137,10 @@ export function InboxPage() {
 }
 
 /** What the person was told since they last looked (P5.2, #604): each line opens its case and counts as read. */
-function NewForYou({ person }: { person: string }) {
-  const told = useAsync(() => api.notifications(person), [person]);
+function NewForYou({ person, told }: {
+  person: string;
+  told: { data?: Awaited<ReturnType<typeof api.notifications>> | null; reload: () => void };
+}) {
   const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at);
   if (!unread.length) return null;
   const read = (ids?: number[]) => api.markNotificationsRead(person, ids).then(told.reload, told.reload);

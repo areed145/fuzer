@@ -3662,6 +3662,30 @@ test("a turnaround shows its scope on the plan and brings planned work into it",
   await page.getByRole("heading", { name: "Turnaround TA26" }).waitFor({ state: "detached" });
 });
 
+// #1069: the handover banner, what is new and the counts sit above My work's lists. Drawn as each answered, each pushed
+// a screen of rows down (CLS 1.1 live); the page waits for them, so the lists open where they stay.
+test("My work opens in place: the banner, what is new and the counts don't push the lists down (#1069)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  await page.addInitScript(() => { window.__cls = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__cls += e.value; })
+    .observe({ type: "layout-shift", buffered: true }); });
+  const queue = Array.from({ length: 30 }, (_, i) => ({ ...homeRow(i + 1), bulk: [] }));
+  const inbox = { person: "ann", roles: ["ops_lead"], mine: [], queue, counts: { mine: { total: 0 }, queue: { total: 30 } } };
+  const late = (json, ms) => (route) => setTimeout(() => route.fulfill({ json }).catch(() => {}), ms);
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  await page.route("**/handovers", late([{ id: 7, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z",
+    state: "handed_over", notes_by: "bo", acknowledged_by: null, acknowledged_at: null, item_id: 40, lines: 6 }], 600));
+  await page.route("**/work/notifications?*", late({ unread: 1, notifications: [{ id: 1, kind: "escalated", text: "Escalated to you",
+    link: "#/cases/40", created_at: "2026-11-12T06:00:00Z", read_at: null }] }, 900));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByText("Check separator level 1", { exact: true }).waitFor();
+  await page.getByText("Read and acknowledge", { exact: true }).waitFor();
+  await page.getByText("Escalated to you", { exact: true }).waitFor();
+  await page.waitForTimeout(500);
+  const cls = await page.evaluate(() => window.__cls);
+  assert.ok(cls < 0.05, `My work moved as it loaded: CLS ${cls.toFixed(3)}`);
+});
+
 test("the incoming lead finds the shift handover from My work, not the nav (#504)", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
   const inbox = { person: "ann", roles: ["ops_lead"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
@@ -4784,6 +4808,43 @@ test("P5.17c A job's asset page, documents and drawing open without signal, and 
   await page.evaluate(() => { location.hash = "#/e/fz-equipment-elsewhere"; });
   await page.getByText("This page isn't kept on this phone", { exact: false }).waitFor();
   await page.getByRole("link", { name: "Back to My work" }).waitFor();
+});
+
+// #1069: the pack is the person's own jobs, at most ten assets, read after the page has drawn. A person holding every
+// queue (the demo's accounts) read drawings and documents for 113 assets on each visit, and My work never went idle.
+test("the field pack keeps only the person's own jobs, at most ten assets, after My work has drawn (#1069)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = (n, queued) => ({ id: n, type: "leak", key: `k${n}`, title: `Job ${n}`, source: "walk", state: "open",
+    first_seen: "2026-11-12T05:00:00Z", last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak",
+    finding: FINDINGS.scada_alarm, priority: null, unmatched: [], item_id: n, case_state: "open", assignee: queued ? null : "fred",
+    role: queued ? "operator" : null, raised_count: 1, due: null, task_id: null, task_name: null,
+    assets: [{ fuzer_id: `fz-equipment-${n}`, label: `Asset ${n}`, kind: "equipment" }], checklist: [], sources: [], history: [],
+    field: [], queued, sent: null });
+  const jobs = [...Array.from({ length: 14 }, (_, i) => job(i + 1, false)), ...Array.from({ length: 20 }, (_, i) => job(i + 101, true))];
+  const asked = [];
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || /\.svg$/.test(path) || path === "/favicon.png") return route.fallback();
+    const m = path.match(/^\/entities\/([^/]+)\/drawings$/);
+    if (m) asked.push({ id: m[1], at: Date.now() });
+    if (path === "/exceptions/field") return route.fulfill({ json: { person: "fred", jobs, coming_up: [] } });
+    if (path === "/work/inbox") return route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } });
+    if (m) return route.fulfill({ json: { highlight: [], drawings: [] } });
+    return route.fallback();
+  });
+  await page.goto(`${url}/#/inbox`);
+  await page.locator(".field-job").first().waitFor();
+  const drawn = Date.now();
+  const keptKeys = () => page.evaluate(async () => {
+    const db = await new Promise((ok) => { const r = indexedDB.open("fuzer-field"); r.onsuccess = () => ok(r.result); });
+    return new Promise((ok) => { const r = db.transaction("kept").objectStore("kept").getAllKeys(); r.onsuccess = () => ok(r.result.map(String)); });
+  });
+  for (let i = 0; !(await keptKeys()).some((k) => k.startsWith("warm:")) && i < 150; i++) await page.waitForTimeout(100);
+  const ids = asked.map((a) => a.id);
+  assert.equal(new Set(ids).size, 10, `ten assets read ahead, got ${ids.length}`);
+  assert.ok(ids.every((id) => !/-1\d\d$/.test(id)), "no asset of a job waiting unclaimed in a queue");
+  assert.ok(asked.every((a) => a.at - drawn >= 1000), "read after the page has drawn");
 });
 
 // P5.17d (#1093): this shift's rounds are kept on the phone, every point can be taken without signal, a reading
