@@ -29,8 +29,12 @@ def listing():
 def one(key: str, grain: str | None = None, at: date | None = None, history: bool = False, conn=Depends(get_conn)):
     """One metric now, the same value a page, the daily report or an agent reads; `history` adds its earlier values."""
     from ..core.jsonsafe import plain
+    from .shared_reads import shared
 
     try:
-        return plain(metrics.value(conn, deps.pack(), key, grain, at, history))
+        # The Metrics page asks for every metric's history at once, a fifth of a second of CPU each: people opening it
+        # together share one computation of each until the data changes (#1069).
+        return shared(conn, "metric", (key, grain, at, history),
+                      lambda: plain(metrics.value(conn, deps.pack(), key, grain, at, history)))
     except metrics.MetricError as e:
         raise HTTPException(404 if "no metric" in str(e) else 400, str(e)) from e
