@@ -1,7 +1,7 @@
 // The schematic 3D view (P5.16a): a scene laid out on the server, drawn as generic solids with three.js. This file
 // is the only one that imports three, and it is loaded on demand, so no other page carries it.
 import "./styles/scene3d.css";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -55,6 +55,8 @@ function solid(shape: SceneShape): THREE.BufferGeometry {
 interface Built {
   dispose: () => void; fit: () => void; light: () => void; lookAt: (id: string) => void;
   zoom: (factor: number) => void; top: () => void;
+  /** One finger (or the left mouse button) pans instead of turning the view. Two fingers still zoom and pan. */
+  pan: (on: boolean) => void;
   screenOf: (id: string) => { x: number; y: number } | null;
 }
 
@@ -335,6 +337,12 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
 
   return {
     fit: () => fit(), top: () => fit(TOP), zoom, light, lookAt,
+    pan: (on) => {
+      controls.mouseButtons.LEFT = on ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+      controls.mouseButtons.RIGHT = on ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
+      controls.touches.ONE = on ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE;
+      controls.screenSpacePanning = !on; // panning in pan mode slides along the deck, not up into the sky
+    },
     screenOf: (id) => {
       const hit = at.get(id);
       if (!hit) return null;
@@ -375,6 +383,9 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
   const labels = useRef<HTMLDivElement>(null);
   const built = useRef<Built | null>(null);
   const full = useFullscreen();
+  const [panning, setPanning] = useState(false);
+  const panRef = useRef(panning);
+  panRef.current = panning;
   const state = useRef({ selected, onSelect });
   state.current.onSelect = onSelect;
 
@@ -384,6 +395,7 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
       built.current = null;
       try {
         built.current = build(host.current!, labels.current!, scene, lineColor, labelBy, state.current);
+        built.current.pan(panRef.current);
       } catch {
         onUnavailable();
       }
@@ -407,6 +419,8 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
     if (centre) built.current?.lookAt(centre.id);
   }, [centre]);
 
+  useEffect(() => { built.current?.pan(panning); }, [panning]);
+
   // For the browser tests, which can't see into the canvas: where an item is on screen.
   useEffect(() => {
     const el = host.current as (HTMLDivElement & { screenOf?: (id: string) => unknown }) | null;
@@ -426,6 +440,12 @@ export default function Scene3D({ scene, selected, centre, onSelect, lineColor, 
           <FullscreenButton on={full.on} onClick={() => void full.toggle()} />
           <Button variant="secondary" size="sm" className="graph-fit" onClick={() => built.current?.fit()} title="Fit to view">
             Fit
+          </Button>
+          <Button variant="secondary" size="sm" className="scene-tool" aria-pressed={panning}
+            aria-label="Pan mode"
+            title={panning ? "Drag moves the view (tap to turn it instead)" : "Drag turns the view (tap to move it instead)"}
+            onClick={() => setPanning(!panning)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3m3-3 3 3M12 21l-3-3m3 3 3-3M3 12l3-3m-3 3 3 3M21 12l-3-3m3 3-3 3" /></svg>
           </Button>
           {tool("Zoom in", () => built.current?.zoom(0.7), <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>)}
           {tool("Zoom out", () => built.current?.zoom(1.4), <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>)}

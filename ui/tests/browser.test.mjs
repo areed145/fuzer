@@ -3690,12 +3690,15 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   });
   await page.route("**/network*", (route) => route.fulfill({ json: { rels: [], nodes: [], edges: [], truncated: false } }));
 
-  // The diagram is still the default view, and it doesn't carry the 3D library.
+  // 3D is its own Explore tab: the Network diagram doesn't carry the 3D library.
   await page.goto(`${url}/#/network`);
-  await page.getByRole("navigation", { name: "Views of the network" }).getByRole("link", { name: "3D" }).waitFor();
+  const explore = page.getByRole("navigation", { name: "Explore pages" });
+  await explore.getByRole("link", { name: "3D", exact: true }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Views of the network" }).count(), 0);
   assert.equal(scripts.some((u) => /Scene3D/.test(u)), false);
 
-  await page.getByRole("navigation", { name: "Views of the network" }).getByRole("link", { name: "3D" }).click();
+  await explore.getByRole("link", { name: "3D", exact: true }).click();
+  await page.waitForFunction(() => location.hash.startsWith("#/3d"));
   const canvas = page.locator("[data-scene-items]");
   await canvas.waitFor();
   assert.equal(await canvas.getAttribute("data-scene-items"), "3");
@@ -3722,6 +3725,20 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   const covered = await frame.boundingBox();
   assert.ok(covered.width >= viewport.width - 1 && covered.height >= viewport.height - 1);
   for (const name of ["Zoom in", "Zoom out", "View from above", "Fit"]) await frame.getByRole("button", { name }).click();
+  // Pan mode: a drag moves the view instead of turning it, and the button says it's on.
+  const pan = frame.getByRole("button", { name: "Pan mode" });
+  await pan.click();
+  assert.equal(await pan.getAttribute("aria-pressed"), "true");
+  const before = await canvas.evaluate((el) => el.screenOf("K-1"));
+  const area = await frame.locator(".graph-surface").boundingBox();
+  await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(area.x + area.width / 2 + 80, area.y + area.height / 2, { steps: 5 });
+  await page.mouse.up();
+  const after = await canvas.evaluate((el) => el.screenOf("K-1"));
+  assert.ok(Math.abs(after.x - before.x - 80) < 25, `a pan moves the drawing with the drag (${before.x} -> ${after.x})`);
+  await pan.click();
+  assert.equal(await pan.getAttribute("aria-pressed"), "false");
   assert.equal(await frame.getByLabel("What the lines are").isVisible(), true);
   await frame.getByRole("button", { name: "Exit full screen" }).click();
   await page.locator(".scene3d-frame:not(.ui-fullscreen)").waitFor();
@@ -3744,7 +3761,9 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
 
   // On a phone the drawing takes the width and its controls are thumb-sized.
   await page.setViewportSize({ width: 390, height: 844 });
+  // An old link to the Network page's 3D mode opens the 3D tab with the same view.
   await page.goto(`${url}/#/network?view=3d&at=A1&node=V-1`);
+  await page.waitForFunction(() => location.hash === "#/3d?at=A1&node=V-1");
   await page.locator("[data-scene-items]").waitFor();
   await page.locator(".graph-panel").getByRole("heading", { name: "V-1" }).waitFor();
   const box = await page.locator(".scene3d").boundingBox();

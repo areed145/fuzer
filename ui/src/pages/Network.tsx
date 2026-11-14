@@ -1,5 +1,4 @@
-import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empty, Tabs } from "../ui";
-import { NetworkScene } from "./NetworkScene";
+import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empty } from "../ui";
 import { useMemo } from "react";
 import { api, type GraphNode, type RelationDef, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, REL_VIEWS, kindColor, relColor, subgraphElements } from "../graph";
@@ -26,19 +25,11 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
 
   const declared = useAsync(() => api.ontologyDeclared(), []);
   const relDef = (name: string): RelationDef | undefined => declared.data?.relations.find((r) => r.name === name);
-  // The 3D view draws a facility as shapes instead of the link diagram (P5.16a); the diagram's own reads wait.
-  const threeD = query.get("view") === "3d";
-  const views = (
-    <Tabs className="page-tabs" label="Views of the network" items={[
-      { key: "diagram", label: "Diagram", href: href("/network"), current: !threeD },
-      { key: "3d", label: "3D", href: href("/network", { view: "3d" }), current: threeD },
-    ]} />
-  );
   // No link types asked for: the server draws the ontology's flow view and says which ones that was.
   const none = query.get("rels") === "";
   const net = useAsync(
-    () => (none || threeD ? Promise.resolve(undefined) : api.network(asOf || undefined, asked.length ? asked : undefined)),
-    [asOf, asked.join(","), none, threeD],
+    () => (none ? Promise.resolve(undefined) : api.network(asOf || undefined, asked.length ? asked : undefined)),
+    [asOf, asked.join(","), none],
   );
   const on = none ? [] : asked.length ? asked : net.data?.rels ?? [];
   const order = (rels: string[]) => [...rels].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
@@ -94,16 +85,6 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
   const node = net.data?.nodes.find((n) => n.id === selected);
   const focusLabel = (id: string) => net.data?.nodes.find((n) => n.id === id)?.label ?? id;
 
-  if (threeD) {
-    return (
-      <section>
-        <PageHeader subtitle="A facility as generic shapes, laid out from its links.">Network</PageHeader>
-        {views}
-        <NetworkScene query={query} set={set} relDef={relDef} />
-      </section>
-    );
-  }
-
   return (
     <section>
       <div className="row spread">
@@ -120,7 +101,6 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
           )}
         </label>
       </div>
-      {views}
       <div className="network-filters">
         <div className="chips" role="group" aria-label="Link types">
           <span className="muted small">Links</span>
