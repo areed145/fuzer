@@ -1,6 +1,6 @@
 import { AttentionCard } from "./HomeAttention";
 import { alarm, plural, say } from "../wording";
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, type Stats, type Upset } from "../api";
 import { caseHref } from "./workflows/shared";
 import { iocCounts, workHref } from "./AllWork";
@@ -53,7 +53,13 @@ export function HomePage({ query, stats }: {
   const seated = !person || inbox.data !== undefined || !!inbox.error;
   const steward = roles.includes("data_steward") || configure;
   // The seat's own card leads; the rest of the work cards sit in the grid with reports, incidents and health.
-  const lead = seat === "operator" ? <YourShift key="shift" /> : seat === "dispatcher" ? <AllWorkCard key="all" /> : null;
+  // The cards under it wait until it has drawn: it lands in one piece but grows from a loading line to several
+  // hundred px, and shoved the attention card below the fold (#1069, CLS 0.27 live).
+  const [leadReady, setLeadReady] = useState(false);
+  const ready = useCallback(() => setLeadReady(true), []);
+  const lead = seat === "operator" ? <YourShift key="shift" onReady={ready} />
+    : seat === "dispatcher" ? <AllWorkCard key="all" onReady={ready} /> : null;
+  const shown = lead && !leadReady ? ORDER[seat].slice(0, ORDER[seat].indexOf("lead") + 1) : ORDER[seat];
   const blocks: Record<Block, ReactNode> = {
     lead: lead && <div className="home-lead">{lead}</div>,
     attention: loaded && <AttentionCard />,
@@ -82,7 +88,7 @@ export function HomePage({ query, stats }: {
             : <p>Ask an administrator to load the demonstration records.</p>}
         </UICard>
       )}
-      {seated ? ORDER[seat].map((b) => <Fragment key={b}>{blocks[b]}</Fragment>) : <Status loading />}
+      {seated ? shown.map((b) => <Fragment key={b}>{blocks[b]}</Fragment>) : <Status loading />}
     </section>
   );
 }
@@ -154,7 +160,7 @@ function Count({ n, to, children, late }: { n: number; to: string; children: str
   return <li><a href={to} className={late && n > 0 ? "late" : undefined}><strong>{n}</strong> {n === 1 ? one : many}</a></li>;
 }
 
-function AllWorkCard() {
+function AllWorkCard({ onReady }: { onReady?: () => void } = {}) {
   const open = useAsync(() => api.exceptions({ state: "open" }), []);
   const people = useAsync(() => api.workPeople(), []);
   const board = useAsync(() => api.board({}, 1), []);
@@ -164,6 +170,7 @@ function AllWorkCard() {
   // The counts and the highest value together: drawn as each answered, the list growing under the counts pushed the
   // rest of Home down (#1069). It leads a dispatcher's Home.
   const ready = [open, people, board].every((r) => r.data !== undefined || !!r.error);
+  useEffect(() => { if (ready) onReady?.(); }, [ready, onReady]);
   return (
     <UICard className="home-card" as="section">
       <div className="row spread"><h2>All work</h2><a href={workHref("dispatch")}>Open All work</a></div>
