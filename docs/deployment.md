@@ -267,6 +267,29 @@ Repository changes, opening a PR and merging do not themselves verify a live Ren
 deployment. Before sharing a deployed revision, verify fresh-session login and approval,
 owner administration, desktop/mobile Okan navigation, and rejected unauthorized writes.
 
+### Deploying and rolling back at a shift-safe time
+
+A deploy restarts the service, and startup can take minutes when the deploy changes data (see Initial load and
+upgrades). The board and the phones are unavailable while it does. So a deploy the IOC depends on goes out between
+shifts, and a bad one is rolled back the same way.
+
+1. **Agree a window with the IOC lead.** Use a gap between shifts, after the handover is acknowledged. Check the Jobs
+   page first: let a running `refresh_all` or `day_close` finish, since a deploy interrupts it.
+2. **Check the deploy before the window.** CI is green on `main`, and Settings > Onboarding shows the Go live step
+   complete (or `uv run fuzer onboarding`). Note the commit that is live now, from the service's Events tab: it is
+   what a rollback returns to.
+3. **Deploy.** Render deploys `main` when it changes. To hold a change for the window, turn off auto-deploy on the
+   service and use Manual Deploy, then Deploy latest commit, in the window.
+4. **Confirm it is up.** The startup log says `already initialized; keeping settings and reviewer decisions`, not a fresh load. Then
+   check `/health`, sign in, open the Board and one dispatched job on a phone. If startup logged `Data refresh failed`,
+   the service is running on the register it had: open Sources before deciding to roll back.
+5. **Roll back if it isn't right.** In the service's Events tab, choose the deploy noted in step 2 and Rollback. A
+   rollback redeploys the earlier image only; it does not roll back the database. The earlier image re-applies its
+   own schema on start, which only adds what is missing, so tables and columns the newer image added stay and are
+   ignored. Decisions recorded since the deploy are kept. If the bad deploy damaged data rather than code, restore
+   instead (Restoring at a shift-safe time, below).
+6. **Tell the incoming shift** what changed, or that it was rolled back, in the handover notes.
+
 ## Backup and restore
 
 Everything a shift would miss lives in `fuzer-db`:
