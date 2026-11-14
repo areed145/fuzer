@@ -707,6 +707,19 @@ def work_person(name: str, p: WorkPerson, conn=Depends(get_conn)):
     return work.set_person(conn, name, p.roles, p.by)
 
 
+@router.put("/work/me/roles")
+def work_act_as(p: WorkPerson, conn=Depends(get_conn)):
+    """The demo account picks which human roles it acts as in this project (#1068): an empty list is every role.
+    Other accounts get their roles from the roster, which an administrator keeps."""
+    from ..core import access
+    from . import security
+
+    person = security.current.get()
+    if person is None or person.id != access.DEMO_ID:
+        raise HTTPException(403, "Only the demo account picks its own roles; an administrator sets yours on Users.")
+    return work.act_as(conn, p.roles, person.actor)
+
+
 @router.delete("/work/people/{name}")
 def work_person_remove(name: str, by: str = work.SYSTEM, conn=Depends(get_conn)):
     """Take a person off the roster; what they had claimed goes back to its role's queue."""

@@ -849,6 +849,8 @@ export const workApi = {
   boardProject: (p: { title: string; by: string; owner?: string; due?: string; benefit_usd?: number; scope?: string }) =>
     request<unknown>("POST", "/board/projects", undefined, p),
   workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null }[]>("GET", "/work/people"),
+  /** The demo account picks the human roles it acts as in this project; none is every role. */
+  actAs: (roles: string[]) => request<{ name: string; roles: string[]; picked: string[] }>("PUT", "/work/me/roles", undefined, { roles }),
   setWorkPerson: (name: string, roles: string[], by: string) =>
     request<{ name: string; roles: string[] }>("PUT", `/work/people/${encodeURIComponent(name)}`, undefined, { roles, by }),
   removeWorkPerson: (name: string, by: string) =>
