@@ -3725,6 +3725,20 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   const covered = await frame.boundingBox();
   assert.ok(covered.width >= viewport.width - 1 && covered.height >= viewport.height - 1);
   for (const name of ["Zoom in", "Zoom out", "View from above", "Fit"]) await frame.getByRole("button", { name }).click();
+  // Pan mode: a drag moves the view instead of turning it, and the button says it's on.
+  const pan = frame.getByRole("button", { name: "Pan mode" });
+  await pan.click();
+  assert.equal(await pan.getAttribute("aria-pressed"), "true");
+  const before = await canvas.evaluate((el) => el.screenOf("K-1"));
+  const area = await frame.locator(".graph-surface").boundingBox();
+  await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(area.x + area.width / 2 + 80, area.y + area.height / 2, { steps: 5 });
+  await page.mouse.up();
+  const after = await canvas.evaluate((el) => el.screenOf("K-1"));
+  assert.ok(Math.abs(after.x - before.x - 80) < 25, `a pan moves the drawing with the drag (${before.x} -> ${after.x})`);
+  await pan.click();
+  assert.equal(await pan.getAttribute("aria-pressed"), "false");
   assert.equal(await frame.getByLabel("What the lines are").isVisible(), true);
   await frame.getByRole("button", { name: "Exit full screen" }).click();
   await page.locator(".scene3d-frame:not(.ui-fullscreen)").waitFor();
