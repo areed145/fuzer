@@ -318,6 +318,7 @@ export const exploreApi = {
       "GET", `/entities/${encodeURIComponent(id)}/drawings`),
   drawing: (id: string) => request<Drawing>("GET", `/documents/${encodeURIComponent(id)}/drawing`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
+  entityProfile: (id: string) => request<EntityProfile>("GET", `/entities/${encodeURIComponent(id)}/profile`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   ontologyDeclared: () => request<OntologyDeclared>("GET", "/ontology/declared"),
   ontologyHistory: (object?: "kind" | "relation", name?: string) =>
@@ -342,3 +343,14 @@ export const exploreApi = {
   /** The schematic scene of a facility, an area, or the area of anything inside one (default: the main facility). */
   scene: (at?: string, rels?: string[]) => request<Scene>("GET", "/scene", { at, rels: rels?.join(",") }),
 };
+
+type Ref = { id: string; label: string | null };
+/** What an asset is: maker, model and serial of the unit there now, its class, criticality, model and location. */
+export interface EntityProfile {
+  description: string | null; manufacturer: string | null; model: string | null; serial: string | null;
+  criticality: string | null; template: string | null;
+  equipment_model: Ref | null; equipment_class: (Ref & { description: string | null }) | null;
+  installed: (Ref & { since: string | null }) | null; position: (Ref & { since: string | null }) | null;
+  location: (Ref & { kind: string; description: string | null })[];
+  manuals: DocRef[];
+}

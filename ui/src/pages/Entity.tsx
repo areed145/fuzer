@@ -1,9 +1,9 @@
-import { projectUrl } from "../authState";
 import "../styles/entity.css";
-import { Bar, Button, ButtonLink, PageHeader, Table, Tabs, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
+import { Bar, Button, ButtonLink, PageHeader, Table, Tabs, Input,  Card as UICard, Badge as UIBadge} from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
-import { DrawingViewer } from "../DrawingViewer";
+import { DrawingViewer, SheetThumb } from "../DrawingViewer";
+import { DocumentPages, documentHref, openDocument } from "../DocumentViewer";
 import { NotThisRecord, SameAs } from "./masterdata/Curation";
 import { AssetContextCard } from "./masterdata/Context";
 import { caseHref } from "./workflows/shared";
@@ -34,6 +34,7 @@ import { TrendView } from "../TrendView";
 import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
 import { EntityStatus } from "../EntityStatus";
+import { AssetProfile } from "../AssetProfile";
 import { WatchButton } from "../Watch";
 import { Related } from "../Related";
 import { kindColor } from "../kinds";
@@ -75,9 +76,9 @@ const REL_LABELS: Record<string, [string, string]> = {
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1]
   ?? `${e.rel.charAt(0).toUpperCase()}${e.rel.slice(1).replaceAll("_", " ")} (${e.direction === "out" ? "to" : "from"})`;
 
-type EntityTab = "overview" | "trends" | "connections" | "documents" | "record" | "graph";
+type EntityTab = "overview" | "maintenance" | "trends" | "connections" | "documents" | "record" | "graph";
 const TAB_LABELS: Record<EntityTab, string> = {
-  overview: "Overview", trends: "Timeline", connections: "Connections", documents: "Documents", record: "Record",
+  overview: "Overview", maintenance: "Maintenance", trends: "Timeline", connections: "Connections", documents: "Documents", record: "Record",
   graph: "Graph",
 };
 const NO_TRENDS = ["document", "document_section", "log_entry"];
@@ -89,7 +90,9 @@ function entityTabs(e: EntityDetail): EntityTab[] {
   // Connections is the flow diagram, so only a record on the piping or allocation network has it; its links are on Graph.
   const flow = e.edges.some((x) => x.rel === "flows_to" || x.rel === "pipes_to");
   const documents = [...MAINTAINED, "area", "well", "facility", "pipeline"].includes(e.kind);
-  return ["overview", ...(trends ? ["trends" as const] : []), ...(flow ? ["connections" as const] : []),
+  // Maintenance is the field technician's view: work orders and notifications, spare parts, and downtime.
+  const maintained = MAINTAINED.includes(e.kind);
+  return ["overview", ...(maintained ? ["maintenance" as const] : []), ...(trends ? ["trends" as const] : []), ...(flow ? ["connections" as const] : []),
     ...(documents ? ["documents" as const] : []), "record", "graph"];
 }
 
@@ -156,6 +159,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
       {view === "overview" && (
         <>
           {operated && <EntityStatus id={fid} />}
+          {["tag", "equipment", "equipment_model"].includes(e.kind) && <AssetProfile id={fid} />}
           {operated && <WorkHere id={fid} area={e.kind === "area"} />}
           {e.kind === "incident" && <IncidentDetail id={fid} />}
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
@@ -169,17 +173,13 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
                     {fmt(e.golden.status?.value)}
                   </span>
                 </h2>
-                <ButtonLink href={projectUrl(`/documents/${encodeURIComponent(fid)}/file`)} target="_blank"
-                   rel="noreferrer">Open document</ButtonLink>
+                <ButtonLink href={documentHref(fid)} onClick={(ev) => { ev.preventDefault(); openDocument(fid); }}>
+                  Read full screen</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
                 <p className="error small">This revision is superseded; see "Superseded by" under Graph.</p>
               )}
-              <iframe
-                className="doc-file"
-                title={fmt(e.golden.title?.value)}
-                src={projectUrl(`/documents/${encodeURIComponent(fid)}/file`)}
-              />
+              <DocumentPages id={fid} className="doc-preview" />
             </UICard>
           )}
           {e.kind === "document_section" && (
@@ -196,9 +196,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             <><IncidentsCard id={fid} />
             <Related about={{ subject: fid }} incidents={false} /></>
           )}
-          {MAINTAINED.includes(e.kind) && <MaintenanceCard id={fid} />}
-          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={fid} />}
-          {[...MAINTAINED, "well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
+          {["well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
           {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={fid} />}
           {e.kind !== "event" && <Events id={fid} />}
           <Suspense fallback={null}>
@@ -208,6 +206,14 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             <Fields e={e} />
             <Records e={e} />
           </div>}
+        </>
+      )}
+
+      {view === "maintenance" && (
+        <>
+          <MaintenanceCard id={fid} />
+          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={fid} />}
+          <DowntimeCard id={fid} />
         </>
       )}
 
@@ -228,8 +234,8 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
       {view === "documents" && (
         <>
-          <LinkedDrawings id={fid} />
           <KnowledgeCard id={fid} />
+          <LinkedDrawings id={fid} />
         </>
       )}
 
@@ -251,24 +257,16 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
 function LinkedDrawings({ id }: { id: string }) {
   const d = useAsync(() => api.entityDrawings(id), [id]);
-  const [pick, setPick] = useState<string>();
   const sheets = d.data?.drawings ?? [];
   if (sheets.length === 0) return null;
-  const sheet = sheets.find((x) => x.id === pick) ?? sheets[0];
-  const title = (
-    <>
-      On P&ID{" "}
-      {sheets.length > 1 ? (
-        <Select value={sheet.id} onChange={(ev) => setPick(ev.target.value)} aria-label="P&ID sheet">
-          {sheets.map((x) => <option key={x.id} value={x.id}>{x.label}{x.title ? ` · ${x.title}` : ""}</option>)}
-        </Select>
-      ) : (
-        <>{sheet.label}{sheet.title && <span className="muted"> · {sheet.title}</span>}</>
-      )}{" "}
-      <a className="small" href={entityHref(sheet.id)}>open</a>
-    </>
+  return (
+    <UICard as="section">
+      <h2>On P&ID <span className="muted small">{sheets.length === 1 ? "one sheet" : `${sheets.length} sheets`}, ringed where this is</span></h2>
+      <div className="sheet-thumbs">
+        {sheets.map((x) => <SheetThumb key={x.id} id={x.id} label={x.label ?? x.id} title={x.title} highlight={d.data!.highlight} />)}
+      </div>
+    </UICard>
   );
-  return <DrawingViewer key={sheet.id} id={sheet.id} highlight={d.data!.highlight} title={title} compact />;
 }
 
 /** Why a value says what it says (#225): the rule, and each record that states one with its mapping and load. */
@@ -697,9 +695,9 @@ function KnowledgeCard({ id }: { id: string }) {
       <ul className="plain">
         {docs.data.map((d) => (
           <li key={d.id} className="small">
-            <a href={entityHref(d.id)}>{d.title ?? d.label}</a>{" "}
+            <a href={documentHref(d.id)} onClick={(ev) => { ev.preventDefault(); openDocument(d.id); }}>{d.title ?? d.label}</a>{" "}
             <span className="muted">
-              {d.doc_type?.replace("_", " ")} · rev {d.revision} · via {d.why}
+              {d.doc_type?.replace("_", " ")} · rev {d.revision} · via {d.why} · <a href={entityHref(d.id)}>details</a>
             </span>
           </li>
         ))}
