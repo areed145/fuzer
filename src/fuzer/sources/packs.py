@@ -231,7 +231,7 @@ def _sample_alerts(conn, system: str, pushes: list[dict], fixture: Path, problem
     import json
 
     from . import connectors, providers
-    from .relative_dates import resolve_all
+    from .relative_dates import place
 
     out = {}
     for p in pushes:
@@ -248,7 +248,7 @@ def _sample_alerts(conn, system: str, pushes: list[dict], fixture: Path, problem
         if sample is None:
             problems.append(f"provider {p['name']}: its fixture has no {p['name']}.json or alerts.json of sample alerts")
             continue
-        res = providers.alerts(conn, system, resolve_all(json.loads(sample.read_text())), p["name"])
+        res = providers.alerts(conn, system, place(json.loads(sample.read_text())), p["name"])
         for e in res["errors"]:
             problems.append(f"provider {p['name']}: {e}")
         out[p["name"]] = len(res["alerts"])

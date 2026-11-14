@@ -103,16 +103,21 @@ def load(data_dir) -> Faults | None:
     path = Path(data_dir) / "instrument_faults.json" if data_dir else None
     if not path or not path.is_file():
         return None
-    return _cached(str(path), path.stat().st_mtime)
+    from .relative_dates import offset
+
+    return _cached(str(path), path.stat().st_mtime, offset())
 
 
-_CACHE: dict[tuple[str, float], Faults] = {}
+_CACHE: dict[tuple[str, float, int], Faults] = {}
 
 
-def _cached(path: str, mtime: float) -> Faults:
-    if (path, mtime) not in _CACHE:
-        _CACHE[(path, mtime)] = Faults(json.loads(Path(path).read_text()))
-    return _CACHE[(path, mtime)]
+def _cached(path: str, mtime: float, days: int = 0) -> Faults:
+    """The faults in a file, a rolling facility's moved on by `days` (#1085)."""
+    from .relative_dates import roll_all
+
+    if (path, mtime, days) not in _CACHE:
+        _CACHE[(path, mtime, days)] = Faults(roll_all(json.loads(Path(path).read_text()), days))
+    return _CACHE[(path, mtime, days)]
 
 
 def swinging_door(secs: np.ndarray, v: np.ndarray, dev: float) -> list[int]:

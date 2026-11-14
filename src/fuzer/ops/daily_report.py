@@ -35,9 +35,10 @@ MOVER_PCT = 10.0  # default for the setting daily_report.mover_pct (#131); a wel
 CITE = re.compile(r"\[([^\[\]]+)\]")
 
 
-def recheck_days(last: date) -> list[date]:
-    """Days to re-close so late records revise recent reports."""
-    return [last - timedelta(days=i) for i in range(7)]
+def recheck_days(last: date, rolling: bool = False) -> list[date]:
+    """Days to re-close so late records revise recent reports. A rolling facility's earlier days are re-dated every
+    day (relative_dates.roll, #1085), not revised by late records, so only its latest day is closed."""
+    return [last] if rolling else [last - timedelta(days=i) for i in range(7)]
 
 
 def _f(template: str, cites: list[str], **values) -> dict:

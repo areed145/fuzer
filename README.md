@@ -128,6 +128,12 @@ losing head to worn wear rings, an eroding choke on OK-J12-02 and a plugging one
 on OK-NWP-G3. Details in
 [fakeplant/src/fakeplant/okan.py](fakeplant/src/fakeplant/okan.py).
 
+The exports are written as if today were 31 December 2025. The Okan bundle rolls them forward
+(`rolls_from: "2025-12-31"`, #1085): every date Fuzer reads from them moves on by the days since, so the
+latest data day is always yesterday and the records, historian and the work Fuzer raises share one clock.
+Identifiers and free text keep the dates they were written with. A database made without the bundle (the
+tests, `fakeplant demo`) reads the dates as written.
+
 Optional, in `.env` (see `.env.example`):
 
 - `FUZER_DATABASE_URL=...` to use your own Postgres (`docker compose up -d` gives

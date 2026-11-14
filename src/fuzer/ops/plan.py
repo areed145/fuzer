@@ -278,8 +278,11 @@ def sync_maintenance_plans(conn, by: str = "sap") -> dict:
         where e.kind = 'maintenance_plan' and e.retired_at is null
         group by e.fuzer_id
         """).fetchall()
+    from ..sources.relative_dates import offset
+
     added = updated = rolled = skipped = 0
     current = []
+    written = timedelta(days=offset())  # a rolling facility's dates move on daily (#1085): key on the date as written
     for r in rows:
         f = {k: v for k, v in r["f"].items() if v not in (None, "")}
         plan_key = r["number"] or r["label"] or r["fuzer_id"]
@@ -288,7 +291,7 @@ def sync_maintenance_plans(conn, by: str = "sap") -> dict:
         except (KeyError, PlanError):
             skipped += 1
             continue
-        key = f"{plan_key}:{due:%Y-%m-%d}"
+        key = f"{plan_key}:{due - written:%Y-%m-%d}"
         current.append(key)
         inspection = str(f.get("kind", "")).upper().startswith("INSP")
         row = propose(conn, "inspection" if inspection else "maintenance",

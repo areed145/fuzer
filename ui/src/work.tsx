@@ -2,9 +2,9 @@
 
 import { Badge as UIBadge, Disclosure } from "./ui";
 import { type ReactNode } from "react";
-import { api, type WorkEvent } from "./api";
+import { type WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
-import { entityHref, fieldLabel, fmt, useAsync } from "./lib";
+import { entityHref, fieldLabel, fmt } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
 import { queue } from "./wording";
@@ -25,21 +25,6 @@ export function Due({ at, closed }: { at: string | null; closed?: boolean }) {
   if (left < 0) return <UIBadge className="badge late">overdue {span(left)}</UIBadge>;
   if (left < 24 * HOUR) return <UIBadge className="badge soon">due in {span(left)}</UIBadge>;
   return <span className="muted small">due in {span(left)}</span>;
-}
-
-/** When the loaded data stops well before today (a historical or synthetic scenario), say which clock each time
- * uses: events carry the scenario's dates, while due dates, SLAs and "opened" are when Fuzer recorded the work (#389). */
-export function ScenarioClock() {
-  const stats = useAsync(() => api.stats(), []);
-  const through = stats.data?.data_through;
-  if (!through) return null;
-  const behind = (Date.now() - new Date(`${through}T23:59:59`).getTime()) / (24 * HOUR);
-  if (behind < 2) return null;
-  return <p className="small muted scenario-clock" role="note">
-    The loaded data runs to <strong>{new Date(`${through}T12:00:00`).toLocaleDateString(undefined, { dateStyle: "medium" })}</strong>.
-    Event dates in titles and evidence are from the data; due dates, SLAs and opened times are on today's clock, from
-    when Fuzer raised the work.
-  </p>;
 }
 
 /** How many reports a case's sources are, and from how many systems: four upsets from one detector are one

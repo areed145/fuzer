@@ -46,6 +46,13 @@ model's events, so the demo never goes stale: yesterday's B1-K-2001 trip is on t
 downtime, and in the IOC's queue as an open SAP notification, an IOW breach on the inlet separator and an SRE
 upset. `uv run fakeplant historian --data fakeplant/bundles/kestrel/exports` serves it as PI Web API and ADX.
 
+Okan is generated, not hand-written, so it rolls forward a different way (#1085): `fakeplant generate` writes it as
+if today were `okan.AS_OF` (31 December 2025), and its bundle says so (`rolls_from: "2025-12-31"`). Reading it on a
+later day, ingest, the process model, the instrument faults, the pack's investigation window and the bundle's evals
+move every whole date on by the days since (`fuzer.sources.relative_dates.roll`), so its latest data day is always
+yesterday. Dates inside identifiers (`OKLOG-2024-01-01-00295`) and free text stay as written. The few records that are
+about today rather than the story (permits, purchase orders and reservations) are written in relative dates instead.
+
 Its gas wells report gas and condensate rates in their well tests, not an oil rate and a GOR. And one Kestrel
 system has no built-in mapping on purpose: `bundles/kestrel/measurement/daily_volumes.csv`, a gas measurement
 system's daily volume, energy and heating value per meter, naming plant meters (C1FT3005, H1FT8010) and wellhead meters

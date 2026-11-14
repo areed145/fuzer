@@ -5,11 +5,12 @@
 #   fuzer ingest && fuzer rebuild
 bundle: 1
 name: okan
-description: Okan field (NMA South Offshore), fictional historical data made by fakeplant.
+description: Okan field (NMA South Offshore), fictional data made by fakeplant, rolled forward to today.
 pack: pack.yaml
 project:
   data: ../../data/okan
   timeseries: synthetic
+  rolls_from: "2025-12-31"  # its exports' today: read a day later, every date moves on a day (relative_dates, #1085)
   sample_crew: true  # a sample team works the queue on today's clock (ops/sample_crew.py, #1073)
   fakeplant: {asset: okan, seed: 11}
 source_packs: [packs/healthwatch.yaml]

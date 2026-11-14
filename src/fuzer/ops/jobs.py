@@ -522,8 +522,10 @@ def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     with fuzer.connect() as conn:
         pack = fuzer.pack_for(conn)
         engine.load_defaults(conn)
+        from ..sources import relative_dates
+
         last = date.fromisoformat(operations.as_of(conn))
-        for day in daily_report.recheck_days(last):
+        for day in daily_report.recheck_days(last, rolling=bool(relative_dates.offset())):
             day = day.isoformat()
             try:
                 context.log.info(f"report {day}: {daily_report.close_day(conn, pack, day)}")

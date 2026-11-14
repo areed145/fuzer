@@ -95,11 +95,11 @@ def arrivals(conn) -> dict[str, dict]:
 
     folder = bundles.find(resolve(conn).name)  # this database's own pack (not one cached for another database)
     path = Path(folder) / "evals" / "loop.yaml" if folder else None
-    from ..sources.relative_dates import resolve_all
+    from ..sources.relative_dates import place
 
     if not (path and path.is_file()):
         return {}
-    return resolve_all((yaml.safe_load(path.read_text()) or {}).get("arrive", {}))  # `today-1d 03:10` reads as a date
+    return place((yaml.safe_load(path.read_text()) or {}).get("arrive", {}))  # `today-1d 03:10` reads as a date
 
 
 def _bundle(conn) -> Path:
@@ -146,10 +146,10 @@ def _noisy(conn, pack, t: dict) -> str:
 
     from ..core import detectors, settings
     from ..ops import disposition, routing, tuning
-    from ..sources.relative_dates import resolve_all
+    from ..sources.relative_dates import place
     from ..sources.timeseries import provider
 
-    t = resolve_all({"t": t})["t"]
+    t = place({"t": t})["t"]
     d = detectors.get(t["detector"])
     param, p = next(iter(d.quieter)), settings.project()
     since, until = (datetime.fromisoformat(str(t[k])) for k in ("since", "until"))

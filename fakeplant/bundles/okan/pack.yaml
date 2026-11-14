@@ -5,11 +5,12 @@
 #   25 the GGCP flare system (KO drum, meter, flare boom; on GGCP)   26 OKA_FLJ, the alternate flare stack's jacket
 name: okan
 facility: OKAN
-data_notice: Fictional, historical data, not a live operating update.
+data_notice: Fictional data, rolled forward to today each day; not a live operating update.
 
-# The guided investigation on Investigate (graph/investigation.py): train B's March 2024 trips and the April repair.
+# The guided investigation on Investigate (graph/investigation.py): train B's March 2024 trips and the April repair
+# (as written: the window moves on with the data, rolls_from in bundle.yaml).
 investigation:
-  title: Why investigate train B's March trips?
+  title: Why investigate train B's compressor trips?
   asset: 20-K-2200B
   since: "2024-03-01"
   until: "2024-04-01"

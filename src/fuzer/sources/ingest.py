@@ -18,7 +18,7 @@ from typing import NamedTuple
 
 from psycopg.types.json import Jsonb
 
-from . import catalog, connections, connectors, mappings, quality
+from . import catalog, connections, connectors, mappings, quality, relative_dates
 
 
 class DatasetNotFound(ValueError):
@@ -175,6 +175,8 @@ class _Manifest:
             files += sorted({f for item in items for field in fields if (ref := item.get(field))
                              and (f := (self.path.parent / ref).resolve()).is_file()})
         parts = [f"{f}:{f.stat().st_size}:{f.stat().st_mtime_ns}" for f in files]
+        if days := relative_dates.offset():  # a rolling facility's dates move on each day (#1085)
+            parts.append(f"rolled:{days}")
         return hashlib.sha1("|".join(parts).encode()).hexdigest()
 
     def schema(self):
@@ -206,17 +208,22 @@ def dataset(data_dir: Path, name: str, conn=None):
 
 def _records(name: str, c, d: dict, since=None):
     """(source, record_type, key, payload) per record, with the system's number and date formats read
-    (formats.py) before the key is taken."""
+    (formats.py) before the key is taken. A rolling facility's dates are moved on to today's (relative_dates.roll,
+    #1085), so a key that is a date moves too, and a watermark position is compared on the moved dates."""
     from .formats import Formats
 
     fmt = Formats.of(d)
+    days = 0 if getattr(c, "live", False) else relative_dates.offset()
+    today = relative_dates.plant_today()
+    # moved first, then relative dates (`today-1d`, in any table kind) resolved: a relative date is never moved
+    place = lambda row: relative_dates.resolve_all(relative_dates.roll_all(row, days), today)
     if d.get("reader"):
         for source, rtype, key, payload in c.records():
-            yield source, rtype, key, fmt.row(payload)
+            yield source, rtype, key, place(fmt.row(payload))
         return
     cols = d["key"] or ()
     for row in c.rows(since):
-        row = fmt.row(row)
+        row = place(fmt.row(row))
         yield d["source"], d["record_type"], ">".join(str(row[k]) for k in cols), row
 
 
@@ -248,7 +255,7 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
     """Load datasets from their connections (every active one, or the named ones; data_dir is the project's
     data folder, where folder connections without a path look). Each loads as its load_mode says;
     `snapshot=False` loads them all incrementally. Every update or removal keeps the previous version in
-    source_record_history. Unchanged datasets are skipped; `full` reads everything again and restarts
+    source_record_history (a rolling facility's updates excepted: they are its daily re-dating, #1085). Unchanged datasets are skipped; `full` reads everything again and restarts
     watermarks. Paused and retired datasets are skipped (reported as `paused`). Explicit names must exist
     and active ones must be available; bulk discovery and scheduler discovery (`allow_missing`) report
     absent exports as `missing`. Repeated names load once."""
@@ -294,12 +301,15 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
         plan.append((d, c, fp, schema))
 
     counts: dict[str, dict] = {}
+    rolled = bool(relative_dates.offset())
 
     def rows():
         for d, c, fp, schema in plan:
             t0 = time.perf_counter()
             wm = d["watermark"] if c.watermarks and d["load_mode"] == "append" else None
             since = (wm, d["position"]) if wm and d["position"] is not None and not full else None
+            if since and rolled:  # positions are on moved dates; the files hold the dates as written (#1085)
+                since = None
             top = since[1] if since else None
             # a full read is a snapshot (append too, until its connector reads from a watermark position)
             snap = snapshot and d["load_mode"] != "incremental" and since is None
@@ -323,7 +333,7 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
                          rows())
         conn.execute("analyze source_record_stage")
         _check(conn, counts, report)
-        totals = _merge(conn, snapshot, {k: v for k, v in counts.items() if v["status"] == "done"})
+        totals = _merge(conn, snapshot, {k: v for k, v in counts.items() if v["status"] == "done"}, rolled)
         report["loaded"] = [k for k, v in counts.items() if v["status"] == "done"]
     except Exception as e:
         conn.rollback()
@@ -411,8 +421,10 @@ def _keep_latest(conn, d: dict) -> dict:
             "shown": [{"key": r["source_key"], "row": r["payload"]} for r in dropped[:DROPPED_SHOWN]]}
 
 
-def _merge(conn, snapshot: bool, counts: dict[str, dict]) -> dict:
-    """Apply the staged rows to source_record (history first), counting per dataset."""
+def _merge(conn, snapshot: bool, counts: dict[str, dict], rolled: bool = False) -> dict:
+    """Apply the staged rows to source_record (history first), counting per dataset. A rolling facility's records
+    (`rolled`, #1085) are re-dated every day, so an update keeps no previous version: the history would hold the whole
+    facility again each day and say nothing about its sources. Removals are still kept."""
     match = "r.source = s.source and r.record_type = s.record_type and r.source_key = s.source_key"
     for r in conn.execute(f"""
         select s.dataset, count(*) filter (where r.source_key is null) as inserted,
@@ -441,12 +453,18 @@ def _merge(conn, snapshot: bool, counts: dict[str, dict]) -> dict:
             removed += r["n"]
             if (name := owner.get((r["source"], r["record_type"]))) in counts:
                 counts[name]["removed"] = counts[name].get("removed", 0) + r["n"]
-    updated = conn.execute(f"""
-        insert into source_record_history (source, record_type, source_key, payload, first_seen, change)
-        select r.source, r.record_type, r.source_key, r.payload, r.first_seen, 'updated'
-        from source_record r join source_record_stage s on {match}
-        where r.payload is distinct from s.payload
-    """).rowcount
+    if rolled:
+        updated = conn.execute(f"""
+            select count(*) as n from source_record r join source_record_stage s on {match}
+            where r.payload is distinct from s.payload
+        """).fetchone()["n"]
+    else:
+        updated = conn.execute(f"""
+            insert into source_record_history (source, record_type, source_key, payload, first_seen, change)
+            select r.source, r.record_type, r.source_key, r.payload, r.first_seen, 'updated'
+            from source_record r join source_record_stage s on {match}
+            where r.payload is distinct from s.payload
+        """).rowcount
     conn.execute(f"""
         update source_record r set payload = s.payload, last_seen = now()
         from source_record_stage s where {match} and r.payload is distinct from s.payload

@@ -16,7 +16,8 @@ objects), in that order (#132). A folder holding only documents (PDF, Markdown, 
 per section (DocumentFolder, #227). ADLS later: the same pyarrow datasets over an fsspec filesystem.
 
 A small hand-written CSV or JSON export may write dates relative to the day it is read (`today-1d 03:10`,
-relative_dates.py), so a demonstration facility's records stay recent; its fingerprint includes the day.
+relative_dates.py), so a demonstration facility's records stay recent; its fingerprint includes the day. So does
+every export of a facility whose project rolls forward (`rolls_from`, #1085): ingest moves its dates on as it reads.
 
 Some datasets can come from a live system instead (`live()`): with FUZER_PI_WEB_API_URL set, the PI
 point list and AF tree are read through PI Web API (pi_web_api.py); with FUZER_ADX_URL, the ADX
@@ -41,6 +42,8 @@ def _stat(paths: list[Path], root: Path) -> str:
     parts = [f"{p.relative_to(root)}:{p.stat().st_size}:{p.stat().st_mtime_ns}" for p in paths]
     if any(_relative(p) for p in paths):  # its dates move with the calendar: a new day reads it again
         parts.append(relative_dates.day())
+    if days := relative_dates.offset():  # a rolling facility's dates move on each day too (#1085)
+        parts.append(f"rolled:{days}")
     return hashlib.sha1("|".join(parts).encode()).hexdigest()
 
 

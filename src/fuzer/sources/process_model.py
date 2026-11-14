@@ -40,12 +40,17 @@ def _load(path: str, mtime: float, day: str) -> "ProcessModel":  # `day` keys th
 
 def read(path, today: date | None = None) -> dict:
     """A process_model.json (or the folder holding one) as a spec, its relative event times (`today-1d 03:10`,
-    relative_dates) placed on the calendar, so a demonstration facility's upsets stay recent (#456)."""
+    relative_dates) placed on the calendar, so a demonstration facility's upsets stay recent (#456); a rolling
+facility's dated events and slow changes moved on to today's calendar (#1085)."""
     from . import relative_dates
 
     path = Path(path)
     path = path / "process_model.json" if path.is_dir() else path
     spec = json.loads(path.read_text())
+    if days := relative_dates.offset(today):  # a rolling facility's events and slow changes move on (#1085)
+        for part in ("events", "units"):
+            if part in spec:
+                spec[part] = relative_dates.roll_all(spec[part], days)
     if "events" in spec:
         spec["events"] = relative_dates.resolve_all(spec["events"], today)
     return spec
