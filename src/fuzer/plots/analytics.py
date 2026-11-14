@@ -89,7 +89,9 @@ def production_efficiency(out: dict, notice: str) -> Figure:
         layout=layout("", height=HEIGHT, hovermode="x unified", margin={"t": 12, "r": 64, "b": 60, "l": 64},
                       xaxis={"title": {"text": "Production day (UTC)"}, "type": "date", "tickformat": "%d %b"},
                       yaxis={"title": {"text": "Oil rate (Sm3/d)"}, "rangemode": "tozero"},
-                      yaxis2={"title": {"text": "Gap (Sm3/d)"}, "overlaying": "y", "side": "right", "showgrid": False},
+                      # its own round ticks from zero, not ticks synced to the rate axis's gridlines (-17, 65, 147…)
+                      yaxis2={"title": {"text": "Gap (Sm3/d)"}, "overlaying": "y", "side": "right", "showgrid": False,
+                              "tickmode": "auto", "nticks": 5, "rangemode": "tozero"},
                       legend={"orientation": "h", "y": -0.28, "x": 0, "font": {"size": 11}},
                       uirevision=f"{out['facility']['id']}:{out['end']}"),
         summary={

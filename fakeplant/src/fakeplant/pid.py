@@ -164,6 +164,23 @@ def _text(img, d, xy, text, font, rotate=False):
     img.paste(t, (int(xy[0] - t.size[0] / 2), int(xy[1] - t.size[1] / 2)))
 
 
+def _clear_spot(img, item: dict, others: list[dict]) -> tuple[float, float]:
+    """Where a hold cloud (about 160 x 100) beside an item touches the least drawing: right of it, left, below or above,
+    clear of its own tag (an equipment tag and its service line run wide). The first spot with nothing drawn wins."""
+    x, y = item["x"], item["y"]
+    reach = 200 if item.get("kind") == "equipment" else 135
+    spots = [(x + reach, y), (x - reach, y), (x, y + 110), (x, y - 110), (x + reach, y + 90), (x - reach, y + 90)]
+    w, h = img.size
+
+    def ink(cx, cy):
+        box = (int(cx - 84), int(cy - 50), int(cx + 84), int(cy + 50))
+        if box[0] < 30 or box[1] < 30 or box[2] > w - 30 or box[3] > h - 30:
+            return math.inf
+        crowd = sum(1 for o in others if abs(o["x"] - cx) < 120 and abs(o["y"] - cy) < 80)
+        return sum(img.crop(box).histogram()[:128]) + 10000 * crowd
+    return min(spots, key=lambda p: ink(*p))
+
+
 def _route(p0, out_dir, p1, corridor):
     """An orthogonal route from an outlet (leaving in out_dir) to an inlet entered from the left."""
     step = {"right": (40, 0), "down": (0, 85), "up": (0, -40)}[out_dir]  # down: below the tag and its title
@@ -203,13 +220,17 @@ class _Sheet:
         self.img = Image.new("L", (w, h), 255)
         self.d = ImageDraw.Draw(self.img)
         self.rng, self.w, self.h = rng, w, h
+        self.clean = False
         self.drawn_lines = []  # (orientation, fixed, lo, hi) of every process segment drawn
         self.crossings = 0
         self.valves, self.unregistered = [], []
+        self.captions = []  # (xy, text, font) of the equipment tags, drawn over the lines at the end
+        self.labels = []  # (x0, x1, y) of every line number along a horizontal run, for the valves to keep clear of
         self.f_tag, self.f_small, self.f_bubble = _font(26), _font(18), _font(20)
 
-    def line(self, pts, label=None, arrow=True):
-        """A process line along pts, with jumps where it crosses earlier lines; returns the label position."""
+    def line(self, pts, label=None, arrow=True, at=None):
+        """A process line along pts, with jumps where it crosses earlier lines; returns the label position. The
+        label sits mid-way along the longest run, or at x `at` on it (clear of what will be drawn on the line)."""
         d = self.d
         for (x1, y1), (x2, y2) in _segments(pts):
             d.line([(x1, y1), (x2, y2)], fill=0, width=3)
@@ -244,9 +265,14 @@ class _Sheet:
         (x1, y1), (x2, y2) = max(_segments(pts), key=lambda s: math.dist(*s))
         mx, my = (x1 + x2) / 2, (y1 + y2) / 2
         if y1 == y2:
+            if at is not None:
+                mx = at
             # labels usually sit above the line; on some sheets they overlap it
-            pos = (mx, my - 18 if self.rng.random() < 0.8 else my - 4)
+            # (a clean sheet always keeps them above; the draw is kept so the rest of the sheet draws as it did)
+            pos = (mx, my - 18 if self.rng.random() < 0.8 or self.clean else my - 4)
             _text(self.img, d, pos, label, self.f_small)
+            half = d.textlength(label, font=self.f_small) / 2
+            self.labels.append((mx - half, mx + half, my))
         else:
             pos = (mx + 16, my)
             _text(self.img, d, pos, label, self.f_small, rotate=True)
@@ -269,8 +295,7 @@ class _Sheet:
             if self.rng.random() < p:
                 items.append((what, None))
         out = []
-        for k, (what, kind) in enumerate(items):
-            x = lo + (hi - lo) * (k + 1) / (len(items) + 1)
+        for k, ((what, kind), x) in enumerate(zip(items, self._spread(lo, hi, y, len(items)), strict=True)):
             if what == "hand":
                 _hand_valve(self.d, kind, x, y)
                 out.append({"type": kind, "x": round(x), "y": round(y)})
@@ -308,6 +333,28 @@ class _Sheet:
                 out.append({"type": what, "x": round(x), "y": round(y)})
             else:  # ("control", {...}): a control or ESD valve with its actuator
                 out.append(self.control_valve(x, y, **kind))
+        return out
+
+    def _spread(self, lo, hi, y, n):
+        """n evenly spaced places along a run, kept off the line number written along it (a valve drawn through the
+        text reads as neither). Where the free room each side is too short, they fall back to the whole run."""
+        free = [(lo, hi)]
+        for a, b, ly in self.labels:
+            if abs(ly - y) > 2:
+                continue
+            a, b = a - 22, b + 22
+            free = [piece for f0, f1 in free for piece in ((f0, min(f1, a)), (max(f0, b), f1)) if piece[1] - piece[0] > 0]
+        room = sum(f1 - f0 for f0, f1 in free)
+        if room < 50 * n:
+            free, room = [(lo, hi)], hi - lo
+        out = []
+        for k in range(n):
+            at = room * (k + 1) / (n + 1)  # the same spacing as before, over the free room only
+            for f0, f1 in free:
+                if at <= f1 - f0:
+                    out.append(f0 + at)
+                    break
+                at -= f1 - f0
         return out
 
     def control_valve(self, x, y, tag: str, fail: str, esd: bool = False, registered: bool = False) -> dict:
@@ -475,6 +522,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     foot_h = max(210, tables_h + 50, 34 * (5 + len(extra_notes)) + 30)
     height = body_h + foot_h - 210
     s = _Sheet(width, height, rng)
+    s.clean = level == "clean"
     d, img = s.d, s.img
 
     # frame, title block, notes
@@ -490,15 +538,19 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     notes = ["NOTES:", f"1. INSTRUMENT TAGS ARE PREFIXED {area}- UNLESS SHOWN.",
              "2. LINE No.: SIZE-SERVICE-NUMBER-SPEC-INSULATION.", "3. ALL VALVES LINE SIZE UNLESS NOTED.",
              "4. HOLD 1: TIE-IN LOCATION TO BE CONFIRMED."]
-    notes_key = [{"n": k, "text": t.split(". ", 1)[1], "tags": [], "x": round(tb[0] - 620), "y": round(height - foot_h + 10 + 34 * k)}
+    # the notes start right of the data tables (a five-column equipment table runs past the usual place)
+    tables_r = 40 + (eq_w + 40 + sp_w if side and eq_rows and sp_rows else max(eq_w if eq_rows else 0,
+                                                                                    sp_w if sp_rows else 0))
+    nx = max(tb[0] - 620, tables_r + 30) if (eq_rows or sp_rows) else tb[0] - 620
+    notes_key = [{"n": k, "text": t.split(". ", 1)[1], "tags": [], "x": round(nx), "y": round(height - foot_h + 10 + 34 * k)}
                  for k, t in enumerate(notes) if k]
     for j, n in enumerate(extra_notes):
         k = len(notes)
         notes.append(f"{k}. {n['text']}")
-        notes_key.append({"n": k, "text": n["text"], "tags": list(n.get("tags", [])), "x": round(tb[0] - 620),
+        notes_key.append({"n": k, "text": n["text"], "tags": list(n.get("tags", [])), "x": round(nx),
                           "y": round(height - foot_h + 10 + 34 * k)})
     for k, n in enumerate(notes):
-        d.text((tb[0] - 620, height - foot_h + 10 + 34 * k), n, font=s.f_small, fill=0)
+        d.text((nx, height - foot_h + 10 + 34 * k), n, font=s.f_small, fill=0)
     tables = []
     tx, ty = 40, height - foot_h + 10
     if eq_rows:
@@ -524,8 +576,8 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
         cy = base + (260 if eq.func in TALL else 470 if eq.func == "P" else 360) + rng.uniform(-20, 20)
         box = _equipment(d, eq.func, cx, cy)
         boxes[eq.canonical], centres[eq.canonical] = box, (cx, cy)
-        d.text((cx, box[3] + 30), eq.canonical, font=s.f_tag, fill=0, anchor="mm")
-        d.text((cx, box[3] + 58), _abbrev(titles.get(eq.canonical, ""), rng), font=s.f_small, fill=0, anchor="mm")
+        service = _abbrev(titles.get(eq.canonical, ""), rng)
+        s.captions += [((cx, box[3] + 30), eq.canonical, s.f_tag), ((cx, box[3] + 58), service, s.f_small)]
         drawn.append({"key": eq.canonical, "kind": "equipment", "x": round(cx), "y": round(box[3] + 30)})
 
     def outlet(k, gas=False):
@@ -688,10 +740,11 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
         hy = body_h - 330
         hx0, hx1 = 200, width - 720
         header = f'{rng.choice([8, 10, 12])}"-P-{area}{900 + len(loose)}-B1A{rng.choice(INSULATION)}'
-        s.line([(hx0, hy), (hx1, hy)], header)
+        xs = [hx0 + (hx1 - hx0) * (j + 1) / (len(loose) + 1) for j in range(len(loose))]
+        gaps = list(itertools.pairwise([hx0, *xs, hx1]))  # the line number goes in the widest gap between its items
+        s.line([(hx0, hy), (hx1, hy)], header, at=sum(max(gaps, key=lambda g: g[1] - g[0])) / 2)
         lines_header = {"text": header, "from": None, "to": None}
-        for j, t in enumerate(loose):
-            x = hx0 + (hx1 - hx0) * (j + 1) / (len(loose) + 1)
+        for t, x in zip(loose, xs, strict=True):
             if t.func.endswith("V"):  # an ESD / bypass valve on the header, in the register
                 v = s.control_valve(x, hy, t.canonical, rng.choice(["FC", "FO"]), esd=t.func == "XV", registered=True)
                 s.valves.append(v)
@@ -708,13 +761,22 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     else:
         lines_header = None
 
+    # equipment tags last, each on a white ground: a line leaving the item underneath breaks for its name
+    for xy, text, font in s.captions:
+        if text:
+            l, t, r, b = d.textbbox(xy, text, font=font, anchor="mm")
+            d.rectangle([l - 4, t - 3, r + 4, b + 3], fill=255)
+            d.text(xy, text, font=font, fill=0, anchor="mm")
+
     # a hold cloud and a revision triangle
     if drawn:
-        x, y = rng.choice(drawn)["x"], rng.choice(drawn)["y"]
-        pts = [(x + 120 + 70 * math.cos(t / 8 * math.pi), y + 40 * math.sin(t / 8 * math.pi)) for t in range(17)]
+        held = rng.choice(drawn)
+        rng.choice(drawn)  # (drawn for the cloud's height once; kept so the rest of the sheet draws as it did)
+        x, y = _clear_spot(img, held, [x for x in drawn if x is not held] + s.valves)
+        pts = [(x + 70 * math.cos(t / 8 * math.pi), y + 40 * math.sin(t / 8 * math.pi)) for t in range(17)]
         for a, b in itertools.pairwise(pts):
             d.arc([min(a[0], b[0]) - 6, min(a[1], b[1]) - 6, max(a[0], b[0]) + 6, max(a[1], b[1]) + 6], 0, 360, fill=0)
-        d.text((x + 120, y), "HOLD 1", font=s.f_small, fill=0, anchor="mm")
+        d.text((x, y), "HOLD 1", font=s.f_small, fill=0, anchor="mm")
         r = rng.choice(drawn)
         tx, ty = r["x"] + 70, r["y"] - 30
         d.polygon([(tx, ty - 16), (tx + 16, ty + 12), (tx - 16, ty + 12)], outline=0, width=2)

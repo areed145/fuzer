@@ -83,6 +83,7 @@ ul.plain li { padding: 2px 0; }
 .ui-fullscreen {
   position: fixed !important; inset: 0; z-index: 1200; width: 100vw !important; height: 100vh; height: 100dvh;
   max-width: none !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important;
+  box-sizing: border-box; overscroll-behavior: contain;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   background: var(--bg); overflow: auto;
 }
@@ -90,6 +91,15 @@ html.ui-fullscreen-open, html.ui-fullscreen-open body { overflow: hidden; }
 .ui-fullscreen-button { display: inline-flex; align-items: center; justify-content: center; padding: 6px; }
 .ui-fullscreen-button svg { display: block; }
 @media (pointer: coarse) { .ui-fullscreen-button { min-width: 44px; min-height: 44px; } }
+/* On the full screen the button is the way out: a solid X, never under the notch or the status bar. A view's
+   own controls are placed from the screen's edge, which the full screen's padding doesn't move, so each control
+   column is pushed inside the safe area here. */
+.ui-fullscreen .ui-button.ui-fullscreen-close { background: var(--text); color: var(--bg); border-color: var(--text); opacity: 1; }
+.graph-canvas.ui-fullscreen > .graph-tools {
+  top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right));
+}
+/* A drawing that fills the screen doesn't scroll: a scroll would carry its close button off the top. */
+.graph-canvas.ui-fullscreen { overflow: hidden; }
 /* A chart's full screen button sits in its top right corner, where the toolbar was. */
 .chart-frame { position: relative; }
 .chart-frame .chart-fullscreen { position: absolute; top: 0; right: 0; z-index: 2; opacity: .75; }

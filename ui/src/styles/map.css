@@ -23,6 +23,8 @@
   position: fixed; z-index: 1200; inset: 0; width: 100vw; height: 100vh; height: 100dvh;
   padding: 0; border: 0; border-radius: 0; background: var(--bg);
 }
+.map-frame.map-fullscreen > .map-controls { top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); }
+@media (max-width: 600px) { .map-frame.map-fullscreen:not(.mapview-compact *) > .map-controls { left: calc(10px + env(safe-area-inset-left)); } }
 .map-frame.map-fullscreen .map { height: 100vh !important; height: 100dvh !important; border: 0; border-radius: 0; }
 .leaflet-container { font: inherit; }
 .leaflet-control-zoom a { width: 44px !important; height: 44px !important; line-height: 42px !important; font-size: 24px !important; }

@@ -26,9 +26,10 @@ const LAYOUTS: Record<LayoutName, LayoutOptions> = {
     nodeRepulsion: () => 9000,
     idealEdgeLength: () => 90,
     nodeSeparation: 80,
+    nodeDimensionsIncludeLabels: true,
   } as LayoutOptions,
-  flow: { name: "dagre", rankDir: "LR", nodeSep: 16, rankSep: 110, padding: 24, animate: false } as LayoutOptions,
-  tree: { name: "dagre", rankDir: "TB", nodeSep: 24, rankSep: 70, padding: 24, animate: false } as LayoutOptions,
+  flow: { name: "dagre", rankDir: "LR", nodeSep: 16, rankSep: 110, padding: 24, animate: false, nodeDimensionsIncludeLabels: true } as LayoutOptions,
+  tree: { name: "dagre", rankDir: "TB", nodeSep: 24, rankSep: 70, padding: 24, animate: false, nodeDimensionsIncludeLabels: true } as LayoutOptions,
 };
 
 function themeColors() {

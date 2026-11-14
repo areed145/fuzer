@@ -16,7 +16,9 @@ function forWidth(spec: Spec, width: number): Spec {
     data: spec.data.map((trace) => ({ ...trace, orientation: "h", x: trace.y, y: trace.x })),
     layout: {
       ...layout, height: 180 + (spec.data[0]?.x?.length ?? 0) * 44, margin: { t: 8, r: 44, b: 20, l: 8 },
-      legend: { ...layout.legend, x: 0, y: -0.14 }, xaxis: yaxis, yaxis: { ...xaxis, title: { text: "" }, autorange: "reversed" },
+      legend: { ...layout.legend, x: 0, y: -0.14 }, xaxis: yaxis,
+      // the names read level down the side: the column chart's slant doesn't carry over
+      yaxis: { ...xaxis, title: { text: "" }, autorange: "reversed", tickangle: 0 },
     },
   };
 }
