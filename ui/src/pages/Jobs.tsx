@@ -75,7 +75,8 @@ function Tiers() {
 function TierRow({ x }: { x: DetectorTier }) {
   return <tr>
     <td>{x.label}</td>
-    <td className="small">{x.detectors.map((d) => d.title).join(", ")}</td>
+    <td className="small">{x.detectors.length <= 3 ? x.detectors.map((d) => d.title).join(", ")
+      : <Disclosure label={<>{x.detectors.length} detectors</>}><ul className="tier-detectors">{x.detectors.map((d) => <li key={d.title}>{d.title}</li>)}</ul></Disclosure>}</td>
     <td className="small">{x.last_at ? when(x.last_at) : <span className="muted">never</span>}</td>
     <td className="small">{x.runs ? <>{x.runs} runs, {duration(x.seconds)} in all ({duration(x.avg_seconds)} each), {x.found} found
       {x.failures > 0 && <span className="error">, {x.failures} failed</span>}</> : <span className="muted">no runs</span>}</td>

@@ -136,3 +136,4 @@ html.ui-fullscreen-open .bottombar { display: none; }
   .phone-stack:has(thead) td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
   .phone-stack:has(thead) .ui-table-select-cell { flex: none; }
 }
+.tier-detectors { margin: 4px 0 0; padding-left: 18px; }
