@@ -52,7 +52,18 @@ def test_ec_allocates_the_flare_back_to_pp_and_ggcp(conn):
 def test_the_boom_and_the_alternate_stack_are_drawn_where_they_stand(conn):
     sc = scene.scene(conn)
     plates = {p["label"]: p for p in sc["plates"]}
-    assert plates["OKAN-26"]["frame"] == "lattice" and plates["OKAN-25"]["items"] >= 3
+    plate_of = {i["label"]: i["plate"] for i in sc["items"]}
+    # the flare deck stands on GGCP's jacket: drawn on GGCP's plate, never a jacket of its own; only the alternate
+    # stack has its own jacket
+    assert "OKAN-25" not in plates and plates["OKAN-26"]["frame"] == "lattice"
+    assert plate_of["25-FL-4010"] == plate_of["25-V-4001"] == plate_of["20-V-2001"] == plates["OKAN-20"]["id"]
+    assert plate_of["26-FL-4030"] == plates["OKAN-26"]["id"]
+    for layout in ("schematic", "geo"):  # the boom's own scene is GGCP's, with the boom on its deck
+        own = scene.scene(conn, _id(conn, "25-FL-4010"), layout=layout)
+        assert own["root"]["label"] == "OKAN-20" and own["focus"]
+        assert {i["id"]: i["label"] for i in own["items"]}[own["focus"]] == "25-FL-4010"
+        assert "OKAN-25" not in {p["label"] for p in own["plates"]}
+    assert not conn.execute("select 1 from geo_index where fuzer_id = %s", (_id(conn, "OKAN-25"),)).fetchone()
     shape = {i["label"]: i["shape"] for i in sc["items"]}
     assert shape["25-FL-4010"] == "flare_boom" and shape["26-FL-4030"] == "flare" and shape["25-V-4001"] == "drum"
     assert sc["shapes"]["flare_boom"]["solid"] == "boom"
