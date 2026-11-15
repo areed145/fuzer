@@ -7,7 +7,7 @@ import { api, type CaseRow, type CaseSource, type ReviewKind, type WorkItem, typ
 import { CaseQuestion } from "../Review";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson, when } from "../../work";
-import { AgentIdle, AssignPicker, PriorityBadge, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref, useAct } from "./shared";
+import { AgentIdle, AssignPicker, PriorityBadge, SendToField, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
@@ -225,7 +225,8 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
       {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
-      <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload} />
+      <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
+        exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null} />
       {typeof raised.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
         <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
@@ -252,8 +253,9 @@ function questionOf(sources?: CaseSource[]): { id: number; kind: ReviewKind } | 
 
 /** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
  * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
-function NextStep({ it, person, demo, fieldOnly, answered = false, reload }: {
+function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null }: {
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
+  exceptionId?: number | null;
 }) {
   const takeOver = useAct();
   const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
@@ -283,6 +285,9 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload }: {
         {fieldOnly && <ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink>}
       </div>
       {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}
+      {/* the IOC sends it out through the case's workflow: not while the field already has it */}
+      {!demo && !fieldOnly && exceptionId != null && !open.some((s) => s.role === "operator") && person &&
+        <SendToField exceptionId={exceptionId} person={person} onDone={reload} />}
       {!demo && !fieldOnly && <CaseActions it={it} person={person} reload={reload} />}
     </UICard>
   );

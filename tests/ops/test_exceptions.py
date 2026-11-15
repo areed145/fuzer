@@ -417,6 +417,57 @@ def test_a_job_taken_from_the_queue_with_take_it_goes_back_to_the_dispatcher(con
     conn.commit()
 
 
+def test_a_queue_case_goes_to_the_field_through_its_own_field_check_and_comes_back(conn, types):
+    """Sending a queue case to the field is a step of queue_item (#1145): the IOC's Work the case completes into the
+    operator's Field check; their report brings Work the case back to whoever sent them, in its own queue's role, and
+    completing it then closes the case instead of sending it out again."""
+    from fuzer.core import work as core_work
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    types("seal_leak", role="role:ops_lead", audience=("ioc", "field"))
+    e = raise_exception(conn, "seal_leak", "K-1-SEAL", "Seal vent leaking on K-1", "ldar", refs=["tag:P-101"])
+    open_step = lambda: conn.execute("select id, element, assignee, role from work_token where item_id = %s and "
+                                     "kind = 'user' and state = 'waiting'", (e["item_id"],)).fetchone()
+    assert open_step()["element"] == "work"
+    ex.dispatch(conn, e["id"], "ivy", "olly", reason="Sniff the seal vent and read the flow")
+    s = open_step()
+    assert (s["element"], s["assignee"], s["role"]) == ("field_check", "olly", "operator")
+    [job] = [j for j in ex.field_jobs(conn, "olly") if j["id"] == e["id"]]
+    assert job["sent"]["reason"].startswith("Sniff the seal vent")
+    ex.report(conn, e["id"], "olly", "done", note="vent flow 4 l/min, logged")
+    s = open_step()
+    assert (s["element"], s["assignee"], s["role"]) == ("work", "ivy", "ops_lead")
+    core_work.complete_step(conn, s["id"], "ivy", {})
+    assert conn.execute("select state from work_item where id = %s", (e["item_id"],)).fetchone()["state"] == "done"
+    conn.commit()
+
+
+def test_a_queue_case_started_before_the_field_check_moves_onto_it_when_sent_out(conn, types):
+    """A case running the earlier queue_item (one step, no field check) moves to the published version that has one
+    when the IOC sends it to the field, so it goes out through the workflow too (#1145)."""
+    from pathlib import Path
+
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import definitions, engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    old = (Path(__file__).parent / "queue_item_before_field_check.bpmn").read_text()
+    engine.publish(conn, engine.import_bpmn(conn, old, "system")[0]["id"], "system")
+    types("vent_leak", role="role:ops_lead", audience=("ioc", "field"))
+    e = raise_exception(conn, "vent_leak", "K-2-SEAL", "Seal vent leaking on K-2", "ldar", refs=["tag:P-101"])
+    current = (definitions.DEFINITIONS_DIR / "queue_item.bpmn").read_text()
+    engine.publish(conn, engine.import_bpmn(conn, current, "system")[0]["id"], "system")
+    ex.dispatch(conn, e["id"], "ivy", "olly", reason="Read the vent flow")
+    s = conn.execute("select element, assignee from work_token where item_id = %s and kind = 'user' and "
+                     "state = 'waiting'", (e["item_id"],)).fetchone()
+    assert s == {"element": "field_check", "assignee": "olly"}
+    conn.commit()
+
+
 def test_another_system_raises_and_clears_a_type_defined_as_data(conn, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

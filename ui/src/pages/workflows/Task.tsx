@@ -11,7 +11,7 @@ import { CaseSafeguards } from "./Safeguards";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
 import { ProcessDiagram, Timeline } from "./Cases";
-import { AssignPicker, GENERIC_STEP, StepBadges, caseHref, useAct } from "./shared";
+import { AssignPicker, GENERIC_STEP, SendToField, StepBadges, caseHref, useAct } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
@@ -115,6 +115,10 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
             disabled={demo && completion !== null} requiresHuman={t.requires_human} onDone={() => {
             setDone(`Handed off "${t.name ?? t.element}".`); if (demo) refresh();
           }} />}
+          {waiting && !demo && t.process_key === "queue_item" && t.element === "work" && exceptionOf(item.data) != null &&
+            <SendToField exceptionId={exceptionOf(item.data)!} person={person} onDone={() => {
+              setDone("Sent to the field. Their report comes back here."); refresh();
+            }} />}
           {demo ? <ActionStatus busy={a.busy} error={a.error}>
             {done && <p>{done} <a href={href(`/cases/${v.item.id}`, { demo: "workflow" })}>Inspect recorded case</a></p>}
           </ActionStatus> : a.error && <p className="error small">{a.error}</p>}
@@ -128,6 +132,13 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       </div>
     </section>
   );
+}
+
+/** The incident a queue case was raised from, which is what goes to the field (#1145). */
+function exceptionOf(it: unknown): number | null {
+  const payload = ((it ?? {}) as { payload?: Record<string, unknown> }).payload ?? {};
+  const raised = (payload.start && typeof payload.start === "object" ? payload.start : payload) as Record<string, unknown>;
+  return typeof raised.exception_id === "number" ? raised.exception_id : null;
 }
 
 function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, disabled }: {
