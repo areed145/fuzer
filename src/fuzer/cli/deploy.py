@@ -51,13 +51,19 @@ def commands(added: list[str] | tuple[str, ...] = (), role: str = "all") -> list
 
 DAGSTER_SCHEMA = "dagster"
 DAGSTER_URL_ENV = "FUZER_DAGSTER_PG_URL"
-COMPUTE_LOG_DAYS = 14
+# Run output is no longer written to the disk (compute_logs below): the 1 GB disk filled with it, and every run then
+# failed to set up its log capture. What a run prints still reaches the service log, and its events are in Postgres.
+# Output left from before is cleared at the next start.
+COMPUTE_LOG_DAYS = 0
 MAX_CONCURRENT_RUNS = 2  # each run is a ~250 MB Python process; four with the rest filled the 2 GB instance
 MAX_RUNTIME_SECONDS = 4 * 3600  # the nightly rebuild is the longest run
 DAGSTER_YAML = f"""\
 # Written by fuzer.cli.deploy on every start: Dagster's run, event and schedule storage lives in the
 # deployment's Postgres (schema {DAGSTER_SCHEMA}), not in SQLite on the persistent disk, which the API, webserver,
-# daemon and every run process would otherwise share. Only run output (compute logs) stays on the disk.
+# daemon and every run process would otherwise share. Run output (compute logs) is not kept: it goes to the service log.
+compute_logs:
+  module: dagster._core.storage.noop_compute_log_manager
+  class: NoOpComputeLogManager
 storage:
   postgres:
     postgres_url:

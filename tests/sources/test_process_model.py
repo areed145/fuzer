@@ -152,3 +152,22 @@ def test_charts_on_modelled_points(data, monkeypatch):
         assert vib["leads_by_minutes"] > 0 and vib["r"] > 0.5
         out = values.around(conn, k, "2024-03-14T03:00", 6, 1)
         assert all(s.get("modelled") for s in out["series"])
+
+
+def test_a_long_window_is_not_kept_beside_others(model):
+    """A daily check reading a week builds a week-long window; it stays only while it is the newest, so a scan never
+    holds several long windows (and every variable they computed) at once (#1149)."""
+    m = process_model.ProcessModel.__new__(process_model.ProcessModel)
+    m.__dict__.update(model.__dict__, _windows={})
+    days = [datetime(2025, 12, d) for d in range(1, 10)]
+    for d in days[:3]:
+        m.window(d, d.replace(hour=6))
+    assert len(m._windows) == 3
+    week = m.window(days[0], days[7])
+    assert list(m._windows.values()) == [week]  # the short ones went to make room
+    assert m.window(days[0], days[7]) is week  # and the week is reused while the check reads it
+    m.window(days[8], days[8].replace(hour=6))
+    assert week not in m._windows.values()
+    for d in range(10, 25):
+        m.window(datetime(2025, 12, d), datetime(2025, 12, d, 6))
+    assert len(m._windows) <= process_model.CACHE_WINDOWS

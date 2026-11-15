@@ -24,6 +24,11 @@ import numpy as np
 
 DT = 5  # minutes per grid step
 WARM = timedelta(hours=12)  # history evaluated before a window, so lags settle the same way
+# Kept windows hold every variable they computed. A daily detector reading a week or a month (multivariate, drifts,
+# hydraulics) makes a window of that length, so the windows kept are capped by the grid time they span: a long one
+# stays only while it is the newest, and goes as soon as the scan moves back to six hour windows. Holding a few long
+# ones together took an Okan scan's midnight window to ~480 MB, which ran the 2 GB live instance out of memory.
+CACHE_WINDOWS, CACHE_MINUTES = 8, 4 * 24 * 60
 EPOCH = datetime(1970, 1, 1)
 
 
@@ -140,7 +145,8 @@ class ProcessModel:
         with self._lock:
             w = self._windows.get((a, b))
             if w is None:
-                if len(self._windows) > 8:
+                while self._windows and (len(self._windows) >= CACHE_WINDOWS or
+                                         sum(y - x for x, y in self._windows) + (b - a) > CACHE_MINUTES):
                     self._windows.pop(next(iter(self._windows)))
                 w = self._windows[(a, b)] = Window(self, a, b)
         return w

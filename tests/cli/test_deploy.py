@@ -238,6 +238,7 @@ def test_configure_dagster_keeps_dagster_storage_in_postgres(monkeypatch, tmp_pa
         with DagsterInstance.from_config(str(tmp_path)) as instance:
             assert type(instance.run_storage).__name__ == "PostgresRunStorage"
             assert type(instance.run_coordinator).__name__ == "QueuedRunCoordinator"
+            assert type(instance.compute_log_manager).__name__ == "NoOpComputeLogManager"  # nothing fills the disk
             assert instance.run_coordinator.get_run_queue_config().max_concurrent_runs == deploy.MAX_CONCURRENT_RUNS
             assert instance.run_monitoring_enabled
             assert instance.run_monitoring_max_runtime_seconds == deploy.MAX_RUNTIME_SECONDS
