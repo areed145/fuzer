@@ -9,7 +9,9 @@ the register holds no geometry every position comes from the links alone.
 `focus` is the drawn item it stands for). With no `at` the scene is the facility with the most areas.
 
 Read from the register, never from names:
-    plates   the areas under the root (part_of), each a plate; its frame from a word in the area's own type
+    plates   the areas under the root (part_of), each a plate; its frame from a word in the area's own type. An area
+             that is part of a jacket's area and is no jacket itself (a flare deck, a module) is drawn on that
+             jacket's plate: it stands on the jacket, not beside it
     items    what is directly in an area (part_of, located_at), each with a shape by ISO 14224 class, process type or
              kind (core/shapes.py; a bundle overrides the table). Small things (valves, instruments) are drawn only
              when a link ends on them; the rest are counted, never silently dropped
@@ -85,9 +87,14 @@ def _root(conn, at: str | None) -> tuple[dict | None, str | None]:
     return None, None
 
 
-def _areas(conn, root: dict) -> list[str]:
+def _areas(conn, root: dict, table: dict | None = None) -> list[str]:
+    """The areas under a facility; an area itself, with the decks and modules standing on it (when it is a jacket)."""
     if root["kind"] == "area":
-        return [root["id"]]
+        if table is None:
+            return [root["id"]]
+        under = _areas(conn, {"id": root["id"], "kind": "facility"})
+        decks = _decks(conn, table, [root["id"], *under]) if under else {}
+        return [root["id"], *(a for a in under if decks.get(a) == root["id"])]
     rows = _rows(conn, """
         with recursive under(id) as (
             select %s::text
@@ -287,6 +294,30 @@ def _frame(table: dict, area_type: str | None) -> str:
     return next((table["frames"][w] for w in words if w in table["frames"]), "slab")
 
 
+def _decks(conn, table: dict, areas: list[str]) -> dict[str, str]:
+    """Each area drawn on another's plate: a sub-area with no frame of its own (part_of an area in the scene that
+    stands on a jacket) -> that jacket's area, climbing until a plate of its own is reached."""
+    if len(areas) < 2:
+        return {}
+    rows = _rows(conn, """
+        select a.fuzer_id as id, t.value #>> '{}' as area_type, p.dst as parent from entity a
+        left join golden t on t.fuzer_id = a.fuzer_id and t.field = 'facility_type'
+        left join lateral (select e.dst from edge e where e.src = a.fuzer_id and e.rel = 'part_of'
+                           and e.valid_to is null and e.dst = any(%s) order by e.dst limit 1) p on true
+        where a.fuzer_id = any(%s)""", areas, areas)
+    frame = {r["id"]: _frame(table, r["area_type"]) for r in rows}
+    parent = {r["id"]: r["parent"] for r in rows if r["parent"]}
+    out = {}
+    for a in areas:
+        cur, seen = a, {a}
+        while frame.get(cur) != "lattice" and parent.get(cur) and parent[cur] not in seen:
+            cur = parent[cur]
+            seen.add(cur)
+        if cur != a and frame.get(cur) == "lattice":
+            out[a] = cur
+    return out
+
+
 def _route(a: dict, b: dict, lane: int, plates: dict[str, dict]) -> list[list[float]]:
     """A pipe run from a to b. On one deck it stays at the equipment's level, running in the gaps between rows and
     columns. Between plates it leaves by the deck's edge facing the other, drops as a riser to the seabed (or below
@@ -412,13 +443,22 @@ def scene(conn, at: str | None = None, rels: list[str] | None = None, pack=None,
              "truncated": False, "places": places(conn)}
     if root is None:
         return empty | {"basis": "not in an area" if at else "no facility or area is loaded"}
-    areas = _areas(conn, root)
+    if root["kind"] == "area":  # a flare deck or module is seen on the jacket it stands on
+        up = conn.execute("""
+            select e.dst as id, d.kind from edge e join entity d on d.fuzer_id = e.dst
+            where e.src = %s and e.rel = 'part_of' and e.valid_to is null and d.kind = 'area'
+            order by e.dst limit 1""", (root["id"],)).fetchone()
+        if up and _decks(conn, table, [root["id"], up["id"]]).get(root["id"]) == up["id"]:
+            root = up
+    areas = _areas(conn, root, table)
     member_rows = _rows(conn, """
         select distinct on (e.src) e.src as id, e.dst as area from edge e join entity en on en.fuzer_id = e.src
         where e.rel = any(%s) and e.dst = any(%s) and e.valid_to is null
           and en.merged_into is null and en.retired_at is null and en.kind <> 'area'
         order by e.src, e.rel desc, e.dst""", list(CONTAINED), areas)
     home = {r["id"]: r["area"] for r in member_rows}
+    deck_of = _decks(conn, table, areas)
+    home = {n: deck_of.get(a, a) for n, a in home.items()}
     edges = _rows(conn, """
         select e.id, e.src, e.rel, e.dst, e.props ->> 'product' as product from edge e
         where e.rel = any(%s) and e.src <> e.dst and (e.src = any(%s) or e.dst = any(%s))

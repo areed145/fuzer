@@ -4,7 +4,8 @@ The relief headers of OKA_PP (area 10, across the PP-GGCP bridge) and OK_GGCP (a
 drum 25-V-4001 on GGCP's flare deck. The drum's gas passes the flare gas meter 25-FT-4003 (the meter permit condition
 PC-OK-08 asked for, commissioned on INSTALLED) and goes to one of two flares:
 
-- the GGCP flare boom 25-FL-4010 (area 25), angled out over the sea off GGCP's north-east corner: the normal flare;
+- the GGCP flare boom 25-FL-4010 (area 25, GGCP's flare deck: a module on GGCP's own jacket, not a structure of its
+  own), angled out over the sea off GGCP's north-east corner: the normal flare;
 - the alternate flare stack 26-FL-4030 on its own small jacket OKA_FLJ (area 26), about 145 m (some 470 ft) from GGCP
   and reached by a bridge carrying the flare line, behind a liquid seal drum: it takes the flare whenever the boom
   is isolated (the boom's tip replacement in the 2026 turnaround, MOC 233).
@@ -31,9 +32,10 @@ ROUTINE = 40.0  # kSm3/d: purge, pilots, compressor seal vents and pressure cont
 SPLIT = {"OKAN-10": 0.3, "OKAN-20": 0.7}  # routine flare by installation (EC's standing allocation)
 SOURCES = {"OKAN-10": "OKA_PP", "OKAN-20": "OK_GGCP"}
 
-# area -> (code, name, type, (east km, north km) from PP, parent FLOC)
+# area -> (code, name, type, (east km, north km) from PP or None, parent FLOC). The flare deck is part of GGCP and
+# stands on GGCP's jacket, so GIS holds no facility of its own for it; only the alternate stack has its own jacket.
 AREAS = {
-    "25": ("OK_GGCP_FLR", "GGCP Flare System", "flare boom on platform", (0.135, 0.045), f"{FIELD}-20"),
+    "25": ("OK_GGCP_FLR", "GGCP Flare System", "flare deck", None, f"{FIELD}-20"),
     "26": ("OKA_FLJ", "Okan Alternate Flare Jacket", "flare jacket", (0.20, 0.09), FIELD),
 }
 # items with an SAP equipment record: tag -> (description, AF template, manufacturer, model, in service from)
@@ -198,15 +200,15 @@ PFD = ("OKAN-25-PFD-003", "AREA 25 - OK_GGCP FLARE SYSTEM", "clean", "FROM PP AN
 
 
 def gis(xy, first_line: int) -> tuple[list[dict], list[dict]]:
-    """The flare boom's and the flare jacket's positions, and the flare lines: PP's relief header over the PP-GGCP
-    bridge, and the flare line over the bridge from GGCP to the alternate stack's jacket."""
-    place = {a: xy(*v[3]) for a, v in AREAS.items()}
+    """The flare jacket's position, and the flare lines: PP's relief header over the PP-GGCP bridge, and the flare line
+    over the bridge from GGCP to the alternate stack's jacket. The flare deck is on GGCP, so it has no GIS point."""
+    place = {a: xy(*v[3]) for a, v in AREAS.items() if v[3]}
     place["10"], place["20"] = xy(0.0, 0.0), xy(0.08, 0.0)
     feats = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": place[a]},
               "properties": {"facility_id": code, "floc": f"{FIELD}-{a}", "name": name, "type": kind,
-                             "water_depth_m": 16.4 if a == "25" else 17.1, "install_year": 2009 if a == "25" else 1998,
+                             "water_depth_m": 17.1, "install_year": 1998,
                              "longitude": place[a][0], "latitude": place[a][1]}}
-             for a, (code, name, kind, _, _) in AREAS.items()]
+             for a, (code, name, kind, _, _) in AREAS.items() if a in place]
     pipes = []
     for n, (a, b, dia, year) in enumerate([("10", "20", 10, 1998), ("20", "26", 20, 1998)]):
         frm, to = place[a], place[b]
