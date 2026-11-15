@@ -277,7 +277,9 @@ class AuthenticatedRoute(APIRoute):
         row = conn.execute("select role, assignee, subjects from work_item where id = %s", (item_id,)).fetchone()
         if row and not access.may_act_on(conn, person, row["subjects"]):
             raise HTTPException(403, AREA_REFUSAL)
-        if row and row["role"] and row["role"] not in roles_of(conn, person.actor):
+        # a case given to someone by name is theirs to act on, whatever queue it last sat in: the field hands a job
+        # back to the IOC person who sent it while the case still names the operator queue
+        if row and row["role"] and row["assignee"] != person.actor and row["role"] not in roles_of(conn, person.actor):
             raise HTTPException(403, "This case needs its assigned workflow role")
         if row and row["assignee"] and row["assignee"] != person.actor and not person.allows("configure"):
             raise HTTPException(403, "This case is assigned to another person")
@@ -303,7 +305,8 @@ class AuthenticatedRoute(APIRoute):
                            "left join work_item i on i.id = t.item_id where t.id = %s", (task_id,)).fetchone()
         if row and not access.may_act_on(conn, person, row["subjects"] or []):
             raise HTTPException(403, AREA_REFUSAL)
-        if row and row["kind"] != "agent" and row["role"] and row["role"] not in roles_of(conn, person.actor):
+        if (row and row["kind"] != "agent" and row["role"] and row["assignee"] != person.actor
+                and row["role"] not in roles_of(conn, person.actor)):
             raise HTTPException(403, "This step needs its assigned workflow role")
         if row and row["kind"] == "agent" and not person.allows("configure"):
             raise HTTPException(403, "An administrator must hand off automated steps before a person takes over")

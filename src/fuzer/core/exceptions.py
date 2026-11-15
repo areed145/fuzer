@@ -93,9 +93,12 @@ def raise_exception(conn, type: str, key: str, title: str, by: str, **fields) ->
     return _engine().raise_(conn, type, key, title, by, **fields)
 
 
-def clear_exception(conn, type: str, key: str, by: str, reason: str | None = None) -> dict | None:
-    """The condition went away: clear the open exception (closing its case if the type says so). None if none open."""
-    return _engine().clear(conn, type, key, by, reason=reason)
+def clear_exception(conn, type: str, key: str, by: str, reason: str | None = None,
+                    closeout: str | None = None) -> dict | None:
+    """The condition went away: clear the open exception (closing its case if the type says so). None if none open.
+    `closeout` says what the case was when the clearing itself answers that (a data question someone answered is a
+    data problem), so the closed case is counted without asking again."""
+    return _engine().clear(conn, type, key, by, reason=reason, closeout=closeout)
 
 
 def match(conn, refs) -> tuple[list[str], list[str]]:

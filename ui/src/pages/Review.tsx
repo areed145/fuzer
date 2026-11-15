@@ -281,8 +281,7 @@ function useBusy(onDecide: OnDecide, consequence = "It may change accepted value
   const feedback = <>
     {!operate && <p>Decisions require operate access and any applicable workflow role. Ask an owner to update your roles.</p>}
     {pending && !busy && <div className="notice" role="group" aria-label="Confirm review decision">
-      <p>Record this shared {pending.decision} decision? {consequence}
-        A review decision is not proof that ingestion or a background rebuild has completed.</p>
+      <p>Save this answer for everyone? {consequence} The records catch up in the background after you save.</p>
       <Button type="button" variant="primary" onClick={submit}>Confirm decision</Button>{" "}
       <Button type="button" onClick={() => { setPending(null); setError(undefined); }}>Cancel</Button>
     </div>}

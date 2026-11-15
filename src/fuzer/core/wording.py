@@ -140,6 +140,10 @@ _ONE = re.compile(r"(?<![\d.,])1 (?P<word>detection|alarm|upset|notification|ass
 _SNAKE_QUEUE = re.compile(r"\b(?P<role>[a-z]+(?:_[a-z]+)+) queue\b")
 
 
+# the shared demo sign-in as records keep it; people read the account's name
+_DEMO_ACTOR = re.compile(r"\buser:demo\b")
+
+
 def say(text: str | None) -> str | None:
     """Text already written, in people's words: the old upset and incident title shapes, alarm keys, queue roles
     and unit spellings. Idempotent, and text with none of these comes back unchanged."""
@@ -153,4 +157,5 @@ def say(text: str | None) -> str | None:
     text = _ROLE.sub(lambda m: queue(m["role"]) if m["q"] else queue(m["role"]).removesuffix(" queue"), text)
     text = _SNAKE_QUEUE.sub(lambda m: queue(m["role"]), text)
     text = _ONE.sub(lambda m: f"1 {m['word']}", text)
+    text = _DEMO_ACTOR.sub("Demo account", text)
     return units(text)

@@ -5,7 +5,7 @@
  * else waiting on them. */
 import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
-import { kindWord } from "../wording";
+import { kindWord, person as personName } from "../wording";
 import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
@@ -131,7 +131,7 @@ export function RoundsThisShift({ person }: { person: string }) {
       <h2 id="rounds-this-shift">Rounds this shift <span className="muted small">{list.length} · until {when(list[0].shift_end)}</span></h2>
       <ul className="plain">{list.map((r) => <li key={r.id}>
         <Button size="sm" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>
-          {r.round}{r.area ? ` (${r.area})` : ""}</Button>{" "}
+          {r.round}{r.area && !r.round.includes(r.area) ? ` (${r.area})` : ""}</Button>{" "}
         <RoundProgress run={r} onPhone={kept.filter((t) => t.run === r.id)} />
         {open === r.id && <RoundPoints key={sent} id={r.id} person={person} canTake={r.state === "open"} onTaken={runs.reload}
           onPhone={kept.filter((t) => t.run === r.id)} />}
@@ -280,7 +280,14 @@ function PermitPanel({ permit, inHand, onInHand }: { permit: FieldPermit; inHand
   );
 }
 
-export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person: string; onChange: () => void }) {
+// Queues that work at a desk: their jobs carry no directions or permit, which only matter on the plant.
+const DESK_ROLES = new Set(["data_steward", "engineer", "production_engineer", "workflow_admin"]);
+
+export function FieldJobCard({ job, person, onChange, onReported }: {
+  job: FieldJob; person: string; onChange: () => void;
+  /** Told when Done or Could not do reached the IOC, so the page can say so after the card leaves the list. */
+  onReported?: (said: string) => void;
+}) {
   const { busy, error, run } = useAct();
   const [note, setNote] = useState("");
   const [what, setWhat] = useState("");
@@ -310,6 +317,8 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
       (how) => {
         setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]);
         setKept(how === "queued");
+        if (how === "sent" && (status === "done" || status === "could_not_do"))
+          onReported?.(`${SAID[status]} sent for "${job.title}". It goes back to ${job.sent?.by ? personName(job.sent.by) : "the IOC"} to close out.`);
         if (how === "sent") onChange();
       });
   };
@@ -322,8 +331,9 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
     }
   };
   const last = job.field[job.field.length - 1];
+  const desk = DESK_ROLES.has(job.role ?? "");
   return (
-    <Card className="field-job" title={<>{job.title} <Badge>{job.label}</Badge></>}>
+    <Card className="field-job" title={<>{job.title}{job.label && !job.title.toLowerCase().includes(job.label.toLowerCase()) && <> <Badge>{job.label}</Badge></>}</>}>
       {job.handover && <HandoverNote h={job.handover} />}
       {job.handover?.mine_to_accept && <div className="row field-actions">
         {mine.some((w) => w.kind === "handover_accept") ? <Badge tone="warn">Accepted · waiting to send</Badge>
@@ -344,7 +354,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
         <h3 className="small">Where</h3>
         <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
           <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <span className="muted small">{kindWord(a.kind ?? "item").toLowerCase()}</span></>}
-          {a.lat != null && a.lon != null && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
+          {a.lat != null && a.lon != null && !desk && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
             target="_blank" rel="noreferrer">directions</a></>}
         </li>)}</ul>
       </div>}
@@ -356,7 +366,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
       </div>}
       {!!job.warnings?.length && <ul className="plain small field-warnings" aria-label="Before you start">
         {job.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul>}
-      {job.permit && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
+      {job.permit && !desk && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
       {(job.checklist?.length ?? 0) > 0 && <div>
         <h3 className="small">Checks before restart</h3>
         <ol className="small">{job.checklist!.map((c) => <li key={c}>{c}</li>)}</ol>
@@ -376,7 +386,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
         <h3 className="small">Field log</h3>
         <ul className="plain small">{job.field.map((f, i) => <li key={i}>
           {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""}
-          {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <span className="muted">{f.by}</span>
+          {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <span className="muted">{personName(f.by)}</span>
           {f.photos?.length ? <div className="field-photos">{f.photos.map((p) => <FieldPhoto key={p} exceptionId={job.id} photoId={p} />)}</div> : null}
         </li>)}</ul>
       </div>}

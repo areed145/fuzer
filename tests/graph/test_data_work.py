@@ -65,6 +65,9 @@ def test_answering_closes_the_case_and_a_rebuild_does_not_bring_it_back(okan_db)
     x = conn.execute("select state from exception_record where type = 'conflicting_sources' and key = %s", (key,)).fetchone()
     assert x["state"] != "open"
     assert conn.execute("select state from work_item where id = %s", (case,)).fetchone()["state"] != "open"
+    # the answer says what it was: the closed case doesn't ask for a close-out again (#1145)
+    closeout = conn.execute("select disposition, note from case_disposition where item_id = %s", (case,)).fetchone()
+    assert closeout["disposition"] == "data_problem" and "answered by" in closeout["note"]
     pipeline.rebuild(conn, load_pack("okan"))
     assert key not in _open(conn)
     assert sum(1 for k in _open(conn) if k == key) == 0

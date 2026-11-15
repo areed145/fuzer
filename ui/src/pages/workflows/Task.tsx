@@ -1,7 +1,7 @@
 import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty } from "../../ui";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
-import { say } from "../../wording";
+import { person as personName, say } from "../../wording";
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { api, type WorkTaskView } from "../../api";
 import { CaseBrief } from "../../CaseBrief";
@@ -90,7 +90,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
                   consequence="Return this shared task to its role queue so another eligible person can claim it."
                   onConfirm={() => a.run("release", () => api.release(id, person), refresh)} />
                   : <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("release", () => api.release(id, person), view.reload)}>Release back to the queue</Button>)}
-                {others && <span className="small muted">{t.assignee} has it.</span>}
+                {others && <span className="small muted">{personName(t.assignee)} has it.</span>}
               </div>
               {!t.assignee && !demo && t.kind !== "fix" && (
                 <p className="small muted">Not claimed yet. Completing it now records it as done by you; claim it first to hold it

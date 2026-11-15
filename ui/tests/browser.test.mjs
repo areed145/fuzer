@@ -5839,7 +5839,7 @@ test("an operator sees this shift's rounds and takes a round's readings and chec
   await page.goto(`${url}/#/inbox`);
   const rounds = page.locator(`section[aria-labelledby="rounds-this-shift"]`);
   await rounds.getByText("1 of 2 taken").waitFor();
-  await rounds.getByRole("button", { name: "Compression (Compression)" }).click();
+  await rounds.getByRole("button", { name: "Compression", exact: true }).click();
   await rounds.getByText("40 to 62 barg").waitFor();
   await rounds.getByText("No oil on the skid").waitFor();
   // P5.4b (#718): readings and checks are taken on the phone; a failed check needs what was found

@@ -160,8 +160,9 @@ def sync(conn, by: str = BY) -> dict:
             kind, _, subject = key.partition(":")
             done = conn.execute("select status, decided_by from review_item where kind = %s and subject = %s",
                                 (kind, subject)).fetchone()
-            reason = (f"answered by {done['decided_by']}" if done and done["status"] == "decided"
-                      else "the question no longer arises")
-            clear_exception(conn, t, key, by, reason=reason)
+            answered = bool(done and done["status"] == "decided")
+            reason = f"answered by {done['decided_by']}" if answered else "the question no longer arises"
+            # a data question someone answered closes as a data problem: the answer says what it was
+            clear_exception(conn, t, key, by, reason=reason, closeout="data_problem" if answered else None)
             out["cleared"] += 1
     return out

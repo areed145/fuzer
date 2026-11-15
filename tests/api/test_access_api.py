@@ -227,6 +227,18 @@ def test_workflow_role_is_required_even_with_operational_permission(runtime):
     assert runtime.post(path, json={"by": "system", "text": "Assigned role"}).status_code == 200
 
 
+def test_a_case_handed_back_by_name_is_the_holders_to_act_on_whatever_queue_it_names(runtime):
+    # the field hands a job back to the IOC person who sent it while the case still names the operator queue (#1145)
+    person, _ = signed_in(runtime, roles=("operator",))
+    with db.connect() as conn:
+        work.set_person(conn, person.actor, ["ops_lead"])
+        mine = work.create_item(conn, "test", "Back from the field", "system", role="operator", assignee=person.actor)
+        theirs = work.create_item(conn, "test", "With the field", "system", role="operator", assignee="sam")
+        conn.commit()
+    assert runtime.post(f"/work/items/{mine['id']}/comment", json={"by": "system", "text": "Closing it"}).status_code == 200
+    assert runtime.post(f"/work/items/{theirs['id']}/comment", json={"by": "system", "text": "Not mine"}).status_code == 403
+
+
 def test_owner_can_extend_app_roles_revoke_access_and_cannot_remove_last_owner(runtime):
     owner, _ = signed_in(runtime, owner=True)
     response = runtime.put(f"/auth/accounts/{owner.id}", json={"enabled": True, "owner": False, "roles": ["reader"]})

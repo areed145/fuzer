@@ -1,7 +1,7 @@
 import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge, Disclosure } from "../../ui";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
-import { say } from "../../wording";
+import { cap, say } from "../../wording";
 import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
@@ -125,7 +125,7 @@ function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: 
       <td><a href={caseHref(r.id)}>{say(r.title)}</a>{r.escalated && <UIBadge className="badge late"> escalated</UIBadge>}</td>
       <td className="small"><UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge>{/* the standard queue is how any plain case runs: only a process of its own is worth naming */}
         {r.process_key && r.process_key !== "queue_item" && r.process_key !== r.type && <> <a className="muted" href={processHref(r.process_key)}>{r.process_key.replace(/_/g, " ")}</a></>}</td>
-      <td className="small">{r.closed_at ? <UIBadge className="badge ok">{r.state}{r.outcome ? `: ${r.outcome}` : ""}</UIBadge> : r.step ?? r.state}</td>
+      <td className="small">{r.closed_at ? <UIBadge className="badge ok">{cap(r.state)}{r.outcome ? `: ${say(r.outcome)}` : ""}</UIBadge> : r.step ?? r.state}</td>
       <td className="small">{r.closed_at ? "" : holder(r.assignee, r.role)}</td>
       <td className="nowrap">{!r.closed_at && <Due at={r.due} />}</td>
       <td className="small"><PriorityBadge p={r.priority} type={r.type} low /></td>
@@ -207,7 +207,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
           <PageHeader className={it.title.length > 48 ? "case-title-long" : undefined}>{say(it.title)}</PageHeader>
           <div className="row small">
             <UIBadge className="badge">{it.type.replace(/_/g, " ")}</UIBadge>
-            <UIBadge className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</UIBadge>
+            <UIBadge className={`badge ${closed ? "ok" : ""}`}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
             {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <span className="muted">priority, {level.why}</span></span>}
             <span className="case-opened"><span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span></span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
@@ -377,7 +377,7 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
       <div className="row spread">
         <h3>
           <a href={processHref(p.process_key)} title={`version ${p.version}`}>{p.process_key.replace(/_/g, " ")} process</a>{" "}
-          <span className="muted small">{p.state}{p.outcome ? `: ${p.outcome}` : ""}</span>
+          <span className="muted small">{cap(p.state)}{p.outcome ? `: ${say(p.outcome)}` : ""}</span>
         </h3>
         <span className="small muted" title={p.correlation_key ? `key ${p.correlation_key}` : undefined}>
           started {when(p.started_at)} by <Actor who={p.started_by} />

@@ -7,7 +7,7 @@ import { Markdown } from "./Markdown";
 import { entityHref, fieldLabel, fmt } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
-import { queue, say, stamp } from "./wording";
+import { person as personName, queue, say, stamp } from "./wording";
 
 export { loadPerson, usePerson } from "./identityStore";
 
@@ -43,11 +43,11 @@ export function when(at: string): string {
 export function Actor({ who }: { who: string }) {
   if (who.startsWith("agent:")) return <UIBadge className="badge actor-agent">{who.slice(6).replace(/_/g, " ")} agent</UIBadge>;
   if (who === "system") return <UIBadge className="badge actor-system">fuzer</UIBadge>;
-  return <strong>{who}</strong>;
+  return <strong>{personName(who)}</strong>;
 }
 
 export function holder(assignee: string | null, role: string | null, kind?: string): string {
-  if (assignee) return assignee;
+  if (assignee) return personName(assignee);
   if (kind === "agent") return `${role} agent`;
   return role ? queue(role) : "nobody";
 }
@@ -184,10 +184,13 @@ function Value({ v }: { v: unknown }) {
 
 /** The process data a case started with, as a person reads it (#496): without the keys and ids that only link
  * records (`key`, `upset_id`, `exception_id`, ...) and without fields left empty. */
+// Routing bookkeeping the page already says in words (the queue, the kind of case) or that only the engine reads.
+const ENGINE_KEYS = new Set(["key", "role", "type", "case_type", "task_key", "review_item"]);
+
 export function startedWith(data: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
   if (!data) return null;
   return Object.fromEntries(Object.entries(data).filter(([k, v]) =>
-    k !== "key" && !k.endsWith("_id") && v !== "" && v !== null && v !== undefined));
+    !ENGINE_KEYS.has(k) && !k.endsWith("_id") && v !== "" && v !== null && v !== undefined));
 }
 
 /** Entities by name, from one lookup. The id stays in the tooltip. */
