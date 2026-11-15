@@ -1218,7 +1218,8 @@ def generate(out, seed: int = 11) -> dict:
                       "offpage": [{k: v for k, v in o.items() if k != "low"} for o in off]}
         else:
             sheet["text"] = sheet["title"] + "\n" + "\n".join(t.fmt("{f}\n{l}{s}") for t in tags)
-        to_draw.append((sheet, (tags, titles, frng, conns, False, ("V", "FL"), "clean", off)))
+        to_draw.append((sheet, (tags, titles, frng, conns, False, ("V", "FL"), "clean", off,
+                                okan_flare.LAYOUT.get(key))))
         sheets.append(sheet)
 
     # ---- documents ------------------------------------------------------------------------------------

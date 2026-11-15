@@ -193,6 +193,16 @@ def sheets(sheet_no: dict[str, str], next_no: int) -> tuple[list[tuple[str, dict
     ], back
 
 
+# how the flare sheets are drawn beyond the defaults (pid.draw's `layout`): GGCP's flare is a boom, not a stack; the
+# meter on the drum outlet before the changeover tee, each flare's isolation valve on its own leg after it
+LAYOUT = {
+    "25-1": {"booms": [BOOM],
+             "on_line": {METER: (KO_DRUM, BOOM, "first"), "25-XV-4020": (KO_DRUM, BOOM, "last"),
+                         "25-XV-4021": (KO_DRUM, SEAL_DRUM, "last")},
+             "tee": {(KO_DRUM, SEAL_DRUM): (KO_DRUM, BOOM)}},
+}
+
+
 PFD = ("OKAN-25-PFD-003", "AREA 25 - OK_GGCP FLARE SYSTEM", "clean", "FROM PP AND GGCP RELIEF HEADERS",
        "TO ALTERNATE STACK (STANDBY)", "VAP", [KO_DRUM, BOOM],
        ["ALTERNATE STACK 26-FL-4030 ON OKA_FLJ TAKES THE FLARE WHEN THE BOOM IS ISOLATED.",
