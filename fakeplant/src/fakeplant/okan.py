@@ -800,6 +800,17 @@ def generate(out, seed: int = 11) -> dict:
     log("2025-12-29T19:00:00", "OK-J09-02 shut in on high casing pressure, opened up again after 3 hours.", "PP CRO",
         (["OK-J09-02"], ["shut_in"]))
 
+    # Story: train A's gas turbine lube oil filter (process.py, `lube_filter`). Its low pressure alarm has stood since
+    # early December and was logged once; on 30 December the header pressure slides to just above the low-low trip and
+    # the compressors' bearings run hotter. The upset the SRE watch raises for the workflow's agents (#1148): caught
+    # before train A trips, with no notification raised yet, so the diagnosis and the notification are the agents' work.
+    log("2025-12-08T06:00:00", "20-PT-2005A lube oil header pressure on train A gas turbine in low alarm, 2.1 barg. "
+        "Filter dP high on the local gauge. Monitoring, change over filters at next opportunity.", "GGCP CRO",
+        (["20-PT-2005A", "20-GT-2000A"], ["alarm"]))
+    log("2025-12-30T15:00:00", "Train A lube oil header pressure 20-PT-2005A down to 1.75 barg, trip is 1.7. Journal "
+        "bearing temperatures on train A compressors up about 9 degC. Train still running, asked IOC for advice.",
+        "GGCP CRO", (["20-PT-2005A", "20-GT-2000A", "20-K-2100A", "20-K-2200A", "20-K-2300A"], ["alarm"]))
+
     # DAY001: field figures and the day's events.
     by_day: dict[str, list[dict]] = {}
     for d in downtime:

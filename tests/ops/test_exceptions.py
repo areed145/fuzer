@@ -212,6 +212,9 @@ def test_the_board_asks_for_what_closed_since_a_moment(conn, types):
 def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
     from fuzer.ops import exceptions as ex
 
+    # nobody on the roster, whatever ran before in this module (another test adds erin and otto): ioc-ann and fred are
+    # outside every lane, so the dispatch is a plain hand-off with its reason
+    conn.execute("delete from work_person")
     conn.execute("insert into geo_index (fuzer_id, kind, geom_type, minx, miny, maxx, maxy, cx, cy, geometry) values "
                  "('fz-well-a12', 'well', 'Point', 4.1, 52.1, 4.1, 52.1, 4.1, 52.1, '{}') on conflict do nothing")
     conn.execute("insert into edge (src, dst, rel, sources, confidence) values ('fz-pump-1', 'fz-well-a12', 'part_of', '{test}', 1)")
