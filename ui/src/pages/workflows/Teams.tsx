@@ -7,6 +7,9 @@ import { usePerson, when } from "../../work";
 import { caseHref, processHref, useAct } from "./shared";
 import { useAuth, usePermission } from "../../Auth";
 
+/** A role as people say it: "ops_lead" reads "ops lead", as the Acting as picker and My work already show it. */
+const words = (role: string) => role.replace(/_/g, " ");
+
 /** Where a person works (#497): this field's roster only, or overarching across every field or the ones named. */
 export function scopeText(p: Pick<WorkloadPerson, "covers">): string {
   if (p.covers == null) return "this field";
@@ -39,7 +42,7 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
         {configure && <> Manage roles, assignments and coverage in <a href={href("/users", { view: "workflow", role: focus ?? undefined })}>Users</a>.</>}
         {" "}<a href={href("/exceptions", { list: "progress" })}>Open work cases</a></p>}
       {uncovered.length > 0 && (
-        <p className="notice small">No one available for {uncovered.map((r) => <strong key={r.name}>{r.name} </strong>)}: their steps
+        <p className="notice small">No one available for {uncovered.map((r) => <strong key={r.name}>{words(r.name)} </strong>)}: their steps
           will wait. {administration ? "Assign an available person below." : "Ask a configuration administrator to update coverage in Users."}</p>
       )}
       {administration && <nav className="row" aria-label="Workflow administration sections">
@@ -91,10 +94,10 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
   const changed = v.description !== (r.description ?? "") || v.default_sla !== (r.default_sla ?? "") ||
     v.escalate_to !== (r.escalate_to ?? "") || v.assignment !== r.assignment;
   return (
-    <Disclosure className="card" open={open} label={<><strong>{r.name}</strong> <span className="muted small">{r.description}</span>{" "}
+    <Disclosure className="card" open={open} label={<><strong>{words(r.name)}</strong> <span className="muted small">{r.description}</span>{" "}
         <span className="small">· {r.members.filter((m) => !m.away).length} available{r.members.some((m) => m.away) && `, ${r.members.filter((m) => m.away).length} away`}
           {" "}· {r.waiting} waiting{r.overdue ? <>, <UIBadge className="badge late">{r.overdue} overdue</UIBadge></> : null}
-          {" "}· SLA {r.default_sla ?? "set per step"}{r.escalate_to && ` → ${r.escalate_to}`}</span>
+          {" "}· SLA {r.default_sla ?? "set per step"}{r.escalate_to && ` → ${words(r.escalate_to)}`}</span>
         {r.uncovered && <UIBadge className="badge late"> no one available</UIBadge>}</>}>
       <fieldset className="workflow-routing-fields" disabled={!editable || !!a.busy} aria-label={`${r.name} routing configuration`}>
       <Table variant="keyValue" density="compact">
