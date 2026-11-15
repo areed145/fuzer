@@ -100,6 +100,10 @@ def units(conn, subjects: list[str]) -> list[dict]:
     from ..analysis import values
 
     seen = list(dict.fromkeys(values.unit_of(conn, s)[1] for s in subjects))[:MAX_UNITS]
+    # a drawing or other document has no values to trend
+    papers = {r["fuzer_id"] for r in conn.execute(
+        "select fuzer_id from entity where fuzer_id = any(%s) and kind = 'document'", (seen,))}
+    seen = [u for u in seen if u not in papers]
     labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
         "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (seen,))}
     return [{"id": u, "label": labels.get(u)} for u in seen]

@@ -137,7 +137,7 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
           <option value="">waits for the IOC to dispatch</option>
           {queues.map((q) => <option key={q} value={`role:${q}`}>{queue(q)}</option>)}
         </Select>
-        <label className="small"><input type="checkbox" checked={f.field} onChange={(e) => setF({ ...f, field: e.target.checked })} /> field sees it</label>
+        <label className="small"><Input type="checkbox" checked={f.field} onChange={(e) => setF({ ...f, field: e.target.checked })} /> field sees it</label>
         <Button disabled={!!busy || !f.name.trim() || !f.label.trim()} onClick={save}>Define type</Button>
       </div>}
       {error && <p role="alert" className="error">{error}</p>}

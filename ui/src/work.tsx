@@ -7,7 +7,7 @@ import { Markdown } from "./Markdown";
 import { entityHref, fieldLabel, fmt } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
-import { queue, stamp } from "./wording";
+import { queue, say, stamp } from "./wording";
 
 export { loadPerson, usePerson } from "./identityStore";
 
@@ -41,7 +41,7 @@ export function when(at: string): string {
 }
 
 export function Actor({ who }: { who: string }) {
-  if (who.startsWith("agent:")) return <UIBadge className="badge actor-agent">{who.slice(6)} agent</UIBadge>;
+  if (who.startsWith("agent:")) return <UIBadge className="badge actor-agent">{who.slice(6).replace(/_/g, " ")} agent</UIBadge>;
   if (who === "system") return <UIBadge className="badge actor-system">fuzer</UIBadge>;
   return <strong>{who}</strong>;
 }
@@ -54,7 +54,8 @@ export function holder(assignee: string | null, role: string | null, kind?: stri
 
 const to = (t: unknown) => {
   const s = String(t ?? "");
-  return s.startsWith("role:") ? `the ${queue(s)}` : s.startsWith("agent:") ? `the ${s.slice(6)} agent` : s;
+  // an escalation writes where it came from as words around the role's key ("the data_steward queue")
+  return s.startsWith("role:") ? `the ${queue(s)}` : s.startsWith("agent:") ? `the ${s.slice(6)} agent` : say(s);
 };
 
 const UNITS: Record<string, string> = { D: "day", H: "hour", M: "minute" };
@@ -137,10 +138,14 @@ const LIMIT_WORDS: Record<string, string> = { lo: "low", lolo: "low-low", hi: "h
  * (`excursions:alarm:lo`) as words ("alarm low excursions"). Anything else is shown as recorded. */
 export function readable(v: string): string {
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(v)) return `${v.slice(0, 16).replace("T", " ")} (data time)`;
+  const agent = /^agent:([a-z_]+)$/.exec(v);
+  if (agent) return `${agent[1].replace(/_/g, " ")} agent`;
   const m = /^([a-z]+):([a-z_]+):([a-z]+)$/.exec(v);
   if (m) return `${m[2].replace(/_/g, " ")} ${LIMIT_WORDS[m[3]] ?? m[3]} ${m[1].replace(/_/g, " ")}`;
   return v;
 }
+
+const LIST_SHOWN = 4;
 
 function Value({ v }: { v: unknown }) {
   if (typeof v === "string") {
@@ -166,6 +171,14 @@ function Value({ v }: { v: unknown }) {
     );
   }
   if (typeof v === "boolean") return <>{v ? "yes" : "no"}</>;
+  // A list of plain values reads as a list, and a long one (forty record keys, say) shows its first few: printed
+  // whole as JSON it pushed everything after it screens down a phone.
+  if (Array.isArray(v) && v.length > 0 && v.every((x) => x === null || typeof x !== "object")) {
+    const words = v.map((x) => (typeof x === "string" ? readable(x) : fmt(x)));
+    if (words.length <= LIST_SHOWN) return <>{words.join(", ")}</>;
+    return <>{words.slice(0, LIST_SHOWN).join(", ")}
+      <Disclosure className="data-fold" label={<>and {words.length - LIST_SHOWN} more</>}><span className="small">{words.slice(LIST_SHOWN).join(", ")}</span></Disclosure></>;
+  }
   return <span className="mono">{fmt(v)}</span>;
 }
 

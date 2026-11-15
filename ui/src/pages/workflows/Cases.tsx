@@ -3,7 +3,8 @@ import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHead
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { say } from "../../wording";
 import { Suspense, lazy, useMemo, useState } from "react";
-import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
+import { api, type CaseRow, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
+import { CaseQuestion } from "../Review";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson, when } from "../../work";
 import { AgentIdle, AssignPicker, PriorityBadge, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref, useAct } from "./shared";
@@ -122,7 +123,8 @@ function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: 
     <tr>
       <td>{!r.closed_at && <Input type="checkbox" checked={picked} onChange={toggle} />}</td>
       <td><a href={caseHref(r.id)}>{say(r.title)}</a>{r.escalated && <UIBadge className="badge late"> escalated</UIBadge>}</td>
-      <td className="small"><UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge>{r.process_key && <> <a className="muted" href={processHref(r.process_key)}>{r.process_key}</a></>}</td>
+      <td className="small"><UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge>{/* the standard queue is how any plain case runs: only a process of its own is worth naming */}
+        {r.process_key && r.process_key !== "queue_item" && r.process_key !== r.type && <> <a className="muted" href={processHref(r.process_key)}>{r.process_key.replace(/_/g, " ")}</a></>}</td>
       <td className="small">{r.closed_at ? <UIBadge className="badge ok">{r.state}{r.outcome ? `: ${r.outcome}` : ""}</UIBadge> : r.step ?? r.state}</td>
       <td className="small">{r.closed_at ? "" : holder(r.assignee, r.role)}</td>
       <td className="nowrap">{!r.closed_at && <Due at={r.due} />}</td>
@@ -173,17 +175,24 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   // works in the field, the evidence and history fold under Full case.
   const roles = (people.data ?? []).find((p) => p.name === person)?.roles ?? [];
   const fieldOnly = !demo && roles.length > 0 && roles.every((r) => r === "operator");
+  // A steward's question is answered here, on its case (#1131): its finding names the question on Master data.
+  const asks = closed ? null : questionOf(it.sources);
   const evidence = <>
     <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
     {!evidenceReady ? <Status loading /> : <>
       <CaseSafeguards id={it.id} data={safeguards.data} />
-      <CaseFindings sources={it.sources} />
-      <CaseAround id={it.id} data={around.data} />
+      {!asks && <CaseFindings sources={it.sources} />}
+      {/* a question about the records has no event to trend */}
+      {!asks && <CaseAround id={it.id} data={around.data} />}
       <Related about={{ case: it.id }} />
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
       <AgentWork it={it} />
-      {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
+      {it.processes.map((p) => p.process_key === "queue_item"
+        // The standard queue is one step, already named under Waiting on: its diagram stays a tap away.
+        ? <Disclosure key={p.id} className="card" label={<>How this case is routed</>}>
+            <ProcessDiagram p={p} person={demo ? undefined : person} reload={item.reload} /></Disclosure>
+        : <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
       {Object.keys(payload).length > 0 && (
         <Disclosure className="card" open={typeof raised.summary === "string"} label={<>Details</>}><DataView data={payload} /></Disclosure>
       )}
@@ -200,7 +209,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
             <UIBadge className="badge">{it.type.replace(/_/g, " ")}</UIBadge>
             <UIBadge className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</UIBadge>
             {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <span className="muted">priority, {level.why}</span></span>}
-            <span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span>
+            <span className="case-opened"><span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span></span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
             {!demo && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
           </div>
@@ -215,7 +224,8 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       </div>
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
-      <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} reload={item.reload} />
+      {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
+      <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload} />
       {typeof raised.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
         <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
@@ -229,10 +239,21 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   );
 }
 
+const sameTime = (a?: string | null, b?: string | null) => !!a && !!b && Math.abs(Date.parse(a) - Date.parse(b)) < 60_000;
+
+/** The steward's question a case works, from its finding's link to Master data's Questions tab. */
+function questionOf(sources?: CaseSource[]): { id: number; kind: ReviewKind } | null {
+  for (const x of sources ?? []) for (const i of x.finding.items) {
+    const m = i.kind === "page" && /[?&]tab=questions&kind=(\w+)&item=(\d+)/.exec(String(i.value));
+    if (m) return { id: Number(m[2]), kind: m[1] as ReviewKind };
+  }
+  return null;
+}
+
 /** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
  * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
-function NextStep({ it, person, demo, fieldOnly, reload }: {
-  it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; reload: () => void;
+function NextStep({ it, person, demo, fieldOnly, answered = false, reload }: {
+  it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
 }) {
   const takeOver = useAct();
   const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
@@ -249,7 +270,8 @@ function NextStep({ it, person, demo, fieldOnly, reload }: {
             <strong>{s.name ?? s.element}</strong>
             <span className="small muted">with {holder(s.assignee, s.role, s.kind)}</span>
             <StepBadges row={s} />
-            <Due at={s.due_at} />
+            {/* the case's own due time is beside its title: a step says its own only when it differs */}
+            {sameTime(s.due_at, it.due) ? null : <Due at={s.due_at} />}
             <AgentIdle step={s} configured={it.agents_configured}
               onTakeOver={demo || !person ? undefined : () => takeOver.run("take over", () =>
                 api.handOff(s.id, person, person, "no agent worker picked it up; done by a person"), reload)} />
@@ -257,7 +279,7 @@ function NextStep({ it, person, demo, fieldOnly, reload }: {
         ))}
       </ul> : <p className="small">No step is open. Close it out below, or give it to someone.</p>}
       <div className="row wrap case-next-actions">
-        {next && <ButtonLink variant="primary" href={stepHref(next.id)}>Open {next.name ?? next.element}</ButtonLink>}
+        {next && !answered && <ButtonLink variant="primary" href={stepHref(next.id)}>{next.name ?? next.element}</ButtonLink>}
         {fieldOnly && <ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink>}
       </div>
       {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}
@@ -317,6 +339,7 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   const a = useAct();
   return (
     <div className="case-actions">
+      <Disclosure className="small" label={<>Give it to someone else</>}>
       <div className="row wrap">
         <Field label="Give it to" width="md"><AssignPicker value={to} onChange={setTo} /></Field>
         <Field label="Why (kept in its history)" width="md">
@@ -324,6 +347,7 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
         <Button variant="secondary" disabled={!to || !!a.busy}
           onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Reassign</Button>
       </div>
+      </Disclosure>
       <Disclosure className="small" label={<>Change priority or due time</>}>
         <div className="row wrap">
           <Field label="Priority" width="xs"><Input value={priority} onChange={(e) => setPriority(e.target.value)} /></Field>

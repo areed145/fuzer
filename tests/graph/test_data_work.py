@@ -76,3 +76,22 @@ def test_a_drawing_line_question_is_about_the_two_items_it_would_join():
     p = {"sheet": "S-1", "from": "10-V-2004", "to": "10-P-1001A", "line": "16\"-P-10950-A1A"}
     assert data_work.refs("pid_connection", p) == ["tag:10-V-2004", "tag:10-P-1001A"]
     assert data_work.refs("pid_connection", {**p, "from": None}) == ["tag:10-P-1001A"]  # the other end unread
+
+
+def test_a_drawing_question_reads_as_a_short_title_and_keeps_the_question_as_evidence():
+    """A list row says the tag and what disagrees; the whole question, with its values, is one tap away."""
+    asked = "S-1 shows 20-PT-2201B on 20-K-2200B, but sap has it under 20-V-2201B. Which is right, the drawing or the register?"
+    p = {"check": "placement", "sheet": "S-1", "tag": "20-PT-2201B", "drawn_on": "20-K-2200B", "question": asked,
+         "register": [{"sources": ["sap"], "parent": "20-V-2201B"}]}
+    assert data_work.title("pid_mismatch", "S-1:20-PT-2201B", p) == "20-PT-2201B: drawing and SAP disagree on where it sits"
+    titles = {check: data_work.title("pid_mismatch", "x", {**p, "check": check, "tag": tag})
+              for check, tag in (("alarm", "20-TT-2150C"), ("alarm_unset", "20-LT-2400"), ("twin", "A>B"), ("flow", "A>B"))}
+    assert titles == {"alarm": "20-TT-2150C: drawing and configured alarm disagree on limits",
+                      "alarm_unset": "20-LT-2400: alarm limits on the drawing are not configured",
+                      "twin": "A to B: DEXPI file and scan of S-1 differ",
+                      "flow": "A to B: flow network and drawings disagree"}
+    assert all(len(t) <= 70 and "?" not in t for t in titles.values())
+    items = {i.label: i.value for i in data_work.finding(7, "pid_mismatch", p).items}
+    assert items["Question"] == asked
+    # A question recorded before checks were named still shows what was asked.
+    assert data_work.title("pid_mismatch", "x", {"question": asked}) == asked

@@ -1,6 +1,7 @@
 import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty } from "../../ui";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
+import { say } from "../../wording";
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { api, type WorkTaskView } from "../../api";
 import { CaseBrief } from "../../CaseBrief";
@@ -50,11 +51,12 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
     <section>
       {demo && <DemoContext step="workflow" />}
       <div className="row spread">
-        <PageHeader>{t.name ?? t.element}</PageHeader>
+        {/* The work is the title (#1131): a step called "Do the task" says nothing, so the step sits under it. */}
+        <PageHeader className={v.item.title.length > 48 ? "case-title-long" : undefined}>{say(v.item.title)}</PageHeader>
         <Due at={t.due_at} closed={!waiting} />
       </div>
       <p className="small muted">
-        on <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>{v.item.title}</a> · {t.process_key} v{t.version} · with {holder(t.assignee, t.role, t.kind)}
+        <strong>{t.name ?? t.element}</strong> · <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>Open the case</a> · with {holder(t.assignee, t.role, t.kind)}
         {t.escalated_at && <> · escalated {when(t.escalated_at)}</>}
       </p>
       <div className="row small"><StepBadges row={t} /></div>

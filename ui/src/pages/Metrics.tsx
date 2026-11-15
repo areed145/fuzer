@@ -25,7 +25,7 @@ const targetText = (m: MetricDeclaration) =>
 
 /** The value over earlier periods as a small line, its last point marked; a dashed line at the target. */
 function Sparkline({ points, target, label }: { points: { at: string; value: number }[]; target?: number | null; label: string }) {
-  if (points.length < 2) return <span className="muted small">–</span>;
+  if (points.length < 2) return <span className="muted small">no history yet</span>;
   const vs = points.map((p) => p.value).concat(target == null ? [] : [target]);
   const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
   const W = 96, H = 24;
@@ -80,7 +80,7 @@ function MetricRowNow({ m }: { m: MetricDeclaration }) {
     <tr>
       <td><a href={href(`/metrics/${m.key}`)}>{m.label}</a><div className="small muted">{m.definition}</div></td>
       {/* The value says whether it meets its target, in colour and in words, never by colour alone (#1078). */}
-      <td data-label="Now">{v.loading ? <span className="muted">…</span> : v.error ? <span className="muted">unavailable</span>
+      <td data-label="Now">{v.loading ? <span className="muted small">loading</span> : v.error ? <span className="muted">unavailable</span>
         : v.data?.value == null ? <span className="muted small" title={v.data?.note ?? undefined}>no reading{v.data?.note ? `: ${v.data.note}` : ""}</span>
         : <><strong className={good === null ? undefined : good ? "metric-good" : "metric-bad"} title={v.data?.note ?? undefined}>
             {show(v.data.value, m.unit)}</strong>

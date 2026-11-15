@@ -49,6 +49,8 @@ export function plural(n: number, word: string, many?: string): string {
 const KEY = /(?<![\w:/])((?:alarm|iow|learned|instrument):[a-z_]+)(?!\w)/g;
 const ROLE = /\brole:([a-z_]+)( queue)?/g;
 const SNAKE_QUEUE = /\b([a-z]+(?:_[a-z]+)+) queue\b/g;
+// a source system named in a sentence by its key ("sap has it under"), never inside an id or a path
+const SYSTEM = /(?<![\w:/.\-])(sap|jde|sre|dcs)(?![\w:/.\-])/g;
 
 /** Text a record carries, in people's words: alarm keys, queue roles and unit spellings. Text with none comes back
  * unchanged. */
@@ -59,7 +61,8 @@ export function say(text: string | null | undefined) {
   return units(text
     .replace(KEY, (_, k: string) => lowerFirst(alarm(k)))
     .replace(ROLE, (_, r: string, q?: string) => (q ? queue(r) : queue(r).replace(/ queue$/, "")))
-    .replace(SNAKE_QUEUE, (_, r: string) => queue(r)));
+    .replace(SNAKE_QUEUE, (_, r: string) => queue(r))
+    .replace(SYSTEM, (k: string) => k.toUpperCase()));
 }
 
 const DOC_TYPES: Record<string, string> = {

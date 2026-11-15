@@ -1042,6 +1042,8 @@ export const workApi = {
   decideLesson: (id: number, decision: "approve" | "reject" | "edit", by: string, text?: string) =>
     request<{ id: number; status: string; version: number }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
+  /** One open question, as a list of one (none once it is answered). */
+  review: (kind: ReviewKind, item: number) => request<ReviewItem[]>("GET", "/review", { kind, item }),
   decide: (id: number, d: Decision) => request<{ decided: number }>("POST", `/review/${id}`, undefined, d),
   reviewGroups: (kind: ReviewKind) => request<ReviewGroup[]>("GET", "/review/groups", { kind }),
   decideGroup: (body: { key: string; decision: Decision["decision"]; source?: string; value?: unknown; standing: boolean; by: string }) =>

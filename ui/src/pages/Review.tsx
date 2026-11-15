@@ -23,29 +23,18 @@ import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } f
 import { ActionStatus, Bar, Button, ButtonLink, Select, Table, Card as UICard, Input } from "../ui";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
+import { personSignedIn } from "../identityStore";
 import { FindingEvidence } from "../Finding";
+import { say } from "../wording";
+import { DrawingViewer } from "../DrawingViewer";
 
 /** Where a kind of question is listed: its tab on Master data (P2.3, #505). */
 export const questionsHref = (kind?: string, item?: number) =>
   href("/masterdata", { tab: "questions", kind, item: item === undefined ? undefined : String(item) });
 
-/** The questions the build leaves for the data steward, by kind (P2.3): a tab on Master data. Each is also a case in
- * the steward's queue, which links here opened on its question; answering closes that case. */
-export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
-  const asked = query.get("kind");
-  const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
-    asked === "check" || asked === "pid_connection" || asked === "pid_mismatch" || asked === "role" ? asked : "match";
-  const items = useAsync(() => api.reviews(kind), [kind]);
-  const [name, setName] = usePerson();
-  const [done, setDone] = useState<Set<number>>(new Set());
-  const [toast, setToast] = useState<string>();
-
-  useEffect(() => setDone(new Set()), [kind]);
-
-  const decide = async (item: ReviewItem, d: Omit<Decision, "by">) => {
-    await api.decide(item.id, { ...d, by: name || "anonymous" });
-    setDone((s) => new Set(s).add(item.id));
-    setToast(
+/** What a recorded answer did, in one line. */
+function saved(item: ReviewItem, d: Omit<Decision, "by">): string {
+  return (
       item.kind === "match"
         ? `Saved #${item.id}. Fuzer is updating the records in the background.`
         : item.kind === "mapping"
@@ -74,8 +63,27 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
                 : `Saved #${item.id}. Recorded: ${item.payload.sheet} needs a redline. Nothing was changed in either system.`
           : item.kind === "role"
             ? `Saved #${item.id}. ${item.payload.point ?? "The point"} is ${roleLabel(item.payload, d)} from now on, and stays so after rebuilds.`
-          : `Saved #${item.id}. The chosen value is live.`,
-    );
+          : `Saved #${item.id}. The chosen value is live.`
+  );
+}
+
+/** The questions the build leaves for the data steward, by kind (P2.3): a tab on Master data. Each is also a case in
+ * the steward's queue, which links here opened on its question; answering closes that case. */
+export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
+  const asked = query.get("kind");
+  const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
+    asked === "check" || asked === "pid_connection" || asked === "pid_mismatch" || asked === "role" ? asked : "match";
+  const items = useAsync(() => api.reviews(kind), [kind]);
+  const [name, setName] = usePerson();
+  const [done, setDone] = useState<Set<number>>(new Set());
+  const [toast, setToast] = useState<string>();
+
+  useEffect(() => setDone(new Set()), [kind]);
+
+  const decide = async (item: ReviewItem, d: Omit<Decision, "by">) => {
+    await api.decide(item.id, { ...d, by: name || "anonymous" });
+    setDone((s) => new Set(s).add(item.id));
+    setToast(saved(item, d));
     notifyChanged();
   };
 
@@ -116,10 +124,11 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             Measurement roles <span className="muted">{stats?.open_reviews.role ?? 0}</span>
           </a>
         </div>
-        <label className="reviewer">
+        {/* a signed-in account answers as itself: only a local, unsigned session types a name */}
+        {!personSignedIn() && <label className="reviewer">
           Reviewer
           <Input value={name} placeholder="your name" onChange={(e) => setName(e.target.value)} />
-        </label>
+        </label>}
       </div>
 
       <p className="small">
@@ -154,36 +163,59 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       <Status loading={items.loading && !items.data} error={items.error} empty={items.data && open.length === 0}>
         All done. Nothing left to review here.
       </Status>
-      {open.map((item) =>
+      {open.map((item) => <QuestionCard key={item.id} item={item} onDecide={(d) => decide(item, d)} />)}
+    </section>
+  );
+}
+
+/** One question as its card, by kind: the same card on Master data and on the question's case. */
+function QuestionCard({ item, onDecide }: { item: ReviewItem; onDecide: OnDecide }) {
+  return (
         item.kind === "match" ? (
-          <MatchCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+          <MatchCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "mapping" ? (
-          <MappingCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+          <MappingCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "curve" ? (
-          <CurveCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+          <CurveCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "schema" ? (
-          <SchemaCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+          <SchemaCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "check" ? (
-          <HeldLoadCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+          <HeldLoadCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "pid_connection" ? (
-          <PidConnectionCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+          <PidConnectionCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "role" ? (
-          <RoleCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+          <RoleCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "pid_mismatch" ? (
-          <PidMismatchCard key={item.id} id={item.id} label={item.label} p={item.payload} onDecide={(d) => decide(item, d)} />
+          <PidMismatchCard id={item.id} label={item.label} p={item.payload} onDecide={onDecide} />
         ) : (
           <ConflictCard
-            key={item.id}
             id={item.id}
             label={item.label}
             description={item.description}
             p={item.payload}
-            onDecide={(d) => decide(item, d)}
+            onDecide={onDecide}
           />
-        ),
-      )}
-    </section>
+        )
   );
+}
+
+/** A case's question, answered on the case (#1131): the same card and the same decision as Master data's Questions
+ * tab, with the drawing it is about. Nothing shows once it is answered. */
+export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKind; onDone: () => void }) {
+  const q = useAsync(() => api.review(kind, id), [kind, id]);
+  const [name] = usePerson();
+  const [done, setDone] = useState<string>();
+  const item = q.data?.find((i) => i.id === id);
+  if (done) return <p role="status" className="notice">{done}</p>;
+  if (!item) return <Status loading={q.loading} error={q.error} onRetry={q.reload} />;
+  const sheet = item.kind === "pid_mismatch" ? item.payload : null;
+  return <div className="case-question">
+    <QuestionCard item={item} onDecide={async (d) => {
+      await api.decide(item.id, { ...d, by: name || "anonymous" });
+      setDone(saved(item, d)); notifyChanged(); onDone();
+    }} />
+    {sheet?.document && <DrawingViewer id={sheet.document} highlight={[sheet.fuzer_id]} title={sheet.sheet} compact />}
+  </div>;
 }
 
 /** Like questions answered once (P2.3c): each group's answers, applied to every question in it; a standing answer
@@ -215,7 +247,7 @@ function LikeQuestions({ kind, name, onDone }: { kind: ReviewKind; name: string;
             <th scope="row">{g.count} × {g.label}{g.standing && <div className="small">New ones are answered by {g.standing.set_by}'s standing answer.</div>}</th>
             <td>{operate && <div className="row">
               {g.options.map((o) => <Button key={o.label} size="sm" variant="secondary" disabled={!!busy} onClick={() => void answer(g, o)}>{o.label}</Button>)}
-              <label className="small"><input type="checkbox" checked={!!standing[g.key]} onChange={(e) => setStanding({ ...standing, [g.key]: e.target.checked })} /> and new ones like these</label>
+              <label className="small choice-inline"><Input type="checkbox" checked={!!standing[g.key]} onChange={(e) => setStanding({ ...standing, [g.key]: e.target.checked })} /> and new ones like these</label>
             </div>}</td>
           </tr>
         ))}</tbody>
@@ -608,7 +640,7 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
         <h3>{MISMATCH_TITLE[p.check] ?? "Drawing disagreement"} <span className="muted small">#{id}</span></h3>
         <span className="muted small">{p.sheet}</span>
       </div>
-      <p>{p.question}</p>
+      <p>{say(p.question)}</p>
       {p.returned && <p className="small returned">{p.returned.why}</p>}
       {p.check === "flow" ? (
         <span className="mono small">

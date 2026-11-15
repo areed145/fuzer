@@ -250,7 +250,7 @@ def draft(conn, by: str, now: datetime | None = None, force: bool = False) -> di
     row = dict(conn.execute(
         "insert into shift_handover (shift_start, shift_end, facts, created_by) values (%s, %s, %s, %s) returning *",
         (start, end, Jsonb(f), by)).fetchone())
-    label = end.astimezone(_tz()).strftime("%a %d %b %H:%M")
+    label = end.astimezone(_tz()).strftime("%b %-d, %-I:%M %p")
     n = {k: len(v) + f["more"].get(k, 0) for k, v in f["sections"].items()}
     from . import routing
 

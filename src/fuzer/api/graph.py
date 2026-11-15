@@ -109,8 +109,9 @@ def lookup(source: str | None = None, key: str | None = None, text: str | None =
 
 
 @router.get("/review")
-def review_list(status: str = "open", kind: str | None = None, limit: int = 100, conn=Depends(get_conn)):
-    return queries.reviews(conn, status, kind, limit)
+def review_list(status: str = "open", kind: str | None = None, limit: int = 100, item: int | None = None,
+                conn=Depends(get_conn)):
+    return queries.reviews(conn, status, kind, limit, item)
 
 
 class Decision(BaseModel):

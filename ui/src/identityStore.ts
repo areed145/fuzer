@@ -12,6 +12,8 @@ try {
 }
 
 export const loadPerson = () => person;
+/** Whether the name is the signed-in account, which nobody types or changes. */
+export const personSignedIn = () => trusted;
 export function setTrustedPerson(name: string) {
   trusted = true;
   if (person === name) return;
