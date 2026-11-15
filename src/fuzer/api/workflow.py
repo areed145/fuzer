@@ -540,7 +540,15 @@ def work_release(task_id: int, b: WorkBy, conn=Depends(get_conn)):
 
 @router.post("/work/tasks/{task_id}/complete")
 def work_complete(task_id: int, c: WorkComplete, conn=Depends(get_conn)):
-    """Complete a step with its form data. A requiresHuman step refuses agents (403)."""
+    """Complete a step with its form data. A requiresHuman step refuses agents (403). A source close-out's step is
+    decided by approving or sending back its update (409 while it is still a draft, #1145)."""
+    from ..core.exceptions import ExceptionError
+    from ..ops import closeout
+
+    try:
+        closeout.step_decided(conn, task_id)
+    except ExceptionError as e:
+        raise HTTPException(409, str(e)) from e
     return work.complete(conn, task_id, c.by, c.data, client_id=c.client_id, at=c.at)
 
 

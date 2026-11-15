@@ -101,6 +101,16 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
                 assert refresh()["held"] == 1
                 assert _sap(sap)["10004002"]["status"] == "OSNO"
 
+                # the change in plain words, and the step is decided by approving or sending it back, never by a
+                # bare Complete that would end the case with nothing written (#1145)
+                assert ok(client.get(f"/closeouts/{draft['id']}"))["change"] == \
+                    "Close notification 10004002 in SAP (status NOCO, notification completed), with the note below."
+                step = conn.execute("select t.id from work_token t join work_process p on p.id = t.process_id "
+                                    "where p.item_id = %s and t.state = 'waiting'", (draft["item_id"],)).fetchone()["id"]
+                conn.rollback()
+                r = client.post(f"/work/tasks/{step}/complete", json={"by": "pat", "data": {}})
+                assert r.status_code == 409 and "send it back" in r.text, r.text
+                assert client.post(f"/closeouts/{draft['id']}/send-back", json={"by": "pat"}).status_code == 400
                 # an agent can't approve a write-back (P5.10 fixed gate), nor someone outside the approver roles
                 assert client.post(f"/closeouts/{draft['id']}/approve", json={"by": "agent:maintenance"}).status_code == 403
                 sent = ok(client.post(f"/closeouts/{draft['id']}/approve",
@@ -127,6 +137,24 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
                                json={"by": "fred", "status": "could_not_do", "note": "needs a lab sample first"}))
                 [follow] = ok(client.get("/closeouts", params={"exception_id": cnd["id"]}))
                 assert follow["action"] == "follow_up" and "needs a lab sample first" in follow["draft"]["text"]
+                # sent back: nothing goes to SAP, and the job's case hears why
+                fred_job = conn.execute("select item_id from exception_record where id = %s", (cnd["id"],)).fetchone()
+                conn.rollback()
+                assert client.post(f"/closeouts/{follow['id']}/send-back",
+                                   json={"by": "fred", "reason": "no"}).status_code == 400  # not an approver
+                back = ok(client.post(f"/closeouts/{follow['id']}/send-back",
+                                      json={"by": "pat", "reason": "the lab sample is booked; raise it after"}))
+                assert back["state"] == "discarded"
+                said = conn.execute("select data->>'text' as t from work_event where item_id = %s and kind = 'commented' "
+                                    "order by id desc limit 1", (fred_job["item_id"],)).fetchone()["t"]
+                assert said == "Sent back, not written to SAP: the lab sample is booked; raise it after"
+                conn.rollback()
+                # the IOC sends the field out again, and this time the follow-up is approved
+                ok(client.post(f"/exceptions/{cnd['id']}/dispatch", json={"by": "ioc-ann", "to": "fred", "override":
+                    "contactor isolated and gas-free before the reboiler hot work restarts; area authority agreed"}))
+                ok(client.post(f"/exceptions/{cnd['id']}/report",
+                               json={"by": "fred", "status": "could_not_do", "note": "needs a lab sample first"}))
+                [follow] = ok(client.get("/closeouts", params={"exception_id": cnd["id"], "state": "draft"}))
                 ok(client.post(f"/closeouts/{follow['id']}/approve", json={"by": "pat"}))
                 conn.rollback()
 
@@ -135,10 +163,11 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
             from fuzer.ops import writeback
 
             writeback.run(conn, datetime.now().astimezone() + timedelta(hours=1))  # the batch: the demo's SAP adapter
-            applied = conn.execute("select id, action, applied_at, applied_note from source_closeout order by id").fetchall()
+            applied = conn.execute("select id, action, applied_at, applied_note from source_closeout "
+                                   "where state <> 'discarded' order by id").fetchall()
             assert all(r["applied_at"] for r in applied), (applied, str(sap), conn.execute(
                 "select id, state, error from writeback").fetchall())
-            assert {r["state"] for r in conn.execute("select state from writeback")} == {"confirmed"}
+            assert {r["state"] for r in conn.execute("select state from writeback")} == {"confirmed", "rejected"}
             assert conn.execute("select state from work_item where id = %s", (draft["item_id"],)).fetchone()["state"] == "done"
             assert {r["applied_note"] for r in applied} == {str(sap)}
             notes = _sap(sap)

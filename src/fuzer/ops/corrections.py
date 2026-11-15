@@ -109,9 +109,12 @@ def _draft(conn, item: dict) -> int:
             row = _insert(conn, item, "drawing_correction", "pid", fuzer_id=fid, wrong=p.get("detail"), **out)
         elif system == "alarm configuration":
             title = f"{p.get('tag')}: configure the alarm to match {p.get('sheet')}"
+            # what to change, where it came from and who decided, on the task itself (#1145)
+            data = {"review_item": item["id"], "change": _alarm_change(p), "decided_by": by,
+                    "from_case": _steward_case(conn, item["id"])}
             case = routing.open_task(conn, OWNER_CASE, title, by, f"correction:{item['id']}:alarms:{_round(item)}",
-                                     role="role:data_steward", data={"review_item": item["id"]}, subjects=subjects,
-                                     source=BY)
+                                     role="role:data_steward", data={k: v for k, v in data.items() if v},
+                                     subjects=subjects, source=BY)
             row = _insert(conn, item, "correction", "alarms", fuzer_id=fid, wrong=p.get("detail"), item_id=case["id"])
         elif p.get("check") == "flow":  # the flow network links what the drawings don't, or misses what they do
             payload = {"from": p.get("from"), "to": p.get("to"), "detail": p.get("detail"),
@@ -129,6 +132,22 @@ def _draft(conn, item: dict) -> int:
                           right=p.get("drawn_on"), **out)
         n += 1 if row else 0
     return n
+
+
+def _alarm_change(p: dict) -> str:
+    """The alarm change in words: "Set the DCS alarm on 20-LT-2002 to what 20-PID-0001 shows: high 52 (the DCS has
+    57)." from the limits check's "the P&ID shows high 52 where dcs has 57"."""
+    import re
+
+    detail = str(p.get("detail") or "")
+    shows = detail.removeprefix("the P&ID shows ").strip()
+    parts = []
+    for one in shows.split("; "):
+        m = re.match(r"(.+?) where (\w+) has ([^,]+)", one)
+        parts.append(f"{m[1]} (the {m[2].upper()} has {m[3]})" if m else one)
+    sources = sorted({m.upper() for m in re.findall(r"where (\w+) has", detail)})
+    where = f"the {'/'.join(sources)} alarm" if sources else "the configured alarm"
+    return f"Set {where} on {p.get('tag') or 'the point'} to what {p.get('sheet') or 'the drawing'} shows: {', '.join(parts)}."
 
 
 def _note(conn, item_id: int | None) -> str | None:

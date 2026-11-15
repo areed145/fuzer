@@ -296,23 +296,30 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
 
 /** The update for the system that raised the work (#466): what the field did, as a completion or a follow-up, to
  * edit and send, or not send. */
-function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: string; readOnly: boolean; reload: () => void }) {
+/** The update a field report drafted for the system that raised the job (#466): the approver approves it, with any
+ * edit to its text, or sends it back with why (#1145). Shown on the case and on its task. */
+export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: string; readOnly: boolean; reload: () => void }) {
   const c = useAsync(() => api.closeout(id), [id]);
   const [text, setText] = useState<string | null>(null);
   const [short, setShort] = useState<string | null>(null);
+  const [back, setBack] = useState<string | null>(null);
   const a = useAct();
   if (!c.data) return <Status loading={c.loading} error={c.error} />;
   const d = c.data;
   const system = d.system.toUpperCase();
   const done = () => { c.reload(); reload(); };
+  const sentBack = d.state === "discarded";
   return (
     <UICard className="">
       <h3>{d.action === "complete" ? `Complete ${d.record} in ${system}` : `Raise a follow-up to ${d.record} in ${system}`}</h3>
+      <p>{d.change ?? (d.action === "complete" ? `Close ${d.record} in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}.`
+        : `Raise a new ${system} record for the work still needed.`)}</p>
       <p className="small muted">{d.action === "complete"
-        ? `The field reported it done. Once a planner approves it, it closes it in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}, so its record agrees and the IOC stops holding it.`
-        : `The field could not do it. Once approved, this raises a new ${system} record for the work that is still needed.`}</p>
+        ? `The field reported it done. Approved, it goes in ${system}'s next batch, so its record agrees and the IOC stops holding it.`
+        : `The field could not do it. Approved, the work stays on ${system}'s books.`} Nothing is written until you approve it.</p>
       {d.state !== "draft" ? (
-        <p className="small"><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state === "approved" ? "approved, goes in the next batch" : d.state}</UIBadge>{" "}
+        <p className="small"><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state === "approved" ? "approved, goes in the next batch"
+          : sentBack ? "sent back, not written" : d.state}</UIBadge>{" "}
           by <Actor who={d.decided_by ?? ""} /> {d.decided_at && when(d.decided_at)}
           {d.applied_at && <span className="muted"> · applied to the demo's {system} data</span>}</p>
       ) : null}
@@ -323,14 +330,21 @@ function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: s
       )}
       <textarea rows={4} style={{ width: "100%" }} disabled={d.state !== "draft" || readOnly} aria-label="Update text"
         value={text ?? d.draft.text} onChange={(e) => setText(e.target.value)} />
-      {d.state === "draft" && !readOnly && (
+      {d.state === "draft" && !readOnly && (back === null ? (
         <div className="row">
           <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("send", () =>
             api.approveCloseout(id, person, text ?? undefined, short ?? undefined), done)}>Approve for {system}</Button>
-          <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("discard", () =>
-            api.discardCloseout(id, person, "not sent: updated by hand"), done)}>Don't send</Button>
+          <Button variant="secondary" disabled={!!a.busy} onClick={() => setBack("")}>Send back</Button>
         </div>
-      )}
+      ) : (
+        <div className="row wrap">
+          <Field label="Why it goes back (whoever holds the job reads this)" width="lg">
+            <Input value={back} onChange={(e) => setBack(e.target.value)} /></Field>
+          <Button variant="primary" disabled={!back.trim() || !!a.busy} onClick={() => a.run("back", () =>
+            api.sendBackCloseout(id, person, back.trim()), () => { setBack(null); done(); })}>Send back</Button>
+          <Button variant="secondary" onClick={() => setBack(null)}>Cancel</Button>
+        </div>
+      ))}
       {a.error && <p className="error small">{a.error}</p>}
     </UICard>
   );
