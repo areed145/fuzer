@@ -22,7 +22,8 @@
 .map-basemaps > .ui-button.map-basemap:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .map-controls .ui-button { box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
 .map-controls .map-control-button { min-width: 44px; min-height: 44px; padding: 8px; }
-.map-legend .chip { min-height: 44px; }
+/* A finger gets a 44 px chip; a mouse gets the same compact chip as every other filter row. */
+@media (pointer: coarse), (max-width: 900px) { .map-legend .chip { min-height: 44px; } }
 /* A message sits at the foot of the map, so it never covers the controls or the field at the top (#1075). */
 .map-message { position: absolute; z-index: 1000; bottom: 28px; left: 10px; max-width: min(360px, calc(100% - 20px));
   padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--danger);

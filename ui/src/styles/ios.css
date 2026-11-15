@@ -699,3 +699,29 @@
   :root.ios .sidebar .health span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
   :root.ios .sidebar .health::after { content: ""; width: 7px; height: 7px; flex: none; border-right: 2px solid var(--muted); border-top: 2px solid var(--muted); transform: rotate(45deg); opacity: .6; }
 }
+
+/* ================= Consistency tour (#1131): flat, one look per control ================= */
+/* Notices are inset grouped cards like everything else on the page, not a bordered desktop box. A warning or danger
+   notice keeps its colour as a hairline. */
+:root.ios .notice { border: 0; border-radius: var(--radius); padding: 12px 16px; margin: 0 0 12px; font-size: var(--t-subhead); }
+:root.ios .notice:is(.ui-notice-warn, .ui-notice-danger) { border: 1px solid var(--warn); }
+:root.ios .notice.ui-notice-danger { border-color: var(--danger); }
+/* A text area is the same filled field as an input: no border, the field fill, the same corners and type. Ask's
+   composer has its own rule. */
+:root.ios:not(.field-mode) #main-content textarea:not(.ask-box textarea) {
+  border: 0; border-radius: 10px; background-color: var(--fill); color: var(--text); font-size: var(--t-subhead); line-height: 1.35; padding: 8px 12px;
+}
+/* Flat: floating surfaces meet the page with a hairline or a scrim, never a drop shadow. */
+:root.ios .map-basemaps, :root.ios .map-message, :root.ios .map-controls .ui-button { box-shadow: none; }
+:root.ios .map-basemaps { border-radius: 999px; }
+:root.ios .map-basemaps > .ui-button.map-basemap { border-radius: 999px; }
+:root.ios .map-basemaps > .ui-button.map-basemap.on { background: var(--fill); }
+@media (max-width: 900px) {
+  :root.ios .attention-detail { box-shadow: 0 0 0 var(--hair) var(--line); }
+  :root.ios .sidebar.open { box-shadow: none; }
+}
+/* The map's layer chips are the same 32-point chips as Browse's kinds and Network's link types. */
+:root.ios:not(.field-mode) .map-legend .chip { min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; font-size: var(--t-subhead); font-weight: 500; background: var(--fill); color: var(--text); }
+/* An off switch has a track you can see in dark mode too, and no shadow under the knob. */
+:root.ios[data-theme="dark"] input[type=checkbox]:not(td input):not(:checked) { background: rgb(120 120 128 / .36); }
+:root.ios input[type=checkbox]:not(td input)::after { box-shadow: none; }
