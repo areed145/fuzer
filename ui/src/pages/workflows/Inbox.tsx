@@ -9,9 +9,10 @@ import { Status, href, useAsync, useRouteState } from "../../lib";
 import { Due, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
-import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
+import { SampleTeam, StepBadges, byUrgency, caseHref, priorityLevel, taskHref, useAct } from "./shared";
 import { ComingUp, FieldJobCard, Outbox, RoundsThisShift } from "../Field";
 import { fieldJobs } from "../../fieldOffline";
+import { cap, person as personName } from "../../wording";
 import { FieldModeOffer } from "../../theme";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
@@ -44,6 +45,8 @@ export function InboxPage() {
   const [type, setType] = useRouteState("type");
   const [picked, setPicked] = useState<Set<number>>(new Set());
   useEffect(() => setPicked(new Set()), [person]);
+  // What the field just reported, said here because its card leaves the list once the IOC has it.
+  const [reported, setReported] = useState<string | null>(null);
   if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Pick your name to see your work">
     <p>Choose your name under “You are” in the menu.</p>
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
@@ -86,11 +89,13 @@ export function InboxPage() {
         My work</PageHeader>
       {handover && handover.state !== "acknowledged" && <Notice tone="warn" className="row">
         <strong>Shift handover ready, {when(handover.shift_end)}.</strong>
-        <span>{handover.lines ?? 0} lines{handover.notes_by ? `, notes from ${handover.notes_by}` : ""}.</span>
+        <span>{handover.lines ?? 0} lines{handover.notes_by ? `, notes from ${personName(handover.notes_by)}` : ""}.</span>
         <ButtonLink variant="primary" href={href("/handover", { id: String(handover.id) })}>Read and acknowledge</ButtonLink>
       </Notice>}
       {offline && <Notice tone="warn">No signal: these are your jobs as kept on this phone{offline.since ? ` ${when(offline.since)}` : ""}.
         Reports wait here and send when the signal returns.</Notice>}
+      {reported && <Notice role="status" className="row"><span>{reported}</span>
+        <Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>}
       <FieldModeOffer />
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
       {!offline && <NewForYou person={person} told={told} />}
@@ -108,7 +113,7 @@ export function InboxPage() {
         <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select aria-label="Filter my work by case type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">All kinds</option>
-          {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+          {types.map((t) => <option key={t} value={t}>{cap(t.replace(/_/g, " "))}</option>)}
         </Select>
       </div>
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
@@ -117,8 +122,8 @@ export function InboxPage() {
       <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
         hint="past their SLA and moved to you or your role" />
       {sent.length > 0 && <section className="field-jobs" aria-labelledby="sent-to-you">
-        <h2 id="sent-to-you">Sent to you <span className="muted small">{sent.length} · jobs the IOC dispatched, most urgent first</span></h2>
-        {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
+        <h2 id="sent-to-you">Your field jobs <span className="muted small">{sent.length} · sent to you or taken by you, most urgent first</span></h2>
+        {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} onReported={setReported} />)}
       </section>}
       <Group title="Assigned to you" rows={mine} person={person} picked={picked} toggle={toggle} />
       <Group title="Unclaimed in your roles" rows={queue} person={person} picked={picked} toggle={toggle}
@@ -257,7 +262,7 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
         <a href={open} className="work-title">{r.title}</a>
         <div className="small muted">
           <strong>{r.name ?? "open"}</strong> · <UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge> · with {holder(r.assignee, r.role, r.kind)}
-          {priorityText(r.priority) && <> · priority {priorityText(r.priority)}</>}
+          {priorityLevel(r.priority, r.type) && <> · <span title={priorityLevel(r.priority, r.type)!.why}>{priorityLevel(r.priority, r.type)!.level} priority</span></>}
         </div>
         {r.handed_reason && <div className={r.handed_reason.startsWith("Back from the field") ? "small field-back" : "small muted"}>
           {r.handed_reason}</div>}

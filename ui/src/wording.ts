@@ -51,6 +51,18 @@ const ROLE = /\brole:([a-z_]+)( queue)?/g;
 const SNAKE_QUEUE = /\b([a-z]+(?:_[a-z]+)+) queue\b/g;
 // a source system named in a sentence by its key ("sap has it under"), never inside an id or a path
 const SYSTEM = /(?<![\w:/.\-])(sap|jde|sre|dcs)(?![\w:/.\-])/g;
+// the shared demo sign-in, as the record keeps it ("user:demo"); people see the account's name
+const DEMO_ACTOR = /\buser:demo\b/g;
+
+/** A state or label as a sentence starts: "open" reads "Open". */
+export const cap = (s: string | null | undefined): string => (s ? s[0].toUpperCase() + s.slice(1) : "");
+
+/** Who did something, as a name: the demo sign-in reads "Demo account", the system "Fuzer". */
+export function person(who: string | null | undefined): string {
+  if (!who) return "";
+  if (who === "system") return "Fuzer";
+  return who.replace(DEMO_ACTOR, "Demo account");
+}
 
 /** Text a record carries, in people's words: alarm keys, queue roles and unit spellings. Text with none comes back
  * unchanged. */
@@ -62,7 +74,8 @@ export function say(text: string | null | undefined) {
     .replace(KEY, (_, k: string) => lowerFirst(alarm(k)))
     .replace(ROLE, (_, r: string, q?: string) => (q ? queue(r) : queue(r).replace(/ queue$/, "")))
     .replace(SNAKE_QUEUE, (_, r: string) => queue(r))
-    .replace(SYSTEM, (k: string) => k.toUpperCase()));
+    .replace(SYSTEM, (k: string) => k.toUpperCase())
+    .replace(DEMO_ACTOR, "Demo account"));
 }
 
 const DOC_TYPES: Record<string, string> = {

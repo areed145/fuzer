@@ -89,6 +89,15 @@ def form(conn, pack: Pack, item_id: int) -> dict:
             "vocabulary": vocabulary(pack), "repeats": repeats}
 
 
+def record_known(conn, item_id: int, by: str, disposition: str, note: str | None = None) -> None:
+    """A close-out the closing already said (a data question answered on Master data is a data problem, #1145): kept
+    unless someone recorded one, so the closed case doesn't ask for it again. Only the kinds that need no failure terms."""
+    if disposition not in DISPOSITIONS or disposition in ("real", "duplicate"):
+        raise ValueError(f"{disposition} needs the close-out form")
+    conn.execute("insert into case_disposition (item_id, disposition, note, by) values (%s, %s, %s, %s) "
+                 "on conflict (item_id) do nothing", (item_id, disposition, note, by))
+
+
 def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure_mode: str | None = None,
            mechanism: str | None = None, cause: str | None = None, activity: str | None = None,
            outcome: str | None = None, note: str | None = None, duplicate_of: int | None = None,

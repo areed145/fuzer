@@ -414,7 +414,7 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
     return {**row, "raised": True, "unmatched_note": _unmatched_note(conn, unmatched)}
 
 
-def clear(conn, type: str, key: str, by: str, reason: str | None = None) -> dict | None:
+def clear(conn, type: str, key: str, by: str, reason: str | None = None, closeout: str | None = None) -> dict | None:
     t = _type(conn, type)
     row = conn.execute("select * from exception_record where type = %s and key = %s and state = %s for update",
                        (type, key, OPEN)).fetchone()
@@ -438,6 +438,10 @@ def clear(conn, type: str, key: str, by: str, reason: str | None = None) -> dict
                              "environmental case is closed by a person: check it and close it.")
             else:
                 work.close_case(conn, row["item_id"], "done", by, reason=reason or "the condition cleared")
+                if closeout:
+                    from . import disposition
+
+                    disposition.record_known(conn, row["item_id"], by, closeout, note=reason)
     events.publish(conn, "exception.cleared", f"exception:{row['id']}", {**_payload(row, t), "reason": reason})
     return row
 
