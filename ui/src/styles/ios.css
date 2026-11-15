@@ -8,21 +8,22 @@
   --hair: .5px;
   --glass: color-mix(in srgb, var(--panel) 62%, transparent);
   --glass-thick: color-mix(in srgb, var(--panel) 90%, transparent);
-  --glass-edge: rgb(255 255 255 / .7);
-  --glass-hi: rgb(255 255 255 / .9);
+  /* Flat, not skeuomorphic: a hairline where a floating surface meets the page, no highlights, bevels or shadows. */
+  --glass-edge: var(--line);
+  --glass-hi: transparent;
   /* No sheen: system materials are flat blur, not a highlight gradient. */
   --glass-sheen: none;
-  --glass-shadow: 0 2px 12px rgb(0 0 0 / .08);
+  --glass-shadow: none;
   --lens: color-mix(in srgb, var(--text) 8%, transparent);
   --bar: var(--glass);
 }
 :root.ios[data-theme="dark"] {
   --glass: color-mix(in srgb, var(--panel) 55%, transparent);
   --glass-thick: color-mix(in srgb, var(--panel) 90%, transparent);
-  --glass-edge: rgb(255 255 255 / .12);
-  --glass-hi: rgb(255 255 255 / .1);
+  --glass-edge: var(--line);
+  --glass-hi: transparent;
   --glass-sheen: none;
-  --glass-shadow: 0 2px 12px rgb(0 0 0 / .4);
+  --glass-shadow: none;
   --lens: rgb(255 255 255 / .1);
 }
 :root.ios body {
@@ -216,11 +217,11 @@
 @media (max-width: 900px) {
   :root.ios #main-content .work-filters.row > select.ui-input { flex: 0 1 auto; width: auto; max-width: 48%; }
   /* Map buttons as frosted rounded squares. */
-  :root.ios .leaflet-bar { border: 0 !important; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgb(0 0 0 / .15);
+  :root.ios .leaflet-bar { border: 0 !important; border-radius: 10px; overflow: hidden; box-shadow: none;
     -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
   :root.ios .leaflet-bar a { background: var(--bar); color: var(--text); border-bottom-color: var(--line); }
   :root.ios .ui-fullscreen-button, :root.ios .map-fullscreen { border-radius: 10px; background: var(--bar); color: var(--text);
-    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 2px 10px rgb(0 0 0 / .15); }
+    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: none; }
 }
 
 /* ================= Liquid Glass ================= */
@@ -259,7 +260,7 @@
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
   :root.ios .bottombar .tab-icon svg { width: 26px; height: 26px; }
-  :root.ios .bottombar > a.on { background: var(--lens); color: var(--accent); box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 var(--hair) var(--glass-edge); }
+  :root.ios .bottombar > a.on { background: var(--lens); color: var(--accent); box-shadow: none; }
   :root.ios .bottombar > .menu-button[aria-expanded="true"] { color: var(--accent); }
   :root.ios .app > main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
@@ -317,12 +318,11 @@
 }
 
 
-/* Segmented controls, Liquid Glass (Safari's toolbar): a translucent capsule track with a thin lit rim; the chosen
-   segment is a raised, lighter glass pill with a soft top highlight and the label in the primary colour, the others
-   grey. No gradient, no tint, no glow. */
+/* Segmented controls, Safari's toolbar shapes drawn flat: a capsule track, the chosen segment a lighter pill with the
+   label in the primary colour, the others grey. No rim, highlight, shadow, gradient or tint. */
 :root.ios .area-navigation, :root.ios .tabs, :root.ios .work-board-stages, :root.ios .attention-bar .chips, :root.ios .chips.segmented {
   border-radius: 999px; padding: 3px; gap: 0; background: var(--fill);
-  border: 0; box-shadow: inset 0 0 0 var(--hair) var(--glass-edge);
+  border: 0; box-shadow: none;
 }
 :root.ios .tabs > *, :root.ios .area-navigation a, :root.ios .work-board-stages .chip, :root.ios .attention-bar .chip, :root.ios .chips.segmented > .chip {
   border-radius: 999px; min-height: 32px; color: var(--muted); font-weight: 600;
@@ -330,12 +330,12 @@
 :root.ios .tabs > .on, :root.ios .area-navigation a[aria-current="page"], :root.ios .work-board-stages .chip.on,
 :root.ios .attention-bar .chip.on, :root.ios .chips.segmented > .chip[aria-pressed="true"] {
   background: var(--panel); background-image: none; color: var(--text); font-weight: 600; border: 0;
-  box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 var(--hair) var(--glass-edge), 0 2px 6px rgb(0 0 0 / .12);
+  box-shadow: none;
 }
 :root.ios[data-theme="dark"] :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips, .chips.segmented) { background: rgb(255 255 255 / .06); }
 :root.ios[data-theme="dark"] :is(.tabs > .on, .area-navigation a[aria-current="page"], .work-board-stages .chip.on,
     .attention-bar .chip.on, .chips.segmented > .chip[aria-pressed="true"]) {
-  background: rgb(255 255 255 / .16); box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 var(--hair) var(--glass-edge), 0 2px 6px rgb(0 0 0 / .3);
+  background: rgb(255 255 255 / .18); box-shadow: none;
 }
 
 /* Filled and tinted buttons, flat: no glow, no outline. */
@@ -378,12 +378,11 @@
   }
   :root.ios [data-ios-menu-label]::before { content: attr(data-ios-menu-label); display: block; margin: 0 0 6px 4px; font-size: 13px; color: var(--muted); }
   /* The menu itself: a glass panel that grows out of the button. */
-  .ios-menu-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(0 0 0 / .08); }
+  .ios-menu-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(0 0 0 / .2); }
   .ios-menu {
     position: fixed; z-index: 1301; min-width: 250px; max-width: calc(100vw - 32px); max-height: 60dvh; overflow: auto; padding: 0;
-    border-radius: 14px; background: color-mix(in srgb, var(--panel) 94%, transparent);
-    -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
-    border: 0; box-shadow: 0 0 0 var(--hair) var(--line), 0 12px 40px rgb(0 0 0 / .2);
+    border-radius: 14px; background: var(--panel);
+    border: 0; box-shadow: 0 0 0 var(--hair) var(--line);
     transform-origin: top left; animation: ios-menu-in .18s ease-out;
   }
   @keyframes ios-menu-in { from { opacity: 0; transform: scale(.92); } }

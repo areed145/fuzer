@@ -138,18 +138,19 @@ Keep `ui/src/styles.css` limited to theme tokens and app-wide base styles. Put s
 
 ## On an iPhone or iPad
 
-On iOS the app follows iOS. When in doubt, do what iOS does. `ui/src/ios.ts` puts the `ios` class on the page for an iPhone or iPad. `?ios=1` or `?ios=0` forces it on or off for one tab, for previews and screenshots. All the styles sit under `:root.ios` in `ui/src/styles/ios.css`, so desktop and Android are unchanged. Fuzer's colour tokens stay the same; iOS brings the type, shapes, Liquid Glass and gestures:
+On iOS the app follows iOS. When in doubt, do what iOS does. `ui/src/ios.ts` puts the `ios` class on the page for an iPhone or iPad. `?ios=1` or `?ios=0` forces it on or off for one tab, for previews and screenshots. All the styles sit under `:root.ios` in `ui/src/styles/ios.css`, so desktop and Android are unchanged. Fuzer's colour tokens stay the same; iOS brings the type, shapes and gestures. The look is **flat, not skeuomorphic**: Liquid Glass's shapes (capsules, round bar buttons, a floating tab bar) drawn with plain or simply translucent fills. Don't add highlights, rims, bevels, gradients, glows or drop shadows:
 
 - The system font (SF Pro). Large page titles fold into the top bar as the page scrolls.
-- No solid top bar: Back and other bar buttons are round glass buttons. The tab bar is a floating glass capsule, with the current tab in a lens.
+- No solid top bar: Back and other bar buttons are round translucent buttons. The tab bar is a floating capsule of icons with no labels (each tab keeps its name for VoiceOver), and the current tab sits in a lighter pill. Menu is never highlighted.
 - Inset grouped cards and lists with chevrons. The Menu is a sheet with one grouped list and plain line icons in the tint colour.
-- A row of segments that fits the screen is a segmented control. One that doesn't fit becomes a pull-down: the chosen segment is a capsule button that opens an iOS menu of every choice. This works for any `.tabs`, `.area-navigation`, Board stage row or Home filter row with no extra markup, so keep using those components.
+- A row of segments that fits the screen is a segmented control: a capsule track, the chosen segment a lighter pill with the label in the primary colour and the others grey, and the segments share the width equally. A single-choice chip row (`.chips.segmented`) gets the same look. One that doesn't fit becomes a pull-down: the chosen segment is a capsule button that opens an iOS menu of every choice. This works for any `.tabs`, `.area-navigation`, Board stage row or Home filter row with no extra markup, so keep using those components.
 - Work cards swipe left to bring up their actions. Keyboard focus and VoiceOver reach the same buttons.
+- Buttons are 44 points tall (34 for small ones) everywhere outside field mode. Selects are 36-point pop-up buttons with a small up/down chevron. Rows in a card form an inset grouped list: one leading edge, a hairline between rows, a semibold title, and a grey line of detail.
 - On/off checkboxes look like iOS switches. Sheets float with deep corners.
 - When the chosen section would only repeat the large title under it, the title itself opens the sections (an iOS title menu), and the picker stays for keyboard and VoiceOver.
 - On an iPhone a large title stops at two lines, the subtitle gives way and Help is a round info button. A table with headings and the `phone-rows` class stacks each row as a list row: the first column is its title and every other cell is labelled with its heading by `Table`, so give wide tables that class rather than phone-only markup.
 - Filter chips (`.chips` > `.chip`) are compact 32-point chips. On an iPhone a row of them scrolls sideways on one line instead of wrapping; a row that holds a disclosure still wraps.
-- An iPad in landscape keeps the same look, with the sidebar as a floating glass panel. In portrait, Home's map and list sit side by side down to 768 px.
+- An iPad in landscape keeps the same look, with the sidebar as a floating panel. In portrait, Home's map and list sit side by side down to 768 px.
 - In the installed app, where Safari's own gestures are missing, you can swipe in from the left edge to go Back (this uses the app's Back button), and you can pull down to refresh.
 
 Add a new control by extending the shared components rather than adding iOS-only markup. Check it at iPhone size with `?ios=1` in both light and dark.
