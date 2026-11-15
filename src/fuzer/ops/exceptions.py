@@ -375,6 +375,11 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
                 raised_count = raised_count + 1, last_seen = now(), updated_at = now()
             where id = %s returning *
             """, (title, priority, value_usd, Jsonb(evidence), subjects, unmatched, current["id"])).fetchone()
+        if title != current["title"] and row.get("item_id"):
+            # the case took the exception's title when it opened: a source that rewords the title rewords its case,
+            # unless a person has since retitled it
+            conn.execute("update work_item set title = %s where id = %s and title = %s and closed_at is null",
+                         (title, row["item_id"], current["title"]))
         if t.process and not row["joined_to"]:  # new evidence for the process already working it
             _case(conn, t, {**row, "evidence": evidence}, by, assignee, role)
         return {**row, "raised": False, "unmatched_note": _unmatched_note(conn, unmatched)}

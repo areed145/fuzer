@@ -65,6 +65,7 @@ def test_one_open_exception_per_condition_routed_to_its_queue(conn, types):
     assert again["raised_count"] == 2 and again["evidence"]["mm_s"] == 9.8
     assert again["subjects"] == ["fz-pump-1"] and again["unmatched"] == ["tag:SPARE-9"]
     case = conn.execute("select * from work_item where id = %s", (first["item_id"],)).fetchone()
+    assert case["title"] == "P-101 vibration still high"  # a reworded exception rewords the case that took its title
     assert case["role"] == "reliability" and case["subjects"] == ["fz-pump-1"]  # the engine's bare role: its queue
     assert case["payload"]["exception_id"] == first["id"] and case["payload"]["mm_s"] == 9.1
     raised = [e for e in events.pending(conn, "exception.raised") if e["ref"] == f"exception:{first['id']}"]
