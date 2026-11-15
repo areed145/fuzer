@@ -172,7 +172,8 @@ def open_task(conn, case_type: str, title: str, by: str, key: str, role: str | N
 def queue_data(t, intake: dict, queue: str) -> dict:
     """What queue_item starts with: its lane's role (`=role`) and its case's type (`=case_type`) come from the type."""
     return {"exception_id": intake.get("id"), "type": t.name, "key": intake.get("key"),
-            "role": queue.removeprefix("role:"), "case_type": t.case_type or t.name, "source": intake.get("source")}
+            "role": queue.removeprefix("role:"), "case_type": t.case_type or t.name, "source": intake.get("source"),
+            "field_route": ""}  # set to field_check when the case is sent to the field (#1145)
 
 
 def queue_case(conn, item_id: int | None) -> bool:

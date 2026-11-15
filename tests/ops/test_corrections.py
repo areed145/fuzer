@@ -119,6 +119,19 @@ def test_a_drawing_disagreement_drafts_a_redline_or_a_register_change(okan_db):
     if placed:
         out = _answer(placed["id"], "choose", "drawing")  # the register needs changing
         assert out and {c["kind"] for c in out} == {"master_data"}
+    # the configured alarm is wrong: its task says what to set, from which case, decided by whom (#1145)
+    fid = items[0]["payload"].get("fuzer_id")
+    payload = {"check": "alarm", "sheet": "20-PID-0001", "tag": "20-LT-2002", "fuzer_id": fid,
+               "detail": "the P&ID shows high 52 where dcs has 57", "question": "Which is right?"}
+    alarm = conn.execute("insert into review_item (kind, subject, payload) values ('pid_mismatch', %s, %s) returning id",
+                         ("20-PID-0001:20-LT-2002:alarm:test", Jsonb(payload))).fetchone()
+    conn.commit()
+    (fix,) = _answer(alarm["id"], "choose", "drawing")
+    assert fix["kind"] == "correction" and fix["system"] == "alarms"
+    data = conn.execute("select p.data from work_process p where p.item_id = %s order by p.id desc limit 1",
+                        (fix["item_id"],)).fetchone()["data"]
+    assert data["change"] == "Set the DCS alarm on 20-LT-2002 to what 20-PID-0001 shows: high 52 (the DCS has 57)."
+    assert data["decided_by"] == "ana"
     conn.commit()
 
 

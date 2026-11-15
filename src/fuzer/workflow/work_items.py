@@ -252,6 +252,17 @@ def _dispatch_data(text: str | None) -> dict | None:
     return {k.strip(): v.strip() for k, v in pairs if k.strip()} or None
 
 
+def _field_version(conn, step: dict) -> dict | None:
+    """The latest published version of the step's process that sends this step to the field (`fuzer:dispatch`), when
+    the version it runs doesn't."""
+    row = conn.execute("select d.id from work_definition d join work_process p on p.process_key = d.process_key "
+                       "where p.id = %s and d.state = 'published' order by d.version desc limit 1",
+                       (step["process_id"],)).fetchone()
+    node = _definition(conn, row["id"]).nodes.get(step["element"]) if row else None
+    dispatch = node.attrs.get("dispatch") if node else None
+    return {"id": row["id"], "dispatch": dispatch} if dispatch else None
+
+
 def _outside_role(conn, to: str, role: str | None) -> bool:
     """Is `to` (a person or `role:<role>`) someone other than the step's own role would send it to?"""
     from .definitions import roles_of
@@ -290,6 +301,12 @@ def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = Non
         proc = conn.execute("select definition_id from work_process where id = %s", (step["process_id"],)).fetchone()
         node = _definition(conn, proc["definition_id"]).nodes.get(step["element"])
         data = _dispatch_data(node.attrs.get("dispatch")) if node else None
+        if not data and _outside_role(conn, to, step["role"]) and (newer := _field_version(conn, step)):
+            # a case started before its process could send it to the field (#1145): it moves to the version that can
+            from .runtime import migrate
+
+            migrate(conn, step["process_id"], newer["id"], by)
+            data = _dispatch_data(newer["dispatch"])
     if not (data and _outside_role(conn, to, step["role"])):
         return hand_off(conn, step["id"], by, to, reason)
     if step["assignee"] and step["assignee"] != by:
@@ -308,7 +325,8 @@ def report_field_step(conn, item_id: int, person: str, result: str, note: str | 
     from .assignment import complete, hand_off
 
     step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state = 'waiting' "
-                        "and assignee = %s and role = 'operator' order by id limit 1", (item_id, person)).fetchone()
+                        "and assignee = %s and role = 'operator' and element = 'field_check' order by id limit 1",
+                        (item_id, person)).fetchone()
     if not step:
         return None
     sender = conn.execute(  # who sent them: the hand-off to them, else whoever completed the step before it
@@ -318,7 +336,8 @@ def report_field_step(conn, item_id: int, person: str, result: str, note: str | 
                         (select actor from work_event where item_id = %(i)s and kind = 'completed' and token_id < %(t)s
                          and actor not like 'agent:%%' and actor <> 'system' order by id desc limit 1)) as who
         """, {"t": step["id"], "p": person, "i": item_id}).fetchone()["who"]
-    complete(conn, step["id"], person, {"field_result": result, "field_note": note or ""})
+    # back from the field: the step it returns to decides afresh rather than sending them out again
+    complete(conn, step["id"], person, {"field_result": result, "field_note": note or "", "field_route": "returned"})
     back = _open_user_steps(conn, item_id, after=step["id"])
     if back and sender:
         hand_off(conn, back[0]["id"], person, sender, reason)

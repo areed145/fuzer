@@ -3,7 +3,7 @@
  * suggestion, and the person confirms it. On a phone it is a handful of selects, one per line. */
 import { useState } from "react";
 import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
-import { Button, Card, Field, Input, Select } from "../ui";
+import { Button, Card, Disclosure, Field, Input, Select } from "../ui";
 import { Status, useAsync } from "../lib";
 import { Actor, when } from "../work";
 import { caseHref, useAct } from "./workflows/shared";
@@ -18,8 +18,10 @@ export function closeoutLine(r: CaseCloseout, v: CloseoutVocabulary): string {
   const what = v.dispositions[r.disposition] ?? r.disposition;
   if (r.disposition === "duplicate") return `${what} of case ${r.duplicate_of}`;
   if (r.disposition !== "real") return what;
-  return `${what}: ${pick(v.failure_modes, r.failure_mode)}, cause ${pick(v.causes, r.cause).toLowerCase()}, `
-    + `${pick(v.activities, r.activity).toLowerCase()}${r.outcome ? `; ${pick(v.outcomes, r.outcome).toLowerCase()}` : ""}`;
+  const terms = [r.failure_mode && pick(v.failure_modes, r.failure_mode), r.cause && `cause ${pick(v.causes, r.cause).toLowerCase()}`,
+    r.activity && pick(v.activities, r.activity).toLowerCase()].filter(Boolean).join(", ");
+  const outcome = r.outcome ? pick(v.outcomes, r.outcome).toLowerCase() : "";
+  return [terms ? `${what}: ${terms}` : what, outcome].filter(Boolean).join("; ");
 }
 
 export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload }:
@@ -63,8 +65,15 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
   const a = useAct();
   const set = (k: keyof Draft) => (e: { target: { value: string } }) => setD({ ...d, [k]: e.target.value || undefined });
   const real = d.disposition === "real";
-  const ready = !!d.disposition && (!real || (!!d.failure_mode && !!d.cause && !!d.activity))
+  // equipment-failure terms are required only on an equipment case (#1145); elsewhere they are optional
+  const needsTerms = real && data.equipment !== false;
+  const missingTerms = needsTerms ? ([["failure mode", d.failure_mode], ["cause", d.cause], ["action taken", d.activity]] as const)
+    .filter(([, x]) => !x).map(([n]) => n) : [];
+  const ready = !!d.disposition && missingTerms.length === 0
     && (d.disposition !== "duplicate" || !!Number(d.duplicate_of));
+  const hint = !d.disposition ? "Say what it was first"
+    : missingTerms.length ? `Still needed: ${missingTerms.join(", ")}`
+    : d.disposition === "duplicate" && !Number(d.duplicate_of) ? "Say which case it duplicates" : undefined;
   const suggested = !data.record && (s.disposition || s.failure_mode || s.activity);
   const list = (k: keyof Draft, label: string, options: Record<string, string>, required = false) => (
     <Field label={label} width="full">
@@ -85,12 +94,21 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
       {suggested && <p className="small muted">Filled in from {s.from === "agent" ? "the agent's suggestion" : "what the case says"}.
         Check it before you save.</p>}
       {list("disposition", "What it was", v.dispositions, true)}
-      {real && <>
+      {needsTerms && <>
         {list("failure_mode", "Failure mode", v.failure_modes, true)}
         {list("cause", "Cause", v.causes, true)}
         {list("activity", "Action taken", v.activities, true)}
         {list("mechanism", "Mechanism", v.mechanisms)}
         {list("outcome", "Outcome", v.outcomes)}
+      </>}
+      {real && !needsTerms && <>
+        {list("outcome", "Outcome", v.outcomes)}
+        <Disclosure className="small" label={<>Equipment failure details (optional)</>}>
+          {list("failure_mode", "Failure mode", v.failure_modes)}
+          {list("cause", "Cause", v.causes)}
+          {list("activity", "Action taken", v.activities)}
+          {list("mechanism", "Mechanism", v.mechanisms)}
+        </Disclosure>
       </>}
       {d.disposition === "duplicate" && <Field label="Duplicate of case" width="full">
         <Input width="full" inputMode="numeric" aria-label="Duplicate of case" value={d.duplicate_of ?? ""}
@@ -101,6 +119,7 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
           {missing || data.record ? "Save close-out" : "Close the case"}</Button>
         {onCancel && <Button variant="secondary" onClick={onCancel}>Cancel</Button>}
       </div>
+      {hint && !a.busy && <p className="small muted">{hint}.</p>}
       {a.error && <p role="alert" className="error small">{a.error}</p>}
     </Card>
   );

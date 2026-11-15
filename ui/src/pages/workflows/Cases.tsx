@@ -7,7 +7,7 @@ import { api, type CaseRow, type CaseSource, type ReviewKind, type WorkItem, typ
 import { CaseQuestion } from "../Review";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson, when } from "../../work";
-import { AgentIdle, AssignPicker, PriorityBadge, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref, useAct } from "./shared";
+import { AgentIdle, AssignPicker, PriorityBadge, SendToField, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
@@ -225,7 +225,8 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
       {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
-      <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload} />
+      <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
+        exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null} />
       {typeof raised.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
         <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
@@ -252,8 +253,9 @@ function questionOf(sources?: CaseSource[]): { id: number; kind: ReviewKind } | 
 
 /** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
  * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
-function NextStep({ it, person, demo, fieldOnly, answered = false, reload }: {
+function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null }: {
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
+  exceptionId?: number | null;
 }) {
   const takeOver = useAct();
   const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
@@ -283,6 +285,9 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload }: {
         {fieldOnly && <ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink>}
       </div>
       {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}
+      {/* the IOC sends it out through the case's workflow: not while the field already has it */}
+      {!demo && !fieldOnly && exceptionId != null && !open.some((s) => s.role === "operator") && person &&
+        <SendToField exceptionId={exceptionId} person={person} onDone={reload} />}
       {!demo && !fieldOnly && <CaseActions it={it} person={person} reload={reload} />}
     </UICard>
   );
@@ -291,23 +296,30 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload }: {
 
 /** The update for the system that raised the work (#466): what the field did, as a completion or a follow-up, to
  * edit and send, or not send. */
-function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: string; readOnly: boolean; reload: () => void }) {
+/** The update a field report drafted for the system that raised the job (#466): the approver approves it, with any
+ * edit to its text, or sends it back with why (#1145). Shown on the case and on its task. */
+export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: string; readOnly: boolean; reload: () => void }) {
   const c = useAsync(() => api.closeout(id), [id]);
   const [text, setText] = useState<string | null>(null);
   const [short, setShort] = useState<string | null>(null);
+  const [back, setBack] = useState<string | null>(null);
   const a = useAct();
   if (!c.data) return <Status loading={c.loading} error={c.error} />;
   const d = c.data;
   const system = d.system.toUpperCase();
   const done = () => { c.reload(); reload(); };
+  const sentBack = d.state === "discarded";
   return (
     <UICard className="">
       <h3>{d.action === "complete" ? `Complete ${d.record} in ${system}` : `Raise a follow-up to ${d.record} in ${system}`}</h3>
+      <p>{d.change ?? (d.action === "complete" ? `Close ${d.record} in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}.`
+        : `Raise a new ${system} record for the work still needed.`)}</p>
       <p className="small muted">{d.action === "complete"
-        ? `The field reported it done. Once a planner approves it, it closes it in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}, so its record agrees and the IOC stops holding it.`
-        : `The field could not do it. Once approved, this raises a new ${system} record for the work that is still needed.`}</p>
+        ? `The field reported it done. Approved, it goes in ${system}'s next batch, so its record agrees and the IOC stops holding it.`
+        : `The field could not do it. Approved, the work stays on ${system}'s books.`} Nothing is written until you approve it.</p>
       {d.state !== "draft" ? (
-        <p className="small"><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state === "approved" ? "approved, goes in the next batch" : d.state}</UIBadge>{" "}
+        <p className="small"><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state === "approved" ? "approved, goes in the next batch"
+          : sentBack ? "sent back, not written" : d.state}</UIBadge>{" "}
           by <Actor who={d.decided_by ?? ""} /> {d.decided_at && when(d.decided_at)}
           {d.applied_at && <span className="muted"> · applied to the demo's {system} data</span>}</p>
       ) : null}
@@ -318,14 +330,21 @@ function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: s
       )}
       <textarea rows={4} style={{ width: "100%" }} disabled={d.state !== "draft" || readOnly} aria-label="Update text"
         value={text ?? d.draft.text} onChange={(e) => setText(e.target.value)} />
-      {d.state === "draft" && !readOnly && (
+      {d.state === "draft" && !readOnly && (back === null ? (
         <div className="row">
           <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("send", () =>
             api.approveCloseout(id, person, text ?? undefined, short ?? undefined), done)}>Approve for {system}</Button>
-          <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("discard", () =>
-            api.discardCloseout(id, person, "not sent: updated by hand"), done)}>Don't send</Button>
+          <Button variant="secondary" disabled={!!a.busy} onClick={() => setBack("")}>Send back</Button>
         </div>
-      )}
+      ) : (
+        <div className="row wrap">
+          <Field label="Why it goes back (whoever holds the job reads this)" width="lg">
+            <Input value={back} onChange={(e) => setBack(e.target.value)} /></Field>
+          <Button variant="primary" disabled={!back.trim() || !!a.busy} onClick={() => a.run("back", () =>
+            api.sendBackCloseout(id, person, back.trim()), () => { setBack(null); done(); })}>Send back</Button>
+          <Button variant="secondary" onClick={() => setBack(null)}>Cancel</Button>
+        </div>
+      ))}
       {a.error && <p className="error small">{a.error}</p>}
     </UICard>
   );

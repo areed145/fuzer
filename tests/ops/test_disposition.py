@@ -26,10 +26,11 @@ def conn():
 
 
 def test_a_real_problem_closes_with_its_failure_mode_cause_and_action_pre_filled(conn):
-    case = work.open_case(conn, "manual", "P-101 vibration high on the drive end", by="ioc-ann")["id"]
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-p101', 'equipment')")
+    case = work.open_case(conn, "manual", "P-101 vibration high on the drive end", by="ioc-ann", subjects=["fz-p101"])["id"]
     work.comment(conn, case, "fred", "bearing worn, replaced it")
     form = disposition.form(conn, PACK, case)
-    assert form["record"] is None
+    assert form["record"] is None and form["equipment"] is True
     assert form["suggestion"] == {"from": "words", "disposition": "real", "failure_mode": "VIB", "activity": "1"}
     assert "VIB" in form["vocabulary"]["failure_modes"] and "3" in form["vocabulary"]["causes"]
     with pytest.raises(ValueError, match="needs its cause"):
@@ -43,6 +44,25 @@ def test_a_real_problem_closes_with_its_failure_mode_cause_and_action_pre_filled
     assert item["state"] == "done" and item["closed_at"]
     assert item["outcome"].startswith("A real problem: Vibration, cause failure related to operation / maintenance, replace")
     assert case not in {m["id"] for m in disposition.missing(conn)}
+    conn.commit()
+
+
+def test_a_real_problem_off_equipment_needs_no_failure_terms(conn):
+    """A drawing-vs-alarm limit that was really wrong is a real problem, but not an equipment failure (#1145): the
+    ISO 14224 picks are optional there, and kept when given."""
+    from fuzer.core import exceptions
+
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-v2002', 'equipment'), ('fz-lt2002', 'point')")
+    x = exceptions.raise_exception(conn, "drawing_disagreement", "pid:lt2002:high", "20-LT-2002 high limit: drawing 52, "
+                                   "DCS 57", "stewardship", refs=["fz-v2002"])
+    item = conn.execute("select item_id from exception_record where id = %s", (x["id"],)).fetchone()["item_id"]
+    assert disposition.form(conn, PACK, item)["equipment"] is False
+    row = disposition.record(conn, PACK, item, "riley", "real", outcome="fixed", note="DCS limit set to 52")
+    assert row["disposition"] == "real" and row["failure_mode"] is None
+    bare = work.open_case(conn, "manual", "Point limit looks wrong", by="ioc-ann", subjects=["fz-lt2002"])["id"]
+    assert disposition.form(conn, PACK, bare)["equipment"] is False  # a point on no equipment
+    conn.execute("insert into edge (src, dst, rel, sources, confidence) values ('fz-lt2002', 'fz-v2002', 'installed_at', '{test}', 1)")
+    assert disposition.form(conn, PACK, bare)["equipment"] is True  # installed on the vessel: an equipment case
     conn.commit()
 
 

@@ -111,7 +111,7 @@ def get(conn, closeout_id: int) -> dict:
     r = conn.execute("select * from source_closeout where id = %s", (closeout_id,)).fetchone()
     if r is None:
         raise ExceptionError(f"no close-out {closeout_id}")
-    return dict(r)
+    return {**r, "change": change(r)}
 
 
 def listing(conn, state: str | None = "draft", item_id: int | None = None, exception_id: int | None = None) -> list[dict]:
@@ -159,6 +159,53 @@ def discard(conn, closeout_id: int, by: str, reason: str | None = None) -> dict:
     elif c["item_id"]:
         work.close_case(conn, c["item_id"], "cancelled", by, reason=reason or "not sent")
     return row
+
+
+def send_back(conn, closeout_id: int, by: str, reason: str) -> dict:
+    """Send it back (#1145): nothing goes to the system, and whoever holds the job the field reported on hears why,
+    on that case, so they can send the field out again or close it another way."""
+    reason = (reason or "").strip()
+    if not reason:
+        raise ExceptionError("say why it goes back: whoever holds the job reads it")
+    c = get(conn, closeout_id)
+    if (wb := _writeback(conn, closeout_id)) is not None:  # only one who could approve it sends it back
+        from . import writeback
+        try:
+            writeback._approver(conn, wb, by)
+        except writeback.WritebackError as e:
+            raise ExceptionError(str(e).replace("can't approve", "can't decide")) from e
+    row = discard(conn, closeout_id, by, f"sent back: {reason}")
+    case = conn.execute("select item_id from exception_record where id = %s", (c["exception_id"],)).fetchone()
+    if case and case["item_id"]:
+        work.comment(conn, case["item_id"], by, f"Sent back, not written to {c['system'].upper()}: {reason}")
+    return row
+
+
+STATUS_WORDS = {"NOCO": "notification completed", "OSNO": "outstanding", "NOPR": "in process", "ATCO": "all tasks completed"}
+
+
+def change(c: dict) -> str:
+    """What approving writes, in plain words: "Close notification 20000012 in SAP (status NOCO, notification
+    completed), with the note below." """
+    system, d = c["system"].upper(), c.get("draft") or {}
+    status = d.get("status")
+    said = f" (status {status}, {STATUS_WORDS[status]})" if status in STATUS_WORDS else f" (status {status})" if status else ""
+    if c["action"] == "complete":
+        return f"Close notification {c['record']} in {system}{said}, with the note below."
+    return f"Raise a new {system} notification after {c['record']} for the work still needed, with the note below."
+
+
+def step_decided(conn, task_id: int) -> None:
+    """A source close-out's step is decided by approving or sending back its update, not by completing it (#1145):
+    completing it alone ended the case and left the update waiting for an approval nobody would see."""
+    row = conn.execute("select p.process_key, p.data->>'closeout_id' as closeout_id from work_token t "
+                       "join work_process p on p.id = t.process_id where t.id = %s", (task_id,)).fetchone()
+    if not row or row["process_key"] != CASE_TYPE or not row["closeout_id"]:
+        return
+    c = conn.execute("select state, system from source_closeout where id = %s", (int(row["closeout_id"]),)).fetchone()
+    if c and c["state"] == "draft":
+        raise ExceptionError(f"Approve it for {c['system'].upper()} or send it back: completing the step alone writes "
+                             "nothing")
 
 
 # ---- the demo's stand-in for the source system -------------------------------------------------------------------

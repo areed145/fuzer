@@ -769,7 +769,8 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             # lands in that person's or queue's Inbox, with the reason saying it is back from the field. Done comes
             # back too (#1115): the IOC closes it out, saying what it was, so the field's work is counted.
             back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
-            if not (has_process and work.report_field_step(conn, row["item_id"], by, status, note, back)):
+            # a field step of the case's process (an upset's, or queue_item's since #1145) takes the report
+            if not work.report_field_step(conn, row["item_id"], by, status, note, back):
                 came = (row["evidence"] or {}).get("handover") or {}
                 # handed over at shift change (P5.11c): back past the outgoing person to whoever sent it to them;
                 # taken from a queue: back to whoever sent it to that queue, not to the queue (#1115), so the IOC

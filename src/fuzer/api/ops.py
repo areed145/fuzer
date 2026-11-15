@@ -1047,6 +1047,13 @@ def closeout_discard(closeout_id: int, d: CloseoutDecision, conn=Depends(get_con
     return _exception_call(conn, closeout.discard, closeout_id, d.by, d.reason)
 
 
+@router.post("/closeouts/{closeout_id}/send-back")
+def closeout_send_back(closeout_id: int, d: CloseoutDecision, conn=Depends(get_conn)):
+    """Send it back with why: nothing is written, and the job's case hears the reason (#1145)."""
+    from ..ops import closeout
+    return _exception_call(conn, closeout.send_back, closeout_id, d.by, d.reason or "")
+
+
 # ---- the approved write-back queue (P5.7, #634) --------------------------------------------------------------------
 
 class WritebackIn(BaseModel):

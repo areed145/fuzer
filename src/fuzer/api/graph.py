@@ -1,5 +1,6 @@
 """Graph and network views, lookup, the review queue and rebuilds."""
 
+import logging
 import threading
 import time
 from datetime import UTC, date, datetime
@@ -13,6 +14,8 @@ from ..graph import queries
 from . import deps
 from .deps import get_conn
 from .security import AuthenticatedRoute
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(route_class=AuthenticatedRoute)
 
@@ -182,11 +185,30 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         conn.rollback()
         raise HTTPException(400, str(e)) from e
     conn.commit()
+    if out["kind"] == "schema" and d.decision == "accept":
+        return {"decided": item_id, "loaded": _load_accepted(conn, item_id)}
     if out["rebuild"]:
         # Merging or splitting records touches IDs, links and values; an accepted curve lands with the
         # rebuild. Do it in the background.
         return {"decided": item_id, "rebuild": deps.rebuilder.request()}
     return {"decided": item_id}
+
+
+def _load_accepted(conn, item_id: int) -> dict | None:
+    """A held load whose new columns were accepted loads again now (#1145), so the steward sees it fixed instead of
+    waiting for the next scheduled load; if that fails, the schedule tries again and Sources shows why."""
+    from ..core import projects
+    from ..sources import ingest
+
+    name = conn.execute("select subject from review_item where id = %s", (item_id,)).fetchone()["subject"]
+    try:
+        report = ingest.ingest(conn, projects.field("data") or "data", exports=[name], trigger="review")
+        conn.commit()
+        return {"dataset": name, **{k: report.get(k) for k in ("loaded", "held", "missing")}}
+    except Exception:  # the answer stands; the load is retried on schedule
+        conn.rollback()
+        log.warning("Loading %s after its columns were accepted failed", name, exc_info=True)
+        return None
 
 
 @router.get("/review/{item_id}/corrections")

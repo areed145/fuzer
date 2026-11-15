@@ -1,5 +1,5 @@
 import "../../styles/work.css";
-import { Button, ConfirmAction, Select , Badge as UIBadge} from "../../ui";
+import { Button, ConfirmAction, Disclosure, Field, Input, Select , Badge as UIBadge} from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
 import { usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
@@ -184,5 +184,42 @@ export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
       {" "}<a href={href("/teams")}>Or add your own people on Teams &amp; routing</a>
       {error && <p role="alert" className="error">{error}</p>}
     </div>
+  );
+}
+
+
+/** Send a case to the field (#1145): its workflow's Field check goes to a field operator or their queue with what to
+ * check or do, and their report comes back to whoever sent it. The case's process carries it, not a side hand-off. */
+export function SendToField({ exceptionId, person, onDone }: { exceptionId: number; person: string; onDone: () => void }) {
+  const people = useAsync(() => api.workPeople(), []);
+  const [to, setTo] = useState("");
+  const [ask, setAsk] = useState("");
+  const [why, setWhy] = useState("");
+  const [blocked, setBlocked] = useState<string[] | null>(null);
+  const a = useAct();
+  const field = (people.data ?? []).filter((p) => p.roles.includes("operator"));
+  const send = () => a.run("send", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined), () => {
+    setTo(""); setAsk(""); setWhy(""); setBlocked(null); onDone();
+  }).catch(() => undefined);
+  const notReady = a.error?.startsWith("Not ready to dispatch") ?? false;
+  return (
+    <Disclosure className="small" label={<>Send to the field</>}>
+      <div className="row wrap">
+        <Field label="Send to" width="md"><Select value={to} onChange={(e) => setTo(e.target.value)}>
+          <option value="">choose a field operator</option>
+          {field.map((p) => <option key={p.name} value={p.name}>{p.display_name || p.name}
+            {p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ""}</option>)}
+          <option value="role:operator">{queue("operator")}, whoever is free</option>
+        </Select></Field>
+        <Field label="What to check or do (they see this)" width="lg">
+          <Input value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>
+      </div>
+      {(notReady || blocked) && <Field label="Why send it anyway (kept on the case)" width="lg">
+        <Input value={why} onChange={(e) => { setWhy(e.target.value); setBlocked([a.error ?? ""]); }} /></Field>}
+      <Button variant="primary" disabled={!to || !ask.trim() || !!a.busy || ((notReady || !!blocked) && !why.trim())}
+        title={!ask.trim() ? "Say what to check or do first: they see it on their job" : undefined}
+        onClick={send}>Send to the field</Button>
+      {a.error && <p role="alert" className="error small">{a.error}</p>}
+    </Disclosure>
   );
 }

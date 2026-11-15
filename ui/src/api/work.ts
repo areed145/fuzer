@@ -677,6 +677,8 @@ export interface Closeout {
   draft: { text: string; status?: string | null; short_text?: string; [k: string]: unknown };
   state: "draft" | "approved" | "sent" | "discarded"; item_id: number | null; created_by: string; created_at: string;
   decided_by: string | null; decided_at: string | null; applied_at: string | null;
+  /** What approving writes, in plain words (#1145). */
+  change?: string;
 }
 
 export interface ExceptionRow {
@@ -891,6 +893,8 @@ export const workApi = {
   closeout: (id: number) => request<Closeout>("GET", `/closeouts/${id}`),
   approveCloseout: (id: number, by: string, text?: string, short_text?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/approve`, undefined, { by, text: text ?? null, short_text: short_text ?? null }),
+  sendBackCloseout: (id: number, by: string, reason: string) =>
+    request<Closeout>("POST", `/closeouts/${id}/send-back`, undefined, { by, reason }),
   discardCloseout: (id: number, by: string, reason?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
@@ -982,7 +986,7 @@ export const workApi = {
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
   caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null; suggestion: CloseoutSuggestion;
-    vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[] }>("GET", `/work/items/${id}/closeout`),
+    vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean }>("GET", `/work/items/${id}/closeout`),
   answerRecheck: (id: number, by: string, held: boolean, note?: string) =>
     request<CaseCloseout>("POST", `/work/items/${id}/recheck`, undefined, { by, held, note }),
   recordCaseCloseout: (id: number, body: CloseoutInput) => request<CaseCloseout>("POST", `/work/items/${id}/closeout`, undefined, body),

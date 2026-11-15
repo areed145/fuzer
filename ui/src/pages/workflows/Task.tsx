@@ -10,8 +10,8 @@ import { CaseAround } from "./Around";
 import { CaseSafeguards } from "./Safeguards";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
-import { ProcessDiagram, Timeline } from "./Cases";
-import { AssignPicker, GENERIC_STEP, StepBadges, caseHref, useAct } from "./shared";
+import { CloseoutPanel, ProcessDiagram, Timeline } from "./Cases";
+import { AssignPicker, GENERIC_STEP, SendToField, StepBadges, caseHref, useAct } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
@@ -67,6 +67,14 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       {done && !demo && <p className="notice small">{done} <a href={href("/inbox")}>Back to your inbox</a></p>}
       <div className="task-layout">
         <div>
+          {typeof v.data.change === "string" && <UICard className="notice" title="What to change">
+            <p>{v.data.change}</p>
+            <p className="small muted">
+              {typeof v.data.from_case === "number" && <>From <a href={caseHref(v.data.from_case)}>case {v.data.from_case}</a>{" · "}</>}
+              {typeof v.data.decided_by === "string" && <>decided by {personName(v.data.decided_by)}</>}
+            </p>
+            <p className="small">When it is done, say what you set in the note so the case keeps it.</p>
+          </UICard>}
           <FromField v={v} />
           {item.data && <CaseBrief it={item.data} person={person} readOnly={demo} reload={item.reload} />}
           <CaseSafeguards id={v.item.id} />
@@ -103,7 +111,9 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
                     setCompletion(null); setDone("Task response saved. Inspect the refreshed case for downstream progress."); refresh();
                   })} />{" "}
                 <Button disabled={!!a.busy} onClick={() => setCompletion(null)}>Edit response</Button>
-              </div> : others ? null : t.kind === "fix" ? <FixForm busy={!!a.busy} onRetry={complete} />
+              </div> : others ? null : typeof v.data.closeout_id === "number"
+                ? <CloseoutPanel id={v.data.closeout_id} person={person} readOnly={demo} reload={refresh} />
+                : t.kind === "fix" ? <FixForm busy={!!a.busy} onRetry={complete} />
                 : v.form?.schema ? (
                   <Suspense fallback={<div className="status">Loading form…</div>}>
                     <TaskForm schema={v.form.schema} data={v.data} busy={!!a.busy} onSubmit={complete} />
@@ -115,6 +125,10 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
             disabled={demo && completion !== null} requiresHuman={t.requires_human} onDone={() => {
             setDone(`Handed off "${t.name ?? t.element}".`); if (demo) refresh();
           }} />}
+          {waiting && !demo && t.process_key === "queue_item" && t.element === "work" && exceptionOf(item.data) != null &&
+            <SendToField exceptionId={exceptionOf(item.data)!} person={person} onDone={() => {
+              setDone("Sent to the field. Their report comes back here."); refresh();
+            }} />}
           {demo ? <ActionStatus busy={a.busy} error={a.error}>
             {done && <p>{done} <a href={href(`/cases/${v.item.id}`, { demo: "workflow" })}>Inspect recorded case</a></p>}
           </ActionStatus> : a.error && <p className="error small">{a.error}</p>}
@@ -128,6 +142,13 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       </div>
     </section>
   );
+}
+
+/** The incident a queue case was raised from, which is what goes to the field (#1145). */
+function exceptionOf(it: unknown): number | null {
+  const payload = ((it ?? {}) as { payload?: Record<string, unknown> }).payload ?? {};
+  const raised = (payload.start && typeof payload.start === "object" ? payload.start : payload) as Record<string, unknown>;
+  return typeof raised.exception_id === "number" ? raised.exception_id : null;
 }
 
 function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, disabled }: {

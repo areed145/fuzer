@@ -185,7 +185,8 @@ function Value({ v }: { v: unknown }) {
 /** The process data a case started with, as a person reads it (#496): without the keys and ids that only link
  * records (`key`, `upset_id`, `exception_id`, ...) and without fields left empty. */
 // Routing bookkeeping the page already says in words (the queue, the kind of case) or that only the engine reads.
-const ENGINE_KEYS = new Set(["key", "role", "type", "case_type", "task_key", "review_item"]);
+const ENGINE_KEYS = new Set(["key", "role", "type", "case_type", "task_key", "review_item",
+  "change", "from_case", "decided_by"]);  // the last three show as the task's "What to change" (#1145)
 
 export function startedWith(data: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
   if (!data) return null;
