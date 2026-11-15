@@ -71,3 +71,22 @@ def test_the_boom_and_the_alternate_stack_are_drawn_where_they_stand(conn):
     assert flare_links  # the relief and flare lines carry the flare palette colour
     assert conn.execute("select 1 from edge where rel = 'part_of' and src = %s and dst = %s",
                         (_id(conn, "OKAN-25"), _id(conn, "OKAN-20"))).fetchone()  # the boom stands on GGCP
+
+
+def test_the_flare_deck_sheet_draws_the_boom_and_its_valves_on_their_lines(okan_data):
+    """OKAN-25-PID-010: the meter on the drum outlet before the changeover tee, the boom's isolation valve on its leg,
+    the alternate stack's on the line to its jacket; none of them on a header of their own at the foot."""
+    import json
+
+    truth = json.loads((okan_data / "pid_truth.json").read_text())["OKAN-25-PID-010"]
+    assert truth["header"] is None
+    via = {(c["from"], c["to"]): c["via"] for c in truth["connections"]}
+    assert "25-XV-4020" in via[("25-V-4001", "25-FL-4010")]
+    assert "25-XV-4021" in via[("25-V-4001", "26-V-4032")]
+    meter = next(t for t in truth["tags"] if t["key"] == "25-FT-4003")
+    drum = next(t for t in truth["tags"] if t["key"] == "25-V-4001")
+    boom = next(t for t in truth["tags"] if t["key"] == "25-FL-4010")
+    assert drum["x"] < meter["x"] < boom["x"]
+    # the drum's level valve is on its drain, not on the flare line
+    [lv] = [v for v in truth["valves"] if v.get("tag", "").startswith("25-LV")]
+    assert lv["y"] > drum["y"]  # (drum["y"] is its tag, under the drum)

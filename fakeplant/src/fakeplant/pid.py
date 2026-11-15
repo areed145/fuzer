@@ -116,6 +116,21 @@ def _equipment(d: ImageDraw.ImageDraw, func: str, cx: float, cy: float) -> tuple
         d.line([(cx + 22, cy - 100), (cx + 34, cy - 100), (cx + 34, cy - 60)], fill=0, width=2)  # pilot gas line
         d.line([(cx - 10, cy - 114), (cx - 20, cy - 132), (cx - 4, cy - 124), (cx, cy - 150), (cx + 6, cy - 124),
                 (cx + 20, cy - 134), (cx + 10, cy - 114)], fill=0, width=2)
+    elif func == "FL_BOOM":  # flare boom: a riser on the deck, a lattice boom angled up and out, the tip and flame
+        box = (cx - 14, cy - 190, cx + 130, cy + 130)
+        d.rectangle([cx - 14, cy - 70, cx + 14, cy + 130], outline=0, width=3)
+        (x0, y0), (x1, y1) = (cx, cy - 70), (cx + 100, cy - 150)
+        ux, uy = (x1 - x0) / math.dist((x0, y0), (x1, y1)), (y1 - y0) / math.dist((x0, y0), (x1, y1))
+        nx, ny = -uy * 10, ux * 10  # the boom's two chords, 20 px apart
+        a0, a1, b0, b1 = (x0 + nx, y0 + ny), (x1 + nx, y1 + ny), (x0 - nx, y0 - ny), (x1 - nx, y1 - ny)
+        d.line([a0, a1], fill=0, width=3)
+        d.line([b0, b1], fill=0, width=3)
+        lace = [(a0[0] + (a1[0] - a0[0]) * k / 6, a0[1] + (a1[1] - a0[1]) * k / 6) if k % 2 else
+                (b0[0] + (b1[0] - b0[0]) * k / 6, b0[1] + (b1[1] - b0[1]) * k / 6) for k in range(7)]
+        d.line(lace, fill=0, width=2)  # the lacing zigzags between the chords
+        d.rectangle([x1 - 12, y1 - 18, x1 + 12, y1 + 2], outline=0, width=3)  # the tip
+        d.line([(x1 - 8, y1 - 20), (x1 - 18, y1 - 38), (x1 - 2, y1 - 30), (x1 + 2, y1 - 56), (x1 + 8, y1 - 30),
+                (x1 + 22, y1 - 40), (x1 + 10, y1 - 20)], fill=0, width=2)
     elif func == "E":  # shell and tube exchanger
         box = (cx - 50, cy - 50, cx + 50, cy + 50)
         d.ellipse(box, outline=0, width=3)
@@ -209,6 +224,11 @@ def _route(p0, out_dir, p1, corridor):
 
 def _segments(pts):
     return list(itertools.pairwise(pts))
+
+
+def _runs(pts):
+    """A route's horizontal runs, in order along it, each from its left end to its right."""
+    return [tuple(sorted(sg)) for sg in _segments(pts) if sg[0][1] == sg[1][1] and abs(sg[1][0] - sg[0][0]) > 50]
 
 
 def _abbrev(title: str, rng: random.Random) -> str:
@@ -470,14 +490,21 @@ def _in_tear(x, y, tear) -> bool:
 
 def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: random.Random,
          connections: list[dict] = (), scan: bool = True, equipment_funcs: tuple[str, ...] = EQUIPMENT_FUNCS,
-         level: str | None = None, offpage: list[dict] = (), data: dict | None = None) -> dict:
+         level: str | None = None, offpage: list[dict] = (), layout: dict | None = None,
+         data: dict | None = None) -> dict:
     """Render one drawing and return its answer key (see the module docstring). `connections`: the sheet's
     process lines {from, to, line} between its equipment; `offpage`: lines leaving or entering the sheet
     {tag, direction: to|from, sheet, other, line}. `level` defaults to `scan` when scan is set, else `clean`.
     `data` fills the sheet's foot: `equipment` {tag: {service, design_pressure, design_temperature, capacity}}
     for an equipment data table, `setpoints` {instrument tag: {lolo, lo, hi, hihi, unit}} for an alarm and trip
-    table, `notes` [{text, tags}] numbered after the standard ones, and `date` for the title block."""
+    table, `notes` [{text, tags}] numbered after the standard ones, and `date` for the title block.
+    `layout` draws what the defaults can't: `booms` (flare tags drawn as a boom, not a stack), `on_line` {tag: (from,
+    to, "first"|"last")} an instrument or valve with no equipment of its own drawn on that line's first or last run
+    instead of on the header at the foot, and `tee` {(from, to): (from, to)} an off-page line that branches off
+    another line's first run, after what sits on it, instead of leaving its item by a nozzle of its own."""
     data = data or {}
+    layout = layout or {}
+    on_line = layout.get("on_line", {})
     level = level or ("scan" if scan else "clean")
     equipment = [t for t in tags if t.func in equipment_funcs]
     by_key = {t.canonical: t for t in equipment}
@@ -502,7 +529,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
         return next((e for e in equipment if t.loop == e.loop and t.suffix == e.suffix), None) or next(
             (e for e in equipment if e.func == "P" and t.loop == e.loop + 10 and t.suffix == e.suffix), None)
 
-    loose = [t for t in tags if t.func not in equipment_funcs and owner(t) is None]
+    loose = [t for t in tags if t.func not in equipment_funcs and owner(t) is None and t.canonical not in on_line]
     width = W + max(0, per_band - 4) * 330
     body_h = H + (bands - 1) * BAND_H + (140 if loose else 0)
     # the foot: data tables at the left, notes in the middle, the title block at the right
@@ -574,7 +601,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
         cx = 220 + spacing * (col + 0.5)
         base = 300 + band * BAND_H
         cy = base + (260 if eq.func in TALL else 470 if eq.func == "P" else 360) + rng.uniform(-20, 20)
-        box = _equipment(d, eq.func, cx, cy)
+        box = _equipment(d, "FL_BOOM" if eq.canonical in layout.get("booms", ()) else eq.func, cx, cy)
         boxes[eq.canonical], centres[eq.canonical] = box, (cx, cy)
         service = _abbrev(titles.get(eq.canonical, ""), rng)
         s.captions += [((cx, box[3] + 30), eq.canonical, s.f_tag), ((cx, box[3] + 58), service, s.f_small)]
@@ -601,7 +628,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     for c in connections:
         if c["from"] not in boxes or c["to"] not in boxes:
             continue
-        gas = by_key[c["to"]].func in ("K", "E", "GT")  # a scrubber feeds its compressor from the top
+        gas = by_key[c["to"]].func in ("K", "E", "GT", "FL")  # a scrubber feeds its compressor (a drum its flare) from the top
         p0, od = outlet(c["from"], gas=gas)
         n_in = sum(1 for x in conns if x["to"] == c["to"])  # a second line into the same item gets its own nozzle
         x_in, y_in = inlet(c["to"])
@@ -618,7 +645,20 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     for o in offpage:
         if o["tag"] not in boxes:
             continue
-        if o["direction"] == "to" and o.get("low"):  # leaves under the sheet's items, clear of a tall one beside it
+        trunk = next((c["pts"] for c in conns if (c["from"], c["to"]) == tuple(layout.get("tee", {}).get(
+            (o["tag"], o["other"]), ())) and "offpage" not in c), None) if o["direction"] == "to" else None
+        if trunk:  # tees off the trunk's first run, after what sits on it, and drops below the sheet's items
+            (xa, y0), (xb, _) = _runs(trunk)[0]
+            tx, y = xa + (xb - xa) * 0.8, boxes[o["tag"]][3] + 170
+            d.ellipse([tx - 6, y0 - 6, tx + 6, y0 + 6], fill=0)
+            edge = (width - 200, y)
+            pts = [(tx, y0), (tx, y), edge]
+            pos = s.line(pts, o["line"], arrow=False)
+            x, yy = edge
+            d.polygon([(x, yy - 20), (x + 110, yy - 20), (x + 140, yy), (x + 110, yy + 20), (x, yy + 20)], outline=0, width=2)
+            d.text((x + 60, yy - 32), f"TO {o['sheet']}", font=s.f_small, fill=0, anchor="mm")
+            d.text((x + 62, yy), o["other"], font=s.f_small, fill=0, anchor="mm")
+        elif o["direction"] == "to" and o.get("low"):  # leaves under the sheet's items, clear of a tall one beside it
             (_, _, _, y1), (cx, _) = boxes[o["tag"]], centres[o["tag"]]
             p0, y = (cx + 25, y1), y1 + 170  # below the corridor its sheet-mates run in
             edge = (width - 200, y)
@@ -705,14 +745,42 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
                 d.line(pts, fill=40, width=3)
                 d.text((bx + 80, by - 70), "RELOCATED (FIELD CHANGE)", font=s.f_small, fill=40)
         if eq.func == "V":  # a relief valve on top of every vessel, tagged on the sheet, rarely in the register
-            x0, y0 = cx + 30, boxes[eq.canonical][1]
+            # (on the left of a drum whose gas leaves by the top for a flare, clear of the gas line going right)
+            k = -1 if any(c["from"] == eq.canonical and c["to"] in by_key and by_key[c["to"]].func == "FL"
+                          for c in conns) else 1
+            x0, y0 = cx + 30 * k, boxes[eq.canonical][1]
             d.line([(x0, y0), (x0, y0 - 40)], fill=0, width=2)
             d.polygon([(x0 - 10, y0 - 40), (x0 + 10, y0 - 40), (x0, y0 - 56)], outline=0, width=2)
-            d.line([(x0, y0 - 56), (x0 + 30, y0 - 56)], fill=0, width=2)
+            d.line([(x0, y0 - 56), (x0 + 30 * k, y0 - 56)], fill=0, width=2)
             psv = f"PSV-{eq.loop}{eq.suffix}"
-            d.text((x0 + 70, y0 - 56), psv, font=s.f_small, fill=0, anchor="mm")
-            s.unregistered.append({"text": f"{eq.area}-{psv}", "kind": "relief_valve", "x": round(x0 + 70),
+            d.text((x0 + 70 * k, y0 - 56), psv, font=s.f_small, fill=0, anchor="mm")
+            s.unregistered.append({"text": f"{eq.area}-{psv}", "kind": "relief_valve", "x": round(x0 + 70 * k),
                                    "y": round(y0 - 56)})
+
+    # meters and valves with no equipment of their own, on the line the layout puts them on
+    on_conn: dict[int, list[dict]] = {}
+    for t in [t for t in tags if t.canonical in on_line]:
+        a, b, which = on_line[t.canonical]
+        c = next((c for c in conns if (c["from"], c["to"]) == (a, b)), None)
+        if c is None or not _runs(c["pts"]):
+            continue
+        (xa, y), (xb, _) = _runs(c["pts"])[0 if which == "first" else -1]
+        frac = 0.45 if which == "first" else 0.5 if "offpage" not in c else 0.3
+        x = xa + (xb - xa) * frac
+        if t.func.endswith("V"):
+            v = s.control_valve(x, y, t.canonical, "FO" if t.loop % 2 == 0 else "FC", esd=t.func == "XV",
+                                registered=True)
+            on_conn.setdefault(id(c), []).append(v)
+            s.bubble(x, y - 150, t.func, f"{t.loop}{t.suffix}", "dcs")
+            _dashed(d, (x, y - 106), (x, y - 52))
+            drawn.append({"key": t.canonical, "kind": "instrument", "x": round(x), "y": round(y - 150)})
+        else:  # a flow element in the line under its meter
+            d.line([(x - 6, y - 14), (x - 6, y + 14)], fill=0, width=3)
+            d.line([(x + 6, y - 14), (x + 6, y + 14)], fill=0, width=3)
+            s.bubble(x, y - 120, t.func, f"{t.loop}{t.suffix}", "dcs")
+            _dashed(d, (x, y - 76), (x, y - 14))
+            drawn.append({"key": t.canonical, "kind": "instrument", "x": round(x), "y": round(y - 120)})
+        s.labels.append((x - 50, x + 50, y))  # the line's hand valves keep clear of it
 
     # hand valves on every in-sheet and off-page line
     for c in conns:
@@ -726,6 +794,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
         for lp in loops:  # a valve with nowhere to sit leaves its loop at transmitter and controller
             if lp["members"][-1] in {t for t, _, _, _ in ctl} - placed:
                 lp["members"].pop()
+        vs += on_conn.get(id(c), [])
         s.valves += vs
         c["via"] = [v.get("tag") or v["type"] for v in sorted(vs, key=lambda v: v["x"]) if v["type"] not in BRANCHES]
 
