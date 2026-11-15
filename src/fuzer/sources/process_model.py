@@ -27,7 +27,7 @@ WARM = timedelta(hours=12)  # history evaluated before a window, so lags settle 
 # Kept windows hold every variable they computed. A daily detector reading a week or a month (multivariate, drifts,
 # hydraulics) makes a window of that length, so the windows kept are capped by the grid time they span: a long one
 # stays only while it is the newest, and goes as soon as the scan moves back to six hour windows. Holding a few long
-# ones together took an Okan scan's midnight window to ~480 MB, which ran the 2 GB live instance out of memory.
+# ones together took a demo plant scan's midnight window to ~480 MB, which ran a 2 GB instance out of memory.
 CACHE_WINDOWS, CACHE_MINUTES = 8, 4 * 24 * 60
 EPOCH = datetime(1970, 1, 1)
 
