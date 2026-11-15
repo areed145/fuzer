@@ -11,7 +11,7 @@ const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/sceneLog
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(code, { exports: exportsObject, Map, Set, Math, String });
-const { MOVED, badge, headers, parseMove, reroute, trace, worst } = exportsObject;
+const { MOVED, attention, badge, headers, higher, parseMove, reroute, trace, worst } = exportsObject;
 
 const item = (id, kind = "tag", x = 0) => ({ id, kind, label: id, x, y: 0, z: 0 });
 const link = (id, src, dst, rel = "flows_to") => ({ id, src, dst, rel, product: "multiphase", path: [] });
@@ -27,6 +27,18 @@ test("status: down outranks an alarm, which outranks open work, and the badge sa
   assert.equal(worst(undefined), null);
   assert.equal(badge({ open_work: 2, alarms: 1, down: null }), "1! 2");
   assert.equal(badge({ open_work: 0, alarms: 0, down: { id: "d" } }), "Down");
+});
+
+test("attention: one scale with Home's hotspots, down or high work is high, an alarm at least medium", () => {
+  assert.equal(attention({ open_work: 0, alarms: 0, down: { id: "d" } }), "high");
+  assert.equal(attention({ open_work: 1, work_band: "high", alarms: 0, down: null }), "high");
+  assert.equal(attention({ open_work: 1, work_band: "low", alarms: 2, down: null }), "medium");
+  assert.equal(attention({ open_work: 1, work_band: "medium", alarms: 0, down: null }), "medium");
+  assert.equal(attention({ open_work: 3, alarms: 0, down: null }), "low", "work with no band known reads as low");
+  assert.equal(attention({ open_work: 0, alarms: 0, down: null }), null);
+  assert.equal(attention(undefined), null);
+  assert.equal(higher("low", "medium"), "medium");
+  assert.equal(higher(null, "low"), "low");
 });
 
 test("a path downstream follows each link to the export, over flow, piping and lift gas but not control", () => {

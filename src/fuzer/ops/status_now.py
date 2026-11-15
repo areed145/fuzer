@@ -2,10 +2,11 @@
 same reads as the entity status card (`api/entities.entity_status`), so the counts on a 3D scene match each asset's
 page.
 
-    status(conn, ids, src)   {id: {"open_work", "alarms", "down"}} for the ids with anything to say, the totals, and
+    status(conn, ids, src)   {id: {"open_work", "work_band", "alarms", "down"}} for the ids with anything to say, the totals, and
                              the alarm window
 
-    open work     the open exceptions on it (or on what joined their case), `exceptions.listing`, read once
+    open work     the open exceptions on it (or on what joined their case), `exceptions.listing`, read once, with
+                  the highest priority band among them (high, medium, low, as Home's hotspots band them)
     active alarm  a point standing for it (`exceptions.anchor_map`) past an enabled alarm limit and still past it at
                   the end of the last `ALARM_HOURS` (`limits.excursions`), as the case page's alarms are read
     down now      its newest downtime has no end, as the status card's "Down since" reads it
@@ -23,14 +24,20 @@ ALARM_HOURS = 2
 STEP = 5  # minutes between the historian values an alarm is read from, as around.STEP
 
 
-def open_work(conn, ids: list[str]) -> Counter:
+def open_work(conn, ids: list[str]) -> tuple[Counter, dict[str, str]]:
+    """How many open exceptions are on each id, and the highest priority band among them (`attention.band`, the
+    band Home's hotspots are coloured by), so the 3D view colours an item as the map colours its place."""
+    from .attention import RANK, band
     from .exceptions import listing
 
-    want, out = set(ids), Counter()
+    want, out, top = set(ids), Counter(), {}
     for x in listing(conn, limit=100_000):
+        b = band(x.get("priority"))
         for s in set(x["subjects"] or []) & want:
             out[s] += 1
-    return out
+            if s not in top or RANK[b] < RANK[top[s]]:
+                top[s] = b
+    return out, top
 
 
 def down(conn, ids: list[str]) -> dict[str, dict]:
@@ -75,11 +82,12 @@ def alarms(conn, ids: list[str], src=None) -> dict[str, list[dict]]:
 
 
 def status(conn, ids: list[str], src=None) -> dict:
-    work, gone, ringing = open_work(conn, ids), down(conn, ids), alarms(conn, ids, src)
+    (work, top), gone, ringing = open_work(conn, ids), down(conn, ids), alarms(conn, ids, src)
     out = {}
     for i in ids:
         if work.get(i) or i in gone or ringing.get(i):
-            out[i] = {"open_work": work.get(i, 0), "alarms": len(ringing.get(i, [])), "down": gone.get(i)}
+            out[i] = {"open_work": work.get(i, 0), "work_band": top.get(i), "alarms": len(ringing.get(i, [])),
+                      "down": gone.get(i)}
     return {"status": out,
             "totals": {"open_work": sum(1 for s in out.values() if s["open_work"]),
                        "alarms": sum(1 for s in out.values() if s["alarms"]),

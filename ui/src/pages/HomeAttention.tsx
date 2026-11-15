@@ -6,6 +6,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type
 import { api, type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
 import { Badge, Button, ButtonLink, Card, Empty } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
+import { ATTENTION_TONE } from "../kinds";
 import { workHref } from "./AllWork";
 
 const MapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));  // Leaflet loads with the map
@@ -15,8 +16,10 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All open" }, { key: "high", label: "High" },
   { key: "overdue", label: "Overdue" }, { key: "unassigned", label: "Unassigned" },
 ];
-const BAND: Record<AttentionBand, { label: string; tone: "danger" | "warn" | "muted" }> = {
-  high: { label: "High", tone: "danger" }, medium: { label: "Medium", tone: "warn" }, low: { label: "Low", tone: "muted" },
+// The attention scale's tones (kinds.ts), so the words match the hotspot colours on the map and the 3D view.
+const BAND: Record<AttentionBand, { label: string; tone: "danger" | "warn" | "info" }> = {
+  high: { label: "High", tone: ATTENTION_TONE.high }, medium: { label: "Medium", tone: ATTENTION_TONE.medium },
+  low: { label: "Low", tone: ATTENTION_TONE.low },
 };
 const keep = (p: AttentionPlace, f: Filter) =>
   f === "all" || (f === "high" ? p.counts.high > 0 : f === "overdue" ? p.overdue > 0 : p.unassigned > 0);

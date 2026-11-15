@@ -215,10 +215,9 @@ def test_a_reading_taken_without_signal_arrives_once_with_its_time_and_a_later_o
     stale = rounds.take(conn, comp["id"], "R-B1-02", "olu", value=9.9, at=earlier, client_id="phone-2")
     assert stale["kept"] == "later_reading_stands" and stale["taken"]["value"] == 4.4
     # The shift ends before the signal returns: a reading taken in the shift is still accepted, and counted.
-    # (the shift is set to have started before both takes: a run opened in the minutes after a shift change would
-    # otherwise start after them, and the test would fail for the first hour of each shift)
-    conn.execute("update round_run set state = 'missed', shift_start = least(shift_start, %s), shift_end = %s "
-                 "where id = %s", (now - timedelta(hours=1), now - timedelta(minutes=10), comp["id"]))
+    # The shift is pinned around the readings: run near a real shift change, "later" fell before the seeded shift began.
+    conn.execute("update round_run set state = 'missed', shift_start = %s, shift_end = %s where id = %s",
+                 (now - timedelta(hours=2), now - timedelta(minutes=10), comp["id"]))
     rounds.take(conn, comp["id"], "R-B1-03", "olu", passed=True, value=4.0, at=later, client_id="phone-4")
     assert conn.execute("select state from round_run where id = %s", (comp["id"],)).fetchone()["state"] == "partly_done"
     with pytest.raises(Exception, match="closed"):

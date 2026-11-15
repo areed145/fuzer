@@ -32,6 +32,22 @@ def test_one_read_gives_open_work_and_alarms_for_the_whole_scene(okan):
         assert v["open_work"] or v["alarms"] or v["down"]
 
 
+def test_open_work_carries_its_highest_band_as_homes_hotspots_band_it(okan):
+    """The 3D view colours an item on the same attention scale as Home's map, so it needs the band of its work."""
+    from fuzer.ops import attention, exceptions
+
+    conn, _s, st = okan
+    work = {i: v for i, v in st["status"].items() if v["open_work"]}
+    assert work
+    rows = exceptions.listing(conn, limit=100_000)
+    for i, v in work.items():
+        bands = [attention.band(x["priority"]) for x in rows if i in (x["subjects"] or [])]
+        assert v["work_band"] == min(bands, key=attention.RANK.__getitem__), i
+    for v in st["status"].values():
+        if not v["open_work"]:
+            assert v["work_band"] is None
+
+
 def test_the_counts_match_each_assets_status_card(okan):
     _conn, s, st = okan
     client = TestClient(app)

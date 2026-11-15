@@ -15,7 +15,7 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
         </div>
         <div className="tabs">
           {["suggested", "approved", "rejected"].map((s) => (
-            <a key={s} className={status === s ? "on" : ""} href={href("/lessons", { status: s })}>{s}</a>
+            <a key={s} className={status === s ? "on" : ""} href={href("/lessons", { status: s })}>{s[0].toUpperCase() + s.slice(1)}</a>
           ))}
         </div>
       </div>
