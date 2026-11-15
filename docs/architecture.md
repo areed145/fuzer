@@ -221,6 +221,7 @@ flowchart TD
 | `report_calendar` | `0 5 * * *` | Obligations: each regulatory report drafted ahead of its due date, and work for one coming due. |
 | `retention` | `15 3 * * *` | Retention: delete ended sessions and access events past audit.retention_days. |
 | `sre_scan` | `0 */6 * * *` | SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off. |
+| `sre_scan` | `20,50 * * * *` | SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off. |
 | `studies_job` | `*/5 * * * *` | Big correlation and clustering studies, queued from the API or an agent. |
 | `day_close` | `0 7 * * *` | Daily operations report: facts from the day's records, a new version when they change, the ops lead's review in the workflow (the reporter agent drafts it). |
 | `source_health` | `*/30 * * * *` | Source health: stale data, failed or held loads, failing checks -> exceptions, cases and alerts. |
