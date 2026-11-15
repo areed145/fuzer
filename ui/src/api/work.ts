@@ -982,7 +982,7 @@ export const workApi = {
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
   caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null; suggestion: CloseoutSuggestion;
-    vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[] }>("GET", `/work/items/${id}/closeout`),
+    vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean }>("GET", `/work/items/${id}/closeout`),
   answerRecheck: (id: number, by: string, held: boolean, note?: string) =>
     request<CaseCloseout>("POST", `/work/items/${id}/recheck`, undefined, { by, held, note }),
   recordCaseCloseout: (id: number, body: CloseoutInput) => request<CaseCloseout>("POST", `/work/items/${id}/closeout`, undefined, body),

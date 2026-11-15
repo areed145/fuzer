@@ -81,12 +81,34 @@ def get(conn, item_id: int) -> dict | None:
     return conn.execute("select * from case_disposition where item_id = %s", (item_id,)).fetchone()
 
 
+def equipment_case(conn, item_id: int) -> bool:
+    """Whether a case is about equipment (#1145), so a real problem on it is an equipment failure in ISO 14224 terms:
+    it is about a piece of equipment, or a point installed on or part of one, and none of its exceptions is data work
+    (a drawing against the DCS, a possible match, a held load: the data steward's types). Elsewhere, such as a
+    drawing-vs-alarm limit that turned out real, the failure terms are optional."""
+    from . import exceptions
+
+    data = {n for n, t in exceptions.types(conn).items() if t.role == "role:data_steward"}
+    if data and conn.execute("select 1 from exception_record where item_id = %s and type = any(%s) limit 1",
+                             (item_id, list(data))).fetchone():
+        return False
+    return conn.execute(
+        """
+        select 1 from work_item w cross join unnest(w.subjects) s(id)
+        where w.id = %(id)s and (exists (select 1 from entity en where en.fuzer_id = s.id and en.kind = 'equipment')
+            or exists (select 1 from edge e join entity en on en.fuzer_id = e.dst and en.kind = 'equipment'
+                       where e.src = s.id and e.rel in ('installed_at', 'part_of') and e.valid_to is null))
+        limit 1
+        """, {"id": item_id}).fetchone() is not None
+
+
 def form(conn, pack: Pack, item_id: int) -> dict:
-    """Everything the close-out form needs: the record if there is one, the pre-fill and the lists."""
+    """Everything the close-out form needs: the record if there is one, the pre-fill, the lists, and whether a real
+    problem on it needs the equipment-failure terms."""
     _text(conn, item_id)
     repeats = conn.execute("select again, at from case_repeat where first = %s order by at", (item_id,)).fetchall()
     return {"item_id": item_id, "record": get(conn, item_id), "suggestion": suggest(conn, pack, item_id),
-            "vocabulary": vocabulary(pack), "repeats": repeats}
+            "vocabulary": vocabulary(pack), "repeats": repeats, "equipment": equipment_case(conn, item_id)}
 
 
 def record_known(conn, item_id: int, by: str, disposition: str, note: str | None = None) -> None:
@@ -102,8 +124,9 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
            mechanism: str | None = None, cause: str | None = None, activity: str | None = None,
            outcome: str | None = None, note: str | None = None, duplicate_of: int | None = None,
            suggested: dict | None = None) -> dict:
-    """Record the close-out and close the case if it is still open. A real problem needs its failure mode, cause and
-    action from the lists; a duplicate names its case. Recording again corrects it."""
+    """Record the close-out and close the case if it is still open. A real problem on equipment needs its failure mode,
+    cause and action from the lists (elsewhere they are optional); a duplicate names its case. Recording again
+    corrects it."""
     item, _ = _text(conn, item_id)
     v = vocabulary(pack)
     if disposition not in DISPOSITIONS:
@@ -113,11 +136,11 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
                                  ("outcome", outcome, OUTCOMES)):
         if value and str(value) not in {str(k) for k in allowed}:
             raise ValueError(f"{value} is not a {name} on the list")
-    if disposition == "real":
+    if disposition == "real" and equipment_case(conn, item_id):
         missing = [n for n, x in (("failure mode", failure_mode), ("cause", cause), ("action", activity)) if not x]
         if missing:
-            raise ValueError(f"a real problem needs its {', '.join(missing)}")
-    else:
+            raise ValueError(f"a real problem on equipment needs its {', '.join(missing)}")
+    elif disposition != "real":
         failure_mode = mechanism = cause = activity = None
     if disposition == "duplicate":
         if not duplicate_of or duplicate_of == item_id or not conn.execute(
@@ -176,11 +199,11 @@ def offer_feedback(conn, item_id: int, row: dict, by: str) -> list[dict]:
 def summary(row: dict, v: dict) -> str:
     """One line for the case's history: "Real: Vibration, cause Failure related to operation / maintenance, Replace."""
     parts = [DISPOSITIONS[row["disposition"]]]
-    if row["disposition"] == "real":
-        parts.append(", ".join(x for x in (
-            v["failure_modes"].get(row["failure_mode"], row["failure_mode"]),
-            f"cause {v['causes'].get(row['cause'], row['cause']).lower()}",
-            v["activities"].get(row["activity"], row["activity"]).lower()) if x))
+    if row["disposition"] == "real" and (terms := ", ".join(x for x in (
+            row["failure_mode"] and v["failure_modes"].get(row["failure_mode"], row["failure_mode"]),
+            row["cause"] and f"cause {str(v['causes'].get(row['cause'], row['cause'])).lower()}",
+            row["activity"] and str(v["activities"].get(row["activity"], row["activity"])).lower()) if x)):
+        parts.append(terms)  # off equipment the failure terms are optional (#1145)
     if row["disposition"] == "duplicate":
         parts.append(f"of case {row['duplicate_of']}")
     if row["outcome"]:
