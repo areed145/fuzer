@@ -95,7 +95,7 @@ Before adding a page or action, identify its owner here and link to an existing 
 already owns it. Update this ownership map and navigation together when responsibility changes.
 Keep the seven operational destinations plus optional Demo; do not substitute a catch-all Manage group.
 Preserve old URLs or add
-explicit tested redirects. Verify active navigation/breadcrumbs, contextual links, direct reader
+explicit tested redirects. Verify active navigation, contextual links, direct reader
 access and desktop/mobile navigation. Use the existing API/domain boundaries and shared UI kit.
 
 Demo uses `GET /demo/config` for reader-safe effective visibility and the existing

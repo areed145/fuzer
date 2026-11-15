@@ -5,7 +5,6 @@ import { href } from "./lib";
 import { Button } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
-import { useEntityNames } from "./useEntityNames";
 import { SyncStatus } from "./SyncStatus";
 import { AccountButton } from "./Identity";
 
@@ -119,7 +118,7 @@ export function AreaNavigation({ section, demoEnabled }: { section: string; demo
   </nav>;
 }
 
-/** The nav item a route belongs to, for active state and breadcrumbs. */
+/** The nav item a route belongs to, for active state and the Back target. */
 export function navItemFor(section: string): { group: NavGroup; item: NavItem } | undefined {
   for (const group of NAV) {
     const item = group.items.find((i) => isActive(i, section));
@@ -343,37 +342,3 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
   );
 }
 
-/** "Explore › Browse › …" above deep pages (an entity, a work item, a process). */
-export function Breadcrumbs({ path }: { path: string[] }) {
-  const section = path[0] ?? "";
-  const names = useEntityNames(section === "e" && path[1] ? [decodeURIComponent(path[1])] : []);
-  const found = navItemFor(section);
-  if (!found || path.length < 2) return null;
-  const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: found.item.path ?? `/${found.item.section}` }];
-  if (found.group.label !== found.item.label) trail.unshift({ label: found.group.label });
-  // An asset's page ends in its tag, not the word "Entity" (#1076).
-  if (section === "e") trail.push({ label: names?.[decodeURIComponent(path[1])]?.label ?? decodeURIComponent(path[1]) });
-  else if (section === "jobs" && path[1] === "run") trail.push({ label: `Run ${(path[2] ?? "").slice(0, 8)}`.trim() });
-  else if (section === "inbox" && path[1] === "task") trail.push({ label: `Task ${path[2] ?? ""}`.trim() });
-  else if (section === "cases" && path[1]) trail.push({ label: `Case ${path[1]}` });
-  else if (section === "processes" && path[1] === "forms") {
-    trail.push({ label: "Forms" });
-    if (path[2]) trail.push({ label: path[2] });
-  } else if (section === "processes" && path[1]) trail.push({ label: path[1] });
-  else if (section === "investigate" && path[1] === "okan") trail.push({ label: "Guided investigation" });
-  else return null;
-  return (
-    <nav className="crumbs" aria-label="Breadcrumb">
-      <ol>
-        {trail.map((c, i) => {
-          const last = i === trail.length - 1;
-          return (
-            <li key={i}>
-              {c.to && !last ? <a href={href(c.to)}>{c.label}</a> : <span aria-current={last ? "page" : undefined}>{c.label}</span>}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
-}
