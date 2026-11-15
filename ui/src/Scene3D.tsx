@@ -583,9 +583,9 @@ export default function Scene3D({ scene, selected, centre, onSelect, onPlate, li
         <div ref={labels} className="scene-tags" />
         {/* What the badges mean, on the drawing where they are (#1075), not in the legend under it. */}
         {(look?.badges?.size ?? 0) > 0 && <div className="scene-key" aria-label="What the badges mean">
-          <span><b className="scene-key-badge swatch-low">1</b>open work</span>
-          <span><b className="scene-key-badge swatch-medium">1!</b>alarms</span>
-          <span><b className="scene-key-badge swatch-high">Down</b>down now</span>
+          <span><b className="scene-key-badge">1</b>open work</span>
+          <span><b className="scene-key-badge">1!</b>alarms</span>
+          <span><b className="scene-key-badge">Down</b>down now</span>
           {scene.root?.kind === "facility" && scene.items.length > BLOCKS_OVER && <span>Tap an area's badge to open it</span>}
         </div>}
         <div className="graph-tools" role="toolbar" aria-label="View">

@@ -174,9 +174,11 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         )}
       </h2>
       <div className="row trend-controls">
-        {WINDOWS.map((h) => (
-          <Button key={h} variant={h === hours ? "primary" : "secondary"} size="sm" onClick={() => setHours(h)}>{h / 24} d</Button>
-        ))}
+        <div className="chips segmented trend-windows" role="group" aria-label="How much time the chart shows">
+          {WINDOWS.map((h) => (
+            <Button key={h} className="chip" aria-pressed={h === hours} onClick={() => setHours(h)}>{h / 24} d</Button>
+          ))}
+        </div>
         <span className="spacer" />
         {zoom && <Button size="sm" onClick={() => { setZoom(null); setRedraw((r) => r + 1); }}>Reset zoom</Button>}
         <Button size="sm" onClick={() => shift(-1)} disabled={!d}>← Earlier</Button>

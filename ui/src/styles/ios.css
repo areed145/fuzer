@@ -85,7 +85,7 @@
 
   /* ---- Lists with chevrons: the board's stage list ---- */
   :root.ios .work-board-column { padding: 0; border: 0; background: none; }
-  :root.ios .work-board-column > h2 { padding: 0 16px 6px; font-size: var(--t-footnote); font-weight: 400; text-transform: uppercase; color: var(--muted); }
+  :root.ios .work-board-column > h2 { padding: 0 16px 6px; font-size: var(--t-footnote); font-weight: 400; color: var(--muted); }
   :root.ios .work-board-column > p { padding: 0 16px; margin: 0 0 8px; }
   :root.ios .work-board-column > div, :root.ios .work-board-column { overflow-x: clip; }
   :root.ios .work-card {
@@ -109,6 +109,7 @@
   :root.ios .work-card-actions .ui-button { min-height: 0; height: 100%; border-radius: 0; padding: 0 18px; font-size: var(--t-subhead); }
   :root.ios .work-card-actions .ui-button-primary { background: var(--accent); color: #fff; }
   :root.ios .work-card-actions .ui-button-secondary { background: var(--warn); color: #fff; }
+  :root.ios .work-card-actions .ui-button.work-lead { background: var(--accent); color: #fff; }
   :root.ios .work-card.swiped { transform: translateX(-104px); }
   /* Keyboard and VoiceOver reach the same actions: focus inside a card slides them in. */
   :root.ios .work-card:focus-within { transform: translateX(-104px); }
@@ -753,3 +754,13 @@
   :root.ios .account-sheet .identity > .ui-button { min-height: 44px; margin-top: 8px; padding: 0; justify-content: flex-start; border-radius: 0;
     background: none; color: var(--danger); font-size: var(--t-body); font-weight: 400; box-shadow: 0 calc(-1 * var(--hair)) 0 var(--line); }
 }
+:root.ios .trend-controls .chips.segmented.trend-windows { width: auto; flex: none; margin: 0; }
+
+/* ================= One empty state (#1131 item 9) =================
+   "Nothing here" reads the same wherever it is: a grey line. Standing alone on a page it sits in an inset card like the
+   content it stands in for, left-aligned; inside a card it is just the line. */
+:root.ios #main-content :is(.status-empty, .ui-empty-line):not(:is(.ui-card, .home-card, .work-board-column, td, li) *) {
+  margin: 0 0 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--panel); text-align: left;
+  font-size: var(--t-subhead); color: var(--muted);
+}
+:root.ios #main-content :is(.ui-card, .home-card) .status-empty { padding: 0; text-align: left; font-size: var(--t-subhead); }

@@ -162,3 +162,7 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
     background: var(--line); margin-bottom: 4px; }
   .attention-card .mapview { scroll-margin-top: 72px; }
 }
+
+/* A new study: each field sits under its label. */
+.study-form { align-items: end; }
+.study-form > label { display: grid; gap: 4px; }

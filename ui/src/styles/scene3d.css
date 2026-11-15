@@ -18,9 +18,8 @@
 .scene-key span { display: inline-flex; align-items: center; gap: 5px; }
 .scene-key-badge { min-width: 16px; padding: 0 4px; border-radius: 8px; text-align: center;
   font: 600 10px/16px ui-monospace, Menlo, Consolas, monospace; }
-.scene-key-badge.swatch-high { color: var(--on-attn-high); }
-.scene-key-badge.swatch-medium { color: var(--on-attn-medium); }
-.scene-key-badge.swatch-low { color: var(--on-attn-low); }
+/* The key explains what a badge says (a count, a count with "!", Down). Colour is the legend's job, so these are plain. */
+.scene-key-badge { background: var(--fill, var(--line)); color: var(--text); }
 .scene-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 0 12px; }
 /* Fixed widths for the two long lists and the basis on its own row, so a longer Show value never moves the rest (#1075). */
 .scene-controls .scene-show .ui-input, .scene-controls label:has([aria-label="Find an item in the drawing"]) .ui-input { width: 22rem; }

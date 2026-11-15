@@ -10,7 +10,7 @@ import { display, type EntityNames } from "../entityRefs";
 import { PriorityBadge, SampleTeam, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
-import { queue, say } from "../wording";
+import { queue, say, dayStamp } from "../wording";
 
 export type ExceptionView = "dispatch" | "field" | "back" | "open";
 
@@ -205,8 +205,7 @@ export function happened(r: ExceptionRow): string | null {
   return typeof f?.start === "string" && f.start ? f.start : null;
 }
 
-const day = (at: string) => new Date(at.length === 10 ? `${at}T12:00:00` : at)
-  .toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+const day = (at: string) => dayStamp(at.length === 10 ? `${at}T12:00:00` : at);
 
 /** The subjects worth showing: those with a name. An equipment record with neither a name nor an installed tag would
  * show as its id, which says nothing; it is left out when another subject names the place (#1070). */
@@ -259,8 +258,7 @@ function Row({ r, person, people, queues, onChange }: {
         <span className="muted">{event ? ` · happened ${day(event)}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</span>
       </div>
       <div className="work-row-with small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
-        : r.planned ? <a href={href("/plan")}>planned {new Date(r.planned.start_at).toLocaleDateString(undefined,
-          { day: "numeric", month: "short" })}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
+        : r.planned ? <a href={href("/plan")}>planned {dayStamp(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
         : <span className="muted">not dispatched</span>}
         {fieldSaid && <div title={fieldSaid.note ?? undefined}>
           <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>
@@ -270,7 +268,7 @@ function Row({ r, person, people, queues, onChange }: {
           {r.shelved_by ? ` · ${r.shelved_by}` : ""}</div>}
       </div>
       {canAct && <div className="row work-card-actions work-row-actions">
-        <Button size="sm" variant="primary" aria-expanded={panel === "dispatch"}
+        <Button size="sm" variant="secondary" className="work-lead" aria-expanded={panel === "dispatch"}
           onClick={() => setPanel(panel === "dispatch" ? null : "dispatch")}>{r.item_id ? "Hand to" : "Dispatch"}</Button>
         {shelved ? <Button size="sm" variant="secondary" disabled={!!busy}
           onClick={() => run("Unshelving", () => api.unshelveException(r.id, person!), onChange)}>Back on the list</Button>

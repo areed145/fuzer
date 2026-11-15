@@ -1,7 +1,7 @@
 /** The integrated plan (Turnaround is a window on it, #554): every planned activity from every source on one timeline, by area. SAP work orders,
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
-import { acronyms } from "../wording";
+import { acronyms, dayStamp } from "../wording";
 import { type CSSProperties, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
@@ -15,7 +15,7 @@ import { commonName } from "../entityRefs";
 const DAY = 86_400_000;
 const STATUSES = ["proposed", "scheduled", "in_progress", "done", "cancelled"];
 const day = (d: Date) => d.toISOString().slice(0, 10);
-const short = (at: string) => new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+const short = (at: string) => dayStamp(at);
 
 export function PlanPage({ query }: { query: URLSearchParams }) {
   const [person] = usePerson();
