@@ -1,5 +1,5 @@
 /** iOS look and feel. On an iPhone or iPad the app follows iOS: the system font, large titles that fold into the top
- * bar, Liquid Glass bars and controls, inset grouped lists, segmented controls and pull-down menus, swipe actions on
+ * bar, Liquid Glass bars and controls, inset grouped lists, segmented controls that scroll sideways, swipe actions on
  * work cards and, in the installed app (where Safari's own gestures are gone), edge-swipe Back and pull to refresh.
  * Fuzer's colours stay. Desktop and Android are untouched. `?ios=1` or `?ios=0` forces it on or off for this tab,
  * for previews and screenshots. Styles: styles/ios.css. */
@@ -123,117 +123,41 @@ function swipeActions() {
   });
 }
 
-/** A page's own view pickers that don't fit the screen become a pull-down: only the chosen segment shows, as a button
- * that opens an iOS menu of every choice. Rows that fit stay segmented controls. The section tabs (`.area-navigation`)
- * are never folded away: they are always tabs, and a row too wide for the screen scrolls sideways. */
-const ROWS = "main nav.tabs, main .work-board-stages, main .attention-bar .chips";
-const chosen = (el: Element) => el.matches(".on, [aria-current], [aria-pressed='true']");
+/** Every row of tabs or segments stays a row on a phone: one too wide for the screen scrolls sideways and opens with
+ * the chosen one in view. Each row is placed once per choice, so the reader's own scrolling is left alone. */
+const ROWS = "main .area-navigation, main nav.tabs, main .work-board-stages, main .attention-bar .chips";
+const CHOSEN = ".on, [aria-current], [aria-pressed='true']";
+const placed = new WeakMap<Element, Element>();
 
-function fitMenus() {
-  if (!phone()) return;
-  document.querySelectorAll<HTMLElement>(ROWS).forEach((row) => {
-    if (row.hasAttribute("data-ios-menu") || row.children.length < 4 || !row.getClientRects().length) return;
-    if (row.scrollWidth <= row.clientWidth + 2) return;
-    row.scrollLeft = 0;
-    row.setAttribute("data-ios-menu", "");
-  });
-  // The chosen segment is the button that opens the menu; say so to VoiceOver.
-  document.querySelectorAll<HTMLElement>("[data-ios-menu] > *").forEach((item) => {
-    if (chosen(item)) { item.setAttribute("aria-haspopup", "menu"); item.setAttribute("aria-expanded", String(!!openFor && openFor === item)); }
-    else item.removeAttribute("aria-haspopup");
-  });
-}
-
-/** Section tabs that scroll sideways open with the current tab in view. A row is placed once per page, so the reader's
- * own scrolling is left alone. */
-let placed: Element | null = null;
 function showCurrentTab() {
-  const row = document.querySelector<HTMLElement>("main .area-navigation");
-  const tab = row?.querySelector<HTMLElement>("[aria-current]");
-  if (!row || !tab || placed === tab || !row.getClientRects().length) return;
-  placed = tab;
-  if (row.scrollWidth > row.clientWidth + 2) row.scrollLeft = tab.offsetLeft - (row.clientWidth - tab.offsetWidth) / 2;
-}
-
-/** A rotation or a wider window may let a row fit again: measure afresh. */
-function refitMenus() {
-  document.querySelectorAll("[data-ios-menu]").forEach((row) => row.removeAttribute("data-ios-menu"));
-  fitMenus();
-}
-
-let openFor: HTMLElement | null = null;
-
-function closeMenu(refocus = false) {
-  document.querySelectorAll(".ios-menu, .ios-menu-scrim").forEach((e) => e.remove());
-  const was = openFor;
-  openFor = null;
-  was?.setAttribute("aria-expanded", "false");
-  if (refocus) was?.focus();
-}
-
-function openMenu(row: HTMLElement, button: HTMLElement) {
-  closeMenu();
-  const scrim = document.createElement("div");
-  scrim.className = "ios-menu-scrim";
-  scrim.addEventListener("click", () => closeMenu(true));
-  const menu = document.createElement("div");
-  menu.className = "ios-menu";
-  menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", row.getAttribute("aria-label") ?? "Choose");
-  menu.addEventListener("keydown", (e) => {
-    const options = Array.from(menu.querySelectorAll<HTMLElement>("button"));
-    const at = options.indexOf(document.activeElement as HTMLElement);
-    const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
-    if (step) { e.preventDefault(); options[(at + step + options.length) % options.length]?.focus(); }
-    if (e.key === "Tab") closeMenu(true);
+  document.querySelectorAll<HTMLElement>(ROWS).forEach((row) => {
+    const tab = Array.from(row.children).find((c) => c.matches(CHOSEN)) as HTMLElement | undefined;
+    if (!tab || placed.get(row) === tab || !row.getClientRects().length) return;
+    placed.set(row, tab);
+    if (row.scrollWidth > row.clientWidth + 2) row.scrollLeft = tab.offsetLeft - (row.clientWidth - tab.offsetWidth) / 2;
   });
-  Array.from(row.children).forEach((item) => {
-    const option = document.createElement("button");
-    option.setAttribute("role", "menuitemradio");
-    option.setAttribute("aria-checked", String(chosen(item)));
-    const count = item.querySelector(".muted")?.textContent?.trim() ?? "";
-    const label = (item.textContent ?? "").replace(count, "").trim();
-    option.innerHTML = `<span class="check">${chosen(item) ? "&#10003;" : ""}</span><span></span><span class="n"></span>`;
-    option.children[1].textContent = label;
-    option.children[2].textContent = count;
-    option.addEventListener("click", () => { closeMenu(); if (!chosen(item)) (item as HTMLElement).click(); });
-    menu.append(option);
-  });
-  document.body.append(scrim, menu);
-  openFor = button;
-  button.setAttribute("aria-expanded", "true");
-  const r = button.getBoundingClientRect();
-  menu.style.left = `${Math.max(16, Math.min(r.left, window.innerWidth - menu.offsetWidth - 16))}px`;
-  const below = r.bottom + 8 + menu.offsetHeight < window.innerHeight - 90;
-  menu.style.top = `${below ? r.bottom + 8 : Math.max(16, r.top - 8 - menu.offsetHeight)}px`;
-  if (!below) menu.style.transformOrigin = "bottom left";
-  (menu.querySelector("[aria-checked='true']") as HTMLElement | null ?? menu.querySelector("button"))?.focus();
 }
 
-function pullDowns() {
-  document.addEventListener("click", (e) => {
-    const item = (e.target as Element).closest<HTMLElement>("[data-ios-menu] > *");
-    if (!item || !chosen(item)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    openMenu(item.parentElement as HTMLElement, item);
-  }, true);
-  window.addEventListener("keydown", (e) => { if (e.key === "Escape" && openFor) closeMenu(true); });
-  window.addEventListener("hashchange", () => closeMenu());
+function replaceTabs() {
   let width = window.innerWidth;
-  window.addEventListener("resize", () => { if (window.innerWidth !== width) { width = window.innerWidth; closeMenu(); refitMenus(); placed = null; showCurrentTab(); } });
+  window.addEventListener("resize", () => {
+    if (window.innerWidth === width) return;
+    width = window.innerWidth;
+    document.querySelectorAll(ROWS).forEach((row) => placed.delete(row));
+    showCurrentTab();
+  });
 }
 
 export function startIos() {
   if (!wanted()) return;
   document.documentElement.classList.add("ios");
   let queued = false;
-  const refold = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; foldTitle(); fitMenus(); showCurrentTab(); }); } };
+  const refold = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; foldTitle(); showCurrentTab(); }); } };
   window.addEventListener("scroll", refold, { passive: true });
   window.addEventListener("hashchange", () => setTimeout(refold, 50));
   new MutationObserver(refold).observe(document.body, { childList: true, subtree: true });
   edgeSwipe();
   pullToRefresh();
   swipeActions();
-  pullDowns();
+  replaceTabs();
 }

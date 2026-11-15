@@ -168,7 +168,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
                 onSelect={(id) => set({ node: id && known(id) ? id : undefined })} height={640} />
               <UICard className="graph-panel" as="aside">
                 {node ? <NodePanel node={node} onFocus={node.id !== shownFocus ? () => set({ focus: node.id }) : undefined} />
-                  : <Empty className="small">Click a node to see what it is.</Empty>}
+                  : <Empty className="small">Select a node to see what it is.</Empty>}
               </UICard>
             </div>
           )}

@@ -122,7 +122,7 @@ export function ProcessesPage() {
               const label = pub?.name ?? vs[0].name ?? k;
               return (
                 <tr key={k}>
-                  <td data-label="Process"><a href={href(`/processes/${k}`)}><strong>{label}</strong></a> <span className="mono small muted">{k}</span></td>
+                  <td><a href={href(`/processes/${k}`)}><strong>{label}</strong></a> <span className="mono small muted">{k}</span></td>
                   <td data-label="Published">{pub ? <>v{pub.version} <span className="small muted">{pub.published_at && when(pub.published_at)}</span></> : <span className="muted">not yet</span>}</td>
                   <td data-label="Draft">{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <span className="muted">none</span>}</td>
                   <td data-label="Running"><a href={href(`/processes/${k}`, { tab: "running" })} aria-label={`${label}: running cases`}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>

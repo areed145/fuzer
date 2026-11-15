@@ -12,7 +12,7 @@ export function MapPage() {
       <div className="row spread">
         <PageHeader>Map</PageHeader>
         <span className="muted small">
-          {n.toLocaleString()} located things{m.data?.truncated ? " (first 20,000)" : ""} · click one to open it
+          {n.toLocaleString()} located things{m.data?.truncated ? " (first 20,000)" : ""} · select one to open it
         </span>
       </div>
       <Status loading={m.loading && !m.data} error={m.error} empty={m.data && n === 0}>

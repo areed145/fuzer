@@ -7866,7 +7866,7 @@ test("an asset's Overview says what it is; work orders and spares sit under Main
   assert.deepEqual(errors, []);
 });
 
-test("on an iPhone the app follows iOS: a row too wide becomes a pull-down menu, rows that fit stay segmented, desktop is untouched", async () => {
+test("on an iPhone the app follows iOS: a row of views too wide for the screen scrolls sideways as tabs, desktop is untouched", async () => {
   const id = "fz-tag-0000000c40ab";
   await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "tag", label: "20-K-2300A",
     golden: { description: { value: "Train A 3rd Stage Compressor", source: "sap", rule: "priority" } },
@@ -7881,26 +7881,20 @@ test("on an iPhone the app follows iOS: a row too wide becomes a pull-down menu,
   const views = page.getByRole("navigation", { name: "Views of this record" });
   await views.getByRole("link").first().waitFor();
   await page.waitForFunction(() => document.documentElement.classList.contains("ios"));
-  // Six views don't fit a phone: only the chosen one shows, as the button that opens the menu.
-  await page.waitForFunction(() => document.querySelector("nav.page-tabs")?.hasAttribute("data-ios-menu"));
-  const current = views.getByRole("link", { name: "Overview" });
-  assert.equal(await current.getAttribute("aria-haspopup"), "menu");
-  assert.equal(await views.getByRole("link", { name: "Maintenance" }).isVisible(), false);
-  // Explore's four areas fit: still a segmented control.
-  assert.equal(await page.locator(".area-navigation").getAttribute("data-ios-menu"), null);
-  await current.click();
-  const menu = page.getByRole("menu");
-  assert.deepEqual(await menu.getByRole("menuitemradio").allInnerTexts().then((t) => t.map((s) => s.replace(/\s+/g, " ").replace("✓", "").trim())),
-    ["Overview", "Maintenance", "Timeline", "Documents", "Data"]);
-  assert.equal(await current.getAttribute("aria-expanded"), "true");
-  assert.equal(await menu.getByRole("menuitemradio", { name: /Overview/ }).getAttribute("aria-checked"), "true");
-  // Escape closes it and returns focus; choosing an item goes to that view.
-  await page.keyboard.press("Escape");
-  await menu.waitFor({ state: "detached" });
-  await current.click();
-  await menu.getByRole("menuitemradio", { name: /Maintenance/ }).click();
+  // Every view stays a tab: nothing folds into a menu, and the row scrolls inside itself, not the page.
+  assert.equal(await views.getAttribute("data-ios-menu"), null);
+  for (const link of await views.getByRole("link").all()) assert.equal(await link.isVisible(), true);
+  assert.equal(await page.getByRole("menu").count(), 0);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "the page itself does not scroll sideways");
+  // Choosing a view goes to it, and the row opens with the chosen tab in view.
+  await views.getByRole("link", { name: "Maintenance" }).click();
   await page.waitForFunction(() => location.hash.includes("tab=maintenance"));
-  await menu.waitFor({ state: "detached" });
+  await page.waitForFunction(() => {
+    const row = document.querySelector("nav.page-tabs"), tab = row?.querySelector(".on, [aria-current]");
+    if (!row || !tab) return false;
+    const r = row.getBoundingClientRect(), t = tab.getBoundingClientRect();
+    return t.left >= r.left - 1 && t.right <= r.right + 1;
+  });
   // ?ios=0 turns it off for the tab; a desktop browser never had it.
   await page.goto(`${url}/?ios=0#/e/${id}`);
   await views.getByRole("link").first().waitFor();
