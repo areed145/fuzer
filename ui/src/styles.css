@@ -264,6 +264,16 @@ input, select, button {
   padding: 6px 10px;
 }
 /* A select is as wide as its longest option; on a phone a long sheet title would push the page sideways (P5.14). */
+/* A text area is the same field as an input: the app's font and colours, not the browser's monospace box. Raw YAML
+   keeps its own fixed-width style. */
+textarea:not(.yaml) {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+}
 select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 button { cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
@@ -278,6 +288,9 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 
 /* My jobs (field operators, on a phone): the note spans the card and the actions are easy to hit. */
 .field-job .field-sent { margin: 0.5rem 0; padding: 0.5rem 0.75rem; border-left: 3px solid var(--accent, #2563eb); }
+/* A job's title is what the job is, not a section label: sentence case in the text colour, as on a phone. */
+.field-job .ui-card-header h2 { font-size: 15px; line-height: 1.35; text-transform: none; letter-spacing: 0; color: var(--text); border-left: 0; padding-left: 0; }
+.field-job .ui-card-header h2 .badge { text-transform: none; letter-spacing: 0; }
 .field-job label { display: block; margin-top: 0.75rem; }
 .from-field { border-left: 3px solid var(--accent, #2563eb); }
 .field-back { color: var(--accent, #2563eb); }

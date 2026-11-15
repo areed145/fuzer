@@ -147,6 +147,7 @@ On iOS the app follows iOS. When in doubt, do what iOS does. `ui/src/ios.ts` put
 - Work cards swipe left to bring up their actions. Keyboard focus and VoiceOver reach the same buttons.
 - Buttons are 44 points tall (34 for small ones) everywhere outside field mode. Selects are 36-point pop-up buttons with a small up/down chevron. Rows in a card form an inset grouped list: one leading edge, a hairline between rows, a semibold title, and a grey line of detail.
 - On/off checkboxes look like iOS switches. Sheets float with deep corners.
+- A `Notice` is an inset card like the rest of the page (a warning keeps its colour as a hairline), a text area is the same filled field as an input, and the map's layer chips are the same 32-point chips as every other filter row. Floating surfaces (the base map picker, sheets, the Menu) carry no drop shadow.
 - When the chosen section would only repeat the large title under it, the title itself opens the sections (an iOS title menu), and the picker stays for keyboard and VoiceOver.
 - On an iPhone a large title stops at two lines, the subtitle gives way and Help is a round info button. A table with headings and the `phone-rows` class stacks each row as a list row: the first column is its title and every other cell is labelled with its heading by `Table`, so give wide tables that class rather than phone-only markup.
 - Filter chips (`.chips` > `.chip`) are compact 32-point chips. On an iPhone a row of them scrolls sideways on one line instead of wrapping; a row that holds a disclosure still wraps.
