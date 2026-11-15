@@ -9,6 +9,8 @@ import { href, notifyChanged, useAsync } from "../../lib";
 import { queue } from "../../wording";
 import { ATTENTION_TONE } from "../../kinds";
 
+/** A step named for the engine, not for the work: where it would be a title or a row's lead, the work is used. */
+export const GENERIC_STEP = /^(work the case|do the task)$/i;
 export const taskHref = (id: number) => href(`/inbox/task/${id}`);
 export const caseHref = (id: number) => href(`/cases/${id}`);
 export const processHref = (key: string, tab?: string) => href(`/processes/${key}`, tab ? { tab } : undefined);

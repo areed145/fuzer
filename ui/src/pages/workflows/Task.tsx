@@ -11,7 +11,7 @@ import { CaseSafeguards } from "./Safeguards";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
 import { ProcessDiagram, Timeline } from "./Cases";
-import { AssignPicker, StepBadges, caseHref, useAct } from "./shared";
+import { AssignPicker, GENERIC_STEP, StepBadges, caseHref, useAct } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
@@ -38,6 +38,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
     <a href={href("/inbox")}>Return to Inbox</a></section>;
   const t = v.task;
   const waiting = t.state === "waiting";
+  const generic = GENERIC_STEP.test(t.name ?? "");
   const others = !!t.assignee && t.assignee !== person;
   const complete = (data: Record<string, unknown>) => {
     if (demo) { setCompletion(data); return; }
@@ -51,12 +52,14 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
     <section>
       {demo && <DemoContext step="workflow" />}
       <div className="row spread">
-        {/* The work is the title (#1131): a step called "Do the task" says nothing, so the step sits under it. */}
-        <PageHeader className={v.item.title.length > 48 ? "case-title-long" : undefined}>{say(v.item.title)}</PageHeader>
+        {/* A step named for the engine ("Do the task") says nothing (#1131): there the work is the title. */}
+        {generic ? <PageHeader className={v.item.title.length > 48 ? "case-title-long" : undefined}>{say(v.item.title)}</PageHeader>
+          : <PageHeader>{t.name ?? t.element}</PageHeader>}
         <Due at={t.due_at} closed={!waiting} />
       </div>
       <p className="small muted">
-        <strong>{t.name ?? t.element}</strong> · <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>Open the case</a> · with {holder(t.assignee, t.role, t.kind)}
+        {generic ? <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>Open the case</a>
+          : <>on <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>{say(v.item.title)}</a></>} · with {holder(t.assignee, t.role, t.kind)}
         {t.escalated_at && <> · escalated {when(t.escalated_at)}</>}
       </p>
       <div className="row small"><StepBadges row={t} /></div>

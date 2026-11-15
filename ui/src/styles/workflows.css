@@ -40,4 +40,5 @@ details.exception-types { margin-top: 16px; }
 .case-question .card.review .finding { margin: 8px 0 12px; }
 .case-question .card.review > .row { flex-wrap: wrap; gap: 8px; }
 .case-opened { white-space: nowrap; }
+:root.ios .field-jobs > h2 { margin-top: 20px; }
 .case-actions > .ui-disclosure + .ui-disclosure { margin-top: 4px; }
