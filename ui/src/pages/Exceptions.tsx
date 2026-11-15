@@ -10,7 +10,7 @@ import { display, type EntityNames } from "../entityRefs";
 import { PriorityBadge, SampleTeam, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
-import { queue, say, dayStamp } from "../wording";
+import { person as personName, queue, say, dayStamp } from "../wording";
 
 export type ExceptionView = "dispatch" | "field" | "back" | "open";
 
@@ -265,7 +265,7 @@ function Row({ r, person, people, queues, onChange }: {
         : <span className="muted">not dispatched</span>}
         {fieldSaid && <div title={fieldSaid.note ?? undefined}>
           <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>
-            {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <span className="muted">{fieldSaid.by} · {when(fieldSaid.at)}</span>
+            {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <span className="muted">{personName(fieldSaid.by)} · {when(fieldSaid.at)}</span>
           {fieldSaid.note && <div className="muted">{fieldSaid.note}</div>}</div>}
         {shelved && <div><Badge>Shelved</Badge> until {day(r.shelved_until!)}: {r.shelved_reason}
           {r.shelved_by ? ` · ${r.shelved_by}` : ""}</div>}

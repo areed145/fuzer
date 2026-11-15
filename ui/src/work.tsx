@@ -84,9 +84,9 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
   const d = e.data;
   const step = d.step ?? e.element;
   switch (e.kind) {
-    case "created": return { text: <>created the item{d.assignee ? <> for {d.assignee}</> : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
+    case "created": return { text: <>created the item{d.assignee ? <> for {personName(d.assignee)}</> : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "started": return { text: <>started the {String(d.process_key ?? "").replace(/_/g, " ")} process</> };
-    case "step_started": return { text: <><strong>{step}</strong> is waiting for {d.assignee ?? (d.agent ? `the ${d.agent} agent` : to(`role:${d.role}`))}</> };
+    case "step_started": return { text: <><strong>{step}</strong> is waiting for {d.assignee ? personName(d.assignee) : (d.agent ? `the ${d.agent} agent` : to(`role:${d.role}`))}</> };
     case "claimed": return { text: <>took <strong>{e.element}</strong>{d.worker ? ` (worker ${d.worker}, try ${d.attempt})` : ""}</> };
     case "released": return { text: <>let go of <strong>{e.element}</strong></> };
     case "completed": return { text: <>completed <strong>{step}</strong></>, body: <DataView data={d.data} /> };
@@ -106,8 +106,8 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "cancelled": return { text: <>cancelled the process</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "migrated": return { text: <>moved the process to v{d.version}</> };
     case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
-    case "auto_assigned": return { text: <><strong>{step ?? e.element}</strong> went to {d.to} (the {d.role} role assigns automatically)</> };
-    case "delegated": return { text: <><strong>{e.element ?? "a step"}</strong> went to {d.to} instead of {d["for"]}, who is away</>, body: d.reason && <p className="small">{d.reason}</p> };
+    case "auto_assigned": return { text: <><strong>{step ?? e.element}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
+    case "delegated": return { text: <><strong>{e.element ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "item_changed": return { text: <>changed {[d.priority && `priority ${d.priority.from ?? "–"} → ${d.priority.to}`, d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <p className="small">{d.reason}</p> };
     default: return { text: <>{e.kind.replace(/_/g, " ")}</> };
   }

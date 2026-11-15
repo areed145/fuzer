@@ -8,6 +8,7 @@ import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
 import { caseHref, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
+import { person as personName } from "../wording";
 
 const citeHref = (c: string) => {
   const [kind, id] = c.split(":");
@@ -56,7 +57,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
             <tbody>{list.data!.map((r) => (
               <tr key={r.id}><td><a href={href("/handover", { id: String(r.id) })}>{when(r.shift_start)} to {when(r.shift_end)}</a></td>
                 <td>{r.lines ?? 0}</td>
-                <td>{r.acknowledged_by ? `${r.acknowledged_by}, ${when(r.acknowledged_at!)}` : <span className="muted">{r.state.replace("_", " ")}</span>}</td></tr>
+                <td>{r.acknowledged_by ? `${personName(r.acknowledged_by)}, ${when(r.acknowledged_at!)}` : <span className="muted">{r.state.replace("_", " ")}</span>}</td></tr>
             ))}</tbody>
           </Table>
         </Card>
@@ -79,7 +80,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
   return (
     <Card title={`Shift ${when(h.shift_start)} to ${when(h.shift_end)}`}>
       <p className="small">
-        <Badge tone={acked ? "ok" : "warn"}>{acked ? `acknowledged by ${h.acknowledged_by} ${when(h.acknowledged_at!)}` : h.state.replace("_", " ")}</Badge>
+        <Badge tone={acked ? "ok" : "warn"}>{acked ? `acknowledged by ${personName(h.acknowledged_by)} ${when(h.acknowledged_at!)}` : h.state.replace("_", " ")}</Badge>
         {h.item_id && <> · <a href={caseHref(h.item_id)}>its case</a></>}
         <span className="muted"> · drafted {when(h.drafted_at)}</span>
       </p>
@@ -105,7 +106,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
       })}
       {quiet.length > 0 && <p className="small muted">Nothing in {quiet.join(", ").toLowerCase()}.</p>}
       <h3>Outgoing notes</h3>
-      {h.notes && notes === null && <p>{h.notes} <span className="muted small">({h.notes_by}, {when(h.notes_at!)})</span></p>}
+      {h.notes && notes === null && <p>{h.notes} <span className="muted small">({personName(h.notes_by)}, {when(h.notes_at!)})</span></p>}
       {!acked && canAct && (
         <>
           <textarea rows={3} className="handover-notes" aria-label="Outgoing notes" placeholder="What the lines don't say: plans, risks, asks"

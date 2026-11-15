@@ -216,7 +216,7 @@ function TakePoint({ run, point, person, onTaken }: { run: number; point: RoundP
 function HandoverNote({ h }: { h: FieldHandover }) {
   return (
     <div className="field-sent" role="status">
-      <p><strong>{h.mine_to_accept ? `Handed over to you by ${h.from}` : `Handed over to ${h.to}: with you until they accept`}</strong>
+      <p><strong>{h.mine_to_accept ? `Handed over to you by ${personName(h.from)}` : `Handed over to ${personName(h.to)}: with you until they accept`}</strong>
         <span className="muted small"> · {when(h.at)}</span></p>
       <p className="small">Done: {h.done}</p>
       <p className="small">Left: {h.left}</p>

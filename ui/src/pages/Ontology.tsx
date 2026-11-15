@@ -10,6 +10,7 @@ import { Bar, Button, PageHeader, Table, Input, Select , Card as UICard, Badge a
 import { SourceBadge, Status, href, useAsync } from "../lib";
 import { reviewer, useAction, when } from "./sources/common";
 import type { ElementDefinition } from "cytoscape";
+import { person as personName } from "../wording";
 
 const relId = (r: { src_kind: string; rel: string; dst_kind: string }) => `${r.src_kind}|${r.rel}|${r.dst_kind}`;
 const words = (s: string) => s.replace(/_/g, " ");
@@ -366,7 +367,7 @@ function History({ object, name }: { object: "kind" | "relation"; name: string }
       <ul className="plain">
         {h.data.map((c) => (
           <li key={c.id}>
-            {when(c.at)} <b>{c.by}</b> {c.action}
+            {when(c.at)} <b>{personName(c.by)}</b> {c.action}
             {c.new && c.action !== "delete" && <span className="muted"> {Object.keys(c.new).join(", ")}</span>}
             {c.reason && <> · {c.reason}</>}
           </li>

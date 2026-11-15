@@ -43,7 +43,7 @@ import { nodeLabel } from "../entityRefs";
 import { usePermission } from "../Auth";
 import { keptAt } from "../fieldPack";
 import { when } from "../work";
-import { ASSET_KINDS, kindWord } from "../wording";
+import { ASSET_KINDS, kindWord, person as personName } from "../wording";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -824,7 +824,7 @@ function LineageCard({ id }: { id: string }) {
           ))}
           {d.fixes.map((f, i) => (
             <li key={`f-${i}`}><b>{fieldLabel(f.field)}</b>: {fmt(f.old_value)} → {fmt(f.new_value)}{" "}
-              <span className="muted">fixed by {f.by}, {timestamp(f.at)}{f.reason ? `: ${f.reason}` : ""}</span></li>
+              <span className="muted">fixed by {personName(f.by)}, {timestamp(f.at)}{f.reason ? `: ${f.reason}` : ""}</span></li>
           ))}
         </ul>
       </>}
