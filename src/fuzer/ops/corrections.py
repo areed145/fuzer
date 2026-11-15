@@ -103,11 +103,12 @@ def _draft(conn, item: dict) -> int:
         elif system == "drawing":
             payload = {"sheet": p.get("sheet"), "document": p.get("document"), "tag": p.get("tag"),
                        "detail": p.get("detail"), "record": p.get("sheet")}
-            title = f"Redline {p.get('sheet')}: {p.get('detail')}"
+            # short enough for a list row: the detail is in the payload and shows on the case
+            title = f"Redline {p.get('sheet')}" + (f" at {str(p['tag']).replace('>', ' to ')}" if p.get("tag") else "")
             out = _write(conn, item, "pid", "drawing_correction", payload, title, by, subjects)
             row = _insert(conn, item, "drawing_correction", "pid", fuzer_id=fid, wrong=p.get("detail"), **out)
         elif system == "alarm configuration":
-            title = f"{p.get('tag')}: the configured alarm should match {p.get('sheet')} ({p.get('detail')})"
+            title = f"{p.get('tag')}: configure the alarm to match {p.get('sheet')}"
             case = routing.open_task(conn, OWNER_CASE, title, by, f"correction:{item['id']}:alarms:{_round(item)}",
                                      role="role:data_steward", data={"review_item": item["id"]}, subjects=subjects,
                                      source=BY)
@@ -115,7 +116,7 @@ def _draft(conn, item: dict) -> int:
         elif p.get("check") == "flow":  # the flow network links what the drawings don't, or misses what they do
             payload = {"from": p.get("from"), "to": p.get("to"), "detail": p.get("detail"),
                        "drawn_path": p.get("drawn_path"), "record": p.get("tag")}
-            title = f"Flow link {p.get('from')} to {p.get('to')} should match {p.get('sheet')}: {p.get('detail')}"
+            title = f"Flow link {p.get('from')} to {p.get('to')} should match {p.get('sheet')}"
             out = _write(conn, item, system, "master_data", payload, title, by, subjects)
             row = _insert(conn, item, "master_data", system, fuzer_id=fid, wrong=p.get("detail"),
                           right=p.get("drawn_path"), **out)
