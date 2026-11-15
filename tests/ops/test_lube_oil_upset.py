@@ -50,3 +50,25 @@ def test_a_scan_cut_short_carries_on_from_the_windows_it_kept(okan_db):
     finally:
         c.execute("delete from sre_run where id = %s", (run,))
         c.commit()
+
+
+def test_a_scan_a_restart_cut_short_is_picked_up_again_but_not_forever(okan_db):
+    c = okan_db.conn
+    c.execute("delete from sre_run")
+    add = lambda status, ago: c.execute("insert into sre_run (since, until, status, started_at) values "
+                                        "('2025-12-20', '2025-12-27', %s, now() - %s::interval)", (status, ago))
+    try:
+        add("done", "7 hours")
+        assert not sre.cut_short(c)  # the last scan finished
+        add("running", "5 minutes")
+        assert not sre.cut_short(c)  # it may still be going
+        c.execute("delete from sre_run where started_at > now() - interval '10 minutes'")
+        add("running", "40 minutes")
+        assert sre.cut_short(c)  # its process went with a restart
+        add("failed", "30 minutes")
+        assert sre.cut_short(c)
+        add("running", "25 minutes")
+        assert not sre.cut_short(c)  # three cut short in six hours: wait for the regular run
+    finally:
+        c.execute("delete from sre_run")
+        c.commit()

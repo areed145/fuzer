@@ -1155,3 +1155,26 @@ def test_every_module_that_declares_a_type_is_loaded_with_the_routing_table():
                      f.read_text(), re.MULTILINE):
             declared.add("fuzer." + ".".join(f.relative_to(PACKAGE).with_suffix("").parts))
     assert declared == set(port.DECLARED_IN)
+
+
+def test_an_upset_is_not_swallowed_by_an_alert_on_the_same_machine(conn, compressor, types):
+    """A machine health alert's case is open on the compressor when the watch raises an upset there: the upset opens
+    its own case and runs its workflow. Once the alert's case is closed, the alert raised again joins the upset
+    (#1150)."""
+    from fuzer.workflow import engine
+
+    engine.load_defaults(conn)
+    types("alert_q", role="role:engineer")
+    types("upset_q", process="upset", audience=("ioc", "field"))
+    alert = raise_exception(conn, "alert_q", "MH-1", "Lube oil pressure below its alarm", "fleet",
+                            refs=[compressor["equipment"]], finding=external("test", {"zone": "C"}))
+    up = raise_exception(conn, "upset_q", "UP-9", "Step change across four assets", "agent:sre", refs=[compressor["pt"]],
+                         finding=external("test", {"incident_id": "UP-9", "start": "2025-12-30T13:30"}))
+    assert not up.get("joined") and up["item_id"] != alert["item_id"]
+    assert conn.execute("select 1 from work_process where item_id = %s and process_key = 'upset'",
+                        (up["item_id"],)).fetchone()
+    conn.execute("update work_item set state = 'done' where id = %s", (alert["item_id"],))
+    later = raise_exception(conn, "alert_q", "MH-1", "Bearing temperature high", "fleet", refs=[compressor["equipment"]],
+                            finding=external("test", {"zone": "C"}))
+    assert later["joined"] == up["id"] and later["item_id"] == up["item_id"]
+    conn.rollback()

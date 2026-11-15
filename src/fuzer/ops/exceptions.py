@@ -204,7 +204,10 @@ def _host(conn, t: ExceptionType, type: str, key: str, subjects: list[str]) -> d
     if not (t.joins and hours and subjects):
         return None
     mine = anchors(conn, subjects)
-    joinable = [n for n, k in types(conn).items() if k.joins]
+    # A type that runs its own workflow (an upset's triage, diagnosis and notification) doesn't disappear into a case
+    # a plain queue works (a machine health alert on the same turbine): it opens its own case, which alerts raised
+    # later join. It still joins a case another workflow runs (#1150).
+    joinable = [n for n, k in types(conn).items() if k.joins and (k.process or not t.process)]
     for h in conn.execute(
         """
         select e.* from exception_record e join work_item w on w.id = e.item_id
