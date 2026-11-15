@@ -474,12 +474,12 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
             for k, v in store(conn, detect(conn, pack, a, b, src, skip=off | set(lacking)), run_id, (a, b), raised).items():
                 totals[k] += v
             windows += 1
-            # Each window is kept as it is done, so a long catch-up that a restart cuts short carries on from here
-            # next time instead of starting over (#1148).
-            totals["upsets"] = regroup(conn, a)["upsets"]
+            # Each window's detections are kept as it is done, so a long catch-up that a restart cuts short carries on
+            # from here next time instead of starting over (#1148).
             conn.execute("update sre_run set reached = %s, detections = %s where id = %s", (b, totals["new"], run_id))
             conn.commit()
             a = b
+        totals["upsets"] = regroup(conn, start)["upsets"]
         for d in detectors.window():  # each detector's run, or why it did not run here
             if d.name in off:
                 detectors.record(conn, d.name, detectors.OFF, "switched off", since=start, until=end)
