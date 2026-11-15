@@ -291,11 +291,14 @@ class Window:
             if var == "axial_position":
                 return (run * (0.12 + shift - 0.35 * self._surging(unit, 5))
                         + (1 - run) * 0.02 + 0.008 * self.noise(unit + "ax", 10))
-            hot = 74 + 0.3 * (self.ambient() - 27) + 70 * shift + 4 * load
+            starved = sum((self.path(e["points"]) for e in self.ev(unit, "oil_starved")), np.zeros_like(self.t))
+            hot = 74 + 0.3 * (self.ambient() - 27) + 70 * shift + 4 * load + starved
             return self.lag(run * hot + (1 - run) * (self.ambient() + 15), 20) + 0.4 * self.noise(unit + "tb", 15)
         if var == "journal_temperature":  # babbitt pads: oil temperature plus friction, more with vibration
             vib_excess = np.maximum(self.get(unit, "vibration") - u.get("vibration", 2.2) * 1.3, 0)
-            hot = 79 + 0.3 * (self.ambient() - 27) + 3 * load + 2.5 * self.lag(vib_excess, 30)
+            # less oil through the pads (a plugging lube oil filter upstream, `oil_starved`): degC hotter
+            starved = sum((self.path(e["points"]) for e in self.ev(unit, "oil_starved")), np.zeros_like(self.t))
+            hot = 79 + 0.3 * (self.ambient() - 27) + 3 * load + 2.5 * self.lag(vib_excess, 30) + starved
             return self.lag(run * hot + (1 - run) * (self.ambient() + 15), 20) + 0.4 * self.noise(unit + "jb", 15)
         if var == "seal_vent":  # Nm3/h through the primary vent of the dry gas seals; a worn seal passes more
             wear = sum((self.path(e["points"]) for e in self.ev(unit, "seal_wear")), np.zeros_like(self.t))

@@ -248,10 +248,17 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
     # climbs past its alarm by mid-December (API 692: a seal on its way out, not yet a trip).
     events.append({"unit": "20-K-2300B", "kind": "seal_wear", "points": [
         ["2025-09-01T00:00", 0], ["2025-11-01T00:00", 0.9], ["2025-12-31T23:55", 3.2]]})
-    # Train A's gas turbine: its lube oil filter plugs from late October 2025, so the header pressure falls toward its
-    # low alarm and on to the trip at the rate it is going (API 614: change over to the standby filter).
+    # Train A's gas turbine: its lube oil filter plugs from late October 2025, so the header pressure falls through its
+    # low alarm (2.1 barg) in early December and stays there. On 30 December, the day before AS_OF, the plugging speeds
+    # up: from 12:10 the header pressure slides to about 1.75 barg, just above the low-low trip (1.7), and the
+    # compressors on the same lube oil package run their bearings hotter on the reduced oil flow. Nobody has changed
+    # over yet, so train A is one filter away from a trip (API 614: change over to the standby filter on line). This
+    # is the upset the SRE watch raises for the workflow's agents (#1150).
     events.append({"unit": "20-GT-2000A", "kind": "lube_filter", "points": [
-        ["2025-10-20T00:00", 0], ["2025-12-31T23:55", 0.75]]})
+        ["2025-10-20T00:00", 0], ["2025-12-30T12:10", 0.74], ["2025-12-30T13:40", 0.85], ["2025-12-31T23:55", 0.87]]})
+    for k in ("20-K-2100A", "20-K-2200A", "20-K-2300A"):
+        events.append({"unit": k, "kind": "oil_starved", "points": [
+            ["2025-12-30T13:00", 0], ["2025-12-30T14:30", 9], ["2025-12-31T23:55", 10]]})
     # Train C's gas turbine: a fuel nozzle partly plugs from October 2025, its combustor runs lean and the exhaust
     # thermocouple behind it (number 4) reads ever colder, so the exhaust temperature spread widens.
     events.append({"unit": "20-GT-2000C", "kind": "combustor", "tc": 4, "points": [

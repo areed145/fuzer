@@ -406,7 +406,9 @@ def detect(conn, pack, since: datetime, until: datetime, src=None, only: list[st
 # ---- the scheduled run ----------------------------------------------------------------------------
 
 def watermark(conn) -> datetime | None:
-    r = conn.execute("select max(until) as t from sre_run where status = 'done'").fetchone()
+    """Where scanning has reached: the end of the last finished run, or further when a run that stopped part way
+    (a deploy restarts the machine) had stored some of its windows (#1150)."""
+    r = conn.execute("select greatest(max(until) filter (where status = 'done'), max(reached)) as t from sre_run").fetchone()
     return r["t"]
 
 
@@ -472,8 +474,12 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
             for k, v in store(conn, detect(conn, pack, a, b, src, skip=off | set(lacking)), run_id, (a, b), raised).items():
                 totals[k] += v
             windows += 1
+            # Each window is kept as it is done, so a long catch-up that a restart cuts short carries on from here
+            # next time instead of starting over (#1150).
+            totals["upsets"] = regroup(conn, a)["upsets"]
+            conn.execute("update sre_run set reached = %s, detections = %s where id = %s", (b, totals["new"], run_id))
+            conn.commit()
             a = b
-        totals["upsets"] = regroup(conn, start)["upsets"]
         for d in detectors.window():  # each detector's run, or why it did not run here
             if d.name in off:
                 detectors.record(conn, d.name, detectors.OFF, "switched off", since=start, until=end)
@@ -516,6 +522,10 @@ def grouping(conn) -> dict:
 GAP = timedelta(hours=2)  # a detection joins an upset starting within this long of its latest detection
 SLOW = {"drifts", "models", "hydraulics"}  # multivariate findings group with the upsets they belong to  # days to months: one upset per unit and finding, never joined to others
 FIRST = {"stops": 0, "excursions": 1, "steps": 2}  # at the same time, the likelier first cause
+# An alarm that keeps coming back (#1150): the same alarm on the same point starting this many times before in the last
+# CHATTER_WINDOW is a bad actor for alarm management (the board's alarm_bad_actor), not news. It groups like a standing
+# alarm: on its own it is not an upset, and a new upset brings it along only when it is on or next to the upset's units.
+CHATTER_REPEATS, CHATTER_WINDOW = 2, timedelta(hours=24)
 
 
 def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta = GAP, hops: int = HOPS,
@@ -531,9 +541,15 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
     open_: list[dict] = []
     cache: dict = {}
     keyed: dict[tuple, dict] = {}
+    seen_alarm: dict[tuple, list] = {}
     for d in sorted(found, key=lambda d: (d["start"], FIRST.get(d["detector"], 9))):
         if standing_before is not None and d["start"] <= standing_before:
             d["standing"] = True  # already on when scanning began (#142)
+        if d["detector"] == "excursions":  # the same alarm again and again: a bad actor, not an upset (#1150)
+            before = seen_alarm.setdefault((d["point"], d["key"]), [])
+            if sum(d["start"] - t <= CHATTER_WINDOW for t in before) >= CHATTER_REPEATS:
+                d["standing"] = True
+            before.append(d["start"])
         if d["detector"] == "instruments" or d["detector"] in SLOW:
             kind = "instrument" if d["detector"] == "instruments" else "slow"
             k = (kind, *d["start"].isocalendar()[:2]) if kind == "instrument" else \
@@ -545,8 +561,12 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
             g["detections"].append(d)
             continue
         open_ = [g for g in open_ if d["start"] - g["last"] <= gap]
-        home = next((g for g in open_ if any(_near(adj, d.get("unit_id"), x.get("unit_id"), cache, hops)
-                                             or d["point"] == x["point"] for x in g["detections"])), None)
+        def near(g, fresh_only, d=d):
+            return any((not fresh_only or not x.get("standing"))
+                       and (_near(adj, d.get("unit_id"), x.get("unit_id"), cache, hops) or d["point"] == x["point"])
+                       for x in g["detections"])
+        # a group with something new near it first, so standing alarms don't split one upset in two (#1150)
+        home = next((g for g in open_ if near(g, True)), None) or next((g for g in open_ if near(g, False)), None)
         if home is None:
             home = {"kind": "process", "detections": [], "last": d["start"]}
             groups.append(home)
