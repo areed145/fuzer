@@ -20,11 +20,12 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.length === 0}>No studies yet.</Status>
       {list.data && list.data.length > 0 && (
         <Table variant="results">
+          <thead><tr><th>Study</th><th>Kind</th><th>Status</th><th>Result</th><th>Run by</th></tr></thead>
           <tbody>
             {list.data.map((s) => (
               <tr key={s.id}>
-                <td><a href={href("/studies", { id: String(s.id) })}>study:{s.id}</a></td>
-                <td>{s.kind}</td><td><UIBadge className="badge">{s.status}</UIBadge></td>
+                <td><a href={href("/studies", { id: String(s.id) })}>Study {s.id}</a></td>
+                <td>{KINDS.find(([k]) => k === s.kind)?.[1] ?? s.kind}</td><td><UIBadge className="badge">{s.status}</UIBadge></td>
                 <td className="small">{s.summary ?? s.error ?? ""}</td><td className="muted small">{s.created_by}</td>
               </tr>
             ))}
@@ -61,16 +62,16 @@ function NewStudy({ onDone }: { onDone: () => void }) {
     }
   };
   return (
-    <UICard className="row small">
-      <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+    <UICard className="row small study-form">
+      <label className="small">Study <Select value={kind} onChange={(e) => setKind(e.target.value)}>
         {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-      </Select>
-      {kind === "correlate" && <Input placeholder="target PI point" value={target} onChange={(e) => setTarget(e.target.value)} />}
+      </Select></label>
+      {kind === "correlate" && <label className="small">Target PI point <Input value={target} onChange={(e) => setTarget(e.target.value)} /></label>}
       {kind !== "events" && kind !== "entities" && kind !== "cascades" && (
-        <Input placeholder="scope: unit, area or facility" value={scope} onChange={(e) => setScope(e.target.value)} />
+        <label className="small">Scope <Input placeholder="unit, area or facility" value={scope} onChange={(e) => setScope(e.target.value)} /></label>
       )}
-      <Input placeholder="since (YYYY-MM-DDTHH:MM)" value={since} onChange={(e) => setSince(e.target.value)} />
-      <Input placeholder="until" value={until} onChange={(e) => setUntil(e.target.value)} />
+      <label className="small">Since <Input type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} /></label>
+      <label className="small">Until <Input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} /></label>
       <Button variant="primary" onClick={run}>Run</Button>
       {error && <span className="error">{error}</span>}
     </UICard>

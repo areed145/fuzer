@@ -85,7 +85,7 @@
 
   /* ---- Lists with chevrons: the board's stage list ---- */
   :root.ios .work-board-column { padding: 0; border: 0; background: none; }
-  :root.ios .work-board-column > h2 { padding: 0 16px 6px; font-size: var(--t-footnote); font-weight: 400; text-transform: uppercase; color: var(--muted); }
+  :root.ios .work-board-column > h2 { padding: 0 16px 6px; font-size: var(--t-footnote); font-weight: 400; color: var(--muted); }
   :root.ios .work-board-column > p { padding: 0 16px; margin: 0 0 8px; }
   :root.ios .work-board-column > div, :root.ios .work-board-column { overflow-x: clip; }
   :root.ios .work-card {
