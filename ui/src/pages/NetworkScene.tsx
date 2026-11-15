@@ -5,10 +5,10 @@ import "../styles/scene3d.css";
 import { api, type RelationDef, type Scene, type SceneLink, type SceneStatus, type SceneTrip } from "../api";
 import { commonName } from "../entityRefs";
 import { GraphCanvas } from "../graph";
-import { ALL_RELS, PRODUCTS, linkColor } from "../kinds";
+import { ALL_RELS, PRODUCTS, attentionColor, attentionInk, linkColor } from "../kinds";
 import { entityHref, href, Status, useAsync } from "../lib";
 import type { LabelBy, SceneLook } from "../Scene3D";
-import { MOVED, badge, headers, parseMove, reroute, trace, worst, type StatusKind } from "../sceneLogic";
+import { BANDS, MOVED, attention, badge, headers, higher, parseMove, reroute, trace, type Band } from "../sceneLogic";
 import { THEME_CHANGED } from "../theme";
 import { Button, ButtonLink, Card as UICard, Empty, Notice, Select, Table } from "../ui";
 import { NodePanel } from "./Network";
@@ -21,10 +21,11 @@ const FLOW_PRODUCT = { flows_to: true, lift_gas_to: true, relieves_to: true }; /
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 // The new run of a rerouted well takes the accent, so it reads apart from every product colour.
 const lineColor = (l: SceneLink) => (l.id === MOVED ? cssVar("--accent") : linkColor(l.rel, l.product));
-const STATUS: Record<StatusKind, { token: string; label: string }> = {
-  down: { token: "--status-down", label: "Down now" },
-  alarm: { token: "--status-alarm", label: "Alarm sounding" },
-  work: { token: "--status-work", label: "Open work" },
+// The one attention scale (kinds.ts), so an item here is the colour its place is on Home's map.
+const LEVEL: Record<Band, string> = {
+  high: "Down, or high-priority work",
+  medium: "Alarm sounding, or medium-priority work",
+  low: "Low-priority work",
 };
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 const quantity = (q: string) => words(q.replace(/_rate$/, ""));
@@ -83,7 +84,12 @@ export function NetworkScene({ query, set, relDef }: {
   }, [s, rels, relDef]);
   const item = s?.items.find((i) => i.id === selected);
   const st: Record<string, ItemStatus> = status.data?.status && !Array.isArray(status.data.status) ? status.data.status : {};
-  const totals = status.data?.totals;
+  // How many items sit at each attention level, for the legend.
+  const levels = useMemo(() => {
+    const n: Record<Band, number> = { high: 0, medium: 0, low: 0 };
+    for (const x of Object.values(st)) { const b = attention(x); if (b) n[b] += 1; }
+    return n;
+  }, [st]);
   const tripRead = useAsync(() => (trip && selected ? api.sceneTrip(selected) : Promise.resolve(null)), [trip, selected]);
   const routes = useMemo(() => (s ? headers(s.items, s.links) : null), [s]);
   const rerouted = useMemo(() => (s && move ? reroute(s.items, s.links, move) : null), [s, move?.well, move?.to]);
@@ -103,22 +109,26 @@ export function NetworkScene({ query, set, relDef }: {
     return null;
   }, [s, rerouted, trip, tripRead.data, path, selected, only, st]);
   const look = useMemo<SceneLook>(() => {
-    const tint = new Map<string, string>(), badges = new Map<string, { text: string; color: string; title: string }>();
+    const tint = new Map<string, string>(), badges = new Map<string, { text: string; color: string; ink: string; title: string }>();
     const perPlate = new Map<string, ItemStatus>();
     const plateOf = new Map((s?.items ?? []).map((i) => [i.id, i.plate]));
     for (const [id, x] of Object.entries(st)) {
-      const w = worst(x);
-      if (!w) continue;
-      const color = cssVar(STATUS[w].token);
+      const b = attention(x);
+      if (!b) continue;
+      const color = attentionColor(b);
       tint.set(id, color);
-      badges.set(id, { text: badge(x), color, title: describe(x) });
+      badges.set(id, { text: badge(x), color, ink: attentionInk(b), title: describe(x) });
       const plate = plateOf.get(id);
       if (!plate) continue;
-      const sum: ItemStatus = perPlate.get(plate) ?? { down: null, open_work: 0, alarms: 0 };
-      perPlate.set(plate, { ...sum, down: sum.down ?? x.down, open_work: sum.open_work + x.open_work, alarms: sum.alarms + x.alarms });
+      const sum: ItemStatus = perPlate.get(plate) ?? { down: null, open_work: 0, alarms: 0, work_band: null };
+      perPlate.set(plate, { down: sum.down ?? x.down, open_work: sum.open_work + x.open_work, alarms: sum.alarms + x.alarms,
+                            work_band: higher(sum.work_band, x.open_work ? (x.work_band ?? "low") : null) });
     }
     // A whole facility in blocks badges each area with its items' status summed (#1075).
-    const plateBadges = new Map([...perPlate].map(([id, x]) => [id, { text: badge(x), color: cssVar(STATUS[worst(x)!].token), title: describe(x) }]));
+    const plateBadges = new Map([...perPlate].map(([id, x]) => {
+      const b = attention(x)!;
+      return [id, { text: badge(x), color: attentionColor(b), ink: attentionInk(b), title: describe(x) }];
+    }));
     return { tint, badges, plateBadges, lit };
   }, [st, lit, theme, s]);
   const places = s?.places ?? [];
@@ -143,9 +153,9 @@ export function NetworkScene({ query, set, relDef }: {
         ))}
       </div>
       <div className="scene-status" aria-label="What the colours say">
-        {(Object.keys(STATUS) as StatusKind[]).map((k) => (
+        {BANDS.map((k) => (
           <span key={k}><span className={`swatch swatch-${k}`} />
-            {STATUS[k].label}{totals ? ` (${totals[k === "work" ? "open_work" : k === "alarm" ? "alarms" : "down"]})` : ""}</span>
+            {LEVEL[k]}{status.data ? ` (${levels[k]})` : ""}</span>
         ))}
         <Button size="sm" aria-pressed={only} onClick={() => set({ only: only ? undefined : "work" })}>Only items with open work</Button>
         <span className="small muted">

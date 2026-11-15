@@ -3,7 +3,11 @@
 
 export interface LinkLike { id: number; src: string; dst: string; rel: string; product?: string | null; path: number[][] }
 export interface ItemLike { id: string; kind: string; label: string; x: number; y: number; z: number }
-export interface ItemStatus { open_work: number; alarms: number; down: { id: string; start: string | null; reason: string | null } | null }
+export interface ItemStatus {
+  open_work: number; alarms: number; down: { id: string; start: string | null; reason: string | null } | null;
+  /** The highest priority band among the open work (status_now.open_work), as Home's hotspots band it. */
+  work_band?: Band | null;
+}
 
 /** The relations a flow path follows (P5.16c). */
 export const PATH_RELS = ["flows_to", "lift_gas_to", "pipes_to"];
@@ -13,6 +17,24 @@ export type StatusKind = "down" | "alarm" | "work";
 export function worst(s: ItemStatus | undefined): StatusKind | null {
   if (!s) return null;
   return s.down ? "down" : s.alarms ? "alarm" : s.open_work ? "work" : null;
+}
+
+/** How urgently an item needs someone, on the one attention scale every view colours by (--attn-* in styles.css):
+ * Home's hotspots, the 3D view and its 2D twin. High is down now or high-priority work, medium an alarm sounding or
+ * medium-priority work, low low-priority work. Open work whose band isn't known reads as low. */
+export type Band = "high" | "medium" | "low";
+export const BANDS: Band[] = ["high", "medium", "low"];
+const RANK: Record<Band, number> = { high: 0, medium: 1, low: 2 };
+/** The more urgent of two bands. */
+export function higher(a: Band | null | undefined, b: Band | null | undefined): Band | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return RANK[a] <= RANK[b] ? a : b;
+}
+export function attention(s: ItemStatus | undefined): Band | null {
+  if (!s) return null;
+  const work = s.open_work ? (s.work_band ?? "low") : null;
+  return higher(higher(s.down ? "high" : null, s.alarms ? "medium" : null), work);
 }
 
 /** A badge's text: the open work count, with a mark for an alarm or for down. */

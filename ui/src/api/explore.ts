@@ -177,7 +177,8 @@ export interface Scene {
 }
 
 export interface SceneStatus {
-  status: Record<string, { open_work: number; alarms: number; down: { id: string; start: string | null; reason: string | null } | null }>;
+  status: Record<string, { open_work: number; work_band?: "high" | "medium" | "low" | null; alarms: number;
+    down: { id: string; start: string | null; reason: string | null } | null }>;
   totals: { open_work: number; alarms: number; down: number };
   alarm_hours: number;
 }

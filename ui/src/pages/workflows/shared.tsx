@@ -7,6 +7,7 @@ import { useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { href, notifyChanged, useAsync } from "../../lib";
 import { queue } from "../../wording";
+import { ATTENTION_TONE } from "../../kinds";
 
 export const taskHref = (id: number) => href(`/inbox/task/${id}`);
 export const caseHref = (id: number) => href(`/cases/${id}`);
@@ -49,7 +50,7 @@ export function priorityText(p: number | null | undefined): string | null {
   return p < 2 ? p.toFixed(2) : Math.round(p).toLocaleString();
 }
 
-export type PriorityLevel = { level: "High" | "Medium" | "Low"; tone: "danger" | "warn" | "muted"; why: string };
+export type PriorityLevel = { level: "High" | "Medium" | "Low"; tone: "danger" | "warn" | "info"; why: string };
 
 /** A priority as a person reads it (#1071): High, Medium or Low and why, whatever scale the source used. Priorities
  * arrive on three scales: a 0–1 score (high from 0.8, medium from 0.5), an SAP notification's priority 1 (very high)
@@ -57,7 +58,7 @@ export type PriorityLevel = { level: "High" | "Medium" | "Low"; tone: "danger" |
 export function priorityLevel(p: number | null | undefined, type?: string | null): PriorityLevel | null {
   if (p == null || p <= 0) return null;
   const level = (l: PriorityLevel["level"], why: string): PriorityLevel =>
-    ({ level: l, tone: l === "High" ? "danger" : l === "Medium" ? "warn" : "muted", why });
+    ({ level: l, tone: ATTENTION_TONE[l === "High" ? "high" : l === "Medium" ? "medium" : "low"], why });
   if ((type === "sap_notification" && p <= 4) || (p > 1 && p <= 4 && Number.isInteger(p))) {
     const sap = 5 - Math.round(p);
     return level(sap <= 2 ? "High" : sap === 3 ? "Medium" : "Low", `SAP priority ${sap}`);

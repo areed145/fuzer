@@ -92,9 +92,9 @@ function solid(shape: SceneShape): THREE.BufferGeometry {
 export interface SceneLook {
   tint?: Map<string, string>;
   lit?: { items: Set<string>; links: Set<number> } | null;
-  badges?: Map<string, { text: string; color: string; title: string }>;
+  badges?: Map<string, { text: string; color: string; ink?: string; title: string }>;
   /** One badge per area, drawn instead of the items' own when the scene is a whole facility in blocks (#1075). */
-  plateBadges?: Map<string, { text: string; color: string; title: string }>;
+  plateBadges?: Map<string, { text: string; color: string; ink?: string; title: string }>;
 }
 
 /** A whole facility with more items than this opens as blocks (#1075): its areas named and badged with their
@@ -291,6 +291,7 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
         el.setAttribute("aria-label", el.title);
         el.dataset.plate = id;
         el.style.setProperty("--badge", b.color);
+      if (b.ink) el.style.setProperty("--badge-ink", b.ink);
         if (p.area) {
           el.setAttribute("role", "button");
           el.tabIndex = 0;
@@ -312,6 +313,7 @@ function build(host: HTMLDivElement, labels: HTMLDivElement, scene: Scene, lineC
       el.title = b.title;
       el.dataset.item = id;
       el.style.setProperty("--badge", b.color);
+      if (b.ink) el.style.setProperty("--badge-ink", b.ink);
       labels.appendChild(el);
       badges.push({ el, p: new THREE.Vector3(hit.item.x, hit.top + 0.6, hit.item.z) });
     }
@@ -581,9 +583,9 @@ export default function Scene3D({ scene, selected, centre, onSelect, onPlate, li
         <div ref={labels} className="scene-tags" />
         {/* What the badges mean, on the drawing where they are (#1075), not in the legend under it. */}
         {(look?.badges?.size ?? 0) > 0 && <div className="scene-key" aria-label="What the badges mean">
-          <span><b className="scene-key-badge swatch-work">1</b>open work</span>
-          <span><b className="scene-key-badge swatch-alarm">1!</b>alarms</span>
-          <span><b className="scene-key-badge swatch-down">Down</b>down now</span>
+          <span><b className="scene-key-badge swatch-low">1</b>open work</span>
+          <span><b className="scene-key-badge swatch-medium">1!</b>alarms</span>
+          <span><b className="scene-key-badge swatch-high">Down</b>down now</span>
           {scene.root?.kind === "facility" && scene.items.length > BLOCKS_OVER && <span>Tap an area's badge to open it</span>}
         </div>}
         <div className="graph-tools" role="toolbar" aria-label="View">

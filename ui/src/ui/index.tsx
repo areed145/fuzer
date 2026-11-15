@@ -127,7 +127,7 @@ export function Select({ width, className = "", ...props }: SelectHTMLAttributes
   return <select {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
 }
 export function Badge({ tone = "muted", className = "", ...props }: HTMLAttributes<HTMLSpanElement> & {
-  tone?: "ok" | "warn" | "danger" | "muted";
+  tone?: "ok" | "warn" | "danger" | "info" | "muted";
 }) {
   return <span {...props} className={`ui-badge ui-badge-${tone} badge ${className}`.trim()} />;
 }
