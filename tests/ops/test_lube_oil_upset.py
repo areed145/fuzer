@@ -1,4 +1,4 @@
-"""Okan's agent demo upset (#1150): train A's gas turbine lube oil filter, the day before the data's today. The SRE watch
+"""Okan's agent demo upset (#1148): train A's gas turbine lube oil filter, the day before the data's today. The SRE watch
 raises it as one upset whose first cause is the turbine, apart from the wells' nuisance low alarms that keep coming back
 all day, and a catch-up scan keeps the windows it finished when it is cut short."""
 

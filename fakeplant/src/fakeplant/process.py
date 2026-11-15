@@ -253,7 +253,7 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
     # up: from 12:10 the header pressure slides to about 1.75 barg, just above the low-low trip (1.7), and the
     # compressors on the same lube oil package run their bearings hotter on the reduced oil flow. Nobody has changed
     # over yet, so train A is one filter away from a trip (API 614: change over to the standby filter on line). This
-    # is the upset the SRE watch raises for the workflow's agents (#1150).
+    # is the upset the SRE watch raises for the workflow's agents (#1148).
     events.append({"unit": "20-GT-2000A", "kind": "lube_filter", "points": [
         ["2025-10-20T00:00", 0], ["2025-12-30T12:10", 0.74], ["2025-12-30T13:40", 0.85], ["2025-12-31T23:55", 0.87]]})
     for k in ("20-K-2100A", "20-K-2200A", "20-K-2300A"):

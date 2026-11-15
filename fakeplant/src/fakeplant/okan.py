@@ -802,7 +802,7 @@ def generate(out, seed: int = 11) -> dict:
 
     # Story: train A's gas turbine lube oil filter (process.py, `lube_filter`). Its low pressure alarm has stood since
     # early December and was logged once; on 30 December the header pressure slides to just above the low-low trip and
-    # the compressors' bearings run hotter. The upset the SRE watch raises for the workflow's agents (#1150): caught
+    # the compressors' bearings run hotter. The upset the SRE watch raises for the workflow's agents (#1148): caught
     # before train A trips, with no notification raised yet, so the diagnosis and the notification are the agents' work.
     log("2025-12-08T06:00:00", "20-PT-2005A lube oil header pressure on train A gas turbine in low alarm, 2.1 barg. "
         "Filter dP high on the local gauge. Monitoring, change over filters at next opportunity.", "GGCP CRO",

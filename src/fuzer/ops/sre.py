@@ -407,7 +407,7 @@ def detect(conn, pack, since: datetime, until: datetime, src=None, only: list[st
 
 def watermark(conn) -> datetime | None:
     """Where scanning has reached: the end of the last finished run, or further when a run that stopped part way
-    (a deploy restarts the machine) had stored some of its windows (#1150)."""
+    (a deploy restarts the machine) had stored some of its windows (#1148)."""
     r = conn.execute("select greatest(max(until) filter (where status = 'done'), max(reached)) as t from sre_run").fetchone()
     return r["t"]
 
@@ -475,7 +475,7 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
                 totals[k] += v
             windows += 1
             # Each window is kept as it is done, so a long catch-up that a restart cuts short carries on from here
-            # next time instead of starting over (#1150).
+            # next time instead of starting over (#1148).
             totals["upsets"] = regroup(conn, a)["upsets"]
             conn.execute("update sre_run set reached = %s, detections = %s where id = %s", (b, totals["new"], run_id))
             conn.commit()
@@ -522,7 +522,7 @@ def grouping(conn) -> dict:
 GAP = timedelta(hours=2)  # a detection joins an upset starting within this long of its latest detection
 SLOW = {"drifts", "models", "hydraulics"}  # multivariate findings group with the upsets they belong to  # days to months: one upset per unit and finding, never joined to others
 FIRST = {"stops": 0, "excursions": 1, "steps": 2}  # at the same time, the likelier first cause
-# An alarm that keeps coming back (#1150): the same alarm on the same point starting this many times before in the last
+# An alarm that keeps coming back (#1148): the same alarm on the same point starting this many times before in the last
 # CHATTER_WINDOW is a bad actor for alarm management (the board's alarm_bad_actor), not news. It groups like a standing
 # alarm: on its own it is not an upset, and a new upset brings it along only when it is on or next to the upset's units.
 CHATTER_REPEATS, CHATTER_WINDOW = 2, timedelta(hours=24)
@@ -545,7 +545,7 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
     for d in sorted(found, key=lambda d: (d["start"], FIRST.get(d["detector"], 9))):
         if standing_before is not None and d["start"] <= standing_before:
             d["standing"] = True  # already on when scanning began (#142)
-        if d["detector"] == "excursions":  # the same alarm again and again: a bad actor, not an upset (#1150)
+        if d["detector"] == "excursions":  # the same alarm again and again: a bad actor, not an upset (#1148)
             before = seen_alarm.setdefault((d["point"], d["key"]), [])
             if sum(d["start"] - t <= CHATTER_WINDOW for t in before) >= CHATTER_REPEATS:
                 d["standing"] = True
@@ -565,7 +565,7 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
             return any((not fresh_only or not x.get("standing"))
                        and (_near(adj, d.get("unit_id"), x.get("unit_id"), cache, hops) or d["point"] == x["point"])
                        for x in g["detections"])
-        # a group with something new near it first, so standing alarms don't split one upset in two (#1150)
+        # a group with something new near it first, so standing alarms don't split one upset in two (#1148)
         home = next((g for g in open_ if near(g, True)), None) or next((g for g in open_ if near(g, False)), None)
         if home is None:
             home = {"kind": "process", "detections": [], "last": d["start"]}

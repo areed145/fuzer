@@ -9,7 +9,7 @@ create table if not exists sre_run (
     started_at  timestamptz not null default now(),
     finished_at timestamptz
 );
-alter table sre_run add column if not exists reached timestamp;  -- the windows stored so far (#1150)
+alter table sre_run add column if not exists reached timestamp;  -- the windows stored so far (#1148)
 
 -- Each run of a registered detector (core/detectors.py): what it found, or why it did not apply on this asset.
 create table if not exists detector_run (
