@@ -2,6 +2,17 @@
    turns on, so desktop and Android are untouched. Fuzer's colours stay; iOS brings the shapes, Liquid Glass, type
    and gestures. When in doubt, do what iOS does. */
 :root.ios {
+  /* One type ramp, Apple's Dynamic Type sizes at the default setting, in the system font. Every size on iOS is one of
+     these; line heights follow the same scale. */
+  --t-large: 34px;     /* Large Title, 41 */
+  --t-title1: 28px;    /* Title 1, 34 */
+  --t-title2: 22px;    /* Title 2, 28 */
+  --t-title3: 20px;    /* Title 3, 25 */
+  --t-body: 17px;      /* Headline (semibold) and Body, 22 */
+  --t-callout: 16px;   /* Callout, 21 */
+  --t-subhead: 15px;   /* Subheadline, 20: running text in dense operational pages */
+  --t-footnote: 13px;  /* Footnote, 18: detail lines, meta, section captions */
+  --t-caption: 12px;   /* Caption 1, 16: badges, axis labels */
   /* Fuzer's own colours stay; iOS brings shape, glass and motion. */
   --fill: color-mix(in srgb, var(--muted) 14%, transparent);
   --radius: 16px;
@@ -28,7 +39,7 @@
 }
 :root.ios body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
-  font-size: 15px; letter-spacing: -.01em; -webkit-tap-highlight-color: transparent;
+  font-size: var(--t-subhead); letter-spacing: -.01em; -webkit-tap-highlight-color: transparent;
 }
 :root.ios :is(h1, h2, h3) { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Display", Inter, system-ui, sans-serif; }
 
@@ -43,14 +54,14 @@
     background: var(--bar); border-bottom-color: var(--line);
     -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
   }
-  :root.ios .topbar .back-button { border: 0; background: none; color: var(--accent); font-size: 17px; padding-left: 0; gap: 0; }
+  :root.ios .topbar .back-button { border: 0; background: none; color: var(--accent); font-size: var(--t-body); padding-left: 0; gap: 0; }
   :root.ios .topbar .back-button svg { width: 26px; height: 26px; stroke-width: 2.4; }
   :root.ios .topbar:has(.back-button) .brand { display: none; }
   :root.ios .topbar .brand .logo { height: 24px; }
   :root.ios .topbar-title {
     position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 4px); max-width: 58%;
     height: 44px; line-height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font-size: 17px; font-weight: 600; opacity: 0; transition: opacity .18s, transform .18s; pointer-events: none;
+    font-size: var(--t-body); font-weight: 600; opacity: 0; transition: opacity .18s, transform .18s; pointer-events: none;
   }
   :root.ios.ios-folded .topbar-title { opacity: 1; transform: translate(-50%, 0); }
   :root.ios.ios-folded .topbar .brand { opacity: 0; }
@@ -74,7 +85,7 @@
 
   /* ---- Lists with chevrons: the board's stage list ---- */
   :root.ios .work-board-column { padding: 0; border: 0; background: none; }
-  :root.ios .work-board-column > h2 { padding: 0 16px 6px; font-size: 13px; font-weight: 400; text-transform: uppercase; color: var(--muted); }
+  :root.ios .work-board-column > h2 { padding: 0 16px 6px; font-size: var(--t-footnote); font-weight: 400; text-transform: uppercase; color: var(--muted); }
   :root.ios .work-board-column > p { padding: 0 16px; margin: 0 0 8px; }
   :root.ios .work-board-column > div, :root.ios .work-board-column { overflow-x: clip; }
   :root.ios .work-card {
@@ -89,13 +100,13 @@
     content: ""; position: absolute; right: 16px; top: 50%; width: 8px; height: 8px; margin-top: -4px;
     border-right: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); border-top: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); transform: rotate(45deg);
   }
-  :root.ios .work-card-title { font-size: 17px; font-weight: 400; line-height: 22px; }
-  :root.ios .work-card .small { font-size: 13px; }
+  :root.ios .work-card-title { font-size: var(--t-body); font-weight: 400; line-height: 22px; }
+  :root.ios .work-card .small { font-size: var(--t-footnote); }
   /* Swipe left for actions: they wait off the card's right edge and slide in with it. */
   :root.ios .work-card-actions {
     position: absolute; top: 0; bottom: 0; left: 100%; margin: 0; gap: 0; flex-wrap: nowrap; align-items: stretch;
   }
-  :root.ios .work-card-actions .ui-button { min-height: 0; height: 100%; border-radius: 0; padding: 0 18px; font-size: 15px; }
+  :root.ios .work-card-actions .ui-button { min-height: 0; height: 100%; border-radius: 0; padding: 0 18px; font-size: var(--t-subhead); }
   :root.ios .work-card-actions .ui-button-primary { background: var(--accent); color: #fff; }
   :root.ios .work-card-actions .ui-button-secondary { background: var(--warn); color: #fff; }
   :root.ios .work-card.swiped { transform: translateX(-104px); }
@@ -114,7 +125,7 @@
   }
   :root.ios .attention-detail-head { background: var(--panel); }
   :root.ios .attention-grab { width: 36px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--muted) 45%, transparent); margin: 2px 0 8px; }
-  :root.ios .attention-detail .attention-close.ui-button { width: 30px; height: 30px; min-width: 30px; min-height: 30px; padding: 0; border-radius: 50%; background: var(--fill); color: var(--muted); font-size: 13px; }
+  :root.ios .attention-detail .attention-close.ui-button { width: 30px; height: 30px; min-width: 30px; min-height: 30px; padding: 0; border-radius: 50%; background: var(--fill); color: var(--muted); font-size: var(--t-footnote); }
   :root.ios .ios-scrim-sheet { background: rgb(0 0 0 / .2); }
 
   /* ---- Pull to refresh ---- */
@@ -131,10 +142,10 @@
 
 /* ---- Every width, iPhone and iPad alike: titles, segmented controls, cards and controls ---- */
 /* ---- Large titles ---- */
-:root.ios main h1, :root.ios .ui-page-header h1 { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: .01em; margin: 0; }
-:root.ios .entity-head .ui-page-header h1.mono, :root.ios .ui-page-header.mono h1 { font-size: 30px; }
+:root.ios main h1, :root.ios .ui-page-header h1 { font-size: var(--t-large); line-height: 41px; font-weight: 700; letter-spacing: .01em; margin: 0; }
+:root.ios .entity-head .ui-page-header h1.mono, :root.ios .ui-page-header.mono h1 { font-size: var(--t-title1); }
 :root.ios .ui-page-header { margin-bottom: 12px; gap: 6px; }
-:root.ios .ui-page-subtitle, :root.ios .ui-page-header p { font-size: 15px; }
+:root.ios .ui-page-subtitle, :root.ios .ui-page-header p { font-size: var(--t-subhead); }
 
 /* ---- Segmented controls: area navigation and record views ---- */
 :root.ios .area-navigation, :root.ios .tabs, :root.ios .work-board-stages, :root.ios .attention-bar .chips {
@@ -144,7 +155,7 @@
 :root.ios .tabs > *, :root.ios .area-navigation a, :root.ios .work-board-stages .chip, :root.ios .attention-bar .chip {
   flex: 1 0 auto; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   padding: 0 12px; margin: 0; border: 0; border-radius: 7px; background: none; color: var(--text);
-  font-size: 13px; font-weight: 500; white-space: nowrap;
+  font-size: var(--t-footnote); font-weight: 500; white-space: nowrap;
 }
 :root.ios .tabs > * + * { border-left: 0; }
 :root.ios .tabs > .on, :root.ios .area-navigation a[aria-current="page"], :root.ios .work-board-stages .chip.on, :root.ios .attention-bar .chip.on {
@@ -160,20 +171,20 @@
 
 /* ---- Inset grouped cards ---- */
 :root.ios .ui-card { border: 0; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; box-shadow: none; }
-:root.ios .ui-card h2 { border-left: 0; padding-left: 0; font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -.01em; text-transform: none; color: var(--text); }
-:root.ios .ui-card h2 .muted, :root.ios .ui-card h2 .small { display: block; font-size: 13px; line-height: 18px; font-weight: 400; color: var(--muted); }
+:root.ios .ui-card h2 { border-left: 0; padding-left: 0; font-size: var(--t-body); line-height: 22px; font-weight: 600; letter-spacing: -.01em; text-transform: none; color: var(--text); }
+:root.ios .ui-card h2 .muted, :root.ios .ui-card h2 .small { display: block; font-size: var(--t-footnote); line-height: 18px; font-weight: 400; color: var(--muted); }
 :root.ios .ui-card-header { margin-bottom: 8px; }
 :root.ios .entity-status { border: 0; border-radius: var(--radius); padding: 12px 16px; }
 :root.ios .ui-stat { border: 0; border-radius: var(--radius); }
 
 /* ---- Controls: 44-point targets, tinted buttons, search field, menus ---- */
-:root.ios .ui-button { min-height: 44px; border-radius: 10px; border: 0; font-size: 15px; font-weight: 600; padding: 0 16px; }
-:root.ios .ui-button-sm { min-height: 34px; font-size: 14px; padding: 0 14px; border-radius: 8px; }
+:root.ios .ui-button { min-height: 44px; border-radius: 10px; border: 0; font-size: var(--t-subhead); font-weight: 600; padding: 0 16px; }
+:root.ios .ui-button-sm { min-height: 34px; font-size: var(--t-subhead); padding: 0 14px; border-radius: 8px; }
 :root.ios .ui-button-secondary { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 :root.ios .ui-button-ghost, :root.ios .ui-button-link { background: none; color: var(--accent); }
 :root.ios .ui-button:active { opacity: .55; }
 :root.ios input:not([type=checkbox]):not([type=radio]):not([type=range]), :root.ios select {
-  min-height: 36px; border: 0; border-radius: 10px; background-color: var(--fill); color: var(--text); font-size: 17px; padding: 6px 12px;
+  min-height: 36px; border: 0; border-radius: 10px; background-color: var(--fill); color: var(--text); font-size: var(--t-body); padding: 6px 12px;
 }
 :root.ios .home-search { gap: 0; }
 :root.ios .home-search input, :root.ios input[type=search], :root.ios input[placeholder^="Search"] {
@@ -188,13 +199,13 @@
 :root.ios .work-filters { gap: 8px; margin-bottom: 12px; }
 :root.ios .work-filters > input[type=search] { order: -1; flex: 1 1 100%; }
 :root.ios .work-filters select, :root.ios .work-board-controls select {
-  width: auto; min-height: 32px; padding: 4px 30px 4px 14px; border-radius: 16px; font-size: 15px; font-weight: 500;
+  width: auto; min-height: 32px; padding: 4px 30px 4px 14px; border-radius: 16px; font-size: var(--t-subhead); font-weight: 500;
   color: var(--accent); background-color: color-mix(in srgb, var(--accent) 12%, transparent); appearance: none; -webkit-appearance: none;
   background-repeat: no-repeat; background-position: right 10px center; background-size: 11px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%230b7f8c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E");
 }
 :root.ios .work-board-controls .ui-field { flex-direction: row; align-items: center; gap: 8px; width: auto; }
-:root.ios .work-board-controls .ui-field > span { font-size: 15px; }
+:root.ios .work-board-controls .ui-field > span { font-size: var(--t-subhead); }
 /* Switches for on/off settings, the iOS way. */
 :root.ios input[type=checkbox]:not(td input) {
   appearance: none; -webkit-appearance: none; width: 51px; height: 31px; flex: none; border-radius: 16px; margin: 0;
@@ -286,27 +297,27 @@
   :root.ios .sidebar::before { content: ""; align-self: center; flex: none; width: 36px; height: 5px; border-radius: 3px;
     background: color-mix(in srgb, var(--muted) 45%, transparent); }
   :root.ios .sidebar .brand { order: -1; display: none; }
-  :root.ios .sidebar nav::before { content: "Menu"; font: 700 34px/41px -apple-system, "SF Pro Display", "Inter Display", Inter, sans-serif; margin: 4px 0 8px; }
+  :root.ios .sidebar nav::before { content: "Menu"; font: 700 var(--t-large)/41px -apple-system, "SF Pro Display", "Inter Display", Inter, sans-serif; margin: 4px 0 8px; }
   :root.ios .drawer-close { position: absolute; top: 18px; right: 16px; width: 44px; height: 44px; min-height: 44px; padding: 0;
     border-radius: 50%; font-size: 0; color: var(--text); }
-  :root.ios .drawer-close::after { content: "\2715"; font-size: 17px; }
+  :root.ios .drawer-close::after { content: "\2715"; font-size: var(--t-body); }
   :root.ios .nav-group ul { background: var(--panel); border-radius: var(--radius); gap: 0; overflow: hidden; }
   :root.ios .nav-group li + li a::before { content: ""; position: absolute; top: 0; left: 54px; right: 0; border-top: var(--hair) solid var(--line); }
   :root.ios .nav-group a, :root.ios .nav-group a.on { position: relative; gap: 14px; min-height: 52px; padding: 10px 40px 10px 14px; border-radius: 0;
-    color: var(--text); font-size: 17px; font-weight: 400; background: none; }
+    color: var(--text); font-size: var(--t-body); font-weight: 400; background: none; }
   :root.ios .nav-group a.on { font-weight: 600; }
   :root.ios .nav-group a::after { content: ""; position: absolute; right: 18px; top: 50%; width: 8px; height: 8px; margin-top: -4px;
     border-right: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); border-top: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); transform: rotate(45deg); }
   /* Plain line icons in the tint colour, the way iOS's own lists draw them. */
   :root.ios .nav-group a .nav-icon { width: 24px; height: 24px; color: var(--accent); stroke: var(--accent); stroke-width: 1.8; }
-  :root.ios .nav-group a .count { margin-left: auto; background: none; color: var(--muted); font-size: 17px; }
+  :root.ios .nav-group a .count { margin-left: auto; background: none; color: var(--muted); font-size: var(--t-body); }
   :root.ios .sidebar .sidebar-status { margin-top: 8px; padding: 14px 16px; border: 0; border-radius: var(--radius); background: var(--fill);
-    --text: inherit; --muted: inherit; color: var(--muted); font-size: 13px; }
+    --text: inherit; --muted: inherit; color: var(--muted); font-size: var(--t-footnote); }
   :root.ios .scrim { background: rgb(0 0 0 / .35); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 }
 
 /* Liquid Glass at every width. */
-:root.ios main h1, :root.ios .ui-page-header h1 { font-size: 31px; line-height: 37px; text-wrap: balance; }
+:root.ios main h1, :root.ios .ui-page-header h1 { font-size: var(--t-large); line-height: 37px; text-wrap: balance; }
 
 /* The glass material, shared by bars, buttons, controls and sheets. */
 :root.ios :is(.topbar .back-button, .topbar .share-button, .bottombar, .leaflet-bar, .ui-fullscreen-button,
@@ -367,7 +378,7 @@
   :root.ios [data-ios-menu] > :not(.on):not([aria-current]):not([aria-pressed="true"]) { display: none !important; }
   :root.ios [data-ios-menu] > :is(.on, [aria-current], [aria-pressed="true"]) {
     flex: none; min-height: 40px !important; padding: 0 38px 0 18px !important; border-radius: 999px !important; position: relative;
-    color: var(--accent) !important; font-size: 15px !important; font-weight: 600 !important; cursor: pointer;
+    color: var(--accent) !important; font-size: var(--t-subhead) !important; font-weight: 600 !important; cursor: pointer;
     background: color-mix(in srgb, var(--accent) 14%, transparent) !important; background-image: none !important; border: 0 !important;
     box-shadow: none !important;
   }
@@ -376,7 +387,7 @@
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E") center / contain no-repeat;
             mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E") center / contain no-repeat;
   }
-  :root.ios [data-ios-menu-label]::before { content: attr(data-ios-menu-label); display: block; margin: 0 0 6px 4px; font-size: 13px; color: var(--muted); }
+  :root.ios [data-ios-menu-label]::before { content: attr(data-ios-menu-label); display: block; margin: 0 0 6px 4px; font-size: var(--t-footnote); color: var(--muted); }
   /* The menu itself: a glass panel that grows out of the button. */
   .ios-menu-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(0 0 0 / .2); }
   .ios-menu {
@@ -387,11 +398,11 @@
   }
   @keyframes ios-menu-in { from { opacity: 0; transform: scale(.92); } }
   .ios-menu button { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 8px; width: 100%; min-height: 44px;
-    padding: 0 16px 0 14px; border: 0; background: none; color: var(--text); font: inherit; font-size: 17px; text-align: left; }
+    padding: 0 16px 0 14px; border: 0; background: none; color: var(--text); font: inherit; font-size: var(--t-body); text-align: left; }
   .ios-menu button + button { box-shadow: inset 0 var(--hair) 0 var(--line); }
   .ios-menu button:active { background: var(--lens); }
   .ios-menu .check { color: var(--text); font-weight: 600; }
-  .ios-menu .n { color: var(--muted); font-size: 15px; }
+  .ios-menu .n { color: var(--muted); font-size: var(--t-subhead); }
 }
 @media (prefers-reduced-motion: reduce) { .ios-menu { animation: none; } }
 
@@ -414,7 +425,7 @@
     display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%;
     font-size: 0; color: var(--accent); background: var(--fill); position: relative;
   }
-  :root.ios .ui-page-header .ui-help::before { content: "?"; font-size: 17px; font-weight: 600; }
+  :root.ios .ui-page-header .ui-help::before { content: "?"; font-size: var(--t-body); font-weight: 600; }
   :root.ios .ui-page-header .ui-help::after { content: ""; position: absolute; inset: -6px; }
 }
 
@@ -441,7 +452,7 @@
 :root.ios .attention-filters .chips { margin-bottom: 0 !important; width: auto; }
 :root.ios .attention-bar { row-gap: 8px; margin-bottom: 10px; }
 :root.ios .attention-bar .crews-toggle.chip {
-  flex: none; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  flex: none; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: var(--t-footnote); font-weight: 600;
   border: var(--hair) solid var(--line); background: none; color: var(--muted); box-shadow: none;
 }
 :root.ios .attention-bar .crews-toggle.chip.on { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: transparent; color: var(--accent); }
@@ -457,7 +468,7 @@
     --rail-text: var(--text); --rail-hover: var(--fill); --rail-on: var(--lens); --rail-line: var(--line);
     --brand-ink: var(--text); --brand-word: var(--text); --brand-hub: var(--accent);
   }
-  :root.ios .nav-group a { min-height: 44px; border-radius: 12px; font-size: 15px; }
+  :root.ios .nav-group a { min-height: 44px; border-radius: 12px; font-size: var(--t-subhead); }
   :root.ios .nav-group a .nav-icon { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
   :root.ios .nav-group a.on { color: var(--accent); font-weight: 600; }
   :root.ios .sidebar a:focus-visible { outline-color: var(--accent); }
@@ -465,10 +476,10 @@
   :root.ios .sidebar { overflow-x: hidden; }
   :root.ios .sidebar .sidebar-status { overflow-wrap: anywhere; }
   :root.ios .sidebar .sidebar-status * { min-width: 0; }
-  :root.ios .sidebar .sidebar-status select { max-width: 100%; font-size: 15px; }
+  :root.ios .sidebar .sidebar-status select { max-width: 100%; font-size: var(--t-subhead); }
   /* Segmented controls fit their segments, as on iPadOS, rather than stretching across the page. */
   :root.ios :is(.area-navigation, .tabs, .attention-bar .chips) { width: fit-content; }
-  :root.ios main h1, :root.ios .ui-page-header h1 { font-size: 34px; line-height: 41px; }
+  :root.ios main h1, :root.ios .ui-page-header h1 { font-size: var(--t-large); line-height: 41px; }
 }
 :root.ios .attention-filters > .crews-toggle::before { display: none; }
 /* On an iPhone the four filters take the row; Crews sits at the end of the line under them, beside the count. */
@@ -485,14 +496,14 @@
 :root.ios .chips:not(.attention-bar .chips, .segmented) { gap: 8px; align-items: center; }
 :root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip {
   min-height: 32px; min-width: 0; padding: 0 12px; gap: 5px; border: 0; border-radius: 999px;
-  font-size: 14px; font-weight: 500; line-height: 1; color: var(--text);
+  font-size: var(--t-subhead); font-weight: 500; line-height: 1; color: var(--text);
   background: var(--fill); background-image: none; box-shadow: none;
 }
 :root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip:is(.on, [aria-pressed="true"]) {
   background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 600;
 }
 :root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip .muted,
-:root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip .count { font-size: 13px; color: var(--muted); background: none; padding: 0; }
+:root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip .count { font-size: var(--t-footnote); color: var(--muted); background: none; padding: 0; }
 @media (max-width: 600px) {
   :root.ios #main-content .chips:not(.attention-bar .chips, .segmented):not([data-ios-menu]):not(:has(.ui-disclosure)) {
     flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
@@ -506,16 +517,16 @@
    Buttons and chips came in a handful of heights and paddings page to page. On iOS there are two button sizes and one
    chip size, everywhere: a 44-point button, a 34-point small button, a 32-point chip, and segmented controls whose
    segments share the width equally. Field mode keeps its own 56-pixel targets, so none of this applies there. */
-:root.ios:not(.field-mode) #main-content .ui-button:not(.ui-button-link, .chip, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *) {
-  min-height: 44px; padding: 0 18px; font-size: 15px; font-weight: 600; line-height: 1.2;
+:root.ios:not(.field-mode) #main-content .ui-button:not(.ui-button-link, .chip, .example, .tabs > *, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *) {
+  min-height: 44px; padding: 0 18px; font-size: var(--t-subhead); font-weight: 600; line-height: 1.2;
 }
-:root.ios:not(.field-mode) #main-content .ui-button.ui-button-sm:not(.ui-button-link, .chip, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *) {
-  min-height: 34px; padding: 0 14px; font-size: 14px;
+:root.ios:not(.field-mode) #main-content .ui-button.ui-button-sm:not(.ui-button-link, .chip, .example, .tabs > *, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *) {
+  min-height: 34px; padding: 0 14px; font-size: var(--t-subhead);
 }
-:root.ios:not(.field-mode) #main-content .chips:not(.attention-bar .chips, .segmented) > .chip { min-height: 32px; padding: 0 12px; font-size: 14px; }
+:root.ios:not(.field-mode) #main-content .chips:not(.attention-bar .chips, .segmented) > .chip { min-height: 32px; padding: 0 12px; font-size: var(--t-subhead); }
 /* Segments split the control evenly, as UISegmentedControl does, and never squeeze a label. */
 :root.ios:not(.field-mode) :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips, .chips.segmented):not([data-ios-menu]) > * {
-  flex: 1 1 0; min-width: max-content; padding: 0 12px; font-size: 13px;
+  flex: 1 1 0; min-width: max-content; padding: 0 12px; font-size: var(--t-footnote);
 }
 :root.ios .chips.segmented { display: flex; flex-wrap: nowrap; width: 100%; max-width: 100%; margin: 4px 0 16px; }
 :root.ios .chips.segmented > .chip { display: inline-flex; align-items: center; justify-content: center; border: 0; background: none;
@@ -535,11 +546,11 @@
    A select reads as an iOS pop-up button: the same 36-point rounded field as text fields, a small grey
    chevron.up.chevron.down at the trailing edge instead of the heavy native caret. */
 :root.ios:not(.field-mode) #main-content select {
-  appearance: none; -webkit-appearance: none; min-height: 36px; height: auto; padding: 6px 30px 6px 12px; font-size: 15px; line-height: 1.3;
+  appearance: none; -webkit-appearance: none; min-height: 36px; height: auto; padding: 6px 30px 6px 12px; font-size: var(--t-subhead); line-height: 1.3;
   background-repeat: no-repeat; background-position: right 11px center; background-size: 9px 14px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 18' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6.5 4-4 4 4M2 11.5l4 4 4-4'/%3E%3C/svg%3E");
 }
-:root.ios:not(.field-mode) #main-content input.ui-input:not([type=checkbox]):not([type=radio]):not([type=range]) { min-height: 36px; height: auto; padding: 6px 12px; font-size: 15px; }
+:root.ios:not(.field-mode) #main-content input.ui-input:not([type=checkbox]):not([type=radio]):not([type=range]) { min-height: 36px; height: auto; padding: 6px 12px; font-size: var(--t-subhead); }
 :root.ios:not(.field-mode) #main-content input.ui-input:is([type=search], [placeholder^="Search"], [placeholder^="filter"], [placeholder^="Filter"]) { padding-left: 34px !important; }
 :root.ios #main-content input:is([placeholder^="filter"], [placeholder^="Filter"]) {
   border-radius: 999px; background-repeat: no-repeat; background-position: 10px 50%; background-size: 17px;
@@ -557,15 +568,112 @@
 :root.ios .home-list > li > .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 :root.ios #main-content .home-list > li .row > .ui-button-link {
   flex: 1 1 100%; justify-content: flex-start; text-align: left; padding: 0; min-height: 0; margin: 0;
-  color: var(--text); font-size: 17px; font-weight: 600; line-height: 22px;
+  color: var(--text); font-size: var(--t-body); font-weight: 600; line-height: 22px;
 }
 :root.ios .home-list > li .row > .ui-button-link::after { content: ""; position: absolute; inset: 0; }  /* the whole row taps */
-:root.ios .home-list > li > .small { font-size: 13px; line-height: 18px; color: var(--muted); }
+:root.ios .home-list > li > .small { font-size: var(--t-footnote); line-height: 18px; color: var(--muted); }
 :root.ios .home-list > li > .small strong { color: var(--muted); font-weight: 500; }
 :root.ios .home-counts { gap: 4px 16px; }
 /* Status stays a word in its colour (the style guide's Badge tone), set semibold so it stands apart from the grey detail. */
-:root.ios #main-content .badge:is(.late, .soon) { font-size: 13px; font-weight: 600; white-space: nowrap; }
+:root.ios #main-content .badge:is(.late, .soon) { font-size: var(--t-footnote); font-weight: 600; white-space: nowrap; }
 /* Field jobs and other stacked cards on My work: separate rounded rows with air between them. */
 :root.ios .field-job.ui-card { margin-bottom: 12px; }
-:root.ios .field-job .ui-card-header h2 { font-size: 17px; line-height: 22px; }
-:root.ios .field-job .ui-card-header h2 .badge { display: inline; font-size: 13px; color: var(--muted); }
+:root.ios .field-job .ui-card-header h2 { font-size: var(--t-body); line-height: 22px; }
+:root.ios .field-job .ui-card-header h2 .badge { display: inline; font-size: var(--t-footnote); color: var(--muted); }
+
+/* ================= Ask: suggested questions and the composer =================
+   The suggestions are one inset grouped list, not a stack of tinted cards: the topic a small grey caption on the
+   leading edge, the question in body text, a chevron, hairlines between rows. The composer rides above the floating
+   tab bar instead of behind it. */
+:root.ios .ask-examples { gap: 0; border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+:root.ios #main-content .ask-examples > .example {
+  position: relative; display: grid; gap: 2px; justify-items: start; align-content: center; width: 100%; min-height: 44px;
+  margin: 0; padding: 11px 36px 11px 16px; border: 0; border-radius: 0; background: none; box-shadow: none;
+  color: var(--text); font-size: var(--t-subhead); font-weight: 400; line-height: 20px; text-align: left;
+}
+:root.ios #main-content .ask-examples > .example > .muted { font-size: var(--t-caption); line-height: 16px; font-weight: 500; color: var(--muted); }
+:root.ios .ask-examples > .example + .example::before {
+  content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: var(--hair) solid var(--line);
+}
+:root.ios .ask-examples > .example::after {
+  content: ""; position: absolute; right: 16px; top: 50%; width: 7px; height: 7px; margin-top: -4px;
+  border-right: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); border-top: 2px solid color-mix(in srgb, var(--muted) 55%, transparent);
+  transform: rotate(45deg);
+}
+:root.ios .ask-examples > .example:active { background: var(--lens); opacity: 1; }
+@media (min-width: 701px) {
+  :root.ios .ask-examples { grid-template-columns: 1fr 1fr; }
+  :root.ios .ask-examples > .example:nth-child(2)::before { display: none; }
+}
+@media (max-width: 900px) {
+  :root.ios .ask-box { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 66px); z-index: 5; padding: 10px 12px;
+    background: var(--panel); border: var(--hair) solid var(--line); border-radius: var(--radius); }
+  :root.ios .ask-box textarea { min-height: 44px; border-radius: 10px; border: 0; background: var(--fill); font-size: var(--t-body); }
+}
+
+/* ================= Daily reports on a phone =================
+   One column (the report, then its checks). The days are a strip of compact capsules that scroll sideways, the chosen
+   one filled; the report reads at body size. */
+@media (max-width: 700px) {
+  :root.ios .report-days { gap: 8px; margin-inline: -16px; padding: 2px 16px 12px; scrollbar-width: none; }
+  :root.ios .report-days::-webkit-scrollbar { display: none; }
+  :root.ios .report-day {
+    flex: none; display: inline-flex; align-items: center; gap: 6px; min-width: 0; min-height: 36px; padding: 0 14px;
+    border: 0; border-radius: 999px; background: var(--fill); box-shadow: none; white-space: nowrap; font-size: var(--t-subhead);
+  }
+  :root.ios .report-day.on { background: var(--accent); color: var(--accent-text, #fff); box-shadow: none; }
+  :root.ios .report-day.on :is(.report-day-week, .badge, .warn-text) { color: inherit; opacity: .85; }
+  :root.ios .report-day-week { font-size: var(--t-footnote); letter-spacing: 0; text-transform: none; }
+  :root.ios .report-day strong { font-weight: 600; }
+  :root.ios .report-day .badge { font-size: var(--t-caption); }
+}
+:root.ios .md { font-size: var(--t-subhead); line-height: 1.45; overflow-wrap: break-word; }
+:root.ios .md :is(p, ul, ol) { line-height: 1.45; }
+:root.ios .md :is(h1, h2, h3, h4) { font-size: var(--t-body); line-height: 22px; }
+
+/* Every segmented control is the same 36-point capsule (32-point segments), whatever page or element it is built from. */
+:root.ios:not(.field-mode) #main-content :is(.area-navigation, .tabs, .work-board-stages, .chips.segmented):not([data-ios-menu]) > * {
+  min-height: 32px; height: 32px; padding-block: 0; line-height: 32px; box-sizing: border-box;
+}
+/* Disclosures in a card (Evidence, History) sit as a tight pair of tappable rows, not islands of empty space. */
+:root.ios .ui-disclosure { margin: 0; }
+:root.ios #main-content .ui-disclosure-toggle { display: flex; align-items: center; width: 100%; min-height: 44px; font-size: var(--t-subhead); }
+:root.ios .ui-disclosure + .ui-disclosure { border-top: var(--hair) solid var(--line); }
+:root.ios .lesson-text { margin-bottom: 8px; }
+
+/* ================= The type ramp, applied =================
+   Large Title for the page, Title 3 for a section of the page, Headline for a card or list row title, Subheadline for
+   running text, Footnote for detail and meta, Caption for badges. One weight set: 400, 600 for headlines, 700 for
+   large titles. */
+:root.ios main h1, :root.ios .ui-page-header h1 { font-size: var(--t-large); line-height: 41px; font-weight: 700; }
+:root.ios .entity-head .ui-page-header h1.mono, :root.ios .ui-page-header.mono h1 { font-size: var(--t-title1); line-height: 34px; }
+:root.ios #main-content > section > h2, :root.ios #main-content section > h2:not(.ui-card h2) { font-size: var(--t-title3); line-height: 25px; font-weight: 600; }
+:root.ios .ui-card h2, :root.ios #main-content h3 { font-size: var(--t-body); line-height: 22px; font-weight: 600; }
+:root.ios #main-content h3.small { font-size: var(--t-footnote); line-height: 18px; }
+:root.ios #main-content { font-size: var(--t-subhead); line-height: 20px; }
+:root.ios #main-content :is(.small, small) { font-size: var(--t-footnote); line-height: 18px; }
+:root.ios #main-content :is(.ui-badge, .badge):not(.late, .soon) { font-size: var(--t-caption); }
+:root.ios #main-content :is(th, td) { font-size: var(--t-subhead); }
+:root.ios #main-content :is(th) { font-size: var(--t-footnote); font-weight: 600; }
+@media (max-width: 600px) {
+  /* A two-line large title still fits a phone: Title 1 when it wraps would be the alternative, but iOS keeps 34. */
+  :root.ios main h1, :root.ios .ui-page-header h1 { font-size: var(--t-large); }
+}
+
+/* ================= Tables: one look =================
+   Headings in Footnote, grey, as written (no capitals added); body in Subheadline; 44-point rows with a hairline
+   between them; a results table is an inset grouped card. */
+:root.ios .ui-table th { font-size: var(--t-footnote); font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; }
+:root.ios .ui-table td, :root.ios .ui-table th { padding: 11px 12px; border-bottom: var(--hair) solid var(--line); vertical-align: middle; }
+:root.ios .ui-table td { font-size: var(--t-subhead); line-height: 20px; }
+:root.ios .ui-table.ui-table-compact td, :root.ios .ui-table.ui-table-compact th { padding: 8px 10px; font-size: var(--t-footnote); }
+:root.ios .ui-table tr:last-child > td { border-bottom: 0; }
+:root.ios table.ui-table--results { border: 0; border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+:root.ios .ui-table.ui-table-clickable tbody tr:hover { background: none; }
+:root.ios .ui-table.ui-table-clickable tbody tr:active { background: var(--lens); }
+@media (max-width: 600px) {
+  :root.ios .phone-stack:has(thead) td, :root.ios .phone-rows td { padding: 0; border: 0; }
+  :root.ios .phone-stack:has(thead) tr, :root.ios .phone-rows tr { border-bottom: var(--hair) solid var(--line); padding: 11px 0; }
+  :root.ios .phone-stack:has(thead) td:first-child { font-size: var(--t-body); line-height: 22px; }
+  :root.ios .phone-stack:has(thead) td[data-label]::before, :root.ios .phone-rows td[data-label]::before { font-size: var(--t-caption); }
+}

@@ -120,3 +120,18 @@ html.ui-fullscreen-open .bottombar { display: none; }
 @media (max-width: 900px) {
   html, body { overflow-x: clip; }
 }
+/* One table look (#tables): numbers on the right in tabular figures; on a phone, a list-like table with headings stacks
+   into list rows, the first column the row's title and every other cell a labelled value under it (Table labels them). */
+.ui-table td.ui-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 600px) {
+  .phone-stack:has(thead), .phone-stack:has(thead) tbody { display: block; }
+  .phone-stack:has(thead) thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .phone-stack:has(thead) tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .phone-stack:has(thead) tr:last-child { border-bottom: 0; }
+  .phone-stack:has(thead) td { display: block; padding: 0; border: 0; text-align: left; }
+  .phone-stack:has(thead) td:first-child { flex: 1 1 100%; min-width: 0; font-weight: 600; }
+  .phone-stack:has(thead) td[data-label] { flex: 0 1 auto; min-width: 0; }
+  .phone-stack:has(thead) td[data-label]:empty { display: none; }
+  .phone-stack:has(thead) td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .phone-stack:has(thead) .ui-table-select-cell { flex: none; }
+}
