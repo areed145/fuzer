@@ -1,11 +1,12 @@
 /** Work here: on an asset's page, the open exceptions about it (and who has each) and what is planned on it, so
  * whoever looks up an asset sees the work around it before adding to it. */
+import { dayStamp } from "./wording";
 import { api } from "./api";
 import { Badge, Card } from "./ui";
 import { href, useAsync } from "./lib";
 import { holder, when } from "./work";
 
-const day = (at: string) => new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+const day = (at: string) => dayStamp(at);
 
 /** What the card reads, shared with the asset page so it can draw its overview at once (#1069). */
 export const readWork = (id: string, area: boolean) =>

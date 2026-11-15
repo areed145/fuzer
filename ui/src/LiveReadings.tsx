@@ -1,6 +1,7 @@
 /** Now, on an operated asset's overview (#1076): whether it is running, and its key readings against their limits,
  * from the newest values the historian has. An engineer or operator opening a compressor wants this before its make
  * and serial. Every value is the trend view's own, with the time of the reading; generated values say so. */
+import { stamp } from "./wording";
 import { api } from "./api";
 import { href, useAsync } from "./lib";
 import { reading, type TrendLimit, type TrendTrace, names } from "./trendFigure";
@@ -50,8 +51,7 @@ export function running(traces: TrendTrace[]): boolean | null {
   return scale > 0 ? speed.last > 0.05 * scale : null;
 }
 
-const at = (iso: string) => new Date(`${iso.slice(0, 16)}Z`).toLocaleString(undefined,
-  { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+const at = (iso: string) => stamp(`${iso.slice(0, 16)}Z`, true);
 
 /** The latest readings' read, shared with the asset page so it can draw its overview at once (#1069). */
 export const readLatest = (id: string) => api.trendView(id, "latest", 6, 0).catch(() => null);

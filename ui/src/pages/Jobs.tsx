@@ -1,3 +1,4 @@
+import { stamp } from "../wording";
 import "../styles/jobs.css";
 import { Button, ButtonLink, PageHeader, Table, Card as UICard , Badge as UIBadge, Disclosure } from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
@@ -221,7 +222,7 @@ function RunDots({ runs }: { runs: JobRunSummary[] }) {
     <span className="run-dots">
       {[...runs].reverse().map((r) => (
         <a key={r.run_id} href={runHref(r.run_id)} className={`run-dot run-${RUN_CLASS[r.status] ?? "key"}`}
-          title={`${r.status.toLowerCase()} · ${r.start ? new Date(r.start).toLocaleString() : "not started"}`}
+          title={`${r.status.toLowerCase()} · ${r.start ? stamp(r.start) : "not started"}`}
           aria-label={`${r.status.toLowerCase()} run ${when(r.start)}`} onClick={(e) => e.stopPropagation()} />
       ))}
     </span>
@@ -291,7 +292,7 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
             <tbody>
               {c.runs.map((r) => (
                 <tr key={r.run_id}>
-                  <td><a href={runHref(r.run_id)}>{r.start ? new Date(r.start).toLocaleString() : r.run_id.slice(0, 8)}</a></td>
+                  <td><a href={runHref(r.run_id)}>{r.start ? stamp(r.start) : r.run_id.slice(0, 8)}</a></td>
                   <td><RunBadge status={r.status} /></td>
                   <td><code>{r.model || "—"}</code></td>
                   <td>{r.input_tokens.toLocaleString()} / {r.output_tokens.toLocaleString()}</td>

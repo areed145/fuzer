@@ -90,3 +90,23 @@ export const ASSET_KINDS = ["tag", "equipment", "well", "facility", "area"];
  * "LP production separator", "st1 test separator" "ST1 test separator". */
 export const acronyms = (text: string): string =>
   text.replace(/\b(lp|hp|mp|ip|esd|psv|st\d|gt\d?)\b/g, (w) => w.toUpperCase());
+
+/** The app's one date format (#1131): "Nov 14, 2:11 PM", with the year only when it is not this year
+ * ("Dec 30, 2025, 9:20 PM"). `utc` reads the clock in UTC for values recorded that way. */
+export function stamp(at: string | number | Date, utc = false): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return String(at);
+  const zone = utc ? { timeZone: "UTC" } : {};
+  const year = utc ? d.getUTCFullYear() : d.getFullYear();
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    ...(year === new Date().getFullYear() ? {} : { year: "numeric" }), ...zone });
+}
+
+/** The same format for a day alone: "Nov 14", or "Dec 30, 2025" in another year. */
+export function dayStamp(at: string | number | Date, utc = false): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return String(at);
+  const year = utc ? d.getUTCFullYear() : d.getFullYear();
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric",
+    ...(year === new Date().getFullYear() ? {} : { year: "numeric" }), ...(utc ? { timeZone: "UTC" } : {}) });
+}

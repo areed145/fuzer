@@ -80,7 +80,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
                 {!t.assignee && (demo ? <ConfirmAction label="claim task" busy={!!a.busy} disabled={completion !== null}
                   consequence="Claim this shared task for your account. It leaves the role queue and changes recorded ownership; this is not a private demonstration."
                   onConfirm={() => a.run("claim", () => api.claim(id, person), refresh)} />
-                  : <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(id, person), view.reload)}>Claim it</Button>)}
+                  : <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(id, person), view.reload)}>Claim it</Button>)}
                 {t.assignee === person && (demo ? <ConfirmAction label="release task" busy={!!a.busy} disabled={completion !== null}
                   consequence="Return this shared task to its role queue so another eligible person can claim it."
                   onConfirm={() => a.run("release", () => api.release(id, person), refresh)} />

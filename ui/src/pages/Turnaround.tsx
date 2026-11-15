@@ -3,13 +3,14 @@
  * elsewhere, shutdown-only maintenance plans, the worst bad actors), and what is missing (spares out of stock).
  * Planned work is pulled into the window with one button. When a planning system's schedule names the revision, its
  * S-curve shows progress against the baseline and the slip (#360). `#/turnaround` redirects to `#/plan?revision=…`. */
+import { dayStamp } from "../wording";
 import { api, type PlanItem, type TurnaroundScope } from "../api";
 import { Badge, Button, Card, Empty } from "../ui";
 import { entityHref, href } from "../lib";
 import { useAct } from "./workflows/shared";
 import { LiveFigure } from "../analytics/LiveFigure";
 
-const day = (at: string | null) => (at ? new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "no date");
+const day = (at: string | null) => (at ? dayStamp(at) : "no date");
 
 export function TurnaroundPanel({ scope: t, person, onChange }: {
   scope: TurnaroundScope; person: string | null; onChange: () => void;

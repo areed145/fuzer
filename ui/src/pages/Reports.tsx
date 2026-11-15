@@ -1,7 +1,7 @@
 // The daily report (#98, #242), and the regulatory reports (P7.6, RegulatoryReports.tsx): one page for each production day's narrative, where its review stands, and the
 // review itself (publish, or send back with what to change). The `daily_report` case behind it is linked for
 // its history; the day's production figures are the `production_day` record (EC DAY001).
-import { units } from "../wording";
+import { units, dayStamp } from "../wording";
 import { useState } from "react";
 import { api, type DailyReport, type DailyStatus } from "../api";
 import { Markdown } from "../Markdown";
@@ -25,7 +25,7 @@ const STATUS_HELP: Record<string, string> = {
 };
 
 const weekday = (day: string) => new Date(`${day}T00:00Z`).toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" });
-const dayMonth = (day: string) => new Date(`${day}T00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const dayMonth = (day: string) => dayStamp(`${day}T00:00Z`, true);
 
 export function StatusBadge({ status }: { status: DailyStatus }) {
   return <UIBadge className={`badge ${STATUS_CLASS[status] ?? ""}`} title={STATUS_HELP[status]}>{status}</UIBadge>;

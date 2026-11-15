@@ -7,7 +7,7 @@ import { Markdown } from "./Markdown";
 import { entityHref, fieldLabel, fmt } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
-import { queue } from "./wording";
+import { queue, stamp } from "./wording";
 
 export { loadPerson, usePerson } from "./identityStore";
 
@@ -37,7 +37,7 @@ export function reportedBy(sources: { source?: string | null }[]): string {
 }
 
 export function when(at: string): string {
-  return new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return stamp(at);
 }
 
 export function Actor({ who }: { who: string }) {

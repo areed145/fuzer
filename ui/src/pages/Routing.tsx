@@ -1,3 +1,4 @@
+import { stamp } from "../wording";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api, type Route, type RouteExplanation, type RouteStep, type WorkRoleRow } from "../api";
 import { href, Status, useAsync } from "../lib";
@@ -102,7 +103,7 @@ function Explanation({ x }: { x: RouteExplanation }) {
     {(x.matched.length > 0 || x.unmatched.length > 0) && <p className="small">
       {x.matched.length > 0 && <>Matches {x.matched.map((m) => m.label).join(", ")}. </>}
       {x.unmatched.length > 0 && <span className="muted">No match for {x.unmatched.join(", ")}.</span>}</p>}
-    {x.due && <p className="small">Due {new Date(x.due).toLocaleString()}.</p>}
+    {x.due && <p className="small">Due {stamp(x.due)}.</p>}
     {nobody.length > 0 && <p role="alert" className="notice small">Nobody holds {nobody.map((s) => words(s.role)).join(", ")}:
       work there waits unseen. <a href={href("/users", { view: "workflow" })}>Assign someone</a>.</p>}
     {x.process?.published && <ProcessPicture processKey={x.process.key} steps={steps} />}

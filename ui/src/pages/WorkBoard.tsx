@@ -2,7 +2,7 @@
  * shows on one screen. Each column uses the same rule as the view of the same name, so its count matches the tab and
  * Home. Lanes split the columns by source or kind. A card's button is the next step: dispatch it, or close out what
  * came back from the field on its case. On a phone one stage shows at a time. */
-import { say } from "../wording";
+import { say, dayStamp } from "../wording";
 import "../styles/work-board.css";
 import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
@@ -163,8 +163,7 @@ function WorkCard({ r, stage, lane, now, person, people, queues, kind, onChange 
         reports > 1 ? `${reports} reports` : null].filter(Boolean).join(" · ")}</div>
       {said && stage !== "dispatch" && stage !== "closed" && <div className="small">
         <Badge tone={couldNot ? "warn" : "ok"} title={said.note ?? undefined}>{FIELD_SAID[said.status] ?? said.status}</Badge></div>}
-      {stage === "plan" && r.planned && <a className="small" href={href("/plan")}>planned {new Date(r.planned.start_at)
-        .toLocaleDateString(undefined, { day: "numeric", month: "short" })}</a>}
+      {stage === "plan" && r.planned && <a className="small" href={href("/plan")}>planned {dayStamp(r.planned.start_at)}</a>}
       <div className="work-card-meta small">
         <span className="muted">{who ?? (stage === "closed" ? r.state : "")}</span>
         <span>{[since, r.value_usd && stage !== "closed" ? money(r.value_usd) : null].filter(Boolean).join(" · ")}</span>
