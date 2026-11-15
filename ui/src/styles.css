@@ -16,6 +16,10 @@
   --color-danger: var(--danger);
   --color-ok-soft: var(--ok-soft);
   --color-warn-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-attn-high: var(--attn-high);
+  --color-attn-medium: var(--attn-medium);
+  --color-attn-low: var(--attn-low);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -79,6 +83,12 @@
   --warn: #a35f00;
   --warn-soft: #fff4d6;
   --danger: #c4302b;
+  --info: #1f63c6;
+  /* Ink for text set on a filled ok, warn, danger or info colour (a hotspot's count, a 3D badge). */
+  --on-ok: #ffffff;
+  --on-warn: #ffffff;
+  --on-danger: #ffffff;
+  --on-info: #ffffff;
   --chart-1: #0b6bcb;
   --chart-2: #d9770b;
   --chart-3: #1a8f5a;
@@ -94,13 +104,18 @@
   --product-lift_gas: #1a8f5a;
   --product-water: #0b6bcb;
   --product-flare: #c4302b;
-  /* Status on the 3D view's shapes (P5.16b): down now, an alarm sounding, open work. */
-  --status-down: var(--danger);
-  --status-alarm: var(--warn);
-  --status-work: var(--chart-4);
+  /* Attention: how urgently something needs someone, one scale for every view that colours a place or an item by it
+   * (Home's hotspots, the 3D view and its 2D twin, priority words). High is down now or high-priority work, medium an
+   * alarm sounding or medium-priority work, low low-priority work. Read through attentionColor in kinds.ts. */
+  --attn-high: var(--danger);
+  --attn-medium: var(--warn);
+  --attn-low: var(--info);
+  --on-attn-high: var(--on-danger);
+  --on-attn-medium: var(--on-warn);
+  --on-attn-low: var(--on-info);
   --rel-flows_to: var(--product-multiphase);
   --rel-lift_gas_to: var(--product-lift_gas);
-  --rel-pipes_to: #50708f;  /* steel, not purple: purple is open work on the 3D view (#1075) */
+  --rel-pipes_to: #50708f;  /* steel: reads apart from the product colours */
   --rel-part_of: #5f6b7a;
   --rel-installed_at: #0f8f9c;
   --rel-controls: #c2389b;
@@ -115,7 +130,7 @@
   --map-abandoned: #7a8594;
   --map-label: #1b1f24;
   --map-well: var(--kind-well);
-  --map-focus: #c4302b;
+  --map-focus: var(--accent);  /* the picked thing is the accent on every view, never a status colour */
   --map-outline: #ffffff;
   --kind-facility: #5f6b7a;
   --kind-area: #1f9e9e;
@@ -172,6 +187,11 @@
     --warn: #f0b44c;
     --warn-soft: #2e2611;
     --danger: #ff6b66;
+    --info: #6aa5ff;
+    --on-ok: #0b1220;
+    --on-warn: #0b1220;
+    --on-danger: #0b1220;
+    --on-info: #0b1220;
     --chart-1: #4c9eff;
     --chart-2: #f5a13d;
     --chart-3: #4cc38a;
@@ -193,7 +213,6 @@
     --map-other: #a7b2c0;
     --map-abandoned: #a7b2c0;
     --map-label: #e6e9ee;
-    --map-other: #a7b2c0;
     --kind-facility: #a7b2c0;
     --kind-area: #4cc6c6;
     --kind-tag: #70adff;

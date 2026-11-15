@@ -14,10 +14,13 @@
 /* What the badges mean, in a corner of the drawing. */
 .scene-key { position: absolute; left: 10px; bottom: 10px; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 80px);
   padding: 5px 9px; border-radius: 8px; background: color-mix(in srgb, var(--panel) 90%, transparent); font-size: 12px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / .15); pointer-events: none; }
+  border: 1px solid var(--line); pointer-events: none; }
 .scene-key span { display: inline-flex; align-items: center; gap: 5px; }
-.scene-key-badge { min-width: 16px; padding: 0 4px; border-radius: 8px; text-align: center; color: #fff;
+.scene-key-badge { min-width: 16px; padding: 0 4px; border-radius: 8px; text-align: center;
   font: 600 10px/16px ui-monospace, Menlo, Consolas, monospace; }
+.scene-key-badge.swatch-high { color: var(--on-attn-high); }
+.scene-key-badge.swatch-medium { color: var(--on-attn-medium); }
+.scene-key-badge.swatch-low { color: var(--on-attn-low); }
 .scene-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 0 12px; }
 /* Fixed widths for the two long lists and the basis on its own row, so a longer Show value never moves the rest (#1075). */
 .scene-controls .scene-show .ui-input, .scene-controls label:has([aria-label="Find an item in the drawing"]) .ui-input { width: 22rem; }
@@ -50,7 +53,7 @@
 /* Status, paths and scenarios (P5.16b to d). */
 .scene-badge {
   position: absolute; left: 0; top: 0; min-width: 16px; padding: 0 4px; border-radius: 8px; text-align: center;
-  font: 600 10px/16px ui-monospace, Menlo, Consolas, monospace; color: #fff; background: var(--badge);
+  font: 600 10px/16px ui-monospace, Menlo, Consolas, monospace; color: var(--badge-ink, var(--on-danger)); background: var(--badge);
   box-shadow: 0 0 0 1px var(--panel);
 }
 /* An area's badge on a facility in blocks is a button: it opens the area. */
@@ -59,9 +62,9 @@
 .scene-badge-plate:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .scene-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 13px; }
 .scene-status .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
-.swatch-down { background: var(--status-down); }
-.swatch-alarm { background: var(--status-alarm); }
-.swatch-work { background: var(--status-work); }
+.swatch-high { background: var(--attn-high); }
+.swatch-medium { background: var(--attn-medium); }
+.swatch-low { background: var(--attn-low); }
 .scene-scenario { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; }
 .scene-scenario ul { margin: 4px 0; padding-left: 18px; }
 .scene-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
