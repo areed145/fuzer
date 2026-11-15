@@ -23,7 +23,17 @@ def refresh(conn, folder: Path, pack=None) -> None:
     """
     try:
         seeded = catalog.seed(conn)
+        from ..core import access
+        from ..sources import demo_hold
+
+        held = demo_hold.seed(conn) if access.demo_enabled() else None  # a held load for the steward to fix (#1145)
         stats = ingest.ingest(conn, folder)
+        if held:
+            from ..graph import data_work
+
+            data_work.sync(conn)  # its case in the steward's queue now, not at the next rebuild
+            conn.commit()
+            print(f"Demo: {held} held for the data steward to review.", flush=True)
         changed = stats["inserted"] + stats["updated"] + stats["removed"]
         for outcome in ("held", "paused", "missing"):
             if stats[outcome]:
