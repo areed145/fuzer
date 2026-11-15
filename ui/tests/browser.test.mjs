@@ -2512,6 +2512,8 @@ test("mobile navigation traps focus, restores it on Escape and does not overlap 
   await menu.click();
   await page.waitForFunction(() => document.body.style.overflow === "hidden");
   await page.waitForFunction(() => document.getElementById("sidebar").getBoundingClientRect().x === 0);
+  // On a phone the Menu rises as a sheet: let it finish rising before checking what lies under its top.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
   assert.equal(await page.evaluate(() => document.getElementById("sidebar").contains(document.activeElement)), true);
   await page.keyboard.press("Shift+Tab");
   assert.equal(await page.evaluate(() => document.getElementById("sidebar").contains(document.activeElement)), true);
