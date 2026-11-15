@@ -52,9 +52,8 @@ table.ui-table--results { background: var(--panel); border: 1px solid var(--line
 .grid.three { grid-template-columns: repeat(3, 1fr); margin-bottom: 16px; }
 ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .grid + .card, .grid + section { margin-top: 16px; }
-/* On a phone the two columns stack. This sits after the two-column rule above, which is loaded after the shell's
-   breakpoint and so used to win over it: a daily report and its checks stayed side by side at 390 px. */
-@media (max-width: 800px) { .grid, .grid.three { grid-template-columns: minmax(0, 1fr); } }
+/* shell.css stacks .grid on a phone, but this file loads after it and its two columns won: say it again here. */
+@media (max-width: 800px) { .grid, .grid.three { grid-template-columns: minmax(0, 1fr); } .grid > * { min-width: 0; } }
 .home-search { display: flex; gap: 8px; margin: 14px 0 16px; }
 .home-search input { flex: 1; min-width: 0; }
 /* Cards wrap two to a row and any card alone on its row takes the row, whichever cards a seat gets (#1074). */

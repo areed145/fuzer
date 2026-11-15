@@ -87,6 +87,8 @@ export const Section = Card;
 /** On a phone a `phone-rows` table stacks each row (styles/work.css), so a cell can't lean on its column heading any more:
  * each cell is labelled with its heading, unless it names its own `data-label`. The first column is the row's title and
  * needs none. Rows added later are labelled too. */
+const NUMBER = /^[-+−]?[$€£]?\d[\d,. ]*(%|\s?[A-Za-z³/]{1,6})?$/;
+
 function labelCells(table: HTMLTableElement) {
   const heads = Array.from(table.tHead?.rows[0]?.cells ?? []).map((th) => th.textContent?.trim() ?? "");
   if (!heads.length) return;
@@ -95,6 +97,8 @@ function labelCells(table: HTMLTableElement) {
     for (const cell of Array.from(row.cells)) {
       const head = heads[column];
       if (column > 0 && head && !cell.hasAttribute("data-label")) cell.setAttribute("data-label", head);
+      // A cell that holds only a number (with an optional unit or %) lines up on the right in tabular figures.
+      cell.classList.toggle("ui-num", column > 0 && NUMBER.test(cell.textContent?.trim() ?? ""));
       column += cell.colSpan || 1;
     }
   }
@@ -105,7 +109,9 @@ export function Table({ children, className = "", variant = "default", density =
   density?: "normal" | "compact"; clickable?: boolean; headingCase?: "capitalize" | "verbatim";
 }) {
   const ref = useRef<HTMLTableElement>(null);
-  const stacks = /\bphone-rows\b/.test(className);
+  // Every list-like table stacks into list rows on a phone (one look across pages); key-value, comparison, settings and
+  // mapping tables keep their own phone layouts.
+  const stacks = /\bphone-rows\b/.test(className) || variant === "default" || variant === "results" || variant === "list";
   useEffect(() => {
     const table = ref.current;
     if (!stacks || !table) return;
@@ -114,7 +120,7 @@ export function Table({ children, className = "", variant = "default", density =
     watch.observe(table, { childList: true, subtree: true });
     return () => watch.disconnect();
   }, [stacks]);
-  return <div className="ui-table-wrap"><table ref={ref} {...props} className={`ui-table ui-table--${variant} ui-table-${density}${clickable ? " ui-table-clickable" : ""} ui-table-heading-${headingCase} ${className}`.trim()}>{children}</table></div>;
+  return <div className="ui-table-wrap"><table ref={ref} {...props} className={`ui-table ui-table--${variant} ui-table-${density}${clickable ? " ui-table-clickable" : ""} ui-table-heading-${headingCase}${stacks ? " phone-stack" : ""} ${className}`.trim()}>{children}</table></div>;
 }
 
 export function Field({ label, hint, width = "md", children }: { label: ReactNode; hint?: ReactNode; width?: Width; children: ReactNode }) {
@@ -127,7 +133,7 @@ export function Select({ width, className = "", ...props }: SelectHTMLAttributes
   return <select {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
 }
 export function Badge({ tone = "muted", className = "", ...props }: HTMLAttributes<HTMLSpanElement> & {
-  tone?: "ok" | "warn" | "danger" | "muted";
+  tone?: "ok" | "warn" | "danger" | "info" | "muted";
 }) {
   return <span {...props} className={`ui-badge ui-badge-${tone} badge ${className}`.trim()} />;
 }

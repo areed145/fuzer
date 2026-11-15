@@ -71,13 +71,15 @@ h2 select { font: inherit; font-size: 15px; }
 
 /* Hotspots (Home): colour is the highest band, the number how much is open, a clock badge something overdue. */
 .hotspot { background: none; border: 0; }
-.hotspot-dot { display: grid; place-items: center; border-radius: 50%; border: 2.5px solid var(--panel); color: #fff;
-  font-weight: 700; font-size: 13px; box-shadow: 0 1px 4px rgb(0 0 0 / .35); cursor: pointer; box-sizing: border-box; }
-.hotspot-high .hotspot-dot { background: var(--danger); box-shadow: 0 0 0 7px color-mix(in srgb, var(--danger) 22%, transparent),
-  0 0 0 15px color-mix(in srgb, var(--danger) 10%, transparent); }
-.hotspot-medium .hotspot-dot { background: var(--warn); }
-.hotspot-low .hotspot-dot { background: var(--muted); }
-.hotspot.selected .hotspot-dot { border-color: var(--text); border-width: 3.5px; }
+.hotspot-dot { display: grid; place-items: center; border-radius: 50%; border: 2.5px solid var(--panel); color: var(--on-attn-low);
+  font-weight: 700; font-size: 13px; cursor: pointer; box-sizing: border-box; background: var(--attn-low); }
+/* The same attention colours as the 3D view and the priority words (--attn-* in styles.css). Flat: a ring of the
+   band's own colour marks high, no shadow or glow. */
+.hotspot-high .hotspot-dot { background: var(--attn-high); color: var(--on-attn-high);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--attn-high) 24%, transparent); }
+.hotspot-medium .hotspot-dot { background: var(--attn-medium); color: var(--on-attn-medium); }
+.hotspot-low .hotspot-dot { background: var(--attn-low); color: var(--on-attn-low); }
+.hotspot.selected .hotspot-dot { border-color: var(--accent); border-width: 3.5px; }
 .hotspot:focus-visible { outline: none; }
 .hotspot:focus-visible .hotspot-dot { outline: 3px solid var(--accent); outline-offset: 3px; }
 .hotspot-late { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 17px; height: 17px;

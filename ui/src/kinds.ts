@@ -59,3 +59,12 @@ export function applyOntology(o: OntologyDeclared): void {
   ALL_RELS.splice(0, ALL_RELS.length, ...views.flatMap((v) => v.rels));
 }
 
+
+/** The attention scale (--attn-* in styles.css): how urgently a place or item needs someone, the same three colours on
+ * Home's hotspots, the 3D view and its 2D twin, and the priority words (High in danger, Medium in warn, Low in info). */
+export type AttentionBand = "high" | "medium" | "low";
+export const attentionColor = (band: AttentionBand) => cssVar(`--attn-${band}`);
+/** The ink for text set on a filled attention colour (a badge's count). */
+export const attentionInk = (band: AttentionBand) => cssVar(`--on-attn-${band}`);
+/** The Badge tone of each band, so a priority word reads in its band's colour. */
+export const ATTENTION_TONE: Record<AttentionBand, "danger" | "warn" | "info"> = { high: "danger", medium: "warn", low: "info" };

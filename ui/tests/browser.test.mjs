@@ -4032,7 +4032,7 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
     counts: { items: 6, links: 5, not_drawn: 0, by_layout: 6, by_geometry: 0, no_shape: 0 }, truncated: false,
     places: [{ id: "A1", kind: "area", label: "AREA-1", parent: null }],
   };
-  const status = { status: { "K-1": { open_work: 2, alarms: 1, down: null },
+  const status = { status: { "K-1": { open_work: 2, work_band: "low", alarms: 1, down: null },
     W2: { open_work: 0, alarms: 0, down: { id: "D1", start: "2026-11-13T04:00", reason: "Trip" } } },
   totals: { open_work: 1, alarms: 1, down: 1 }, alarm_hours: 2 };
   const trip = { item: { id: "K-1", label: "K-1" }, hours: 24, units: [{ id: "K-1", label: "K-1" }],
@@ -4058,9 +4058,18 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
   assert.equal(await page.locator('.scene-badge[data-item="W2"]').textContent(), "Down");
   assert.equal(reads.filter((p) => p.endsWith("/scene/status")).length, 1);
   const colours = page.getByLabel("What the colours say");
-  for (const words of ["Down now (1)", "Alarm sounding (1)", "Open work (1)", "Alarms over the last 2 h."]) {
+  // One attention scale with Home's hotspots: down is high, an alarm over low-priority work is medium.
+  for (const words of ["Down, or high-priority work (1)", "Alarm sounding, or medium-priority work (1)", "Low-priority work (0)",
+    "Alarms over the last 2 h."]) {
     assert.ok((await colours.textContent()).includes(words), words);
   }
+  const fill = (sel) => page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor);
+  const token = (name) => page.evaluate((n) => {
+    const probe = document.createElement("i"); probe.style.background = `var(${n})`; document.body.append(probe);
+    const c = getComputedStyle(probe).backgroundColor; probe.remove(); return c;
+  }, name);
+  assert.equal(await fill('.scene-badge[data-item="K-1"]'), await token("--attn-medium"));
+  assert.equal(await fill('.scene-badge[data-item="W2"]'), await token("--attn-high"));
   // Only items with open work: the rest dim, kept in the link.
   const onlyWork = colours.getByRole("button", { name: "Only items with open work" });
   await onlyWork.click();
@@ -4112,7 +4121,7 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
   await page.getByLabel("Draw in").selectOption("2d");
   await page.waitForFunction(() => location.hash.includes("draw=2d"));
   await page.locator('[data-testid="scene-flat"] canvas').first().waitFor();
-  assert.ok((await page.getByLabel("What the colours say").textContent()).includes("Open work (1)"));
+  assert.ok((await page.getByLabel("What the colours say").textContent()).includes("Alarm sounding, or medium-priority work (1)"));
   await page.getByLabel("Find an item in the drawing").selectOption("K-1");
   await card.getByRole("button", { name: "Upstream" }).click();
   await card.getByTestId("scene-path").waitFor();

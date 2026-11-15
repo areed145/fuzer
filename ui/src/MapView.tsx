@@ -265,8 +265,9 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
       return {
         at: [lat, lon], kind, shape: def?.square ? "square" : "circle",
         radius: ((def?.radius ?? 5) + (isFocus ? 4 : 0)) * (faint ? 0.6 : 1),
-        stroke: colors.outline, strokeWidth: kind === "well" ? 1 : 2,
-        fill: isFocus ? colors.focus : kindColor(kind), fillOpacity: faint ? 0.6 : 1,
+        // The picked thing keeps its kind's colour and is ringed in the accent, as a pick is on every view.
+        stroke: isFocus ? colors.focus : colors.outline, strokeWidth: isFocus ? 4 : kind === "well" ? 1 : 2,
+        fill: kindColor(kind), fillOpacity: faint ? 0.6 : 1,
         popup: () => popup(f), tip: tip(f),
       };
     });
