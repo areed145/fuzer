@@ -530,6 +530,10 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
         """
         select e.*, w.state as case_state, w.assignee, w.role,
                e.raised_count + coalesce((select sum(j.raised_count) from exception_record j where j.joined_to = e.id), 0)::int as reports,
+               -- back from the field: the case's last hand-on was the field's report returning it to the IOC. Said
+               -- by the hand-on, not by who holds it, since the person it came back to can be the one who went
+               coalesce((select h.data->>'reason' from work_event h where h.item_id = e.item_id and h.kind = 'handed_off'
+                         order by h.id desc limit 1) like 'Back from the field%%', false) as back_from_field,
                (select json_build_object('id', p.id, 'start_at', p.start_at, 'end_at', p.end_at, 'crew', p.crew)
                 from plan_item p where p.exception_id = e.id and p.status in ('proposed', 'scheduled', 'in_progress')
                 order by p.start_at limit 1) as planned,

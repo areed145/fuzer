@@ -686,6 +686,8 @@ export interface ExceptionRow {
   priority: number | null; value_usd: number | null; subjects: string[]; unmatched: string[];
   item_id: number | null; case_state: string | null; assignee: string | null; role: string | null;
   raised_count: number; reports?: number; first_seen: string; last_seen: string;
+  /** Its case's last hand-on was the field's report sending it back to the IOC to close out. */
+  back_from_field?: boolean;
   /** When it was closed or cleared, and when anything about it last changed. */
   closed_at?: string | null; updated_at?: string;
   planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
