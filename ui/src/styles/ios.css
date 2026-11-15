@@ -755,3 +755,12 @@
     background: none; color: var(--danger); font-size: var(--t-body); font-weight: 400; box-shadow: 0 calc(-1 * var(--hair)) 0 var(--line); }
 }
 :root.ios .trend-controls .chips.segmented.trend-windows { width: auto; flex: none; margin: 0; }
+
+/* ================= One empty state (#1131 item 9) =================
+   "Nothing here" reads the same wherever it is: a grey line. Standing alone on a page it sits in an inset card like the
+   content it stands in for, left-aligned; inside a card it is just the line. */
+:root.ios #main-content :is(.status-empty, .ui-empty-line):not(:is(.ui-card, .home-card, .work-board-column, td, li) *) {
+  margin: 0 0 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--panel); text-align: left;
+  font-size: var(--t-subhead); color: var(--muted);
+}
+:root.ios #main-content :is(.ui-card, .home-card) .status-empty { padding: 0; text-align: left; font-size: var(--t-subhead); }

@@ -145,6 +145,6 @@ export function Status({ loading, error, empty, children, onRetry }: {
     {onRetry && <> <Button disabled={loading} onClick={onRetry}>Try again</Button></>}
   </div>;
   if (loading) return <div className="status" role="status"><Mark />Loading…</div>;
-  if (empty) return <div className="status">{children ?? "Nothing here."}</div>;
+  if (empty) return <div className="status status-empty">{children ?? "Nothing here."}</div>;
   return null;
 }
