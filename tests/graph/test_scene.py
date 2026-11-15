@@ -94,8 +94,9 @@ def test_everything_in_the_area_is_drawn_or_counted(compression):
     conn, _k, s = compression
     members = conn.execute(
         "select count(distinct e.src) as n from edge e join entity en on en.fuzer_id = e.src "
-        "where e.dst = %s and e.rel in ('part_of', 'located_at') and e.valid_to is null and en.merged_into is null "
-        "and en.kind <> 'area'", (s["root"]["id"],)).fetchone()["n"]
+        "where e.dst = any(%s) and e.rel in ('part_of', 'located_at') and e.valid_to is null and en.merged_into is null "
+        "and en.kind <> 'area'", (scene._areas(conn, s["root"], shapes.for_pack(None)),)).fetchone()["n"]
+    # the area's own members and those of the decks standing on it (GGCP's flare deck), drawn on its plate
     drawn = sum(1 for i in s["items"] if i["plate"] == s["root"]["id"])
     assert drawn + s["counts"]["not_drawn"] == members and s["counts"]["not_drawn"] > 0
     assert s["counts"]["by_layout"] == len(s["items"]) and s["counts"]["by_geometry"] == 0
@@ -111,7 +112,10 @@ def test_a_facility_draws_every_area_and_a_jacket_stands_on_a_frame(okan_db):
     s = scene.scene(conn)
     assert s["root"]["kind"] == "facility"
     areas = [p for p in s["plates"] if p["area"]]
-    assert len(areas) == conn.execute("select count(*) as n from entity where kind = 'area'").fetchone()["n"]
+    every = scene._areas(conn, s["root"])
+    decks = scene._decks(conn, shapes.for_pack(None), every)
+    assert decks == {_fid(conn, "OKAN-25"): _fid(conn, "OKAN-20")}  # GGCP's flare deck stands on GGCP's jacket
+    assert len(areas) + len(decks) == conn.execute("select count(*) as n from entity where kind = 'area'").fetchone()["n"]
     assert {p["frame"] for p in areas if "jacket" in (p["type"] or "")} == {"lattice"}
     for i, p in enumerate(s["plates"]):  # plates never overlap
         for q in s["plates"][i + 1:]:
