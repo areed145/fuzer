@@ -7903,7 +7903,7 @@ test("on an iPhone the app follows iOS: a row too wide becomes a pull-down menu,
   assert.deepEqual(errors, []);
 });
 
-test("on an iPhone a table stacks as labelled rows and a section picker that repeats the title becomes the title's menu (#1077)", async () => {
+test("on an iPhone a table stacks as labelled rows and the section tabs stay tabs (#1077, #1131)", async () => {
   const route = { type: "short_gas_day", label: "Short gas day", description: "", declared_in: "source pack", source_system: "measurement",
     joins: false, join_hours: null, starts: "queue", process: "queue_item", role: "production_engineer", case_type: "short_gas_day",
     audience: ["ioc"], close_case_on_clear: true, due: null };
@@ -7918,16 +7918,22 @@ test("on an iPhone a table stacks as labelled rows and a section picker that rep
   assert.equal(await row.locator("td").nth(1).getAttribute("data-label"), "Goes to");
   assert.equal(await row.locator("td").first().getAttribute("data-label"), null);
   assert.ok((await page.locator("table.routing-table thead").boundingBox()).height <= 1, "headings move into the cells");
-  // The Settings pages picker would only say "Routing" over "Routing": the title opens the sections instead.
-  await page.waitForFunction(() => document.querySelector("main h1")?.classList.contains("ios-title-menu"));
+  // The Settings pages stay tabs: never a pull-down or a menu on the title. A row too wide for the phone scrolls
+  // sideways, and it opens with the current tab in view.
   const picker = page.getByRole("navigation", { name: "Settings pages" });
-  assert.equal(await picker.getAttribute("data-ios-title-menu"), "");
-  await title.click();
-  const menu = page.getByRole("menu");
-  await menu.getByRole("menuitemradio", { name: /Routing/ }).waitFor();
-  assert.equal(await menu.getByRole("menuitemradio", { name: /Routing/ }).getAttribute("aria-checked"), "true");
-  await page.keyboard.press("Escape");
-  await menu.waitFor({ state: "detached" });
+  const current = picker.getByRole("link", { name: "Routing", exact: true });
+  await current.waitFor();
+  assert.equal(await picker.getAttribute("data-ios-menu"), null);
+  assert.equal(await page.locator("main h1.ios-title-menu").count(), 0);
+  assert.ok(await picker.getByRole("link").count() > 1);
+  for (const link of await picker.getByRole("link").all()) assert.equal(await link.isVisible(), true);
+  await page.waitForFunction(() => {
+    const row = document.querySelector("main .area-navigation"), tab = row?.querySelector("[aria-current]");
+    if (!row || !tab) return false;
+    const r = row.getBoundingClientRect(), t = tab.getBoundingClientRect();
+    return t.left >= r.left - 1 && t.right <= r.right + 1;
+  });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "the page itself does not scroll sideways");
   // On a desktop the table keeps its headings and the picker its tabs.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${url}/?ios=0#/routing`);

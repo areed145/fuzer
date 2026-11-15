@@ -429,19 +429,10 @@
   :root.ios .ui-page-header .ui-help::after { content: ""; position: absolute; inset: -6px; }
 }
 
-/* A section picker that would only repeat the page title becomes the title's own menu, as iOS does: the large title
-   gets a chevron and opens the list of sections (ios.ts). The picker stays for keyboard and VoiceOver. */
+/* Section tabs are always tabs on a phone: a row too wide for the screen scrolls sideways inside its capsule, with the
+   current tab brought into view (ios.ts). It never folds into a pull-down or the title. */
 @media (max-width: 900px) {
-  :root.ios [data-ios-title-menu]:not(:focus-within) {
-    position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important; overflow: hidden !important;
-    clip-path: inset(50%) !important;
-  }
-  :root.ios h1.ios-title-menu { cursor: pointer; }
-  :root.ios h1.ios-title-menu::after {
-    content: ""; display: inline-block; width: 15px; height: 15px; margin-left: 8px; vertical-align: 2px; background: var(--muted);
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E") center / contain no-repeat;
-            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E") center / contain no-repeat;
-  }
+  :root.ios .area-navigation { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 }
 
 /* Home's attention list: each place reads as a list row with the place name as its link, not a wall of link colour.

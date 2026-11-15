@@ -123,9 +123,10 @@ function swipeActions() {
   });
 }
 
-/** Segment rows that don't fit the screen become a pull-down: only the chosen segment shows, as a button that opens
- * an iOS menu of every choice. Rows that fit stay segmented controls. */
-const ROWS = "main nav.tabs, main .area-navigation, main .work-board-stages, main .attention-bar .chips";
+/** A page's own view pickers that don't fit the screen become a pull-down: only the chosen segment shows, as a button
+ * that opens an iOS menu of every choice. Rows that fit stay segmented controls. The section tabs (`.area-navigation`)
+ * are never folded away: they are always tabs, and a row too wide for the screen scrolls sideways. */
+const ROWS = "main nav.tabs, main .work-board-stages, main .attention-bar .chips";
 const chosen = (el: Element) => el.matches(".on, [aria-current], [aria-pressed='true']");
 
 function fitMenus() {
@@ -142,26 +143,15 @@ function fitMenus() {
   });
 }
 
-const plain = (text: string | null | undefined) => (text ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-
-/** A section picker whose chosen section only repeats the large title under it ("Daily reports" over "Daily reports")
- * hides, and the title itself opens the sections, the way an iOS title menu does. The picker stays reachable by
- * keyboard and VoiceOver. */
-function titleMenus() {
-  const title = document.querySelector<HTMLElement>("main h1");
-  let match: HTMLElement | null = null;
-  if (phone() && title) {
-    document.querySelectorAll<HTMLElement>("main [data-ios-menu]").forEach((row) => {
-      const item = Array.from(row.children).find(chosen);
-      if (!item || match) return;
-      const count = item.querySelector(".muted")?.textContent ?? "";
-      if (plain((item.textContent ?? "").replace(count, "")) === plain(title.textContent)) match = row;
-    });
-  }
-  document.querySelectorAll("[data-ios-title-menu]").forEach((row) => row !== match && row.removeAttribute("data-ios-title-menu"));
-  document.querySelectorAll(".ios-title-menu").forEach((h) => h !== title && h.classList.remove("ios-title-menu"));
-  if (match) (match as HTMLElement).setAttribute("data-ios-title-menu", "");
-  if (title && title.classList.contains("ios-title-menu") !== !!match) title.classList.toggle("ios-title-menu", !!match);
+/** Section tabs that scroll sideways open with the current tab in view. A row is placed once per page, so the reader's
+ * own scrolling is left alone. */
+let placed: Element | null = null;
+function showCurrentTab() {
+  const row = document.querySelector<HTMLElement>("main .area-navigation");
+  const tab = row?.querySelector<HTMLElement>("[aria-current]");
+  if (!row || !tab || placed === tab || !row.getClientRects().length) return;
+  placed = tab;
+  if (row.scrollWidth > row.clientWidth + 2) row.scrollLeft = tab.offsetLeft - (row.clientWidth - tab.offsetWidth) / 2;
 }
 
 /** A rotation or a wider window may let a row fit again: measure afresh. */
@@ -221,9 +211,6 @@ function openMenu(row: HTMLElement, button: HTMLElement) {
 
 function pullDowns() {
   document.addEventListener("click", (e) => {
-    const title = (e.target as Element).closest<HTMLElement>("h1.ios-title-menu");
-    const row = title && document.querySelector<HTMLElement>("[data-ios-title-menu]");
-    if (title && row) { e.preventDefault(); openMenu(row, title); return; }
     const item = (e.target as Element).closest<HTMLElement>("[data-ios-menu] > *");
     if (!item || !chosen(item)) return;
     e.preventDefault();
@@ -233,14 +220,14 @@ function pullDowns() {
   window.addEventListener("keydown", (e) => { if (e.key === "Escape" && openFor) closeMenu(true); });
   window.addEventListener("hashchange", () => closeMenu());
   let width = window.innerWidth;
-  window.addEventListener("resize", () => { if (window.innerWidth !== width) { width = window.innerWidth; closeMenu(); refitMenus(); titleMenus(); } });
+  window.addEventListener("resize", () => { if (window.innerWidth !== width) { width = window.innerWidth; closeMenu(); refitMenus(); placed = null; showCurrentTab(); } });
 }
 
 export function startIos() {
   if (!wanted()) return;
   document.documentElement.classList.add("ios");
   let queued = false;
-  const refold = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; foldTitle(); fitMenus(); titleMenus(); }); } };
+  const refold = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; foldTitle(); fitMenus(); showCurrentTab(); }); } };
   window.addEventListener("scroll", refold, { passive: true });
   window.addEventListener("hashchange", () => setTimeout(refold, 50));
   new MutationObserver(refold).observe(document.body, { childList: true, subtree: true });
