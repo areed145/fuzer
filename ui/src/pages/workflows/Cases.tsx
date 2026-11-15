@@ -279,7 +279,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload }: {
         ))}
       </ul> : <p className="small">No step is open. Close it out below, or give it to someone.</p>}
       <div className="row wrap case-next-actions">
-        {next && !answered && <ButtonLink variant="primary" href={stepHref(next.id)}>{next.name ?? next.element}</ButtonLink>}
+        {next && !answered && <ButtonLink variant="primary" href={stepHref(next.id)} aria-label={`Open ${next.name ?? next.element}`}>Open the step</ButtonLink>}
         {fieldOnly && <ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink>}
       </div>
       {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}

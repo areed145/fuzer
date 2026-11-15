@@ -8180,7 +8180,7 @@ test("a case opens on its decision: what it waits on, the next action, and a mis
   await page.goto(`${url}/#/cases/113`);
   const next = page.getByRole("region", { name: "Next step" }).or(page.locator(".case-next"));
   await next.getByText("Triage", { exact: true }).waitFor();
-  assert.equal(await next.getByRole("link", { name: "Triage", exact: true }).getAttribute("href"), "#/inbox/task/42");
+  assert.equal(await next.getByRole("link", { name: "Open Triage" }).getAttribute("href"), "#/inbox/task/42");
   // giving it to someone else is one tap away, not standing above the evidence
   assert.equal(await next.getByLabel("Give it to").count(), 0);
   await next.getByRole("button", { name: "Give it to someone else" }).click();
