@@ -6,23 +6,24 @@
   --fill: color-mix(in srgb, var(--muted) 14%, transparent);
   --radius: 16px;
   --hair: .5px;
-  --glass: color-mix(in srgb, var(--panel) 72%, transparent);
+  --glass: color-mix(in srgb, var(--panel) 62%, transparent);
   --glass-thick: color-mix(in srgb, var(--panel) 90%, transparent);
-  --glass-edge: rgb(0 0 0 / .06);
+  /* Flat, not skeuomorphic: a hairline where a floating surface meets the page, no highlights, bevels or shadows. */
+  --glass-edge: var(--line);
   --glass-hi: transparent;
   /* No sheen: system materials are flat blur, not a highlight gradient. */
   --glass-sheen: none;
-  --glass-shadow: 0 2px 12px rgb(0 0 0 / .08);
+  --glass-shadow: none;
   --lens: color-mix(in srgb, var(--text) 8%, transparent);
   --bar: var(--glass);
 }
 :root.ios[data-theme="dark"] {
-  --glass: color-mix(in srgb, var(--panel) 70%, transparent);
+  --glass: color-mix(in srgb, var(--panel) 55%, transparent);
   --glass-thick: color-mix(in srgb, var(--panel) 90%, transparent);
-  --glass-edge: rgb(255 255 255 / .1);
+  --glass-edge: var(--line);
   --glass-hi: transparent;
   --glass-sheen: none;
-  --glass-shadow: 0 2px 12px rgb(0 0 0 / .4);
+  --glass-shadow: none;
   --lens: rgb(255 255 255 / .1);
 }
 :root.ios body {
@@ -216,11 +217,11 @@
 @media (max-width: 900px) {
   :root.ios #main-content .work-filters.row > select.ui-input { flex: 0 1 auto; width: auto; max-width: 48%; }
   /* Map buttons as frosted rounded squares. */
-  :root.ios .leaflet-bar { border: 0 !important; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgb(0 0 0 / .15);
+  :root.ios .leaflet-bar { border: 0 !important; border-radius: 10px; overflow: hidden; box-shadow: none;
     -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
   :root.ios .leaflet-bar a { background: var(--bar); color: var(--text); border-bottom-color: var(--line); }
   :root.ios .ui-fullscreen-button, :root.ios .map-fullscreen { border-radius: 10px; background: var(--bar); color: var(--text);
-    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 2px 10px rgb(0 0 0 / .15); }
+    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: none; }
 }
 
 /* ================= Liquid Glass ================= */
@@ -259,7 +260,7 @@
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
   :root.ios .bottombar .tab-icon svg { width: 26px; height: 26px; }
-  :root.ios .bottombar > a.on { background: var(--lens); color: var(--accent); }
+  :root.ios .bottombar > a.on { background: var(--lens); color: var(--accent); box-shadow: none; }
   :root.ios .bottombar > .menu-button[aria-expanded="true"] { color: var(--accent); }
   :root.ios .app > main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
@@ -317,24 +318,26 @@
 }
 
 
-/* Segmented controls: the system control. A grey capsule track, the chosen segment a solid raised thumb in the label
-   colour (not the tint), no gradient or outline. */
+/* Segmented controls, Safari's toolbar shapes drawn flat: a capsule track, the chosen segment a lighter pill with the
+   label in the primary colour, the others grey. No rim, highlight, shadow, gradient or tint. */
 :root.ios .area-navigation, :root.ios .tabs, :root.ios .work-board-stages, :root.ios .attention-bar .chips, :root.ios .chips.segmented {
-  border-radius: 999px; padding: 2px; gap: 0; background: var(--fill);
+  border-radius: 999px; padding: 3px; gap: 0; background: var(--fill);
+  border: 0; box-shadow: none;
 }
 :root.ios .tabs > *, :root.ios .area-navigation a, :root.ios .work-board-stages .chip, :root.ios .attention-bar .chip, :root.ios .chips.segmented > .chip {
-  border-radius: 999px; min-height: 32px;
+  border-radius: 999px; min-height: 32px; color: var(--muted); font-weight: 600;
 }
 :root.ios .tabs > .on, :root.ios .area-navigation a[aria-current="page"], :root.ios .work-board-stages .chip.on,
 :root.ios .attention-bar .chip.on, :root.ios .chips.segmented > .chip[aria-pressed="true"] {
   background: var(--panel); background-image: none; color: var(--text); font-weight: 600; border: 0;
-  box-shadow: 0 3px 8px rgb(0 0 0 / .12), 0 3px 1px rgb(0 0 0 / .04);
+  box-shadow: none;
 }
+:root.ios[data-theme="dark"] :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips, .chips.segmented) { background: rgb(255 255 255 / .06); }
 :root.ios[data-theme="dark"] :is(.tabs > .on, .area-navigation a[aria-current="page"], .work-board-stages .chip.on,
-    .attention-bar .chip.on, .chips.segmented > .chip[aria-pressed="true"]) { background: #636366; box-shadow: none; }
+    .attention-bar .chip.on, .chips.segmented > .chip[aria-pressed="true"]) {
+  background: rgb(255 255 255 / .18); box-shadow: none;
+}
 
-/* Capsule buttons and fields. */
-:root.ios .ui-button, :root.ios .ui-button-sm { border-radius: 999px; }
 /* Filled and tinted buttons, flat: no glow, no outline. */
 :root.ios .ui-button-primary { background-image: none; box-shadow: none; }
 :root.ios .ui-button-secondary { background: color-mix(in srgb, var(--accent) 14%, transparent); background-image: none; color: var(--accent);
@@ -375,12 +378,11 @@
   }
   :root.ios [data-ios-menu-label]::before { content: attr(data-ios-menu-label); display: block; margin: 0 0 6px 4px; font-size: 13px; color: var(--muted); }
   /* The menu itself: a glass panel that grows out of the button. */
-  .ios-menu-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(0 0 0 / .08); }
+  .ios-menu-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(0 0 0 / .2); }
   .ios-menu {
     position: fixed; z-index: 1301; min-width: 250px; max-width: calc(100vw - 32px); max-height: 60dvh; overflow: auto; padding: 0;
-    border-radius: 14px; background: color-mix(in srgb, var(--panel) 94%, transparent);
-    -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
-    border: 0; box-shadow: 0 0 0 var(--hair) var(--line), 0 12px 40px rgb(0 0 0 / .2);
+    border-radius: 14px; background: var(--panel);
+    border: 0; box-shadow: 0 0 0 var(--hair) var(--line);
     transform-origin: top left; animation: ios-menu-in .18s ease-out;
   }
   @keyframes ios-menu-in { from { opacity: 0; transform: scale(.92); } }
@@ -528,3 +530,42 @@
 /* Menus are opened by touch: the chosen row carries the check, not a focus ring. */
 .ios-menu button:focus { outline: none; }
 .ios-menu button:focus-visible { background: var(--lens); }
+
+/* ================= Selects: a compact pop-up button =================
+   A select reads as an iOS pop-up button: the same 36-point rounded field as text fields, a small grey
+   chevron.up.chevron.down at the trailing edge instead of the heavy native caret. */
+:root.ios:not(.field-mode) #main-content select {
+  appearance: none; -webkit-appearance: none; min-height: 36px; height: auto; padding: 6px 30px 6px 12px; font-size: 15px; line-height: 1.3;
+  background-repeat: no-repeat; background-position: right 11px center; background-size: 9px 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 18' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6.5 4-4 4 4M2 11.5l4 4 4-4'/%3E%3C/svg%3E");
+}
+:root.ios:not(.field-mode) #main-content input.ui-input:not([type=checkbox]):not([type=radio]):not([type=range]) { min-height: 36px; height: auto; padding: 6px 12px; font-size: 15px; }
+:root.ios:not(.field-mode) #main-content input.ui-input:is([type=search], [placeholder^="Search"], [placeholder^="filter"], [placeholder^="Filter"]) { padding-left: 34px !important; }
+:root.ios #main-content input:is([placeholder^="filter"], [placeholder^="Filter"]) {
+  border-radius: 999px; background-repeat: no-repeat; background-position: 10px 50%; background-size: 17px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='m20 20-4.8-4.8'/%3E%3C/svg%3E");
+}
+
+/* ================= Lists you can tell apart =================
+   Rows in a card are an inset grouped list: one leading edge, a hairline between rows, the title in the primary
+   colour and weight, one grey line of detail under it, and status as a semibold word in its colour. */
+:root.ios :is(.home-list, .notification-list, .attention-list) { gap: 0; }
+:root.ios :is(.home-list, .notification-list) > li { position: relative; padding: 11px 0; }
+:root.ios :is(.home-list, .notification-list) > li + li::before {
+  content: ""; position: absolute; top: 0; left: 0; right: -16px; border-top: var(--hair) solid var(--line);
+}
+:root.ios .home-list > li > .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+:root.ios #main-content .home-list > li .row > .ui-button-link {
+  flex: 1 1 100%; justify-content: flex-start; text-align: left; padding: 0; min-height: 0; margin: 0;
+  color: var(--text); font-size: 17px; font-weight: 600; line-height: 22px;
+}
+:root.ios .home-list > li .row > .ui-button-link::after { content: ""; position: absolute; inset: 0; }  /* the whole row taps */
+:root.ios .home-list > li > .small { font-size: 13px; line-height: 18px; color: var(--muted); }
+:root.ios .home-list > li > .small strong { color: var(--muted); font-weight: 500; }
+:root.ios .home-counts { gap: 4px 16px; }
+/* Status stays a word in its colour (the style guide's Badge tone), set semibold so it stands apart from the grey detail. */
+:root.ios #main-content .badge:is(.late, .soon) { font-size: 13px; font-weight: 600; white-space: nowrap; }
+/* Field jobs and other stacked cards on My work: separate rounded rows with air between them. */
+:root.ios .field-job.ui-card { margin-bottom: 12px; }
+:root.ios .field-job .ui-card-header h2 { font-size: 17px; line-height: 22px; }
+:root.ios .field-job .ui-card-header h2 .badge { display: inline; font-size: 13px; color: var(--muted); }
