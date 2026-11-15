@@ -1,5 +1,8 @@
 /* entity */
 .entity-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+/* A long status (a close-out sentence) wraps inside the page instead of running off its edge. */
+.entity-head > div { min-width: 0; max-width: 100%; }
+.entity-head .row .badge { white-space: normal; overflow-wrap: anywhere; }
 .entity .grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
 .entity .grid > * { min-width: 0; }
 @media (max-width: 800px) {

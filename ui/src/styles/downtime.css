@@ -3,8 +3,11 @@
 .downtime ul.ranking { list-style: none; padding: 0; margin: 0; }
 .downtime ul.ranking li { display: grid; grid-template-columns: minmax(0, 1fr) 70px 60px; align-items: center; gap: 8px; padding: 4px 0; }
 .downtime ul.ranking li > span:first-child { overflow-wrap: anywhere; }
-@media (max-width: 800px) {
+/* Three rankings need room for their names: below a small laptop they stack. */
+@media (max-width: 1000px) {
   .downtime-rankings { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 800px) {
   .downtime > .row { align-items: stretch; }
 }
 .ranking li.unattributed > span:first-child { font-style: italic; color: var(--muted); }
