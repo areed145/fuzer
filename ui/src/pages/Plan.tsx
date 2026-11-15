@@ -68,7 +68,7 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
     <section>
       <PageHeader subtitle="Planned activity from every source on one timeline."
         actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
-        Integrated plan</PageHeader>
+        Plan</PageHeader>
       <div className="row">
         <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
         <Select aria-label="Weeks shown" value={String(weeks)} onChange={(e) => setWeeks(Number(e.target.value))}>

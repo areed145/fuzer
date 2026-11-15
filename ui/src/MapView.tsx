@@ -27,14 +27,12 @@ const POINTS: { key: string; label: string; radius: number; square?: boolean }[]
   { key: "facility", label: "Plants and terminals", radius: 8, square: true },
   { key: "well", label: "Wells", radius: 3 },
 ];
-/* Three base maps, each light or dark by the app's theme (System by default), so there is no separate dark or light
- * choice. With a MapKit key on the deployment they are Apple Maps (standard, satellite with names, muted); without one,
- * Google's public tiles (roadmap, satellite with names, terrain). See map/leafletEngine.ts and map/mapkitEngine.ts. */
-const BASEMAPS: Record<BasemapName, { label: string; apple: string }> = {
-  standard: { label: "Standard", apple: "Standard" },
-  satellite: { label: "Satellite", apple: "Satellite" },
-  terrain: { label: "Terrain", apple: "Muted" },  // MapKit JS has no terrain map; its muted map is the quiet one
-};
+/* The base maps, each light or dark by the app's theme (System by default), so there is no separate dark or light
+ * choice. With a MapKit key on the deployment they are Apple Maps: Standard, or Satellite with names. Without one they
+ * are Google's public tiles, which add Terrain. See map/leafletEngine.ts and map/mapkitEngine.ts. */
+const BASEMAPS: Record<BasemapName, string> = { standard: "Standard", satellite: "Satellite", terrain: "Terrain" };
+/** MapKit JS has no terrain map, so Apple Maps offers two; a saved Terrain choice shows as Standard there. */
+const APPLE: BasemapName[] = ["standard", "satellite"];
 type Basemap = BasemapName | "none";
 const BASEMAP_KEY = "fuzer.basemap";
 const savedBasemap = (): BasemapName => {
@@ -198,7 +196,9 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     return () => { made.destroy(); setEngine(null); };
   }, [library]);
 
-  useEffect(() => { engine?.setBasemap(basemapName, dark); }, [engine, basemapName, dark]);
+  const choices = library === "mapkit" ? APPLE : (Object.keys(BASEMAPS) as BasemapName[]);
+  const shown: Basemap = basemapName === "none" || choices.includes(basemapName) ? basemapName : "standard";
+  useEffect(() => { engine?.setBasemap(shown, dark); }, [engine, shown, dark]);
 
   const chooseBasemap = (name: BasemapName) => {
     setBasemapName(name);
@@ -350,11 +350,11 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
       <div ref={full.ref} className={`map-frame${full.on ? " map-fullscreen ui-fullscreen" : ""}`}>
         <div className="map-controls">
           {!compact && basemapName !== "none" && library !== "pending" && <div className="map-basemaps" role="group" aria-label="Base map">
-            {(Object.keys(BASEMAPS) as BasemapName[]).map((name) => (
-              <Button key={name} type="button" variant="ghost" size="sm" aria-pressed={basemapName === name}
-                      className={`map-basemap${basemapName === name ? " on" : ""}`}
+            {choices.map((name) => (
+              <Button key={name} type="button" variant="ghost" size="sm" aria-pressed={shown === name}
+                      className={`map-basemap${shown === name ? " on" : ""}`}
                       onClick={() => chooseBasemap(name)}>
-                {library === "mapkit" ? BASEMAPS[name].apple : BASEMAPS[name].label}</Button>
+                {BASEMAPS[name]}</Button>
             ))}
           </div>}
           {!compact && data.features.some((f) => f.properties.kind === "facility") && (
@@ -373,7 +373,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
         {baseError && basemapName !== "none" && !compact && <div className="map-message" role="status">
           Base map unavailable: its tiles could not load, so features are drawn on a plain background.</div>}
         {full.on && overlay && <div className="map-overlay">{overlay}</div>}
-        <div key={library} ref={el} className={`map map-${library}${basemapName === "none" ? "" : ` map-basemap-${basemapName}-${dark ? "dark" : "light"}`}`}
+        <div key={library} ref={el} className={`map map-${library}${basemapName === "none" ? "" : ` map-basemap-${shown}-${dark ? "dark" : "light"}`}`}
              style={{ height }} />
       </div>
     </div>

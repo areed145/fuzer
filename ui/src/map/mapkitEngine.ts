@@ -97,8 +97,8 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
     kind: "mapkit",
     setBasemap(name: BasemapName | "none", dark) {
       const T = mapkit.Map.MapTypes;
-      // Satellite carries place names (Hybrid); the third choice is Apple's muted map, which keeps the network legible.
-      map.mapType = name === "satellite" ? T.Hybrid : name === "terrain" ? T.MutedStandard : T.Standard;
+      // Satellite carries place names (Hybrid). Apple Maps has no terrain map, so anything else is Standard.
+      map.mapType = name === "satellite" ? T.Hybrid : T.Standard;
       map.colorScheme = dark ? mapkit.Map.ColorSchemes.Dark : mapkit.Map.ColorSchemes.Light;
     },
     drawNetwork(lines: LineSpec[], points: PointSpec[]) {

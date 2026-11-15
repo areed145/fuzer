@@ -716,3 +716,40 @@
 /* An off switch has a track you can see in dark mode too, and no shadow under the knob. */
 :root.ios[data-theme="dark"] input[type=checkbox]:not(td input):not(:checked) { background: rgb(120 120 128 / .36); }
 :root.ios input[type=checkbox]:not(td input)::after { box-shadow: none; }
+
+/* ================= Tools on a canvas: one stack (#1131 item 8) =================
+   The map, Network and 3D share one tool look: 44-point rounded squares in the panel colour with a hairline, stacked
+   down the right edge. Full screen is one of them, not a round glass button, and the map's zoom buttons are the same
+   squares. The base map picker is a segmented control like any other, top left, sized to its labels. */
+:root.ios :is(.map-controls, .graph-tools) .ui-button:not(.map-basemap),
+:root.ios :is(.map-frame, .graph-canvas, .scene3d) .ui-fullscreen-button,
+:root.ios .leaflet-bar {
+  border-radius: 12px; border: var(--hair) solid var(--line); background: var(--panel); background-image: none; color: var(--text);
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+}
+:root.ios:not(.field-mode) #main-content :is(.map-controls, .graph-tools) .ui-button:not(.map-basemap) {
+  width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; justify-content: center; font-size: var(--t-footnote); font-weight: 600;
+}
+:root.ios :is(.map-controls, .graph-tools) .ui-button[aria-pressed="true"]:not(.map-basemap) { color: var(--accent); border-color: var(--accent); }
+:root.ios .leaflet-bar a, :root.ios .leaflet-bar a:hover { background: none; border-bottom: var(--hair) solid var(--line); }
+:root.ios .leaflet-bar a:last-child { border-bottom: 0; }
+:root.ios .map-controls { left: 10px; right: 10px; flex-direction: column; flex-wrap: nowrap; align-items: flex-end; gap: 6px; pointer-events: none; }
+:root.ios .map-controls > * { pointer-events: auto; }
+:root.ios .mapview-compact .map-controls { left: auto; }
+:root.ios .map-basemaps { position: absolute; top: 0; left: 0; flex: none; padding: 3px; gap: 0; border: 0; border-radius: 999px; background: var(--panel); }
+:root.ios .map-basemaps > .ui-button.map-basemap { flex: none; height: 32px; min-height: 32px; padding: 0 12px; border-radius: 999px;
+  font-size: var(--t-footnote); font-weight: 600; color: var(--muted); white-space: nowrap; }
+:root.ios .map-basemaps > .ui-button.map-basemap.on { background: var(--fill); color: var(--text); }
+:root.ios .mapview:not(.mapview-compact) .leaflet-top.leaflet-left { top: 56px; }
+:root.ios .mapview:not(.mapview-compact) .map-fullscreen .leaflet-top.leaflet-left { top: calc(56px + env(safe-area-inset-top)); }
+
+/* ================= Top bar and account sheet (Adam's screenshot, 15 Nov) =================
+   In the installed app Share sits beside the account badge, not in the middle over the title. The sheet's heading shows
+   the name with Done at the trailing edge, and Sign out is a plain row in red, as iOS Settings has it. */
+.installed .topbar .share-button ~ .account-button.ui-button { margin-left: 0; }
+@media (max-width: 900px) {
+  :root.ios .account-sheet .ui-button.account-close { width: auto; flex: none; }
+  :root.ios .account-sheet-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :root.ios .account-sheet .identity > .ui-button { min-height: 44px; margin-top: 8px; padding: 0; justify-content: flex-start; border-radius: 0;
+    background: none; color: var(--danger); font-size: var(--t-body); font-weight: 400; box-shadow: 0 calc(-1 * var(--hair)) 0 var(--line); }
+}

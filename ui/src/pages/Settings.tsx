@@ -28,7 +28,7 @@ function range(s: SettingRow): string {
 
 export function SettingsPage({ query }: { query: URLSearchParams }) {
   const configure = usePermission("configure");
-  if (!configure) return <section><PageHeader>Settings</PageHeader><Appearance />
+  if (!configure) return <section><PageHeader>Application settings</PageHeader><Appearance />
     <p>Facility configuration requires administrator access. Ask an owner to update your application roles.</p></section>;
   return <Configuration key={query.toString()} query={query} />;
 }
@@ -52,7 +52,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
   const readiness = !configuration && !detection && !onboarding && !standards && !aiUsage;
   return (
     <section>
-      <PageHeader subtitle="Preferences and configuration.">Settings</PageHeader>
+      <PageHeader subtitle="Preferences and configuration.">Application settings</PageHeader>
       <Appearance />
       <nav className="tabs" aria-label="Settings sections">
         <a className={readiness ? "on" : ""} href={href("/settings", { project })} aria-current={readiness ? "page" : undefined}>Readiness</a>

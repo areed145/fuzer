@@ -1539,7 +1539,7 @@ const MAPKIT_STUB = `(() => {
   };
 })();`;
 
-test("with a MapKit key the maps are Apple Maps: Standard, Satellite or Muted by the theme, popups at the tap, Leaflet if Apple refuses", async () => {
+test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the theme, popups at the tap, Leaflet if Apple refuses", async () => {
   const pt = (id, kind, lon, lat) => ({ type: "Feature", id, geometry: { type: "Point", coordinates: [lon, lat] }, properties: { kind, label: id } });
   await page.route("**/mapkit/token", (route) => route.fulfill({ json: { token: "signed.jwt.token", expires: 1 } }));
   await page.route("https://cdn.apple-mapkit.com/**", (route) => route.fulfill({ contentType: "text/javascript", body: MAPKIT_STUB }));
@@ -1554,7 +1554,7 @@ test("with a MapKit key the maps are Apple Maps: Standard, Satellite or Muted by
   await page.reload();
   const group = page.getByRole("group", { name: "Base map" });
   await group.waitFor();
-  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite", "Muted"]);
+  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite"]);
   const state = () => page.evaluate(() => { const m = window.__mk.maps.at(-1);
     return { type: m.mapType, scheme: m.colorScheme, tokens: window.__mk.tokens, overlays: m.overlays.length,
              dashes: m.overlays.map((o) => o.style.lineDash.join(" ")), span: m.region.span.longitudeDelta }; });
@@ -1566,8 +1566,12 @@ test("with a MapKit key the maps are Apple Maps: Standard, Satellite or Muted by
   assert.equal(await page.locator(".leaflet-container").count(), 0, "no Leaflet map");
   await group.getByRole("button", { name: "Satellite" }).click();
   assert.equal((await state()).type, "hybrid");
-  await group.getByRole("button", { name: "Muted" }).click();
-  assert.equal((await state()).type, "mutedStandard");
+  // A Terrain choice saved from the free tiles shows as Standard on Apple Maps, which has no terrain map.
+  await page.evaluate(() => localStorage.setItem("fuzer.basemap", "terrain"));
+  await page.reload();
+  await group.waitFor();
+  assert.equal((await state()).type, "standard");
+  assert.equal(await group.getByRole("button", { name: "Standard" }).getAttribute("aria-pressed"), "true");
   // A point opens its popup at the tap, with the link to the asset.
   await page.locator('.mk-point[title="P1"]').click();
   await page.locator(".map-popup").getByRole("link", { name: "P1" }).waitFor();
@@ -1976,7 +1980,7 @@ test("primary destination navigation keeps page headings and active context alig
     { label: "Work", href: "#/exceptions", heading: "All work", area: "Work pages", current: "All work" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
     { label: "Jobs", href: "#/jobs", heading: "Jobs" },
-    { label: "Settings", href: "#/settings", heading: "Settings", area: "Settings pages", current: "Application settings" },
+    { label: "Settings", href: "#/settings", heading: "Application settings", area: "Settings pages", current: "Application settings" },
   ];
   await nav.getByRole("link", { name: "Explore", exact: true }).focus();
   await page.keyboard.press("Enter");
@@ -3627,7 +3631,7 @@ test("a turnaround shows its scope on the plan and brings planned work into it",
   await page.goto(`${url}/#/turnaround`);
   // Turnaround is a window on the Plan now (#554): the old link opens Plan with the revision beside the timeline.
   await page.waitForURL(/#\/plan\?revision=$/);
-  await page.getByRole("heading", { level: 1, name: "Integrated plan" }).waitFor();
+  await page.getByRole("heading", { level: 1, name: "Plan", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Turnaround TA26" }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Work pages", exact: true })
     .getByRole("link", { name: "Plan", exact: true }).getAttribute("aria-current"), "page");
@@ -7458,10 +7462,12 @@ test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away
   await mine.click();
   await page.waitForURL(/#\/inbox$/);
   await bar.locator('a[aria-current="page"]', { hasText: "My work" }).waitFor();
-  // On All work the My work slot is not lit, so the bar never disagrees with the tabs above it (#1070).
+  // On All work the Work slot stays lit, so the bar always shows where you are (#1131). It is not the current page.
   await page.evaluate(() => { location.hash = "#/exceptions"; });
   await page.getByRole("heading", { name: "All work", exact: true }).waitFor();
   assert.equal(await bar.locator('a[aria-current="page"]').count(), 0);
+  assert.equal(await bar.locator("a.on").evaluate((a) => a.lastElementChild.textContent.trim()), "My work");
+  assert.equal(await bar.locator("a.on").getAttribute("aria-current"), "true");
   await page.evaluate(() => { location.hash = "#/inbox"; });
 
   // Menu opens the drawer with everything else, and the page's foot clears the bar.

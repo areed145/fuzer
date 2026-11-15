@@ -1,6 +1,6 @@
 import "../styles/ui-kit.css";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes } from "react";
-import { useEffect, useId, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { lockPageScroll } from "../scrollLock";
 
 export function ActionStatus({ busy, error, children }: { busy?: string | null; error?: string | null; children?: ReactNode }) {
@@ -32,11 +32,16 @@ const DOCS = "https://areed145.github.io/fuzer/";
 
 /** The page title, an optional one-line subtitle and the page's actions. `help` names a docs page
  * (for example "workflow") and adds a Help link, which is where explanations of the page belong. */
+/** A standing note about the whole page (the demo's "View only"). The shell provides it and the page header shows it
+ * under the title, so the title stays the first thing on the page. */
+export const PageNote = createContext<ReactNode>(null);
+
 export function PageHeader({ children, subtitle, actions, help, className = "" }: {
   children: ReactNode; subtitle?: ReactNode; actions?: ReactNode; help?: string; className?: string;
 }) {
   const tools = (actions || help) && <div className="ui-page-actions">{actions}{help && <HelpLink doc={help} />}</div>;
-  return <header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{subtitle && <p className="ui-page-subtitle">{subtitle}</p>}</div>{tools}</header>;
+  const note = useContext(PageNote);
+  return <><header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{subtitle && <p className="ui-page-subtitle">{subtitle}</p>}</div>{tools}</header>{note}</>;
 }
 
 /** A quiet link to the docs page that explains this screen. Use it instead of paragraphs of guidance on the page. */
