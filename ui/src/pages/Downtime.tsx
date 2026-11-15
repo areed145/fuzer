@@ -50,7 +50,7 @@ export function DowntimePage() {
         </div>
       )}
       <Months rows={months.data} error={months.error} reload={months.reload} />
-      <div className="chips downtime-scope" role="group" aria-label="Which downtime the rankings count">
+      <div className="chips segmented downtime-scope" role="group" aria-label="Which downtime the rankings count">
         {SCOPES.map(([key, label]) => (
           <Button key={key} className="chip" aria-pressed={scope === key} onClick={() => setScope(key)}>{label}</Button>
         ))}
