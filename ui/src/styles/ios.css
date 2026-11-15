@@ -199,12 +199,7 @@
 /* Filters: the search field across the top, then each filter as a compact capsule menu. */
 :root.ios .work-filters { gap: 8px; margin-bottom: 12px; }
 :root.ios .work-filters > input[type=search] { order: -1; flex: 1 1 100%; }
-:root.ios .work-filters select, :root.ios .work-board-controls select {
-  width: auto; min-height: 32px; padding: 4px 30px 4px 14px; border-radius: 16px; font-size: var(--t-subhead); font-weight: 500;
-  color: var(--accent); background-color: color-mix(in srgb, var(--accent) 12%, transparent); appearance: none; -webkit-appearance: none;
-  background-repeat: no-repeat; background-position: right 10px center; background-size: 11px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%230b7f8c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E");
-}
+:root.ios .work-filters select, :root.ios .work-board-controls select { width: auto; }
 :root.ios .work-board-controls .ui-field { flex-direction: row; align-items: center; gap: 8px; width: auto; }
 :root.ios .work-board-controls .ui-field > span { font-size: var(--t-subhead); }
 /* Switches for on/off settings, the iOS way. */
@@ -357,7 +352,6 @@
 /* Text fields are rounded rectangles; only search fields are capsules. */
 :root.ios input:not([type=checkbox]):not([type=radio]):not([type=range]), :root.ios select { border-radius: 10px; }
 :root.ios :is(input[type=search], input[placeholder^="Search"], .home-search input) { border-radius: 999px; }
-:root.ios .work-filters select, :root.ios .work-board-controls select { border-radius: 999px; border: 0; box-shadow: none; }
 
 /* Cards and lists: the rounder iOS 26 corners. */
 :root.ios .ui-card, :root.ios .entity-status { border-radius: var(--radius); }
@@ -780,4 +774,26 @@
 }
 @media (max-width: 600px) {
   :root.ios .home-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+}
+
+/* ================= Fifth batch (#1131 items 10 and 26) =================
+   Every select is the same grey pop-up button: All work's filters and the Board's Lanes no longer wear an accent
+   capsule of their own. Jobs' health banner is an inset card like a Notice, its level kept as a hairline and a dot. */
+:root.ios .banner { align-items: center; margin: 0 0 12px; padding: 12px 16px; border-radius: var(--radius); background: var(--panel);
+  font-size: var(--t-subhead); color: var(--text); }
+:root.ios .banner:not(.health-amber, .health-red) { border: 0; }
+:root.ios .banner.health-green { background: var(--panel); }
+
+/* ================= Stacked table rows on a phone read as list rows =================
+   A row is its title, then one grey line of detail: each value follows its label on the same line, all in Footnote, so
+   a row no longer mixes a 13-point value with a 17-point one under floating headings. A results table is its own card,
+   so its rows take the card's 16-point inset. */
+@media (max-width: 600px) {
+  :root.ios .phone-stack:has(thead) tr { gap: 2px 14px; }
+  :root.ios #main-content .phone-stack:has(thead) td[data-label] { font-size: var(--t-footnote); line-height: 18px; color: var(--text); }
+  :root.ios #main-content .phone-stack:has(thead) td[data-label] :is(.small, small) { font-size: inherit; }
+  :root.ios .phone-stack:has(thead) td[data-label]::before { display: inline; margin-right: 6px; font-size: var(--t-footnote); }
+  :root.ios table.ui-table--results.phone-stack:has(thead) tr { padding-inline: 16px; }
+  /* All work's list card has no pad of its own (its rows carry it), so its empty line carries the inset too. */
+  :root.ios #main-content .work-list-card :is(.status-empty, .ui-empty-line) { margin: 0; padding: 14px 16px; }
 }

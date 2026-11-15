@@ -123,6 +123,11 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
                          direct=direct, pack=deps.pack())
 
 
+# The widest trend window: 30 days each side of the moment asked about. The event lanes drawn under a trend cover the
+# same window, so the timeline accepts as much (a case whose evidence spans two months asked for 60 days and got a 400).
+TREND_SIDE_MAX_HOURS = 24 * 30
+
+
 @router.get("/entities/{fuzer_id}/trend-view")
 def entity_trend_view(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
                       conn=Depends(get_conn)):
@@ -130,7 +135,7 @@ def entity_trend_view(fuzer_id: str, at: str | None = None, hours_before: int = 
     trace a measurement role on the unit or a neighbour, with the roles it expects and lacks."""
     from ..analysis import trend_view
 
-    return trend_view.view(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
+    return trend_view.view(conn, fuzer_id, at, min(hours_before, TREND_SIDE_MAX_HOURS), min(hours_after, TREND_SIDE_MAX_HOURS),
                            pack=deps.pack())
 
 
@@ -146,8 +151,8 @@ def entity_timeline(fuzer_id: str, start: str, end: str, conn=Depends(get_conn))
         a, b = datetime.fromisoformat(start), datetime.fromisoformat(end)
     except ValueError as e:
         raise HTTPException(400, "start and end are ISO times") from e
-    if b - a > timedelta(days=31):
-        raise HTTPException(400, "a timeline window is at most 31 days")
+    if b - a > timedelta(hours=2 * TREND_SIDE_MAX_HOURS, minutes=1):
+        raise HTTPException(400, f"a timeline window is at most {2 * TREND_SIDE_MAX_HOURS // 24} days")
     out = timeline.lanes(conn, fuzer_id, start, end)
     if out.get("error") == "unknown entity":
         raise HTTPException(404, f"no entity {fuzer_id}")

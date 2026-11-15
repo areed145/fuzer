@@ -132,7 +132,7 @@ html.ui-fullscreen-open .bottombar { display: none; }
   .phone-stack:has(thead) td { display: block; padding: 0; border: 0; text-align: left; }
   .phone-stack:has(thead) td:first-child { flex: 1 1 100%; min-width: 0; font-weight: 600; }
   .phone-stack:has(thead) td[data-label] { flex: 0 1 auto; min-width: 0; }
-  .phone-stack:has(thead) td[data-label]:empty { display: none; }
+  .phone-stack:has(thead) td[data-label]:empty, .phone-stack:has(thead) td.ui-blank { display: none; }
   .phone-stack:has(thead) td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
   .phone-stack:has(thead) .ui-table-select-cell { flex: none; }
 }

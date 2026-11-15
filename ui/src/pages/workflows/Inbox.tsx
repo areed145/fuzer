@@ -107,7 +107,7 @@ export function InboxPage() {
       <div className="row">
         <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select aria-label="Filter my work by case type" value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">every kind of case</option>
+          <option value="">All kinds</option>
           {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
         </Select>
       </div>

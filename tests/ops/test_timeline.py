@@ -69,3 +69,17 @@ def test_unknown_entity_and_a_backwards_window(okan):
     assert timeline.lanes(okan, "fz-nope", "2025-01-01", "2025-01-02") == {"error": "unknown entity"}
     trip = _trip(okan)
     assert "error" in timeline.lanes(okan, trip["unit"], "2025-01-02", "2025-01-01")
+
+
+def test_the_api_takes_the_widest_trend_window(okan):
+    """The lanes sit under a trend, which can span 30 days each side: 60 days is answered, more is refused."""
+    from fastapi import HTTPException
+
+    from fuzer.api import entities
+
+    trip = _trip(okan)
+    out = entities.entity_timeline(trip["unit"], _shift(trip["start"], -720), _shift(trip["start"], 720), conn=okan)
+    assert out["lanes"] is not None and "error" not in out
+    with pytest.raises(HTTPException) as refused:
+        entities.entity_timeline(trip["unit"], _shift(trip["start"], -720), _shift(trip["start"], 744), conn=okan)
+    assert refused.value.status_code == 400 and "60 days" in refused.value.detail

@@ -12,12 +12,13 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
   const rows = list.data?.settings ?? [];
   const deployment = list.data?.deployment;
   return <div>
-    <h2>Application readiness</h2>
+    <Card title="Application readiness">
     <p>Application-wide defaults, sign-in references and optional AI. For connecting, testing, loading and
       recovering source data, open <a href={href("/sources")}>Sources</a>. Viewing this page makes no changes or AI calls.</p>
     <Button disabled={list.loading} onClick={list.reload}>Refresh configuration</Button>
     <Status loading={list.loading && !list.data} error={list.error} />
     <p className="small">Scope: {list.data?.project ?? "global"}. Configured values; refresh after a change.</p>
+    </Card>
     <Card title="Deployment and sign-in">
       {deployment ? <>
         <Badge>{deployment.mode === "local" ? "Trusted local development" : deployment.configured ? "Microsoft configuration present" : "Sign-in configuration incomplete"}</Badge>
