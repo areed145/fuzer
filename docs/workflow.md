@@ -125,8 +125,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **Queue item.** `queue_item.bpmn` is the standard process for a type that names a queue and no process: its lane's
   role is `=role` and its case type `=case_type`, both from the type, so one process serves every queue and each
   case still shows as its own kind of work. Its one step has the role's default SLA (Users, workflow assignments)
-  and escalates along the role's chain like any process step. Clearing the condition or the field's **Done** still
-  closes it as it closed a plain queue case; **Could not do** hands the step back. A dispatch from All work runs as
+  and escalates along the role's chain like any process step. Clearing the condition still closes it as it closed
+  a plain queue case; the field's **Done** and **Could not do** hand the step back to whoever sent it. A dispatch from All work runs as
   queue_item too: the step opens in the lane of the role it was sent to (for a person, the type's queue when they
   hold it, else their first role), the dispatcher hands it to them with the reason, so Could not do comes back to
   the dispatcher, and it is due by the type's policy (SAP priority) or the role's SLA. Someone who takes a job from
@@ -189,9 +189,10 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (**Take it**), each with the IOC's instruction, where to go, what was seen and what happened there lately. They
   report **On site**, **Done**, **Could not do** (with why) or a note; every report lands on the exception and the
   case history.
-- **Back to the IOC.** Done on a case without a process closes it and its exception. Done on a process case, or Could
-  not do on any, hands the job back to whoever sent it (the engineer queue's Triage step goes back to that queue),
-  so the decision reappears in the IOC's Inbox with the field's note.
+- **Back to the IOC.** Done or Could not do hands the job back to whoever sent it, to that person or the queue they
+  sent it from (the engineer queue's Triage step goes back to that queue), so it reappears in the IOC's Inbox with the
+  field's note as "Back from the field". The IOC closes a done job out, saying what it was, which closes it and its
+  exception. Only a job nobody sent (raised straight into the field's queue and taken from there) is closed by Done.
 - **Field check, a step of its own.** The upset process has a **Field check** step in a Field operator lane. Triage
   can choose "Not sure: send someone to look" (with what to check), and dispatching an upset from Exceptions to
   someone outside the engineer role does the same: Triage declares `fuzer:dispatch="triage=field_check"`, so it is

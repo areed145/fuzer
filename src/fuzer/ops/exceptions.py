@@ -749,19 +749,16 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
                          if permit_in_hand else "Permit in hand: not confirmed on site (no permit records to check)")
         from . import routing
 
-        # a queue_item case (#509) is a plain queue case run as a process: Done closes it as before
+        # a queue_item case (#509) is a plain queue case run as a process, which the field's report finishes
         has_process = conn.execute("select 1 from work_process where item_id = %s and process_key <> %s",
                                    (row["item_id"], routing.QUEUE_PROCESS)).fetchone()
         state = conn.execute("select state from work_item where id = %s", (row["item_id"],)).fetchone()["state"]
-        if status == "done" and not has_process and state not in ("done", "cancelled"):
-            work.close_case(conn, row["item_id"], "done", by, reason=note or "done in the field")
-            if _close_if_case_finished(conn, row) is None:  # closed with its case now, not at the next work tick
-                events.publish(conn, "exception.closed", f"exception:{row['id']}", _payload(_row(conn, exception_id)))
-        elif status in ("done", "could_not_do") and state not in ("done", "cancelled"):
+        if status in ("done", "could_not_do") and state not in ("done", "cancelled"):
             # The field's part is over. A process with a field step of its own (the upset's Field check) has it
             # completed with what they found, and the IOC's decision it returns to goes to whoever sent them; else
             # what the IOC sent them (its decision step, or the case) goes back to whoever sent it. Either way it
-            # lands in that person's or queue's Inbox, with the reason saying it is back from the field.
+            # lands in that person's or queue's Inbox, with the reason saying it is back from the field. Done comes
+            # back too (#1115): the IOC closes it out, saying what it was, so the field's work is counted.
             back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
             if not (has_process and work.report_field_step(conn, row["item_id"], by, status, note, back)):
                 came = (row["evidence"] or {}).get("handover") or {}
@@ -770,10 +767,19 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
                 # decides what happens to a could-not-do instead of the next operator taking it blind
                 if came.get("accepted_at") and came.get("to") == by:
                     sender = _sent(conn, row["item_id"], came["from"])
+                elif status == "done" and not has_process:
+                    sender = _dispatcher(conn, row["item_id"], by)
                 else:
                     sender = None if _sent_to(conn, row["item_id"], by) else _sent(conn, row["item_id"], by)
-                if sender and sender["by"] and sender["by"] != by and not gates.machine(sender["by"]):
+                human = bool(sender and sender["by"] and sender["by"] != by and not gates.machine(sender["by"]))
+                if human:
                     work.dispatch(conn, row["item_id"], by, sender["by"], back)
+                elif status == "done" and not has_process:
+                    # nobody sent it (raised straight into the field's queue): the field's Done closes it
+                    work.close_case(conn, row["item_id"], "done", by, reason=note or "done in the field")
+                    if _close_if_case_finished(conn, row) is None:  # closed with its case now, not at the next tick
+                        events.publish(conn, "exception.closed", f"exception:{row['id']}",
+                                       _payload(_row(conn, exception_id)))
                 else:
                     work.hand_back(conn, row["item_id"], by, by, reason=back)
     row = _row(conn, exception_id)
@@ -797,6 +803,15 @@ def _sent(conn, item_id: int, person: str) -> dict | None:
                                        or (actor <> %(p)s and actor not like 'agent:%%'))))
         order by id desc limit 1
         """, {"i": item_id, "p": person}).fetchone()  # taking a job from the queue isn't being sent it
+
+
+def _dispatcher(conn, item_id: int, person: str) -> dict | None:
+    """Who sent this case to `person`, or to the queue they took it from: the latest hand-off by someone else, or the
+    case opened for them. Not whoever raised it into a queue, often a source or detector rather than the IOC."""
+    return conn.execute("select actor as by from work_event where item_id = %(i)s and actor <> %(p)s and ("
+                        "(kind = 'handed_off' and (data->>'to' = %(p)s or data->>'to' like 'role:%%')) "
+                        "or (kind = 'created' and data->>'assignee' = %(p)s)) "
+                        "order by id desc limit 1", {"i": item_id, "p": person}).fetchone()
 
 
 def _sent_to(conn, item_id: int, person: str) -> bool:

@@ -135,6 +135,8 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     if item["closed_at"] is None:
         work.close_case(conn, item_id, "done", by, reason=summary(row, v))
         conn.execute("update work_item set outcome = %s where id = %s and outcome is null", (summary(row, v), item_id))
+        from . import exceptions
+        exceptions.reconcile(conn)  # its exception leaves the open list now, not at the next work tick
     else:
         work.comment(conn, item_id, by, f"Close-out: {summary(row, v)}")
     offer_feedback(conn, item_id, row, by)

@@ -93,7 +93,11 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
                                     (draft["item_id"],)).fetchone()["process_key"] == "source_closeout"
                 conn.rollback()
 
-                # the field's word holds it until SAP moves
+                # back with the IOC (#1115), which closes it out; then the field's word holds it until SAP moves
+                job = conn.execute("select item_id from exception_record where id = %s", (done["id"],)).fetchone()
+                ok(client.post(f"/work/items/{job['item_id']}/closeout", json={
+                    "by": "ioc-ann", "disposition": "real", "failure_mode": "ELP", "cause": "3", "activity": "2"}))
+                conn.rollback()
                 assert refresh()["held"] == 1
                 assert _sap(sap)["10004002"]["status"] == "OSNO"
 

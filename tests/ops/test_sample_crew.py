@@ -104,6 +104,9 @@ def test_field_work_goes_out_comes_back_and_closes(crewed):
     item = closed[0]["item_id"] if closed[0]["item_id"] else rows[closed[0]["id"]]["item_id"]
     history = crewed.execute("select actor, kind from work_event where item_id = %s order by id", (item,)).fetchall()
     assert {"riley"} & {h["actor"] for h in history}
+    closed_out = crewed.execute("select item_id, by, disposition from case_disposition where item_id = any(%s)",
+                                ([rows[r["id"]]["item_id"] for r in closed],)).fetchall()
+    assert closed_out and {c["by"] for c in closed_out} == {"riley"}  # the lead closes out what the field did (#1115)
 
 
 def test_some_reports_back_from_the_field_wait_for_the_ops_lead_to_close_out(crewed, monkeypatch):
