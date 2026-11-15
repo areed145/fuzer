@@ -42,7 +42,7 @@ import { DemoPage } from "./pages/Demo";
 import type { JobsHealth } from "./api";
 import { useAppData } from "./useAppData";
 import { AppErrorBoundary } from "./AppErrorBoundary";
-import { Button, EmptyState, PageHeader } from "./ui";
+import { Button, EmptyState, PageHeader, PageNote } from "./ui";
 import { Status } from "./lib";
 import "./theme";
 import { AuthGate, useViewOnly } from "./Auth";
@@ -155,8 +155,8 @@ function App() {
         <BackButton path={path} className="page-back" />
         <Breadcrumbs path={path} />
         <AreaNavigation section={navSection} demoEnabled={demo.data?.enabled === true} />
-        {viewOnly && VIEW_ONLY_SECTIONS.has(section) &&
-          <p className="notice view-only" role="note">View only: the demo account can look at this page but can't change it.</p>}
+        <PageNote.Provider value={viewOnly && VIEW_ONLY_SECTIONS.has(section)
+          ? <p className="notice view-only" role="note">View only: the demo account can look at this page but can't change it.</p> : null}>
         <Suspense fallback={<div className="status" role="status" aria-live="polite">Loading…</div>}>
           {section === "" && query.has("q") ? (
             <Search query={query} stats={s} />
@@ -243,6 +243,7 @@ function App() {
           )}
           <RouteFocus routeKey={routeKey} previousRoute={previousRoute} />
         </Suspense>
+        </PageNote.Provider>
       </main>
       {query.get("drawing") && (
         <DrawingFullscreen id={query.get("drawing")!} ring={(query.get("ring") ?? "").split(",").filter(Boolean)} />

@@ -272,14 +272,15 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           if (!group || !allowed(group)) return null;
           const item = group.items.find((entry) => entry.section === first && allowed(entry)) ?? group.items.find(allowed);
           if (!item) return null;
-          // A slot named for one page (My work) lights only on that page, so it never disagrees with the tabs above
-          // it on All work or Plan (#1070); a slot named for its group lights anywhere in the group.
-          const on = tab ? isActive(item, section) : group.items.some((entry) => isActive(entry, section));
+          // A slot lights anywhere in its group, so the bar always shows where you are (#1131): the Work slot is lit on
+          // All work, Plan and Master data too. It is the current page only on the page it opens.
+          const here = isActive(item, section);
+          const on = here || group.items.some((entry) => isActive(entry, section));
           const count = group.items.reduce((n, entry) => n + (entry.badge === "work" ? badges.work : 0), 0);
           const name = tab ?? group.label;
           return (
             <a key={label} href={href(item.path ?? `/${item.section}`)} className={on ? "on" : undefined}
-              aria-current={on ? "page" : undefined} aria-label={count > 0 ? `${name}, ${BADGE_WORDS.work(count)}` : undefined}>
+              aria-current={here || (on && !tab) ? "page" : on ? "true" : undefined} aria-label={count > 0 ? `${name}, ${BADGE_WORDS.work(count)}` : undefined}>
               <span className="tab-icon">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d={group.icon} /></svg>
                 {count > 0 && <span className="count" aria-hidden="true">{count}</span>}
