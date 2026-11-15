@@ -575,7 +575,7 @@ def test_a_case_back_from_the_field_with_the_person_who_went_is_still_back(conn,
     types("upset_s", process="upset", audience=("ioc", "field"))
     e = raise_exception(conn, "upset_s", "UP-2", "Low lube oil pressure on train A", "agent:sre",
                         refs=["fz-well-a12"], finding=external("test", {"incident_id": "UP-2", "start": "2025-12-30T00:00"}))
-    back = lambda: [r for r in ex.listing(conn) if r["id"] == e["id"]][0]["back_from_field"]
+    back = lambda: next(r for r in ex.listing(conn) if r["id"] == e["id"])["back_from_field"]
     ex.dispatch(conn, e["id"], "demo", "demo", reason="read the filter dP")
     assert back() is False  # in the field, not back
     ex.report(conn, e["id"], "demo", "done", note="filter dP 1.1 bar, in the red")
