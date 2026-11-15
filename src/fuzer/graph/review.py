@@ -194,8 +194,8 @@ def _options(kind: str, members: list[dict]) -> list[dict]:
         return [{"decision": "choose", "source": s, "label": f"Use {s}'s value"} for s in sources] + [
             {"decision": "accept", "label": "Keep the value in use"}]
     if kind == "match":
-        return [{"decision": "accept", "label": "The same item, each pair"},
-                {"decision": "reject", "label": "Keep each pair apart"}]
+        return [{"decision": "accept", "label": "Same item"},
+                {"decision": "reject", "label": "Keep apart"}]
     if kind == "pid_mismatch":
         return [{"decision": "choose", "value": "drawing", "label": "The systems need changing"},
                 {"decision": "choose", "value": "system", "label": "The drawings need redlines"},

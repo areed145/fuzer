@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api, type Route, type RouteExplanation, type RouteStep, type WorkRoleRow } from "../api";
 import { href, Status, useAsync } from "../lib";
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Table } from "../ui";
-import { usePerson } from "../work";
+import { duration, usePerson } from "../work";
 import { ExceptionTypes } from "./Exceptions";
 
 const BpmnView = lazy(() => import("../BpmnView"));
@@ -114,7 +114,7 @@ function Explanation({ x }: { x: RouteExplanation }) {
         <td>{s.kind === "agent" ? `${words(s.role)} agent` : words(s.role)}</td>
         <td>{s.kind === "agent" ? <span className="muted">agent worker</span>
           : s.holders?.length ? s.holders.join(", ") : <Badge tone="warn">nobody</Badge>}</td>
-        <td>{s.sla ?? <span className="muted">none</span>}{s.sla_from === "role" && <span className="muted small"> (role)</span>}</td>
+        <td>{s.sla ? duration(s.sla) : <span className="muted">none</span>}{s.sla_from === "role" && <span className="muted small"> (role)</span>}</td>
         <td className="small">{s.escalation.length ? s.escalation.map(words).join(" → ") : <span className="muted">stays with its role</span>}</td>
       </tr>)}</tbody>
     </Table>}

@@ -8,7 +8,7 @@ import { Status, href, useAsync } from "../lib";
 import { Actor, Due, holder, usePerson, when } from "../work";
 import { useAuth } from "../Auth";
 import { switchProject } from "../authState";
-import { StepBadges, byUrgency, caseHref, taskHref } from "./workflows/shared";
+import { GENERIC_STEP, StepBadges, byUrgency, caseHref, taskHref } from "./workflows/shared";
 import { myWorkCounts } from "./workflows/Inbox";
 
 /** One count linking to its view. `children` is "one|many" when the noun changes with the number. */
@@ -106,7 +106,8 @@ function ShiftRow({ r, here, multi }: { r: Row; here: string; multi: boolean }) 
         {multi && <Badge>{r.project || "this field"}</Badge>}
         <Due at={r.due_at} />
       </span>
-      <span className="small muted"><strong>{r.name ?? "open"}</strong> · {r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}{" "}
+      <span className="small muted">{/* a step named for the engine ("Work the case") says nothing a row needs */}
+        {!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}{" "}
         <StepBadges row={r} /></span>
     </li>
   );

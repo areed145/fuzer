@@ -71,7 +71,30 @@ def title(kind: str, subject: str, p: dict) -> str:
         return f"Is {p['point']}{on} the {(p.get('proposed_label') or 'proposed role').lower()}?"
     if kind == "pid_connection" and p.get("from") and p.get("to"):
         return f"Does {p['from']} pipe to {p['to']}{' on ' + p['sheet'] if p.get('sheet') else ''}?"
+    if kind == "pid_mismatch" and p.get("tag"):
+        return _drawing_title(p)
     return p.get("question") or f"{KINDS[kind][1]}: {subject}"
+
+
+_SYSTEMS = {"sap": "SAP", "dcs": "the DCS", "pi_af": "PI AF", "ec": "Energy Components"}
+
+
+def _drawing_title(p: dict) -> str:
+    """A drawing question as a list row: the tag first, then what disagrees. The whole question, with the values,
+    stays in the case's evidence."""
+    tag, check = str(p["tag"]).replace(">", " to "), p.get("check")
+    if check == "placement":
+        systems = sorted({_SYSTEMS.get(s, s.upper()) for x in p.get("register") or [] for s in x.get("sources") or []})
+        return f"{tag}: drawing and {' and '.join(systems) or 'the register'} disagree on where it sits"
+    if check == "alarm_unset":
+        return f"{tag}: alarm limits on the drawing are not configured"
+    if check == "alarm":
+        return f"{tag}: drawing and configured alarm disagree on limits"
+    if check == "twin":
+        return f"{tag}: DEXPI file and scan of {p.get('sheet', 'the drawing')} differ"
+    if check == "flow":
+        return f"{tag}: flow network and drawings disagree"
+    return p.get("question") or f"{KINDS['pid_mismatch'][1]}: {tag}"
 
 
 def refs(kind: str, p: dict) -> list[str]:
@@ -116,6 +139,7 @@ def finding(item_id: int, kind: str, p: dict) -> Finding:
         *_gate(p.get("gate") if kind == "match" else None),
         fact("Field", p.get("field")) if kind == "conflict" else None,
         fact("Dataset", p.get("dataset")) if kind in ("schema", "mapping", "check") else None,
+        fact("Question", p.get("question")) if kind == "pid_mismatch" else None,
     ), data={"review_item": item_id, "kind": kind})
 
 

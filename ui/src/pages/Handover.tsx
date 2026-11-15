@@ -42,7 +42,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
       <PageHeader subtitle="What changed since the last shift." help="workflow">
         Shift handover</PageHeader>
       {operate && <p className="small"><Button variant="secondary" disabled={!!a.busy} onClick={() =>
-        a.run("draft", () => api.draftHandover(person), reload)}>Draft (or refresh) the handover for the last shift change</Button>
+        a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the last shift change, or brings it up to date">Draft the handover</Button>
         {a.error && <span className="error"> {a.error}</span>}</p>}
       {/* The handover shown leads and the past ones follow once it is in: drawn sooner, its lines filling in pushed the
           past handovers out of view (#1069). */}

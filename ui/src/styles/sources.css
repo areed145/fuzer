@@ -19,7 +19,7 @@ pre.diff .same { color: var(--muted); }
 .key-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
 .key-picker .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--line);
   border-radius: 999px; cursor: pointer; font-size: 12px; }
-.key-picker .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.key-picker .chip.on { background: var(--accent-soft); color: var(--text); font-weight: 600; }
 .key-picker .chip code { color: inherit; background: none; }
 
 /* The source quality scorecard (P2.6): four measures, two to a row on a phone. */

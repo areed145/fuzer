@@ -71,13 +71,13 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
         Plan</PageHeader>
       <div className="row">
         <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
-        <Select aria-label="Weeks shown" value={String(weeks)} onChange={(e) => setWeeks(Number(e.target.value))}>
+        <label className="small">Showing <Select aria-label="Weeks shown" value={String(weeks)} onChange={(e) => setWeeks(Number(e.target.value))}>
           {[2, 4, 8, 12, 26].map((w) => <option key={w} value={w}>{w} weeks</option>)}
-        </Select>
-        {!!scope.data?.revisions?.length && <Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
-          <option value="">No turnaround shown</option>
-          {scope.data.revisions.map((r) => <option key={r} value={r}>Turnaround {r}</option>)}
-        </Select>}
+        </Select></label>
+        {!!scope.data?.revisions?.length && <label className="small">Turnaround <Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
+          <option value="">None shown</option>
+          {scope.data.revisions.map((r) => <option key={r} value={r}>{r}</option>)}
+        </Select></label>}
         <Badge>{plan.data.length} items</Badge>
         {clashes > 0 && <Badge tone="danger">{clashes} with a clash</Badge>}
         {bundles > 0 && <Badge tone="ok">{bundles} could ride along with a shutdown</Badge>}

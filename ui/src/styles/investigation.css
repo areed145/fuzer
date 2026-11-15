@@ -4,7 +4,7 @@
 .investigation-context p { margin: 8px 0 0; }
 .investigation-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 20px 0; }
 .investigation-steps a { display: flex; align-items: center; gap: 8px; height: 100%; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); text-decoration: none; }
-.investigation-steps a[aria-current] { border-color: var(--accent); background: var(--accent-soft); }
+.investigation-steps a[aria-current] { background: var(--accent-soft); }
 .investigation-steps a > span { font-weight: 600; color: var(--accent); }
 .demo-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .investigation-stage { line-height: 1.65; }

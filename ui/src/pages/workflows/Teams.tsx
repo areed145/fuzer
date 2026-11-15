@@ -3,7 +3,7 @@ import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Se
 import { useState } from "react";
 import { api, type WorkRoleRow, type WorkloadPerson } from "../../api";
 import { Status, href, useAsync } from "../../lib";
-import { usePerson, when } from "../../work";
+import { duration, usePerson, when } from "../../work";
 import { caseHref, processHref, useAct } from "./shared";
 import { useAuth, usePermission } from "../../Auth";
 
@@ -97,7 +97,7 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
     <Disclosure className="card" open={open} label={<><strong>{words(r.name)}</strong> <span className="muted small">{r.description}</span>{" "}
         <span className="small">· {r.members.filter((m) => !m.away).length} available{r.members.some((m) => m.away) && `, ${r.members.filter((m) => m.away).length} away`}
           {" "}· {r.waiting} waiting{r.overdue ? <>, <UIBadge className="badge late">{r.overdue} overdue</UIBadge></> : null}
-          {" "}· SLA {r.default_sla ?? "set per step"}{r.escalate_to && ` → ${words(r.escalate_to)}`}</span>
+          {" "}· SLA {r.default_sla ? duration(r.default_sla) : "set per step"}{r.escalate_to && ` → ${words(r.escalate_to)}`}</span>
         {r.uncovered && <UIBadge className="badge late"> no one available</UIBadge>}</>}>
       <fieldset className="workflow-routing-fields" disabled={!editable || !!a.busy} aria-label={`${r.name} routing configuration`}>
       <Table variant="keyValue" density="compact">
@@ -176,7 +176,7 @@ function People({ people, roles, person, reload, inspect, editable, focus }: { p
           <thead><tr><th>Person</th><th>Works in</th><th>Effective roles</th><th>Assigned work</th><th>Overdue</th><th>Availability</th></tr></thead>
           <tbody>{people.filter(p => !focus || p.name === focus).map(p => <tr key={p.name}>
             <td>{p.display_name || p.name}</td><td>{scopeText(p)}</td><td>{p.account_enabled === false ? "None (account disabled)"
-              : p.owner ? "All human roles (owner)" : p.roles.join(", ") || "None"}</td>
+              : p.owner ? "All human roles (owner)" : p.roles.map(words).join(", ") || "None"}</td>
             <td><a href={href("/exceptions", { list: "progress", who: p.name })}>{p.assigned}</a></td><td>{p.overdue}</td>
             <td>{p.account_enabled === false ? "Account disabled" : p.away ? <>Away until {p.away_until ? when(p.away_until) : "unknown"}{p.delegate && `, ${p.delegate} covers`}</> : "Available"}</td>
           </tr>)}</tbody>

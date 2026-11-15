@@ -19,7 +19,7 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
   const bringIn = (i: PlanItem) => person && run("Bringing it in", () => api.turnaroundBringIn(i.id, person, t.revision), onChange);
   const items = (list: PlanItem[], why: (i: PlanItem) => string) => <ul className="plain">{list.map((i) => <li key={i.id}>
     <strong>{i.title}</strong> <span className="muted small">{i.kind.replace(/_/g, " ")} · {day(i.start_at)} · {why(i)}</span>{" "}
-    {person && t.window && <Button size="sm" disabled={!!busy} onClick={() => bringIn(i)}>Bring into {t.revision}</Button>}
+    {person && t.window && <Button size="sm" disabled={!!busy} aria-label={`Bring into ${t.revision}`} onClick={() => bringIn(i)}>Bring in</Button>}
   </li>)}</ul>;
   const unitDown = t.shutdown_outside.length + t.shutdown_plans_not_in_scope.length;
   return (

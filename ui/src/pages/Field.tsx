@@ -5,6 +5,7 @@
  * else waiting on them. */
 import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
+import { kindWord } from "../wording";
 import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
@@ -257,7 +258,7 @@ function PermitPanel({ permit, inHand, onInHand }: { permit: FieldPermit; inHand
     <div className="field-permit">
       <h3 className="small">Permit to work <Badge tone="warn">check permit</Badge></h3>
       <p className="small">{permit.note}</p>
-      <label className="small"><input type="checkbox" checked={inHand} onChange={(e) => onInHand(e.target.checked)} />
+      <label className="small"><Input type="checkbox" checked={inHand} onChange={(e) => onInHand(e.target.checked)} />
         {" "}Permit in hand</label>
     </div>
   );
@@ -342,7 +343,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
       {job.assets.length > 0 && <div>
         <h3 className="small">Where</h3>
         <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
-          <a href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id}</a> <span className="muted small">{a.kind}</span>
+          <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <span className="muted small">{kindWord(a.kind ?? "item").toLowerCase()}</span></>}
           {a.lat != null && a.lon != null && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
             target="_blank" rel="noreferrer">directions</a></>}
         </li>)}</ul>

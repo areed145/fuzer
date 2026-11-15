@@ -8,7 +8,7 @@ import type Modeler from "bpmn-js/lib/Modeler";
 import { api, type ProcessStats, type WorkChange, type WorkCompare, type WorkDefinition, type WorkProblem } from "../api";
 import { caseHref, taskHref, useAct } from "./workflows/shared";
 import { Status, href, useAsync } from "../lib";
-import { Actor, Due, holder, span, usePerson, when } from "../work";
+import { Actor, Due, duration, holder, span, usePerson, when } from "../work";
 import { blankProcess, focusElement } from "../bpmnSubset";
 
 const BpmnModeler = lazy(() => import("../BpmnModeler"));
@@ -832,7 +832,7 @@ function RoutingTab({ def }: { def: WorkDefinition }) {
               <td>{s.kind === "agent" ? <>{s.role} agent{s.fallback_role && <span className="muted small"> (fails to {s.fallback_role})</span>}</>
                 : <a href={href("/teams", { role: s.role ?? "" })}>{s.role}</a>}</td>
               <td className="small">{s.kind === "person" ? (s.assignment ?? "queue").replace("_", " ") : "agent worker"}</td>
-              <td>{s.sla ?? <span className="muted">none</span>} {s.sla_from === "role" && <span className="muted small">(role default)</span>}</td>
+              <td>{s.sla ? duration(s.sla) : <span className="muted">none</span>} {s.sla_from === "role" && <span className="muted small">(role default)</span>}</td>
               <td className="small">{s.escalation.length ? s.escalation.join(" → ") : <span className="muted">stays with its role</span>}
                 {s.escalation_from === "role" && <span className="muted"> (role chain)</span>}</td>
               <td className="small">{s.form ? <a className="mono" href={href(`/processes/forms/${s.form}`)}>{s.form}</a> : ""}</td>

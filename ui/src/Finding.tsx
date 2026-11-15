@@ -29,7 +29,7 @@ const WHO: Record<Finding["origin"], string> = { deterministic: "A rule", agenti
 export function findingSentence(finding: Finding, title: string): string {
   const going = finding.items.find((i) => i.kind === "flag" && /still going/i.test(i.label));
   const at = finding.start ? ` on ${when(finding.start)}${finding.end ? ` to ${when(finding.end)}` : ""}` : "";
-  const what = say(title).replace(/[.\s]+$/, "");
+  const what = say(title).replace(/[.?\s]+$/, "");
   const stake = finding.value_usd != null && finding.value_usd > 0 ? ` $${Math.round(finding.value_usd).toLocaleString()} at stake.` : "";
   const sure = finding.confidence != null ? ` ${Math.round(finding.confidence * 100)}% confident.` : "";
   return `${WHO[finding.origin]} found this${at}: ${what}${going ? (going.value ? ", still going" : ", now over") : ""}.${stake}${sure}`;

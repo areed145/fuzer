@@ -515,11 +515,11 @@
   content: ""; position: absolute; top: 0; left: 0; right: -16px; border-top: var(--hair) solid var(--line);
 }
 :root.ios .home-list > li > .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
-:root.ios #main-content .home-list > li .row > .ui-button-link {
+:root.ios #main-content .home-list > li .row > :is(.ui-button-link, a.work-title) {
   flex: 1 1 100%; justify-content: flex-start; text-align: left; padding: 0; min-height: 0; margin: 0;
   color: var(--text); font-size: var(--t-body); font-weight: 600; line-height: 22px;
 }
-:root.ios .home-list > li .row > .ui-button-link::after { content: ""; position: absolute; inset: 0; }  /* the whole row taps */
+:root.ios .home-list > li .row > :is(.ui-button-link, a.work-title)::after { content: ""; position: absolute; inset: 0; }  /* the whole row taps */
 :root.ios .home-list > li > .small { font-size: var(--t-footnote); line-height: 18px; color: var(--muted); }
 :root.ios .home-list > li > .small strong { color: var(--muted); font-weight: 500; }
 :root.ios .home-counts { gap: 4px 16px; }

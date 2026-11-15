@@ -233,18 +233,19 @@ def lookup_source(conn, source: str, key: str) -> list[dict]:
     return conn.execute("select * from crosswalk where source = %s and source_key = %s", (source, key)).fetchall()
 
 
-def reviews(conn, status: str = "open", kind: str | None = None, limit: int = 100) -> list[dict]:
+def reviews(conn, status: str = "open", kind: str | None = None, limit: int = 100,
+            item: int | None = None) -> list[dict]:
     return conn.execute(
         """
         select r.*, l.label, g.value as description
         from review_item r
         left join entity_label l on l.fuzer_id = r.payload->>'fuzer_id'
         left join golden g on g.fuzer_id = r.payload->>'fuzer_id' and g.field = 'description'
-        where r.status = %s and (%s::text is null or r.kind = %s)
+        where r.status = %s and (%s::text is null or r.kind = %s) and (%s::bigint is null or r.id = %s)
         order by r.id
         limit %s
         """,
-        (status, kind, kind, limit),
+        (status, kind, kind, item, item, limit),
     ).fetchall()
 
 

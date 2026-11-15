@@ -122,7 +122,7 @@ export function KindBadge({ kind, label }: { kind: string; label?: string }) {
 }
 
 export function SourceBadge({ source }: { source: string }) {
-  return <UIBadge className={`badge source source-${source}`}>{source}</UIBadge>;
+  return <UIBadge className={`badge source source-${source}`}>{/^[a-z]{2,4}$/.test(source) ? source.toUpperCase() : source}</UIBadge>;
 }
 
 export function Dates({ from, to }: { from: string | null; to: string | null }) {
