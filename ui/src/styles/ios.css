@@ -363,48 +363,11 @@
 :root.ios .ui-fullscreen-button { width: 44px; height: 44px; border-radius: 50%; padding: 0; color: var(--text); }
 
 
-/* ================= Pull-down menus for rows too wide for the screen =================
-   A row of segments that fits stays a segmented control. One that doesn't (a record's 7 views, All work's 8 lists,
-   the Board's 6 stages) shows only the chosen one, as a capsule button with up/down chevrons; tapping it opens an iOS
-   menu listing every choice with a check by the current one (ios.ts). */
-@media (max-width: 900px) {
-  :root.ios [data-ios-menu] { display: inline-flex !important; width: auto !important; padding: 0 !important; background: none !important;
-    overflow: visible !important; margin-bottom: 14px; }
-  :root.ios [data-ios-menu] > :not(.on):not([aria-current]):not([aria-pressed="true"]) { display: none !important; }
-  :root.ios [data-ios-menu] > :is(.on, [aria-current], [aria-pressed="true"]) {
-    flex: none; min-height: 40px !important; padding: 0 38px 0 18px !important; border-radius: 999px !important; position: relative;
-    color: var(--accent) !important; font-size: var(--t-subhead) !important; font-weight: 600 !important; cursor: pointer;
-    background: color-mix(in srgb, var(--accent) 14%, transparent) !important; background-image: none !important; border: 0 !important;
-    box-shadow: none !important;
-  }
-  :root.ios [data-ios-menu] > :is(.on, [aria-current], [aria-pressed="true"])::after {
-    content: ""; position: absolute; right: 14px; top: 50%; width: 11px; height: 16px; margin-top: -8px; background: currentColor;
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E") center / contain no-repeat;
-            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 6 4-4 4 4M2 10l4 4 4-4'/%3E%3C/svg%3E") center / contain no-repeat;
-  }
-  :root.ios [data-ios-menu-label]::before { content: attr(data-ios-menu-label); display: block; margin: 0 0 6px 4px; font-size: var(--t-footnote); color: var(--muted); }
-  /* The menu itself: a glass panel that grows out of the button. */
-  .ios-menu-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(0 0 0 / .2); }
-  .ios-menu {
-    position: fixed; z-index: 1301; min-width: 250px; max-width: calc(100vw - 32px); max-height: 60dvh; overflow: auto; padding: 0;
-    border-radius: 14px; background: var(--panel);
-    border: 0; box-shadow: 0 0 0 var(--hair) var(--line);
-    transform-origin: top left; animation: ios-menu-in .18s ease-out;
-  }
-  @keyframes ios-menu-in { from { opacity: 0; transform: scale(.92); } }
-  .ios-menu button { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 8px; width: 100%; min-height: 44px;
-    padding: 0 16px 0 14px; border: 0; background: none; color: var(--text); font: inherit; font-size: var(--t-body); text-align: left; }
-  .ios-menu button + button { box-shadow: inset 0 var(--hair) 0 var(--line); }
-  .ios-menu button:active { background: var(--lens); }
-  .ios-menu .check { color: var(--text); font-weight: 600; }
-  .ios-menu .n { color: var(--muted); font-size: var(--t-subhead); }
-}
-@media (prefers-reduced-motion: reduce) { .ios-menu { animation: none; } }
 
 /* ================= Persona tour fixes (#1077) ================= */
 /* Plain text links get a 44-point tap height without moving the text around them. */
-:root.ios #main-content a:not([class]):not(:is(nav, .area-navigation, .tabs, [data-ios-menu]) > a) { position: relative; }
-:root.ios #main-content a:not([class]):not(:is(nav, .area-navigation, .tabs, [data-ios-menu]) > a)::after { content: ""; position: absolute; inset: -10px -4px; }
+:root.ios #main-content a:not([class]):not(:is(nav, .area-navigation, .tabs) > a) { position: relative; }
+:root.ios #main-content a:not([class]):not(:is(nav, .area-navigation, .tabs) > a)::after { content: ""; position: absolute; inset: -10px -4px; }
 @media (max-width: 900px) {
   :root.ios #main-content .ui-button-link { min-height: 44px; }
 }
@@ -427,7 +390,9 @@
 /* Section tabs are always tabs on a phone: a row too wide for the screen scrolls sideways inside its capsule, with the
    current tab brought into view (ios.ts). It never folds into a pull-down or the title. */
 @media (max-width: 900px) {
-  :root.ios .area-navigation { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+  :root.ios :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips) { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; max-width: 100%; }
+  :root.ios :is(.tabs, .work-board-stages, .attention-bar .chips)::-webkit-scrollbar { display: none; }
+  :root.ios :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips) > * { flex: 1 0 auto; white-space: nowrap; }
 }
 
 /* Home's attention list: each place reads as a list row with the place name as its link, not a wall of link colour.
@@ -491,7 +456,7 @@
 :root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip .muted,
 :root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip .count { font-size: var(--t-footnote); color: var(--muted); background: none; padding: 0; }
 @media (max-width: 600px) {
-  :root.ios #main-content .chips:not(.attention-bar .chips, .segmented):not([data-ios-menu]):not(:has(.ui-disclosure)) {
+  :root.ios #main-content .chips:not(.attention-bar .chips, .segmented):not(:has(.ui-disclosure)) {
     flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
     margin-inline: -16px; padding: 2px 16px; scroll-padding-inline: 16px;
   }
@@ -511,7 +476,7 @@
 }
 :root.ios:not(.field-mode) #main-content .chips:not(.attention-bar .chips, .segmented) > .chip { min-height: 32px; padding: 0 12px; font-size: var(--t-subhead); }
 /* Segments split the control evenly, as UISegmentedControl does, and never squeeze a label. */
-:root.ios:not(.field-mode) :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips, .chips.segmented):not([data-ios-menu]) > * {
+:root.ios:not(.field-mode) :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips, .chips.segmented) > * {
   flex: 1 1 0; min-width: max-content; padding: 0 12px; font-size: var(--t-footnote);
 }
 :root.ios .chips.segmented { display: flex; flex-wrap: nowrap; width: 100%; max-width: 100%; margin: 4px 0 16px; }
@@ -525,8 +490,6 @@
   :root.ios .ui-page-header:has(> .ui-page-actions > .ui-help:only-child) > .ui-page-actions { flex: none; }
 }
 /* Menus are opened by touch: the chosen row carries the check, not a focus ring. */
-.ios-menu button:focus { outline: none; }
-.ios-menu button:focus-visible { background: var(--lens); }
 
 /* ================= Selects: a compact pop-up button =================
    A select reads as an iOS pop-up button: the same 36-point rounded field as text fields, a small grey
@@ -618,12 +581,13 @@
 :root.ios .md :is(h1, h2, h3, h4) { font-size: var(--t-body); line-height: 22px; }
 
 /* Every segmented control is the same 36-point capsule (32-point segments), whatever page or element it is built from. */
-:root.ios:not(.field-mode) #main-content :is(.area-navigation, .tabs, .work-board-stages, .chips.segmented):not([data-ios-menu]) > * {
+:root.ios:not(.field-mode) #main-content :is(.area-navigation, .tabs, .work-board-stages, .chips.segmented) > * {
   min-height: 32px; height: 32px; padding-block: 0; line-height: 32px; box-sizing: border-box;
 }
 /* Disclosures in a card (Evidence, History) sit as a tight pair of tappable rows, not islands of empty space. */
 :root.ios .ui-disclosure { margin: 0; }
-:root.ios #main-content .ui-disclosure-toggle { display: flex; align-items: center; width: 100%; min-height: 44px; font-size: var(--t-subhead); }
+/* A block, so a label made of several parts (a name, a description, counts) reads as one wrapped line of text. */
+:root.ios #main-content .ui-disclosure-toggle { display: block; width: 100%; min-height: 44px; padding-block: 11px; line-height: 22px; font-size: var(--t-subhead); }
 :root.ios .ui-disclosure + .ui-disclosure { border-top: var(--hair) solid var(--line); }
 :root.ios .lesson-text { margin-bottom: 8px; }
 
@@ -658,7 +622,7 @@
 :root.ios .ui-table.ui-table-clickable tbody tr:hover { background: none; }
 :root.ios .ui-table.ui-table-clickable tbody tr:active { background: var(--lens); }
 @media (max-width: 600px) {
-  :root.ios .phone-stack:has(thead) td, :root.ios .phone-rows td { padding: 0; border: 0; }
+  :root.ios .ui-table.phone-stack:has(thead) td, :root.ios .phone-stack:has(thead) td, :root.ios .ui-table.phone-rows td, :root.ios .phone-rows td { padding: 0; border: 0; }
   :root.ios .phone-stack:has(thead) tr, :root.ios .phone-rows tr { border-bottom: var(--hair) solid var(--line); padding: 11px 0; }
   :root.ios .phone-stack:has(thead) td:first-child { font-size: var(--t-body); line-height: 22px; }
   :root.ios .phone-stack:has(thead) td[data-label]::before, :root.ios .phone-rows td[data-label]::before { font-size: var(--t-caption); }
@@ -794,6 +758,29 @@
   :root.ios #main-content .phone-stack:has(thead) td[data-label] :is(.small, small) { font-size: inherit; }
   :root.ios .phone-stack:has(thead) td[data-label]::before { display: inline; margin-right: 6px; font-size: var(--t-footnote); }
   :root.ios table.ui-table--results.phone-stack:has(thead) tr { padding-inline: 16px; }
+  /* A "show more" inside a stacked row is a text link in the line, not a 44-point block that pushes the row apart. */
+  :root.ios #main-content .phone-stack:has(thead) td[data-label] .ui-disclosure-toggle { display: inline; min-height: 0; padding-block: 0; line-height: inherit; font-size: inherit; position: relative; }
+  :root.ios #main-content .phone-stack:has(thead) td[data-label] .ui-disclosure-toggle::after { content: ""; position: absolute; inset: -13px -8px; }
   /* All work's list card has no pad of its own (its rows carry it), so its empty line carries the inset too. */
   :root.ios #main-content .work-list-card :is(.status-empty, .ui-empty-line) { margin: 0; padding: 14px 16px; }
+}
+
+/* ================= Sixth batch: every list on a phone is the same list =================
+   A list table that sits straight on the page is its own inset card, like a results table. A list with no headings
+   (like questions, source records) stacks too: each cell on its own line instead of three squeezed columns. */
+@media (max-width: 600px) {
+  :root.ios #main-content table.ui-table--list.phone-stack:has(thead):not(.ui-card table) { background: var(--panel); border-radius: var(--radius); overflow: hidden; }
+  :root.ios #main-content table.ui-table--list.phone-stack:has(thead):not(.ui-card table) tr { padding-inline: 16px; }
+  :root.ios #main-content table.phone-stack:not(:has(thead)), :root.ios #main-content table.phone-stack:not(:has(thead)) tbody { display: block; }
+  :root.ios #main-content table.phone-stack:not(:has(thead)) tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 11px 0; border-bottom: var(--hair) solid var(--line); }
+  :root.ios #main-content table.phone-stack:not(:has(thead)) tr:last-child { border-bottom: 0; }
+  :root.ios #main-content table.phone-stack:not(:has(thead)) :is(th, td) { display: block; padding: 0; border: 0; min-width: 0; text-align: left; }
+  :root.ios #main-content table.phone-stack:not(:has(thead)) :is(th, td):first-child { flex: 1 1 100%; font-size: var(--t-subhead); font-weight: 600; color: var(--text); }
+}
+/* Home's places list: each place is a row with room around it. A lesson's text shows whole, not in a scrolling box. */
+:root.ios #main-content .attention-row { padding-block: 11px; }
+:root.ios #main-content textarea.lesson-text { field-sizing: content; max-height: none; resize: none; }
+@media (max-width: 600px) {
+  :root.ios #main-content .repeats-table td > .ui-disclosure { display: inline; margin-left: 6px; }
+  :root.ios #main-content .perf-table.phone-stack tr { align-items: flex-start; }
 }

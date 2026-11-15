@@ -53,7 +53,6 @@ function Configuration({ query }: { query: URLSearchParams }) {
   return (
     <section>
       <PageHeader subtitle="Preferences and configuration.">Application settings</PageHeader>
-      <Appearance />
       <nav className="area-navigation" aria-label="Settings sections">
         <a href={href("/settings", { project })} aria-current={readiness ? "page" : undefined}>Readiness</a>
         <a href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
@@ -62,6 +61,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
         <a href={href("/settings", { view: "standards" })} aria-current={standards ? "page" : undefined}>Standards</a>
         <a href={href("/settings", { view: "ai-usage" })} aria-current={aiUsage ? "page" : undefined}>AI usage</a>
       </nav>
+      {readiness && <Appearance />}
       {detection ? <Detection focus={query.get("detector")} /> : onboarding ? <Onboarding /> : standards ? <Standards /> : aiUsage ? <AiUsage /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
       <UICard className="row small">
         <label>

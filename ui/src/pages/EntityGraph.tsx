@@ -81,7 +81,7 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
               {node ? (
                 <NodePanel node={node} onExpand={node.id === id ? undefined : () => expand(node.id)} />
               ) : (
-                <Empty className="small">Click a node to see what it is. Double-click to pull in its own links.</Empty>
+                <Empty className="small">Select a node to see what it is. Select it twice to pull in its own links.</Empty>
               )}
               {graph.data.truncated && (
                 <p className="small">Too many neighbours to draw them all; showing the first 250.</p>

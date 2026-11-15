@@ -300,7 +300,7 @@ export function NetworkScene({ query, set, relDef }: {
                       </div>
                     )}
                   </>
-                ) : <Empty className="small">Click a shape to see what it is.</Empty>}
+                ) : <Empty className="small">Select a shape to see what it is.</Empty>}
                 {rerouted && (
                   <div className="scene-scenario" data-testid="scene-reroute">
                     <strong>{labelOf(rerouted.old.src)} rerouted to {labelOf(rerouted.added.dst)}</strong>
