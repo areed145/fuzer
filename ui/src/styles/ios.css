@@ -782,5 +782,25 @@
 :root.ios #main-content textarea.lesson-text { field-sizing: content; max-height: none; resize: none; }
 @media (max-width: 600px) {
   :root.ios #main-content .repeats-table td > .ui-disclosure { display: inline; margin-left: 6px; }
-  :root.ios #main-content .perf-table.phone-stack tr { align-items: flex-start; }
+  /* Work performance: a queue reads as its name and state, three counts side by side, then the slower detail. */
+  :root.ios #main-content .perf-table.phone-stack tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; align-items: start; }
+  :root.ios #main-content .perf-table.phone-stack td:is(:first-child, :nth-child(2), :nth-child(6)) { grid-column: 1 / -1; }
+  :root.ios #main-content .perf-table.phone-stack td:is(:nth-child(3), :nth-child(4), :nth-child(5))::before { display: block; margin: 0; }
+  :root.ios #main-content .perf-table.phone-stack .perf-n { min-height: 0; padding: 0; margin-right: 6px; font-size: var(--t-title3, 20px); font-weight: 600; position: relative; }
+  :root.ios #main-content .perf-table.phone-stack .perf-n::after { content: ""; position: absolute; inset: -12px -10px; }
+  :root.ios #main-content .perf-table.phone-stack .week-bars { max-width: 60px; }
+  :root.ios #main-content .phone-stack:has(thead) td.ui-num { text-align: left; }
+  :root.ios #main-content .perf-table.phone-stack td:nth-child(6)::before { display: block; }
+  :root.ios #main-content .perf-table.phone-stack .perf-hours { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+  :root.ios #main-content .perf-table.phone-stack .perf-hours > div { display: flex; gap: 6px; }
+  :root.ios #main-content .perf-table.phone-stack .perf-hours dt { color: var(--muted); }
 }
+
+/* ================= iPad pass =================
+   The same list rules at every width: a list table on the page is a card, an empty line keeps the card's inset, and
+   a "show more" in a table cell is a link in its line. */
+:root.ios #main-content table.ui-table--list:not(.ui-card table) { background: var(--panel); border-radius: var(--radius); overflow: hidden; }
+:root.ios #main-content .work-list-card :is(.status-empty, .ui-empty-line) { margin: 0; padding: 14px 16px; }
+:root.ios #main-content .ui-table td .ui-disclosure { display: inline; margin-left: 6px; }
+:root.ios #main-content .ui-table td .ui-disclosure-toggle { display: inline; width: auto; min-height: 0; padding-block: 0; line-height: inherit; font-size: inherit; position: relative; }
+:root.ios #main-content .ui-table td .ui-disclosure-toggle::after { content: ""; position: absolute; inset: -13px -8px; }
