@@ -881,7 +881,9 @@ test("The demo account goes anywhere, view only on configuration, and picks the 
   await page.goto(`${url}/#/sources`);
   await page.getByRole("heading", { name: "Source readiness", exact: true }).waitFor();
   await page.getByText("View only: the demo account can look at this page but can't change it.").waitFor();
-  // The account is the badge at the top right, on every screen.
+  // The account is the badge at the top right, on every screen: a circle, not an oval.
+  const badge = await page.getByRole("button", { name: /^Account/ }).boundingBox();
+  assert.equal(badge.width, badge.height, "the account badge is round");
   await page.getByRole("button", { name: /^Account/ }).click();
   const acting = page.getByRole("combobox", { name: "Acting as" });
   await acting.locator("option", { hasText: "ops lead" }).waitFor({ state: "attached" });

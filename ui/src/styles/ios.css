@@ -468,10 +468,10 @@
    Buttons and chips came in a handful of heights and paddings page to page. On iOS there are two button sizes and one
    chip size, everywhere: a 44-point button, a 34-point small button, a 32-point chip, and segmented controls whose
    segments share the width equally. Field mode keeps its own 56-pixel targets, so none of this applies there. */
-:root.ios:not(.field-mode) #main-content .ui-button:not(.ui-button-link, .chip, .example, .tabs > *, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *) {
+:root.ios:not(.field-mode) #main-content .ui-button:not(.ui-button-link, .chip, .example, .tabs > *, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *, .account-button) {
   min-height: 44px; padding: 0 18px; font-size: var(--t-subhead); font-weight: 600; line-height: 1.2;
 }
-:root.ios:not(.field-mode) #main-content .ui-button.ui-button-sm:not(.ui-button-link, .chip, .example, .tabs > *, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *) {
+:root.ios:not(.field-mode) #main-content .ui-button.ui-button-sm:not(.ui-button-link, .chip, .example, .tabs > *, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *, .account-button) {
   min-height: 34px; padding: 0 14px; font-size: var(--t-subhead);
 }
 :root.ios:not(.field-mode) #main-content .chips:not(.attention-bar .chips, .segmented) > .chip { min-height: 32px; padding: 0 12px; font-size: var(--t-subhead); }
