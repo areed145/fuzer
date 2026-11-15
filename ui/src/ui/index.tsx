@@ -104,6 +104,8 @@ function labelCells(table: HTMLTableElement) {
       if (column > 0 && head && !cell.hasAttribute("data-label")) cell.setAttribute("data-label", head);
       // A cell that holds only a number (with an optional unit or %) lines up on the right in tabular figures.
       cell.classList.toggle("ui-num", column > 0 && NUMBER.test(cell.textContent?.trim() ?? ""));
+      // A cell with nothing to say (empty, or only a dash) drops out of a stacked phone row instead of showing "—".
+      cell.classList.toggle("ui-blank", column > 0 && !cell.children.length && /^[—–-]?$/.test(cell.textContent?.trim() ?? ""));
       column += cell.colSpan || 1;
     }
   }

@@ -54,13 +54,13 @@ function Configuration({ query }: { query: URLSearchParams }) {
     <section>
       <PageHeader subtitle="Preferences and configuration.">Application settings</PageHeader>
       <Appearance />
-      <nav className="tabs" aria-label="Settings sections">
-        <a className={readiness ? "on" : ""} href={href("/settings", { project })} aria-current={readiness ? "page" : undefined}>Readiness</a>
-        <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
-        <a className={detection ? "on" : ""} href={href("/settings", { view: "detection" })} aria-current={detection ? "page" : undefined}>Detection</a>
-        <a className={onboarding ? "on" : ""} href={href("/settings", { view: "onboarding" })} aria-current={onboarding ? "page" : undefined}>Onboarding</a>
-        <a className={standards ? "on" : ""} href={href("/settings", { view: "standards" })} aria-current={standards ? "page" : undefined}>Standards</a>
-        <a className={aiUsage ? "on" : ""} href={href("/settings", { view: "ai-usage" })} aria-current={aiUsage ? "page" : undefined}>AI usage</a>
+      <nav className="area-navigation" aria-label="Settings sections">
+        <a href={href("/settings", { project })} aria-current={readiness ? "page" : undefined}>Readiness</a>
+        <a href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
+        <a href={href("/settings", { view: "detection" })} aria-current={detection ? "page" : undefined}>Detection</a>
+        <a href={href("/settings", { view: "onboarding" })} aria-current={onboarding ? "page" : undefined}>Onboarding</a>
+        <a href={href("/settings", { view: "standards" })} aria-current={standards ? "page" : undefined}>Standards</a>
+        <a href={href("/settings", { view: "ai-usage" })} aria-current={aiUsage ? "page" : undefined}>AI usage</a>
       </nav>
       {detection ? <Detection focus={query.get("detector")} /> : onboarding ? <Onboarding /> : standards ? <Standards /> : aiUsage ? <AiUsage /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
       <UICard className="row small">

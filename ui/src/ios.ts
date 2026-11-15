@@ -134,6 +134,7 @@ function fitMenus() {
   document.querySelectorAll<HTMLElement>(ROWS).forEach((row) => {
     if (row.hasAttribute("data-ios-menu") || row.children.length < 4 || !row.getClientRects().length) return;
     if (row.scrollWidth <= row.clientWidth + 2) return;
+    row.scrollLeft = 0;
     row.setAttribute("data-ios-menu", "");
   });
   // The chosen segment is the button that opens the menu; say so to VoiceOver.
