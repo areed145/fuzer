@@ -557,6 +557,31 @@ def test_dispatching_an_upset_sends_it_through_its_own_field_check(conn, types):
     [row] = [r for r in engine.my_work(conn, "erin")["mine"] if r["item_id"] == e["item_id"]]
     assert row["handed_reason"].startswith("Back from the field: done: gauge reads 13 barg")  # why it is back
     assert not [j for j in ex.field_jobs(conn, "otto") if j["id"] == e["id"]]
+    [listed] = [r for r in ex.listing(conn) if r["id"] == e["id"]]
+    assert listed["back_from_field"] is True  # All work's Back from the field list
+    conn.commit()
+
+
+def test_a_case_back_from_the_field_with_the_person_who_went_is_still_back(conn, types):
+    """Filming the demo, one account sent the upset to the field, took the field check itself and reported done: the
+    case came back to that same person, and All work's Back from the field list missed it because it went by who holds
+    the case. It goes by the hand-on that returned it, and drops out once the IOC sends it on again."""
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.load_defaults(conn)
+    engine.set_person(conn, "demo", ["engineer", "operator"])
+    engine.set_person(conn, "otto", ["operator"])
+    types("upset_s", process="upset", audience=("ioc", "field"))
+    e = raise_exception(conn, "upset_s", "UP-2", "Low lube oil pressure on train A", "agent:sre",
+                        refs=["fz-well-a12"], finding=external("test", {"incident_id": "UP-2", "start": "2025-12-30T00:00"}))
+    back = lambda: next(r for r in ex.listing(conn) if r["id"] == e["id"])["back_from_field"]
+    ex.dispatch(conn, e["id"], "demo", "demo", reason="read the filter dP")
+    assert back() is False  # in the field, not back
+    ex.report(conn, e["id"], "demo", "done", note="filter dP 1.1 bar, in the red")
+    assert back() is True
+    ex.dispatch(conn, e["id"], "demo", "otto", reason="change over the filter")
+    assert back() is False  # sent out again
     conn.commit()
 
 

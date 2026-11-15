@@ -148,8 +148,11 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
 /** Open, and the field's latest report says done or could not do: their part is over and the case is back with the
  * IOC to decide what happens next. */
 export const backFromField = (r: ExceptionRow) => {
+  if (r.state !== "open" || r.case_state === "done" || r.case_state === "cancelled") return false;
+  // the case's last hand-on returned it from the field, even to the person who went (one account doing both)
+  if (r.back_from_field) return true;
   const last = r.evidence?.field?.[r.evidence.field.length - 1];
-  return r.state === "open" && !!last && (last.status === "done" || last.status === "could_not_do") && r.assignee !== last.by;
+  return !!last && (last.status === "done" || last.status === "could_not_do") && r.assignee !== last.by;
 };
 
 /** Open, raised and not yet given to anyone or put on the plan: the IOC's to dispatch. */
