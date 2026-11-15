@@ -677,3 +677,25 @@
   :root.ios .phone-stack:has(thead) td:first-child { font-size: var(--t-body); line-height: 22px; }
   :root.ios .phone-stack:has(thead) td[data-label]::before, :root.ios .phone-rows td[data-label]::before { font-size: var(--t-caption); }
 }
+
+/* ================= Account badge and sheet, and the Menu's status =================
+   A round badge with the initials, top right, as the App Store's; it opens a sheet of grouped rows. The Menu's status is
+   one compact row: a coloured dot and one line that opens Jobs. */
+@media (max-width: 900px) {
+  :root.ios .topbar .account-button.ui-button { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; background: var(--accent); color: var(--accent-text, #fff); border: 0; font-size: var(--t-subhead); }
+  :root.ios .account-sheet { border-radius: 32px 32px 0 0; padding-top: 10px; }
+  :root.ios .account-sheet::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px;
+    background: color-mix(in srgb, var(--muted) 45%, transparent); }
+  :root.ios .account-sheet-head h2 { font-size: var(--t-title3); font-weight: 600; }
+  :root.ios .account-sheet .identity { border-radius: var(--radius); font-size: var(--t-body); }
+  :root.ios .account-sheet .identity p { font-size: var(--t-subhead); color: var(--muted); }
+  :root.ios .account-sheet .project-picker > span { color: var(--text); font-size: var(--t-body); }
+  :root.ios .account-sheet .project-picker select { min-height: 32px; padding: 4px 26px 4px 12px; border-radius: 999px; color: var(--muted);
+    font-size: var(--t-body); background-color: transparent; background-position: right 6px center; }
+  :root.ios .account-sheet .acting-as { display: flex; justify-content: space-between; font-size: var(--t-body); }
+  :root.ios .account-sheet .acting-as select { flex: 0 1 auto; width: auto; background-color: transparent; color: var(--muted); font-size: var(--t-body); }
+  :root.ios .account-sheet .ui-button { width: 100%; }
+  :root.ios .sidebar .health { display: flex; align-items: center; gap: 8px; min-height: 44px; color: var(--text); font-size: var(--t-subhead); }
+  :root.ios .sidebar .health span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  :root.ios .sidebar .health::after { content: ""; width: 7px; height: 7px; flex: none; border-right: 2px solid var(--muted); border-top: 2px solid var(--muted); transform: rotate(45deg); opacity: .6; }
+}

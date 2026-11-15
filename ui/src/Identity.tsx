@@ -1,5 +1,5 @@
 /** Signed-in identity; attribution-only names are limited to explicit trusted local mode. */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { href, notifyChanged, useAsync } from "./lib";
 import { usePerson } from "./work";
@@ -19,13 +19,57 @@ export function ProjectPicker({ session }: { session: AuthSession | null }) {
     if (session && picked && !known) switchProject("");
   }, [session, picked, known]);
   if (options.length < 2 && (!current || options.includes(current))) return null;
-  return <label className="identity small">
+  return <label className="identity small project-picker">
     <span className="muted">Project</span>
     <Select value={current} aria-label="Project" onChange={(e) => switchProject(e.target.value)}>
-      {!options.includes(current) && <option value={current}>{current || "Default"}</option>}
-      {options.map((name) => <option key={name} value={name}>{name}</option>)}
+      {!options.includes(current) && <option value={current}>{current ? projectName(current) : "Default"}</option>}
+      {options.map((name) => <option key={name} value={name}>{projectName(name)}</option>)}
     </Select>
   </label>;
+}
+
+/** A project's id ("okan") read as a name ("Okan"). */
+const projectName = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
+
+/** Initials for the account badge: "Adam Reeder" → "AR". */
+const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+
+/** On a phone the account is a round badge in the top bar, as iOS apps do: it opens a sheet with the project, who you
+ * are, your roles, Acting as, Manage users and Sign out. The Menu sheet no longer carries them. */
+export function AccountButton() {
+  const session = useAuth();
+  const [person] = usePerson();
+  const [open, setOpen] = useState(false);
+  const sheet = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    sheet.current?.querySelector<HTMLElement>("button, a[href], select, input")?.focus();
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const close = () => setOpen(false);
+    window.addEventListener("keydown", key);
+    window.addEventListener("hashchange", close);
+    return () => { window.removeEventListener("keydown", key); window.removeEventListener("hashchange", close); button.current?.focus(); };
+  }, [open]);
+  const name = session?.mode === "microsoft" ? session.user?.display_name ?? "" : person;
+  if (session?.mode === "microsoft" && !session.user) return null;
+  return <>
+    <Button ref={button} type="button" variant="ghost" className="account-button" aria-haspopup="dialog" aria-expanded={open}
+      aria-label={name ? `Account: ${name}` : "Account"} title={name || "Account"} onClick={() => setOpen(true)}>
+      <span aria-hidden="true">{name ? initials(name) : "?"}</span>
+    </Button>
+    {open && <>
+      <div className="account-scrim" onClick={() => setOpen(false)} />
+      <div ref={sheet} className="account-sheet" role="dialog" aria-modal="true" aria-label="Account">
+        <div className="account-sheet-head">
+          <span className="account-badge" aria-hidden="true">{name ? initials(name) : "?"}</span>
+          <h2>{name || "Account"}</h2>
+          <Button type="button" variant="link" className="account-close" onClick={() => setOpen(false)}>Done</Button>
+        </div>
+        <Identity />
+      </div>
+    </>}
+  </>;
 }
 
 export function Identity() {
