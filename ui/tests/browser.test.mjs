@@ -51,6 +51,7 @@ beforeEach(async () => {
     "/settings/detection/promotions": { proposals: [], patterns: [], rules: [], unreviewed: 0 },
     "/work/performance/detectors": { detectors: [], confirmed: 0, by_origin: {}, min_closed: 5, noisy: 0.5 },
     "/work/performance/skills": { skills: [], specialists: [], min_rated: 5 },
+    "/work/names": { "user:9abd0c5686d748c987c6101bfc432705": "Adam Reeder" },
   };
   await page.route("**/*", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -368,7 +369,7 @@ test("P7.6b a marked report is approved by a person with their reason, then expo
   assert.equal(exported, 1);
 });
 
-test("a case's process diagram opens on the waiting step at a readable size, the whole process a click away (#406)", async () => {
+test("a case's process diagram opens on the waiting step at a readable size, the whole process a click away (#406), drawn by Fuzer with no bpmn-js", async () => {
   const xml = readFileSync(new URL("../../src/fuzer/workflow/definitions/upset.bpmn", import.meta.url), "utf8");
   const step = { id: 3, process_id: 1, element: "triage", name: "Triage", kind: "user", state: "waiting", flow: null, role: "engineer",
     assignee: null, requires_human: false, due_at: null, escalated_at: null, attempts: 0, error: null,
@@ -382,11 +383,32 @@ test("a case's process diagram opens on the waiting step at a readable size, the
   await page.goto(`${url}/#/cases/7`);
   const whole = page.getByRole("button", { name: "Show the whole process", exact: true });
   await whole.waitFor();
-  await page.getByText("Showing the waiting step at a readable size.", { exact: false }).waitFor();
+  await page.locator(".fz-node.fz-open").waitFor();
+  const zoom = async () => Number((await page.locator(".process-surface svg > g").getAttribute("transform")).match(/scale\(([\d.]+)\)/)[1]);
+  assert.ok(await zoom() >= 0.75, "a big process opens at a readable size");
   await whole.click();
-  await page.getByRole("button", { name: "Zoom to the waiting step", exact: true }).waitFor();
+  assert.ok(await zoom() < 0.75, "Fit shows the whole process");
+  await page.getByRole("button", { name: "Zoom to the waiting step", exact: true }).click();
+  assert.ok(await zoom() >= 0.75);
+  await page.getByRole("button", { name: "Zoom in", exact: true }).waitFor();
+  assert.equal(await page.locator(".bjs-powered-by, .djs-container").count(), 0, "the case view doesn't use bpmn-js");
   const gap = await page.locator(".bpmn-legend").evaluate((el) => getComputedStyle(el).columnGap);
   assert.ok(parseFloat(gap) >= 12, `legend entries need space between them, got ${gap}`);
+});
+
+test("a case names the signed-in person who opened and started it, never their account id", async () => {
+  const xml = readFileSync(new URL("../../src/fuzer/workflow/definitions/task.bpmn", import.meta.url), "utf8");
+  const who = "user:9abd0c5686d748c987c6101bfc432705";
+  await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Start a purchase order", type: "task", state: "open",
+    subjects: [], created_by: who, created_at: "2026-11-09T09:00:00Z",
+    events: [{ id: 1, kind: "created", actor: who, element: null, at: "2026-11-09T09:00:00Z", data: {} }],
+    processes: [{ id: 2, process_key: "task", version: 1, definition_id: 2, parent_token: null, state: "running", outcome: null,
+      data: {}, started_by: who, started_at: "2026-11-09T09:00:00Z", path: [], open: [] }] } }));
+  await page.route("**/work/definitions/2/bpmn", route => route.fulfill({ body: xml, contentType: "application/xml" }));
+  await page.goto(`${url}/#/cases/8`);
+  await page.locator(".case-opened", { hasText: "Adam Reeder" }).waitFor();
+  await page.locator(".fz-node").first().waitFor();
+  assert.ok(!(await page.locator("main").innerText()).includes("user:9abd"), "no account id on the case");
 });
 
 test("a case shows what each agent did on it, its versions and cost, against the case's cap (P4.4)", async () => {
@@ -2633,6 +2655,22 @@ test("An assistant draft creates nothing until the person confirms, and then lin
   assert.equal(await card.getByRole("link", { name: "Open the case" }).getAttribute("href"), "#/cases/41");
   assert.equal(await card.getByRole("button", { name: "Create work item" }).count(), 0);
   assert.equal(calls.count(), 1);
+});
+
+test("An assistant draft reads as formatted text: bold, a list and its diagram, with evidence by name", async () => {
+  await askForDraft();
+  await page.route("**/work/drafts/d_abc123", (route) => route.fulfill({ json: { ...draftFixture,
+    summary: "**Request:** start a PO.\n\n**Why:**\n- SAP shows **0 in stock**\n- reserved on three orders\n\n```mermaid\nflowchart LR\n  A[MAT] --> B[WO]\n```" } }));
+  await page.route("**/entities/names**", (route) => route.fulfill({ json: { "fz-well-0123456789ab": { label: "OK-J07-03", description: null } } }));
+  await page.getByRole("button", { name: /^Ask/ }).first().click();
+  const confirmAsk = page.getByRole("button", { name: /Confirm|Send/ }).first();
+  if (await confirmAsk.isVisible().catch(() => false)) await confirmAsk.click();
+  const card = page.getByRole("region", { name: "Draft work item" });
+  await card.locator("strong", { hasText: "Request:" }).waitFor();
+  assert.equal(await card.locator("li").count(), 2);
+  const text = await card.innerText();
+  assert.ok(!text.includes("**") && !text.includes("```"), `no raw Markdown in the draft: ${text}`);
+  await card.getByRole("link", { name: "OK-J07-03" }).waitFor();
 });
 
 test("A failed draft confirmation is not replayed and shows the recorded state", async () => {

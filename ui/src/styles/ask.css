@@ -13,6 +13,9 @@
 .rate-inline { display: inline-flex; gap: 6px; align-items: center; }
 .rate-inline input { font: inherit; min-width: 220px; }
 .ask-box { position: sticky; bottom: 12px; }
+.ui-button.ask-send { display: inline-grid; place-items: center; }
+.ask-send > span { grid-area: 1 / 1; }
+.ask-send > .off { visibility: hidden; }
 .ask-box textarea { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line);
   border-radius: 6px; padding: 8px; resize: vertical; margin-bottom: 8px; }
 .specialist-list, .specialist-gaps { margin: 8px 0 0; padding-left: 18px; }

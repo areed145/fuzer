@@ -12,6 +12,7 @@ import { Detection } from "./Detection";
 import { Onboarding } from "./Onboarding";
 import { Standards } from "./Standards";
 import { AiUsage } from "./AiUsage";
+import { person as personName } from "../wording";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -235,7 +236,7 @@ function History({ settingKey }: { settingKey: string }) {
         {h.data.map((c, i) => (
           <tr key={i}>
             <td className="muted">{when(c.at)}</td>
-            <td>{c.by}</td>
+            <td>{personName(c.by)}</td>
             <td>{c.scope === "global" ? "all projects" : c.scope.replace("project:", "")}</td>
             <td>{show(c.old)} → {c.new === null ? "reset" : show(c.new)}</td>
             <td className="muted">{c.reason ?? ""}</td>

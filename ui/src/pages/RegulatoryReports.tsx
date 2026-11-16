@@ -8,6 +8,7 @@ import { usePerson, when } from "../work";
 import { useAct } from "./workflows/shared";
 import { Badge, Button, Card, ConfirmAction, Input, Table } from "../ui";
 import "../styles/reports.css";
+import { person as personName } from "../wording";
 
 const BASIS_TONE: Record<ReportBasis, "ok" | "warn" | "danger"> = { measured: "ok", estimated: "warn", missing: "danger" };
 
@@ -108,7 +109,7 @@ function Decide({ d, onDone }: { d: RegulatoryReport; onDone: () => void }) {
         </div>
       )}
       {d.submitted && (
-        <p className="small">Submitted by {d.submitted.by} {when(d.submitted.at)}
+        <p className="small">Submitted by {personName(d.submitted.by)} {when(d.submitted.at)}
           {d.submitted.via === "writeback" ? ` through the write-back queue to ${d.submitted.system}` : " as an exported file"}:
           {" "}{d.submitted.file}, sha256 {d.submitted.sha256.slice(0, 12)}…</p>
       )}
