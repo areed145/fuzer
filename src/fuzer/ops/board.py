@@ -180,7 +180,10 @@ def rank(cards: list[dict], pins: dict[str, dict]) -> list[dict]:
 
 
 def refresh(conn, pack) -> dict:
-    """Rebuild the board from its sources, keep each card's rank history and say why it moved."""
+    """Rebuild the board from its sources, keep each card's rank history and say why it moved. One refresh at a
+    time: two at once (the 5-minute detect beside an API save or a pipeline run) each emptied the table and then
+    both inserted the same cards (#1152)."""
+    conn.execute("select pg_advisory_xact_lock(hashtext('board_refresh'))")
     cards = _value_cards(conn, pack) + _upset_cards(conn) + _work_item_cards(conn, pack) + _exception_cards(conn) \
         + _review_cards(conn) + _project_cards(conn)
     cards = merge(cards, _links(conn, {c["key"] for c in cards}))

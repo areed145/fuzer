@@ -1,8 +1,8 @@
-/** iOS look and feel. On an iPhone or iPad the app follows iOS: the system font, large titles that fold into the top
- * bar, Liquid Glass bars and controls, inset grouped lists, segmented controls that scroll sideways, swipe actions on
+/** iOS look and feel, on every screen: a phone, an iPad and a desktop browser all follow iOS. The system font, large
+ * titles that fold into the top bar, Liquid Glass bars and controls, inset grouped lists, segmented controls that scroll sideways, swipe actions on
  * work cards and, in the installed app (where Safari's own gestures are gone), edge-swipe Back and pull to refresh.
- * Fuzer's colours stay. Desktop and Android are untouched. `?ios=1` or `?ios=0` forces it on or off for this tab,
- * for previews and screenshots. Styles: styles/ios.css. */
+ * Fuzer's colours stay. The gestures stay phone-only. `?ios=0` turns the look off for this tab (and `?ios=1` back on),
+ * for comparing against the old desktop look. Styles: styles/ios.css. */
 
 const KEY = "fuzer.ios";
 
@@ -14,9 +14,9 @@ function wanted(): boolean {
     if (kept === "1") return true;
     if (kept === "0") return false;
   } catch { /* private mode: use the device */ }
-  const ua = navigator.userAgent;
-  // iPadOS reports a Mac; a Mac with a touch screen is an iPad.
-  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  // One design on every screen: iPhone, iPad and desktop share the type, controls and cards; only the navigation
+  // changes shape (bottom tab bar on a phone, sidebar on wider screens).
+  return true;
 }
 
 const phone = () => window.innerWidth <= 900;

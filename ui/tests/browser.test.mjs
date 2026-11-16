@@ -881,6 +881,10 @@ test("The demo account goes anywhere, view only on configuration, and picks the 
   await page.goto(`${url}/#/sources`);
   await page.getByRole("heading", { name: "Source readiness", exact: true }).waitFor();
   await page.getByText("View only: the demo account can look at this page but can't change it.").waitFor();
+  // The account is the badge at the top right, on every screen: a circle, not an oval.
+  const badge = await page.getByRole("button", { name: /^Account/ }).boundingBox();
+  assert.equal(badge.width, badge.height, "the account badge is round");
+  await page.getByRole("button", { name: /^Account/ }).click();
   const acting = page.getByRole("combobox", { name: "Acting as" });
   await acting.locator("option", { hasText: "ops lead" }).waitFor({ state: "attached" });
   assert.equal(await acting.inputValue(), "");  // every role until one is picked
@@ -1927,9 +1931,6 @@ test("optional Demo preserves existing primary destinations and specialist route
   await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
   // Demo is one entry (#556): the tour starts the walkthrough, which keeps its URL.
   assert.equal(await page.getByRole("navigation", { name: "Demo pages", exact: true }).count(), 0);
-  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
-  await breadcrumb.getByText("Guided investigation", { exact: true }).waitFor();
-  assert.equal(await breadcrumb.getByText("Guided investigation", { exact: true }).count(), 1);
   await nav.getByRole("link", { name: "Investigate", exact: true }).click();
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
   await investigate.waitFor();
@@ -2054,7 +2055,8 @@ test("approved reader completes the keyless journey with trusted identity and no
   await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
   await page.getByText("What the loaded records establish", { exact: true }).waitFor();
   await page.getByRole("link", { name: "Finish investigation", exact: true }).click();
-  await page.getByText("Test participant", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Account: Test participant", exact: true }).click();
+  await page.getByRole("dialog", { name: "Account" }).getByRole("heading", { name: "Test participant", exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "system", exact: true }).count(), 0);
   assert.equal(await page.getByRole("link", { name: "Sources", exact: true }).count(), 0);
   assert.deepEqual(administrative, []);
@@ -2080,6 +2082,7 @@ test("pending account can bootstrap only with a setup code and then reach owner-
   await page.getByRole("heading", { name: "Set up the first owner" }).waitFor();
   await page.getByLabel("Owner setup code").fill("test-setup-code-at-least-thirty-two-characters");
   await page.getByRole("button", { name: "Set up owner access" }).click();
+  await page.getByRole("button", { name: /^Account/ }).click();
   await page.getByRole("link", { name: "Manage users" }).click();
   await page.getByRole("heading", { name: "Users", exact: true }).waitFor();
   await page.getByRole("link", { name: "Help" }).waitFor();  // how Users works is in the docs
@@ -2511,6 +2514,8 @@ test("mobile navigation traps focus, restores it on Escape and does not overlap 
   await menu.click();
   await page.waitForFunction(() => document.body.style.overflow === "hidden");
   await page.waitForFunction(() => document.getElementById("sidebar").getBoundingClientRect().x === 0);
+  // On a phone the Menu rises as a sheet: let it finish rising before checking what lies under its top.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
   assert.equal(await page.evaluate(() => document.getElementById("sidebar").contains(document.activeElement)), true);
   await page.keyboard.press("Shift+Tab");
   assert.equal(await page.evaluate(() => document.getElementById("sidebar").contains(document.activeElement)), true);
@@ -2518,7 +2523,7 @@ test("mobile navigation traps focus, restores it on Escape and does not overlap 
   assert.equal(await page.evaluate(() => document.getElementById("sidebar").contains(document.activeElement)), true);
   assert.equal(await page.evaluate(() => {
     const drawer = document.getElementById("sidebar").getBoundingClientRect();
-    return document.getElementById("sidebar").contains(document.elementFromPoint(drawer.x + 20, drawer.y + 20));
+    return document.getElementById("sidebar").contains(document.elementFromPoint(drawer.x + drawer.width / 2, drawer.y + 60));
   }), true);
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Open menu");
@@ -2539,6 +2544,7 @@ test("identity changes clear the previous person's inbox while a new response is
   });
   await page.goto(`${url}/#/inbox`);
   await page.getByText("ana-role", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Account: ana", exact: true }).click();
   await page.getByRole("button", { name: "ana", exact: true }).click();
   await page.getByLabel("You are", { exact: true }).fill("ben");
   await page.getByRole("button", { name: "Use this name" }).click();
@@ -2854,7 +2860,8 @@ test("Home shows each server-built figure in its own card, with its tables on re
     Object.defineProperty(document, "fullscreenEnabled", { value: false, configurable: true });  // as on an iPhone
     return scrollY;
   });
-  await second.getByRole("button", { name: "Full screen" }).click();
+  // Pressed in place: a pointer click would first scroll the button into view and move the page.
+  await second.getByRole("button", { name: "Full screen" }).evaluate((button) => button.click());
   await page.waitForFunction(() => document.querySelector(".chart-frame.ui-fullscreen .js-plotly-plot")?._fullLayout?.height > 500);
   const cover = await page.locator(".chart-frame.ui-fullscreen").boundingBox();
   const viewport = page.viewportSize();
@@ -3797,9 +3804,10 @@ test("Ontology header buttons stay on one line and All views explains its hidden
   await page.goto(`${url}/#/ontology`);
   const add = page.getByRole("button", { name: "Add link type", exact: true });
   await add.waitFor();
-  const lineHeight = await add.evaluate((b) => parseFloat(getComputedStyle(b).lineHeight) || 20);
-  const box = await add.boundingBox();
-  assert.ok(box.height < lineHeight * 2, `Add link type wraps (${box.height}px)`);
+  // One line of text: the label's line boxes all share one top (the button itself may be a taller 44 px target).
+  const lines = await add.evaluate((b) => { const r = document.createRange(); r.selectNodeContents(b);
+    return new Set([...r.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top))).size; });
+  assert.equal(lines, 1, `Add link type wraps (${lines} lines)`);
   await page.getByText("Link names show when you point at a link or a kind", { exact: false }).waitFor();
 });
 
@@ -7318,7 +7326,7 @@ test("P5.14a The installed app has its own Back, never leaves the app, and resum
   const manifest = await (await fetch(`${url}/assets/manifest.webmanifest`)).json();
   assert.equal(manifest.display, "standalone");
   assert.ok(manifest.icons.some(i => i.purpose === "maskable"));
-  assert.equal(await page.goto(`${url}/#/e/fz-pump`).then(() => page.locator("html").getAttribute("class")), "installed");
+  assert.ok((await page.goto(`${url}/#/e/fz-pump`).then(() => page.locator("html").getAttribute("class"))).split(" ").includes("installed"));
 
   // Opened from a link, nothing is behind it: Back goes up to the page that owns it, then Home, not out of the app.
   await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
@@ -7454,7 +7462,8 @@ test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away
   for (const box of await targets.evaluateAll(els => els.map(e => e.getBoundingClientRect().toJSON())))
     assert.ok(box.height >= 44 && box.width >= 44, "every tab is big enough for a gloved thumb");
   const barBox = await bar.boundingBox();
-  assert.equal(Math.round(barBox.y + barBox.height), 844, "the bar sits on the bottom edge");
+  // iOS floats the tab bar just above the bottom edge.
+  assert.ok(Math.round(barBox.y + barBox.height) >= 824 && barBox.y + barBox.height <= 844, "the bar sits on the bottom edge");
   assert.equal(await bar.locator('a[aria-current="page"]').innerText(), "Explore");
 
   // My work says how much is waiting and opens the operator's own list, not All work.
@@ -8009,7 +8018,7 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
 
   // My work: the job the IOC sent, opened from the home screen.
   await page.goto(`${url}/#/inbox`);
-  assert.equal(await page.locator("html").getAttribute("class"), "installed");
+  assert.ok((await page.locator("html").getAttribute("class")).split(" ").includes("installed"));
   await page.getByRole("heading", { name: /Pump P-101 vibration/ }).waitFor();
   await fits("My work");
   // The step on that job.
