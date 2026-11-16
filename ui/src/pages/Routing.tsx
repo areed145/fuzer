@@ -1,4 +1,4 @@
-import { stamp } from "../wording";
+import { person as personName, stamp } from "../wording";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api, type Route, type RouteExplanation, type RouteStep, type WorkRoleRow } from "../api";
 import { href, Status, useAsync } from "../lib";
@@ -113,7 +113,7 @@ function Explanation({ x }: { x: RouteExplanation }) {
         <td>{s.step}</td>
         <td>{s.kind === "agent" ? `${words(s.role)} agent` : words(s.role)}</td>
         <td>{s.kind === "agent" ? <span className="muted">agent worker</span>
-          : s.holders?.length ? s.holders.join(", ") : <Badge tone="warn">nobody</Badge>}</td>
+          : s.holders?.length ? s.holders.map(personName).join(", ") : <Badge tone="warn">nobody</Badge>}</td>
         <td>{s.sla ? duration(s.sla) : <span className="muted">none</span>}{s.sla_from === "role" && <span className="muted small"> (role)</span>}</td>
         <td className="small">{s.escalation.length ? s.escalation.map(words).join(" → ") : <span className="muted">stays with its role</span>}</td>
       </tr>)}</tbody>
@@ -137,6 +137,6 @@ function ProcessPicture({ processKey, steps }: { processKey: string; steps: Rout
   if (!xml) return null;
   const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
   const overlays = Object.fromEntries(steps.filter((s) => s.kind === "person").map((s) => [s.element,
-    `<span class="ui-badge badge ui-badge-${s.holders?.length ? "muted" : "warn"}">${esc(s.holders?.length ? s.holders.join(", ") : "nobody")}</span>`]));
+    `<span class="ui-badge badge ui-badge-${s.holders?.length ? "muted" : "warn"}">${esc(s.holders?.length ? s.holders.map(personName).join(", ") : "nobody")}</span>`]));
   return <Suspense fallback={<div className="status">Loading diagram…</div>}><BpmnView xml={xml} overlays={overlays} /></Suspense>;
 }

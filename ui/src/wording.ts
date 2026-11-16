@@ -53,6 +53,13 @@ const SNAKE_QUEUE = /\b([a-z]+(?:_[a-z]+)+) queue\b/g;
 const SYSTEM = /(?<![\w:/.\-])(sap|jde|sre|dcs)(?![\w:/.\-])/g;
 // the shared demo sign-in, as the record keeps it ("user:demo"); people see the account's name
 const DEMO_ACTOR = /\buser:demo\b/g;
+// a signed-in account as the record keeps it ("user:9abd…"); people see the account's display name
+const ACCOUNT_ACTOR = /\buser:[0-9a-f]{32}\b/g;
+let accountNames: Record<string, string> = {};
+
+/** The accounts' display names by actor (GET /work/names), loaded once by the app shell. */
+export function setPeopleNames(names: Record<string, string>) { accountNames = names; }
+const accountName = (actor: string) => accountNames[actor] ?? "a signed-in user";
 
 /** A state or label as a sentence starts: "open" reads "Open". */
 export const cap = (s: string | null | undefined): string => (s ? s[0].toUpperCase() + s.slice(1) : "");
@@ -61,7 +68,7 @@ export const cap = (s: string | null | undefined): string => (s ? s[0].toUpperCa
 export function person(who: string | null | undefined): string {
   if (!who) return "";
   if (who === "system") return "Fuzer";
-  return who.replace(DEMO_ACTOR, "Demo account");
+  return who.replace(DEMO_ACTOR, "Demo account").replace(ACCOUNT_ACTOR, accountName);
 }
 
 /** Text a record carries, in people's words: alarm keys, queue roles and unit spellings. Text with none comes back
@@ -75,7 +82,8 @@ export function say(text: string | null | undefined) {
     .replace(ROLE, (_, r: string, q?: string) => (q ? queue(r) : queue(r).replace(/ queue$/, "")))
     .replace(SNAKE_QUEUE, (_, r: string) => queue(r))
     .replace(SYSTEM, (k: string) => k.toUpperCase())
-    .replace(DEMO_ACTOR, "Demo account"));
+    .replace(DEMO_ACTOR, "Demo account")
+    .replace(ACCOUNT_ACTOR, accountName));
 }
 
 const DOC_TYPES: Record<string, string> = {

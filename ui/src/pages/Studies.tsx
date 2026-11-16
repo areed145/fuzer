@@ -4,6 +4,7 @@ import { api } from "../api";
 import { FigureView } from "../Figure";
 import { Status, href, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
+import { person as personName } from "../wording";
 
 const KINDS: [string, string][] = [
   ["correlate", "What moved with a point, and first"], ["correlation_matrix", "What moves together"],
@@ -26,7 +27,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
               <tr key={s.id}>
                 <td><a href={href("/studies", { id: String(s.id) })}>Study {s.id}</a></td>
                 <td>{KINDS.find(([k]) => k === s.kind)?.[1] ?? s.kind}</td><td><UIBadge className="badge">{s.status}</UIBadge></td>
-                <td className="small">{s.summary ?? s.error ?? ""}</td><td className="muted small">{s.created_by}</td>
+                <td className="small">{s.summary ?? s.error ?? ""}</td><td className="muted small">{personName(s.created_by)}</td>
               </tr>
             ))}
           </tbody>

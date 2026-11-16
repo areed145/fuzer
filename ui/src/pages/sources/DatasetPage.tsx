@@ -8,6 +8,7 @@ import {
   DRIFT_HELP, DUPLICATES_HELP, Diff, HealthBadge, LOAD_HELP, Loaded, SCHEDULES, TestSteps, cell, reviewer, scheduleText, useAction, when,
 } from "./common";
 import { MappingEditor } from "./MappingEditor";
+import { person as personName } from "../../wording";
 
 export const TABS = ["overview", "settings", "mapping", "runs", "quality", "matching", "history"] as const;
 export type Tab = (typeof TABS)[number];
@@ -566,7 +567,7 @@ function History({ d }: { d: DatasetDetail }) {
       <thead><tr><th>When</th><th>Who</th><th>What</th><th>Was</th><th>Now</th><th>Why</th></tr></thead>
       <tbody>
         {d.history.map((h) => (
-          <tr key={h.id}><td className="muted">{when(h.at)}</td><td>{h.by}</td><td>{h.action}</td>
+          <tr key={h.id}><td className="muted">{when(h.at)}</td><td>{personName(h.by)}</td><td>{h.action}</td>
             <td className="muted">{cell(h.old)}</td><td>{cell(h.new)}</td><td className="muted">{h.reason}</td></tr>
         ))}
       </tbody>

@@ -6,7 +6,9 @@ import "./styles/ios.css";
 import { Badge as UIBadge } from "./ui";
 import { StrictMode, Suspense, lazy, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { href, useRoute } from "./lib";
+import { href, useAsync, useRoute } from "./lib";
+import { api } from "./api";
+import { setPeopleNames } from "./wording";
 import { AskPage } from "./pages/Ask";
 import { ReportsPage } from "./pages/Reports";
 import { SettingsPage } from "./pages/Settings";
@@ -70,6 +72,9 @@ function App() {
   const routeKey = path.join("/");
   const previousRoute = useRef(routeKey);
   const { stats, demo, inbox, jobsHealth, declared, rebuilding } = useAppData();
+  // Records keep who acted as an actor ("user:9abd…"); every page shows the account's name instead.
+  const names = useAsync(() => api.workNames(), []);
+  if (names.data) setPeopleNames(names.data);
   void declared.data;
 
   const s = stats.data;

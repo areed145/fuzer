@@ -1,12 +1,57 @@
-/* The diagram keeps bpmn-js's light canvas, except in the dark theme, where the drawing is inverted onto the panel so
-   it is not a bright box on a dark page (#1071). Hues are turned back, so done stays green and waiting stays blue. */
+/* The modeler's canvas (bpmn-js) keeps its light drawing, inverted onto the panel in the dark theme (#1071). */
 .bpmn-canvas { height: 360px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; margin: 8px 0; }
-.bpmn-canvas .djs-element.fz-done .djs-visual > :first-child { stroke: #1a7f4b !important; fill: #e3f4ea !important; }
-.bpmn-canvas .djs-element.fz-open .djs-visual > :first-child { stroke: #0b6bcb !important; stroke-width: 3px !important; fill: #e6f0fb !important; }
-.bpmn-canvas .djs-connection.fz-taken .djs-visual > path { stroke: #1a7f4b !important; stroke-width: 2.5px !important; }
-.fz-legend-open { background: #0b6bcb; }
-.fz-legend-done { background: #e3f4ea; border: 2px solid #1a7f4b; }
-.fz-legend-taken { background: #1a7f4b; border-radius: 2px !important; height: 3px !important; }
+
+/* A process drawn by Fuzer (BpmnView): a canvas in the app's colours with a faint dot grid, lanes as quiet bands,
+   steps as cards. Waiting is the accent, done is ok green, a problem is danger red, in both themes. */
+.process-canvas { margin: 8px 0; background-color: var(--bg);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--muted) 22%, transparent) 1px, transparent 1.2px);
+  background-size: 18px 18px; }
+.process-surface { position: absolute; inset: 0; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; outline: none; }
+.process-surface:active { cursor: grabbing; }
+.process-surface:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius); }
+.process-canvas.ui-fullscreen .process-surface { touch-action: none; }
+.process-surface svg { display: block; overflow: visible; font-family: inherit; }
+.fz-pool rect { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+.fz-lane line { stroke: var(--line); stroke-width: 1; }
+.fz-lane-label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; fill: var(--muted);
+  paint-order: stroke; stroke: var(--panel); stroke-width: 5px; stroke-linejoin: round; }
+.fz-flow path { fill: none; stroke: color-mix(in srgb, var(--muted) 70%, transparent); stroke-width: 1.5; }
+.fz-flow .fz-default { stroke: color-mix(in srgb, var(--muted) 70%, transparent); stroke-width: 1.5; }
+.fz-arrow { fill: color-mix(in srgb, var(--muted) 85%, transparent); }
+.fz-arrow.taken { fill: var(--ok); }
+.fz-flow-label { font-size: 11px; fill: var(--muted); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+.fz-node .fz-shape { fill: var(--panel); stroke: color-mix(in srgb, var(--muted) 55%, var(--line)); stroke-width: 1.5; }
+.fz-node .fz-call { fill: none; stroke: color-mix(in srgb, var(--muted) 45%, transparent); stroke-width: 1; }
+.fz-node .fz-inner { fill: none; stroke: color-mix(in srgb, var(--muted) 55%, var(--line)); stroke-width: 1.2; }
+.fz-node .fz-glyph { fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fz-node .fz-name { font-size: 12.5px; font-weight: 500; fill: var(--text); }
+.fz-node .fz-label { font-size: 11.5px; fill: var(--muted); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+.fz-startEvent .fz-shape { stroke-width: 2; }
+.fz-endEvent .fz-shape { stroke: var(--text); stroke-width: 3.5; }
+.fz-halo { fill: none; stroke: var(--accent); stroke-width: 6; opacity: .22; }
+@media (prefers-reduced-motion: no-preference) { .fz-halo { animation: fz-wait 2.4s ease-in-out infinite; } }
+@keyframes fz-wait { 50% { opacity: .06; } }
+/* states */
+.fz-node.fz-done .fz-shape, .fz-node.fz-added .fz-shape { stroke: var(--ok); fill: var(--ok-soft); }
+.fz-node.fz-done .fz-glyph, .fz-node.fz-added .fz-glyph { stroke: var(--ok); }
+.fz-node.fz-open .fz-shape, .fz-node.fz-busy .fz-shape { stroke: var(--accent); stroke-width: 2.5; fill: var(--accent-soft); }
+.fz-node.fz-open .fz-glyph, .fz-node.fz-busy .fz-glyph { stroke: var(--accent); }
+.fz-node.fz-open .fz-name { font-weight: 600; }
+.fz-node:is(.fz-problem, .fz-late, .fz-removed) .fz-shape { stroke: var(--danger); stroke-width: 2.5; fill: color-mix(in srgb, var(--danger) 12%, var(--panel)); }
+.fz-node.fz-removed .fz-shape { stroke-dasharray: 5 4; }
+.fz-node.fz-changed .fz-shape { stroke: var(--warn); stroke-width: 2.5; fill: color-mix(in srgb, var(--warn) 12%, var(--panel)); }
+.fz-flow.fz-taken path, .fz-flow.fz-added path { stroke: var(--ok); stroke-width: 2.25; }
+.fz-flow.fz-problem path, .fz-flow.fz-removed path { stroke: var(--danger); stroke-width: 2.25; }
+.fz-flow.fz-removed path { stroke-dasharray: 5 4; }
+.fz-flow.fz-changed path { stroke: var(--warn); stroke-width: 2.25; }
+.fz-overlay { position: absolute; transform: translateX(-100%); pointer-events: auto; }
+.process-canvas .graph-tools .ui-button { background: color-mix(in srgb, var(--panel) 92%, transparent); }
+/* The tools sit in a row along the bottom, so a short canvas keeps its drawing clear; a phone pinches to zoom. */
+.process-canvas .graph-tools { top: auto; bottom: 10px; flex-direction: row; }
+@media (max-width: 700px) and (pointer: coarse) { .process-canvas .graph-tools .fz-zoom { display: none; } }
+.fz-legend-open { background: var(--accent-soft); border: 2px solid var(--accent); }
+.fz-legend-done { background: var(--ok-soft); border: 2px solid var(--ok); }
+.fz-legend-taken { background: var(--ok); border-radius: 2px !important; height: 3px !important; }
 @media (max-width: 900px) {
   .work-layout { grid-template-columns: 1fr; }
   .task-panel { position: static; max-height: none; }
@@ -45,15 +90,15 @@
 .bpmn-canvas .djs-connection.fz-removed .djs-visual > path { stroke: #c4302b !important; stroke-dasharray: 4 3; }
 .bpmn-canvas .djs-element.fz-busy .djs-visual > :first-child { stroke: #0b6bcb !important; stroke-width: 3px !important; fill: #e6f0fb !important; }
 .bpmn-canvas .djs-element.fz-late .djs-visual > :first-child { stroke: #c4302b !important; stroke-width: 3px !important; fill: #fdecea !important; }
-.fz-legend-added { background: #e3f4ea; border: 2px solid #1a7f4b; }
-.fz-legend-changed { background: #fff4d6; border: 2px solid #a35f00; }
-.fz-legend-removed { background: #fdecea; border: 2px dashed #c4302b; }
-.fz-legend-busy { background: #e6f0fb; border: 2px solid #0b6bcb; }
-.fz-legend-late { background: #fdecea; border: 2px solid #c4302b; }
-.fz-count { background: #1b1f24; color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; white-space: nowrap;
+.fz-legend-added { background: var(--ok-soft); border: 2px solid var(--ok); }
+.fz-legend-changed { background: color-mix(in srgb, var(--warn) 12%, var(--panel)); border: 2px solid var(--warn); }
+.fz-legend-removed { background: color-mix(in srgb, var(--danger) 12%, var(--panel)); border: 2px dashed var(--danger); }
+.fz-legend-busy { background: var(--accent-soft); border: 2px solid var(--accent); }
+.fz-legend-late { background: color-mix(in srgb, var(--danger) 12%, var(--panel)); border: 2px solid var(--danger); }
+.fz-count { background: var(--text); color: var(--panel); border-radius: 10px; padding: 1px 7px; font-size: 11px; white-space: nowrap;
   display: flex; gap: 6px; align-items: center; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
-.fz-count .late { color: #ff9e9a; font-weight: 600; }
-.fz-count .done { color: #b9c2cc; }
+.fz-count .late { color: color-mix(in srgb, var(--danger) 70%, var(--panel)); font-weight: 600; }
+.fz-count .done { opacity: .75; }
 .modeler-canvas .djs-palette { display: none; }
 .modeler-canvas.advanced .djs-palette { display: block; }
 .workflow-palette .actions { margin-bottom: 8px; }

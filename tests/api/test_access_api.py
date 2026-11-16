@@ -310,6 +310,14 @@ def test_users_keeps_saved_assignments_distinct_from_effective_access_and_owner_
     assert own_roster["owner"] and "workflow_admin" in own_roster["roles"]
 
 
+def test_work_names_give_each_account_its_display_name_only(runtime):
+    owner, _ = signed_in(runtime, owner=True)
+    names = runtime.get("/work/names").json()
+    display = next(a for a in runtime.get("/auth/access").json()["accounts"] if a["id"] == owner.id)["display_name"]
+    assert names[owner.actor] == display
+    assert all(isinstance(v, str) for v in names.values())  # a name per actor, nothing else about the account
+
+
 def test_conversations_uploads_jobs_and_answers_are_account_scoped(runtime):
     from fuzer.agents import history, service
     person, _ = signed_in(runtime, owner=True)

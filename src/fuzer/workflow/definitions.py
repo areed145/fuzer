@@ -455,6 +455,13 @@ def people(conn) -> list[dict]:
                      "cover_roles": c["roles"]})
     return sorted(rows, key=lambda r: r["name"])
 
+def person_names(conn) -> dict[str, str]:
+    """Each signed-in account's actor ("user:<id>") and the name people know it by, so records that store the actor
+    read as a name (opened by, started by, history). Names only: no email, roles or access."""
+    return {f"user:{r['id']}": r["display_name"] for r in
+            conn.execute("select id, display_name from access_account where display_name <> ''").fetchall()}
+
+
 def role_summary(conn) -> list[dict]:
     """Each person role (#202): the published processes with steps for it, who holds it and how many
     unclaimed steps and items wait in its queue."""

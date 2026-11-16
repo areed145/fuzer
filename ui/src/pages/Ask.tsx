@@ -205,7 +205,11 @@ export function AskPage({ query }: { query: URLSearchParams }) {
           {demo ? <ConfirmAction label="paid question" disabled={!ai || !text.trim()} busy={busy}
             consequence="This sends the reviewed question and any attachments to the configured AI provider and may incur charges. The answer is stored in your account's conversation. Inspect any recorded job after a failure before a deliberate retry."
             onConfirm={() => ask(text)} />
-            : <Button variant="primary" type="submit" disabled={!ai || busy || !text.trim()}>{busy ? "Working…" : "Ask"}</Button>}
+            : <Button variant="primary" type="submit" className="ask-send" disabled={!ai || busy || !text.trim()}>
+                {/* both labels hold the button's width, so the row doesn't shift (and Safari doesn't leave the old
+                    buttons painted) when a question goes out */}
+                <span className={busy ? "off" : undefined}>Ask</span><span className={busy ? undefined : "off"}>Working…</span>
+              </Button>}
           <ButtonLabel title="A screenshot, a photo of a spectrum, a datasheet page (or paste one)">
             Attach image
             <Input type="file" accept={TYPES.join(",")} multiple hidden disabled={images.length >= MAX_IMAGES}
