@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-16",
+  "kind": "drifts",
+  "bundle": "okan",
+  "since": "2024-12-31T00:00",
+  "until": "2025-10-01T00:00",
+  "slow_upsets": 7,
+  "slow_detected": 4,
+  "slow_recall": 0.571,
+  "slow_missed": [
+    "OK-J12-02 2025-01-15 00:00",
+    "20-GT-2000C 2025-10-01 00:00",
+    "OK-J10-01 2025-10-01 00:00"
+  ],
+  "detections": 95,
+  "right": 28,
+  "false_alarms": 64,
+  "precision": 0.304,
+  "false_alarms_per_week": 1.6,
+  "false_alarm_examples": [
+    "OK_GGCP:20-PIC-3003.OP peer_drift_down 2025-01-13 00:00",
+    "40FT3001.PV peer_drift_up 2025-01-14 00:00",
+    "OKA_PP.10FT3001.PV peer_drift_up 2025-01-14 00:00",
+    "30FT3001.PV peer_drift_up 2025-01-14 00:00",
+    "40FT3002.PV peer_drift_up 2025-01-14 00:00",
+    "OK_GGCP:20-FT-3002.PV peer_drift_up 2025-01-14 00:00",
+    "30FT3002.PV peer_drift_up 2025-01-14 00:00",
+    "30FT3001.PV peer_drift_up 2025-01-21 00:00",
+    "40FT3001.PV peer_drift_up 2025-01-21 00:00",
+    "OKA_PP.10FT3001.PV peer_drift_up 2025-01-21 00:00"
+  ],
+  "passes": true
+}

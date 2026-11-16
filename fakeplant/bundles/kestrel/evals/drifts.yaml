@@ -1,0 +1,5 @@
+# The slow-drift detector's replay (P3.11a, #1020): `fuzer eval --drifts` runs it a day at a time over this stretch
+# (relative to today, as Kestrel's data is) and scores what it raises against the process model's events: the slow
+# drifts on C1-H-3008, C1-AT-3011 and A1-V-1004, B1-K-2001's valve leaking and the sales meter reading off.
+since: "today-60d"
+until: "today"

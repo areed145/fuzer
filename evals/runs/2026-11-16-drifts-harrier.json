@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-16",
+  "kind": "drifts",
+  "bundle": "harrier",
+  "since": "2026-09-06T00:00",
+  "until": "2026-11-15T00:00",
+  "slow_upsets": 7,
+  "slow_detected": 2,
+  "slow_recall": 0.286,
+  "slow_missed": [
+    "E1-PT-5003 2026-11-14 02:45",
+    "H1-FT-8005 2026-11-14 02:45",
+    "A1-F-1007 2026-10-16 00:00",
+    "G1-E-7003 2026-11-14 01:00",
+    "A1-P-1003B 2026-09-16 00:00"
+  ],
+  "detections": 5,
+  "right": 5,
+  "false_alarms": 0,
+  "precision": 1.0,
+  "false_alarms_per_week": 0.0,
+  "false_alarm_examples": [],
+  "passes": true
+}

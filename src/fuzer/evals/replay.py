@@ -39,6 +39,10 @@ TAIL = timedelta(hours=6)  # and this long after it ends (restart, settling)
 UPSETS = {"trip", "shutdown", "shut_in", "vibration", "fouling", "discharge_temperature", "level", "erratic",
           "valve_failed_open", "restriction", "head_loss", "choke_wear", "flowline_restriction"}
 ROUTINE = {"choke", "stopped", "covering", "open", "curtail", "down", "setpoint", "reroute"}
+# Slow kinds of upset the SRE's own replay leaves out (a compressor valve leaking, a gas turbine's heat rate creeping, a
+# meter reading off): the slow-drift detector and the agentic watch are scored on them too (P3.11).
+SLOW = {"head_loss", "choke_wear", "fouling", "flowline_restriction", "recirculation", "seal_wear", "heat_rate",
+        "lube_filter", "combustor", "thrust", "drift", "valve_leak", "misfire", "bias"}
 
 
 class Peek(BaseException):
@@ -125,18 +129,18 @@ def own(units: dict) -> dict[str, set[str]]:
     return out
 
 
-def truth(model: dict, since: datetime, until: datetime) -> list[dict]:
-    """The model's upsets and routine events in [since, until], each with its span, the units it is on and
-    the ones it affects."""
+def truth(model: dict, since: datetime, until: datetime, upsets: set[str] = UPSETS) -> list[dict]:
+    """The model's upsets (`upsets`, by kind) and routine events in [since, until], each with its span, the units it
+    is on and the ones it affects."""
     sc, on = scope(model["units"]), own(model["units"])
     out = []
     for e in model["events"]:
-        if e["kind"] not in UPSETS | ROUTINE:
+        if e["kind"] not in upsets | ROUTINE:
             continue
         a, b = _span(e)
         if b < since or a > until:
             continue
-        out.append({"unit": e["unit"], "kind": e["kind"], "start": a, "end": b, "upset": e["kind"] in UPSETS,
+        out.append({"unit": e["unit"], "kind": e["kind"], "start": a, "end": b, "upset": e["kind"] in upsets,
                     "own": on.get(e["unit"], {e["unit"]}),
                     "scope": on.get(e["unit"], {e["unit"]}) if "points" in e else sc.get(e["unit"], {e["unit"]})})
     return out
@@ -166,7 +170,14 @@ def _only(*names):
     return fn
 
 
-DETECTORS = {"limits": limits_detector, "sre": sre_detector,
+def drift_detector(conn, pack, since: datetime, until: datetime, src) -> list[dict]:
+    """The slow-drift detector (P3.11a): the drifts found on the last day before `until`, read a day at a time."""
+    from ..ops import drift
+
+    return drift.find(conn, pack, since, until, src)
+
+
+DETECTORS = {"limits": limits_detector, "sre": sre_detector, "peer_drifts": drift_detector,
              **{f"sre:{d.name}": _only(d.name) for d in detectors.window()}}  # every registered window detector
 
 
@@ -215,7 +226,7 @@ def _merge(found: list[dict], d: dict, a: datetime) -> None:
 
 
 def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, learn_days: int | None = 90,
-        relearn_days: int = 30, step: timedelta = STEP, say=None) -> dict:
+        relearn_days: int = 30, step: timedelta = STEP, say=None, upsets: set[str] = UPSETS) -> dict:
     """Replay [since, until] in `step` windows with `detector` (a name in DETECTORS or a function) and score
     it. Normal ranges are learned from the `learn_days` before `since` and again every `relearn_days`, as
     the schedule would have had them, and put back afterwards; learn_days None keeps the ones in the
@@ -258,7 +269,7 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
                 cols = list(saved[0])
                 db.copy_rows(conn, "point_normal", cols, [tuple(r[c] for c in cols) for r in saved])
             conn.commit()
-    res = score(spec, found, a, b)
+    res = score(spec, found, a, b, upsets)
     if found and "unit_id" in found[0]:  # the SRE's detections carry their unit: score its upsets too
         from ..ops import sre
 
@@ -277,9 +288,9 @@ def _hits(d: dict, unit: str | None, e: dict, where: str = "scope") -> bool:
         and d["start"] >= e["start"] - LEAD
 
 
-def score(spec: dict, found: list[dict], since: datetime, until: datetime) -> dict:
+def score(spec: dict, found: list[dict], since: datetime, until: datetime, upsets: set[str] = UPSETS) -> dict:
     """Detections against the model's events (upsets that start in the period): see the module notes."""
-    events = truth(spec, since, until)
+    events = truth(spec, since, until, upsets)
     upsets = [e for e in events if e["upset"] and e["start"] >= since]
     unit_of = {p: u for p, (u, _) in spec["points"].items()}
     kinds: dict[str, dict] = {}

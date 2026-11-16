@@ -213,6 +213,10 @@ register(
             min=0, max=100),
     Setting("sre.handoff.max_usd", "float", 5.0, "Claude spend cap per hand-off run (USD)", "SRE", min=0),
     Setting("watch.max_usd", "float", 2.0, "Model spend cap per agentic watch run, all areas (USD)", "SRE", min=0),
+    Setting("watch.live", "bool", False, "Raise the agentic watch's proposals as work for a person to triage (live "
+            "mode), once it has passed its bar on every bundle; off: kept in shadow and scored", "SRE"),
+    Setting("watch.daily_usd", "float", 2.0, "Model spend a day for the agentic watch on this asset (USD); once spent "
+            "it reads again the next day", "SRE", min=0),
     Setting("watch.max_areas", "int", 12, "Process areas the agentic watch reads per run", "SRE", min=0, max=200),
     Setting("watch.promote_after", "int", 3, "Confirmed watch proposals of one pattern before the watch drafts a "
             "deterministic rule for it", "SRE", min=1, max=50),
@@ -226,6 +230,12 @@ register(
             "before", "SRE", min=0),
     Setting("sre.drift_rise", "float", 0.05, "Share of its starting value a drift must climb before it is raised",
             "SRE", min=0, max=1),
+    Setting("drift.lookback_days", "int", 240, "Days a slow drift is measured over: a point's level now against "
+            "where it sat in the first third of them", "SRE", min=30, max=400),
+    Setting("drift.min_change", "float", 0.05, "Share of its baseline level a point must move, beyond what its peers "
+            "moved, before a slow drift is raised", "SRE", min=0.01, max=1),
+    Setting("drift.peer_z", "float", 4.0, "A slow drift: the point moves this many times the spread of its peers' "
+            "moves", "SRE", min=1, max=20),
     Setting("sre.group_gap_hours", "float", 2.0, "A detection joins an upset whose latest detection started within "
             "this many hours", "SRE", min=0.1, max=48),
     Setting("sre.hops", "int", 4, "Units this many links apart in the plant model count as connected (upsets and "

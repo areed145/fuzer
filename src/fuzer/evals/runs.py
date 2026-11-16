@@ -45,15 +45,29 @@ WATCH = ("upsets", "caught", "uncaught", "proposals", "matched_uncaught", "match
 
 
 def watch(res: dict, model: str | None) -> dict:
-    """An agentic watch eval run (P3.3) on one bundle's window: what it proposed against what no rule caught."""
-    return {"kind": "watch", "model": model, "bundle": res["bundle"], "since": res["since"], "until": res["until"],
-            "usd": res.get("usd"), **{k: res.get(k) for k in WATCH}}
+    """An agentic watch eval run (P3.3) on one bundle's window, or its fixed set of windows (P3.11b) with each
+    window's scores: what it proposed against what no rule caught."""
+    out = {"kind": "watch", "model": model, "bundle": res["bundle"], "since": res["since"], "until": res["until"],
+           "usd": res.get("usd"), **{k: res.get(k) for k in WATCH}}
+    if res.get("windows"):
+        out["windows"] = [{k: w.get(k) for k in ("since", "until", "why", "usd", *WATCH)} for w in res["windows"]]
+    return out
+
+
+DRIFTS = ("slow_upsets", "slow_detected", "slow_recall", "slow_missed", "detections", "right", "false_alarms",
+          "precision", "false_alarms_per_week", "false_alarm_examples", "passes")
+
+
+def drifts(res: dict) -> dict:
+    """A slow-drift detector replay (P3.11a) on one bundle: the slow upsets it raised, and what it raised falsely."""
+    return {"kind": "drifts", "bundle": res["bundle"], "since": res["since"], "until": res["until"],
+            **{k: res.get(k) for k in DRIFTS}}
 
 
 def save(run: dict, day: str | None = None, runs: Path = RUNS) -> Path:
     runs.mkdir(parents=True, exist_ok=True)
     run = {"date": day or date.today().isoformat(), **run}
-    window = f"-{run['since'][:10]}" if run["kind"] == "watch" else ""  # a day may score several windows
+    window = f"-{run['since'][:10]}" if run["kind"] == "watch" and not run.get("windows") else ""  # or one window
     path = runs / f"{run['date']}-{run['kind']}{'-' + run['bundle'] if run.get('bundle') else ''}{window}.json"
     n = 2
     while run["kind"] == "watch" and path.exists():  # a second watch run on a window the same day keeps the first

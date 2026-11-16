@@ -13,6 +13,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`models`](#models) Equipment off its curve | Model | Once a day | `upset` | pump, well |
 | [`hydraulics`](#hydraulics) A flowline pressure drop still rising | Model | Once a day | `upset` | well |
 | [`multivariate`](#multivariate) A stretch a process area's own model cannot explain | Statistical | Once a day | `upset` | Any asset with the inputs |
+| [`peer_drifts`](#peer_drifts) A point drifting from its own long baseline and from its peers | Statistical | Once a day | `upset` | Any asset with the inputs |
 | [`iow_breaches`](#iow_breaches) Time outside an integrity operating window past its allowed time | Rule | On request | `iow_breach` | Any asset with the inputs |
 | [`compressor_trips`](#compressor_trips) A compression train tripping, with its first cause | Rule | Every 5 minutes | `machine_trip` | compressor |
 | [`pump_trips`](#pump_trips) A pump tripping, with its first cause | Rule | Every 5 minutes | `machine_trip` | pump |
@@ -32,7 +33,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`flare_events`](#flare_events) A flare above its baseline, matched to the records around it | Rule | Once a day | `flare_event` | Any asset with the inputs |
 | [`alarm_performance`](#alarm_performance) Alarm floods and bad actors against ISA-18.2 and EEMUA 191 | Rule | Once a day | `alarm_flood`, `alarm_bad_actor` | Any asset with the inputs |
 | [`deviation_reviews`](#deviation_reviews) A named deviation from the operating model past its review date | Rule | Once a day | `deviation_review_due` | Any asset with the inputs |
-| [`watch`](#watch) What looks unusual in a process area that no detector raised (agentic, in shadow) | Agentic | Once a day |  | Any asset with the inputs |
+| [`watch`](#watch) What looks unusual in a process area that no detector raised (agentic) | Agentic | Once a day | `watch_finding` | Any asset with the inputs |
 | [`repeat_leaks`](#repeat_leaks) A leak repair that does not hold: leaking in consecutive LDAR surveys | Rule | Once a day | `repeat_leak` | Any asset with the inputs |
 | [`gas_balance_gaps`](#gas_balance_gaps) The daily gas balance staying open for days: a meter likely off | Rule | Once a day | `gas_balance_gap` | Any asset with the inputs |
 | [`promoted_rules`](#promoted_rules) A rule drafted from confirmed watch findings and published by a person | Rule | Every 6 hours | `upset` | Any asset with the inputs |
@@ -136,6 +137,19 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Needs:** historian points, a process area with 10 to 300 points
 - **Setting `sre.spe_minutes`:** Minutes a multivariate anomaly lasts before it is raised (default 120)
 - **Scored by:** the replay harness, `fuzer eval --ops --detector sre:multivariate`
+
+## peer_drifts
+
+**A point drifting from its own long baseline and from its peers.** Once a day: each point's level against where it sat months before and against its peers (the same measurement role on the same class of equipment); one that moved on its own, slowly and not by hand, is a drift. Each day since the last run is read (a missed day catches up), and a drift found again carries on the detection before.
+
+- **Kind:** Statistical
+- **Runs:** Once a day
+- **Raises:** `upset`
+- **Needs:** historian points, measurement roles
+- **Setting `drift.lookback_days`:** Days a slow drift is measured over: a point's level now against where it sat in the first third of them (default 240)
+- **Setting `drift.min_change`:** Share of its baseline level a point must move, beyond what its peers moved, before a slow drift is raised (default 0.05)
+- **Setting `drift.peer_z`:** A slow drift: the point moves this many times the spread of its peers' moves (default 4.0)
+- **Scored by:** the replay harness, `fuzer eval --ops --detector peer_drifts`
 
 ## iow_breaches
 
@@ -345,12 +359,14 @@ Everything that looks for trouble in the data is declared once, where it is writ
 
 ## watch
 
-**What looks unusual in a process area that no detector raised (agentic, in shadow).** Each process area over the window (the day to `until` by default) read by the watch agent under the run's spend cap; its proposals kept in shadow, never routed.
+**What looks unusual in a process area that no detector raised (agentic).** Each process area over the window (the day to `until` by default) read by the watch agent under the run's spend cap and the asset's daily budget (`budget`; an eval replaying history has its own). In shadow its proposals are kept and scored, never routed. In live mode (`watch.live` on this asset, and only once the watch has passed its bar on every bundle, `bar_met`) each is also raised as work for a person to triage (`route`); with the bar not met it stays in shadow and says so.
 
 - **Kind:** Agentic
 - **Runs:** Once a day
-- **Raises:** 
+- **Raises:** `watch_finding`
 - **Needs:** a model provider
+- **Setting `watch.live`:** Raise the agentic watch's proposals as work for a person to triage (live mode), once it has passed its bar on every bundle; off: kept in shadow and scored (default False)
+- **Setting `watch.daily_usd`:** Model spend a day for the agentic watch on this asset (USD); once spent it reads again the next day (default 2.0)
 - **Setting `watch.max_usd`:** Model spend cap per agentic watch run, all areas (USD) (default 2.0)
 - **Setting `watch.max_areas`:** Process areas the agentic watch reads per run (default 12)
 - **Scored by:** `tests/ops/test_watch.py::test_the_watch_in_shadow_keeps_proposals_and_routes_nothing`, on the fake plant

@@ -40,7 +40,7 @@ RAN, NOT_APPLICABLE, FAILED, OFF = "ran", "not_applicable", "failed", "off"
 ON = "detectors.on"  # the setting that switches detectors; detectors.on@<name> for one
 
 # Where detectors are written. A module here is imported when the registry is first read.
-MODULES = ("fuzer.ops.sre", "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating",
+MODULES = ("fuzer.ops.sre", "fuzer.ops.drift", "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating",
            "fuzer.analysis.records", "fuzer.sources.alerts", "fuzer.ops.opportunities", "fuzer.ops.safeguards",
            "fuzer.analysis.loops", "fuzer.analysis.well_tests",
            "fuzer.analysis.gas_lift", "fuzer.analysis.quality", "fuzer.analysis.flare", "fuzer.analysis.alarm_performance",
@@ -301,16 +301,25 @@ def replay_score(conn, d: Detector) -> dict | None:
     key = d.eval.partition(":")[2] if (d.eval or "").startswith("replay:") else f"sweep:{d.name}"
     try:
         with conn.transaction():  # a database without the eval table yet
-            r = conn.execute("select since, until, scores, run_at from ops_eval where detector = %s "
-                             "order by id desc limit 1", (key,)).fetchone()
+            rows = conn.execute("select distinct on (scores->>'bundle') since, until, scores, run_at from ops_eval "
+                                "where detector = %s order by scores->>'bundle', id desc", (key,)).fetchall()
     except Exception:
         return None
-    if not r:
+    if not rows:
         return None
+    r = max(rows, key=lambda r: r["run_at"])
     s = r["scores"] or {}
-    return {"recall": s.get("recall"), "precision": s.get("precision"),
-            "false_alarms_per_week": s.get("false_alarms_per_week"), "upsets": s.get("upsets"),
-            "since": r["since"], "until": r["until"], "at": r["run_at"].isoformat(timespec="seconds")}
+    out = {"recall": s.get("recall"), "precision": s.get("precision"),
+           "false_alarms_per_week": s.get("false_alarms_per_week"), "upsets": s.get("upsets"),
+           "since": r["since"], "until": r["until"], "at": r["run_at"].isoformat(timespec="seconds")}
+    if any((x["scores"] or {}).get("bundle") for x in rows):  # scored on each bundle (the slow-drift detector, P3.11)
+        out["bundles"] = [{"bundle": x["scores"].get("bundle"), "recall": x["scores"].get("slow_recall",
+                                                                                         x["scores"].get("recall")),
+                           "precision": x["scores"].get("precision"),
+                           "false_alarms_per_week": x["scores"].get("false_alarms_per_week"),
+                           "passes": x["scores"].get("passes"), "since": x["since"], "until": x["until"]}
+                          for x in rows if (x["scores"] or {}).get("bundle")]
+    return out
 
 
 def shadow_score(conn, d: Detector) -> dict | None:
@@ -329,7 +338,9 @@ def shadow_score(conn, d: Detector) -> dict | None:
             "false_alarms_per_week": None, "upsets": last["scores"].get("upsets"), "since": last["since"],
             "until": last["until"], "at": last["run_at"].isoformat(timespec="seconds"),
             "shadow": [{"bundle": r["scores"].get("bundle"), "matched": r["scores"].get("matched"),
-                        "precision": r["scores"].get("precision"), "proposals": r["scores"].get("proposals"),
+                        "precision": r["scores"].get("precision"), "recall": r["scores"].get("recall"),
+                        "proposals": r["scores"].get("proposals"), "passes": r["scores"].get("passes"),
+                        "windows": len(r["scores"].get("windows") or []) or 1,
                         "model": r["scores"].get("model"), "since": r["since"], "until": r["until"]} for r in rows]}
 
 

@@ -224,7 +224,11 @@ export interface DetectorRow {
   score: {
     recall: number | null; precision: number | null; false_alarms_per_week: number | null; since: string; until: string;
     /** An agentic detector's score in shadow, per bundle: the share of its proposals matching what no rule caught. */
-    shadow?: { bundle: string; matched: number | null; precision: number | null; proposals: number; model: string | null }[];
+    shadow?: { bundle: string; matched: number | null; precision: number | null; recall?: number | null; proposals: number;
+      passes?: boolean | null; windows?: number; model: string | null }[];
+    /** A statistical detector scored on replay on each bundle (the slow-drift detector): recall of the slow upsets. */
+    bundles?: { bundle: string; recall: number | null; precision: number | null; false_alarms_per_week: number | null;
+      passes: boolean | null; since: string; until: string }[];
   } | null;
   eval: string | null;
   settings: DetectorParam[];
@@ -288,7 +292,11 @@ export interface WatchPattern {
   ready: boolean; smallest_z: number | null; shortest_minutes: number | null; rule: PromotedRule | null;
 }
 
-export interface Promotions { proposals: WatchProposal[]; patterns: WatchPattern[]; rules: PromotedRule[]; unreviewed: number }
+/** The watch in live mode (P3.11d): what it raised for triage, confirmed real, and closed out as false alarms. */
+export interface WatchLiveScore { raised: number; confirmed: number; false_alarms: number; precision: number | null }
+export interface Promotions {
+  proposals: WatchProposal[]; patterns: WatchPattern[]; rules: PromotedRule[]; unreviewed: number; live?: WatchLiveScore;
+}
 
 export const detectionApi = {
   promotions: () => request<Promotions>("GET", "/settings/detection/promotions"),

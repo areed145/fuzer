@@ -1,7 +1,7 @@
 # Eval results
 
 Generated from the recorded runs in `evals/runs/`; don't edit by hand (`uv run python -m fuzer.reference`).
-Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or `fuzer eval --ops --full --live --record` (all cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: [assistant eval](assistant-eval.md).
+Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or `fuzer eval --ops --full --live --record` (all cost money), or `fuzer eval --drifts --record` (free), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: [assistant eval](assistant-eval.md).
 
 ## Operations assistant
 
@@ -74,13 +74,23 @@ Each pack's answer keys for a bundle (`evals/<pack>.yaml` in it), asked with `fu
 
 ## Agentic watch
 
-The watch (P3.3) reads a window a day at a time and proposes what the rules missed, scored against the fake plant's upsets that no rule caught, with `fuzer eval --watch`. A run passes when at least 50% of its proposals match an upset no rule caught.
+The watch (P3.3) reads a window a day at a time and proposes what the rules missed, scored against the fake plant's upsets that no rule caught, with `fuzer eval --watch`; with no window, over the bundle's fixed set of windows in `evals/watch.yaml` (P3.11b), the whole set first. A run passes when at least 50% of its proposals match an upset no rule caught.
 
 | Run | Bundle | Window | Model | Upsets (uncaught) | Proposals | On what no rule caught | Precision | Recall | Cost | Passed | No rule caught |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-13 | okan | 2025-08-20 to 2025-08-22 |  | 3 (2) | 3 | 1 | 33% | 50% | $0.45 | no | OK-J12-02 choke_wear 2025-01-15 00:00; OK-NWP-G3 choke_wear 2025-08-01 00:00 |
 | 2026-11-13 | okan | 2025-08-20 to 2025-08-22 |  | 3 (2) | 4 | 0 | 0% | 0% | $0.22 | no | OK-J12-02 choke_wear 2025-01-15 00:00; OK-NWP-G3 choke_wear 2025-08-01 00:00 |
 | 2026-11-13 | okan | 2025-01-13 to 2025-01-15 |  | 4 (1) | 4 | 0 | 0% | 0% | $0.26 | no | 10-P-1001A head_loss 2025-01-01 00:00 |
+
+## Slow-drift detector
+
+The `peer_drifts` detector (P3.11a) replayed a day at a time over each bundle's stretch in `evals/drifts.yaml`, with `fuzer eval --drifts`: the slow upsets it raised, and what it raised on nothing the process model holds. A run passes with at most 5 false alarms a week and at least one slow upset raised.
+
+| Run | Bundle | Stretch | Slow upsets raised | Recall | Raised | Precision | False alarms / week | Passed | Missed | False alarms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-16 | harrier | 2026-09-06 to 2026-11-15 | 2 of 7 | 29% | 5 | 100% | 0.0 | yes | E1-PT-5003 2026-11-14 02:45; H1-FT-8005 2026-11-14 02:45; A1-F-1007 2026-10-16 00:00; G1-E-7003 2026-11-14 01:00; A1-P-1003B 2026-09-16 00:00 |  |
+| 2026-11-16 | kestrel | 2026-09-16 to 2026-11-15 | 1 of 9 | 11% | 1 | 100% | 0.0 | yes | meter:sales 2026-11-03 00:00; H1-FT-8003 2026-11-14 03:10; D1-V-4001 2026-11-14 06:45; D1-AT-4002 2026-11-14 06:45; C1-H-3008 2026-09-30 00:00; C1-AT-3011 2026-09-29 00:00; B1-K-2001 2026-11-09 00:00; B1-K-2001 2026-10-25 00:00 |  |
+| 2026-11-16 | okan | 2024-12-31 to 2025-10-01 | 4 of 7 | 57% | 95 | 30% | 1.6 | yes | OK-J12-02 2025-01-15 00:00; 20-GT-2000C 2025-10-01 00:00; OK-J10-01 2025-10-01 00:00 | OK_GGCP:20-PIC-3003.OP peer_drift_down 2025-01-13 00:00; 40FT3001.PV peer_drift_up 2025-01-14 00:00; OKA_PP.10FT3001.PV peer_drift_up 2025-01-14 00:00; 30FT3001.PV peer_drift_up 2025-01-14 00:00; 40FT3002.PV peer_drift_up 2025-01-14 00:00 |
 
 ## Operations loop
 

@@ -66,6 +66,15 @@ create table if not exists point_baseline (
     computed_at timestamptz not null default now()
 );
 
+-- Each point's level each day (the median of its hourly values; null: none that day), kept for the slow-drift
+-- detector (P3.11a): a drift over months is judged from these instead of reading months of history every day.
+create table if not exists point_daily (
+    point_id text not null,
+    day      date not null,
+    value    double precision,
+    primary key (point_id, day)
+);
+
 -- Detections grouped by time and plant topology (#96b): one upset per cause, its earliest detection the
 -- likely first cause. Regrouped after each scan; an upset keeps its id (and status, once a person sets it)
 -- while its detections stay together.
@@ -585,6 +594,14 @@ create table if not exists watch_proposal (
     run_at     timestamptz not null default now()
 );
 create index if not exists watch_proposal_window on watch_proposal (since, until);
+-- What each run of the agentic watch spent on the model (P3.11d): its daily budget (watch.daily_usd) is read from it.
+create table if not exists watch_spend (
+    id   bigserial primary key,
+    day  date not null,
+    usd  double precision not null,
+    mode text not null,                         -- shadow | live
+    at   timestamptz not null default now()
+);
 -- A person's verdict on a proposal, and the pattern a confirmed one is read into (P3.4, #951): the role of the point it
 -- names, its equipment class and which way the value moved against the week before.
 alter table watch_proposal add column if not exists verdict text;          -- confirmed | rejected

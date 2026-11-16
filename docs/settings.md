@@ -88,6 +88,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `sre.handoff.max_diagnoses` | int | `10` | 0 to 100 | Upsets the assistant diagnoses per hand-off run. |
 | `sre.handoff.max_usd` | float | `5.0` | ≥ 0 | Claude spend cap per hand-off run (USD). |
 | `watch.max_usd` | float | `2.0` | ≥ 0 | Model spend cap per agentic watch run, all areas (USD). |
+| `watch.live` | bool | `False` |  | Raise the agentic watch's proposals as work for a person to triage (live mode), once it has passed its bar on every bundle; off: kept in shadow and scored. |
+| `watch.daily_usd` | float | `2.0` | ≥ 0 | Model spend a day for the agentic watch on this asset (USD); once spent it reads again the next day. |
 | `watch.max_areas` | int | `12` | 0 to 200 | Process areas the agentic watch reads per run. |
 | `watch.promote_after` | int | `3` | 1 to 50 | Confirmed watch proposals of one pattern before the watch drafts a deterministic rule for it. |
 | `sre.step_minutes` | int | `10` | 1 to 60 | Minutes between the values the detectors read. |
@@ -96,6 +98,9 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `sre.spe_minutes` | int | `120` | ≥ 10 | Minutes a multivariate anomaly lasts before it is raised. |
 | `sre.merge_minutes` | int | `30` | ≥ 0 | The same finding again within this many minutes carries on the one before. |
 | `sre.drift_rise` | float | `0.05` | 0 to 1 | Share of its starting value a drift must climb before it is raised. |
+| `drift.lookback_days` | int | `240` | 30 to 400 | Days a slow drift is measured over: a point's level now against where it sat in the first third of them. |
+| `drift.min_change` | float | `0.05` | 0.01 to 1 | Share of its baseline level a point must move, beyond what its peers moved, before a slow drift is raised. |
+| `drift.peer_z` | float | `4.0` | 1 to 20 | A slow drift: the point moves this many times the spread of its peers' moves. |
 | `sre.group_gap_hours` | float | `2.0` | 0.1 to 48 | A detection joins an upset whose latest detection started within this many hours. |
 | `sre.hops` | int | `4` | 1 to 10 | Units this many links apart in the plant model count as connected (upsets and correlation studies). |
 

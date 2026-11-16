@@ -122,3 +122,68 @@ def test_the_watch_is_shown_a_choke_plugging_over_weeks_and_not_the_fields_decli
 
     props, _ = watch.propose(conn, nwp, watch._t(a), watch._t(b), ask)
     assert seen and any(p["subject"] == "OK_NWP_G3.QGAS" and p["cited"] for p in props)  # asked on the drift alone
+
+
+@pytest.mark.integration
+def test_live_the_watch_raises_each_proposal_for_triage_its_budget_stops_it_and_off_is_shadow(okan_db):
+    # P3.11d: live mode is a setting on the asset, off by default, and only takes once the watch has passed its bar on
+    # every bundle's set of windows. Live, each proposal is raised through the finding contract, marked as the watch's,
+    # to a person's queue with no process to dispatch it; a close-out confirms it (towards a rule) or counts against it.
+    from fuzer.core import findings
+    from fuzer.ops import disposition
+
+    conn = okan_db.conn
+    a, b = "2024-03-09T00:00", "2024-03-10T00:00"
+    passed = [{"kind": "watch", "bundle": "okan", "passes": True, "windows": [{}] * 5}]
+    settings.set(conn, "watch.max_areas", 2, by="test")
+    settings.set(conn, "watch.max_usd", 5.0, by="test")
+    settings.set(conn, "watch.daily_usd", 0.05, by="test")
+    assert settings.get(conn, "watch.live") is False  # off by default
+    try:
+        settings.set(conn, "watch.live", True, by="test")
+        held = watch.watch(conn, PACK, a, b, ask=scripted(cost=0.0), recorded=[])
+        assert held["status"] == "shadow" and "not passed its bar" in held["note"]
+        assert not watch.bar_met([{**passed[0], "passes": False}])["met"] and watch.bar_met(passed)["met"]
+
+        out = watch.watch(conn, PACK, a, b, ask=scripted(cost=0.01), recorded=passed)
+        assert out["status"] == "live" and out["proposals"] and "triage" in out["note"], out
+        p = out["proposals"][0]
+        x = conn.execute("select * from exception_record where id = %s", (p["exception_id"],)).fetchone()
+        assert x["type"] == watch.WATCH_TYPE and x["key"] == f"watch:{p['id']}" and x["item_id"]
+        f = x["evidence"][findings.KEY]
+        assert f["origin"] == findings.AGENTIC and f["detector"] == "watch" and x["evidence"]["proposal"] == p["id"]
+        item = conn.execute("select * from work_item where id = %s", (x["item_id"],)).fetchone()
+        assert item["state"] == "open" and "engineer" in (item["role"] or "")  # a person's queue, nothing dispatched
+        assert {r["mode"] for r in conn.execute("select mode from watch_proposal where id = any(%s)",
+                                                ([q["id"] for q in out["proposals"]],))} == {"live"}
+
+        # a false alarm counts against it; a real one is confirmed, towards its pattern's rule
+        disposition.record(conn, PACK, x["item_id"], "test", "false_alarm", note="nothing there")
+        assert conn.execute("select verdict from watch_proposal where id = %s", (p["id"],)).fetchone()["verdict"] == "rejected"
+        if len(out["proposals"]) > 1:
+            q = out["proposals"][1]
+            assert watch.on_closeout(conn, q["item_id"], "real", "test") == [q["id"]]
+        from fuzer.ops import promote
+        live = promote.live_score(conn)
+        assert live["raised"] >= 1 and live["false_alarms"] >= 1
+
+        # the day's budget spent: it doesn't read again today
+        before = watch.spent_today(conn)
+        stopped = watch.watch(conn, PACK, a, b, ask=scripted(cost=0.01), recorded=passed)
+        assert before >= 0.05 or stopped["status"] != "budget"
+        settings.set(conn, "watch.daily_usd", before, by="test")
+        stopped = watch.watch(conn, PACK, a, b, ask=lambda prompt: pytest.fail("asked over budget"), recorded=passed)
+        assert stopped["status"] == "budget" and not stopped["proposals"] and "tomorrow" in stopped["note"]
+
+        # switched off: back to shadow, nothing raised
+        settings.set(conn, "watch.live", False, by="test")
+        settings.set(conn, "watch.daily_usd", 100.0, by="test")
+        n = conn.execute("select count(*) as n from exception_record where type = %s", (watch.WATCH_TYPE,)).fetchone()["n"]
+        off = watch.watch(conn, PACK, a, b, ask=scripted(cost=0.01), recorded=passed)
+        assert off["status"] == "shadow" and not any("exception_id" in q for q in off["proposals"])
+        assert conn.execute("select count(*) as n from exception_record where type = %s",
+                            (watch.WATCH_TYPE,)).fetchone()["n"] == n
+    finally:
+        settings.set(conn, "watch.live", False, by="test")
+        settings.set(conn, "watch.daily_usd", 2.0, by="test")
+        conn.commit()

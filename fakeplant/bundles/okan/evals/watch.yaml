@@ -1,0 +1,19 @@
+# The agentic watch's fixed windows (P3.11b, #1021): `fuzer eval --watch` with no window reads each one a day at a time
+# and scores its proposals against the process model's upsets that no rule or drift caught, each window and the set.
+# The same windows every run, so runs compare. Each holds slow upsets underway on Okan.
+windows:
+- since: "2025-01-13 00:00"
+  until: "2025-01-15 00:00"
+  why: "10-P-1001A starting to lose head and OK-J12-02's choke starting to wear"
+- since: "2025-08-20 00:00"
+  until: "2025-08-22 00:00"
+  why: "OK-NWP-G3's choke plugging with scale; 20-E-2350A fouled; 10-P-1001A down 7% on head"
+- since: "2025-09-08 00:00"
+  until: "2025-09-10 00:00"
+  why: "Train B's 3rd stage dry gas seal starting to pass; 20-GT-2000B's heat rate creeping"
+- since: "2025-10-27 00:00"
+  until: "2025-10-29 00:00"
+  why: "20-GT-2000A's lube oil filter plugging, 20-GT-2000C's fuel nozzle, 10-P-1001B recirculating, a flowline waxing"
+- since: "2025-11-10 00:00"
+  until: "2025-11-12 00:00"
+  why: "the same slow upsets further on, and 20-GT-2000B fouled up to its water wash"

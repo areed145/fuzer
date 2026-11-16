@@ -150,8 +150,18 @@ def promotions(conn, limit: int = 30) -> dict:
         """, (limit,))]
     rules = [dict(r) for r in conn.execute(
         "select * from promoted_rule order by (status = 'retired'), coalesce(published_at, drafted_at) desc limit 20")]
-    return {"proposals": props, "patterns": patterns(conn), "rules": rules,
+    return {"proposals": props, "patterns": patterns(conn), "rules": rules, "live": live_score(conn),
             "unreviewed": conn.execute("select count(*) as n from watch_proposal where verdict is null").fetchone()["n"]}
+
+
+def live_score(conn) -> dict:
+    """The watch's score in live mode (P3.11d): of what it raised for triage, how many were confirmed real and how many
+    closed out as false alarms, which count against it."""
+    r = conn.execute("select count(*) as raised, count(*) filter (where verdict = 'confirmed') as confirmed, "
+                     "count(*) filter (where verdict = 'rejected') as false_alarms from watch_proposal "
+                     "where mode = 'live'").fetchone()
+    judged = r["confirmed"] + r["false_alarms"]
+    return {**dict(r), "precision": round(r["confirmed"] / judged, 3) if judged else None}
 
 
 def rescore(conn, rule_id: int, score: dict) -> dict:

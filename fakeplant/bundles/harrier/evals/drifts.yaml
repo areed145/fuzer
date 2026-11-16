@@ -1,0 +1,5 @@
+# The slow-drift detector's replay (P3.11a, #1020): `fuzer eval --drifts` runs it a day at a time over this stretch
+# (relative to today, as Harrier's data is) and scores what it raises against the process model's events: booster
+# pump A1-P-1003B losing head, A1-F-1007's slow drift, G1-K-7001's valve leaking and the receipt meter reading off.
+since: "today-70d"
+until: "today"
