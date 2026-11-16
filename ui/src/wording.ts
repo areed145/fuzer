@@ -55,10 +55,18 @@ const SYSTEM = /(?<![\w:/.\-])(sap|jde|sre|dcs)(?![\w:/.\-])/g;
 const DEMO_ACTOR = /\buser:demo\b/g;
 // a signed-in account as the record keeps it ("user:9abd…"); people see the account's display name
 const ACCOUNT_ACTOR = /\buser:[0-9a-f]{32}\b/g;
-let accountNames: Record<string, string> = {};
+const NAMES_KEY = "fuzer.people-names";
+// the last names this browser saw, so a page opens with names rather than a placeholder while the list reloads
+let accountNames: Record<string, string> = (() => {
+  try { return JSON.parse(globalThis.localStorage?.getItem(NAMES_KEY) ?? "{}") ?? {}; } catch { return {}; }
+})();
 
 /** The accounts' display names by actor (GET /work/names), loaded once by the app shell. */
-export function setPeopleNames(names: Record<string, string>) { accountNames = names; }
+export function setPeopleNames(names: Record<string, string>) {
+  if (!names || Array.isArray(names) || names === accountNames) return;
+  accountNames = names;
+  try { globalThis.localStorage?.setItem(NAMES_KEY, JSON.stringify(names)); } catch { /* names last for this visit */ }
+}
 const accountName = (actor: string) => accountNames[actor] ?? "a signed-in user";
 
 /** A state or label as a sentence starts: "open" reads "Open". */
