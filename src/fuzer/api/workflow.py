@@ -714,6 +714,12 @@ def work_people(conn=Depends(get_conn)):
     return work.people(conn)
 
 
+@router.get("/work/names")
+def work_names(conn=Depends(get_conn)):
+    """Accounts' display names by actor, for showing who opened, started or did something."""
+    return work.person_names(conn)
+
+
 @router.put("/work/people/{name}")
 def work_person(name: str, p: WorkPerson, conn=Depends(get_conn)):
     return work.set_person(conn, name, p.roles, p.by)

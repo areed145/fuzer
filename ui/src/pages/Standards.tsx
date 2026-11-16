@@ -3,6 +3,7 @@ import { api, type ModelRollout, type ModelVersion, type Standing, type Standing
 import { Status, useAsync } from "../lib";
 import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table } from "../ui";
 import { loadPerson, usePerson } from "../work";
+import { person as personName } from "../wording";
 
 const TONE: Record<NonNullable<Standing["verdict"]>, "ok" | "warn" | "danger" | "muted"> = {
   standard: "ok", justified: "ok", drifted: "danger", no_model: "muted",
@@ -115,7 +116,7 @@ export function Standards() {
           <td data-label="Rolled out">{r.name} v{r.version}</td>
           <td data-label="From">{r.from_name} v{r.from_version}</td>
           <td data-label="State">{r.state.replace("_", " ")}{r.rollback_reason ? `: ${r.rollback_reason}` : ""}</td>
-          <td data-label="By">{r.rolled_back_by ?? r.by}</td>
+          <td data-label="By">{personName(r.rolled_back_by ?? r.by)}</td>
           <td data-label="Rollback">{r.state === "live" && <Rollback rollout={r} person={person} busy={!!busy} act={act} />}</td>
         </tr>)}</tbody>
       </Table>

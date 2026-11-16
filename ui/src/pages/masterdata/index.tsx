@@ -14,6 +14,7 @@ import { ContextTab } from "./Context";
 import { ProposalsTab } from "./Proposals";
 import { LearnedRules } from "./Learned";
 import { Review } from "../Review";
+import { person as personName } from "../../wording";
 
 const TABS = [["unmatched", "Unmatched on open work"], ["questions", "Questions"], ["unresolved", "Unresolved values"],
   ["gaps", "Gaps"], ["context", "Asset context"], ["proposals", "Claude's proposals"], ["decisions", "Decisions"]] as const;
@@ -119,7 +120,7 @@ function Decisions() {
           <tbody>{rows.data.map((d) => (
             <tr key={`${d.kind}:${d.id}`}>
               <td><Badge>{d.kind.replace("_", " ")}</Badge> {d.fuzer_id ? <a href={entityHref(d.fuzer_id)}>{d.what}</a> : d.what}</td>
-              <td>{d.by}</td><td>{when(d.at)}</td><td>{d.reason ?? ""}</td>
+              <td>{personName(d.by)}</td><td>{when(d.at)}</td><td>{d.reason ?? ""}</td>
               <td>{d.reversed ? <span className="muted">reversed by {d.reversed_by} {d.reversed_at && when(d.reversed_at)}</span>
                 : operate && person && <Button size="sm" variant="link" disabled={!!a.busy} onClick={() => {
                   if (!confirm(d.kind === "fix" ? `Reverse “${d.what}”? The values go back now.` : `Reverse “${d.what}”? It stops applying on the next rebuild.`)) return;

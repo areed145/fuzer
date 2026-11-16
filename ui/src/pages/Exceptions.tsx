@@ -268,7 +268,7 @@ function Row({ r, person, people, queues, onChange }: {
             {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <span className="muted">{personName(fieldSaid.by)} · {when(fieldSaid.at)}</span>
           {fieldSaid.note && <div className="muted">{fieldSaid.note}</div>}</div>}
         {shelved && <div><Badge>Shelved</Badge> until {day(r.shelved_until!)}: {r.shelved_reason}
-          {r.shelved_by ? ` · ${r.shelved_by}` : ""}</div>}
+          {r.shelved_by ? ` · ${personName(r.shelved_by)}` : ""}</div>}
       </div>
       {canAct && <div className="row work-card-actions work-row-actions">
         <Button size="sm" variant="secondary" className="work-lead" aria-expanded={panel === "dispatch"}

@@ -11,7 +11,7 @@ const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/wording.
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(code, { exports: exportsObject });
-const { acronyms, alarm, kindWord, plural, queue, say, unit } = exportsObject;
+const { acronyms, alarm, kindWord, person, plural, queue, say, setPeopleNames, unit } = exportsObject;
 
 const MACHINE = /\b(?:alarm|iow|role):[a-z_]|\bdegC\b|\bSm3\b|\b[a-z]+_[a-z_]+ queue\b/;
 
@@ -41,4 +41,14 @@ test("alarm kinds, units, queues, plurals, kinds and acronyms", () => {
   assert.equal(kindWord("document", {}), "Document");
   assert.equal(acronyms("365-day preventive maintenance, lp production separator"), "365-day preventive maintenance, LP production separator");
   assert.equal(acronyms("st1 test separator, help"), "ST1 test separator, help");
+});
+
+test("a signed-in account reads as its name, never its actor id", () => {
+  const id = "user:9abd0c5686d748c987c6101bfc432705";
+  assert.equal(person(id), "a signed-in user");  // before the names load: no id on screen
+  setPeopleNames({ [id]: "Adam Reeder" });
+  assert.equal(person(id), "Adam Reeder");
+  assert.equal(person("user:demo"), "Demo account");
+  assert.equal(person("system"), "Fuzer");
+  assert.equal(say(`handed over by ${id}`), "handed over by Adam Reeder");
 });
