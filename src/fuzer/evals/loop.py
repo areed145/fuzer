@@ -34,6 +34,7 @@ through the queue's `sap_pm` adapter to it, and the step reads back what SAP hol
 no system that takes write-back says so at that step.
 """
 
+import json
 import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -110,6 +111,36 @@ def _bundle(conn) -> Path:
     if not folder:
         raise Step("this project has no bundle folder to deliver from")
     return Path(folder)
+
+
+def _watch_live(conn, pack, since: str, until: str) -> str:
+    """The watch switched to live mode over a window, with a stand-in model that proposes the first stretch or drift
+    each area it reads shows it, as if its recorded runs had passed the bar. Live mode is switched back after."""
+    from ..core import settings
+    from ..ops import watch
+
+    def stand_in(prompt: str) -> dict:
+        ev = json.loads(prompt.split("Evidence:\n", 1)[1])
+        seen = [{"subject": s["points"][0]["name"], "start": s["start"], "end": s["end"], "evidence": [s["points"][0]["id"]]}
+                for s in ev.get("unexplained_stretches") or []][:1] or [
+            {"subject": d["name"], "start": d.get("since"), "evidence": [d["id"]]} for d in ev.get("drifts") or []][:1] or [
+            {"subject": x.get("name") or x.get("point") or x.get("text") or ev.get("area"), "start": x.get("start") or
+             x.get("at") or ev["since"], "evidence": [x["id"]]}
+            for k in ("alarms", "log", "notifications") for x in ev.get(k) or [] if isinstance(x, dict) and x.get("id")][:1]
+        props = [{**p, "why": "it moves while its area holds", "ruled_out": "no planned change in the log"} for p in seen]
+        return {"answer": "```json\n" + json.dumps({"proposals": props}) + "\n```", "usage": {"cost_usd": 0.0}}
+
+    was = settings.get(conn, "watch.live")
+    settings.set(conn, "watch.live", True, by=BY)
+    try:
+        out = watch.watch(conn, pack, since, until, ask=stand_in, budget=False,
+                          recorded=[{"kind": "watch", "bundle": "loop", "passes": True, "windows": [{}]}])
+    finally:
+        settings.set(conn, "watch.live", was, by=BY)
+        conn.commit()
+    if out["status"] != "live" or not out["proposals"]:
+        raise Step(f"the watch raised nothing: {out.get('note')}")
+    return "the watch in live mode"
 
 
 def _skill_falls_short(conn, skill: str) -> str:
@@ -234,6 +265,8 @@ def _bring(conn, how: dict) -> str:
         return f"drafting the {reports.TEMPLATES[how['report']].title.lower()} for {period}"
     if "tuning" in how:  # a detector made noisy, its cases closed as false alarms, then the tuning job (P6.3)
         return _noisy(conn, pack, how["tuning"])
+    if "watch" in how:  # the agentic watch in live mode (P3.11d) proposes what no rule raised, for triage
+        return _watch_live(conn, pack, how["since"], how["until"])
     if "skill" in how:  # a skill falls short twice (briefs not followed), and its specialist drafts a change
         return _skill_falls_short(conn, how["skill"])
     if "round" in how:  # an operator takes a reading on a round, on the phone

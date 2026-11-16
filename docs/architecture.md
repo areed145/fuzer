@@ -569,7 +569,7 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
     - `work_item`
 - **Owns** (its `schema.sql`):
     - `ops_eval`
-- **Settings:** `agents.model`, `opportunities.gas_lift_breakeven` ([settings](settings.md))
+- **Settings:** `agents.model`, `opportunities.gas_lift_breakeven`, `watch.live` ([settings](settings.md))
 - **Tests:** [`tests/evals`](https://github.com/areed145/fuzer/tree/main/tests/evals)
 
 ### API

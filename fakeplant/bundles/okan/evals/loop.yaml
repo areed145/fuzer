@@ -97,3 +97,5 @@ arrive:
   regulatory_report: {report: flare_emissions_monthly, about: report}
   # The monthly flaring return coming due in 5 days with no report started: the calendar raises it (P7.6c)
   report_due: {obligation: {name: flaring_return, template: flare_emissions_monthly, regulator: the regulator}, about: report}
+  # The agentic watch in live mode proposes what no rule raised, raised for a person to triage (P3.11d)
+  watch_finding: {watch: live, since: "2024-03-08T00:00", until: "2024-03-09T00:00"}  # 20-K-2200B before its trip
