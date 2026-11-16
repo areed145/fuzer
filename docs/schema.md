@@ -1525,6 +1525,16 @@ Each point's usual step-to-step spread over the days before `day` (sre.baselines
 | `usual` | double precision |  |
 | `computed_at` | timestamptz |  |
 
+### `point_daily`
+
+Each point's level each day (the median of its hourly values; null: none that day), kept for the slow-drift detector (P3.11a): a drift over months is judged from these instead of reading months of history every day.
+
+| Column | Type | Note |
+|---|---|---|
+| `point_id` | text |  |
+| `day` | date |  |
+| `value` | double precision |  |
+
 ### `upset`
 
 Detections grouped by time and plant topology (#96b): one upset per cause, its earliest detection the likely first cause. Regrouped after each scan; an upset keeps its id (and status, once a person sets it) while its detections stay together.
@@ -2012,6 +2022,18 @@ The agentic watch (P3.3a, ops/watch.py): what the watch agent proposed for an ar
 | `mode` | text |  |
 | `model` | text |  |
 | `run_at` | timestamptz |  |
+
+### `watch_spend`
+
+What each run of the agentic watch spent on the model (P3.11d): its daily budget (watch.daily_usd) is read from it.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `day` | date |  |
+| `usd` | double precision |  |
+| `mode` | text | shadow \| live |
+| `at` | timestamptz |  |
 
 ### `promoted_rule`
 

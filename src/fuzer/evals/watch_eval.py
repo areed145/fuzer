@@ -1,8 +1,8 @@
 """The agentic watch scored in shadow on replay (P3.3b, #931): does what it proposes match the bundle's injected events
 that no rule caught?
 
-- The SRE's scheduled scan runs over the period first, so the watch sees the detections the rules made (and leaves
-  them alone), as it would on the day.
+- The SRE's scheduled scan runs over the period first, and the slow-drift detector (P3.11a), so the watch sees the
+  detections the rules made (and leaves them alone, or reads a drift as evidence), as it would on the day.
 - The watch then reads each window (a day by default) with the model given: a provider's, or a scripted one in CI.
 - Truth is the bundle's process model (`replay.truth`): the upsets overlapping the period. An upset is **caught** when
   a stored detection is on one of its own units within it (an hour before to six hours after, as the replay scores),
@@ -17,6 +17,10 @@ The scores, per bundle:
 - `recall`: the share of uncaught upsets some proposal matched.
 - `cited`: the share of proposals whose every cited id was in what the watch was shown.
 
+Each bundle holds a fixed set of at least five windows in `evals/watch.yaml` (P3.11b), each holding an upset no rule
+catches; `run_set` scores the watch on every one and over the whole set, where the pass bar is read (P3.11c): at least
+half of all its proposals on what no rule caught, on each bundle.
+
 They are kept in `ops_eval` as `shadow:watch` with the bundle, which the Detection page reads. With a scripted model the
 numbers test the wiring, not the agent: a live score needs a provider key and is run by hand
 (`fuzer eval --watch`). An exception counts as catching an upset only when its first sighting falls in the upset's
@@ -27,12 +31,15 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from ..ops import sre, watch
+from ..ops import drift, sre, watch
 from ..sources import process_model
 from . import replay
 
 KEY = "shadow:watch"
 BAR = 0.5  # the epic's done-when: at least half the proposals match injected events no rule caught
+UPSETS = replay.UPSETS | replay.SLOW  # what the watch is for includes the slow kinds the SRE's replay leaves out
+FILE = "watch.yaml"  # a bundle's fixed set of windows (P3.11b)
+USD_PER_WINDOW = 0.35  # what a window has cost on a live model, before any run of the set is recorded
 
 
 def _t(v) -> datetime | None:
@@ -76,7 +83,7 @@ def matches(spec: dict, p: dict, e: dict) -> bool:
 def score(spec: dict, proposals: list[dict], found: list[dict], raised: list[dict], since: datetime,
           until: datetime) -> dict:
     """The proposals against the model's upsets in the period, split by whether a rule caught them."""
-    events = [e for e in replay.truth(spec, since, until) if e["upset"]]
+    events = [e for e in replay.truth(spec, since, until, UPSETS) if e["upset"]]
     got = caught(spec, events, found, raised)
     uncaught = [e for e, c in zip(events, got) if not c]
     on_caught = [e for e, c in zip(events, got) if c]
@@ -90,7 +97,7 @@ def score(spec: dict, proposals: list[dict], found: list[dict], raised: list[dic
         return round(k / of, 3) if of else None
 
     return {"upsets": len(events), "caught": len(on_caught), "uncaught": len(uncaught), "proposals": n,
-            "matched_uncaught": len(m_un), "matched_caught": len(m_c), "false_proposals": len(false),
+            "found_uncaught": len(found_un), "matched_uncaught": len(m_un), "matched_caught": len(m_c), "false_proposals": len(false),
             "matched": share(len(m_un), n), "precision": share(len(m_un) + len(m_c), n),
             "recall": share(len(found_un), len(uncaught)), "cited": share(sum(bool(p.get("cited")) for p in proposals), n),
             "passes": n > 0 and len(m_un) / n >= BAR,
@@ -130,8 +137,9 @@ def resolve(conn, proposals: list[dict]) -> list[dict]:
 
 
 def run(conn, pack, bundle: str, since: str, until: str, data_dir, ask=None, src=None,
-        step: timedelta = timedelta(days=1), scan: bool = True, say=None) -> dict:
-    """Scan the period with the rules, read it with the watch a `step` at a time, and score its proposals."""
+        step: timedelta = timedelta(days=1), scan: bool = True, say=None, drifts: bool = True) -> dict:
+    """Scan the period with the rules (and with `drifts`, the slow-drift detector, P3.11a), read it with the watch a
+    `step` at a time, and score its proposals."""
     path = Path(data_dir or ".") / "process_model.json"
     if not path.is_file():
         raise ValueError("no process_model.json in the data folder: the watch is scored against a fake plant's events")
@@ -139,11 +147,13 @@ def run(conn, pack, bundle: str, since: str, until: str, data_dir, ask=None, src
     a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
     if scan:
         sre.scan(conn, pack, since, until, src=src, max_days=max(1, (b - a).days + 1))
+    if scan and drifts:  # the watch reads the drifts it raised as evidence, and a drift it raised is caught
+        drift.peer_drifts(conn, pack, since, until, src)
     proposals, usd, notes = [], 0.0, []
     t = a
     while t < b:
         w = min(t + step, b)
-        out = watch.watch(conn, pack, t.isoformat(), w.isoformat(), ask=ask, src=src)
+        out = watch.watch(conn, pack, t.isoformat(), w.isoformat(), ask=ask, src=src, budget=False)
         if out["status"] != "shadow":
             return {"detector": KEY, "bundle": bundle, "since": since, "until": until, "status": out["status"],
                     "note": out["note"]}
@@ -160,6 +170,65 @@ def run(conn, pack, bundle: str, since: str, until: str, data_dir, ask=None, src
             "notes": notes, **res}
 
 
+def windows(bundle) -> list[dict]:
+    """A bundle's fixed set of windows (`evals/watch.yaml`, P3.11b), each {since, until, why}, its dates placed on the
+    calendar (relative to today where the bundle's data is); none when it declares none."""
+    import yaml
+
+    from ..sources import relative_dates
+
+    path = Path(bundle) / "evals" / FILE
+    if not path.is_file():
+        return []
+    out = relative_dates.resolve_all(yaml.safe_load(path.read_text()) or {})
+    return [{"since": str(w["since"])[:16].replace(" ", "T"), "until": str(w["until"])[:16].replace(" ", "T"),
+             "why": w.get("why")} for w in out.get("windows") or []]
+
+
+def estimate(wins: list[dict], recorded: list[dict]) -> float:
+    """What scoring `wins` on a live model would cost: the windows the recorded runs scored, at what they cost each,
+    else USD_PER_WINDOW a window."""
+    per = [w["usd"] for r in recorded if r.get("kind") == "watch" for w in (r.get("windows") or [r])
+           if w.get("usd")]
+    return round(len(wins) * (sum(per) / len(per) if per else USD_PER_WINDOW), 2)
+
+
+SUMMED = ("upsets", "caught", "uncaught", "proposals", "found_uncaught", "matched_uncaught", "matched_caught",
+          "false_proposals")
+
+
+def run_set(conn, pack, bundle: str, wins: list[dict], data_dir, ask=None, src=None, say=None) -> dict:
+    """Score the watch on each of a bundle's windows and over the whole set (P3.11b, c): the pass bar is read from the
+    set, at least half of all its proposals on what no rule caught."""
+    each = []
+    for w in wins:
+        r = run(conn, pack, bundle, w["since"], w["until"], data_dir, ask=ask, src=src, say=say)
+        if r["status"] != "shadow":
+            return r
+        each.append({**r, "why": w.get("why")})
+        if say:
+            say(f"watch {bundle} {w['since'][:10]}: {r['proposals']} proposals, {r['matched_uncaught']} on what no rule "
+                f"caught, ${r['usd']:.2f}")
+    tot = {k: sum(r[k] for r in each) for k in SUMMED}
+    n = tot["proposals"]
+
+    def share(k, of):
+        return round(k / of, 3) if of else None
+
+    keep = ("since", "until", "why", "usd", "passes", "matched", "precision", "recall", *SUMMED, "uncaught_examples",
+            "false_examples")
+    return {"detector": KEY, "bundle": bundle, "status": "shadow", "since": min(w["since"] for w in wins),
+            "until": max(w["until"] for w in wins), "model": each[0]["model"] if each else None,
+            "usd": round(sum(r["usd"] for r in each), 4), **tot,
+            "matched": share(tot["matched_uncaught"], n), "precision": share(tot["matched_uncaught"] + tot["matched_caught"], n),
+            "recall": share(tot["found_uncaught"], tot["uncaught"]),
+            "cited": share(sum((r["cited"] or 0) * r["proposals"] for r in each), n),
+            "passes": n > 0 and tot["matched_uncaught"] / n >= BAR,
+            "uncaught_examples": [x for r in each for x in r["uncaught_examples"]][:8],
+            "false_examples": [x for r in each for x in r["false_examples"]][:8],
+            "windows": [{k: r.get(k) for k in keep} for r in each]}
+
+
 def store(conn, res: dict) -> None:
     """Keep a run's scores as `shadow:watch`, with its bundle, for the Detection page."""
     conn.execute("insert into ops_eval (detector, since, until, scores) values (%s, %s, %s, %s)",
@@ -174,7 +243,7 @@ def judge(conn, data_dir, since: str, until: str, by: str = "replay") -> dict:
 
     spec = process_model.read(Path(data_dir) / "process_model.json")
     a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
-    events = [e for e in replay.truth(spec, a - replay.TAIL, b + replay.TAIL) if e["upset"]]
+    events = [e for e in replay.truth(spec, a - replay.TAIL, b + replay.TAIL, UPSETS) if e["upset"]]
     rows = [dict(r) for r in conn.execute(
         "select * from watch_proposal where verdict is null and since >= %s and until <= %s order by id", (a, b))]
     confirmed, rejected = [], []

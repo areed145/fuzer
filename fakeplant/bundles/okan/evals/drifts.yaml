@@ -1,0 +1,6 @@
+# The slow-drift detector's replay (P3.11a, #1020): `fuzer eval --drifts` runs it a day at a time over this stretch and
+# scores what it raises against the process model's events. It holds Okan's slow upsets that no rule catches: oil
+# export pump 10-P-1001A losing head and OK-J12-02's choke wearing from January 2025, and OK-NWP-G3's choke plugging
+# with scale through August.
+since: "2024-12-31"
+until: "2025-10-01"

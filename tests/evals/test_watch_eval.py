@@ -62,7 +62,8 @@ def scripted(prompt: str) -> dict:
 def test_the_watch_is_scored_on_replay_and_shown_per_bundle(okan_db, okan_data):
     conn, pack = okan_db.conn, load_pack("okan")
     try:
-        res = watch_eval.run(conn, pack, "okan", "2024-03-08T00:00", "2024-03-10T00:00", okan_data, ask=scripted)
+        res = watch_eval.run(conn, pack, "okan", "2024-03-08T00:00", "2024-03-10T00:00", okan_data, ask=scripted,
+                             drifts=False)  # the drift detector's months of levels: its own test
         assert res["status"] == "shadow" and res["model"] == "scripted" and res["proposals"], res
         assert res["upsets"] >= 1  # 20-K-2200B's vibration climbing to train B's trip
         assert res["matched_uncaught"] + res["matched_caught"] + res["false_proposals"] == res["proposals"]
@@ -77,3 +78,36 @@ def test_the_watch_is_scored_on_replay_and_shown_per_bundle(okan_db, okan_data):
         conn.execute("delete from ops_eval where detector = %s", (watch_eval.KEY,))
         conn.execute("delete from watch_proposal where since >= '2024-03-08' and since < '2024-03-10'")
         conn.commit()
+
+
+@pytest.mark.unit
+def test_each_bundle_has_a_fixed_set_of_windows_and_scoring_it_says_what_it_costs_first():
+    # P3.11b: the same five or more windows every run, so runs compare; the cost of a live run is said before it runs.
+    from fuzer.resources import ROOT
+
+    for name in ("okan", "kestrel", "harrier"):
+        wins = watch_eval.windows(ROOT / "fakeplant" / "bundles" / name)
+        assert len(wins) >= 5 and all(w["why"] and T(w["since"]) < T(w["until"]) for w in wins), name
+    wins = [{"since": "2025-01-01T00:00", "until": "2025-01-03T00:00"}] * 5
+    assert watch_eval.estimate(wins, []) == round(5 * watch_eval.USD_PER_WINDOW, 2)
+    recorded = [{"kind": "watch", "windows": [{"usd": 0.2}, {"usd": 0.4}]}, {"kind": "packs", "usd": 9}]
+    assert watch_eval.estimate(wins, recorded) == 1.5
+
+
+@pytest.mark.unit
+def test_a_set_run_is_scored_over_all_its_windows(monkeypatch):
+    # P3.11c: the bar is read from the whole set; each window's score is kept beside it
+    def one(conn, pack, bundle, since, until, data_dir, **kw):
+        n = 2 if since.startswith("2025-01-01") else 4
+        return {"status": "shadow", "since": since, "until": until, "model": "m", "usd": 0.3, "passes": n == 2,
+                "matched": None, "precision": None, "recall": None, "upsets": 3, "caught": 1, "uncaught": 2,
+                "proposals": n, "found_uncaught": 1, "matched_uncaught": 2, "matched_caught": 0,
+                "false_proposals": n - 2, "cited": 1.0, "uncaught_examples": [], "false_examples": []}
+
+    monkeypatch.setattr(watch_eval, "run", one)
+    wins = [{"since": "2025-01-01T00:00", "until": "2025-01-03T00:00", "why": "a"},
+            {"since": "2025-02-01T00:00", "until": "2025-02-03T00:00", "why": "b"}]
+    res = watch_eval.run_set(None, None, "okan", wins, None)
+    assert res["proposals"] == 6 and res["matched_uncaught"] == 4 and res["matched"] == round(4 / 6, 3)
+    assert res["passes"] and res["recall"] == 0.5 and res["usd"] == 0.6 and len(res["windows"]) == 2
+    assert [w["why"] for w in res["windows"]] == ["a", "b"]

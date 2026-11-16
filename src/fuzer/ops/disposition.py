@@ -164,6 +164,9 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
               "cause": cause, "activity": activity, "outcome": outcome, "note": (note or "").strip() or None,
               "duplicate_of": duplicate_of, "suggested": Jsonb(suggested or {}), "by": by,
               "days": int(settings.get(conn, "closeout.recheck_days"))}).fetchone()
+    from . import watch  # a case raised from the watch's proposal: the verdict counts for or against it (P3.11d)
+
+    watch.on_closeout(conn, item_id, disposition, by)
     if item["closed_at"] is None:
         work.close_case(conn, item_id, "done", by, reason=summary(row, v))
         conn.execute("update work_item set outcome = %s where id = %s and outcome is null", (summary(row, v), item_id))

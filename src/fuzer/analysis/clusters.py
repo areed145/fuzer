@@ -288,7 +288,7 @@ def _measure(point: str) -> str:
 
 
 def drifts(conn, scope, since: str, until: str, days: int = 90, step: int = 360, src=None, min_change: float = 0.1,
-           min_z: float = 4.0, limit: int = 8) -> list[dict]:
+           min_z: float = 4.0, limit: int | None = 8) -> list[dict]:
     """The points that have drifted on their own: over [since, until] each point's level against where it sat in the
     first month of the `days` before, as a share of that level, set against its peers measuring the same thing in the
     scope. A drift the peers share (a field declining, a season) is not one; a choke plugging, a pump losing head or
@@ -296,7 +296,7 @@ def drifts(conn, scope, since: str, until: str, days: int = 90, step: int = 360,
     (a choke moved, a pump swapped), not a drift. It must already show in the week before the window, so a sudden upset (which
     the multivariate model reads) is not taken for a drift. One held flat between moves (a choke or setpoint set by hand
     a few times) is marked `stepwise`. The largest departures first."""
-    from . import signals, studies
+    from . import studies
 
     pts = studies.points(conn, scope)
     b0, b1 = datetime.fromisoformat(since), datetime.fromisoformat(until)
@@ -304,13 +304,35 @@ def drifts(conn, scope, since: str, until: str, days: int = 90, step: int = 360,
     times, X = studies.matrix(pts, a0, b1, step, src)
     if not len(times) or not pts:
         return []
-    per_day = max(1, 1440 // step)
+    return drifted(pts, times, X, b0, days, max(1, 1440 // step), min_change, min_z, limit)
+
+
+def drifted(pts: list[dict], times: np.ndarray, X: np.ndarray, since: datetime, days: int, per_day: int,
+            min_change: float = 0.1, min_z: float = 4.0, limit: int | None = 8, peers_by: dict | None = None,
+            idle: float | None = None, min_peers: int = 0, progressive: bool = False) -> list[dict]:
+    """`drifts` over values already read: `X` a column per point on `times`, which run from `days` before `since` to the
+    window's end, `per_day` values a day.
+
+    `peers_by` maps a point's id to its peer group (its measurement role on its class of equipment, P3.11a); a point
+    it leaves out is compared with the points measuring what it measures (`_measure`). With `min_peers`, a point needs
+    that many peers with values to be judged, and is set against what they did however few they are: their median
+    move, or with one or two the steadiest one's (a pump and its one running peer can't both have drifted). With
+    `progressive`, the middle of the stretch must sit between the baseline and now: a point coming back to normal after
+    an upset in its baseline months (a valve that failed and was fixed) has not drifted. With `idle`, a value under
+    that share of what the point reads running (its 99th percentile) is its equipment stopped or shut in, and is left
+    out rather than read as a drift: a pump on standby, or a spare that mostly stands (its baseline then has too few
+    values to judge it by)."""
+    from . import signals
+
+    a0 = since - timedelta(days=days)
     in_base = times < np.datetime64(a0 + timedelta(days=max(7, days // 3)), "m")
-    in_win = times >= np.datetime64(b0, "m")
-    in_week = (times >= np.datetime64(b0 - timedelta(days=7), "m")) & ~in_win
+    in_win = times >= np.datetime64(since, "m")
+    in_week = (times >= np.datetime64(since - timedelta(days=7), "m")) & ~in_win
     rows = []
     for j, p in enumerate(pts):
         v = X[:, j]
+        if idle and not np.isnan(v).all():  # stopped or shut in: under `idle` of what it reads running
+            v = np.where(np.abs(v) < idle * abs(float(np.nanpercentile(v, 99))), np.nan, v)
         base, win, week = v[in_base], v[in_win], v[in_week]
         if np.isnan(base).mean() > 0.5 or np.isnan(win).all() or np.isnan(week).all():
             continue
@@ -318,6 +340,15 @@ def drifts(conn, scope, since: str, until: str, days: int = 90, step: int = 360,
         if abs(level) < 1e-3:
             continue
         now, before = float(np.nanmean(win)), float(np.nanmedian(week))
+        if progressive:
+            mid = v[(times >= np.datetime64(a0 + timedelta(days=days // 3), "m"))
+                    & (times < np.datetime64(a0 + timedelta(days=2 * days // 3), "m"))]
+            if np.isnan(mid).all() or abs(float(np.nanmedian(mid)) - level) > 0.75 * abs(now - level):
+                continue
+        rows.append((p, level, now, (now - level) / abs(level), (before - level) / abs(level), v))
+
+    def shape(v: np.ndarray, level: float, now: float) -> tuple[bool, bool]:
+        """Whether most of the change came in one day (a step), and whether it was held flat between moves."""
         n = len(v) // per_day
         with warnings.catch_warnings():  # a day with no values is a gap, skipped below
             warnings.simplefilter("ignore", RuntimeWarning)
@@ -328,23 +359,37 @@ def drifts(conn, scope, since: str, until: str, days: int = 90, step: int = 360,
         step = bool(len(steps)) and steps.max() > abs(now - level) / 2  # most of it in one day: a choke moved
         moves = np.abs(np.diff(daily))
         held = bool(len(moves)) and float((moves <= 1e-4 * abs(level)).mean()) >= 0.8  # a setpoint, moved by hand
-        rows.append((p, level, now, (now - level) / abs(level), (before - level) / abs(level), step, held))
-    by: dict[str, list[float]] = {}
-    for p, _, _, rel, _, _, _ in rows:
-        by.setdefault(_measure(p["point"]), []).append(rel)
+        return step, held
+
+    def group(p):
+        return (peers_by or {}).get(p["id"]) or _measure(p["point"])
+
+    by: dict = {}
+    for p, _, _, rel, _, _ in rows:
+        by.setdefault(group(p), []).append((p["id"], rel))
     out = []
-    for p, level, now, rel, before, step, held in rows:
-        if step:
+    for p, level, now, rel, before, v in rows:
+        peers = [r for _, r in by[group(p)]]
+        others = np.array([r for i, r in by[group(p)] if i != p["id"]])
+        if len(others) < min_peers:
             continue
-        peers = by[_measure(p["point"])]
-        m = float(np.median(peers)) if len(peers) >= 3 else 0.0
-        s = max(signals.spread(np.array(peers)) if len(peers) >= 3 else 0.0, 0.01)
+        if min_peers:  # against what its peers did, however few: with one or two, the steadiest of them
+            m = float(np.median(others)) if len(others) >= 3 else float(others[np.argmin(np.abs(others))])
+            s = max(signals.spread(others) if len(others) >= 3 else 0.0, 0.01)
+            if len(others) < 3 and abs(rel) <= abs(m):
+                continue  # its peer moved further: the drift is the peer's, not this point's
+        else:
+            m = float(np.median(peers)) if len(peers) >= 3 else 0.0
+            s = max(signals.spread(np.array(peers)) if len(peers) >= 3 else 0.0, 0.01)
         own = rel - m
         if abs(own) < min_change or abs(own) / s < min_z or np.sign(before - m) != np.sign(own) \
                 or abs(before - m) < abs(own) / 6:
+            continue
+        step, held = shape(v, level, now)  # read only for what moved on its own: it takes a while on every point
+        if step:
             continue
         out.append({"point_id": p["id"], "point": p["point"], "baseline": round(level, 3), "now": round(now, 3),
                     "change": round(rel, 3), "peers_change": round(m, 3), "peers": len(peers) - 1, "stepwise": held,
                     "since": str(times[0])[:10]})
     out.sort(key=lambda d: -abs(d["change"] - d["peers_change"]))
-    return out[:limit]
+    return out[:limit] if limit else out

@@ -1,0 +1,19 @@
+# The agentic watch's fixed windows (P3.11b, #1021): `fuzer eval --watch` with no window reads each one a day at a time
+# and scores its proposals against the process model's upsets that no rule or drift caught, each window and the set.
+# Dates are relative to today, as Harrier's data is.
+windows:
+- since: "today-61d 00:00"
+  until: "today-59d 00:00"
+  why: "A1-P-1003B starting to lose head"
+- since: "today-31d 00:00"
+  until: "today-29d 00:00"
+  why: "A1-F-1007 drifting"
+- since: "today-19d 00:00"
+  until: "today-17d 00:00"
+  why: "G1-K-7001's valve starting to leak"
+- since: "today-11d 00:00"
+  until: "today-9d 00:00"
+  why: "the receipt meter reading off and two tank levels creeping"
+- since: "today-2d 00:00"
+  until: "today 00:00"
+  why: "G1-E-7003 fouling into yesterday's trip on train G1"

@@ -30,8 +30,17 @@ function Score({ d }: { d: DetectorRow }) {
   if (d.score?.shadow) {
     return <span>{d.score.shadow.map((b) => <div key={b.bundle}>
       {b.bundle}: matched {pct(b.matched)} of {b.proposals} proposals to what no rule caught, precision {pct(b.precision)}
+      {b.recall != null && <>, recall {pct(b.recall)}</>}
+      {b.windows && b.windows > 1 && <span className="muted small"> over {b.windows} windows</span>}
+      {b.passes != null && <span className="muted small"> ({b.passes ? "passes" : "short of the bar"})</span>}
       {b.model === "scripted" && <span className="muted small"> (scripted model)</span>}
     </div>)}<div className="muted small">In shadow, on replay</div></span>;
+  }
+  if (d.score?.bundles) {
+    return <span>{d.score.bundles.map((b) => <div key={b.bundle}>
+      {b.bundle}: recall {pct(b.recall)}, precision {pct(b.precision)}, {b.false_alarms_per_week ?? "?"} false a week
+      {b.passes != null && <span className="muted small"> ({b.passes ? "passes" : "short of the bar"})</span>}
+    </div>)}<div className="muted small">On replay, a day at a time</div></span>;
   }
   if (d.score) {
     return <span>Recall {pct(d.score.recall)}, precision {pct(d.score.precision)}
@@ -170,6 +179,10 @@ function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; per
     <Status loading={got.loading && !d} error={got.error} />
     {d && <>
       <h3>Proposals{d.unreviewed ? ` (${d.unreviewed} to review)` : ""}</h3>
+      {d.live && d.live.raised > 0 && <p className="muted small">
+        Live: {d.live.raised} raised for triage, {d.live.confirmed} confirmed real, {d.live.false_alarms} false
+        alarms{d.live.precision != null && ` (precision ${pct(d.live.precision)})`}. False alarms count against the watch.
+      </p>}
       {d.proposals.length === 0 ? <Empty>The watch has proposed nothing yet.</Empty> :
         <Table variant="settings">
           <thead><tr><th>When</th><th>Area</th><th>About</th><th>Why it is unusual</th><th>Verdict</th></tr></thead>

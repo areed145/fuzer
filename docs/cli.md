@@ -298,7 +298,7 @@ score search, document links, section failure modes and log reading
 | `--memory` | score the assistant's memory with assistant_memory.json: learn from teaching answers, then ask later questions (Claude; costs money; removes what it stored) |
 | `--domain` | with --agents: only the questions in this domain (repeatable), e.g. --domain charts |
 | `--out` | with --agents or --packs: also write the full results (answers) to this JSON file |
-| `--record` | with --agents, --packs, --watch or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |
+| `--record` | with --agents, --packs, --watch, --drifts or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |
 | `--ops` | replay history through the operations detectors and score them against the fake plant's injected events (exits 1 if recall fell since the last run of the same period) |
 | `--detector` | with --ops: the detector to replay (default: limits) |
 | `--full` | with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) and fail if a score is under its floor or fell since the last run |
@@ -307,7 +307,8 @@ score search, document links, section failure modes and log reading
 | `--specialist` | with --packs: only this pack, by skill path (repeatable) |
 | `--loop` | drive every type of work arrive to counted and say which step failed for which type (P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails) |
 | `--sweep` | run each work detector over the bundle's history and score its raises against the events its evals/detections.yaml declares (P3.6a; writes cases, so run it on a scratch copy; exits 1 if a score is under its floor); --detector picks one |
-| `--watch` | scan --since to --until with the rules, read it with the agentic watch and score its proposals against the fake plant's injected events no rule caught (P3.3b; needs a model provider and costs money; exits 1 if under half match) |
+| `--watch` | scan --since to --until (or each window in the bundle's evals/watch.yaml) with the rules, read it with the agentic watch and score its proposals against the fake plant's injected events no rule caught (P3.3b, P3.11b; needs a model provider and costs money, shown before it starts; exits 1 if under half match) |
+| `--drifts` | replay the slow-drift detector a day at a time over the stretch in the bundle's evals/drifts.yaml (or --since to --until) and score it against the fake plant's slow upsets (P3.11a; free; exits 1 over 5 false alarms a week or with no slow upset raised) |
 | `--promoted` | score each drafted rule (P3.4) that has no score yet on the fake plant's replay over --since to --until: recall over the kinds of event its examples matched, precision, false alarms |
 | `--roles` | score the measurement roles proposed for each point against the fake plant's process model (P1.4; exits 1 under 90%% right or if a wrong role was confident) |
 | `--since` | with --ops: start (default: 28 days before --until) |

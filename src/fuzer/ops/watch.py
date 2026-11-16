@@ -9,7 +9,9 @@ what it ruled out.
   - the points that have drifted on their own over the months before (`clusters.drifts`, `DRIFT_DAYS`): against
     where they sat at the start and against their peers measuring the same thing, so a choke plugging or a pump losing
     head over weeks shows though the week's model has learned it as normal (P3.3c).
-  - the detections already made on its points, and the open exceptions on its plant, so it can leave those alone.
+  - the detections already made on its points, and the open exceptions on its plant, so it can leave those alone. A
+    slow drift the drift detector raised (`peer_drifts`, P3.11a) carries its baseline, its level now and how far its
+    peers moved, so the watch explains the drift and what it reaches instead of having to find it.
   - the alarms that sounded and the operator log entries about it (`around`).
   - the maintenance notifications raised about it.
   Each item carries the id the agent must cite.
@@ -28,13 +30,14 @@ import json
 import re
 from datetime import datetime, timedelta
 
-from ..core import detectors, llm, settings
+from ..core import clock, detectors, llm, settings
 from . import around
 
 SPE_QUANTILE = 99.0  # the multivariate detector's bar is 99.9: the watch reads below it
 SPE_MINUTES = 30
 TRAIN_DAYS = 7
 DRIFT_DAYS = 90  # how far back a drift is measured from
+DRIFT_FIELDS = ("baseline", "now", "change", "peers_change", "peers", "role", "baseline_from")  # shown of a drift
 MAX_EACH = 15  # of each kind of evidence, so one noisy area doesn't fill the question
 MAX_TOKENS = 2000
 OFF = "No model provider is configured, so the agentic watch is off. Nothing else changes."
@@ -43,7 +46,8 @@ PROMPT = """You are watching one process area of an oil and gas facility, as an 
 the day. Below is what happened in it over the window: stretches its own multivariate model could not explain (with the
 points contributing most), detections already made, open exceptions, alarms, operator log entries and maintenance
 notifications, and points that have drifted on their own over the months before (with where they started, where they
-are now and how far their peers moved). Each item has an id.
+are now and how far their peers moved). A detection with a "drift" is a slow drift the drift detector already raised:
+use it to explain what else moved in the area, but don't propose it again. Each item has an id.
 
 Propose what looks unusual that no detection or open exception already covers: an equipment problem developing, an
 instrument going bad, a process change nobody recorded. A drift may be slow degradation (fouling, wear, a plugging
@@ -111,9 +115,11 @@ def evidence(conn, area: dict, since: datetime, until: datetime, src=None) -> di
     except calcs.CalcError:
         pass
     dets = [{"id": f"detection:{d['id']}", "point_id": d["point_id"], "point": d["point"], "detector": d["detector"],
-             "what": d["key"], "start": _iso(d["start"]), "end": _iso(d["end"])} for d in conn.execute(
+             "what": d["key"], "start": _iso(d["start"]), "end": _iso(d["end"]),
+             **({"drift": {k: d["evidence"].get(k) for k in DRIFT_FIELDS}} if d["detector"] == "peer_drifts" else {})}
+            for d in conn.execute(
         """
-        select d.id, d.point_id, coalesce(l.label, d.point_id) as point, d.detector, d.key, d.start, d."end"
+        select d.id, d.point_id, coalesce(l.label, d.point_id) as point, d.detector, d.key, d.start, d."end", d.evidence
         from detection d left join entity_label l on l.fuzer_id = d.point_id
         where d.point_id = any(%s) and d.start < %s and coalesce(d."end", d.start) >= %s order by d.start limit %s
         """, (points, until, since, MAX_EACH))]
@@ -268,15 +274,94 @@ def _provider(conn, pack) -> bool:
     return llm.configured("agents")
 
 
-@detectors.register("watch", title="What looks unusual in a process area that no detector raised (agentic, in shadow)",
-                    kind=detectors.AGENTIC, cadence="daily", raises=(),
+def bar_met(recorded: list[dict] | None = None) -> dict:
+    """Whether the watch has earned live mode (P3.11): its latest recorded run over a bundle's fixed set of windows
+    (`fuzer eval --watch --record`) passes the bar on every bundle that has one, at least half its proposals on what no
+    rule caught. Read from the runs kept with the code, so every deployment sees the same evidence."""
+    if recorded is None:
+        from ..resources import ROOT
+
+        recorded = [json.loads(f.read_text()) for f in sorted((ROOT / "evals" / "runs").glob("*-watch-*.json"))]
+    latest = {r["bundle"]: r for r in recorded if r.get("kind") == "watch" and r.get("windows")}
+    short = sorted(b for b, r in latest.items() if not r.get("passes"))
+    return {"met": bool(latest) and not short, "bundles": sorted(latest), "short": short}
+
+
+def spent_today(conn) -> float:
+    """What the watch has spent on the model today on this asset."""
+    r = conn.execute("select coalesce(sum(usd), 0) as usd from watch_spend where day = %s", (clock.now().date(),))
+    return float(r.fetchone()["usd"])
+
+
+WATCH_TYPE = "watch_finding"
+
+
+def _watch_type():
+    from ..core.exceptions import TYPES, exception_type
+
+    return TYPES.get(WATCH_TYPE) or exception_type(
+        WATCH_TYPE, "Proposed by the watch", role="role:engineer", audience=("ioc",), joins=False,
+        description="The agentic watch, reading a process area as an engineer scanning the day would, proposed "
+                    "something that looks unusual that no rule raised. It is a proposal, not a rule's finding: triage "
+                    "it before anything is dispatched. Close it out as a real problem to confirm it (three confirmed "
+                    "of one pattern draft a rule), or as a false alarm, which counts against the watch's score.")
+
+
+_watch_type()
+
+
+def route(conn, p: dict, by: str = "agent:watch") -> dict:
+    """Raise a kept proposal as work for a person to triage (live mode): through the finding contract, marked as the
+    watch's, to the engineer's queue with no process, so nothing is dispatched until a person decides."""
+    from ..core.exceptions import raise_exception
+    from ..core.findings import AGENTIC, Finding, asset, at, fact
+
+    ids = [str(x) for x in [p.get("subject"), *(p.get("evidence") or [])] if x]
+    known = [r["fuzer_id"] for r in conn.execute(
+        "select fuzer_id from entity where fuzer_id = any(%s) union select fuzer_id from entity_label where label = any(%s)",
+        (ids, ids))]
+    found = Finding(
+        "watch", AGENTIC, method="The agentic watch read the process area and proposed this; no rule raised it",
+        start=p.get("start"), end=p.get("end"), confidence=None,
+        items=[fact("Proposed by", "the agentic watch, not a rule: triage before dispatch"), fact("About", p.get("subject")),
+               fact("Why it looks unusual", p.get("why")), fact("Ruled out", p.get("ruled_out")),
+               at("From", p.get("start")), at("To", p.get("end")), asset("Area", p.get("area")),
+               fact("Every cited record was shown to it", bool(p.get("cited")))],
+        data={"proposal": p["id"], "evidence": p.get("evidence") or []})
+    x = raise_exception(conn, WATCH_TYPE, f"watch:{p['id']}", f"Watch proposal: {p.get('subject') or p['area_label']}",
+                        by, source="watch", refs=[p["area"], *known], priority=0.3, finding=found)
+    conn.execute("update watch_proposal set mode = 'live' where id = %s", (p["id"],))
+    return {**p, "exception_id": x["id"], "item_id": x.get("item_id")}
+
+
+def on_closeout(conn, item_id: int, disposition: str, by: str) -> list[int]:
+    """A case raised from the watch's proposals closed out: a real problem confirms each proposal (read into its
+    pattern, P3.4), a false alarm rejects it and counts against the watch. Other close-outs say nothing of it."""
+    from . import promote
+
+    if disposition not in ("real", "false_alarm"):
+        return []
+    out = []
+    for r in conn.execute("select key from exception_record where item_id = %s and type = %s", (item_id, WATCH_TYPE)):
+        pid = int(r["key"].split(":", 1)[1])
+        promote.confirm(conn, pid, disposition == "real", by)
+        out.append(pid)
+    return out
+
+
+@detectors.register("watch", title="What looks unusual in a process area that no detector raised (agentic)",
+                    kind=detectors.AGENTIC, cadence="daily", raises=(WATCH_TYPE,),
                     needs={"a model provider": _provider},
-                    params=("watch.max_usd", "watch.max_areas"),
+                    params=("watch.live", "watch.daily_usd", "watch.max_usd", "watch.max_areas"),
                     eval="test:tests/ops/test_watch.py::test_the_watch_in_shadow_keeps_proposals_and_routes_nothing",
                     found=lambda out: len(out.get("proposals", [])))
-def watch(conn, pack=None, since: str | None = None, until: str | None = None, ask=None, src=None) -> dict:
+def watch(conn, pack=None, since: str | None = None, until: str | None = None, ask=None, src=None,
+          budget: bool = True, recorded: list[dict] | None = None) -> dict:
     """Each process area over the window (the day to `until` by default) read by the watch agent under the run's spend
-    cap; its proposals kept in shadow, never routed."""
+    cap and the asset's daily budget (`budget`; an eval replaying history has its own). In shadow its proposals are
+    kept and scored, never routed. In live mode (`watch.live` on this asset, and only once the watch has passed its bar
+    on every bundle, `bar_met`) each is also raised as work for a person to triage (`route`); with the bar not met it
+    stays in shadow and says so."""
     if ask is None:
         if not llm.configured("agents"):
             return {"status": "off", "note": OFF, "proposals": []}
@@ -284,6 +369,16 @@ def watch(conn, pack=None, since: str | None = None, until: str | None = None, a
     b = datetime.fromisoformat(until) if until else datetime.now().replace(minute=0, second=0, microsecond=0)
     a = datetime.fromisoformat(since) if since else b - timedelta(days=1)
     cap, spent, kept, skipped, calls = float(settings.get(conn, "watch.max_usd")), 0.0, [], [], []
+    held = ""
+    live = bool(settings.get(conn, "watch.live"))
+    if live and not (bar := bar_met(recorded))["met"]:
+        live, held = False, (" Live mode is on, but the watch has not passed its bar on every bundle yet"
+                             + (f" (short on {', '.join(bar['short'])})" if bar["short"] else "") + ", so it stays in shadow.")
+    left = float(settings.get(conn, "watch.daily_usd")) - spent_today(conn) if budget else float("inf")
+    if left <= 0:
+        return {"status": "budget", "since": _iso(a), "until": _iso(b), "proposals": [], "usd": 0.0, "skipped": [],
+                "asked": 0, "note": "Today's budget for the watch is spent; it reads again tomorrow."}
+    cap = min(cap, left)
 
     def counted(prompt: str) -> dict:  # each question asked, so a run says how many it spent on
         calls.append(prompt)
@@ -296,8 +391,15 @@ def watch(conn, pack=None, since: str | None = None, until: str | None = None, a
         props, usd = propose(conn, area, a, b, counted, src)
         spent += usd
         kept += [keep(conn, p, a, b, getattr(ask, "model", None)) for p in props]
+    if budget and spent:
+        conn.execute("insert into watch_spend (day, usd, mode) values (%s, %s, %s)",
+                     (clock.now().date(), spent, "live" if live else "shadow"))
+    if live:
+        kept = [route(conn, p) for p in kept]
     conn.commit()
-    return {"status": "shadow", "since": _iso(a), "until": _iso(b), "proposals": kept, "usd": round(spent, 4),
-            "skipped": skipped, "asked": len(calls),
-            "note": "Shadow: proposals are kept and scored, not routed." + (
-                f" {len(skipped)} areas not read: the run's spend cap was reached." if skipped else "")}
+    capped = (" today's budget" if cap < float(settings.get(conn, "watch.max_usd")) else " the run's spend cap")
+    return {"status": "live" if live else "shadow", "since": _iso(a), "until": _iso(b), "proposals": kept,
+            "usd": round(spent, 4), "skipped": skipped, "asked": len(calls),
+            "note": ("Live: each proposal is raised for a person to triage, never dispatched on its own." if live else
+                     "Shadow: proposals are kept and scored, not routed." + held) + (
+                f" {len(skipped)} areas not read:{capped} was reached." if skipped else "")}

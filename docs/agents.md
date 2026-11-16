@@ -149,7 +149,7 @@ missing-data and escalation cases. Offline tests prove what reaches each agent, 
 Then run `uv run pytest tests/agents` and `uv run python -m fuzer.agents.capabilities > docs/capabilities.md`.
 Add new analysis only when current data and validation support it.
 
-## The agentic watch (in shadow)
+## The agentic watch
 
 `ops/watch.py` (P3.3a, #931) is an agent that reads one process area at a time, the way an engineer scans the day,
 and proposes what looks unusual that no detector raised. It is shown the stretches the area's own multivariate model
@@ -168,10 +168,27 @@ sudden upset is left to the multivariate model. The model is asked when a stretc
 detection covers is set aside. On Okan this shows OK-NWP-G3's gas rate falling a sixth at the same choke through
 August 2025, while the other gas wells hold.
 
-In wave 4 it runs in shadow: proposals are kept in `watch_proposal` and scored on replay (P3.3b), never routed, so
-no exception and no case come from it. Each run has a spend cap (`watch.max_usd`) and reads up to `watch.max_areas`
-areas. With no model provider configured the watch is off and says so, and nothing else changes. Live mode, where a
-proposal becomes an agentic finding that always goes to a person for triage, is wave 5.
+**The slow-drift detector (P3.11a).** `ops/drift.py` (`peer_drifts`) does the same comparison as a statistical
+detector over months: each point's daily level against where it sat in the first third of `drift.lookback_days`, set
+against its peers by measurement role on the same class of equipment across the asset (a gas well against the other
+wells, a pump's discharge pressure against the other pumps'). A drift must be slow, still on its way and its own, and
+not on equipment whose choke or valve the operators moved over the same months. Daily levels are kept a day at a time
+in `point_daily`, so the daily tier reads one new day each night instead of months of history. What it raises is a
+detection the watch is shown as evidence, so the watch explains a drift instead of re-finding it. `fuzer eval
+--drifts --record` replays it a day at a time on each bundle (free).
+
+By default the watch runs in shadow: proposals are kept in `watch_proposal` and scored on replay (P3.3b), never
+routed, so no exception and no case come from it. Each run has a spend cap (`watch.max_usd`), reads up to
+`watch.max_areas` areas, and the asset has a daily budget (`watch.daily_usd`) after which the watch stops for the
+day. With no model provider configured the watch is off and says so, and nothing else changes.
+
+**Live mode (P3.11d).** `watch.live` turns it on for one asset, and it is off by default. It takes only once the
+watch's latest recorded run over each bundle's fixed windows passes the bar (`watch.bar_met`); until then the watch
+stays in shadow and says why. Live, each proposal is raised as a `watch_finding` exception through the finding
+contract, marked as the watch's (agentic origin), to the engineer's queue with no process, so nothing is dispatched
+until a person triages it. Closed out as a real problem, the proposal is confirmed and counts towards its pattern's
+rule (P3.4); closed out as a false alarm, it is rejected and counts against the watch's live score, which the
+Detection page shows.
 
 `evals/watch_eval.py` (P3.3b) scores it in shadow on a fake plant's history. The SRE scan runs over the period first,
 so the watch sees what the rules found, then the watch reads it a day at a time. Each injected upset is caught if a
@@ -179,8 +196,10 @@ detection or an exception landed on one of its units within it, and uncaught oth
 when what it names or cites is on one of the upset's units and its time overlaps. The scores per bundle are the share
 of proposals matching an uncaught upset (the bar is half), precision (matching any upset), recall over the uncaught
 upsets and the share fully cited. They are kept in `ops_eval` as `shadow:watch` and shown on the Detection page. CI
-tests the wiring with a scripted model; a live score needs a provider key and is run by hand with
-`fuzer eval --watch --since ... --until ...`.
+tests the wiring with a scripted model; a live score needs a provider key and is run by hand. Each bundle declares
+a fixed set of at least five windows in `evals/watch.yaml` (P3.11b), so runs compare: `fuzer eval --watch --record`
+with no window scores all of them, says what it will cost first, and keeps the set's score with each window's beside
+it. `--since ... --until ...` still scores one window.
 
 **From confirmed findings to a rule (P3.4).** A person confirms or rejects a proposal; on replay the fake plant's events
 do (`watch_eval.judge`). A confirmed proposal is read into a pattern: the measurement role of the point it names, its

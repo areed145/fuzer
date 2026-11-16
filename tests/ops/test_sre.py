@@ -36,7 +36,7 @@ def test_replay_finds_the_november_upsets(conn, data):
     assert res["false_alarms_per_week"] <= 2, res["false_alarm_examples"]
     g = res["grouping"]  # each trip is one upset, starting from its first cause
     assert g["groups_per_trip"] == 1 and g["first_cause_right"] == 1.0 and g["false_upsets_per_week"] <= 2, g
-    assert {d.split(":")[0] for d in replay.DETECTORS} == {"limits", "sre"}
+    assert {d.split(":")[0] for d in replay.DETECTORS} == {"limits", "sre", "peer_drifts"}
 
 
 def test_daily_checks_find_the_slow_stories(conn, data):

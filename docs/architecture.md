@@ -399,6 +399,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `opportunity`
     - `plan_item`
     - `point_baseline`
+    - `point_daily`
     - `promoted_rule`
     - `register_summary`
     - `regulatory_report`
@@ -416,6 +417,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `suppression`
     - `upset`
     - `watch_proposal`
+    - `watch_spend`
     - `work_item`
     - `writeback`
     - `writeback_event`
@@ -436,6 +438,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `opportunity`
     - `plan_item`
     - `point_baseline`
+    - `point_daily`
     - `promoted_rule`
     - `regulatory_report`
     - `report_obligation`
@@ -451,9 +454,10 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `suppression`
     - `upset`
     - `watch_proposal`
+    - `watch_spend`
     - `writeback`
     - `writeback_event`
-- **Settings:** `agents.model`, `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `detectors.cadence`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.max_shelve_days`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `readiness.permit_types`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values`, `tuning.max_windows`, `tuning.min_cases`, `tuning.noise_rate`, `watch.max_areas`, `watch.max_usd`, `watch.promote_after` ([settings](settings.md))
+- **Settings:** `agents.model`, `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `detectors.cadence`, `drift.lookback_days`, `drift.min_change`, `drift.peer_z`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.max_shelve_days`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `readiness.permit_types`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values`, `tuning.max_windows`, `tuning.min_cases`, `tuning.noise_rate`, `watch.daily_usd`, `watch.live`, `watch.max_areas`, `watch.max_usd`, `watch.promote_after` ([settings](settings.md))
 - **Tests:** [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
 
 ### Charts

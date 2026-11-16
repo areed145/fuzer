@@ -188,7 +188,8 @@ def parser() -> argparse.ArgumentParser:
                     help="with --agents: only the questions in this domain (repeatable), e.g. --domain charts")
     ev.add_argument("--out", default=None, help="with --agents or --packs: also write the full results (answers) to this JSON file")
     ev.add_argument("--record", action="store_true",
-                    help="with --agents, --packs, --watch or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md")
+                    help="with --agents, --packs, --watch, --drifts or --ops --full: keep the scores in evals/runs/ for "
+                         "docs/eval-results.md")
     ev.add_argument("--ops", action="store_true",
                     help="replay history through the operations detectors and score them against the fake "
                          "plant's injected events (exits 1 if recall fell since the last run of the same period)")
@@ -210,9 +211,14 @@ def parser() -> argparse.ArgumentParser:
                          "its evals/detections.yaml declares (P3.6a; writes cases, so run it on a scratch copy; exits "
                          "1 if a score is under its floor); --detector picks one")
     ev.add_argument("--watch", action="store_true",
-                    help="scan --since to --until with the rules, read it with the agentic watch and score its "
-                         "proposals against the fake plant's injected events no rule caught (P3.3b; needs a model "
-                         "provider and costs money; exits 1 if under half match)")
+                    help="scan --since to --until (or each window in the bundle's evals/watch.yaml) with the rules, "
+                         "read it with the agentic watch and score its proposals against the fake plant's injected "
+                         "events no rule caught (P3.3b, P3.11b; needs a model provider and costs money, shown before "
+                         "it starts; exits 1 if under half match)")
+    ev.add_argument("--drifts", action="store_true",
+                    help="replay the slow-drift detector a day at a time over the stretch in the bundle's "
+                         "evals/drifts.yaml (or --since to --until) and score it against the fake plant's slow upsets "
+                         "(P3.11a; free; exits 1 over 5 false alarms a week or with no slow upset raised)")
     ev.add_argument("--promoted", action="store_true",
                     help="score each drafted rule (P3.4) that has no score yet on the fake plant's replay over --since "
                          "to --until: recall over the kinds of event its examples matched, precision, false alarms")
@@ -398,11 +404,19 @@ def main(argv=None):
                 if bad:
                     raise SystemExit("sweep eval under its floor: " + "; ".join(bad))
             elif args.cmd == "eval" and args.watch:
-                from ..evals import watch_eval
+                from ..evals import runs, watch_eval
 
-                if not (args.since and args.until):
-                    raise SystemExit("--watch needs --since and --until (a few days around the bundle's upsets)")
-                res = watch_eval.run(conn, pack, resolve(conn).name, args.since, args.until, data, say=_say)
+                name = resolve(conn).name
+                if args.since and args.until:
+                    res = watch_eval.run(conn, pack, name, args.since, args.until, data, say=_say)
+                else:  # the bundle's fixed set of windows (P3.11b)
+                    folder = bundles.find(name)
+                    wins = watch_eval.windows(folder) if folder else []
+                    if not wins:
+                        raise SystemExit("--watch needs the bundle's evals/watch.yaml, or --since and --until")
+                    _say(f"{len(wins)} windows on {name}: about ${watch_eval.estimate(wins, runs.load()):.2f} on the "
+                         "model, before it starts")
+                    res = watch_eval.run_set(conn, pack, name, wins, data, say=_say)
                 if res["status"] != "shadow":
                     raise SystemExit(f"watch eval not run: {res['note']}")
                 watch_eval.store(conn, res)
@@ -411,11 +425,30 @@ def main(argv=None):
                      f"upsets uncaught, ${res['usd']}")
                 if args.record:
                     from ..core import settings
-                    from ..evals import runs
 
                     _say(f"recorded {runs.save(runs.watch(res, settings.get(conn, 'agents.model')))}")
                 if not res["passes"]:
                     raise SystemExit("watch eval: under half its proposals match what no rule caught")
+            elif args.cmd == "eval" and args.drifts:
+                from ..evals import drift_eval, runs
+
+                folder = bundles.find(resolve(conn).name)
+                stretch = (drift_eval.plan(folder) if folder else None) or {}
+                since, until = args.since or stretch.get("since"), args.until or stretch.get("until")
+                if not (since and until):
+                    raise SystemExit("--drifts needs the bundle's evals/drifts.yaml, or --since and --until")
+                try:
+                    res = drift_eval.run(conn, pack, resolve(conn).name, data, since, until, say=_say)
+                except ValueError as e:
+                    raise SystemExit(f"{e}. Set FUZER_DATA_DIR to the fake plant's folder.") from e
+                drift_eval.store(conn, res)
+                _say(f"{res['bundle']}: {res['slow_detected']} of {res['slow_upsets']} slow upsets raised, precision "
+                     f"{res['precision']}, {res['false_alarms_per_week']} false alarms a week; missed "
+                     f"{res['slow_missed'] or 'none'}")
+                if args.record:
+                    _say(f"recorded {runs.save(runs.drifts(res))}")
+                if not res["passes"]:
+                    raise SystemExit("drift eval: over its false alarm bar, or no slow upset raised")
             elif args.cmd == "eval" and args.promoted:
                 from ..evals import watch_eval
 

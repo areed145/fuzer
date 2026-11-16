@@ -220,9 +220,10 @@ def eval_results_md() -> str:
     ops = [r for r in all_runs if r["kind"] == "ops"]
     pk = [r for r in all_runs if r["kind"] == "packs"]
     wa = [r for r in all_runs if r["kind"] == "watch"]
+    dr = [r for r in all_runs if r["kind"] == "drifts"]
     out = ["# Eval results", "", HEADER.format(what="the recorded runs in `evals/runs/`"),
            "Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or "
-           "`fuzer eval --ops --full --live --record` (all cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
+           "`fuzer eval --ops --full --live --record` (all cost money), or `fuzer eval --drifts --record` (free), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
            "[assistant eval](assistant-eval.md).", ""]
     if asst:
         out += ["## Operations assistant", "",
@@ -271,16 +272,43 @@ def eval_results_md() -> str:
 
         out += ["## Agentic watch", "",
                 "The watch (P3.3) reads a window a day at a time and proposes what the rules missed, scored against the "
-                "fake plant's upsets that no rule caught, with `fuzer eval --watch`. A run passes when at least "
+                "fake plant's upsets that no rule caught, with `fuzer eval --watch`; with no window, over the bundle's "
+                "fixed set of windows in `evals/watch.yaml` (P3.11b), the whole set first. A run passes when at least "
                 f"{watch_eval.BAR:.0%} of its proposals match an upset no rule caught.", "",
                 "| Run | Bundle | Window | Model | Upsets (uncaught) | Proposals | On what no rule caught | Precision "
                 "| Recall | Cost | Passed | No rule caught |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+        def row(r, date, bundle, window):
+            return (f"| {date} | {bundle} | {window} | {r.get('model') or ''} "
+                    f"| {r['upsets']} ({r['uncaught']}) | {r['proposals']} | {r['matched_uncaught']} | "
+                    f"{_pct(r.get('precision'))} | {_pct(r.get('recall'))} | "
+                    f"{'' if r.get('usd') is None else '$' + format(r['usd'], '.2f')} | {'yes' if r['passes'] else 'no'} "
+                    f"| {_cell('; '.join(r.get('uncaught_examples') or []))} |")
+
         for r in reversed(wa):
-            out.append(f"| {r['date']} | {r['bundle']} | {r['since'][:10]} to {r['until'][:10]} | {r.get('model') or ''} "
-                       f"| {r['upsets']} ({r['uncaught']}) | {r['proposals']} | {r['matched_uncaught']} | "
-                       f"{_pct(r.get('precision'))} | {_pct(r.get('recall'))} | "
-                       f"{'' if r.get('usd') is None else '$' + format(r['usd'], '.2f')} | {'yes' if r['passes'] else 'no'} "
-                       f"| {_cell('; '.join(r.get('uncaught_examples') or []))} |")
+            if r.get("windows"):  # a bundle's fixed set (P3.11b): the whole set, which the bar is read from, then each
+                out.append(row(r, r["date"], r["bundle"], f"**all {len(r['windows'])} windows**"))
+                out += [row({**w, "model": r.get("model")}, "", "", f"{w['since'][:10]} to {w['until'][:10]}")
+                        for w in r["windows"]]
+            else:
+                out.append(row(r, r["date"], r["bundle"], f"{r['since'][:10]} to {r['until'][:10]}"))
+        out.append("")
+    if dr:
+        from .evals import drift_eval
+
+        latest = {r["bundle"]: r for r in dr}  # the latest run on each bundle
+        out += ["## Slow-drift detector", "",
+                "The `peer_drifts` detector (P3.11a) replayed a day at a time over each bundle's stretch in "
+                "`evals/drifts.yaml`, with `fuzer eval --drifts`: the slow upsets it raised, and what it raised on "
+                f"nothing the process model holds. A run passes with at most {drift_eval.MAX_FALSE_PER_WEEK:g} false "
+                "alarms a week and at least one slow upset raised.", "",
+                "| Run | Bundle | Stretch | Slow upsets raised | Recall | Raised | Precision | False alarms / week | Passed "
+                "| Missed | False alarms |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+        for b, r in sorted(latest.items()):
+            out.append(f"| {r['date']} | {b} | {r['since'][:10]} to {r['until'][:10]} | {r['slow_detected']} of "
+                       f"{r['slow_upsets']} | {_pct(r.get('slow_recall'))} | {r['detections']} | "
+                       f"{_pct(r.get('precision'))} | {r['false_alarms_per_week']} | {'yes' if r['passes'] else 'no'} | "
+                       f"{_cell('; '.join(r.get('slow_missed') or []))} | "
+                       f"{_cell('; '.join((r.get('false_alarm_examples') or [])[:5]))} |")
         out.append("")
     if ops:
         out += ["## Operations loop", "",
