@@ -412,6 +412,21 @@ def watermark(conn) -> datetime | None:
     return r["t"]
 
 
+RESUME_AFTER, RESUME_TRIES = timedelta(minutes=20), 3
+
+
+def cut_short(conn) -> bool:
+    """The newest scan stopped part way: its process went with a restart (a deploy, or the instance out of memory),
+    so its row still reads running, or it failed. The job's own schedule checks no Dagster run is still going. Not
+    after RESUME_TRIES such scans in six hours, so a scan that keeps taking the instance down waits for the next
+    regular run instead of restarting it every half hour."""
+    rows = conn.execute("select status, started_at > now() - %s as fresh, started_at > now() - interval '6 hours' as recent "
+                        "from sre_run order by id desc limit %s", (RESUME_AFTER, RESUME_TRIES)).fetchall()
+    if not rows or rows[0]["status"] == "done" or rows[0]["fresh"]:
+        return False
+    return sum(r["status"] != "done" and r["recent"] for r in rows) < RESUME_TRIES
+
+
 def store(conn, found: list[dict], run_id: int, window: tuple[datetime, datetime] | None = None,
           raised: dict[str, int] | None = None) -> dict:
     """Add detections, or extend the open one with the same point, detector and key that the window just

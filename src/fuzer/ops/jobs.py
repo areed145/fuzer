@@ -641,12 +641,12 @@ def schedule_timezone() -> str:
 TZ = schedule_timezone()
 
 
-def per_project(job, cron: str, status: dg.DefaultScheduleStatus, due=None) -> dg.ScheduleDefinition:
+def per_project(job, cron: str, status: dg.DefaultScheduleStatus, due=None, name: str = "") -> dg.ScheduleDefinition:
     """A schedule that starts the job once for each project, tagged with it. With `due` (conn -> bool, read in the
     project's schema), a project whose job has nothing to do at this tick starts no run: every run is a new Python
     process, and the minute jobs starting one per project per minute to find nothing held most of a one-CPU
     instance (13 Nov)."""
-    @dg.schedule(name=f"{job.name}_schedule", job=job, cron_schedule=cron, execution_timezone=TZ,
+    @dg.schedule(name=name or f"{job.name}_schedule", job=job, cron_schedule=cron, execution_timezone=TZ,
                  default_status=status, required_resource_keys={"fuzer"})
     def schedule(context: dg.ScheduleEvaluationContext):
         at = context.scheduled_execution_time.isoformat()
@@ -691,6 +691,11 @@ def _notify_due(conn) -> bool:
     return engine.notify_pending(conn)
 
 
+def _sre_resume_due(conn) -> bool:
+    from . import sre
+    return sre.cut_short(conn)
+
+
 def _writeback_due(conn) -> bool:
     from . import writeback
     return writeback.due(conn)
@@ -726,6 +731,9 @@ schedules = [
     per_project(report_calendar, "0 5 * * *", RUNNING),
     per_project(retention, "15 3 * * *", RUNNING),
     per_project(sre_scan, "0 */6 * * *", RUNNING),
+    # A scan a restart cut short (a deploy, or the instance out of memory) carries on within half an hour instead of
+    # waiting up to six hours for the next one; it keeps the windows it had finished (#1148, #1150).
+    per_project(sre_scan, "20,50 * * * *", RUNNING, _sre_resume_due, name="sre_scan_resume_schedule"),
     per_project(studies_job, "*/5 * * * *", RUNNING, _studies_due),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
     together(source_health, "*/30 * * * *", RUNNING),
