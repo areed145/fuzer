@@ -179,9 +179,9 @@ function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; per
     <Status loading={got.loading && !d} error={got.error} />
     {d && <>
       <h3>Proposals{d.unreviewed ? ` (${d.unreviewed} to review)` : ""}</h3>
-      {d.live && d.live.raised > 0 && <p className="muted small">
-        Live: {d.live.raised} raised for triage, {d.live.confirmed} confirmed real, {d.live.false_alarms} false
-        alarms{d.live.precision != null && ` (precision ${pct(d.live.precision)})`}. False alarms count against the watch.
+      {d.live && d.live.raised > 0 && <p>
+        Live: {d.live.raised} raised for triage, {d.live.confirmed} confirmed, {d.live.false_alarms} false
+        alarms{d.live.precision != null && ` (precision ${pct(d.live.precision)})`}
       </p>}
       {d.proposals.length === 0 ? <Empty>The watch has proposed nothing yet.</Empty> :
         <Table variant="settings">
