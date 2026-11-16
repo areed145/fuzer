@@ -888,6 +888,52 @@ def load_seen(cursor: str | None) -> dict[str, float]:
         return {}
 
 
+# A refresh a sensor started (a changed export, a dataset due) and a deploy cut short is not started again by that
+# sensor: its export is already seen and its dataset no longer due. `rerun_interrupted` asks for it again, with the same
+# datasets, a few times at most (a deploy can land on the rerun too) (#1025).
+REFRESH_SENSORS = ("new_exports", "dataset_schedules", "rerun_interrupted")
+RERUNS_TAG, MAX_RERUNS = "fuzer/reruns", 3
+
+
+def _reruns(run) -> int:
+    try:
+        return int(run.tags.get(RERUNS_TAG, 0))
+    except ValueError:
+        return MAX_RERUNS
+
+
+def rerun_wanted(run) -> bool:
+    """A sensor-started refresh that `rerun_interrupted` starts again if a deploy interrupts it."""
+    return (run.job_name == refresh_all.name and run.tags.get("dagster/sensor_name") in REFRESH_SENSORS
+            and _reruns(run) < MAX_RERUNS)
+
+
+def restarted(run) -> bool:
+    """Something starts this run again if a deploy interrupts it: its schedule, or `rerun_interrupted`."""
+    return "dagster/schedule_name" in run.tags or rerun_wanted(run)
+
+
+def rerun_request(run) -> dg.RunRequest:
+    tags = {k: v for k, v in run.tags.items() if not k.startswith("dagster/")}
+    return dg.RunRequest(run_key=f"rerun:{run.run_id}", asset_selection=sorted(run.asset_selection or [], key=str) or None,
+                         tags=tags | {RERUNS_TAG: str(_reruns(run) + 1), "fuzer/rerun_of": run.run_id})
+
+
+@dg.run_failure_sensor(monitored_jobs=[refresh_all], request_job=refresh_all,
+                       default_status=dg.DefaultSensorStatus.RUNNING,
+                       description="Starts again a refresh a sensor started that a deploy interrupted (#1025).")
+def rerun_interrupted(context: dg.RunFailureSensorContext):
+    from . import stops
+
+    run = context.dagster_run
+    record = context.instance.get_run_record_by_id(run.run_id)
+    ended = (record and record.end_time) or time.time()
+    if not (rerun_wanted(run) and stops.interrupted_by_stop(context.failure_event.message or "", ended)):
+        return dg.SkipReason(f"run {run.run_id[:8]} isn't a sensor's refresh a deploy cut short")
+    context.log.info(f"Run {run.run_id[:8]} of {run.job_name} was interrupted by a deploy; starting it again")
+    return rerun_request(run)
+
+
 @dg.run_failure_sensor(default_status=dg.DefaultSensorStatus.RUNNING,
                        description="Posts failed runs to FUZER_ALERT_WEBHOOK, and to GitHub issues, when they are set; a "
                                    "scheduled run a deploy interrupted is not a failure and is not posted.")
@@ -900,11 +946,11 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
     event = context.failure_event
     record = context.instance.get_run_record_by_id(run.run_id)
     ended = (record and record.end_time) or time.time()  # when it failed, not when this sensor got to it
-    # Only a scheduled run: its schedule starts it again. A run started by hand or by a sensor isn't restarted, so
-    # its interruption is still posted.
-    if "dagster/schedule_name" in run.tags and stops.interrupted_by_stop(event.message or "", ended):
-        context.log.info(f"Run {run.run_id[:8]} of {run.job_name} was interrupted by a deploy; its schedule starts it "
-                         "again, so it isn't reported as a failure")
+    # Only a run something starts again: a scheduled run (its schedule) or a refresh a sensor started (rerun_interrupted,
+    # #1025). A run started by hand isn't restarted, so its interruption is still posted.
+    if restarted(run) and stops.interrupted_by_stop(event.message or "", ended):
+        context.log.info(f"Run {run.run_id[:8]} of {run.job_name} was interrupted by a deploy; it is started again, so "
+                         "it isn't reported as a failure")
         return
     message = run_failed_text(run.job_name, run.run_id, context.failure_event.message or "",
                                   run.tags.get(PROJECT_TAG, "") or run.tags.get(PROJECTS_TAG, ""))
@@ -937,7 +983,7 @@ defs = dg.Definitions(
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
     jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, detector_tuning, report_calendar, retention, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
     schedules=schedules,
-    sensors=[new_exports, dataset_schedules, alert_on_failure, alert_on_tick_failure],
+    sensors=[new_exports, dataset_schedules, rerun_interrupted, alert_on_failure, alert_on_tick_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},
     # Each run executes its steps in its own process. The default multiprocess executor adds a second Python
     # process per step on top of the run's, which doubled every run's memory on the 2 GB instance (OOM kills,

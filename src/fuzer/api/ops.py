@@ -139,8 +139,19 @@ def daily_reports(limit: int = 30, conn=Depends(get_conn)):
 
 @router.get("/reports/daily/{day}")
 def daily_report_day(day: str, version: int | None = None, conn=Depends(get_conn)):
+    """One day's report; "latest" is the newest day with one, and a day that isn't a date has none (#1141)."""
+    from datetime import date
+
     from ..ops import daily_report
-    out = daily_report.get(conn, day, version)
+    if day == "latest":
+        newest = conn.execute("select max(day) as day from daily_ops_report").fetchone()["day"]
+        out = daily_report.get(conn, str(newest), version) if newest else None
+    else:
+        try:
+            date.fromisoformat(day)
+        except ValueError:
+            raise HTTPException(404, f"no report for {day}")
+        out = daily_report.get(conn, day, version)
     if out is None:
         raise HTTPException(404, f"no report for {day}")
     return daily_report.for_people(out)
