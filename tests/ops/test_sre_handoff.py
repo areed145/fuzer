@@ -135,7 +135,8 @@ def test_a_pattern_people_keep_calling_a_false_alarm_closes_itself_except_on_a_c
                            "where u.id = %s", (seed,)).fetchone()
     conn.execute("insert into sre_suppress (point_id, detector, key, upset_id) values (%s, %s, %s, %s) "
                  "on conflict do nothing", (pattern["point_id"], pattern["detector"], pattern["key"], seed))
-    for _ in range(18):
+    # the module's other tests may already have closed a repeat of it as a false alarm (they run in any order)
+    while sre_handoff.history(conn, tuple(pattern.values()))["false_alarms"] < 18:
         conn.execute("update upset set status = 'false_alarm' where id = %s", (_repeat(conn, seed),))
     was = None
     unit = conn.execute("select first_unit from upset where id = %s", (seed,)).fetchone()["first_unit"]
