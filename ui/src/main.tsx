@@ -28,8 +28,8 @@ import { PlanPage } from "./pages/Plan";
 import { TaskPage } from "./pages/workflows/Task";
 import { CasePage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
-import { Identity } from "./Identity";
-import { AreaNavigation, BackButton, Breadcrumbs, Sidebar } from "./nav";
+import { AccountButton } from "./Identity";
+import { AreaNavigation, BackButton, Sidebar } from "./nav";
 import { startAppHistory } from "./appHistory";
 import { startIos } from "./ios";
 import { lockPageZoom } from "./zoomLock";
@@ -144,7 +144,6 @@ function App() {
             )}
             {rebuilding && <UIBadge className="badge updating">Updating…</UIBadge>}
             <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />
-            <Identity />
             {stats.error && <span className="error small">API not reachable</span>}
             {demo.error && section !== "demo" && section !== "investigate" &&
               <Status error={`Demo availability: ${demo.error}`} onRetry={demo.reload} />}
@@ -152,8 +151,9 @@ function App() {
         }
       />
       <main id="main-content" tabIndex={-1}>
+        {/* The account is the round badge at the top right on every screen, as on the phone. */}
+        <div className="page-account"><AccountButton /></div>
         <BackButton path={path} className="page-back" />
-        <Breadcrumbs path={path} />
         <AreaNavigation section={navSection} demoEnabled={demo.data?.enabled === true} />
         <PageNote.Provider value={viewOnly && VIEW_ONLY_SECTIONS.has(section)
           ? <p className="notice view-only" role="note">View only: the demo account can look at this page but can't change it.</p> : null}>
