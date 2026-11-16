@@ -146,6 +146,8 @@ def test_reporter_step_and_tools(conn, monkeypatch):
     client = TestClient(api.app)
     assert client.get("/reports/daily").json()[0]["day"] == "2025-12-30"
     assert client.get("/reports/daily/1999-01-01").status_code == 404
+    assert client.get("/reports/daily/latest").json()["day"] == "2025-12-30"  # #1141: the newest, not a failed query
+    assert client.get("/reports/daily/yesterday").status_code == 404
 
     # #242: the Reports page shows where each day's review stands and reviews it in place
     statuses = {d["day"]: d["status"] for d in client.get("/reports/daily").json()}

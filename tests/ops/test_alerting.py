@@ -185,3 +185,34 @@ def test_stops_are_kept_and_bounded(tmp_path):
     assert stops.interrupted_by_stop(msg, kept[-1] - 60, tmp_path)  # the run monitor saw it a poll early
     assert not stops.interrupted_by_stop(msg, kept[-1] + stops.AFTER_SECONDS + 1, tmp_path)
     assert not stops.interrupted_by_stop(msg, 0.0, tmp_path / "none")  # nothing recorded
+
+
+def test_a_sensor_refresh_a_deploy_interrupted_is_started_again_and_not_reported(webhook, tmp_path, monkeypatch):
+    """refresh_all runs a sensor started (a changed export, a dataset due) were cut short by deploys and reported, and
+    nothing ran them again (#1025). The same datasets are asked for again, a few times at most, and not reported."""
+    from fuzer.ops import stops
+
+    monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
+    instance = dg.DagsterInstance.ephemeral()
+    run, event, ended = _marked_failed(instance, {jobs.PROJECT_TAG: "okan", "dagster/sensor_name": "new_exports",
+                                                  "changed_exports": "wells"})
+    run = run._replace(job_name="refresh_all", asset_selection=frozenset({dg.AssetKey("wells"), dg.AssetKey("register")}))
+    stops.mark_stopped(now=ended + 20)
+    ctx = _context(instance, run, event)
+
+    got = jobs.rerun_interrupted(ctx)
+    assert isinstance(got, dg.RunRequest) and got.run_key == f"rerun:{run.run_id}"
+    assert set(got.asset_selection) == {dg.AssetKey("wells"), dg.AssetKey("register")}
+    assert got.tags[jobs.PROJECT_TAG] == "okan" and got.tags["changed_exports"] == "wells"
+    assert got.tags[jobs.RERUNS_TAG] == "1" and not any(k.startswith("dagster/") for k in got.tags)
+    jobs.alert_on_failure(ctx)
+    assert webhook == []
+
+    # the third rerun cut short again is reported, and not started a fourth time
+    last = run._replace(tags={**run.tags, "dagster/sensor_name": "rerun_interrupted", jobs.RERUNS_TAG: "3"})
+    assert isinstance(jobs.rerun_interrupted(_context(instance, last, event)), dg.SkipReason)
+    jobs.alert_on_failure(_context(instance, last, event))
+    assert len(webhook) == 1
+    # a refresh's own error isn't a deploy: reported, not rerun
+    own = event._replace(dagster_event=event.dagster_event._replace(message="the export folder is empty"))
+    assert isinstance(jobs.rerun_interrupted(_context(instance, run, own)), dg.SkipReason)

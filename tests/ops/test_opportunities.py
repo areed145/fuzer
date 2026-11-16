@@ -66,3 +66,29 @@ def test_scan_board_and_rejection(conn):
 
     proj = opportunities.decide(conn, key, "project", "bob")
     assert proj["project"] and board.refresh(conn, PACK)["by_kind"].get("project")
+
+
+def test_two_board_refreshes_at_once_take_turns(conn, okan_db):
+    """The 5-minute detect refreshed the board while another refresh was mid-way: both emptied board_card, then both
+    inserted the same cards, and one failed on its key (#1152). The second now waits for the first to commit."""
+    import threading
+
+    from fuzer.core import db
+
+    done = []
+    conn.commit()
+    with db.connect(url=okan_db.url) as first:
+        first.execute("select pg_advisory_xact_lock(hashtext('board_refresh'))")  # a refresh mid-way
+        first.execute("delete from board_card")
+
+        def second():
+            with db.connect(url=okan_db.url) as c:
+                done.append(board.refresh(c, PACK))
+
+        t = threading.Thread(target=second)
+        t.start()
+        t.join(1.5)
+        assert t.is_alive() and not done  # waiting its turn
+        board.refresh(first, PACK)
+        t.join(60)
+    assert done and done[0]["cards"] > 0 and done[0]["new"] == 0
