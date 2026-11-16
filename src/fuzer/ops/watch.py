@@ -299,8 +299,8 @@ WATCH_TYPE = "watch_finding"
 def _watch_type():
     from ..core.exceptions import TYPES, exception_type
 
-    return TYPES.get(WATCH_TYPE) or exception_type(
-        WATCH_TYPE, "Proposed by the watch", role="role:engineer", audience=("ioc",), joins=False,
+    return TYPES.get("watch_finding") or exception_type(
+        "watch_finding", "Proposed by the watch", role="role:engineer", audience=("ioc",), joins=False,
         description="The agentic watch, reading a process area as an engineer scanning the day would, proposed "
                     "something that looks unusual that no rule raised. It is a proposal, not a rule's finding: triage "
                     "it before anything is dispatched. Close it out as a real problem to confirm it (three confirmed "
