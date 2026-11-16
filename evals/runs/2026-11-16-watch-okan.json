@@ -1,0 +1,168 @@
+{
+  "date": "2026-11-16",
+  "kind": "watch",
+  "model": null,
+  "bundle": "okan",
+  "since": "2025-01-13T00:00",
+  "until": "2025-11-12T00:00",
+  "usd": 1.6718,
+  "upsets": 26,
+  "caught": 22,
+  "uncaught": 4,
+  "proposals": 19,
+  "matched_uncaught": 0,
+  "matched_caught": 1,
+  "false_proposals": 18,
+  "matched": 0.0,
+  "precision": 0.053,
+  "recall": 0.0,
+  "cited": 1.0,
+  "passes": false,
+  "uncaught_examples": [
+    "10-P-1001A head_loss 2025-01-01 00:00",
+    "20-GT-2000B heat_rate 2025-06-01 00:00",
+    "OK-J12-02 choke_wear 2025-01-15 00:00",
+    "OK-J12-02 choke_wear 2025-01-15 00:00"
+  ],
+  "false_examples": [
+    "OK_J02_04.WHP 2024-10-15 00:00",
+    "OK_J05_08 (WHP and WHT) 2024-10-15 00:00",
+    "OK_J06_05 (wellhead and casing pressure) 2025-01-13 20:40",
+    "OK_J07_03 (gas lift: GLIR, CASP, WHT) 2024-10-15 00:00",
+    "OK_J05_01.CASP / OK_J05_02.CASP / OK_J05_01.WHP (OKJ-05 gas lift, wells 01-02) 2025-01-14 05:00",
+    "OK_GGCP:20-FT-3001.PV / 20-LT-2201C / 25-PT-4001 (export and 2nd stage compression) 2025-08-20 12:40",
+    "OK_J07_05 (gas lift well OK-J07-05) 2025-05-22 00:00",
+    "OK-J07-05 gas lift injection (OK_J07_05.GLIR) 2025-05-23 00:00"
+  ],
+  "windows": [
+    {
+      "since": "2025-01-13T00:00",
+      "until": "2025-01-15T00:00",
+      "why": "10-P-1001A starting to lose head and OK-J12-02's choke starting to wear",
+      "usd": 0.3625,
+      "upsets": 4,
+      "caught": 3,
+      "uncaught": 1,
+      "proposals": 5,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 5,
+      "matched": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "10-P-1001A head_loss 2025-01-01 00:00"
+      ],
+      "false_examples": [
+        "OK_J02_04.WHP 2024-10-15 00:00",
+        "OK_J05_08 (WHP and WHT) 2024-10-15 00:00",
+        "OK_J06_05 (wellhead and casing pressure) 2025-01-13 20:40",
+        "OK_J07_03 (gas lift: GLIR, CASP, WHT) 2024-10-15 00:00",
+        "OK_J05_01.CASP / OK_J05_02.CASP / OK_J05_01.WHP (OKJ-05 gas lift, wells 01-02) 2025-01-14 05:00"
+      ]
+    },
+    {
+      "since": "2025-08-20T00:00",
+      "until": "2025-08-22T00:00",
+      "why": "OK-NWP-G3's choke plugging with scale; 20-E-2350A fouled; 10-P-1001A down 7% on head",
+      "usd": 0.3446,
+      "upsets": 4,
+      "caught": 2,
+      "uncaught": 2,
+      "proposals": 3,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 3,
+      "matched": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "20-GT-2000B heat_rate 2025-06-01 00:00",
+        "OK-J12-02 choke_wear 2025-01-15 00:00"
+      ],
+      "false_examples": [
+        "OK_GGCP:20-FT-3001.PV / 20-LT-2201C / 25-PT-4001 (export and 2nd stage compression) 2025-08-20 12:40",
+        "OK_J07_05 (gas lift well OK-J07-05) 2025-05-22 00:00",
+        "OK-J07-05 gas lift injection (OK_J07_05.GLIR) 2025-05-23 00:00"
+      ]
+    },
+    {
+      "since": "2025-09-08T00:00",
+      "until": "2025-09-10T00:00",
+      "why": "Train B's 3rd stage dry gas seal starting to pass; 20-GT-2000B's heat rate creeping",
+      "usd": 0.3359,
+      "upsets": 6,
+      "caught": 5,
+      "uncaught": 1,
+      "proposals": 4,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 4,
+      "matched": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "OK-J12-02 choke_wear 2025-01-15 00:00"
+      ],
+      "false_examples": [
+        "OK_J03_02.WHP 2025-06-10 00:00",
+        "OK_J07_05.GLIR 2025-06-10 00:00",
+        "OKJ-02 casing pressures (OK_J02_01.CASP, OK_J02_02.CASP, OK_J02_03.CASP) 2025-09-09 23:30",
+        "OK_J07_05.GLIR 2025-06-11 00:00"
+      ]
+    },
+    {
+      "since": "2025-10-27T00:00",
+      "until": "2025-10-29T00:00",
+      "why": "20-GT-2000A's lube oil filter plugging, 20-GT-2000C's fuel nozzle, 10-P-1001B recirculating, a flowline waxing",
+      "usd": 0.2409,
+      "upsets": 6,
+      "caught": 6,
+      "uncaught": 0,
+      "proposals": 0,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 0,
+      "matched": null,
+      "precision": null,
+      "recall": null,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [],
+      "false_examples": []
+    },
+    {
+      "since": "2025-11-10T00:00",
+      "until": "2025-11-12T00:00",
+      "why": "the same slow upsets further on, and 20-GT-2000B fouled up to its water wash",
+      "usd": 0.3879,
+      "upsets": 6,
+      "caught": 6,
+      "uncaught": 0,
+      "proposals": 7,
+      "matched_uncaught": 0,
+      "matched_caught": 1,
+      "false_proposals": 6,
+      "matched": 0.0,
+      "precision": 0.143,
+      "recall": null,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [],
+      "false_examples": [
+        "OK_J02_04.WHP 2025-08-12 00:00",
+        "65FT3001.PV (OKJ-05 Gas Lift Supply Meter) with OK_J05_02.CASP and OK_J05_03.WHP 2025-11-10 15:10",
+        "OK_J06_06.WHT 2025-08-12 00:00",
+        "OK_NWP_08.WHP / OKA_NWP.50FT3001.PV (well NWP_08 and associated flow) 2025-11-11 20:20",
+        "OK_J02_04.WHP 2025-08-13 00:00",
+        "OK_J06_06.WHT 2025-08-13 00:00"
+      ]
+    }
+  ]
+}

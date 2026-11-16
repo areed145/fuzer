@@ -1,0 +1,156 @@
+{
+  "date": "2026-11-16",
+  "kind": "watch",
+  "model": null,
+  "bundle": "kestrel",
+  "since": "2026-10-11T00:00",
+  "until": "2026-11-16T00:00",
+  "usd": 0.311,
+  "upsets": 31,
+  "caught": 23,
+  "uncaught": 8,
+  "proposals": 6,
+  "matched_uncaught": 3,
+  "matched_caught": 0,
+  "false_proposals": 3,
+  "matched": 0.5,
+  "precision": 0.5,
+  "recall": 0.25,
+  "cited": 1.0,
+  "passes": true,
+  "uncaught_examples": [
+    "C1-AT-3011 drift 2026-09-30 00:00",
+    "A1-V-1004 drift 2026-10-07 00:00",
+    "B1-K-2001 valve_leak 2026-10-26 00:00",
+    "C1-H-3008 drift 2026-10-01 00:00",
+    "B1-K-2001 valve_leak 2026-10-26 00:00",
+    "C1-H-3008 drift 2026-10-01 00:00",
+    "meter:sales bias 2026-11-04 00:00",
+    "meter:sales bias 2026-11-04 00:00"
+  ],
+  "false_examples": [
+    "KRGP:B1.TT2002/TT2021/TT2022/TT2023/TT2024 (with TT2011) 2026-07-13 00:00",
+    "KRGP:B1.TT2011.PV 2026-08-12 00:00",
+    "KRGP:B1.TT2011.PV 2026-08-16 00:00"
+  ],
+  "windows": [
+    {
+      "since": "2026-10-11T00:00",
+      "until": "2026-10-13T00:00",
+      "why": "B1-K-2001's discharge temperature and trip, with C1-H-3008 and C1-AT-3011 drifting",
+      "usd": 0.0466,
+      "upsets": 5,
+      "caught": 3,
+      "uncaught": 2,
+      "proposals": 1,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 1,
+      "matched": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "C1-AT-3011 drift 2026-09-30 00:00",
+        "A1-V-1004 drift 2026-10-07 00:00"
+      ],
+      "false_examples": [
+        "KRGP:B1.TT2002/TT2021/TT2022/TT2023/TT2024 (with TT2011) 2026-07-13 00:00"
+      ]
+    },
+    {
+      "since": "2026-10-25T00:00",
+      "until": "2026-10-27T00:00",
+      "why": "B1-K-2001's valve starting to leak; A1-V-1004 drifting",
+      "usd": 0.0893,
+      "upsets": 4,
+      "caught": 2,
+      "uncaught": 2,
+      "proposals": 1,
+      "matched_uncaught": 1,
+      "matched_caught": 0,
+      "false_proposals": 0,
+      "matched": 1.0,
+      "precision": 1.0,
+      "recall": 0.5,
+      "cited": null,
+      "passes": true,
+      "uncaught_examples": [
+        "B1-K-2001 valve_leak 2026-10-26 00:00",
+        "C1-H-3008 drift 2026-10-01 00:00"
+      ],
+      "false_examples": []
+    },
+    {
+      "since": "2026-11-03T00:00",
+      "until": "2026-11-05T00:00",
+      "why": "the sales meter starting to read off",
+      "usd": 0.0776,
+      "upsets": 5,
+      "caught": 2,
+      "uncaught": 3,
+      "proposals": 2,
+      "matched_uncaught": 2,
+      "matched_caught": 0,
+      "false_proposals": 0,
+      "matched": 1.0,
+      "precision": 1.0,
+      "recall": 0.333,
+      "cited": null,
+      "passes": true,
+      "uncaught_examples": [
+        "B1-K-2001 valve_leak 2026-10-26 00:00",
+        "C1-H-3008 drift 2026-10-01 00:00",
+        "meter:sales bias 2026-11-04 00:00"
+      ],
+      "false_examples": []
+    },
+    {
+      "since": "2026-11-09T00:00",
+      "until": "2026-11-11T00:00",
+      "why": "B1-K-2001 misfiring",
+      "usd": 0.0671,
+      "upsets": 6,
+      "caught": 5,
+      "uncaught": 1,
+      "proposals": 1,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 1,
+      "matched": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "meter:sales bias 2026-11-04 00:00"
+      ],
+      "false_examples": [
+        "KRGP:B1.TT2011.PV 2026-08-12 00:00"
+      ]
+    },
+    {
+      "since": "2026-11-14T00:00",
+      "until": "2026-11-16T00:00",
+      "why": "yesterday's vibration and trip on train B1, and the instruments that went off with it",
+      "usd": 0.0304,
+      "upsets": 11,
+      "caught": 11,
+      "uncaught": 0,
+      "proposals": 1,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 1,
+      "matched": 0.0,
+      "precision": 0.0,
+      "recall": null,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [],
+      "false_examples": [
+        "KRGP:B1.TT2011.PV 2026-08-16 00:00"
+      ]
+    }
+  ]
+}
