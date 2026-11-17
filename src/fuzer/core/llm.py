@@ -51,11 +51,16 @@ def _config(scope: str) -> tuple[str, str, str | None]:
     return selected, endpoint, key
 
 
+def has_credentials(scope: str = "llm") -> bool:
+    """A provider is chosen and its key reference resolves (or needs none). Presence only: nothing is called."""
+    selected, _, key = _config(scope)
+    return selected == "ollama" or bool(key)
+
+
 def configured(scope: str = "llm") -> bool:
     """A provider is set up and the month's model budget isn't spent (core/usage.py): each feature asks this before
-    calling, so a spent budget turns them off the way a missing key does."""
-    selected, _, key = _config(scope)
-    if not (selected == "ollama" or bool(key)):
+    calling, so a spent budget turns them off the way a missing key does. Say which one with has_credentials()."""
+    if not has_credentials(scope):
         return False
     from . import usage as metering
 

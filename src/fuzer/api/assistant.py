@@ -89,10 +89,15 @@ async def assistant_ask(q: Question):
 @router.get("/assistant/agents")
 def assistant_agents():
     """The specialists, what they cover and what they can't: a static catalog that needs no model or key. With it,
-    whether an agents provider and key reference are configured (#404): presence only, no provider is called."""
+    whether an agents provider and key reference are configured (#404): presence only, no provider is called.
+    A spent monthly budget is reported apart from a missing key, so the page doesn't blame the key for it."""
     from ..agents.capabilities import public_catalog
     from ..core import llm
-    return public_catalog() | {"provider": llm.provider("agents"), "provider_configured": llm.configured("agents")}
+    from ..core import usage as metering
+    cap = metering.budget()
+    return public_catalog() | {"provider": llm.provider("agents"), "provider_configured": llm.has_credentials("agents"),
+                               "budget_reached": metering.over_budget(),
+                               "budget_usd_month": cap or None, "month_spend_usd": round(metering.month_spend(), 2)}
 
 
 @router.get("/assistant/context")
