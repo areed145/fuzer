@@ -24,7 +24,7 @@ A repeat failure is the same failure mode on the same unit more than once in the
    overdue tasks (statutory inspections are the serious ones) and what is due soon. Tasks marked
    `needs_shutdown` can only be done in a turnaround.
 4. **Wall thickness:** `measurements(ref, "wall_thickness")` on a vessel, piping tag or pipeline gives
-   each CML's readings (mm; older surveys were converted from inches) and `per_year`, the fitted wall
+   each CML's readings (in; older surveys were converted from mm) and `per_year`, the fitted wall
    change per year (negative = loss). Compare CMLs on the same item and items in the same service: one
    losing several times faster than its neighbours points at a changed condition (water, sand, flow
    regime) worth tying to well tests or lab results. **For a pipeline, find what flows through it:**
@@ -35,7 +35,7 @@ A repeat failure is the same failure mode on the same unit more than once in the
    nothing upstream changed, say the cause isn't in the records. `calc("corrosion_circuit", pipeline)` rolls
    the line up with the others in its service: rate, remaining life and next inspection date per line (see the
    integrity skill). Its retirement thickness is estimated from the MOP on an assumed grade unless one is given;
-   say so. With the design minimum, `calc("wall_loss", ref, min_required_mm=...)` gives the fastest CML against
+   say so. With the design minimum, `calc("wall_loss", ref, min_required_in=...)` gives the fastest CML against
    the item's median and the remaining life per CML (`retire_soon`, `localised`).
    Integrity operating windows (IOWs) are the process side of this: `limits(ref)` lists a unit's IOWs
    (class, limits, time allowed outside) and excursions past them; a breach past its allowed time
@@ -70,10 +70,10 @@ A repeat failure is the same failure mode on the same unit more than once in the
    each finding with its basis, data dates and confidence, what couldn't be checked and why, and
    recommendations. Then read the findings in this order, because it is the order an experienced machinery
    engineer trusts them:
-   - **Vibration** (`calc("vibration", ref)`): overall mm/s RMS against ISO 20816-3 zones for the machine's
+   - **Vibration** (`calc("vibration", ref)`): overall in/s RMS against ISO 20816-3 zones for the machine's
      group (formerly ISO 10816-3; group 1: compressors, turbines and large machines; group 2: most pumps). Zone D means damage is
      likely: recommend stopping to inspect. Zone C is not for long-term running: plan the repair. A steady
-     rise (`rising`, `trend_mm_s_per_week`, `reaches_zone_d`) matters even in zone B. Quote the zone, the
+     rise (`rising`, `trend_in_s_per_week`, `reaches_zone_d`) matters even in zone B. Quote the zone, the
      value, the trend and the date it reaches zone D. Overall vibration cannot tell a bearing from
      misalignment: spectra need a condition-monitoring source Fuzer doesn't have, so say so rather than
      naming a defect frequency.

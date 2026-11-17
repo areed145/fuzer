@@ -69,7 +69,7 @@ def test_the_rounds_come_from_the_export_in_order_with_their_equipment_and_limit
     assert [p["point_id"] for p in comp] == ["R-B1-01", "R-B1-02", "R-B1-03", "R-B1-04"]
     lube = comp[0]
     assert (lube["what"], lube["kind"], lube["unit"], lube["low"], lube["high"]) == (
-        "Lube oil pressure", "reading", "barg", 3.0, 5.5)
+        "Lube oil pressure", "reading", "psig", 44.0, 80.0)
     assert lube["asset"] == queries.resolve_ref(conn, pack, "B1-K-2001")
     assert comp[3]["kind"] == "check" and comp[3]["low"] is None and comp[3]["unit"] is None
 
@@ -103,25 +103,25 @@ def test_a_reading_outside_its_limits_raises_one_routed_case_and_is_kept_on_the_
 
     conn, pack = kestrel
     comp = next(r for r in rounds.runs(conn) if r["round"] == "Compression rounds")
-    ok = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=4.2)
+    ok = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=61)
     assert ok["taken"]["passed"] is True and ok["exception"] is None
-    low = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=2.1, note="gauge steady")  # taken again: corrected
+    low = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=30, note="gauge steady")  # taken again: corrected
     assert low["taken"]["passed"] is False and low["exception"]["raised"] is True
     e = conn.execute("select * from exception_record where id = %s", (low["exception"]["id"],)).fetchone()
     assert e["type"] == "round_finding" and e["subjects"] == [low["asset"]] and e["item_id"]
-    assert e["title"] == "Lube oil pressure on B1-K-2001: 2.1 barg, limits 3 to 5.5 barg"
+    assert e["title"] == "Lube oil pressure on B1-K-2001: 30 psig, limits 44 to 80 psig"
     case = conn.execute("select role from work_item where id = %s", (e["item_id"],)).fetchone()
     assert case["role"] == "ops_lead" or conn.execute(  # the queue's own process holds the role on its task
         "select 1 from work_task where item_id = %s and role = 'ops_lead'", (e["item_id"],)).fetchone()
     items = {i["label"]: i for i in e["evidence"]["finding"]["items"]}
     assert (items["Reading"]["value"], items["Reading"]["unit"], items["Limits"]["value"], items["Outside"]["value"]) == (
-        2.1, "barg", "3 to 5.5 barg", "low")
+        30, "psig", "44 to 80 psig", "low")
     assert e["evidence"]["finding"]["origin"] == "deterministic"
     # a second bad reading on a later run adds to the same case, never a second one
     conn.execute("update round_run set state = 'missed' where id = %s", (comp["id"],))
     again = rounds.take(conn, conn.execute(
         "insert into round_run (round, shift_start, shift_end, points) values ('Compression rounds', now(), "
-        "now() + interval '12 hours', 4) returning id").fetchone()["id"], "R-B1-01", "olu", value=2.0)
+        "now() + interval '12 hours', 4) returning id").fetchone()["id"], "R-B1-01", "olu", value=29)
     assert again["exception"] == {"id": e["id"], "raised": False}
     assert conn.execute("select count(*) as n from exception_record where type = 'round_finding' and state = 'open'"
                         ).fetchone()["n"] == 1
@@ -131,11 +131,11 @@ def test_a_reading_outside_its_limits_raises_one_routed_case_and_is_kept_on_the_
     # the reading is a measurement on the compressor, and a rebuild keeps it there
     series = {s["quantity"]: s for s in measurements.for_entity(conn, low["asset"])["series"]}
     assert series["lube_oil_pressure"]["latest"]["method"] == "Operator round"
-    assert sorted(v["value"] for v in series["lube_oil_pressure"]["values"]) == [2.0, 2.1]
+    assert sorted(v["value"] for v in series["lube_oil_pressure"]["values"]) == [29.0, 30.0]
     pipeline.rebuild(conn, pack)
     conn.commit()
     series = {s["quantity"]: s for s in measurements.for_entity(conn, low["asset"])["series"]}
-    assert sorted(v["value"] for v in series["lube_oil_pressure"]["values"]) == [2.0, 2.1]
+    assert sorted(v["value"] for v in series["lube_oil_pressure"]["values"]) == [29.0, 30.0]
 
 
 def test_a_failed_check_on_the_phone_needs_what_was_found_and_raises_a_finding(kestrel):

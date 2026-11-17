@@ -5,5 +5,5 @@
   specialists: [maintenance-integrity]
   charts: [wall_thickness]
 - question: Is the inlet separator A1-V-1001 inspected often enough for its corrosion rate?
-  must_mention: [A1-V-1001, [ten years, 10 years, interval], [rate, mm/year, mm per year]]
+  must_mention: [A1-V-1001, [ten years, 10 years, interval], [rate, mpy, mils per year]]
   specialists: [maintenance-integrity]

@@ -142,7 +142,7 @@ def open_gap(conn, now=None) -> dict | None:
 
 
 def _reports(conn, pack) -> bool:
-    return conn.execute("select 1 from golden where field = 'fuel_gas_ksm3' limit 1").fetchone() is not None
+    return conn.execute("select 1 from golden where field = 'fuel_gas_mscf' limit 1").fetchone() is not None
 
 
 @detectors.register("gas_balance_gaps", title="The daily gas balance staying open for days: a meter likely off",
@@ -171,7 +171,7 @@ def watch_gas_balance(conn, by: str = "agent:emissions", now=None) -> dict:
             start=gap["start"], data={"start": gap["start"], "end": gap["end"], "days": gap["days"],
                                       "median_gap_pct": gap["median_gap_pct"], "terms_reading_zero": gap["terms_reading_zero"]},
             items=(at("Open since", gap["start"]), at("Latest report", gap["end"]), fact("Days open", gap["days"]),
-                   fact("Median gap", gap["median_gap_pct"], "%"), fact("Gas unaccounted", gap["gap_ksm3"], "kSm3"),
+                   fact("Median gap", gap["median_gap_pct"], "%"), fact("Gas unaccounted", gap["gap_mscf"], "Mscf"),
                    fact("Direction", gap["direction"].replace("_", " ")), fact("Terms reading zero", zero),
                    fact("Threshold", gap["threshold_pct"], "% of gas handled")))
         title = f"Gas balance open {gap['days']} days since {gap['start']}" + (

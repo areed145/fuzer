@@ -104,13 +104,13 @@ def repeats(conn, since: str | None = None, until: str | None = None, days: int 
                     break
         rows.append({"unit_id": uid, "unit": label or "no unit", "incidents": len(incs), "repeat": len(incs) > 1,
                      "days_between": [(b - a).days for a, b in pairwise(starts) if a and b],
-                     "lost_oil_sm3": round(sum(ops._num(i["f"].get("lost_oil_sm3")) for i in incs), 1),
+                     "lost_oil_bbl": round(sum(ops._num(i["f"].get("lost_oil_bbl")) for i in incs), 1),
                      "came_back_after_closed_work": came_back,
                      "items": [{"id": i["id"], "start": str(i["f"].get("start"))[:10],
                                 "description": i["f"].get("description"),
                                 "linked_orders": len(linked_to[i["id"]]),
                                 "open_orders": sum(1 for w in linked_to[i["id"]] if w["open"])} for i in incs]})
-    rows.sort(key=lambda r: (-r["incidents"], -r["lost_oil_sm3"], r["unit"]))
+    rows.sort(key=lambda r: (-r["incidents"], -r["lost_oil_bbl"], r["unit"]))
     open_: dict[str, dict] = {}  # one row per order, naming every incident it is linked to
     for w in work:
         if w["open"]:

@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from fuzer.sources.process_model import EPOCH, ProcessModel
+from fuzer.sources.timeseries import _TO_POINT
 
 PSI = 14.5038
 TAG = re.compile(r"(\d\d|[A-Z]\d)[-_.]?([A-Z]+)[-_]?(\d{4})([A-Z]?)\b")
@@ -37,7 +38,9 @@ SHELVE_REASONS = ["Known issue, notification raised", "Instrument fault, tech ca
                   "Standby equipment, alarm not relevant", "Shelved per shift supervisor"]
 # Instrument noise at one reading a second, as a share of the normal value (of the span for levels in %)
 FAST_SIGMA = {"%": 0.008, "Sm3/d": 0.012, "m3/h": 0.012, "kSm3/d": 0.012, "MMscfd": 0.012, "ksm3/d": 0.012,
-              "barg": 0.004, "psig": 0.004, "bara": 0.004, "degC": 0.0015, "mm/s": 0.04, "um": 0.03, "rpm": 0.002}
+              "barg": 0.004, "psig": 0.004, "bara": 0.004, "degC": 0.0015, "mm/s": 0.04, "um": 0.03, "rpm": 0.002,
+              "bbl/d": 0.012, "Mscf/d": 0.012, "gpm": 0.012, "psia": 0.004, "degF": 0.0015, "in/s": 0.04,
+              "mils": 0.03}
 MAX_SHELVES = 3  # then the alarm is taken out of service until it clears
 
 
@@ -87,8 +90,8 @@ def journal(spec: dict, alarms: list[dict], points: list[dict], start: datetime,
         p = by_tag[a["tag"]]
         unit, var = spec["points"][p]
         y = w.get(unit, var)[keep]
-        if a["eu"] == "psig":  # an older DCS configured in psig
-            y = y * PSI
+        if conv := _TO_POINT.get(a["eu"] or ""):  # the model works in SI; the DCS in its own (US) units
+            y = y * conv[0] + conv[1]
         ru = run_of_tag[a["tag"]] = _run_unit(units, unit)
         if ru not in run_cache:
             run_cache[ru] = (w.get(ru, "running")[keep] if ru else np.ones_like(times)) * field_up

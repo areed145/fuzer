@@ -42,7 +42,7 @@ beforeEach(async () => {
     "/board": { cards: [], total: 0, page: 1, per_page: 50 },
     "/incidents": { items: [], total: 0 },
     "/related": { subjects: [], incidents: [], studies: [], lessons: [] },
-    "/downtime": { lost_oil_sm3: 0, events: 0, hours: 0, items: [] },
+    "/downtime": { lost_oil_bbl: 0, events: 0, hours: 0, items: [] },
     "/jobs/health": { available: false, level: "unknown", summary: "" },
     "/jobs": { available: false, dagster: { url: "", reachable: false },
       scheduler: { running: false, last_heartbeat: null }, jobs: [], sensors: [], checks: [],
@@ -73,13 +73,13 @@ async function waveScreenshot(name) {
 
 test("Wave 1 Downtime rankings fit mobile and recover a failed ranking read", async () => {
   let failed = true;
-  await page.route("**/downtime?*", route => route.fulfill({ json: { lost_oil_sm3: 423, events: 1, hours: 2, items: [] } }));
+  await page.route("**/downtime?*", route => route.fulfill({ json: { lost_oil_bbl: 423, events: 1, hours: 2, items: [] } }));
   await page.route("**/downtime/ranking?*", route => {
     const by = new URL(route.request().url()).searchParams.get("by");
     return route.fulfill(by === "reason" && failed
       ? { status: 503, json: { detail: "Reason ranking unavailable" } }
       : { json: [{ label: `Very-long-${by}-equipment-reference-without-spaces-0123456789`,
-        description: "Compressor equipment with a long descriptive name", fuzer_id: "fz-compressor", lost_oil_sm3: 423 }] });
+        description: "Compressor equipment with a long descriptive name", fuzer_id: "fz-compressor", lost_oil_bbl: 423 }] });
   });
 
   await page.goto(`${url}/#/downtime`);
@@ -97,7 +97,7 @@ test("Wave 1 Downtime rankings fit mobile and recover a failed ranking read", as
       const box = await heading.boundingBox();
       assert.ok(box.x >= 0 && box.x + box.width <= width);
     }
-    await page.getByText("Oil lost (Sm³)", { exact: true }).first().waitFor();
+    await page.getByText("Oil lost (bbl)", { exact: true }).first().waitFor();
     const bar = await page.locator(".downtime-rankings .ui-bar").first().boundingBox();
     assert.ok(bar && bar.width > 0 && bar.height > 0, "Ranking bars must remain visible without loading a graph page");
     await waveScreenshot(`downtime-${width}`);
@@ -241,10 +241,10 @@ const investigation = {
   asset_records: [{ source: "sap", record_type: "floc", key: "OKAN-20-K2200B", observed_at: "2026-11-06T12:00:00Z" }],
   evidence: [{
     id: "fz-downtime", kind: "downtime", label: "OKDT-00001", at: "2024-03-14T03:20:00",
-    text: "Compressor tripped; lift gas shortfall recorded.", lost_oil_sm3: 423,
+    text: "Compressor tripped; lift gas shortfall recorded.", lost_oil_bbl: 423,
     records: [{ source: "ec", record_type: "downtime", key: "OKDT-00001", observed_at: "2026-11-06T12:00:00Z" }],
   }],
-  findings: [{ text: "The linked record reports 423 Sm3 of lost oil, not a daily rate.", evidence_ids: ["fz-downtime"] }],
+  findings: [{ text: "The linked record reports 423 bbl of lost oil, not a daily rate.", evidence_ids: ["fz-downtime"] }],
   limitations: ["Historical synthetic data does not prove a root cause or the effectiveness of a repair."],
 };
 
@@ -301,13 +301,13 @@ test("P7.6 a regulatory report marks figures on estimated or missing data and dr
     marked: [{ key: "meter:w", label: "Metered gas, KR 12-03H", basis: "estimated", flags: ["1 estimated: 2026-11-12"] }],
     review: { id: 3, state: "open", item_id: 27, case_state: "open", assignee: null },
     sections: [
-      { title: "Metered gas", figures: [{ key: "meter:w", label: "Metered gas, KR 12-03H", value: 1390.0, unit: "kSm3",
+      { title: "Metered gas", figures: [{ key: "meter:w", label: "Metered gas, KR 12-03H", value: 1390.0, unit: "Mscf",
         basis: "estimated", note: null, flags: ["1 estimated: 2026-11-12"], subject: "fz-well-1", rows: [
           { label: "2026-11-11", value: 725.2, basis: "measured", ref: "record:measurement:daily_volume:KR12-03H>2026-11-11" },
           { label: "2026-11-12", value: 664.8, basis: "estimated", ref: "record:measurement:daily_volume:KR12-03H>2026-11-12" }] }] },
       { title: "Flare events", figures: [{ key: "flare_events", label: "Flare episodes", value: 1, unit: null, basis: "measured",
-        note: null, flags: [], rows: [{ label: "2026-11-12 03:20 to 07:00 at H1-V-8001", value: 82.7, unit: "kSm3", basis: "measured",
-          ref: "case:26", text: "About 82.7 kSm3 over its baseline, an estimate; cause unknown" }] }] },
+        note: null, flags: [], rows: [{ label: "2026-11-12 03:20 to 07:00 at H1-V-8001", value: 82.7, unit: "Mscf", basis: "measured",
+          ref: "case:26", text: "About 82.7 Mscf over its baseline, an estimate; cause unknown" }] }] },
     ] };
   await page.route("**/reports/daily", route => route.fulfill({ json: [] }));
   await page.route("**/reports/regulatory", route => route.fulfill({ json: {
@@ -454,7 +454,7 @@ test("a case reaches its incidents, studies and lessons (P4.5c)", async () => {
   await page.route("**/related?*", route => { asked.push(new URL(route.request().url()).search); return route.fulfill({ json: {
     subjects: ["fz-p-1"],
     incidents: [{ id: "fz-incident-1", description: "Trip on high vibration", unit: "P-1", start: "2026-10-01", end: "2026-10-01",
-      signals: 1, events: 2, downtime_records: 1, notifications: 0, lost_oil_sm3: 0 }],
+      signals: 1, events: 2, downtime_records: 1, notifications: 0, lost_oil_bbl: 0 }],
     studies: [{ id: 4, kind: "correlate", status: "done", summary: "suction pressure leads vibration", created_by: "user:ana", created_at: "2026-10-02T10:00:00Z" }],
     lessons: [{ id: 3, title: "Check the coupling first", status: "approved", failure_mode: "VIB", scope_kind: "equipment_class", scope_key: "PU" }] } }); });
   await page.goto(`${url}/#/cases/8`);
@@ -1440,7 +1440,7 @@ test("a match review spells out its reasons and where its score sits against the
 
 test("an event grouped on two units says which unit each incident is on and links the other (#402)", async () => {
   const inc = (id, unit) => ({ id, description: "Train C trip", unit, start: "2024-11-05", end: "2024-11-05", signals: 2, events: 1,
-    downtime_records: 1, notifications: 0, lost_oil_sm3: 300 });
+    downtime_records: 1, notifications: 0, lost_oil_bbl: 300 });
   await page.route("**/incidents?*", (route) => route.fulfill({ json: { total: 2,
     items: [inc("fz-incident-000000000001", "20-V-2001"), inc("fz-incident-000000000002", "20-V-2101C")] } }));
   await page.route("**/feedback/briefs", (route) => route.fulfill({ json: { incidents: 0, rated: 0, ratings: 0, items: [] } }));
@@ -1454,7 +1454,7 @@ test("an event grouped on two units says which unit each incident is on and link
 test("incident lists sit inside one titled card with padding, on the Incidents page and an asset's page", async () => {
   const id = "fz-equipment-0123456789ab";
   const inc = { id: "fz-incident-000000000001", description: "Level alarm on 10-V-2004", unit: "10-V-2004", start: "2025-12-30",
-    end: "2025-12-30", signals: 1, events: 1, downtime_records: 0, notifications: 0, lost_oil_sm3: 0 };
+    end: "2025-12-30", signals: 1, events: 1, downtime_records: 0, notifications: 0, lost_oil_bbl: 0 };
   await page.route("**/incidents?*", (route) => route.fulfill({ json: { total: 1, items: [inc] } }));
   await page.route("**/feedback/briefs", (route) => route.fulfill({ json: { incidents: 0, rated: 0, ratings: 0, items: [] } }));
   await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
@@ -2231,14 +2231,14 @@ test("Okan journey connects Demo, asset, source evidence and a cited finding wit
   assert.equal(await page.evaluate(() => document.activeElement?.id), "investigation-step");
   await page.getByText("Train B second-stage compressor", { exact: false }).waitFor();
   await page.getByRole("link", { name: "Next: Inspect the evidence", exact: true }).click();
-  await page.getByText("423 Sm³ recorded lost oil", { exact: true }).waitFor();
+  await page.getByText("423 bbl recorded lost oil", { exact: true }).waitFor();
   await page.getByText("Last observed during ingestion:", { exact: false }).waitFor();
   await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
   await page.getByText("What the loaded records establish", { exact: true }).waitFor();
   await page.getByRole("link", { name: "Evidence 1", exact: true }).click();
   assert.equal(await page.locator("article.investigation-evidence").getAttribute("aria-current"), "true");
   await page.reload();
-  await page.getByText("423 Sm³ recorded lost oil", { exact: true }).waitFor();
+  await page.getByText("423 bbl recorded lost oil", { exact: true }).waitFor();
   await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
   await page.getByRole("link", { name: "Finish investigation", exact: true }).click();
   await page.getByRole("heading", { name: "Meet the agents", exact: true }).waitFor();
@@ -2749,7 +2749,7 @@ test("Citations read as linked names, and raw ids never reach the page", async (
     [term]: { label: "ESCRAVOS-TERM", description: "Escravos crude terminal" },
     [day]: { label: "Daily report 2025-12-30", description: null },
   } }));
-  await askFor([`I picked **OK-J09-04** [${well}], and oil goes to the **Escravos crude terminal** [${term}].`, "", `- Output was 7,619 Sm3 [${day}]`, "", `| Well |`, `| --- |`, `| OK-J09-04 [${well}] |`, "", `A claim [${unknown}].`].join("\n"));
+  await askFor([`I picked **OK-J09-04** [${well}], and oil goes to the **Escravos crude terminal** [${term}].`, "", `- Output was 7,619 bbl [${day}]`, "", `| Well |`, `| --- |`, `| OK-J09-04 [${well}] |`, "", `A claim [${unknown}].`].join("\n"));
   const answer = page.locator(".md");
   const named = answer.locator("strong").getByRole("link", { name: "OK-J09-04", exact: true });
   await named.waitFor();
@@ -2855,7 +2855,7 @@ const homeStats = { facility: "Test facility", pack: "okan", records: 10, entiti
 const panel = (kind, title, summary, data) => ({ kind, title, sources: [], spec: { data, layout: { height: 340, meta: kind === "flow-capacity" ? { horizontal_below: 560 } : undefined } },
   summary: { context: "Plant · 2026-10-14 · Fictional, historical data, not a live operating update.", headline: null, stats: [], notes: [], warnings: [], tables: [], source: "Daily reports", ...summary } });
 const efficiency = panel("production-efficiency", "Production efficiency", {
-  stats: [{ label: "Weighted efficiency", value: "80%" }, { label: "Allocated · paired days", value: "160", unit: "Sm3" }],
+  stats: [{ label: "Weighted efficiency", value: "80%" }, { label: "Allocated · paired days", value: "160", unit: "bbl" }],
   notes: ["Unknown values are gaps, never zero."], warnings: ["Coverage is not verified."],
   tables: [{ title: "Daily data", columns: ["Day", "Binding constraints"], rows: [["2026-10-04", "Compressor [equipment] + Export [export] (tied)"]] }],
 }, [{ type: "scatter", name: "Dynamic maximum", x: ["2026-10-04", "2026-10-05"], y: [100, null] }]);
@@ -2978,7 +2978,7 @@ const homePopulated = {
   "/board": { cards: [{ key: "k1", rank: 1, kind: "upset", title: "Train B vibration", text: null, unit_id: null, unit: null, area_id: null,
     area: null, owner: "ops", records: [], value_usd: 1000, effective_usd: 1000, item_id: 7 }], total: 1, page: 1, per_page: 50 },
   "/incidents": { items: [{ id: "fz-incident-1", description: "20-K-2200B tripped", unit: "B", start: "2025-03-11", end: "2025-03-11",
-    signals: 1, events: 1, downtime_records: 1, notifications: 1, lost_oil_sm3: 1450.4 }], total: 1 },
+    signals: 1, events: 1, downtime_records: 1, notifications: 1, lost_oil_bbl: 1450.4 }], total: 1 },
   "/upsets": [
     { id: 1, kind: "process", status: "detected", start: "2025-12-21T03:00:00Z", end: null, detections: 4, work_item_id: 31,
       priority_usd: null, first_unit: "20-PT-3003", first_detector: "limits", first_key: "alarm:hi", first_point: null },
@@ -3013,7 +3013,7 @@ test("Home leads with the facility search, labels times and links each item to i
     assert.equal(await page.getByRole("link", { name: "1 assigned to you", exact: true }).getAttribute("href"), "#/inbox");
     assert.equal(await page.getByRole("link", { name: "Check separator level 1", exact: true }).getAttribute("href"), "#/inbox/task/1");
     assert.equal(await page.getByRole("button", { name: "Claim", exact: true }).count(), 0);
-    await page.getByText("Started 2025-03-11 · 1,450 Sm³ lost oil", { exact: true }).waitFor();
+    await page.getByText("Started 2025-03-11 · 1,450 bbl lost oil", { exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "High alarm on 20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
     assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/exceptions?list=ranked&view=kind");
     await page.getByText("From 2025-12-21 03:00 UTC", { exact: false }).waitFor();
@@ -3587,7 +3587,7 @@ test("an asset's page opens with one line on how it is doing right now", async (
     downtime: { id: "fz-downtime-1", start: "2026-11-10T10:00", end: null, reason: "Gas lift valve failure", open: true },
     incident: { id: "fz-incident-1", start: "2026-10-02", description: "Trip", total: 3 },
     well_test: { at: "2026-11-01", values: [{ quantity: "water_cut", value: 53.7, unit: "%" },
-      { quantity: "oil_rate", value: 40.2, unit: "Sm3/d" }, { quantity: "wellhead_pressure", value: 23.6, unit: "barg" }] } };
+      { quantity: "oil_rate", value: 40.2, unit: "bbl/d" }, { quantity: "wellhead_pressure", value: 23.6, unit: "barg" }] } };
   await page.route(`**/entities/${id}/status`, (route) => route.fulfill({ json: status }));
   await page.goto(`${url}/#/e/${id}`);
   const line = page.getByRole("status", { name: "Status now" });
@@ -3595,7 +3595,7 @@ test("an asset's page opens with one line on how it is doing right now", async (
   assert.match(await line.innerText(), /since 2026-11-10: Gas lift valve failure/);
   assert.match(await line.innerText(), /2 open exceptions/);
   assert.match(await line.innerText(), /Last incident 2026-10-02 of 3/);
-  assert.match(await line.innerText(), /Last test 2026-11-01: oil rate 40.2 Sm3\/d · water cut 53.7 %/);
+  assert.match(await line.innerText(), /Last test 2026-11-01: oil rate 40.2 bbl\/d · water cut 53.7 %/);
   // With nothing open it says so, and claims nothing it has no record of.
   status.downtime.open = false; status.downtime.end = "2026-11-11T10:00"; status.open_work = 0;
   await page.reload();
@@ -3664,7 +3664,7 @@ test("a turnaround shows its scope on the plan and brings planned work into it",
   const scope = { revision: "TA26", revisions: ["TA26"], as_of: "2026-11-09", planned_start: "2026-11-20",
     scoped_work: [{ id: "fz-wo-1", order: "4000002", tag: "P-101", tag_id: "fz-equipment-0123456789ab", priority: "2",
       text: "North train overhaul", planned_start: "2026-11-20", status: "CRTD" }],
-    shutdown_plans_not_in_scope: [], bad_actors_not_in_scope: [{ id: "fz-equipment-1", tag: "K-201", failures: 4, lost_oil_sm3: 900 }],
+    shutdown_plans_not_in_scope: [], bad_actors_not_in_scope: [{ id: "fz-equipment-1", tag: "K-201", failures: 4, lost_oil_bbl: 900 }],
     spares_out_of_stock: [{ for: "P-101", material: "Mech seal", id: "fz-material-1", description: "seal kit" }],
     window: { start: "2026-11-20T00:00:00Z", end: "2026-11-25T00:00:00Z" }, on_plan: [],
     ride_along: [item(5, "Repack P-102", { needs_shutdown: false, kind: "maintenance", start_at: "2026-11-10T00:00:00Z" })],
@@ -4087,8 +4087,8 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
   totals: { open_work: 1, alarms: 1, down: 1 }, alarm_hours: 2 };
   const trip = { item: { id: "K-1", label: "K-1" }, hours: 24, units: [{ id: "K-1", label: "K-1" }],
     behind: [{ id: "M1", label: "M1" }, { id: "M2", label: "M2" }], starved: [{ id: "EXP", label: "EXP" }],
-    wells: [{ id: "W1", label: "W1", rates: { oil_rate: { value: 800, unit: "Sm3/d", at: "2026-11-01" } } }, { id: "W2", label: "W2", rates: {} }],
-    untested: ["W2"], at_risk: [{ quantity: "oil_rate", value: 800, unit: "Sm3" }], on_network: true,
+    wells: [{ id: "W1", label: "W1", rates: { oil_rate: { value: 800, unit: "bbl/d", at: "2026-11-01" } } }, { id: "W2", label: "W2", rates: {} }],
+    untested: ["W2"], at_risk: [{ quantity: "oil_rate", value: 800, unit: "bbl" }], on_network: true,
     basis: "An estimate: the wells behind it on the flow network at their latest test rate, for the window. It assumes nothing is rerouted and claims no hydraulics." };
   const reads = [];
   await page.route(/\/scene(\/(status|trip))?(\?|$)/, (route) => {
@@ -4149,7 +4149,7 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
   await tripCard.waitFor();
   const said = await tripCard.textContent();
   for (const words of ["If K-1 trips: an estimate over 24 h", "Behind it, with nowhere to flow: M1, M2", "Downstream, with nothing else feeding it: EXP",
-    "2 wells behind it", "Production at risk: oil 800 Sm3", "No well test for W2", "claims no hydraulics"]) assert.ok(said.includes(words), words);
+    "2 wells behind it", "Production at risk: oil 800 bbl", "No well test for W2", "claims no hydraulics"]) assert.ok(said.includes(words), words);
   await page.waitForFunction(() => document.querySelector("[data-scene-items]").dataset.sceneLit === "6");
 
   // A reroute moves a well to another header in the browser only; a shared link restores it.
@@ -6104,15 +6104,15 @@ test("Plan shows production at risk per shutdown window with the durations used 
         end: "2026-11-24T00:00:00Z", units: [{ id: "fz-k", label: "B1-K-2001" }], wells: 2 },
       { id: 2, title: "Compressor 4000-hour service", kind: "maintenance", hours: 24, assumed: "SAP maintenance plans give a due date, not an outage length: one day is assumed",
         start: "2026-11-24T00:00:00Z", end: "2026-11-25T00:00:00Z", units: [{ id: "fz-k", label: "B1-K-2001" }], wells: 2 }],
-      wells: [{ id: "w1", label: "KR 12-03H", hours: 72, rates: { gas_rate: { value: 841, unit: "kSm3/d", at: "2026-11-01" } } },
+      wells: [{ id: "w1", label: "KR 12-03H", hours: 72, rates: { gas_rate: { value: 841, unit: "kbbl/d", at: "2026-11-01" } } },
         { id: "w2", label: "KR 14-01H", hours: 72, rates: {} }],
-      at_risk: [{ quantity: "gas_rate", value: 2523, unit: "kSm3" }] }] } }));
+      at_risk: [{ quantity: "gas_rate", value: 2523, unit: "Mscf" }] }] } }));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/plan`);
   const card = page.locator(".plan-at-risk");
-  await card.getByText("Gas 2,523 kSm3").waitFor();
+  await card.getByText("Gas 2,523 Mscf").waitFor();
   await card.getByText("counted once", { exact: false }).waitFor();
-  await card.getByRole("button", { name: /Gas 2,523 kSm3/ }).click();
+  await card.getByRole("button", { name: /Gas 2,523 Mscf/ }).click();
   await card.getByText("Compressor valve change: 48 h down (B1-K-2001)").waitFor();
   await card.getByText("Assumption: SAP maintenance plans give a due date, not an outage length: one day is assumed.").waitFor();
   await card.getByText("No test on record, so not counted: KR 14-01H.").waitFor();
@@ -6182,14 +6182,14 @@ test("How the plant is running compares each KPI with the period before and show
       { key: "failures", label: "Failures", unit: "notifications", better: "lower", source: "SAP notifications on equipment",
         definition: "Failure notifications raised on equipment in the period.", now: side(3), before: side(6),
         change: -3, verdict: "better" },
-      { key: "flare", label: "Flare", unit: "kSm3", better: "lower", source: "daily production reports (EC DAY001)",
+      { key: "flare", label: "Flare", unit: "Mscf", better: "lower", source: "daily production reports (EC DAY001)",
         definition: "Gas flared.", now: side(null, { note: "no daily report in the period states flare" }), before: side(1200),
         change: null, verdict: "unknown" },
     ],
   } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
@@ -6205,9 +6205,9 @@ test("How the plant is running compares each KPI with the period before and show
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.goto(`${url}/#/metrics`);
   await page.getByRole("link", { name: "How the plant is running" }).click();
   await page.getByRole("heading", { name: "How the plant is running" }).waitFor();
@@ -6238,14 +6238,14 @@ test("Wells under their own forecast are listed with the field line, and thin we
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: {
-    since: "2024-12-31", until: "2025-12-31", unit: "Sm3/d oil", source: "well tests (the actual)",
+    since: "2024-12-31", until: "2025-12-31", unit: "bbl/d oil", source: "well tests (the actual)",
     note: "A gap is a lead for review; the reservoir cause stays unknown.",
-    field: { wells_compared: 2, forecast_sm3d: 170, actual_sm3d: 135, gap_sm3d: -35, below_forecast: ["OK-J03-02"], above_forecast: [] },
+    field: { wells_compared: 2, forecast_bbld: 170, actual_bbld: 135, gap_bbld: -35, below_forecast: ["OK-J03-02"], above_forecast: [] },
     wells: [
-      { id: "fz-well-1", well: "OK-J03-02", verdict: "below_forecast", gap_sm3d: -33.7, below_since: "2025-06-08",
-        latest: { at: "2025-12-21", actual_sm3d: 50.5, forecast_sm3d: 84.2, low_sm3d: 84.0, high_sm3d: 84.4 },
-        downtime: [{ id: "fz-downtime-1", start: "2025-07-13T08:00", reason: "Well intervention", lost_oil_sm3: 76 }] },
-      { id: "fz-well-2", well: "OK-J07-05", verdict: "on_forecast", gap_sm3d: 5.5, downtime: [] },
+      { id: "fz-well-1", well: "OK-J03-02", verdict: "below_forecast", gap_bbld: -33.7, below_since: "2025-06-08",
+        latest: { at: "2025-12-21", actual_bbld: 50.5, forecast_bbld: 84.2, low_bbld: 84.0, high_bbld: 84.4 },
+        downtime: [{ id: "fz-downtime-1", start: "2025-07-13T08:00", reason: "Well intervention", lost_oil_bbl: 76 }] },
+      { id: "fz-well-2", well: "OK-J07-05", verdict: "on_forecast", gap_bbld: 5.5, downtime: [] },
     ],
     not_fitted: [{ id: "fz-well-3", well: "OK-J01-01", tests_before: 3, reason: "3 readings, fewer than the 6 it needs" }],
   } }));
@@ -6264,14 +6264,14 @@ test("Wells under their own forecast are listed with the field line, and thin we
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".wells-forecast");
-  await card.getByText("Across 2 wells the latest tests make 135 Sm3/d against a forecast of 170 Sm3/d", { exact: false }).waitFor();
+  await card.getByText("Across 2 wells the latest tests make 135 bbl/d against a forecast of 170 bbl/d", { exact: false }).waitFor();
   const row = card.locator('tr[data-well="OK-J03-02"]');
-  await row.getByText("-33.7 Sm3/d").waitFor();
+  await row.getByText("-33.7 bbl/d").waitFor();
   await row.getByText("2025-06-08").waitFor();
   await row.getByText("Well intervention").waitFor();
   assert.equal(await card.locator('tr[data-well="OK-J07-05"]').count(), 0);  // on its decline: not a lead
@@ -6289,8 +6289,8 @@ test("Cost of unreliability shows each part with its currency and never adds an 
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
@@ -6306,21 +6306,21 @@ test("Cost of unreliability shows each part with its currency and never adds an 
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: {
-    since: "2024-12-31", until: "2025-12-31", price: { oil_sm3: 470, currency: "USD", source: "pack okan" },
+    since: "2024-12-31", until: "2025-12-31", price: { oil_bbl: 470, currency: "USD", source: "pack okan" },
     order_currencies: ["USD", "unknown"], units_total: 2, source: "downtime and corrective orders",
     note: "An operational estimate, not a financial figure.",
     units: [
-      { id: "fz-tag-1", unit: "40-V-2002", description: "ST2 Production Separator", lost_oil_sm3: 300, lost_oil_value: 141000,
+      { id: "fz-tag-1", unit: "40-V-2002", description: "ST2 Production Separator", lost_oil_bbl: 300, lost_oil_value: 141000,
         order_cost: { unknown: 55936 }, orders: 1, orders_without_cost: 0, total: null, total_currency: null,
         why_no_total: "its order cost has no currency in the source, not USD, so the parts aren't added" },
-      { id: "fz-tag-2", unit: "20-K-2300A", description: null, lost_oil_sm3: 200, lost_oil_value: 94000,
+      { id: "fz-tag-2", unit: "20-K-2300A", description: null, lost_oil_bbl: 200, lost_oil_value: 94000,
         order_cost: { USD: 6000 }, orders: 2, orders_without_cost: 1, total: 100000, total_currency: "USD", why_no_total: null },
     ] } }));
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".cost-unreliability");
-  await card.getByText("Lost oil at 470 USD per Sm3 (pack okan)", { exact: false }).waitFor();
+  await card.getByText("Lost oil at 470 USD per bbl (pack okan)", { exact: false }).waitFor();
   const sep = card.locator('tr[data-unit="40-V-2002"]');
   await sep.getByText("141,000 USD").waitFor();
   await sep.getByText("55,936 (currency unknown)").waitFor();
@@ -6340,10 +6340,10 @@ test("Interventions show their gain net of decline, and unknown where a side has
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
@@ -6360,11 +6360,11 @@ test("Interventions show their gain net of decline, and unknown where a side has
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: {
     since: "2024-01-01", until: "2025-12-31", source: "downtime records and well tests",
     note: "Attribution is not proof.",
-    summary: { interventions: 2, said: 1, unknown: 1, gained: 0, lost: 0, no_clear_change: 1, net_gain_sm3d: 20.7 },
+    summary: { interventions: 2, said: 1, unknown: 1, gained: 0, lost: 0, no_clear_change: 1, net_gain_bbld: 20.7 },
     interventions: [
       { id: "fz-downtime-1", well_id: "fz-well-1", well: "OK-J20-01", start: "2024-04-04T08:00", reason: "Well intervention",
-        verdict: "no_clear_change", tests_before: 3, tests_after: 3, oil_before_sm3d: 59.6, oil_after_sm3d: 65.6,
-        oil_expected_sm3d: 45, oil_range_sm3d: [29.2, 69.7], gain_sm3d: 20.7, water_cut_change_pct: 2.2, gor_change: 3 },
+        verdict: "no_clear_change", tests_before: 3, tests_after: 3, oil_before_bbld: 59.6, oil_after_bbld: 65.6,
+        oil_expected_bbld: 45, oil_range_bbld: [29.2, 69.7], gain_bbld: 20.7, water_cut_change_pct: 2.2, gor_change: 3 },
       { id: "fz-downtime-2", well_id: "fz-well-2", well: "OK-J14-05", start: "2024-01-07T08:00", reason: "Well intervention",
         verdict: "unknown", why: "too few tests before it to net out decline: 1 reading, fewer than the 3 it needs",
         tests_before: 1, tests_after: 4, water_cut_change_pct: 1.4, gor_change: null },
@@ -6373,7 +6373,7 @@ test("Interventions show their gain net of decline, and unknown where a side has
   const card = page.locator(".intervention-gains");
   await card.getByText("2 interventions, 0 gained, 0 lost, 1 no clear change, 1 unknown", { exact: false }).waitFor();
   const one = card.locator('tr[data-intervention="OK-J20-01 2024-04-04"]');
-  await one.getByText("+20.7 Sm3/d net of decline").waitFor();
+  await one.getByText("+20.7 bbl/d net of decline").waitFor();
   await one.getByText("90% range 29.2 to 69.7").waitFor();
   const unk = card.locator('tr[data-intervention="OK-J14-05 2024-01-07"]');
   await unk.locator(".intervention-verdict").getByText("unknown").waitFor();
@@ -6398,10 +6398,10 @@ test("Across assets compares granted fields on the same KPIs and names the ones 
     projects: [{ project: "okan", scorecard: card("2025-12-30", 99.5, "better") },
                { project: "ridge", scorecard: card("2026-11-11", null, "unknown") }] } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
   await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
   await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
@@ -6415,7 +6415,7 @@ test("Across assets compares granted fields on the same KPIs and names the ones 
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.goto(`${url}/#/scorecard`);
   const fleet = page.locator(".across-assets");
   await fleet.getByRole("columnheader", { name: /ridge/ }).waitFor();
@@ -6429,21 +6429,21 @@ test("Across assets compares granted fields on the same KPIs and names the ones 
 });
 
 // P7.5c (#372): against the accounts. A month's daily reports against what production accounting closed, both
-// sources and both periods cited; a month accounting hasn't closed concludes nothing; cost per Sm3 stays per currency.
+// sources and both periods cited; a month accounting hasn't closed concludes nothing; cost per bbl stays per currency.
 test("Against the accounts cites both sources and periods, and keeps currencies apart (#372)", async () => {
   await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   const op = (since, through, days, value) => ({ value, days, days_expected: 31, since, through,
     refs: ["fz-production_day-1", "fz-production_day-2"], source: "daily allocated production" });
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
@@ -6462,28 +6462,28 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
       note: "The accounted volume is the authority.",
       summary: { agrees: 1, differs: 1, preliminary: 1, incomplete: 0, no_accounting: 0, no_operational: 0 },
       months: [
-        { period: "2025-12", product: "oil", unit: "Sm3", difference: 1300, difference_pct: 0.59, verdict: "preliminary",
+        { period: "2025-12", product: "oil", unit: "bbl", difference: 1300, difference_pct: 0.59, verdict: "preliminary",
           why: "accounting hasn't closed 2025-12 (preliminary); daily reports cover 30 of its 31 days",
           operational: op("2025-12-01", "2025-12-30", 30, 222000), accounting: { value: 220700, status: "preliminary",
             since: "2025-12-01", through: "2025-12-31", comment: null, record: "fz-accounting_volume-12", source: "" } },
-        { period: "2025-08", product: "oil", unit: "Sm3", difference: 7400, difference_pct: 3.3, verdict: "differs",
+        { period: "2025-08", product: "oil", unit: "bbl", difference: 7400, difference_pct: 3.3, verdict: "differs",
           why: "the daily reports sum +3.3 % against the accounted volume; for production accounting to resolve",
           operational: op("2025-08-01", "2025-08-31", 31, 231400), accounting: { value: 224000, status: "final",
             since: "2025-08-01", through: "2025-08-31", comment: "Export meter proved 2025-08-14; new factor applied to the month.",
             record: "fz-accounting_volume-8", source: "" } },
-        { period: "2025-07", product: "oil", unit: "Sm3", difference: 900, difference_pct: 0.4, verdict: "agrees",
+        { period: "2025-07", product: "oil", unit: "bbl", difference: 900, difference_pct: 0.4, verdict: "agrees",
           why: "within 1 % of the accounted volume", operational: op("2025-07-01", "2025-07-31", 31, 230000),
           accounting: { value: 229100, status: "final", since: "2025-07-01", through: "2025-07-31", comment: null,
             record: "fz-accounting_volume-7", source: "" } },
       ] },
     unit_cost: { since: "2024-12-31", until: "2025-12-31", currencies: ["NGN", "USD"], sources: { cost: "cost ledger",
       volume: "production accounting" }, note: "Each currency apart.",
-      window: { USD: { cost: 4762829, oil_sm3: 226142, per_sm3: 21.06 }, NGN: { cost: 382107919, oil_sm3: 226142, per_sm3: 1689.68 } },
+      window: { USD: { cost: 4762829, oil_bbl: 226142, per_bbl: 21.06 }, NGN: { cost: 382107919, oil_bbl: 226142, per_bbl: 1689.68 } },
       months: [
-        { period: "2025-11", currency: "USD", cost: 4762829, by_element: { Maintenance: 1635550 }, oil_sm3: 226142,
-          oil_status: "final", per_sm3: 21.06, why_unknown: null, refs: [] },
-        { period: "2025-11", currency: "NGN", cost: 382107919, by_element: { Logistics: 382107919 }, oil_sm3: 226142,
-          oil_status: "final", per_sm3: 1689.68, why_unknown: null, refs: [] },
+        { period: "2025-11", currency: "USD", cost: 4762829, by_element: { Maintenance: 1635550 }, oil_bbl: 226142,
+          oil_status: "final", per_bbl: 21.06, why_unknown: null, refs: [] },
+        { period: "2025-11", currency: "NGN", cost: 382107919, by_element: { Logistics: 382107919 }, oil_bbl: 226142,
+          oil_status: "final", per_bbl: 1689.68, why_unknown: null, refs: [] },
       ] } } }));
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".against-accounts");
@@ -6496,8 +6496,8 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
   const dec = card.locator('tr[data-month="2025-12 oil"]');
   await dec.locator(".accounts-verdict").getByText("preliminary").waitFor();
   await dec.getByText("30 of its 31 days", { exact: false }).waitFor();
-  await card.locator('[data-currency="USD"]').getByText("21.06 USD/Sm3").waitFor();
-  await card.locator('[data-currency="NGN"]').getByText("1,689.68 NGN/Sm3").waitFor();
+  await card.locator('[data-currency="USD"]').getByText("21.06 USD/bbl").waitFor();
+  await card.locator('[data-currency="NGN"]').getByText("1,689.68 NGN/bbl").waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -6511,13 +6511,13 @@ test("Incidents show repeats per unit, work that closed before a repeat, and ope
     since: "2024-01-01", until: "2025-12-31", as_of: "2025-12-30", follow_days: 30, source: "incidents and work orders",
     note: "Linked work is a proxy, not an action register.",
     units: [
-      { unit_id: "fz-tag-1", unit: "20-K-2300A", incidents: 3, repeat: true, days_between: [21, 335], lost_oil_sm3: 300,
+      { unit_id: "fz-tag-1", unit: "20-K-2300A", incidents: 3, repeat: true, days_between: [21, 335], lost_oil_bbl: 300,
         came_back_after_closed_work: [{ incident: "fz-incident-3", start: "2025-06-24", after: "fz-incident-2", closed_orders: ["fz-work_order-1"] }],
         items: [
           { id: "fz-incident-1", start: "2024-06-11", description: "tripped on high discharge temp", linked_orders: 0, open_orders: 0 },
           { id: "fz-incident-2", start: "2024-07-02", description: "tripped again", linked_orders: 1, open_orders: 0 },
           { id: "fz-incident-3", start: "2025-06-24", description: "tripped", linked_orders: 1, open_orders: 1 }] },
-      { unit_id: "fz-tag-2", unit: "20-V-2001", incidents: 1, repeat: false, days_between: [], lost_oil_sm3: 20,
+      { unit_id: "fz-tag-2", unit: "20-V-2001", incidents: 1, repeat: false, days_between: [], lost_oil_bbl: 20,
         came_back_after_closed_work: [], items: [{ id: "fz-incident-4", start: "2024-11-05", description: "level trip", linked_orders: 0, open_orders: 0 }] },
     ],
     open_work: [{ id: "fz-work_order-2", order: "50000300", type: "PM01", status: "REL", open: true, start: "2025-07-01",
@@ -6548,15 +6548,15 @@ test("The backlog burn shows created against closed and the lag, leaving out ord
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   const m = (month, created, closed, open) => ({ month, since: `${month}-01`, until: "", created, closed, net: created - closed,
     open_at_end: open, closed_without_finish: 0, by_type: {} });
@@ -6596,15 +6596,15 @@ test("The well screen shows water cut steps, GOR climbs and stale tests, with cu
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
@@ -6620,8 +6620,8 @@ test("The well screen shows water cut steps, GOR climbs and stale tests, with cu
     thresholds: { water_cut_step_points: 15, gor_rise: 1.3, stale_days: 90 },
     patterns: [
       { well_id: "fz-well-1", well: "OK-J03-02", verdict: "water_cut_step", tests: 40, gor_climb: null,
-        water_cut_step: { at: "2025-06-08", record: "t1", cum_oil_sm3: 46195, water_cut_before_pct: 25.2,
-          water_cut_after_pct: 72, oil_before_sm3d: 180, oil_after_sm3d: 70 } },
+        water_cut_step: { at: "2025-06-08", record: "t1", cum_oil_bbl: 46195, water_cut_before_pct: 25.2,
+          water_cut_after_pct: 72, oil_before_bbld: 180, oil_after_bbld: 70 } },
       { well_id: "fz-well-2", well: "OK-J05-01", verdict: "gor_climb", tests: 40, water_cut_step: null,
         gor_climb: { first_gor: 110, latest_gor: 160, ratio: 1.45 } }],
     staleness: { as_of: "2025-12-30", max_days: 90, note: "A test older than 90 days is stale.",
@@ -6639,7 +6639,7 @@ test("The well screen shows water cut steps, GOR climbs and stale tests, with cu
   await card.locator('tr[data-well="OK-J03-02"] .well-pattern').getByText("water cut step").waitFor();
   await card.locator('tr[data-well="OK-J03-02"]').getByText("Water cut 25.2% to 72% on 2025-06-08", { exact: false }).waitFor();
   await card.locator('tr[data-well="OK-J03-02"]').getByText("(estimated from tests)", { exact: false }).waitFor();
-  await card.locator('tr[data-well="OK-J05-01"]').getByText("GOR 110 to 160 Sm3/Sm3 (x1.45)", { exact: false }).waitFor();
+  await card.locator('tr[data-well="OK-J05-01"]').getByText("GOR 110 to 160 scf/bbl (x1.45)", { exact: false }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -6651,15 +6651,15 @@ test("Allocated oil against well tests shows the monthly factor, its flags and t
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
@@ -6669,7 +6669,7 @@ test("Allocated oil against well tests shows the monthly factor, its flags and t
   await page.route("**/plant/ldar", (route) => route.fulfill({ json: LDAR_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
   const m = (month, factor, raw, days, out, age) => ({ month, days, days_left_out: out,
-    left_out: { facility_or_tag_downtime: out, field_trip: 0 }, allocated_sm3: 0, offered_sm3: 0, factor,
+    left_out: { facility_or_tag_downtime: out, field_trip: 0 }, allocated_bbl: 0, offered_bbl: 0, factor,
     factor_ignoring_downtime: raw, wells_offering: 174, well_days_shut_in: 1, wells_without_a_live_test: 0,
     median_test_age_days: age, max_test_age_days: 40 });
   await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
@@ -6698,15 +6698,15 @@ test("Gas lift heading lists the heading wells with their cycle and the signals 
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
@@ -6722,9 +6722,9 @@ test("Gas lift heading lists the heading wells with their cycle and the signals 
     thresholds: { swing_pct: 2, same_period: 0.25, step_minutes: 5, min_readings: 288 },
     summary: { heading: 1, unstable: 0, steady: 141, too_little_data: 0, wells: 142 },
     wells: [
-      { well_id: "fz-well-1", well: "OK-J12-08", verdict: "heading", period_min: 75, casing_swing_bar: 2.6,
+      { well_id: "fz-well-1", well: "OK-J12-08", verdict: "heading", period_min: 75, casing_swing_psi: 2.6,
         casing_swing_pct: 4.2, r: 99, cycling_together: ["casing_pressure", "wellhead_pressure"] },
-      { well_id: "fz-well-2", well: "OK-J19-04", verdict: "steady", period_min: null, casing_swing_bar: 0.26,
+      { well_id: "fz-well-2", well: "OK-J19-04", verdict: "steady", period_min: null, casing_swing_psi: 0.26,
         casing_swing_pct: 0.4, r: 2.3, cycling_together: [] }] } }));
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".gas-lift-heading");
@@ -6745,15 +6745,15 @@ test("Separator and export quality shows each analyte against itself, gaps and d
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
@@ -6794,23 +6794,23 @@ test("Incidents show flare episodes with the records around them, or the cause u
   await page.route("**/feedback/briefs", (route) => route.fulfill({ json: { incidents: 0, rated: 0, ratings: 0, items: [] } }));
   await page.route("**/incidents/repeats", (route) => route.fulfill({ json: { units: [] } }));
   const ep = (start, volume, causes) => ({ source: "daily_report", subject: "fz-production_day-1", label: start, point: null,
-    start: `${start}T00:00`, end: "", peak: volume + 40, baseline: 40, uom: "kSm3/d", volume, volume_unit: "kSm3",
+    start: `${start}T00:00`, end: "", peak: volume + 40, baseline: 40, uom: "kbbl/d", volume, volume_unit: "Mscf",
     attributed: causes.length > 0, causes });
   await page.route("**/incidents/flare", (route) => route.fulfill({ json: {
     since: "2025-01-01", until: "2025-12-31", source: "daily report", thresholds: { day_spike: 1.5, day_base: 30, spike: 3 },
     note: "Evidence for the flaring report, not an emissions inventory or a compliance finding.",
-    days: [{ day: "2025-12-30", flare_ksm3: 40, baseline_ksm3: 40 }],
+    days: [{ day: "2025-12-30", flare_mscf: 40, baseline_mscf: 40 }],
     episodes: [
       ep("2025-11-08", 170, []),
       ep("2025-02-10", 1100, [{ kind: "downtime", id: "fz-downtime-1", at: "2025-02-10T08:00",
         text: "EXT-EGP Escravos Gas Plant curtailed export" }])],
-    summary: { days: 365, flare_ksm3: 16383, episodes: 2, attributed: 1, unknown: 1, over_baseline_ksm3: 1270,
-      explained_ksm3: 1100, explained_share_pct: 86.6, by_reason_ksm3: { "EXT-EGP": 1100, unknown: 170 } },
+    summary: { days: 365, flare_mscf: 16383, episodes: 2, attributed: 1, unknown: 1, over_baseline_mscf: 1270,
+      explained_mscf: 1100, explained_share_pct: 86.6, by_reason_mscf: { "EXT-EGP": 1100, unknown: 170 } },
     systems: [{ subject: "fz-tag-flr", label: "25-FT-4003", point: "fz-timeseries-flr", devices: 13, sources: [
       { area: "fz-area-10", area_label: "OKAN-10", area_name: "OKA_PP Okan Production Platform", devices: ["10-PSV-2001"], items: ["10-V-2001"] },
       { area: "fz-area-20", area_label: "OKAN-20", area_name: "OK_GGCP Okan Gas Gathering and Compression Platform", devices: ["20-PSV-2001"], items: ["20-V-2001"] }] }],
-    allocation: { ksm3: 16343, unit: "kSm3", source: "production accounting's daily flare allocation", sources: [
-      { source: "fz-area-20", label: "OKAN-20", name: "OK_GGCP Okan Gas Gathering and Compression Platform", ksm3: 11924,
+    allocation: { mscf: 16343, unit: "Mscf", source: "production accounting's daily flare allocation", sources: [
+      { source: "fz-area-20", label: "OKAN-20", name: "OK_GGCP Okan Gas Gathering and Compression Platform", mscf: 11924,
         share_pct: 73, by_kind: { routine: 10192, "non-routine: export curtailment": 1613 }, by_basis: { estimated: 9005, metered: 2919 } }] } } }));
   await page.goto(`${url}/#/incidents`);
   const card = page.locator(".flare-attribution");
@@ -6834,15 +6834,15 @@ test("Alarm performance shows the rate, floods and bad actors with their cases, 
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
@@ -6888,15 +6888,15 @@ test("Schedule compliance and repeat repairs per quarter, with too little data s
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
@@ -6934,15 +6934,15 @@ test("Water injection: voidage replacement and the Hall slope per injector, and 
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
@@ -6959,11 +6959,11 @@ test("Water injection: voidage replacement and the Hall slope per injector, and 
       verdict: "under_replacing", thresholds: { vrr_low: 0.9, vrr_high: 1.1, months: 3, test_days: 120 },
       summary: { months: 3, months_injecting: 2, latest_vrr: 0.62, cumulative_vrr: 0.5, injectors: ["OK-NWP-W1", "OK-NWP-W2"] },
       months: [
-        { month: "2024-06", oil_sm3: 230000, injected_sm3: 0, voidage_rm3: 440000, injected_rm3: 0, vrr: null, cumulative_vrr: null,
+        { month: "2024-06", oil_bbl: 230000, injected_bbl: 0, voidage_rb: 440000, injected_rb: 0, vrr: null, cumulative_vrr: null,
           injectors: [], status: "no_injection" },
-        { month: "2025-11", oil_sm3: 227000, injected_sm3: 307851, voidage_rm3: 503049, injected_rm3: 314008, vrr: 0.624,
+        { month: "2025-11", oil_bbl: 227000, injected_bbl: 307851, voidage_rb: 503049, injected_rb: 314008, vrr: 0.624,
           cumulative_vrr: 0.499, injectors: ["OK-NWP-W1", "OK-NWP-W2"], status: "injecting" },
-        { month: "2025-12", oil_sm3: 224000, injected_sm3: 303031, voidage_rm3: 503819, injected_rm3: 309092, vrr: 0.613,
+        { month: "2025-12", oil_bbl: 224000, injected_bbl: 303031, voidage_rb: 503819, injected_rb: 309092, vrr: 0.613,
           cumulative_vrr: 0.504, injectors: ["OK-NWP-W1", "OK-NWP-W2"], status: "injecting" }] },
     hall: { since: "2024-01-01", until: "2025-12-31", note: "Wellhead pressure.", verdict: "flagged",
       thresholds: { months: 3, rise: 1.25, fall: 0.8 },
@@ -6993,15 +6993,15 @@ test("Gas balance: the closure gap always shown, the open stretch with its zero 
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
@@ -7010,8 +7010,8 @@ test("Gas balance: the closure gap always shown, the open stretch with its zero 
   await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
   await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
   await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
-  const day = (date, fuel, gap, open) => ({ date, gas_in_ksm3: 3100, export: 1700, "lift gas": 1170, flare: 40, fuel, vent: 5,
-    gap_ksm3: gap, gap_pct: Math.round(gap / 31 * 100) / 100, open });
+  const day = (date, fuel, gap, open) => ({ date, gas_in_mscf: 3100, export: 1700, "lift gas": 1170, flare: 40, fuel, vent: 5,
+    gap_mscf: gap, gap_pct: Math.round(gap / 31 * 100) / 100, open });
   await page.route("**/plant/reservoir-pressure", (route) => route.fulfill({ json: RP_NONE }));
   await page.route("**/plant/ldar", (route) => route.fulfill({ json: LDAR_NONE }));
   let missing = false;
@@ -7021,16 +7021,16 @@ test("Gas balance: the closure gap always shown, the open stretch with its zero 
     since: "2025-01-01", until: "2025-12-31", note: "Evidence only, not an emissions inventory.", source: "", threshold_pct: 2,
     verdict: "closes_with_episodes", missing_terms: [],
     days: [day("2025-10-07", 0, 186, true), day("2025-10-08", 0, 190, true), day("2025-12-30", 186, 4, false)],
-    episodes: [{ start: "2025-09-15", end: "2025-10-08", days: 24, median_gap_pct: 6.05, gap_ksm3: 4500,
+    episodes: [{ start: "2025-09-15", end: "2025-10-08", days: 24, median_gap_pct: 6.05, gap_mscf: 4500,
       direction: "unaccounted", terms_reading_zero: ["fuel"] }],
-    summary: { days: 365, days_said: 365, days_open: 25, median_gap_pct: 0.1, episodes: 1, gas_in_ksm3: 1131500, gap_ksm3: 5000 } } }));
+    summary: { days: 365, days_said: 365, days_open: 25, median_gap_pct: 0.1, episodes: 1, gas_in_mscf: 1131500, gap_mscf: 5000 } } }));
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".gas-balance");
   await card.locator(".gb-summary").getByText("median closure gap 0.1% of the gas handled, 25 of 365 days open past ±2%", { exact: false }).waitFor();
   await card.locator(".gb-verdict").getByText("closes, with open stretches").waitFor();
   await card.locator('tr[data-start="2025-09-15"] td[data-label="Reading zero"]').getByText("fuel").waitFor();
   await card.locator('tr[data-start="2025-09-15"] td[data-label="Gap"]').getByText("6.05% (gas unaccounted for)").waitFor();
-  await card.locator('tr[data-date="2025-12-30"] td[data-label="Gap"]').getByText("4 kSm³", { exact: false }).waitFor();
+  await card.locator('tr[data-date="2025-12-30"] td[data-label="Gap"]').getByText("4 Mscf", { exact: false }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -7038,7 +7038,7 @@ test("Gas balance: the closure gap always shown, the open stretch with its zero 
   await page.reload();
   await page.locator(".gas-balance .gb-missing").getByText("carries no fuel or vent, so the gap includes it").waitFor();
   await page.locator('.gas-balance tr[data-date="2025-12-30"] td[data-label="Fuel"]').getByText("not reported").waitFor();
-  await page.locator('.gas-balance tr[data-date="2025-12-30"] td[data-label="Gap"]').getByText("190 kSm³", { exact: false }).waitFor();
+  await page.locator('.gas-balance tr[data-date="2025-12-30"] td[data-label="Gap"]').getByText("190 Mscf", { exact: false }).waitFor();
 });
 
 test("Reservoir pressure: the material balance and each well’s productivity index, with their assumptions shown (#364)", async () => {
@@ -7046,15 +7046,15 @@ test("Reservoir pressure: the material balance and each well’s productivity in
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
@@ -7066,14 +7066,14 @@ test("Reservoir pressure: the material balance and each well’s productivity in
   await page.route("**/plant/gas-balance", (route) => route.fulfill({ json: GB_NONE }));
   await page.route("**/plant/ldar", (route) => route.fulfill({ json: LDAR_NONE }));
   await page.route("**/plant/reservoir-pressure", (route) => route.fulfill({ json: {
-    productivity: { verdict: "flagged", unit: "Sm3/d per bar", threshold: 0.75, note: "", assumptions: ["Straight-line inflow above the bubble point."],
+    productivity: { verdict: "flagged", unit: "bbl/d per bar", threshold: 0.75, note: "", assumptions: ["Straight-line inflow above the bubble point."],
       wells: [{ well: "OK-J01-04", first_pi: 2.5, latest_pi: 2.6, ratio: 1.04, verdict: "holding" },
         { well: "OK-J05-02", first_pi: 3.9, latest_pi: 2.4, ratio: 0.61, verdict: "fallen" }] },
     material_balance: { since: "2024-01-01", until: "2025-12-31", verdict: "fitted", note: "", assumptions: ["One tank: every surveyed well sees the same reservoir."],
-      bar_per_million_rm3: 2.56, compressible_volume_rm3_per_bar: 390649, r2: 0.991, wells: 12, decline_bar_per_year: 5.9 } } }));
+      psi_per_million_rb: 2.56, compressible_volume_rb_per_psi: 390649, r2: 0.991, wells: 12, decline_psi_per_year: 5.9 } } }));
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".reservoir-pressure");
-  await card.locator(".rp-summary").getByText("2.56 bar per million reservoir m³ taken out net of injection (r² 0.991, 12 wells): about 5.9 bar a year", { exact: false }).waitFor();
+  await card.locator(".rp-summary").getByText("2.56 psi per million reservoir barrels taken out net of injection (r² 0.991, 12 wells): about 5.9 psi a year", { exact: false }).waitFor();
   await card.locator('tr[data-well="OK-J05-02"]').getByText("fallen").waitFor();
   await card.locator('tr[data-well="OK-J05-02"]').getByText("0.61 times the first", { exact: false }).waitFor();
   await card.locator(".rp-assumptions").getByText("One tank", { exact: false }).waitFor();
@@ -7088,15 +7088,15 @@ test("Leak surveys: the repeat leaker, the surveys and what they missed, and uns
     days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
     kpis: [], unknown: [], note: "" } }));
   await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
-      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
+      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_sm3d: null } } }));
+      net_gain_bbld: null } } }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));

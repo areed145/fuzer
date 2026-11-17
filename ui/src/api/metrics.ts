@@ -72,10 +72,10 @@ export interface WellForecast {
   id: string;
   well: string;
   verdict: "below_forecast" | "above_forecast" | "on_forecast" | "no_test_in_window" | "too_little_data";
-  gap_sm3d?: number | null;
+  gap_bbld?: number | null;
   below_since?: string | null;
-  latest?: { at: string; actual_sm3d: number; forecast_sm3d: number; low_sm3d: number | null; high_sm3d: number | null };
-  downtime: { id: string; start: string; reason: string | null; lost_oil_sm3: number | null }[];
+  latest?: { at: string; actual_bbld: number; forecast_bbld: number; low_bbld: number | null; high_bbld: number | null };
+  downtime: { id: string; start: string; reason: string | null; lost_oil_bbl: number | null }[];
 }
 
 export interface ForecastVsActual {
@@ -85,7 +85,7 @@ export interface ForecastVsActual {
   unit: string;
   wells: WellForecast[];
   not_fitted: { id: string; well: string; tests_before: number; reason: string }[];
-  field: { wells_compared: number; forecast_sm3d: number; actual_sm3d: number; gap_sm3d: number;
+  field: { wells_compared: number; forecast_bbld: number; actual_bbld: number; gap_bbld: number;
     below_forecast: string[]; above_forecast: string[] };
   note: string;
 }
@@ -96,7 +96,7 @@ export interface UnreliabilityUnit {
   id: string;
   unit: string;
   description: string | null;
-  lost_oil_sm3: number;
+  lost_oil_bbl: number;
   lost_oil_value: number;
   order_cost: Record<string, number>;
   orders: number;
@@ -109,7 +109,7 @@ export interface UnreliabilityUnit {
 export interface CostOfUnreliability {
   since: string;
   until: string;
-  price: { oil_sm3: number; currency: string; source: string };
+  price: { oil_bbl: number; currency: string; source: string };
   order_currencies: string[];
   units: UnreliabilityUnit[];
   units_total: number;
@@ -128,11 +128,11 @@ export interface InterventionGain {
   why?: string | null;
   tests_before: number;
   tests_after: number;
-  oil_before_sm3d?: number;
-  oil_after_sm3d?: number;
-  oil_expected_sm3d?: number;
-  oil_range_sm3d?: [number, number] | null;
-  gain_sm3d?: number;
+  oil_before_bbld?: number;
+  oil_after_bbld?: number;
+  oil_expected_bbld?: number;
+  oil_range_bbld?: [number, number] | null;
+  gain_bbld?: number;
   water_cut_change_pct: number | null;
   gor_change: number | null;
 }
@@ -143,7 +143,7 @@ export interface InterventionGains {
   source: string;
   interventions: InterventionGain[];
   summary: { interventions: number; said: number; unknown: number; gained: number; lost: number;
-    no_clear_change: number; net_gain_sm3d: number | null };
+    no_clear_change: number; net_gain_bbld: number | null };
   note: string;
 }
 
@@ -167,9 +167,9 @@ export interface UnitCostMonth {
   currency: string;
   cost: number;
   by_element: Record<string, number>;
-  oil_sm3: number | null;
+  oil_bbl: number | null;
   oil_status: string | null;
-  per_sm3: number | null;
+  per_bbl: number | null;
   why_unknown: string | null;
   refs: string[];
 }
@@ -179,7 +179,7 @@ export interface PlantAccounting {
     summary: Record<AccountingMonth["verdict"], number>; sources: { operational: string; accounting: string };
     note: string };
   unit_cost: { since: string; until: string; currencies: string[]; months: UnitCostMonth[];
-    window: Record<string, { cost: number; oil_sm3: number; per_sm3: number }>;
+    window: Record<string, { cost: number; oil_bbl: number; per_bbl: number }>;
     sources: { cost: string; volume: string }; note: string };
 }
 
@@ -201,8 +201,8 @@ export interface WellScreen {
   wells_screened: number; source: string; note: string;
   thresholds: { water_cut_step_points: number; gor_rise: number; stale_days: number };
   patterns: { well_id: string; well: string; verdict: "water_cut_step" | "gor_climb"; tests: number;
-    water_cut_step: { at: string; record: string; cum_oil_sm3: number; water_cut_before_pct: number;
-      water_cut_after_pct: number; oil_before_sm3d: number | null; oil_after_sm3d: number | null } | null;
+    water_cut_step: { at: string; record: string; cum_oil_bbl: number; water_cut_before_pct: number;
+      water_cut_after_pct: number; oil_before_bbld: number | null; oil_after_bbld: number | null } | null;
     gor_climb: { first_gor: number; latest_gor: number; ratio: number } | null }[];
   staleness: { as_of: string; max_days: number; note: string;
     summary: { current: number; stale: number; no_test_on_file: number; wells: number; stale_share_pct: number | null;
@@ -227,19 +227,19 @@ export interface WorkExecution {
 export interface FlareReview {
   since: string; until: string; source: string; note: string;
   thresholds: { day_spike: number; day_base: number; spike: number };
-  days: { day: string; flare_ksm3: number; baseline_ksm3: number | null }[];
+  days: { day: string; flare_mscf: number; baseline_mscf: number | null }[];
   episodes: { source: "point" | "daily_report"; subject: string; label: string; point: string | null; start: string;
     end: string; peak: number; baseline: number; uom: string | null; volume: number; volume_unit: string | null;
     attributed: boolean; causes: { kind: "downtime" | "log_entry" | "detection"; id: string; at: string; text: string }[] }[];
-  summary: { days: number; flare_ksm3: number; episodes: number; attributed: number; unknown: number;
-    over_baseline_ksm3: number; explained_ksm3: number; explained_share_pct: number | null;
-    by_reason_ksm3: Record<string, number> };
+  summary: { days: number; flare_mscf: number; episodes: number; attributed: number; unknown: number;
+    over_baseline_mscf: number; explained_mscf: number; explained_share_pct: number | null;
+    by_reason_mscf: Record<string, number> };
   /** Each metered flare and what is piped into it, by the area of the item each device relieves. */
   systems?: { subject: string; label: string; point: string; devices: number;
     sources: { area: string | null; area_label: string | null; area_name: string | null; devices: string[]; items: string[] }[] }[];
   /** The flare production accounting allocated back to each source over the window. */
-  allocation?: { ksm3: number; unit: string; source: string;
-    sources: { source: string; label: string; name: string; ksm3: number; share_pct: number | null;
+  allocation?: { mscf: number; unit: string; source: string;
+    sources: { source: string; label: string; name: string; mscf: number; share_pct: number | null;
       by_kind: Record<string, number>; by_basis: Record<string, number> }[] } | null;
 }
 
@@ -260,7 +260,7 @@ export interface GasLiftStability {
   thresholds: { swing_pct: number; same_period: number; step_minutes: number; min_readings: number };
   summary: { heading: number; unstable: number; steady: number; too_little_data: number; wells: number };
   wells: { well_id: string; well: string; verdict: "heading" | "unstable" | "steady" | "too_little_data";
-    period_min?: number | null; cycling_together?: string[]; casing_swing_bar?: number; casing_swing_pct?: number | null;
+    period_min?: number | null; cycling_together?: string[]; casing_swing_psi?: number; casing_swing_pct?: number | null;
     r?: number }[];
 }
 
@@ -282,7 +282,7 @@ export interface AllocationFactor {
   flags: ("low" | "high" | "drifting")[];
   months: { month: string; days: number; days_left_out: number;
     left_out: { facility_or_tag_downtime: number; field_trip: number };
-    allocated_sm3: number; offered_sm3: number; factor: number | null; factor_ignoring_downtime: number | null;
+    allocated_bbl: number; offered_bbl: number; factor: number | null; factor_ignoring_downtime: number | null;
     wells_offering: number; well_days_shut_in: number; wells_without_a_live_test: number;
     median_test_age_days: number | null; max_test_age_days: number | null }[];
   summary: { months: number; factor: number | null; first_months_factor: number | null;
@@ -295,8 +295,8 @@ export interface WaterInjection {
   voidage: {
     since: string; until: string; note: string; source?: string; missing_pvt: string[];
     verdict: "under_replacing" | "balanced" | "over_injecting" | "no_injection" | "unknown" | "no_daily_report";
-    months: { month: string; oil_sm3: number; injected_sm3: number; voidage_rm3: number | null;
-      injected_rm3: number | null; vrr: number | null; cumulative_vrr: number | null; injectors: string[];
+    months: { month: string; oil_bbl: number; injected_bbl: number; voidage_rb: number | null;
+      injected_rb: number | null; vrr: number | null; cumulative_vrr: number | null; injectors: string[];
       status: "injecting" | "no_injection" | "unknown" }[];
     summary: { months: number; months_injecting?: number; latest_vrr?: number | null; cumulative_vrr?: number | null;
       injectors?: string[] };
@@ -315,13 +315,13 @@ export interface GasBalance {
   since: string; until: string; note: string; source?: string; threshold_pct: number;
   verdict: "closes" | "closes_with_episodes" | "open" | "unknown" | "no_daily_report";
   missing_terms: string[];
-  days: { date: string; gas_in_ksm3: number | null; export: number | null; "lift gas": number | null;
-    flare: number | null; fuel: number | null; vent: number | null; gap_ksm3: number | null; gap_pct: number | null;
+  days: { date: string; gas_in_mscf: number | null; export: number | null; "lift gas": number | null;
+    flare: number | null; fuel: number | null; vent: number | null; gap_mscf: number | null; gap_pct: number | null;
     open: boolean | null }[];
-  episodes: { start: string; end: string; days: number; median_gap_pct: number; gap_ksm3: number;
+  episodes: { start: string; end: string; days: number; median_gap_pct: number; gap_mscf: number;
     direction: "unaccounted" | "over_accounted"; terms_reading_zero: string[] }[];
   summary: { days: number; days_said?: number; days_open?: number; median_gap_pct?: number | null; episodes?: number;
-    gas_in_ksm3?: number; gap_ksm3?: number };
+    gas_in_mscf?: number; gap_mscf?: number };
 }
 
 /** Reservoir pressure (#364): productivity index per surveyed well and the one-tank material balance. */
@@ -333,8 +333,8 @@ export interface ReservoirPressure {
   };
   material_balance: {
     since: string; until: string; verdict: "fitted" | "insufficient" | "unknown"; note: string; assumptions: string[];
-    bar_per_million_rm3?: number; compressible_volume_rm3_per_bar?: number; r2?: number; wells?: number;
-    decline_bar_per_year?: number;
+    psi_per_million_rb?: number; compressible_volume_rb_per_psi?: number; r2?: number; wells?: number;
+    decline_psi_per_year?: number;
   };
 }
 

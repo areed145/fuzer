@@ -1,4 +1,4 @@
-"""Positions along a line and down a hole (#61): pipelines locate things by station, metres from the line's start
+"""Positions along a line and down a hole (#61): pipelines locate things by station, feet from the line's start
 (PODS, in-line inspection), and wells by depth along the hole (MD) and true vertical depth (TVD), not by map
 coordinates.
 
@@ -21,26 +21,31 @@ from psycopg.types.json import Jsonb
 
 from .spatial import _coords, metres
 
+FT_PER_M = 3.28084
+SNAP_FT = 1.0  # a station within this of the route's end is at its end
 
-def stationing(route: dict, length_m: float | None = None) -> list[tuple[float, float, float]]:
-    """(station_m, lon, lat) for each vertex of a LineString route, scaled to `length_m` when given."""
+
+def stationing(route: dict, length_ft: float | None = None) -> list[tuple[float, float, float]]:
+    """(station_ft, lon, lat) for each vertex of a LineString route, scaled to `length_ft` when given."""
     pts = [(float(p[0]), float(p[1])) for p in _coords(route or {})]
     if not pts:
         return []
     run = [0.0]
     for a, b in pairwise(pts):
-        run.append(run[-1] + metres(a, b))
-    k = length_m / run[-1] if length_m and run[-1] else 1.0
+        run.append(run[-1] + metres(a, b) * FT_PER_M)
+    k = length_ft / run[-1] if length_ft and run[-1] else 1.0
     return [(s * k, x, y) for s, (x, y) in zip(run, pts)]
 
 
-def at(stations: list[tuple[float, float, float]], station_m: float) -> tuple[float, float] | None:
+def at(stations: list[tuple[float, float, float]], station_ft: float) -> tuple[float, float] | None:
     """The point at a station (lon, lat), interpolated along the route; None off either end of it."""
-    if not stations or station_m < 0 or station_m > stations[-1][0] + 1e-6:
+    if not stations or station_ft < 0 or station_ft > stations[-1][0] + SNAP_FT:
         return None
+    if station_ft >= stations[-1][0] - SNAP_FT:  # a length and a station rounded apart by the unit conversion
+        return stations[-1][1], stations[-1][2]
     for (s0, x0, y0), (s1, x1, y1) in pairwise(stations):
-        if station_m <= s1:
-            f = (station_m - s0) / (s1 - s0) if s1 > s0 else 0.0
+        if station_ft <= s1:
+            f = (station_ft - s0) / (s1 - s0) if s1 > s0 else 0.0
             return (round(x0 + f * (x1 - x0), 6), round(y0 + f * (y1 - y0), 6))
     return stations[-1][1], stations[-1][2]
 
@@ -65,13 +70,13 @@ def build(conn) -> dict:
     lines = {}
     for r in conn.execute(
         """
-        select e.fuzer_id, gi.geometry, l.value #>> '{}' as length_km
+        select e.fuzer_id, gi.geometry, l.value #>> '{}' as length_mi
         from entity e join geo_index gi using (fuzer_id)
-        left join golden l on l.fuzer_id = e.fuzer_id and l.field = 'length_km'
+        left join golden l on l.fuzer_id = e.fuzer_id and l.field = 'length_mi'
         where e.kind = 'pipeline' and gi.geom_type = 'LineString'
         """):
-        km = _num(r["length_km"])
-        lines[r["fuzer_id"]] = stationing(r["geometry"], km * 1000 if km else None)
+        mi = _num(r["length_mi"])
+        lines[r["fuzer_id"]] = stationing(r["geometry"], mi * 5280 if mi else None)
 
     def stations(fid: str, *fields: str) -> list:
         return [_num(r["v"]) for f in fields for r in conn.execute(
@@ -82,7 +87,7 @@ def build(conn) -> dict:
     for r in conn.execute(
         "select e.src, e.dst from edge e join entity s on s.fuzer_id = e.src and s.kind = 'pipeline_segment' "
         "join entity p on p.fuzer_id = e.dst and p.kind = 'pipeline' where e.rel = 'part_of' and e.valid_to is null"):
-        a, b = (stations(r["src"], f)[0] for f in ("station_from_m", "station_to_m"))
+        a, b = (stations(r["src"], f)[0] for f in ("station_from_ft", "station_to_ft"))
         if a is None or b is None or b <= a:
             continue
         segments.setdefault(r["dst"], []).append((a, b, r["src"]))
@@ -93,7 +98,7 @@ def build(conn) -> dict:
     for r in conn.execute(
         "select e.src, e.dst from edge e join entity f on f.fuzer_id = e.src and f.kind = 'pipeline_feature' "
         "join entity p on p.fuzer_id = e.dst and p.kind = 'pipeline' where e.rel = 'found_on' and e.valid_to is null"):
-        s = stations(r["src"], "station_m")[0]
+        s = stations(r["src"], "station_ft")[0]
         if s is None:
             continue
         # a station on a boundary belongs to the segment it starts
@@ -102,7 +107,7 @@ def build(conn) -> dict:
         held = [seg for a, b, seg in mine if a <= s < b or s == b == end]
         if held:
             links.append((r["src"], "found_on", held[0], ["positions"], 1.0,
-                          Jsonb({"station_m": s, "line": r["dst"], "method": "station"})))
+                          Jsonb({"station_ft": s, "line": r["dst"], "method": "station"})))
         else:
             unheld += 1
         if p := at(lines.get(r["dst"], []), s):
@@ -157,8 +162,8 @@ def along(conn, fuzer_id: str) -> dict:
     labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
         "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (seg_ids,))}
     segments = sorted(({"id": i, "label": labels.get(i, i), **{k: segs[i].get(k) for k in (
-        "description", "station_from_m", "station_to_m", "wall_thickness_mm", "grade", "class_location")}}
-        for i in seg_ids), key=lambda s: _num(s["station_from_m"]) or 0)
+        "description", "station_from_ft", "station_to_ft", "wall_thickness_in", "grade", "class_location")}}
+        for i in seg_ids), key=lambda s: _num(s["station_from_ft"]) or 0)
     on = fuzer_id if kind["kind"] == "pipeline_segment" else line
     feats = conn.execute(
         """
@@ -167,10 +172,10 @@ def along(conn, fuzer_id: str) -> dict:
         """, (on,)).fetchall()
     fg = golden([f["src"] for f in feats])
     features = sorted(({"id": f["src"], "label": f["label"] or f["src"], **{k: fg[f["src"]].get(k) for k in (
-        "feature_type", "station_m", "depth_pct", "length_mm", "clock", "run_id", "run_date")},
-        "segment": next((s["id"] for s in segments if (_num(s["station_from_m"]) or 0) <= (_num(fg[f["src"]].get(
-            "station_m")) or -1) < (_num(s["station_to_m"]) or 0)), None)} for f in feats),
-        key=lambda f: _num(f["station_m"]) or 0)
+        "feature_type", "station_ft", "depth_pct", "length_in", "clock", "run_id", "run_date")},
+        "segment": next((s["id"] for s in segments if (_num(s["station_from_ft"]) or 0) <= (_num(fg[f["src"]].get(
+            "station_ft")) or -1) < (_num(s["station_to_ft"]) or 0)), None)} for f in feats),
+        key=lambda f: _num(f["station_ft"]) or 0)
     return {"line": line, "segments": segments, "features": features}
 
 
@@ -178,8 +183,8 @@ def along(conn, fuzer_id: str) -> dict:
 # Depth positions (#61b): a well's trajectory from its directional survey, and what sits at a depth down it.
 
 def min_curvature(stations: list[tuple[float, float, float]]) -> list[dict]:
-    """(md_m, inclination_deg, azimuth_deg) survey stations, in depth order, to the hole's position at each: true
-    vertical depth below the first station and north / east of it (metres), by the minimum curvature method."""
+    """(md_ft, inclination_deg, azimuth_deg) survey stations, in depth order, to the hole's position at each: true
+    vertical depth below the first station and north / east of it (feet), by the minimum curvature method; dogleg severity in degrees per 100 ft."""
     out, tvd, north, east = [], 0.0, 0.0, 0.0
     for i, (md, inc, azi) in enumerate(stations):
         if i:
@@ -192,21 +197,21 @@ def min_curvature(stations: list[tuple[float, float, float]]) -> list[dict]:
             north += half * (math.sin(i1) * math.cos(a1) + math.sin(i2) * math.cos(a2))
             east += half * (math.sin(i1) * math.sin(a1) + math.sin(i2) * math.sin(a2))
             tvd += half * (math.cos(i1) + math.cos(i2))
-            dls = math.degrees(dl) / (md - md0) * 30 if md > md0 else 0.0
+            dls = math.degrees(dl) / (md - md0) * 100 if md > md0 else 0.0
         else:
             dls = 0.0
-        out.append({"md_m": md, "inclination_deg": inc, "azimuth_deg": azi, "tvd_m": round(tvd, 2),
-                    "north_m": round(north, 2), "east_m": round(east, 2), "dls_deg_30m": round(dls, 2)})
+        out.append({"md_ft": md, "inclination_deg": inc, "azimuth_deg": azi, "tvd_ft": round(tvd, 2),
+                    "north_ft": round(north, 2), "east_ft": round(east, 2), "dls_deg_100ft": round(dls, 2)})
     return out
 
 
 def tvd_at(trajectory: list[dict], md: float) -> float | None:
     """True vertical depth at a measured depth, interpolated between survey stations; None below the last one."""
     for a, b in pairwise(trajectory):
-        if a["md_m"] <= md <= b["md_m"]:
-            f = (md - a["md_m"]) / (b["md_m"] - a["md_m"]) if b["md_m"] > a["md_m"] else 0.0
-            return round(a["tvd_m"] + f * (b["tvd_m"] - a["tvd_m"]), 1)
-    return trajectory[0]["tvd_m"] if trajectory and md == trajectory[0]["md_m"] else None
+        if a["md_ft"] <= md <= b["md_ft"]:
+            f = (md - a["md_ft"]) / (b["md_ft"] - a["md_ft"]) if b["md_ft"] > a["md_ft"] else 0.0
+            return round(a["tvd_ft"] + f * (b["tvd_ft"] - a["tvd_ft"]), 1)
+    return trajectory[0]["tvd_ft"] if trajectory and md == trajectory[0]["md_ft"] else None
 
 
 def _survey(conn, keys: set[str]) -> list[tuple[float, float, float]]:
@@ -214,7 +219,7 @@ def _survey(conn, keys: set[str]) -> list[tuple[float, float, float]]:
     for r in conn.execute("select payload from source_record where record_type = 'survey_station' "
                           "and payload->>'well' = any(%s)", (list(keys),)):
         p = r["payload"]
-        md, inc, azi = (_num(p.get(k)) for k in ("md_m", "inclination_deg", "azimuth_deg"))
+        md, inc, azi = (_num(p.get(k)) for k in ("md_ft", "inclination_deg", "azimuth_deg"))
         if md is not None and inc is not None and azi is not None:
             rows[md] = (md, inc, azi)
     return [rows[k] for k in sorted(rows)]
@@ -235,13 +240,13 @@ def well(conn, fuzer_id: str) -> dict:
         "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (comp_ids,))}
     components = []
     for i in comp_ids:
-        top, base = _num(g[i].get("top_md_m")), _num(g[i].get("base_md_m"))
+        top, base = _num(g[i].get("top_md_ft")), _num(g[i].get("base_md_ft"))
         components.append({"id": i, "label": labels.get(i, i), "description": g[i].get("description"),
-                           "top_md_m": top, "base_md_m": base, "size_mm": _num(g[i].get("size_mm")),
+                           "top_md_ft": top, "base_md_ft": base, "size_in": _num(g[i].get("size_in")),
                            "installed": g[i].get("installed"),
-                           "top_tvd_m": tvd_at(trajectory, top) if top is not None else None,
-                           "base_tvd_m": tvd_at(trajectory, base) if base is not None else None})
-    components.sort(key=lambda c: (c["top_md_m"] if c["top_md_m"] is not None else 1e9, -(c["size_mm"] or 0)))  # outer first
+                           "top_tvd_ft": tvd_at(trajectory, top) if top is not None else None,
+                           "base_tvd_ft": tvd_at(trajectory, base) if base is not None else None})
+    components.sort(key=lambda c: (c["top_md_ft"] if c["top_md_ft"] is not None else 1e9, -(c["size_in"] or 0)))  # outer first
     logs = _logs(conn, keys, trajectory) if keys else []
     surveys = {r["f"]: r["n"] for r in conn.execute(
         "select coalesce(payload->>'format', 'csv') as f, count(*) as n from source_record "
@@ -249,9 +254,9 @@ def well(conn, fuzer_id: str) -> dict:
     summary = {}
     if trajectory:
         last = trajectory[-1]
-        summary = {"td_md_m": last["md_m"], "td_tvd_m": last["tvd_m"], "max_inclination_deg": max(
-            s["inclination_deg"] for s in trajectory), "displacement_m": round(math.hypot(last["north_m"], last["east_m"]), 1),
-            "max_dls_deg_30m": max(s["dls_deg_30m"] for s in trajectory)}
+        summary = {"td_md_ft": last["md_ft"], "td_tvd_ft": last["tvd_ft"], "max_inclination_deg": max(
+            s["inclination_deg"] for s in trajectory), "displacement_ft": round(math.hypot(last["north_ft"], last["east_ft"]), 1),
+            "max_dls_deg_100ft": max(s["dls_deg_100ft"] for s in trajectory)}
     return {"trajectory": trajectory, "components": components, "logs": logs, "summary": summary,
             "sources": {"survey_stations": surveys, "log_files": sorted({lg["file"] for lg in logs if lg["file"]})}}
 
@@ -263,10 +268,10 @@ def _logs(conn, keys: set[str], trajectory: list[dict]) -> list[dict]:
     for r in conn.execute("select source_key, payload from source_record where record_type = 'log_curve' "
                           "and payload->>'well' = any(%s) order by source_key", (list(keys),)):
         p = r["payload"]
-        mds = p.get("md_m") or []
+        mds = p.get("md_ft") or []
         out.append({"key": r["source_key"], "curve": p.get("curve"), "unit": p.get("unit"),
-                    "description": p.get("description"), "file": p.get("file"), "md_m": mds,
-                    "values": p.get("values") or [], "tvd_m": [tvd_at(trajectory, md) for md in mds]})
+                    "description": p.get("description"), "file": p.get("file"), "md_ft": mds,
+                    "values": p.get("values") or [], "tvd_ft": [tvd_at(trajectory, md) for md in mds]})
     return out
 
 
@@ -274,7 +279,7 @@ def _median(lg: dict, top: float | None, base: float | None) -> float | None:
     """A log curve's median over a measured depth range; None with no sample in it."""
     if top is None or base is None:
         return None
-    vals = sorted(v for md, v in zip(lg["md_m"], lg["values"]) if top <= md <= base)
+    vals = sorted(v for md, v in zip(lg["md_ft"], lg["values"]) if top <= md <= base)
     return round(vals[len(vals) // 2], 1) if vals else None
 
 
@@ -289,14 +294,14 @@ def brief(conn, fuzer_id: str) -> dict:
     return {
         "found": True, "summary": d["summary"], "sources": d["sources"],
         "datum": "true vertical depth below the first survey station (the tie-in), not sea level",
-        "components": [{"component": c["description"] or c["label"], "top_md_m": c["top_md_m"],
-                        "base_md_m": c["base_md_m"], "top_tvd_m": c["top_tvd_m"], "base_tvd_m": c["base_tvd_m"],
-                        "size_mm": c["size_mm"], "installed": c["installed"],
-                        **({"log_median": {lg["curve"]: _median(lg, c["top_md_m"], c["base_md_m"]) for lg in logs}}
+        "components": [{"component": c["description"] or c["label"], "top_md_ft": c["top_md_ft"],
+                        "base_md_ft": c["base_md_ft"], "top_tvd_ft": c["top_tvd_ft"], "base_tvd_ft": c["base_tvd_ft"],
+                        "size_in": c["size_in"], "installed": c["installed"],
+                        **({"log_median": {lg["curve"]: _median(lg, c["top_md_ft"], c["base_md_ft"]) for lg in logs}}
                            if logs else {})} for c in d["components"]],
         "logs": [{"curve": lg["curve"], "unit": lg["unit"], "description": lg["description"], "file": lg["file"],
-                  "samples": len(lg["md_m"]), "top_md_m": lg["md_m"][0] if lg["md_m"] else None,
-                  "base_md_m": lg["md_m"][-1] if lg["md_m"] else None} for lg in logs],
+                  "samples": len(lg["md_ft"]), "top_md_ft": lg["md_ft"][0] if lg["md_ft"] else None,
+                  "base_md_ft": lg["md_ft"][-1] if lg["md_ft"] else None} for lg in logs],
         "not_known": "Completion design intent, cement quality and log interpretation (lithology, net pay) are not "
                      "held; the readings are as logged."}
 

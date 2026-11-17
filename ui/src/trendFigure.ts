@@ -5,7 +5,7 @@
 /** A unit as printed (the same symbols as wording.ts, inlined so this module stays dependency-free): degC °C, Sm3 Sm³. */
 const unit = (u: string | null | undefined): string => (u ?? "")
   .replace(/(?<![\w])(?:k|M)?(?:Sm3|Am3|m3)(?!\w)/g, (s) => s.replace("3", "³"))
-  .replace(/(?<![\w])degC(?!\w)/g, "°C").replace(/^um(?=$|\/)/, "µm");
+  .replace(/(?<![\w])degC(?!\w)/g, "°C").replace(/(?<![\w])degF(?!\w)/g, "°F").replace(/^um(?=$|\/)/, "µm");
 
 export interface TrendLimit { type: "hihi" | "hi" | "lo" | "lolo"; value: number; basis: "alarm" | "iow" | "learned"; iow?: string }
 export interface TrendTrace {

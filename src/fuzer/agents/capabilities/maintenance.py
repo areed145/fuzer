@@ -146,12 +146,12 @@ def value_score(ref: str | None = None,
 
 @capability("maintenance-integrity", kind="plot")
 def plot_wall_thickness(ref: str | None = None, kind: Literal["pipeline", "tag"] | None = None,
-                        min_required_mm: float | None = None) -> dict[str, Any]:
+                        min_required_in: float | None = None) -> dict[str, Any]:
     """Chart wall thickness: with ref, each CML on that vessel / piping / pipeline over time with loss
-    rates (and retirement dates if min_required_mm is given); without ref, the items losing wall
+    rates (and retirement dates if min_required_in is given); without ref, the items losing wall
     fastest across the asset (kind narrows to pipelines or tags)."""
     from ...plots import maintenance
-    return _chart(maintenance.wall_thickness, {"kind": kind, "min_required_mm": min_required_mm}, {"fid": ref})
+    return _chart(maintenance.wall_thickness, {"kind": kind, "min_required_in": min_required_in}, {"fid": ref})
 
 
 @capability("maintenance-integrity", kind="plot")
@@ -256,7 +256,7 @@ def plot_cost_of_unreliability(since: str | None = None, until: str | None = Non
 @capability("maintenance-integrity", kind="calc")
 def ili_anomalies(line: str | None = None) -> dict[str, Any]:
     """In-line inspection anomalies (#366) per line, or one line: each run, and each metal loss anomaly of the latest
-    run matched to the previous run by type and station (within 1.5 m), with its growth (% of wall and mm a year),
+    run matched to the previous run by type and station (within 5 ft), with its growth (% of wall and mpy),
     its modified ASME B31G remaining strength against the MOP (ERF = MOP over the safe pressure at the class
     location's design factor) now and at its growth rate 5 years on, and the screen (exceeds_now,
     exceeds_within_5_years at ERF 1 or 80 % of wall, no_strength, within_screen). A segment with no recorded
@@ -298,7 +298,7 @@ def vibration_spectra(tag: str | None = None) -> dict[str, Any]:
     """Condition-monitoring vibration spectra (#367), for every measurement point or one machine's: its latest spectrum
     read against its fault frequencies (1x, 2x, and the bearing defect frequencies BPFO, BPFI, BSF and FTF from the
     bearing's geometry), the peaks on them, and the indications with the date each first showed and its amplitude
-    trend: a bearing defect when 2 of its first three harmonics stand above 0.1 mm/s, misalignment when 2x is over
+    trend: a bearing defect when 2 of its first three harmonics stand above 0.004 in/s, misalignment when 2x is over
     half of 1x, unbalance when 1x is over 0.9 of the overall level. Fault indications for the reliability engineer to
     confirm, not a diagnosis."""
     from ...analysis import vibration_spectra as vs

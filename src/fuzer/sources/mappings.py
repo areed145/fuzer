@@ -40,7 +40,7 @@ connection reads. A mapping file:
       method: well test     # quantity, unit and method: text as written, or a value ({from: column})
       location: cml         # optional column: where on the thing
       values:
-        - {quantity: oil_rate, from: oil_sm3d, unit: Sm3/d}
+        - {quantity: oil_rate, from: oil_bbld, unit: bbl/d}
         - {quantity: {from: analyte}, from: result, unit: {from: unit}}
     limits:                 # operating limits per PI point, landed in point_limit (alarms, IOWs)
       each: attributes      # optional: a list in the record, one item per point (AF attributes)

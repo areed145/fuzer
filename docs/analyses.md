@@ -35,8 +35,8 @@ the window ends today and remains missing. A non-facility reference is rejected.
 
 The backend reads the **existing resolved graph**, not a new connector:
 
-- `production_day --reports_on--> facility` supplies `report_date`, `oil_sm3` (allocated daily
-  standard-volume oil) and `oil_potential_sm3` (reported daily potential). For a one-day bucket their
+- `production_day --reports_on--> facility` supplies `report_date`, `oil_bbl` (allocated daily
+  standard-volume oil) and `oil_potential_bbl` (reported daily potential). For a one-day bucket their
   numeric values are daily-average rates in `Sm3/d`. `Sm3` means volume at the source's standard
   conditions; this feature does not mix gas volumes, convert standard conditions or infer oil
   equivalence from gas flow.
@@ -75,7 +75,7 @@ Daily bounds are not carried forward. The feature does not claim intraday bottle
 Unrepresentable derived percentages or volume totals are null with flags/warnings rather than
 non-JSON-safe infinity; the period ratio uses scaled daily volumes to avoid overflowing its sums.
 
-When no daily bounds exist, `oil_potential_sm3` is used as a **reported-potential fallback**;
+When no daily bounds exist, `oil_potential_bbl` is used as a **reported-potential fallback**;
 `capacity_basis` is `reported_potential` and the physical `active_constraint_id` is null.
 When bounds exist, `capacity_basis` is `declared_limits`; the maximum is the lowest of those bounds
 and the day's reported potential, because the plant can only carry what the wells offer. A potential
@@ -333,7 +333,7 @@ each resting only on evidence Fuzer holds.
 - **`corrosion_circuit(pipeline)`** (`integrity.py`): the in-service lines in the pipeline's service, each with
   the API 570 rate per CML (the greater of the long-term and short-term rates), remaining life to the Barlow
   pressure design thickness at its MOP (on an assumed API 5L X52 grade, named in the result, unless
-  `min_required_mm` is given) and the next inspection at half the remaining life, at most 10 years. Flags
+  `min_required_in` is given) and the next inspection at half the remaining life, at most 10 years. Flags
   `retire_soon`, `inspection_overdue` and `localised`. On Okan, J03's flowline corrodes at 1.7 mm/year after the
   breakthrough and has under two years left.
 

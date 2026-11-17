@@ -13,7 +13,7 @@
 decline:
   title: Latest well test against the Arps decline
   standard: "Arps, Analysis of Decline Curves (1945)"
-  inputs: [{name: Well tests (oil rate, or gas rate on a gas well), unit: Sm³/d or kSm³/d}]
+  inputs: [{name: Well tests (oil rate, or gas rate on a gas well), unit: bbl/d or Mscf/d}]
   valid: Wells on natural or artificial lift with a declining rate; the fit restarts after a step change. A well whose tests carry no oil is fitted on its gas rate.
   needs: At least four well tests.
   vectors:
@@ -25,7 +25,7 @@ decline:
 gas_lift:
   title: Lift gas against the economic optimum of the well's lift curve
   practice: Gas lift performance curve fitted to the well's own tests; the optimum is where one more unit of gas gains the breakeven oil.
-  inputs: [{name: Well tests (oil rate), unit: Sm³/d}, {name: Lift gas rate, unit: kSm³/d}]
+  inputs: [{name: Well tests (oil rate), unit: bbl/d}, {name: Lift gas rate, unit: Mscf/d}]
   valid: Gas lifted wells with tests at three or more distinct gas rates.
   needs: At least four well tests with a lift gas rate.
   thresholds:
@@ -35,7 +35,7 @@ gas_lift:
 pump_curve:
   title: Pump head against the OEM curve at the same flow
   practice: Differential head from suction and discharge pressure compared with the manufacturer's head curve.
-  inputs: [{name: Flow, unit: m³/h}, {name: Suction and discharge pressure, unit: barg}, {name: OEM head curve, unit: m}]
+  inputs: [{name: Flow, unit: gpm}, {name: Suction and discharge pressure, unit: psig}, {name: OEM head curve, unit: ft}]
   valid: Centrifugal pumps with an accepted OEM curve, while running.
   needs: A minimum count of running readings in the recent window.
   thresholds:
@@ -45,7 +45,7 @@ pump_curve:
 choke:
   title: Choke effective Cv against its characteristic
   practice: Effective flow coefficient from the tested rate and pressure drop, as a ratio to the trim's characteristic at the same opening.
-  inputs: [{name: Choke opening, unit: "%"}, {name: Upstream and downstream pressure, unit: barg}, {name: Well test rates, unit: Sm³/d}]
+  inputs: [{name: Choke opening, unit: "%"}, {name: Upstream and downstream pressure, unit: psig}, {name: Well test rates, unit: bbl/d}]
   valid: Production chokes with a characteristic on record.
   needs: Three or more readings since the trim was last replaced, else the latest readings before.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_checks_flag_the_okan_stories_as_of_then"}]
@@ -101,20 +101,20 @@ spares_coverage:
 wall_loss:
   title: Wall loss rate and remaining life per CML
   standard: "API 570 / API 510"
-  inputs: [{name: Wall thickness readings per CML, unit: mm}, {name: Minimum required thickness, unit: mm}]
+  inputs: [{name: Wall thickness readings per CML, unit: in}, {name: Minimum required thickness, unit: in}]
   valid: Vessels, piping and pipelines with repeat thickness surveys at the same locations.
   needs: Wall thickness readings on the item.
   vectors:
     - kernel: fuzer.analysis.calcs:remaining_life
-      args: [8.0, -0.5, 5.0]
-      expect: 6.0
-      says: 8.0 mm losing 0.5 mm a year reaches a 5.0 mm minimum in 6 years.
+      args: [0.5, -0.02, 0.3]
+      expect: 10.0
+      says: 0.500 in losing 0.020 in (20 mpy) a year reaches a 0.300 in minimum in 10 years.
 
 corrosion_circuit:
   title: "Corrosion circuit: long and short term rate, remaining life, next inspection"
   standard: "API 570"
   clause: "7.1"
-  inputs: [{name: Wall thickness readings per CML, unit: mm}, {name: Maximum operating pressure, unit: barg}, {name: Nominal diameter, unit: in}]
+  inputs: [{name: Wall thickness readings per CML, unit: in}, {name: Maximum operating pressure, unit: psig}, {name: Nominal diameter, unit: in}]
   valid: In-service lines of one service. The retirement thickness is the Barlow pressure design thickness (ASME B31.4 / B31.8) on an assumed API 5L X52 grade unless one is given.
   needs: Wall thickness readings on a line of the circuit.
   thresholds:
@@ -122,18 +122,18 @@ corrosion_circuit:
     longest_interval: {value: 10, unit: "years", means: "The next inspection is at half the remaining life, at most this long after the last survey.", code: "fuzer.analysis.integrity:MAX_INTERVAL"}
   vectors:
     - kernel: fuzer.analysis.integrity:cml_rate
-      args: [[{at: "2015-01-01", value: 10.0}, {at: "2020-01-01", value: 9.0}, {at: "2021-01-01", value: 8.6}]]
-      expect: {long_term: 0.23328, short_term: 0.39918, governing: 0.39918}
-      says: 1.4 mm lost over six years is 0.233 mm/year long term; 0.4 mm in the last year governs.
+      args: [[{at: "2015-01-01", value: 0.394}, {at: "2020-01-01", value: 0.354}, {at: "2021-01-01", value: 0.339}]]
+      expect: {long_term: 0.0091646, short_term: 0.0149693, governing: 0.0149693}
+      says: 0.055 in lost over six years is 9.2 mpy long term; 15 mpy in the last year governs.
     - kernel: fuzer.analysis.integrity:design_thickness
-      args: [100.0, 12]
-      expect: 6.2655
-      says: "Barlow at 100 barg on 323.9 mm OD, X52 at a 0.72 design factor: 10 x 323.9 / (2 x 359 x 0.72)."
+      args: [1450.0, 12]
+      expect: 0.246895
+      says: "Barlow at 1,450 psig on 12.75 in OD, X52 at a 0.72 design factor: 1450 x 12.75 / (2 x 52000 x 0.72)."
 
 well_constraint:
   title: What limits a well (choke, back-pressure or lift)
   practice: Critical or subcritical choke flow from the pressure ratio across the choke, with the header pressure and the lift curve.
-  inputs: [{name: Wellhead and header pressure, unit: barg}, {name: Choke opening, unit: "%"}]
+  inputs: [{name: Wellhead and header pressure, unit: psig}, {name: Choke opening, unit: "%"}]
   valid: Producing wells with a wellhead pressure and their jacket's header pressure.
   needs: A production header pressure for the well's jacket.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -141,7 +141,7 @@ well_constraint:
 dp_drift:
   title: Wellhead-to-header pressure drop drift
   practice: Trend of the flowline pressure drop between well tests; a sustained rise is a restriction building.
-  inputs: [{name: Wellhead and header pressure, unit: barg}]
+  inputs: [{name: Wellhead and header pressure, unit: psig}]
   valid: Producing wells over a window with no choke move or reroute.
   needs: A production header pressure for the well's jacket.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -149,7 +149,7 @@ dp_drift:
 compressor_performance:
   title: Compressor stage polytropic efficiency and head
   practice: Polytropic efficiency from suction and discharge pressure and temperature on ideal-gas properties, the last days against the window's first week.
-  inputs: [{name: Suction and discharge pressure, unit: barg}, {name: Suction and discharge temperature, unit: "°C"}]
+  inputs: [{name: Suction and discharge pressure, unit: psig}, {name: Suction and discharge temperature, unit: "°F"}]
   valid: Compressor stages with all four measurements, while running. Use gas_performance where real-gas properties matter.
   needs: A suction temperature for the stage and enough running time in the window.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -157,7 +157,7 @@ compressor_performance:
 cooler_fouling:
   title: Cooler outlet temperature against its clean baseline
   practice: Rise of the outlet temperature above the level after the last cleaning, and when it reaches the high limit at that rate.
-  inputs: [{name: Outlet temperature, unit: "°C"}]
+  inputs: [{name: Outlet temperature, unit: "°F"}]
   valid: Coolers with an outlet temperature point and steady duty.
   needs: At least 14 days of outlet temperature.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -165,7 +165,7 @@ cooler_fouling:
 peers:
   title: Units of a class side by side
   practice: Failures per year, MTBF, oil lost and vibration per unit, with outliers by robust z-score from the class median.
-  inputs: [{name: Failure notifications, unit: dates}, {name: Vibration, unit: mm/s}]
+  inputs: [{name: Failure notifications, unit: dates}, {name: Vibration, unit: in/s}]
   valid: Equipment classes or models with several installed units.
   needs: At least three units to compare.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -173,19 +173,19 @@ peers:
 vibration:
   title: Overall vibration against the evaluation zones
   standard: "ISO 20816-3 (formerly ISO 10816-3); ISO 20816-8 for reciprocating compressors"
-  inputs: [{name: Overall vibration velocity, unit: mm/s RMS}]
-  valid: "Group 1 (300 kW to 50 MW) and group 2 (15 to 300 kW) machines on rigid or flexible foundations, while running."
-  needs: A vibration point in mm/s with enough readings in the window.
+  inputs: [{name: Overall vibration velocity, unit: in/s RMS}]
+  valid: "Group 1 (400 hp to 67,000 hp) and group 2 (20 to 400 hp) machines on rigid or flexible foundations, while running."
+  needs: A vibration point in in/s with enough readings in the window.
   vectors:
     - kernel: fuzer.analysis.rotating:zone_of
-      args: [5.0, [2.3, 4.5, 7.1]]
+      args: [0.2, [0.091, 0.177, 0.280]]
       expect: C
-      says: 5.0 mm/s on a group 1 machine on a rigid foundation is between 4.5 and 7.1, which is zone C.
+      says: 0.20 in/s on a group 1 machine on a rigid foundation is between 0.177 and 0.280 (4.5 and 7.1 mm/s), which is zone C.
 
 pump_bep:
   title: Pump operating region against best efficiency point
   standard: "API 610 (preferred and allowable operating regions)"
-  inputs: [{name: Flow, unit: m³/h}, {name: OEM curve with best efficiency point, unit: m³/h}]
+  inputs: [{name: Flow, unit: gpm}, {name: OEM curve with best efficiency point, unit: gpm}]
   valid: Centrifugal pumps whose OEM curve gives a best efficiency point.
   needs: An OEM curve with a best efficiency point.
   thresholds:
@@ -196,7 +196,7 @@ pump_bep:
 surge:
   title: Compressor surge margin against the OEM map
   practice: Suction flow over the surge flow at the running speed from the manufacturer's map, with recycle valve duty and head against the map.
-  inputs: [{name: Suction flow, unit: m³/h}, {name: Speed, unit: rpm}, {name: Anti-surge valve opening, unit: "%"}]
+  inputs: [{name: Suction flow, unit: gpm}, {name: Speed, unit: rpm}, {name: Anti-surge valve opening, unit: "%"}]
   valid: Centrifugal stages with an OEM map that gives a rated speed and design point.
   needs: An OEM map for the stage and enough running time in the window.
   thresholds:
@@ -206,7 +206,7 @@ surge:
 surge_events:
   title: Surge events from their signature
   practice: A collapse of suction flow with the anti-surge valve snapping open in the same minutes, while the train runs.
-  inputs: [{name: Suction flow, unit: m³/h}, {name: Anti-surge valve opening, unit: "%"}]
+  inputs: [{name: Suction flow, unit: gpm}, {name: Anti-surge valve opening, unit: "%"}]
   valid: Centrifugal stages with a suction flow and an anti-surge valve position.
   needs: Suction flow and valve position over the window.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -214,7 +214,7 @@ surge_events:
 heat_rate:
   title: Gas turbine heat rate against the OEM curves
   practice: Fuel energy per unit of output against the manufacturer's expected heat rate at the same load and ambient temperature.
-  inputs: [{name: Fuel gas flow, unit: Sm³/h}, {name: Output power, unit: kW}, {name: Ambient temperature, unit: "°C"}]
+  inputs: [{name: Fuel gas flow, unit: scfh}, {name: Output power, unit: hp}, {name: Ambient temperature, unit: "°F"}]
   valid: Gas turbine drivers with OEM performance curves for the model.
   needs: OEM curves for the model and enough running time in the window.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -222,7 +222,7 @@ heat_rate:
 motor_load:
   title: Motor load against nameplate and service factor
   practice: Median running power as a share of the nameplate rating, with hours above the rating and above the service factor.
-  inputs: [{name: Motor power, unit: kW}, {name: Nameplate rating, unit: kW}]
+  inputs: [{name: Motor power, unit: hp}, {name: Nameplate rating, unit: hp}]
   valid: Electric motor driven machines with a power point.
   needs: A motor power point and enough running time in the window.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -238,7 +238,7 @@ rotating_health:
 rod_load:
   title: Reciprocating compressor rod load and reversal
   standard: "API 618"
-  inputs: [{name: Cylinder suction and discharge pressure, unit: barg}, {name: Rated rod load, unit: kN}]
+  inputs: [{name: Cylinder suction and discharge pressure, unit: psig}, {name: Rated rod load, unit: lbf}]
   valid: Reciprocating compressors with cylinder geometry on record.
   needs: Cylinder pressures and enough running time in the window.
   vectors: [{worked: "tests/analysis/test_recip.py::test_a_leaking_second_stage_valve_pushes_first_stage_rod_load_past_the_rating"}]
@@ -246,7 +246,7 @@ rod_load:
 valve_health:
   title: Reciprocating compressor valve health
   standard: "API 618"
-  inputs: [{name: Cylinder discharge temperatures, unit: "°C"}, {name: Stage pressures, unit: barg}]
+  inputs: [{name: Cylinder discharge temperatures, unit: "°F"}, {name: Stage pressures, unit: psig}]
   valid: Reciprocating compressors with two or more cylinders on a stage.
   needs: Two cylinder discharge temperatures on the same stage and enough running time.
   vectors: [{worked: "tests/analysis/test_recip.py::test_the_leaking_cylinder_runs_hot_and_the_stage_ratios_shift"}]
@@ -254,7 +254,7 @@ valve_health:
 compressor_trip:
   title: Trip diagnosis from the first point to move
   standard: "ISO 13379-1 (symptom to cause)"
-  inputs: [{name: Run signal, unit: kW or rpm}, {name: Every point on the train, unit: various}, {name: Alarm and trip settings, unit: various}]
+  inputs: [{name: Run signal, unit: hp or rpm}, {name: Every point on the train, unit: various}, {name: Alarm and trip settings, unit: various}]
   valid: Compression and pump trains with a run signal. Each point is judged against its own hours before the trip.
   needs: A trip of the train in the two days before the time asked about.
   thresholds:
@@ -265,7 +265,7 @@ compressor_trip:
 failed_starts:
   title: Failed start attempts
   practice: Starts that did not reach running within the start window, with the reason each one stopped.
-  inputs: [{name: Run signal, unit: kW or rpm}]
+  inputs: [{name: Run signal, unit: hp or rpm}]
   valid: Compression trains with a run signal.
   needs: A run signal over the window.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -273,7 +273,7 @@ failed_starts:
 protection:
   title: Machinery protection channels against their settings
   standard: "API 670"
-  inputs: [{name: Shaft vibration, unit: µm}, {name: Axial position, unit: mm}, {name: Bearing temperature, unit: "°C"}]
+  inputs: [{name: Shaft vibration, unit: mils}, {name: Axial position, unit: in}, {name: Bearing temperature, unit: "°F"}]
   valid: Machines with protection channels and their alarm and trip settings on record, while running.
   needs: Protection channels on the machine and enough running time in the window.
   thresholds:
@@ -283,7 +283,7 @@ protection:
 seal_gas:
   title: Dry gas seal primary vent flow
   standard: "API 692"
-  inputs: [{name: Primary vent flow, unit: Nm³/h}]
+  inputs: [{name: Primary vent flow, unit: scfm}]
   valid: Compressors with dry gas seals and a vent flow point.
   needs: At least 14 running days of seal vent flow.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -291,7 +291,7 @@ seal_gas:
 lube_oil:
   title: Lube oil header pressure and supply temperature
   standard: "API 614"
-  inputs: [{name: Header pressure, unit: barg}, {name: Supply temperature, unit: "°C"}]
+  inputs: [{name: Header pressure, unit: psig}, {name: Supply temperature, unit: "°F"}]
   valid: Machines with a lube oil system and its alarm and trip settings on record.
   needs: A lube oil pressure or temperature point and enough running time.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -299,7 +299,7 @@ lube_oil:
 gas_performance:
   title: Compressor stage performance on real-gas properties
   standard: "ASME PTC 10 (Schultz polytropic analysis); ISO 5389"
-  inputs: [{name: Suction and discharge pressure, unit: barg}, {name: Suction and discharge temperature, unit: "°C"}, {name: Gas analysis, unit: mol %}]
+  inputs: [{name: Suction and discharge pressure, unit: psig}, {name: Suction and discharge temperature, unit: "°F"}, {name: Gas analysis, unit: mol %}]
   valid: Centrifugal compressor stages with a gas analysis for the service.
   needs: A centrifugal stage and enough running time in the window.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -307,7 +307,7 @@ gas_performance:
 power_balance:
   title: Stage gas power against driver output
   standard: "ASME PTC 10"
-  inputs: [{name: Stage gas power, unit: kW}, {name: Gas turbine output power, unit: kW}]
+  inputs: [{name: Stage gas power, unit: hp}, {name: Gas turbine output power, unit: hp}]
   valid: Gas turbine driven centrifugal trains with every stage measurable.
   needs: An output power point on the driver and every stage measurable in the window.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -315,7 +315,7 @@ power_balance:
 exhaust_spread:
   title: Gas turbine exhaust temperature spread
   practice: Spread between exhaust thermocouples against its clean level, naming the thermocouple that wandered.
-  inputs: [{name: Exhaust thermocouples, unit: "°C"}]
+  inputs: [{name: Exhaust thermocouples, unit: "°F"}]
   valid: Gas turbines with three or more exhaust thermocouples, while running.
   needs: Three exhaust thermocouples and enough running time in the window.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -323,7 +323,7 @@ exhaust_spread:
 hot_section:
   title: Fired hours against the hot section inspection interval
   practice: Running hours since the last hot section inspection against the maintenance plan's interval.
-  inputs: [{name: Run signal, unit: kW or rpm}, {name: Hot section inspection plan, unit: h}]
+  inputs: [{name: Run signal, unit: hp or rpm}, {name: Hot section inspection plan, unit: h}]
   valid: Gas turbines with a hot section inspection plan that has a last-done date and an interval.
   needs: A hot section inspection plan with a last-done date and an interval.
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
@@ -331,7 +331,7 @@ hot_section:
 engine_cylinders:
   title: Gas engine cylinder exhaust temperatures
   practice: Each cylinder's exhaust temperature against the others; a cold one misfires, a hot one is overloaded or lean.
-  inputs: [{name: Cylinder exhaust temperatures, unit: "°C"}]
+  inputs: [{name: Cylinder exhaust temperatures, unit: "°F"}]
   valid: Gas engine driven machines with a thermocouple per cylinder, while running.
   needs: Cylinder exhaust temperatures and running time in the last two days.
   vectors: [{worked: "tests/analysis/test_recip.py::test_the_gas_engine_driver_has_a_misfiring_cylinder"}]
@@ -346,8 +346,8 @@ remaining_life:
 
 test_check:
   title: Latest well test against inflow and the lift curve
-  practice: The test's liquid rate against the well's own inflow per bar of drawdown and, on a lifted well, its lift curve.
-  inputs: [{name: Well tests with water cut, unit: Sm³/d}, {name: Flowing and shut-in wellhead pressure, unit: barg}]
+  practice: The test's liquid rate against the well's own inflow per psi of drawdown and, on a lifted well, its lift curve.
+  inputs: [{name: Well tests with water cut, unit: bbl/d}, {name: Flowing and shut-in wellhead pressure, unit: psig}]
   valid: Oil wells with a shut-in wellhead pressure in the last two years.
   needs: At least four oil well tests with a water cut, and a shut-in wellhead pressure.
   thresholds:
@@ -358,7 +358,7 @@ test_check:
 deferment_attribution:
   title: Shortfall against decline, by cause
   practice: Each well's latest test below its Arps decline, given one cause and summed by cause across the scope.
-  inputs: [{name: Well tests (oil rate), unit: Sm³/d}, {name: Deferment records, unit: Sm³}]
+  inputs: [{name: Well tests (oil rate), unit: bbl/d}, {name: Deferment records, unit: bbl}]
   valid: A jacket, area or facility with oil wells that have enough tests for a decline fit.
   needs: At least one oil well in scope with enough tests for a decline fit.
   thresholds:
@@ -368,7 +368,7 @@ deferment_attribution:
 vessel_loading:
   title: Offered load against a rating
   practice: What the wells upstream offer at their tested rates against the item's standing rating, in the rating's own units.
-  inputs: [{name: Well test rates of the wells upstream, unit: Sm³/d}, {name: Rating, unit: the rating's own}]
+  inputs: [{name: Well test rates of the wells upstream, unit: bbl/d}, {name: Rating, unit: the rating's own}]
   valid: Separators, scrubbers and meters with a liquid, oil or gas rating and wells upstream on the flow network.
   needs: A rating on record and wells upstream of the item.
   thresholds:
@@ -393,7 +393,7 @@ voidage_replacement:
   title: Water injected against the reservoir volume produced
   practice: "Voidage replacement ratio as reservoir engineers screen waterfloods (Craig, The Reservoir Engineering Aspects of Waterflooding, SPE Monograph 3): injected water times its formation volume factor over produced oil, water and free gas at reservoir conditions. The formation volume factors and solution GOR are the field's own PVT."
   tool: voidage_replacement
-  inputs: [{name: Allocated oil, unit: "Sm³"}, {name: Water injected, unit: "Sm³"}, {name: Well tests (oil rate, water cut, GOR), unit: "Sm³/d, %, Sm³/Sm³"}, {name: Formation volume factors and solution GOR, unit: "rm³/Sm³, Sm³/Sm³"}]
+  inputs: [{name: Allocated oil, unit: "bbl"}, {name: Water injected, unit: "bbl"}, {name: Well tests (oil rate, water cut, GOR), unit: "bbl/d, %, scf/bbl"}, {name: Formation volume factors and solution GOR, unit: "rb/STB, rb/Mscf, scf/bbl"}]
   valid: Fields with water injection and producing oil wells with tests. Free gas from the producing GOR above the solution GOR; gas injection and aquifer influx are not counted.
   needs: A daily report, injection records and the four PVT values; without PVT the ratio is unknown, and with no injection there is no ratio.
   thresholds:
@@ -406,7 +406,7 @@ hall_plot:
   title: An injector's Hall plot slope against its own earlier slope
   practice: "Hall (1963), Analyze Injection Well Performance: cumulative pressure x time against cumulative injection is a straight line while the well takes water the same way; it bends up with plugging or skin and down with fracturing or channelling. Read here at the wellhead, so each injector against itself."
   tool: injector_hall
-  inputs: [{name: Monthly water injected, unit: "Sm³"}, {name: Days on injection, unit: days}, {name: Average wellhead injection pressure, unit: barg}]
+  inputs: [{name: Monthly water injected, unit: "bbl"}, {name: Days on injection, unit: days}, {name: Average wellhead injection pressure, unit: psig}]
   valid: Water injectors with monthly injection records carrying a wellhead pressure.
   needs: Twice the comparison months of injection.
   thresholds:
@@ -419,7 +419,7 @@ gas_balance:
   title: Daily gas balance and its closure gap
   practice: "A facility gas balance as production accounting reads it (API MPMS Chapter 20.1 allocation practice): gas handled against export, lift gas, flare, fuel and vent, the remainder being the closure gap. The open band is this registry's own."
   tool: gas_balance
-  inputs: [{name: Gas handled, unit: "kSm³/d"}, {name: "Gas export, lift gas, flare, fuel gas and vent", unit: "kSm³/d"}]
+  inputs: [{name: Gas handled, unit: "Mscf/d"}, {name: "Gas export, lift gas, flare, fuel gas and vent", unit: "Mscf/d"}]
   valid: Facilities whose daily report carries the gas handled and its outlets; a term the report doesn't carry stays in the gap and is named.
   needs: A daily report with the gas handled.
   thresholds:
@@ -430,7 +430,7 @@ productivity_index:
   title: Productivity index from a flowing survey against the static pressure before it
   practice: "Straight-line inflow above the bubble point (Craft and Hawkins, Applied Petroleum Reservoir Engineering): oil rate over drawdown. A fall against the well's own first index is screened; the share is this registry's own."
   tool: productivity_index
-  inputs: [{name: Static bottomhole pressure, unit: barg}, {name: Flowing bottomhole pressure, unit: barg}, {name: Oil rate at the flowing survey, unit: "Sm³/d"}]
+  inputs: [{name: Static bottomhole pressure, unit: psig}, {name: Flowing bottomhole pressure, unit: psig}, {name: Oil rate at the flowing survey, unit: "bbl/d"}]
   valid: Oil wells above the bubble point with static and flowing surveys at a common datum.
   needs: A flowing survey with a rate and a static survey on the same well shortly before it.
   thresholds:
@@ -442,7 +442,7 @@ material_balance:
   title: One-tank material balance from static pressures and net voidage
   practice: "Havlena and Odeh (1963) straight-line material balance, reduced to an undersaturated tank with no aquifer or gas cap: pressure falls in proportion to the reservoir volume withdrawn net of injection, the slope being the inverse of pore volume times total compressibility."
   tool: material_balance
-  inputs: [{name: Static bottomhole pressures, unit: barg}, {name: Allocated oil, water and free gas at reservoir conditions, unit: "rm³"}, {name: Water injected, unit: "rm³"}]
+  inputs: [{name: Static bottomhole pressures, unit: psig}, {name: Allocated oil, water and free gas at reservoir conditions, unit: "rb"}, {name: Water injected, unit: "rb"}]
   valid: An undersaturated reservoir read as one tank, with recorded PVT and static surveys on wells surveyed more than once.
   needs: The PVT voidage replacement needs, and static surveys on at least two dates.
   thresholds:
@@ -475,28 +475,28 @@ ldar:
 ili_strength:
   title: ILI anomaly growth between runs and remaining strength against MOP
   standard: "ASME B31G (modified, 0.85 dL); ASME B31.8 design factors"
-  practice: "Metal loss anomalies are matched between in-line inspection runs by type and station; growth is the depth change over the years between runs, projected ahead at that rate. Failure pressure uses the flow stress SMYS + 69 MPa; the safe pressure is the failure pressure times the class location's design factor, and ERF is MOP over the safe pressure. The matching distance, horizon and depth limit are this registry's own screening choices."
+  practice: "Metal loss anomalies are matched between in-line inspection runs by type and station; growth is the depth change over the years between runs, projected ahead at that rate. Failure pressure uses the flow stress SMYS + 10 ksi; the safe pressure is the failure pressure times the class location's design factor, and ERF is MOP over the safe pressure. The matching distance, horizon and depth limit are this registry's own screening choices."
   tool: ili_anomalies
-  inputs: [{name: Anomaly depth, unit: "% of wall"}, {name: Anomaly length, unit: mm}, {name: Wall thickness, unit: mm}, {name: Outside diameter, unit: mm}, {name: SMYS of the API 5L grade, unit: MPa}, {name: Maximum operating pressure, unit: barg}]
+  inputs: [{name: Anomaly depth, unit: "% of wall"}, {name: Anomaly length, unit: in}, {name: Wall thickness, unit: in}, {name: Outside diameter, unit: in}, {name: SMYS of the API 5L grade, unit: psi}, {name: Maximum operating pressure, unit: psig}]
   valid: External or internal metal loss on carbon steel line pipe sized by an in-line inspection tool, on a segment with a recorded grade, wall and class location.
   needs: ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade.
   thresholds:
-    match: {value: 1.5, means: "An anomaly of the same type within this many metres in the next run is the same anomaly.", code: "fuzer.analysis.ili:MATCH_M"}
+    match: {value: 5.0, means: "An anomaly of the same type within this many feet in the next run is the same anomaly.", code: "fuzer.analysis.ili:MATCH_FT"}
     horizon: {value: 5, unit: "years", means: "Growth is projected this far ahead of the latest run.", code: "fuzer.analysis.ili:HORIZON_YEARS"}
     depth_limit: {value: 80, unit: "%", means: "An anomaly this deep (% of wall) crosses the screen whatever its pressure.", code: "fuzer.analysis.ili:DEPTH_LIMIT"}
     tool_tolerance: {value: 10, unit: "%", means: "Growth (% of wall) under this between two runs may be tool sizing, and is said so.", code: "fuzer.analysis.ili:TOLERANCE_PCT"}
   vectors:
     - kernel: fuzer.analysis.ili:failure_pressure
-      args: [49, 131, 15.9, 610.0, 448]
-      expect: 220.70015
-      says: "49 % deep, 131 mm long on 610 x 15.9 mm API 5L X65: modified B31G at a 517 MPa flow stress fails at 220.7 bar."
+      args: [49, 5.16, 0.626, 24.0, 65000]
+      expect: 3203.28886
+      says: "49 % deep, 5.16 in long on 24 x 0.626 in API 5L X65: modified B31G at a 75 ksi flow stress fails at 3,203 psi."
 
 co2_corrosion:
   title: CO2 corrosion rate predicted against measured, per line
   standard: "de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections"
   practice: "log10(V mm/y) = 5.8 - 1710/T + 0.67 log10(fCO2), T the produced water's temperature at the line's sample point, fCO2 the CO2 partial pressure at the line's MOP times the fugacity coefficient; above the scaling temperature the rate is cut by the scale factor. The rate is uninhibited and water-wet, an upper bound. The out-of-step ratio is this registry's own screening choice; the sweet/sour boundary follows the common pCO2/pH2S rule of thumb."
   tool: co2_corrosion_screen
-  inputs: [{name: Produced water temperature, unit: degC}, {name: Gas CO2, unit: "% mol"}, {name: Gas H2S, unit: ppmv}, {name: Maximum operating pressure, unit: barg}, {name: CML wall thickness readings, unit: mm}]
+  inputs: [{name: Produced water temperature, unit: "°F"}, {name: Gas CO2, unit: "% mol"}, {name: Gas H2S, unit: ppmv}, {name: Maximum operating pressure, unit: psig}, {name: CML wall thickness readings, unit: in}]
   valid: Carbon steel production lines carrying produced water with CO2, where pCO2/pH2S is 500 or more. pH, chloride, bicarbonate and iron are reported, not modelled.
   needs: Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison.
   thresholds:
@@ -504,29 +504,29 @@ co2_corrosion:
     sour: {value: 500, means: "pCO2/pH2S under this: H2S takes part, and the CO2 model gives no prediction.", code: "fuzer.analysis.co2_corrosion:SOUR_RATIO"}
   vectors:
     - kernel: fuzer.analysis.co2_corrosion:predicted_rate
-      args: [55.0, 71.0, 2.1]
-      expect: {rate_mm_per_year: 4.46391, pco2_bar: 1.491, scale_factor: 1.0}
-      says: "55 degC water at 71 bara with 2.1 % mol CO2: pCO2 1.49 bar, fugacity 0.83, below the scaling temperature, 4.46 mm/y uninhibited."
+      args: [131.0, 1029.77, 2.1]
+      expect: {rate_mpy: 175.7446, pco2_psi: 21.625, scale_factor: 1.0}
+      says: "131 °F water at 1,030 psia with 2.1 % mol CO2: pCO2 21.6 psi, fugacity 0.83, below the scaling temperature, 176 mpy (4.46 mm/y) uninhibited."
 
 vibration_spectra:
   title: Vibration spectrum against fault frequencies (bearing defects, 1x, 2x)
   standard: "ISO 13373-3 (vibration condition monitoring: diagnostics); rolling element bearing defect frequencies from bearing geometry"
   practice: "BPFO = n/2 fr (1 - d/D cos a), BPFI = n/2 fr (1 + d/D cos a), BSF = D/(2d) fr (1 - (d/D cos a)^2), FTF = fr/2 (1 - d/D cos a). A bearing defect is indicated when two of its first three harmonics stand above the floor, not counting a harmonic on a whole order of running speed; 2x high against 1x reads misalignment, 1x dominant reads unbalance. The amplitudes and ratios are this registry's own screening choices."
   tool: vibration_spectra
-  inputs: [{name: Spectrum peak table, unit: mm/s RMS}, {name: Running speed, unit: rpm}, {name: Bearing geometry (elements, element and pitch diameter, contact angle), unit: mm}]
+  inputs: [{name: Spectrum peak table, unit: in/s RMS}, {name: Running speed, unit: rpm}, {name: Bearing geometry (elements, element and pitch diameter, contact angle), unit: in}]
   valid: Rolling element bearings on machines a route collector measures, with the bearing's geometry in the point setup.
   needs: Condition-monitoring spectra with running speed; bearing frequencies need the bearing geometry.
   thresholds:
     tolerance: {value: 1.5, unit: "%", means: "A peak within this share of a fault frequency sits on it.", code: "fuzer.analysis.vibration_spectra:TOLERANCE_PCT"}
-    amplitude: {value: 0.1, unit: "mm/s", means: "A peak under this is the spectrum's floor.", code: "fuzer.analysis.vibration_spectra:AMPLITUDE_MIN"}
+    amplitude: {value: 0.004, unit: "in/s", means: "A peak under this is the spectrum's floor.", code: "fuzer.analysis.vibration_spectra:AMPLITUDE_MIN"}
     harmonics: {value: 2, means: "Of the first three harmonics of a bearing frequency, this many must show.", code: "fuzer.analysis.vibration_spectra:BEARING_HARMONICS"}
     misalignment: {value: 0.5, means: "2x over this share of 1x reads misalignment.", code: "fuzer.analysis.vibration_spectra:MISALIGN_RATIO"}
     unbalance: {value: 0.9, means: "1x over this share of the overall level reads unbalance.", code: "fuzer.analysis.vibration_spectra:UNBALANCE_RATIO"}
   vectors:
     - kernel: fuzer.analysis.vibration_spectra:bearing_frequencies
-      args: [3000, 8, 23.8, 100.0, 0]
+      args: [3000, 8, 0.937, 3.937, 0]
       expect: {bpfo: 152.4, bpfi: 247.6, ftf: 19.05}
-      says: "8 balls of 23.8 mm on a 100 mm pitch at 3000 rpm: BPFO 4 x 50 x 0.762 = 152.4 Hz, BPFI 247.6 Hz, cage 19.05 Hz."
+      says: "8 balls of 0.937 in on a 3.937 in pitch at 3000 rpm: BPFO 4 x 50 x 0.762 = 152.4 Hz, BPFI 247.6 Hz, cage 19.05 Hz."
 
 lead_in:
   title: Process values in the hours before an event against the hours before that
@@ -681,7 +681,7 @@ valve_stiction:
 contactor_foaming:
   title: Contactor differential pressure against its clean level (foaming and fouling)
   practice: "GPSA Engineering Data Book (hydrocarbon treating and dehydration): foaming shows first as a sudden rise in column differential pressure, with carryover and off-spec gas; a slow climb is fouling or damaged packing."
-  inputs: [{name: Contactor differential pressure, unit: bar}, {name: Treated gas analyser (optional), unit: "mol% or mg/Sm³"}]
+  inputs: [{name: Contactor differential pressure, unit: psi}, {name: Treated gas analyser (optional), unit: "mol% or lb/MMscf"}]
   valid: Amine and glycol contactors with a differential pressure point, while gas flows through them.
   needs: A week of differential pressure history before the last two days.
   thresholds:
@@ -692,7 +692,7 @@ contactor_foaming:
 treated_gas:
   title: Treated gas analyser against its operating window
   practice: "GPSA Engineering Data Book; API 12GDU for glycol dehydration units. The limit is the site's recorded window (IOW, alarm settings or the learned range), not a number in the code."
-  inputs: [{name: Treated gas analyser, unit: "mol% or mg/Sm³"}, {name: Operating window, unit: same}]
+  inputs: [{name: Treated gas analyser, unit: "mol% or lb/MMscf"}, {name: Operating window, unit: same}]
   valid: Contactors with a treated gas analyser (acid gas after an amine column, water after a glycol one).
   needs: Seven days of analyser readings and an operating window on the point.
   thresholds:
@@ -702,7 +702,7 @@ treated_gas:
 regenerator:
   title: Reboiler temperature against its operating window
   practice: "GPSA Engineering Data Book; API 12GDU for glycol dehydration units: too cold leaves the solvent under-stripped, too hot degrades it. The window is the site's recorded one."
-  inputs: [{name: Reboiler temperature, unit: "°C"}, {name: Operating window, unit: "°C"}]
+  inputs: [{name: Reboiler temperature, unit: "°F"}, {name: Operating window, unit: "°F"}]
   valid: Amine, glycol and stabilizer reboilers with a temperature point.
   needs: Seven days of temperature readings and an operating window on the point.
   thresholds:
@@ -712,7 +712,7 @@ regenerator:
 chiller:
   title: Low temperature separator temperature against its operating window
   practice: "GPSA Engineering Data Book (refrigeration, hydrocarbon dew point control): the separator temperature sets the dew point of the gas leaving it. The limit is the site's recorded window."
-  inputs: [{name: Separator temperature, unit: "°C"}, {name: Operating window, unit: "°C"}]
+  inputs: [{name: Separator temperature, unit: "°F"}, {name: Operating window, unit: "°F"}]
   valid: Chilled (low temperature) separators of a dew point control unit with a temperature point.
   needs: Seven days of temperature readings and an operating window on the point.
   vectors: [{worked: "tests/analysis/test_treating.py::test_the_chiller_holds_the_dew_point"}]
@@ -720,7 +720,7 @@ chiller:
 inspection_plan:
   title: Condition inspection plan against the interval the wall loss supports
   standard: "API 510 / API 570"
-  inputs: [{name: Inspection plan interval and dates, unit: days}, {name: Wall thickness readings per CML, unit: mm}, {name: Minimum required thickness, unit: mm}]
+  inputs: [{name: Inspection plan interval and dates, unit: days}, {name: Wall thickness readings per CML, unit: in}, {name: Minimum required thickness, unit: in}]
   valid: Pressure vessels, exchangers and piping with a condition inspection plan in the maintenance plans. The supported interval needs repeat thickness readings and a retirement thickness (recorded per CML, or the line's design).
   needs: A condition inspection plan concerning the item.
   thresholds:
@@ -730,7 +730,7 @@ inspection_plan:
 allocation_factor:
   title: Allocation factor of a meter against the well tests upstream of it
   practice: "API MPMS Chapter 20.1 (allocation measurement): the measured volume at a reference meter divided by the sum of the wells' theoretical volumes (their latest tests, while flowing). Off one, the tests are stale or the meter reads wrong, and every well's allocated volume carries the error."
-  inputs: [{name: Meter flow, unit: "Sm³/d or kSm³/d"}, {name: Well tests upstream (oil rate, GOR or gas rate), unit: "Sm³/d or kSm³/d"}]
+  inputs: [{name: Meter flow, unit: "bbl/d or Mscf/d"}, {name: Well tests upstream (oil rate, GOR or gas rate), unit: "bbl/d or Mscf/d"}]
   valid: Meters on the allocation network with wells upstream and a flow point; oil for a liquid meter, formation gas (lift gas left out) for a gas meter. A meter downstream of processing carries shrinkage and fuel, so read it against its own previous factor.
   needs: A well test within the test age for the wells upstream, and days with the meter flowing.
   thresholds:
@@ -743,7 +743,7 @@ allocation_factor:
 meter_agreement:
   title: A meter against the nearest other meter on the same stream
   practice: "API MPMS Chapter 21.1 and 5 (flow measurement, meter proving and check metering): a custody meter is checked against a check meter on the same stream; the ratio of the two holds while both read true, and a step in it is one of them drifting."
-  inputs: [{name: Meter flow, unit: "Sm³/d or kSm³/d"}, {name: Other meter's flow on the same stream, unit: same}]
+  inputs: [{name: Meter flow, unit: "bbl/d or Mscf/d"}, {name: Other meter's flow on the same stream, unit: same}]
   valid: Meters with another meter of the same phase within four steps up or down the allocation network.
   needs: Three days with both flowing in the window and seven in the month before it.
   thresholds:

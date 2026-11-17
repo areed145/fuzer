@@ -254,19 +254,19 @@ def test_an_upset_on_producing_wells_is_valued_by_the_production_it_defers(conn,
     well = conn.execute(
         """
         select t.dst as id from edge t join entity w on w.fuzer_id = t.dst and w.kind = 'well'
-        join golden g on g.fuzer_id = t.src and g.field = 'oil_sm3d' where t.rel = 'tests' and (g.value #>> '{}')::float > 0
+        join golden g on g.fuzer_id = t.src and g.field = 'oil_bbld' where t.rel = 'tests' and (g.value #>> '{}')::float > 0
         limit 1
         """).fetchone()["id"]
     rate = sre_handoff.rate_at_risk(conn, [well])
-    assert rate["wells"] == 1 and rate["oil_sm3d"] > 0
+    assert rate["wells"] == 1 and rate["oil_bbld"] > 0
     cfg = value.config(PACK)["upsets"]
     up = {"id": 0, "first_unit": well, "units": [well], "start": datetime(2024, 11, 5, 6), "end": None,
           "point_id": None, "key": "alarm:lo", "label": "WHP alarm:lo", "text": "Low alarm"}
     s = sre_handoff.priority(conn, PACK, up)
     p = s["components"]["production"]
     assert p["status"] == "ok" and p["days"] == cfg["days"] and s["value_usd"] > 0
-    assert p["oil_sm3d"] == round(rate["oil_sm3d"] * cfg["rate_at_risk_share"], 1)
-    assert "producing well(s) it reaches" in p["sources"]["oil_sm3d"]
+    assert p["oil_bbld"] == round(rate["oil_bbld"] * cfg["rate_at_risk_share"], 1)
+    assert "producing well(s) it reaches" in p["sources"]["oil_bbld"]
 
     recovered = {**up, "end": datetime(2024, 11, 5, 9)}
     monkeypatch.setattr(sre_handoff, "repeats", lambda c, u: 1)  # once: no rate at stake, as before
@@ -275,4 +275,4 @@ def test_an_upset_on_producing_wells_is_valued_by_the_production_it_defers(conn,
     s = sre_handoff.priority(conn, PACK, recovered)
     p = s["components"]["production"]
     assert p["days"] == round(3 / 24 * 4 / 30 * 90, 1) and s["value_usd"] > 0
-    assert "4 times in the last 30 d" in p["sources"]["oil_sm3d"] and s["urgency"]["status"] != "unknown"
+    assert "4 times in the last 30 d" in p["sources"]["oil_bbld"] and s["urgency"]["status"] != "unknown"

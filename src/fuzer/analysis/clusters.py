@@ -142,10 +142,10 @@ def entities(conn, kind: str = "wells", scope=None, since: str | None = None, un
         wc = [t.get("water_cut") for t in tests if t.get("water_cut") is not None]
         rows.append({"well": _label(conn, r["fuzer_id"]), "id": r["fuzer_id"], "decline_pct_per_year": d["effective_decline_pct_per_year"] or 0,
                      "water_cut": wc[-1] if wc else 0, "water_cut_rise": (wc[-1] - wc[0]) if len(wc) > 1 else 0,
-                     "lift_response": resp.get(r["fuzer_id"], 0) or 0, "oil_sm3d": d["value"] or 0})
+                     "lift_response": resp.get(r["fuzer_id"], 0) or 0, "oil_bbld": d["value"] or 0})
     if len(rows) < 6:
         raise CalcError("fewer than six wells with tests")
-    keys = ["decline_pct_per_year", "water_cut", "water_cut_rise", "lift_response", "oil_sm3d"]
+    keys = ["decline_pct_per_year", "water_cut", "water_cut_rise", "lift_response", "oil_bbld"]
     Z, _mu, _sd = _scale(np.array([[r[x] for x in keys] for r in rows], float))
     k = k or 4
     lab = KMeans(k, n_init=10, random_state=0).fit_predict(Z)

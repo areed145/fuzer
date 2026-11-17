@@ -1,54 +1,137 @@
 # Units of measure: the unit each measurement is stored in, the spellings sources use for it, and
-# units converted into it (value * factor + offset). Reference data: add a site's spellings here.
-mm:
-  aliases: [millimetre, millimeter, millimetres, millimeters]
+# units converted into it (value * factor + offset). Stored units are US oilfield units (psig, °F, bbl/d,
+# Mscf/d, in, mpy); metric sources are converted on the way in. Reference data: add a site's spellings here.
+in:
+  aliases: [inch, inches, '"']
   from:
-    in: {factor: 25.4, aliases: [inch, inches, '"']}
-    mils: {factor: 0.0254, aliases: [mil, thou]}
-mm/y:
-  aliases: [mm/yr, mm/year, mmpy]
+    mm: {factor: 0.0393701, aliases: [millimetre, millimeter, millimetres, millimeters]}
+mils:
+  aliases: [mil, thou]
   from:
-    mpy: {factor: 0.0254, aliases: [mils/yr, mil/y]}
-barg:
-  aliases: [bar g, bar(g), barG]
+    um: {factor: 0.0393701, aliases: [µm, micron, microns]}
+mpy:
+  aliases: [mils/yr, mil/y, mils/y]
   from:
-    psig: {factor: 0.0689476, aliases: [psi g, psi(g)]}
-    kPag: {factor: 0.01, aliases: [kpag, kPa(g)]}
-Sm3/d:
-  aliases: [sm3/d, Sm3/day, SM3/D, m3/d]
+    mm/y: {factor: 39.3701, aliases: [mm/yr, mm/year, mmpy]}
+psig:
+  aliases: [psi g, psi(g), PSIG]
   from:
-    bbl/d: {factor: 0.158987, aliases: [bpd, bbl/day, BOPD, bopd, BWPD, bwpd]}
-kSm3/d:
-  aliases: [ksm3/d, 1000 Sm3/d, kSm3/day, E3Sm3/d]
+    barg: {factor: 14.5038, aliases: [bar g, bar(g), barG]}
+    kPag: {factor: 0.145038, aliases: [kpag, kPa(g)]}
+psia:
+  aliases: [PSIA, psi a, psi(a)]
   from:
-    MMscf/d: {factor: 28.3168, aliases: [mmscfd, MMSCFD]}
-Sm3/Sm3:
-  aliases: [sm3/sm3, m3/m3]
+    bara: {factor: 14.5038, aliases: [bar a, bar(a)]}
+    kPaa: {factor: 0.145038, aliases: [kPa(a)]}
+psi:
+  aliases: [PSI, psid]
   from:
-    scf/bbl: {factor: 0.178108, aliases: [scf/stb, SCF/BBL]}
+    bar: {factor: 14.5038, aliases: [bard]}
+    kPa: {factor: 0.145038, aliases: [kpa]}
+    mbar: {factor: 0.0145038}
+bbl/d:
+  aliases: [bpd, bbl/day, BOPD, bopd, BWPD, bwpd, BLPD, blpd, STB/d, stb/d]
+  from:
+    Sm3/d: {factor: 6.28981, aliases: [sm3/d, Sm3/day, SM3/D, m3/d]}
+bbl:
+  aliases: [STB, stb, bbls]
+  from:
+    Sm3: {factor: 6.28981, aliases: [sm3, SM3, m3]}
+BOE:
+  aliases: [boe, bbl oe]
+BOE/d:
+  aliases: [boe/d, BOEPD, boepd]
+Mscf/d:
+  aliases: [mscfd, MSCFD, Mcf/d, mcfd, MCFD]
+  from:
+    MMscf/d: {factor: 1000, aliases: [mmscfd, MMSCFD, MMcf/d]}
+    kSm3/d: {factor: 35.3147, aliases: [ksm3/d, 1000 Sm3/d, kSm3/day, E3Sm3/d]}
+scfh:
+  aliases: [scf/h, SCFH]
+  from:
+    Sm3/h: {factor: 35.3147, aliases: [sm3/h]}
+Mscf:
+  aliases: [mscf, MSCF, Mcf, mcf]
+  from:
+    MMscf: {factor: 1000, aliases: [mmscf, MMSCF]}
+    kSm3: {factor: 35.3147, aliases: [ksm3, 1000 Sm3, E3Sm3]}
+scf/bbl:
+  aliases: [scf/stb, SCF/BBL, SCF/STB]
+  from:
+    Sm3/Sm3: {factor: 5.61458, aliases: [sm3/sm3, m3/m3]}
+scfm:
+  aliases: [SCFM]
+  from:
+    Nm3/h: {factor: 0.621, aliases: [nm3/h]}
+acfm:
+  aliases: [ACFM]
+  from:
+    Am3/h: {factor: 0.588578, aliases: [am3/h]}
+gpm:
+  aliases: [GPM, gal/min]
+  from:
+    m3/h: {factor: 4.40287}
 "%":
   aliases: [pct, percent, vol%, "% vol", wt%]
   from:
     fraction: {factor: 100}
-degC:
-  aliases: [°C, C, deg C, celsius]
+degF:
+  aliases: [°F, F, deg F, fahrenheit]
   from:
-    degF: {factor: 0.5555556, offset: -17.7777778, aliases: [°F, F, deg F, fahrenheit]}
+    degC: {factor: 1.8, offset: 32, aliases: [°C, C, deg C, celsius]}
+hp:
+  aliases: [HP, bhp, BHP]
+  from:
+    kW: {factor: 1.34102, aliases: [kw]}
+ft:
+  aliases: [feet, foot]
+  from:
+    m: {factor: 3.28084, aliases: [metre, meter, metres, meters]}
+mi:
+  aliases: [mile, miles]
+  from:
+    km: {factor: 0.621371}
 mg/L:
   aliases: [mg/l, ppmw, ppm(w)]
 ppmv:
   aliases: [ppm(v), ppm v, ppm]
-mg/Sm3:
-  aliases: [mg/sm3, mg/m3]
-g/cm3:
-  aliases: [g/cc, g/ml]
+lb/MMscf:
+  aliases: [lb/mmscf, lbs/MMscf]
   from:
-    kg/m3: {factor: 0.001}
-mm/s:
-  aliases: [mm/sec]
+    mg/Sm3: {factor: 0.062428, aliases: [mg/sm3, mg/m3]}
+# Oil density as API gravity at 60 °F: 141.5 / SG - 131.5, not a straight line, so `api` names the conversion
+# from a density in kg/m3 (g/cm3 is 1000 times that).
+API:
+  aliases: [°API, deg API, degAPI, "API gravity"]
   from:
-    in/s: {factor: 25.4, aliases: [ips, in/sec]}
+    kg/m3: {api: 1, aliases: [kg/Sm3]}
+    g/cm3: {api: 1000, aliases: [g/cc, g/ml]}
+Btu/scf:
+  aliases: [BTU/scf]
+  from:
+    MJ/Sm3: {factor: 26.8392, aliases: [mj/sm3, MJ/m3]}
+in/s:
+  aliases: [ips, in/sec, IPS]
+  from:
+    mm/s: {factor: 0.0393701, aliases: [mm/sec]}
+lbf:
+  from:
+    kN: {factor: 224.809}
+ft-lbf/lbm:
+  from:
+    kJ/kg: {factor: 334.553}
+Btu/kWh:
+  from:
+    kJ/kWh: {factor: 0.947817}
 ptb:
   aliases: [PTB, lb/1000 bbl]
 "1":
   aliases: [count, "-", ratio]
+MMBtu:
+  aliases: [mmbtu, MMBTU]
+  from:
+    GJ: {factor: 0.947817, aliases: [gj]}
+inH2O:
+  aliases: [in H2O, inWC, "in WC"]
+  from:
+    mbarg: {factor: 0.401865}

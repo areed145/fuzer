@@ -43,7 +43,7 @@ arrive:
   source_quality_drop: {deliver: deliveries/thin-delivery, datasets: [moc_register], rebuild: true, about: source}
   mapping_to_approve: {suggest: deliveries/new-export, about: source}  # a new export: a suggested mapping
   # An operator's reading on a round, outside its limits: a bearing running hot on the export cooler
-  round_finding: {round: {point: R-10-01, value: 97}}
+  round_finding: {round: {point: R-10-01, value: 207}}
   # A historian point's descriptor edited in PI: the build can't tell any more which temperature it is
   measurement_role_to_confirm: {deliver: deliveries/descriptor-edit, datasets: [pi_points], incremental: true, rebuild: true}
   # Claude's readings, as a reader run leaves them in its cache (deliveries/*/<cache>.json): a datasheet curve waits

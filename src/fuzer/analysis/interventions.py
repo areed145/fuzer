@@ -51,7 +51,7 @@ def one(conn, row: dict) -> dict:
     end = datetime.fromisoformat(str(f.get("end") or f["start"])[:19])
     base = {"id": row["id"], "well_id": row["well"], "well": row["label"], "start": start.isoformat()[:16],
             "end": end.isoformat()[:16], "reason": f.get("reason"), "comment": f.get("comment") or f.get("text"),
-            "lost_oil_sm3": calcs._r(ops._num(f.get("lost_oil_sm3")), 1)}
+            "lost_oil_bbl": calcs._r(ops._num(f.get("lost_oil_bbl")), 1)}
     try:
         tests = [t for t in calcs.well_tests(conn, row["well"]) if t.get("oil_rate", 0) > 0]
     except calcs.CalcError:
@@ -83,10 +83,10 @@ def one(conn, row: dict) -> dict:
     gain = actual - expected
     verdict = ("gained" if high is not None and actual > high else "lost" if low is not None and actual < low
                else "no_clear_change")
-    return base | {"verdict": verdict, "oil_before_sm3d": calcs._r(before[-1]["oil_rate"], 1),
-                   "oil_after_sm3d": calcs._r(actual, 1), "oil_expected_sm3d": calcs._r(expected, 1),
-                   "oil_range_sm3d": [calcs._r(low, 1), calcs._r(high, 1)] if low is not None else None,
-                   "gain_sm3d": calcs._r(gain, 1),
+    return base | {"verdict": verdict, "oil_before_bbld": calcs._r(before[-1]["oil_rate"], 1),
+                   "oil_after_bbld": calcs._r(actual, 1), "oil_expected_bbld": calcs._r(expected, 1),
+                   "oil_range_bbld": [calcs._r(low, 1), calcs._r(high, 1)] if low is not None else None,
+                   "gain_bbld": calcs._r(gain, 1),
                    "decline_pct_per_year": calcs._r((1 - math.exp(-fit["D"])) * 100, 1), "level": forecast.LEVEL}
 
 
@@ -97,13 +97,13 @@ def gains(conn, since: str | None = None, until: str | None = None, well: str | 
     since = since or (date.fromisoformat(until) - timedelta(days=days)).isoformat()
     items = [one(conn, r) for r in _rows(conn, since, until, well)]
     said = [i for i in items if i["verdict"] != "unknown"]
-    return {"since": since, "until": until, "unit": "Sm3/d oil", "source": "downtime records in the well category "
+    return {"since": since, "until": until, "unit": "bbl/d oil", "source": "downtime records in the well category "
             "(the interventions) and well tests before and after", "level": forecast.LEVEL,
             "interventions": sorted(items, key=lambda i: i["start"], reverse=True),
             "summary": {"interventions": len(items), "said": len(said), "unknown": len(items) - len(said),
                         "gained": sum(1 for i in said if i["verdict"] == "gained"),
                         "lost": sum(1 for i in said if i["verdict"] == "lost"),
                         "no_clear_change": sum(1 for i in said if i["verdict"] == "no_clear_change"),
-                        "net_gain_sm3d": calcs._r(sum(i["gain_sm3d"] for i in said), 1) if said else None},
+                        "net_gain_bbld": calcs._r(sum(i["gain_bbld"] for i in said), 1) if said else None},
             "note": "Gain is the oil rate after against the decline before, net of that decline. Attribution is not "
                     "proof; the accountable engineer decides on further work. Unknown is never counted as zero."}

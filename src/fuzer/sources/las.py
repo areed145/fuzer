@@ -3,17 +3,17 @@ LAS 2.0 text format. Sections start with `~`: version (~V), well (~W), curves (~
 the ASCII log data (~A), one row per depth with a value per curve. Each header line is `MNEM.UNIT  DATA : DESCRIPTION`.
 
     read(path)   {version, well: {mnemonic: value}, curves: [{mnemonic, unit, description}], depth_unit,
-                  rows: [{"md_m": depth in metres, <curve>: value or None}]}
+                  rows: [{"md_ft": depth in feet, <curve>: value or None}]}
 
-Depth reads in metres or feet; a null value (~W NULL, -999.25 by default) is left out as None. Wrapped data
+Depth reads in metres or feet, and is kept in feet; a null value (~W NULL, -999.25 by default) is left out as None. Wrapped data
 (VERS 1.2 or WRAP YES) and LAS 3.0 are refused with a message rather than guessed. Standard library only.
 """
 
 from pathlib import Path
 
-FEET = 0.3048
-_DEPTH_UNITS = {"m": 1.0, "metre": 1.0, "meter": 1.0, "metres": 1.0, "meters": 1.0,
-                "f": FEET, "ft": FEET, "feet": FEET, "usft": 1200 / 3937}
+FT_PER_M = 3.28084
+_DEPTH_UNITS = {"m": FT_PER_M, "metre": FT_PER_M, "meter": FT_PER_M, "metres": FT_PER_M, "meters": FT_PER_M,
+                "f": 1.0, "ft": 1.0, "feet": 1.0, "usft": 1200 / 3937 * FT_PER_M}
 DEPTH = ("DEPT", "DEPTH", "MD")
 
 
@@ -81,6 +81,6 @@ def read(path: Path) -> dict:
             raise LasError(f"{path}: a value in ~A isn't a number ({e})") from None
         if got[0] == null:
             continue
-        rows.append({"md_m": round(got[0] * scale, 3),
+        rows.append({"md_ft": round(got[0] * scale, 3),
                      **{n: (None if v == null else v) for n, v in zip(names[1:], got[1:])}})
     return {"version": vers, "well": well, "curves": curves, "depth_unit": unit, "rows": rows}

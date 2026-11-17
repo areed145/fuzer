@@ -300,7 +300,7 @@ def test_tables_and_notes_are_read_and_checked(setup, read, okan_db):
     assert found and found & moved
     m = conn.execute("select quantity, value, unit, method from measurement m join entity_label l using (fuzer_id) "
                      "where l.label = '20-V-2101B' and m.method = 'pid_table' order by quantity").fetchall()
-    assert [r["quantity"] for r in m] == ["design_pressure", "design_temperature"] and m[0]["unit"] == "barg"
+    assert [r["quantity"] for r in m] == ["design_pressure", "design_temperature"] and m[0]["unit"] == "psig"
 
     from fuzer.api import app
     fid = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()

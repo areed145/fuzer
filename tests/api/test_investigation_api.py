@@ -25,14 +25,14 @@ def test_seeded_journey_has_cited_evidence_without_ai_or_mutations(okan_db, clie
     evidence = {e["id"]: e for e in data["evidence"]}
     downtime = [e for e in evidence.values() if e["kind"] == "downtime"]
     assert len(downtime) == 2
-    assert sum(e["lost_oil_sm3"] for e in downtime) == 1088
+    assert abs(sum(e["lost_oil_bbl"] for e in downtime) - 6843) <= 2  # 1,088 Sm³
     assert all(e["records"] for e in evidence.values())
     assert {"notification", "downtime", "log_entry", "work_order"} <= {e["kind"] for e in evidence.values()}
     assert any("bearing" in e["text"].lower() for e in evidence.values() if e["kind"] == "work_order")
     for finding in data["findings"]:
         assert finding["evidence_ids"]
         assert set(finding["evidence_ids"]) <= evidence.keys()
-    assert any("1,088 Sm3" in f["text"] for f in data["findings"])
+    assert any("6,844 bbl" in f["text"] for f in data["findings"])
     maintenance = next(f for f in data["findings"] if "April maintenance response" in f["text"])
     assert {"notification", "work_order"} <= {evidence[id_]["kind"] for id_ in maintenance["evidence_ids"]}
     assert data["asset_records"] and data["asset_fields"]
@@ -93,7 +93,7 @@ def test_missing_volume_is_unknown_not_zero_and_shared_evidence_is_counted_once(
 
     def incomplete(conn, id_):
         rows = original(conn, id_)
-        return [{**r, "lost_oil_sm3": None} for r in rows] * 2
+        return [{**r, "lost_oil_bbl": None} for r in rows] * 2
 
     monkeypatch.setattr(queries, "incident_timeline", incomplete)
     result = guided_investigation(okan_db.conn, load_pack("okan"))

@@ -1,4 +1,4 @@
-"""Command line: fakeplant generate | demo | drawings | journal | historian."""
+"""Command line: fakeplant generate | demo | drawings | journal | historian | oilfield."""
 
 import argparse
 import json
@@ -30,6 +30,8 @@ def main(argv=None):
     jr = sub.add_parser("journal", help="write a hand-written bundle's DCS alarm and event journal from its process model")
     jr.add_argument("bundle", help="the bundle folder, e.g. fakeplant/bundles/kestrel")
     jr.add_argument("--days", type=int, default=100, help="days of journal up to today")
+    of = sub.add_parser("oilfield", help="rewrite a folder of metric exports in US oilfield units, in place")
+    of.add_argument("folder", help="e.g. fakeplant/bundles/kestrel/exports")
     h = sub.add_parser("historian", help="serve a fake PI Web API and ADX over the fake plant's points")
     h.add_argument("--data", dest="out", default=None, help="exports folder (default: fakeplant/data/okan)")
     h.add_argument("--host", default="127.0.0.1")
@@ -46,6 +48,10 @@ def main(argv=None):
         from . import drawings
 
         _print(drawings.render(Path(args.bundle)))
+    elif args.cmd == "oilfield":
+        from . import oilfield
+
+        _print(oilfield.convert_dir(Path(args.folder)))
     elif args.cmd == "journal":
         from . import journal
 

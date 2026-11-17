@@ -103,8 +103,8 @@ def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, h
     return Figure("correlation", lay["title"]["text"], data, lay, summary, [s["id"] for s in series])
 
 
-# ISO 20816-3 zone limits (mm/s RMS, flexible supports): A/B, B/C, C/D.
-ZONES = {"large": (3.5, 7.1, 11.0), "medium": (2.3, 4.5, 7.1)}
+# ISO 20816-3 zone limits (in/s RMS, flexible supports; the standard's 3.5/7.1/11.0 and 2.3/4.5/7.1 mm/s): A/B, B/C, C/D.
+ZONES = {"large": (0.138, 0.280, 0.433), "medium": (0.091, 0.177, 0.280)}
 
 
 def vibration(conn, fid: str, at: str | None = None, days: int = 30) -> Figure:
@@ -116,7 +116,7 @@ def vibration(conn, fid: str, at: str | None = None, days: int = 30) -> Figure:
     vib = [p for p in pts if (p["uom"] or "") in ("mm/s", "in/s") or "vibration" in (p["description"] or "").lower()]
     if not vib:
         raise ChartError("no vibration points on that unit")
-    temp = [p for p in pts if (p["uom"] or "") == "degC"][:1]
+    temp = [p for p in pts if (p["uom"] or "") in ("degF", "°F")][:1]
     series, upsets, out = _window(conn, [vib[0]["id"]] + [t["id"] for t in temp], at, days * 24 * 2 // 3,
                                   days * 24 // 3, max_points=1)
     by = {s["id"]: s for s in series}
@@ -125,9 +125,9 @@ def vibration(conn, fid: str, at: str | None = None, days: int = 30) -> Figure:
     big = "-K-" in (label["label"] if label else "") or "compressor" in (v["description"] or "").lower()
     ab, bc, cd = ZONES["large" if big else "medium"]
     xs, ys = thin([t for t, _ in v["values"]], [x for _, x in v["values"]])
-    data = [{"type": "scatter", "mode": "lines", "name": f"{v['point']} (mm/s)", "x": xs, "y": ys,
+    data = [{"type": "scatter", "mode": "lines", "name": f"{v['point']} (in/s)", "x": xs, "y": ys,
              "meta": {"entity": v["id"]}}]
-    lay = layout(f"Vibration on {label['label'] if label else fid} against ISO 20816 zones", None, "vibration (mm/s RMS)")
+    lay = layout(f"Vibration on {label['label'] if label else fid} against ISO 20816 zones", None, "vibration (in/s RMS)")
     top = max(cd * 1.2, v["max"] * 1.1)
     bands = [(0, ab, "rgba(60,170,90,0.10)", "A"), (ab, bc, "rgba(160,190,60,0.10)", "B"),
              (bc, cd, "rgba(230,150,30,0.12)", "C"), (cd, top, "rgba(210,60,50,0.12)", "D")]
@@ -139,15 +139,15 @@ def vibration(conn, fid: str, at: str | None = None, days: int = 30) -> Figure:
     if temp and temp[0]["id"] in by:
         t = by[temp[0]["id"]]
         tx, ty = thin([a for a, _ in t["values"]], [b for _, b in t["values"]])
-        data.append({"type": "scatter", "mode": "lines", "name": f"{t['point']} (degC)", "x": tx, "y": ty,
+        data.append({"type": "scatter", "mode": "lines", "name": f"{t['point']} (°F)", "x": tx, "y": ty,
                      "yaxis": "y2", "line": {"dash": "dot"}, "meta": {"entity": t["id"]}})
-        lay["yaxis2"] = {"overlaying": "y", "side": "right", "title": {"text": "temperature (degC)"}}
+        lay["yaxis2"] = {"overlaying": "y", "side": "right", "title": {"text": "temperature (°F)"}}
 
     def zone(x):
         return "A" if x < ab else "B" if x < bc else "C" if x < cd else "D"
 
     return Figure("vibration", lay["title"]["text"], data, lay, {
-        "machine_size": "large (>300 kW)" if big else "medium (15-300 kW)", "zone_limits_mm_s": [ab, bc, cd],
+        "machine_size": "large (>300 kW)" if big else "medium (15-300 kW)", "zone_limits_in_s": [ab, bc, cd],
         "latest": v["last"], "latest_zone": zone(v["last"]), "peak": v["max"], "peak_zone": zone(v["max"]),
         "lead_in": v.get("lead_in"), "incidents_in_window": upsets, "provider": out["provider"],
         **synthetic_note(out["provider"], series)}, [fid, v["id"]])
@@ -456,17 +456,17 @@ def flare_attribution(conn, since: str | None = None, until: str | None = None, 
     if not out["days"]:
         raise ChartError("no daily flare volume in that window")
     x = [d["day"] for d in out["days"]]
-    eps = [e for e in out["episodes"] if e["volume_unit"] == "kSm3"]
-    data = [{"type": "bar", "name": "flare (kSm3/d)", "x": x, "y": [d["flare_ksm3"] for d in out["days"]],
+    eps = [e for e in out["episodes"] if e["volume_unit"] == "Mscf"]
+    data = [{"type": "bar", "name": "flare (Mscf/d)", "x": x, "y": [d["flare_mscf"] for d in out["days"]],
              "marker": {"color": "rgba(230,120,40,0.6)"}},
             {"type": "scatter", "mode": "lines", "name": "baseline (median of the days before)", "x": x,
-             "y": [d["baseline_ksm3"] for d in out["days"]], "line": {"dash": "dot", "color": "rgba(90,90,90,0.8)"}},
+             "y": [d["baseline_mscf"] for d in out["days"]], "line": {"dash": "dot", "color": "rgba(90,90,90,0.8)"}},
             {"type": "scatter", "mode": "markers", "name": "episode", "x": [e["start"][:10] for e in eps],
              "y": [e["peak"] for e in eps],
              "marker": {"size": 11, "symbol": ["circle" if e["attributed"] else "circle-open" for e in eps],
                         "color": "rgba(210,60,50,0.9)"},
              "text": ["; ".join(c["text"][:60] for c in e["causes"][:2]) or "cause unknown" for e in eps]}]
-    lay = layout(f"Flare and its episodes, {out['since']} to {out['until']}", None, "kSm3/d")
+    lay = layout(f"Flare and its episodes, {out['since']} to {out['until']}", None, "Mscf/d")
     return Figure("flare_attribution", lay["title"]["text"], data, lay, {
         "summary": out["summary"], "thresholds": out["thresholds"], "note": out["note"],
         "episodes": [{k: e[k] for k in ("start", "volume", "attributed")} | {"causes": [c["kind"] for c in e["causes"]]}

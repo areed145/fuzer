@@ -7,7 +7,7 @@ description: Production engineering for wells - well test trends (rate, water cu
 
 **Believe the test first.** Before reading a trend into a well's latest test, run `calc("test_check", well)`:
 the test against what its choke passes at that day's wellhead and header pressures (`choke_deviation_pct`), its
-inflow per bar of drawdown, and, on a gas lifted well, its lift curve. `test_suspect` (25 % or more off what the
+inflow per psi of drawdown, and, on a gas lifted well, its lift curve. `test_suspect` (25 % or more off what the
 choke and pressures support) means the test separator, not the well: recommend a retest before anyone acts on it,
 and don't put it in a decline or a lift optimisation. `off_lift_curve` (pressures agree, oil 25 % or more below
 the lift curve at that lift gas) is a real lift problem: a valve failed open or the gas supply. A test with no choke
@@ -29,7 +29,7 @@ check (no choke curve, no header transmitter) rests on the inflow alone, which i
    shut-ins, interventions and operator notes, `downtime(well)` for losses, `trace_flow(well, "down")`
    for its route to the separator and export.
 5. **Candidates:** wells with the largest recoverable loss: failed lift (restore), high water cut
-   (water shut-off), big decline vs neighbours (stimulation / scale squeeze). Rank by Sm³/d at stake.
+   (water shut-off), big decline vs neighbours (stimulation / scale squeeze). Rank by bbl/d (or BOE/d where gas counts) at stake.
 
 Quote test dates and values; one test is not a trend, so say how many tests support a conclusion.
 `calc("decline", well)` puts the latest test against the Arps fit through the ones before it

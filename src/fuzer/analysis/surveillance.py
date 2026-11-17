@@ -1,7 +1,7 @@
 """Production surveillance checks (#515): is a well test believable, and where is the field's oil going.
 
 - `test_check(well)`: the latest well test against the well's own inflow and its gas lift curve, before anyone acts
-  on it. Inflow: the liquid rate per bar of wellhead drawdown (shut-in wellhead pressure less the flowing wellhead
+  on it. Inflow: the liquid rate per psi of wellhead drawdown (shut-in wellhead pressure less the flowing wellhead
   pressure the historian saw on the test day), against the same figure from the well's earlier tests. Lift: the
   oil rate the well's gas lift curve (fitted to its earlier tests) expects at the test's lift gas rate. Flags
   `test_suspect` when the test departs from the inflow by 25 % or more (the wellhead pressures didn't see the rate
@@ -29,7 +29,7 @@ INFLOW_ONLY = 0.40  # departure from the inflow alone, when the choke can't be c
 NOISE = 0.05  # a shortfall under this share of potential (or twice the tests' scatter) is within their noise
 WATER_RISE = 8.0  # points of water cut on the test before that make the shortfall water
 UNEXPLAINED = 0.30  # share of a shortfall with no cause on record that is flagged
-BACK_RISE = 1.0  # bar the header must sit above its level of the previous months to hold a well back
+BACK_RISE = 15.0  # psi the header must sit above its level of the previous months to hold a well back
 
 
 def _liquid(t: dict) -> float | None:
@@ -47,7 +47,7 @@ def _whp_on(conn, pts: dict, day: datetime, src=None) -> float | None:
 
 
 def test_check(conn, well: str, until: str | None = None, history: int = 6, src=None) -> dict:
-    """The latest test against the well's inflow (liquid per bar of wellhead drawdown) and its gas lift curve."""
+    """The latest test against the well's inflow (liquid per psi of wellhead drawdown) and its gas lift curve."""
     from . import calcs
     from .hydraulics import _shut_in_whp, well_points
 
@@ -62,7 +62,7 @@ def test_check(conn, well: str, until: str | None = None, history: int = 6, src=
     rows = []
     for t in tests:
         whp = _whp_on(conn, pts, t["at"], src)
-        if whp is None or psi - whp < 1:
+        if whp is None or psi - whp < 15:
             continue
         rows.append({"at": t["at"].date().isoformat(), "record": t["record"], "liquid": _liquid(t),
                      "oil": t["oil_rate"], "whp": whp, "pi": _liquid(t) / (psi - whp), "lift_gas": t.get("lift_gas_rate")})
@@ -98,18 +98,18 @@ def test_check(conn, well: str, until: str | None = None, history: int = 6, src=
     flag = ("test_suspect" if suspect else
             "off_lift_curve" if lift_dev is not None and lift_dev <= -OFF_CURVE else None)
     return result(_r(last["liquid"], 1), _r(expected_liquid, 1), flag,
-                  f"liquid rate per bar of wellhead drawdown (shut-in wellhead pressure {psi:.1f} barg less the "
+                  f"liquid rate per psi of wellhead drawdown (shut-in wellhead pressure {psi:.0f} psig less the "
                   f"historian's median wellhead pressure on the test day) against the median of the previous "
                   f"{min(3, len(before))} tests; outflow: the rate through the choke at the test day's wellhead and header "
                   f"pressures (its effective Cv) against the previous three tests. Suspect when the choke check (else "
                   f"the inflow, at {INFLOW_ONLY:.0%}) is {SUSPECT:.0%} or more off either way"
                   + ("; oil against the well's gas lift curve fitted to its earlier tests at the test's lift gas, off "
                      f"the curve at {OFF_CURVE:.0%} or more below" if curve is not None else ""),
-                  [well, last["record"], pts["whp"]["id"]], unit="Sm3/d liquid", at=last["at"],
+                  [well, last["record"], pts["whp"]["id"]], unit="bbl/d liquid", at=last["at"],
                   inflow_deviation_pct=_r(inflow_dev * 100, 1),
                   choke_deviation_pct=_r(choke_dev * 100, 1) if choke_dev is not None else None, pi=_r(last["pi"], 2), expected_pi=_r(expected_pi, 2),
-                  shut_in_whp_barg=_r(psi, 1), whp_barg=_r(last["whp"], 1), oil_sm3d=_r(last["oil"], 1),
-                  lift_curve_oil_sm3d=_r(curve, 1), lift_deviation_pct=_r(lift_dev * 100, 1) if lift_dev is not None
+                  shut_in_whp_psig=_r(psi, 1), whp_psig=_r(last["whp"], 1), oil_bbld=_r(last["oil"], 1),
+                  lift_curve_oil_bbld=_r(curve, 1), lift_deviation_pct=_r(lift_dev * 100, 1) if lift_dev is not None
                   else None, tests=[{k: (_r(v, 2) if isinstance(v, float) else v) for k, v in r.items()} for r in rows])
 
 
@@ -118,7 +118,7 @@ CAUSES = ("recorded deferment", "suspect test", "water", "flowline restriction",
 
 
 def _back_rise(conn, pts: dict, at: str, src=None) -> float | None:
-    """How far the well's header sits now above its median over the 90 days before the last week (bar)."""
+    """How far the well's header sits now above its median over the 90 days before the last week (psi)."""
     from . import calcs
 
     if not pts.get("back"):
@@ -136,14 +136,14 @@ def _deferred(conn, since: str, until: str) -> dict[str, dict]:
 
     rows = conn.execute(operations._DOWNTIME + """
         select c.dst as well, coalesce(dd.f->>'reason', 'Unknown') as reason,
-               sum((dd.f->>'lost_oil_sm3')::numeric) as lost, sum((dd.f->>'duration_h')::numeric) as hours
+               sum((dd.f->>'lost_oil_bbl')::numeric) as lost, sum((dd.f->>'duration_h')::numeric) as hours
         from dd join edge c on c.src = dd.id and c.rel = 'affects' join entity w on w.fuzer_id = c.dst and w.kind = 'well'
         group by 1, 2
     """, {"id": None, "since": since, "until": until}).fetchall()
     out: dict[str, dict] = {}
     for r in rows:
-        o = out.setdefault(r["well"], {"lost_oil_sm3": 0.0, "hours": 0.0, "reasons": {}})
-        o["lost_oil_sm3"] += float(r["lost"] or 0)
+        o = out.setdefault(r["well"], {"lost_oil_bbl": 0.0, "hours": 0.0, "reasons": {}})
+        o["lost_oil_bbl"] += float(r["lost"] or 0)
         o["hours"] += float(r["hours"] or 0)
         o["reasons"][r["reason"]] = round(float(r["lost"] or 0))
     return out
@@ -177,7 +177,7 @@ def _cause(conn, w: str, at: str, src=None) -> tuple[str, str | None]:
     if wc and wc["flag"] == "back_pressure":
         rise = _back_rise(conn, hydraulics.well_points(conn, w), at, src)
         if rise is not None and rise >= BACK_RISE:
-            return "back-pressure", f"header {rise:+.1f} bar on the months before, choke subcritical"
+            return "back-pressure", f"header {rise:+.0f} psi on the months before, choke subcritical"
     try:
         gl = calcs.gas_lift(conn, w, until=at)
         if gl["flag"] == "below_curve":
@@ -190,7 +190,7 @@ def _cause(conn, w: str, at: str, src=None) -> tuple[str, str | None]:
 
 
 def deferment_attribution(conn, fid: str | None = None, at: str | None = None, days: int = 30,
-                          min_gap_sm3d: float = 2.0, src=None) -> dict:
+                          min_gap_bbld: float = 12.0, src=None) -> dict:
     """Each oil well's shortfall (its latest test below the decline fitted through the tests before it) with one cause per well, summed
     by cause across the wells in scope (a jacket, area or facility; else the asset)."""
     from ..graph import operations
@@ -216,35 +216,35 @@ def deferment_attribution(conn, fid: str | None = None, at: str | None = None, d
         d = deferred.get(w)
         cause, evidence = "nothing on record", None
         scatter = math.sqrt(fit["fit"]["sse"] / max(1, len(fit["seg"]) - 2))  # the tests' own scatter (log rate)
-        counts = gap >= max(min_gap_sm3d, max(NOISE, 2 * scatter) * (potential or 0))
-        if d and d["lost_oil_sm3"] > 0:
+        counts = gap >= max(min_gap_bbld, max(NOISE, 2 * scatter) * (potential or 0))
+        if d and d["lost_oil_bbl"] > 0:
             cause = "recorded deferment"
             evidence = max(d["reasons"], key=d["reasons"].get)
         elif counts:
             cause, evidence = _cause(conn, w, at, src)
-        rows.append({"well": _label(conn, w), "id": w, "potential_sm3d": _r(potential, 1), "latest_test_sm3d": _r(actual, 1),
-                     "latest_test": last["at"].date().isoformat(), "gap_sm3d": _r(max(gap, 0.0), 1), "cause": cause,
-                     "evidence": evidence, "deferred_oil_sm3": round(d["lost_oil_sm3"]) if d else 0,
+        rows.append({"well": _label(conn, w), "id": w, "potential_bbld": _r(potential, 1), "latest_test_bbld": _r(actual, 1),
+                     "latest_test": last["at"].date().isoformat(), "gap_bbld": _r(max(gap, 0.0), 1), "cause": cause,
+                     "evidence": evidence, "deferred_oil_bbl": round(d["lost_oil_bbl"]) if d else 0,
                      "record": last["record"], "counts": counts})
     if not rows:
         raise CalcError("no oil well in scope has enough tests for a decline fit")
-    by = {c: {"wells": 0, "gap_sm3d": 0.0} for c in CAUSES}
+    by = {c: {"wells": 0, "gap_bbld": 0.0} for c in CAUSES}
     for r in rows:
         if r.pop("counts") or r["cause"] == "recorded deferment":
             by[r["cause"]]["wells"] += 1
-            by[r["cause"]]["gap_sm3d"] += r["gap_sm3d"]
-    total = sum(b["gap_sm3d"] for b in by.values())
-    by_cause = [{"cause": c, "wells": b["wells"], "gap_sm3d": _r(b["gap_sm3d"], 1),
-                 "share_pct": _r(b["gap_sm3d"] / total * 100, 1) if total else None} for c, b in by.items() if b["wells"]]
-    by_cause.sort(key=lambda b: -(b["gap_sm3d"] or 0))
-    unexplained = by["nothing on record"]["gap_sm3d"]
-    rows.sort(key=lambda r: -(r["gap_sm3d"] or 0))
+            by[r["cause"]]["gap_bbld"] += r["gap_bbld"]
+    total = sum(b["gap_bbld"] for b in by.values())
+    by_cause = [{"cause": c, "wells": b["wells"], "gap_bbld": _r(b["gap_bbld"], 1),
+                 "share_pct": _r(b["gap_bbld"] / total * 100, 1) if total else None} for c, b in by.items() if b["wells"]]
+    by_cause.sort(key=lambda b: -(b["gap_bbld"] or 0))
+    unexplained = by["nothing on record"]["gap_bbld"]
+    rows.sort(key=lambda r: -(r["gap_bbld"] or 0))
     return result(_r(total, 1), 0.0, "unexplained_shortfall" if total and unexplained / total >= UNEXPLAINED else None,
                   f"per oil well, its latest test before {at[:10]} against the Arps decline fitted through the tests before it "
-                  "(Sm3/d oil), one cause "
+                  "(bbl/d oil), one cause "
                   f"each: EC deferment against the well in the {days} days before, else a suspect test (inflow check), "
                   "back-pressure or choke (its constraint now), lift (its gas lift curve), else nothing on record; "
-                  f"shortfalls under {min_gap_sm3d:g} Sm3/d count only with recorded deferment",
-                  [*(r["record"] for r in rows[:5])] or [fid or "asset"], unit="Sm3/d oil", at=at[:10],
-                  by_cause=by_cause, unexplained_sm3d=_r(unexplained, 1), wells_checked=len(rows),
+                  f"shortfalls under {min_gap_bbld:g} bbl/d count only with recorded deferment",
+                  [*(r["record"] for r in rows[:5])] or [fid or "asset"], unit="bbl/d oil", at=at[:10],
+                  by_cause=by_cause, unexplained_bbld=_r(unexplained, 1), wells_checked=len(rows),
                   wells=rows[:20], unchecked=unchecked[:10])

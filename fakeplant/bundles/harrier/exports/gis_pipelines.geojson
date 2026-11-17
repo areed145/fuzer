@@ -27,8 +27,8 @@
     "from_floc": "HRPT-A1",
     "to_floc": "HRPT-D1",
     "diameter_in": 24,
-    "length_km": 210,
-    "mop_barg": 99,
+    "length_mi": 130.488,
+    "mop_psig": 1436.0,
     "install_year": 2018,
     "status": "in service"
    }

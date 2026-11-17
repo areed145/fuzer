@@ -43,8 +43,8 @@ def test_window_waterfall_breakdown_flare(conn):
     assert w.summary["minutes_outside"] > 0 and w.summary["limits"]
     wf = general.loss_waterfall(conn, "2024-11-01", "2024-12-01", PACK)
     s = wf.summary
-    assert s["potential_sm3"] > s["actual_sm3"] and s["unplanned_sm3"] and s["lost_usd"] > 0
-    assert s["potential_sm3"] - s["actual_sm3"] >= sum(s["unplanned_sm3"].values()) + s["planned_sm3"] - 1
+    assert s["potential_bbl"] > s["actual_bbl"] and s["unplanned_bbl"] and s["lost_usd"] > 0
+    assert s["potential_bbl"] - s["actual_bbl"] >= sum(s["unplanned_bbl"].values()) + s["planned_bbl"] - 1
     wo = conn.execute("select e.fuzer_id from entity e join golden g using (fuzer_id) where e.kind = 'work_order' "
                       "and g.field = 'status' and g.value #>> '{}' <> 'TECO' limit 1").fetchone()
     sb = general.score_breakdown(conn, wo["fuzer_id"], PACK)

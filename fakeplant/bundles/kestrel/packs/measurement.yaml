@@ -43,9 +43,9 @@ datasets:
         of: {from: meter, as: tag_or_well}
         at: gas_day
         values:
-        - {quantity: volume, from: volume_ksm3, unit: kSm3}
-        - {quantity: energy, from: energy_gj, unit: GJ}
-        - {quantity: hhv, from: hhv_mj_sm3, unit: MJ/Sm3}
+        - {quantity: volume, from: volume_mscf, unit: Mscf}
+        - {quantity: energy, from: energy_mmbtu, unit: MMBtu}
+        - {quantity: hhv, from: hhv_btu_scf, unit: Btu/scf}
         - {quantity: flow_hours, from: flow_hours, unit: h}
   checks:
   - {kind: range, column: flow_hours, params: {min: 0, max: 25}, blocking: false}
@@ -74,5 +74,5 @@ exception_rules:
   when: {status: E}
   key: '{meter_id}:{gas_day}'
   refs: [{from: meter, as: tag_or_well}]
-  title: 'Estimated volume on {meter} for {gas_day}: {volume_ksm3} kSm3'
+  title: 'Estimated volume on {meter} for {gas_day}: {volume_mscf} Mscf'
   priority: 0.3

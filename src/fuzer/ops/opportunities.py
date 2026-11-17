@@ -2,7 +2,7 @@
 rank only what went wrong. It runs daily after the daily report, from what already exists:
 
 - gas lift reallocation: on each lift gas header, gas moved from wells past their optimum (one more
-  kSm3/d gains less than the breakeven) to wells short of theirs, from each well's gas lift curve. The
+  Mscf/d gains less than the breakeven) to wells short of theirs, from each well's gas lift curve. The
   gain is the gas moved times the difference in their marginal response, and the header's total gas is
   unchanged;
 - wells below expectation: the latest test under the well's decline (calcs.decline), and flowing wells
@@ -29,7 +29,7 @@ from psycopg.types.json import Jsonb
 from ..core import detectors, settings
 
 # Defaults; the values in effect are settings (#131): opportunities.gas_lift_breakeven, .stale_days, .material
-BREAKEVEN = 0.5  # Sm3/d oil per kSm3/d lift gas: past this, more gas isn't worth it
+BREAKEVEN = 0.09  # bbl/d oil per Mscf/d lift gas (0.5 Sm3/d per kSm3/d): past this, more gas isn't worth it
 STALE_DAYS = 90
 MATERIAL = 0.5  # a gain this much higher or lower is a different opportunity
 DECIDED = ("rejected", "accepted", "project")
@@ -38,7 +38,7 @@ DECIDED = ("rejected", "accepted", "project")
 def _opp(key: str, kind: str, title: str, gain: float | None, basis: str, confidence: str, evidence: list[str],
          confirm_by: str, target: str | None = None, **detail) -> dict:
     return {"key": key, "kind": kind, "title": title, "target": target,
-            "gain_sm3d": None if gain is None else round(gain, 1), "basis": basis, "confidence": confidence,
+            "gain_bbld": None if gain is None else round(gain, 1), "basis": basis, "confidence": confidence,
             "evidence": [e for e in dict.fromkeys(evidence) if e], "confirm_by": confirm_by, **detail}
 
 
@@ -63,34 +63,34 @@ def gas_lift_moves(conn, at: str | None = None, breakeven: float | None = None) 
              "c": g["c"], "k": g["k"], "record": g["tests"][-1]["record"]})
     out = []
     for header, ws in by_header.items():
-        donors = sorted((w for w in ws if w["g_now"] > w["g_opt"] + 0.5), key=lambda w: w["marginal"])
-        takers = sorted((w for w in ws if w["g_now"] < w["g_opt"] - 0.5), key=lambda w: -w["marginal"])
+        donors = sorted((w for w in ws if w["g_now"] > w["g_opt"] + 17.5), key=lambda w: w["marginal"])
+        takers = sorted((w for w in ws if w["g_now"] < w["g_opt"] - 17.5), key=lambda w: -w["marginal"])
         moves, gain = [], 0.0
         spare = {w["id"]: w["g_now"] - w["g_opt"] for w in donors}
         room = {w["id"]: w["g_opt"] - w["g_now"] for w in takers}
         for d in donors:
             for t in takers:
-                if t["marginal"] <= d["marginal"] or spare[d["id"]] <= 0.05 or room[t["id"]] <= 0.05:
+                if t["marginal"] <= d["marginal"] or spare[d["id"]] <= 2 or room[t["id"]] <= 2:
                     continue
-                q = round(min(spare[d["id"]], room[t["id"]]), 1)
+                q = round(min(spare[d["id"]], room[t["id"]]))
                 if q <= 0:
                     continue
                 spare[d["id"]] -= q
                 room[t["id"]] -= q
                 g = q * (t["marginal"] - d["marginal"])
                 gain += g
-                moves.append({"from": d["well"], "from_id": d["id"], "to": t["well"], "to_id": t["id"], "ksm3d": q,
+                moves.append({"from": d["well"], "from_id": d["id"], "to": t["well"], "to_id": t["id"], "mscfd": q,
                               "from_marginal": round(d["marginal"], 3), "to_marginal": round(t["marginal"], 3),
-                              "gain_sm3d": round(g, 1)})
-        if moves and gain >= 1.0:
+                              "gain_bbld": round(g, 1)})
+        if moves and gain >= 6.0:  # bbl/d
             out.append(_opp(f"gas_lift:{header}", "gas_lift_reallocation",
                             f"Reallocate lift gas on {header}: {len(moves)} move{'s' if len(moves) > 1 else ''}", gain,
                             f"each well's gas lift curve from its tests (decline taken out); gas moves from wells past the "
-                            f"{breakeven} Sm3 oil per kSm3 optimum to wells short of it, the header's total unchanged; gain = "
+                            f"{breakeven} bbl oil per Mscf optimum to wells short of it, the header's total unchanged; gain = "
                             "gas moved x difference in marginal response", "medium",
                             [w["record"] for w in ws if any(w["id"] in (m["from_id"], m["to_id"]) for m in moves)],
                             "a step-rate test on the receiving wells, then well tests after the move", None,
-                            header=header, moves=moves, lift_gas_moved_ksm3d=round(sum(m["ksm3d"] for m in moves), 1)))
+                            header=header, moves=moves, lift_gas_moved_mscfd=round(sum(m["mscfd"] for m in moves))))
     return out
 
 
@@ -108,7 +108,7 @@ def wells_below_expectation(conn, at: str | None = None) -> list[dict]:
         label = calcs._label(conn, r["fuzer_id"])
         if d["flag"] == "below_decline":
             out.append(_opp(f"below_decline:{r['fuzer_id']}", "below_expectation",
-                            f"{label} tested {d['value']} Sm3/d, under its decline's {d['expected']}", d["expected"] - d["value"],
+                            f"{label} tested {d['value']} bbl/d, under its decline's {d['expected']}", d["expected"] - d["value"],
                             d["basis"], "medium", d["sources"], "a retest; if it holds, a slickline or gas lift valve check",
                             r["fuzer_id"], latest_test=d["at"]))
         if (today - date.fromisoformat(d["at"])).days > stale:
@@ -124,12 +124,12 @@ def recurring_constraints(conn, min_failures: int = 4) -> list[dict]:
     ba = operations.bad_actors(conn, limit=50)
     days = max((date.fromisoformat(ba["until"]) - date.fromisoformat(ba["since"])).days, 1)
     return [_opp(f"permanent_fix:{a['id']}", "recurring_constraint",
-                 f"Permanent fix on {a['tag']}: {a['failures']} failures, {a['lost_oil_sm3']:,.0f} Sm3 lost",
-                 a["lost_oil_sm3"] / days,
+                 f"Permanent fix on {a['tag']}: {a['failures']} failures, {a['lost_oil_bbl']:,.0f} bbl lost",
+                 a["lost_oil_bbl"] / days,
                  f"SAP corrective notifications and EC downtime {ba['since']} to {ba['until']}; gain = oil lost per day",
                  "low", [a["id"]], "a root cause analysis of the repeat failure modes", a["id"],
                  failures=a["failures"], repeat_failure_modes=a.get("repeat_failure_modes"))
-            for a in ba["bad_actors"] if a["failures"] >= min_failures and (a["lost_oil_sm3"] or 0) > 0]
+            for a in ba["bad_actors"] if a["failures"] >= min_failures and (a["lost_oil_bbl"] or 0) > 0]
 
 
 def recoverable_deferment(conn, at: str | None = None) -> list[dict]:
@@ -173,7 +173,7 @@ def _material(old: dict, new: dict, share: float = MATERIAL) -> bool:
     """A decided opportunity comes back only if its evidence or its gain changed materially (by `share`)."""
     if old["fingerprint"] != _fingerprint(new):
         return True
-    a, b = old["gain_sm3d"], new["gain_sm3d"]
+    a, b = old["gain_bbld"], new["gain_bbld"]
     return a is not None and b is not None and abs(b - a) > share * max(abs(a), 1e-9)
 
 
@@ -200,16 +200,16 @@ def scan(conn, pack, at: str | None = None) -> dict:
             stats["still_decided"] += 1
             continue
         reopened = bool(prev and prev["status"] in DECIDED)
-        item = value.Item("opportunity", f"scan:{key}", o["title"], o["basis"], None, o["target"], oil_sm3d=o["gain_sm3d"],
+        item = value.Item("opportunity", f"scan:{key}", o["title"], o["basis"], None, o["target"], oil_bbld=o["gain_bbld"],
                           risk_applies=False, time_to_consequence_days=0.0,
-                          sources={"oil_sm3d": o["basis"], "time_to_consequence_days": "gain starts when it is done"})
-        usd = value.score(item, cfg)["value_usd"] if o["gain_sm3d"] is not None else None
+                          sources={"oil_bbld": o["basis"], "time_to_consequence_days": "gain starts when it is done"})
+        usd = value.score(item, cfg)["value_usd"] if o["gain_bbld"] is not None else None
         item_id = prev["item_id"] if prev and prev["status"] == "open" else None
         if item_id is None:
             item_id = routing.open_task(  # the engineer's queue, with its SLA and escalation (#509)
                 conn, "opportunity", o["title"], "agent:opportunity_scan", key=f"opportunity:{key}", role="engineer",
                 subjects=[s for s in [o["target"]] if s], priority=usd,
-                data={"opportunity": key, **{k: o[k] for k in ("gain_sm3d", "basis", "confidence", "evidence",
+                data={"opportunity": key, **{k: o[k] for k in ("gain_bbld", "basis", "confidence", "evidence",
                                                                "confirm_by")}})["id"]
             stats["reopened" if reopened else "new"] += 1
         else:
@@ -217,12 +217,12 @@ def scan(conn, pack, at: str | None = None) -> dict:
             stats["updated"] += 1
         conn.execute(
             """
-            insert into opportunity (key, kind, title, target, gain_sm3d, value_usd, detail, fingerprint, item_id, status, scanned_at)
+            insert into opportunity (key, kind, title, target, gain_bbld, value_usd, detail, fingerprint, item_id, status, scanned_at)
             values (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'open', now())
             on conflict (key) do update set kind = excluded.kind, title = excluded.title, target = excluded.target,
-              gain_sm3d = excluded.gain_sm3d, value_usd = excluded.value_usd, detail = excluded.detail,
+              gain_bbld = excluded.gain_bbld, value_usd = excluded.value_usd, detail = excluded.detail,
               fingerprint = excluded.fingerprint, item_id = excluded.item_id, status = 'open', scanned_at = now()
-            """, (key, o["kind"], o["title"], o["target"], o["gain_sm3d"], usd, Jsonb(o), _fingerprint(o), item_id))
+            """, (key, o["kind"], o["title"], o["target"], o["gain_bbld"], usd, Jsonb(o), _fingerprint(o), item_id))
     for key, prev in old.items():
         if key not in found and prev["status"] == "open":
             conn.execute("update opportunity set status = 'gone', scanned_at = now() where key = %s", (key,))
@@ -266,6 +266,6 @@ def listing(conn, status: str | None = "open", limit: int = 50) -> list[dict]:
     from ..core.jsonsafe import plain as _plain
 
     return [_plain(dict(r)) for r in conn.execute(
-        "select key, kind, title, target, gain_sm3d, value_usd, status, item_id, reason, detail from opportunity "
+        "select key, kind, title, target, gain_bbld, value_usd, status, item_id, reason, detail from opportunity "
         "where %(s)s::text is null or status = %(s)s order by value_usd desc nulls last limit %(n)s",
         {"s": status, "n": limit})]

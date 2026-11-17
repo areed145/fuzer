@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 from ..core import clock
 
-UNIT = "Sm3/d"
+UNIT = "bbl/d"
 DAYS = 14
 WELLS = {"id": "reported_potential", "label": "Reported well potential", "category": "wells"}
 
@@ -111,9 +111,9 @@ def calculate(reports: list[dict], limits: list[dict], end: date) -> dict:
             if gap < 0:
                 flags.append("allocated_above_capacity")
         points.append({
-            "date": day, "dynamic_max_sm3d": maximum, "allocated_sm3d": allocated,
-            "reported_potential_sm3d": potential,
-            "gap_sm3d": gap, "efficiency_pct": efficiency, "active_constraint_id": active,
+            "date": day, "dynamic_max_bbld": maximum, "allocated_bbld": allocated,
+            "reported_potential_bbld": potential,
+            "gap_bbld": gap, "efficiency_pct": efficiency, "active_constraint_id": active,
             "binding_constraint_ids": binding, "capacity_basis": basis,
             "flags": sorted(set(flags)), "source_ids": sorted(set(source_ids)),
         })
@@ -137,7 +137,7 @@ def calculate(reports: list[dict], limits: list[dict], end: date) -> dict:
         "end": end.isoformat(), "step": "day", "unit": UNIT, "points": points,
         "constraints": [catalog[key] for key in sorted(catalog)],
         "summary": {"efficiency_pct": period_efficiency,
-                    "allocated_sm3": _number(total_allocated), "dynamic_max_sm3": _number(total_max),
+                    "allocated_bbl": _number(total_allocated), "dynamic_max_bbl": _number(total_max),
                     "paired_days": paired},
         "warnings": warnings,
     }
@@ -148,10 +148,10 @@ REPORTS = """
            a.value as allocated, v.value as potential, g.value as gas, x.value as gas_export
     from entity p join golden d on d.fuzer_id = p.fuzer_id and d.field = 'report_date'
     join edge e on e.src = p.fuzer_id and e.rel = 'reports_on' and e.dst = %(facility)s
-    left join golden a on a.fuzer_id = p.fuzer_id and a.field = 'oil_sm3'
-    left join golden v on v.fuzer_id = p.fuzer_id and v.field = 'oil_potential_sm3'
-    left join golden g on g.fuzer_id = p.fuzer_id and g.field = 'gas_ksm3'
-    left join golden x on x.fuzer_id = p.fuzer_id and x.field = 'gas_export_ksm3'
+    left join golden a on a.fuzer_id = p.fuzer_id and a.field = 'oil_bbl'
+    left join golden v on v.fuzer_id = p.fuzer_id and v.field = 'oil_potential_bbl'
+    left join golden g on g.fuzer_id = p.fuzer_id and g.field = 'gas_mscf'
+    left join golden x on x.fuzer_id = p.fuzer_id and x.field = 'gas_export_mscf'
     where p.kind = 'production_day' and p.retired_at is null and p.merged_into is null
       and (e.valid_from is null or e.valid_from <= (d.value #>> '{}')::date)
       and (e.valid_to is null or e.valid_to > (d.value #>> '{}')::date)

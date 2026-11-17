@@ -41,7 +41,7 @@ def test_cooler_fouling_each_summer_and_clean_after(conn):
 def test_compressor_efficiency_follows_the_stories(conn):
     stage3 = fid(conn, "20-K-2300A")
     hot = equipment.compressor_performance(conn, stage3, 60, "2024-08-15T00:00")
-    assert hot["flag"] == "efficiency_drop" and "surge" in hot["note"] and hot["head_kj_kg"] > 0
+    assert hot["flag"] == "efficiency_drop" and "surge" in hot["note"] and hot["head_ft"] > 0
     assert equipment.compressor_performance(conn, stage3, 60, "2024-09-25T00:00")["flag"] is None
     worn = equipment.compressor_performance(conn, fid(conn, "20-K-2200B"), 60, "2024-03-10T00:00")
     assert worn["flag"] == "efficiency_drop" and worn["value"] < worn["expected"]

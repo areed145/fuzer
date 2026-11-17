@@ -47,7 +47,7 @@ def _downtime(conn, well: str, since: str, until: str) -> list[dict]:
     rows = conn.execute(_DOWNTIME + "select id, f from dd order by f->>'start'",
                         {"id": well, "since": since, "until": until}).fetchall()
     return [{"id": r["id"], "start": r["f"].get("start"), "end": r["f"].get("end"), "reason": r["f"].get("reason"),
-             "lost_oil_sm3": calcs._r(ops._num(r["f"].get("lost_oil_sm3")), 1)} for r in rows]
+             "lost_oil_bbl": calcs._r(ops._num(r["f"].get("lost_oil_bbl")), 1)} for r in rows]
 
 
 def well(conn, wid: str, label: str, since: str, until: str) -> dict:
@@ -78,9 +78,9 @@ def well(conn, wid: str, label: str, since: str, until: str) -> dict:
         low, high = b["range"] or (None, None)
         q = t["oil_rate"]
         material = abs(q - b["value"]) >= MIN_GAP * b["value"]
-        points.append({"at": t["at"].isoformat()[:10], "record": t["record"], "actual_sm3d": calcs._r(q, 1),
-                       "forecast_sm3d": calcs._r(b["value"], 1), "low_sm3d": calcs._r(low, 1),
-                       "high_sm3d": calcs._r(high, 1), "gap_sm3d": calcs._r(q - b["value"], 1),
+        points.append({"at": t["at"].isoformat()[:10], "record": t["record"], "actual_bbld": calcs._r(q, 1),
+                       "forecast_bbld": calcs._r(b["value"], 1), "low_bbld": calcs._r(low, 1),
+                       "high_bbld": calcs._r(high, 1), "gap_bbld": calcs._r(q - b["value"], 1),
                        "outside": None if not material else "below" if low is not None and q < low else
                                   "above" if high is not None and q > high else None})
     fitted = {"model": fit["model"], "tests": len(ts), "left_out": [seg[i]["at"].isoformat()[:10] for i in dipped]
@@ -97,7 +97,7 @@ def well(conn, wid: str, label: str, since: str, until: str) -> dict:
             break
         first_out = p["at"]
     return base | {"verdict": verdict, "fit": fitted, "sufficiency": enough, "points": points,
-                   "latest": last, "gap_sm3d": last["gap_sm3d"], "below_since": first_out,
+                   "latest": last, "gap_bbld": last["gap_bbld"], "below_since": first_out,
                    "tests_below": sum(1 for p in points if p["outside"] == "below")}
 
 
@@ -110,17 +110,17 @@ def forecast_vs_actual(conn, ref: str | None = None, since: str | None = None, u
     rows = [well(conn, w["id"], w["label"], since, until) for w in _wells(conn, ref)]
     fitted = [r for r in rows if r["verdict"] not in ("too_little_data",)]
     compared = [r for r in fitted if r.get("latest")]
-    exp_ = sum(r["latest"]["forecast_sm3d"] or 0 for r in compared)
-    act = sum(r["latest"]["actual_sm3d"] or 0 for r in compared)
+    exp_ = sum(r["latest"]["forecast_bbld"] or 0 for r in compared)
+    act = sum(r["latest"]["actual_bbld"] or 0 for r in compared)
     order = {"below_forecast": 0, "above_forecast": 1, "on_forecast": 2, "no_test_in_window": 3}
-    compared_rank = sorted(fitted, key=lambda r: (order[r["verdict"]], r.get("gap_sm3d") or 0, r["well"]))
+    compared_rank = sorted(fitted, key=lambda r: (order[r["verdict"]], r.get("gap_bbld") or 0, r["well"]))
     return {
         "since": since, "until": until, "source": "well tests (the actual: no per-well allocation is loaded), "
-        "downtime records marked beside them", "unit": "Sm3/d oil", "level": forecast.LEVEL,
+        "downtime records marked beside them", "unit": "bbl/d oil", "level": forecast.LEVEL,
         "wells": compared_rank, "not_fitted": [{k: r[k] for k in ("id", "well", "tests_before", "reason")}
                                                for r in rows if r["verdict"] == "too_little_data"],
-        "field": {"wells_compared": len(compared), "forecast_sm3d": round(exp_, 1), "actual_sm3d": round(act, 1),
-                  "gap_sm3d": round(act - exp_, 1),
+        "field": {"wells_compared": len(compared), "forecast_bbld": round(exp_, 1), "actual_bbld": round(act, 1),
+                  "gap_bbld": round(act - exp_, 1),
                   "below_forecast": [r["well"] for r in compared if r["verdict"] == "below_forecast"],
                   "above_forecast": [r["well"] for r in compared if r["verdict"] == "above_forecast"]},
         "note": "Forecasts are each well's own decline, an estimate and never a plan. A gap is a lead for review; "

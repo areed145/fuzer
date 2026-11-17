@@ -116,11 +116,11 @@ def unreliability(conn, pack, since: str | None = None, until: str | None = None
     be said, else by the lost oil's value; the price and both currencies go with every row."""
     since, until = _window(conn, since, until, days)
     cfg = value.config(pack)
-    price, cur = float(cfg["prices"]["oil_sm3"]), cfg["currency"]
+    price, cur = float(cfg["prices"]["oil_bbl"]), cfg["currency"]
     units: dict[str, dict] = {}
 
     def unit(uid: str, label: str | None, desc: str | None = None) -> dict:
-        return units.setdefault(uid, {"id": uid, "unit": label or uid, "description": desc, "lost_oil_sm3": 0.0,
+        return units.setdefault(uid, {"id": uid, "unit": label or uid, "description": desc, "lost_oil_bbl": 0.0,
                                       "downtime": [], "orders": [], "order_cost": defaultdict(float),
                                       "orders_without_cost": 0})
     for r in conn.execute(
@@ -128,7 +128,7 @@ def unreliability(conn, pack, since: str | None = None, until: str | None = None
         "c.src = dd.id and c.rel = 'caused_by' left join entity_label l on l.fuzer_id = c.dst",
             {"id": None, "since": since, "until": until}):
         u = unit(r["unit"], r["label"])
-        u["lost_oil_sm3"] += ops._num(r["f"].get("lost_oil_sm3"))
+        u["lost_oil_bbl"] += ops._num(r["f"].get("lost_oil_bbl"))
         u["downtime"].append(r["id"])
     for o in _orders(conn, since, until, ("PM01",)):
         if not o["unit"]:
@@ -146,11 +146,11 @@ def unreliability(conn, pack, since: str | None = None, until: str | None = None
     rows = []
     for u in units.values():
         u["description"] = u["description"] or desc.get(u["id"])
-        lost_value = round(u["lost_oil_sm3"] * price)
+        lost_value = round(u["lost_oil_bbl"] * price)
         costs = {c: round(v) for c, v in u["order_cost"].items()}
         addable = set(costs) <= {cur}
         rows.append({"id": u["id"], "unit": u["unit"], "description": u["description"],
-                     "lost_oil_sm3": round(u["lost_oil_sm3"], 1), "lost_oil_value": lost_value,
+                     "lost_oil_bbl": round(u["lost_oil_bbl"], 1), "lost_oil_value": lost_value,
                      "order_cost": costs, "orders": len(u["orders"]), "orders_without_cost": u["orders_without_cost"],
                      "total": lost_value + sum(costs.values()) if addable else None,
                      "total_currency": cur if addable else None,
@@ -159,9 +159,9 @@ def unreliability(conn, pack, since: str | None = None, until: str | None = None
                      "refs": (u["downtime"] + u["orders"])[:50]})
     rows.sort(key=lambda r: (-(r["total"] if r["total"] is not None else r["lost_oil_value"]), r["unit"]))
     order_currencies = sorted({c for r in rows for c in r["order_cost"]}, key=lambda c: (c == UNKNOWN, c))
-    return {"since": since, "until": until, "price": {"oil_sm3": price, "currency": cur, "source": cfg["source"]},
+    return {"since": since, "until": until, "price": {"oil_bbl": price, "currency": cur, "source": cfg["source"]},
             "order_currencies": order_currencies, "units": rows[:limit] if limit else rows, "units_total": len(rows),
             "source": "downtime records (caused by a unit) and corrective work orders (PM01)",
-            "note": f"An operational estimate, not a financial figure: lost oil at {price:g} {cur} per Sm3 "
+            "note": f"An operational estimate, not a financial figure: lost oil at {price:g} {cur} per bbl "
                     f"({cfg['source']}) plus recorded order cost. A unit's total is said only when its order cost is "
                     f"in {cur}; an unknown currency is never added."}

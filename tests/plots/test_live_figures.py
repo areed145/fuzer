@@ -13,7 +13,7 @@ NOTICE = "Test notice."
 
 
 def point(**changes):
-    return {"date": "2026-10-14", "dynamic_max_sm3d": 100, "allocated_sm3d": 80, "gap_sm3d": 20, "efficiency_pct": 80,
+    return {"date": "2026-10-14", "dynamic_max_bbld": 100, "allocated_bbld": 80, "gap_bbld": 20, "efficiency_pct": 80,
             "active_constraint_id": "a", "binding_constraint_ids": ["a"], "capacity_basis": "declared_limits",
             "flags": [], "source_ids": ["r1"], **changes}
 
@@ -22,24 +22,24 @@ CONSTRAINTS = [{"id": "a", "label": "Export", "category": "export"}, {"id": "b",
 
 
 def efficiency():
-    limit = {"date": "2026-10-13", "id": "a", "label": "Export", "record": "x", "value": 100, "unit": "Sm3/d",
+    limit = {"date": "2026-10-13", "id": "a", "label": "Export", "record": "x", "value": 100, "unit": "bbl/d",
              "qualifier": None, "category": "export"}
     out = calculate([{"id": "r", "date": "2026-10-13", "allocated": 80, "potential": 120}], [limit], date(2026, 10, 14))
     return {**out, "facility": {"id": "f", "label": "Plant"}, "source": "Reports"}
 
 
 def stage(label, capacity, basis, grade=None, binding=False, undeclared=0):
-    return {"id": label, "label": label, "capacity_sm3d": capacity, "basis": basis, "grade": grade, "binding": binding,
+    return {"id": label, "label": label, "capacity_bbld": capacity, "basis": basis, "grade": grade, "binding": binding,
             "members": 2, "undeclared": undeclared, "undeclared_examples": ["A", "B"][:undeclared]}
 
 
 def capacity(stages, **system):
     return {
-        "as_of": "2026-10-14", "unit": "Sm3/d", "stages": stages, "facility": {"id": "f", "label": "Plant"}, "source": "Network",
-        "system": {"limit_sm3d": 100, "allocated_sm3d": 90, "basis": "reported_potential", "established": False,
+        "as_of": "2026-10-14", "unit": "bbl/d", "stages": stages, "facility": {"id": "f", "label": "Plant"}, "source": "Network",
+        "system": {"limit_bbld": 100, "allocated_bbld": 90, "basis": "reported_potential", "established": False,
                    "binding_stages": [], **system},
-        "demonstrated": {"peak_sm3d": 8198, "date": "2026-08-25", "since": "2025-10-15"},
-        "well_tests": {"total_sm3d": 9528, "wells": 3, "first": "2026-10-01", "last": "2026-10-02", "not_tested": 1, "since": "2026-07-17"},
+        "demonstrated": {"peak_bbld": 8198, "date": "2026-08-25", "since": "2025-10-15"},
+        "well_tests": {"total_bbld": 9528, "wells": 3, "first": "2026-10-01", "last": "2026-10-02", "not_tested": 1, "since": "2026-07-17"},
         "required_metadata": "Dated capacity", "warnings": [],
     }
 
@@ -83,8 +83,8 @@ def test_wording_follows_the_data():
     assert trace(fig, "Demonstrated")["text"] == ["", "≥110"]
 
     done = flow_capacity(capacity([stage("Wells", 130, "reported_potential"), stage("HP", 90, "declared", "moc", True)],
-                                  basis="declared_limits", established=True, limit_sm3d=90, binding_stages=["HP"]), NOTICE)
-    assert done.summary["headline"] == "Bottleneck: HP at 90 Sm³/d. Next is Wells at 130 Sm³/d, 44.4% more."
+                                  basis="declared_limits", established=True, limit_bbld=90, binding_stages=["HP"]), NOTICE)
+    assert done.summary["headline"] == "Bottleneck: HP at 90 bbl/d. Next is Wells at 130 bbl/d, 44.4% more."
     assert done.summary["tables"] == []
     assert not any("≥" in note or "well test" in note for note in done.summary["notes"])
     assert trace(done, "Approved")["text"] == ["130", "◆ 90"]
@@ -94,7 +94,7 @@ def test_wording_follows_the_data():
 
 def test_a_partial_declaration_claims_no_bottleneck():
     fig = flow_capacity(capacity([stage("HP", 90, "declared", "moc", True), stage("LP", 110, "demonstrated", undeclared=2)],
-                                 basis="declared_limits", limit_sm3d=90, binding_stages=["HP"]), NOTICE)
+                                 basis="declared_limits", limit_bbld=90, binding_stages=["HP"]), NOTICE)
     assert fig.summary["headline"].endswith("so the bottleneck is not established.")
     assert trace(fig, "Lowest declared bound")
 
@@ -134,7 +134,7 @@ def test_production_keeps_gaps_and_names_ties():
     assert constraint_label(tied, CONSTRAINTS) == "Export + Compressor (equipment), tied"
     assert constraint_label(point(capacity_basis="reported_potential", binding_constraint_ids=[], active_constraint_id=None), CONSTRAINTS) \
         == "Reported potential · physical constraint unknown"
-    assert constraint_label(point(dynamic_max_sm3d=None), CONSTRAINTS) == "Unknown"
+    assert constraint_label(point(dynamic_max_bbld=None), CONSTRAINTS) == "Unknown"
 
 
 def test_every_live_figure_builds_on_okan_and_passes_the_checks(okan_db):

@@ -1251,15 +1251,15 @@
      "production": {
       "chance": 1.0,
       "days": 90,
-      "gas_ksm3d": 0.0,
-      "oil_sm3": 0,
-      "oil_sm3d": 0.0,
+      "gas_mscfd": 0.0,
+      "oil_bbl": 0,
+      "oil_bbld": 0.0,
       "prices": {
-       "gas_ksm3": 150,
-       "oil_sm3": 470
+       "gas_mscf": 150,
+       "oil_bbl": 470
       },
       "sources": {
-       "oil_sm3d": "EC downtime caused by the tag since 2024-12-30, per day",
+       "oil_bbld": "EC downtime caused by the tag since 2024-12-30, per day",
        "prices": "pack okan"
       },
       "status": "ok",

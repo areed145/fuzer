@@ -24,7 +24,7 @@ export function DowntimePage() {
   const byReason = useAsync(() => api.downtimeRanking("reason", s, planned), [since, scope]);
   const checks = useAsync(() => api.reasonChecks(), []);
   const t = total.data;
-  const plannedSm3 = t?.planned?.lost_oil_sm3 ?? 0;
+  const plannedBbl = t?.planned?.lost_oil_bbl ?? 0;
   const plannedEvents = t?.planned?.events ?? 0;
   const events = (t?.recent ?? []).filter((e) => scope === "all" || (e.reason_category === "planned") === (scope === "planned"));
 
@@ -39,11 +39,11 @@ export function DowntimePage() {
       <Status loading={total.loading && !t} error={total.error} onRetry={total.reload} />
       {t && (
         <div className="downtime-totals">
-          <p><b>{fmt(t.lost_oil_sm3)} Sm³</b> oil lost over <b>{t.events.toLocaleString()}</b> events ({fmt(t.hours)} h)</p>
+          <p><b>{fmt(t.lost_oil_bbl)} bbl</b> oil lost over <b>{t.events.toLocaleString()}</b> events ({fmt(t.hours)} h)</p>
           {t.planned && (
             <p className="small">
-              <span className="dot planned" /> Planned <b>{fmt(plannedSm3)} Sm³</b> in {plannedEvents} {plannedEvents === 1 ? "event" : "events"}
-              {" · "}<span className="dot unplanned" /> Unplanned <b>{fmt(t.lost_oil_sm3 - plannedSm3)} Sm³</b> in {t.events - plannedEvents}{" "}
+              <span className="dot planned" /> Planned <b>{fmt(plannedBbl)} bbl</b> in {plannedEvents} {plannedEvents === 1 ? "event" : "events"}
+              {" · "}<span className="dot unplanned" /> Unplanned <b>{fmt(t.lost_oil_bbl - plannedBbl)} bbl</b> in {t.events - plannedEvents}{" "}
               {t.events - plannedEvents === 1 ? "event" : "events"}
             </p>
           )}
@@ -64,7 +64,7 @@ export function DowntimePage() {
         <UICard as="section" className="downtime-events">
           <h2>Events <span className="muted small">{events.length}{(t.recent?.length ?? 0) < t.events && scope === "all" ? ` newest of ${t.events}` : ""}</span></h2>
           <Table variant="list" density="compact">
-            <thead><tr><th>Start</th><th>Hours</th><th>Reason</th><th>Equipment or well</th><th>Oil lost (Sm³)</th></tr></thead>
+            <thead><tr><th>Start</th><th>Hours</th><th>Reason</th><th>Equipment or well</th><th>Oil lost (bbl)</th></tr></thead>
             <tbody>
               {events.map((e) => (
                 <tr key={e.id}>
@@ -73,7 +73,7 @@ export function DowntimePage() {
                   <td>{e.reason ?? "–"}<div className="muted small">{e.comment}</div></td>
                   <td>{[...e.caused_by, ...e.affects].slice(0, 2).map((x, i) => <span key={x.id}>{i > 0 && ", "}
                     <a href={entityHref(x.id)}>{x.label ?? x.id}</a></span>)}</td>
-                  <td>{e.lost_oil_sm3 == null ? "–" : fmt(e.lost_oil_sm3)}</td>
+                  <td>{e.lost_oil_bbl == null ? "–" : fmt(e.lost_oil_bbl)}</td>
                 </tr>
               ))}
             </tbody>
@@ -115,7 +115,7 @@ function allMonths(rows: DowntimeMonth[]): DowntimeMonth[] {
   const last = rows[rows.length - 1].month;
   for (let guard = 0; guard < 600; guard++) {
     const key = `${y}-${String(m).padStart(2, "0")}`;
-    out.push(by.get(key) ?? { month: key, planned_sm3: 0, unplanned_sm3: 0, planned_events: 0, unplanned_events: 0 });
+    out.push(by.get(key) ?? { month: key, planned_bbl: 0, unplanned_bbl: 0, planned_events: 0, unplanned_events: 0 });
     if (key >= last) break;
     [y, m] = m === 12 ? [y + 1, 1] : [y, m + 1];
   }
@@ -127,21 +127,21 @@ function allMonths(rows: DowntimeMonth[]): DowntimeMonth[] {
 function Months({ rows, error, reload }: { rows?: DowntimeMonth[]; error?: string; reload: () => void }) {
   if (!rows && !error) return null;
   const months = allMonths(rows ?? []);
-  const top = Math.max(1, ...months.map((r) => r.unplanned_sm3));
+  const top = Math.max(1, ...months.map((r) => r.unplanned_bbl));
   return (
     <UICard as="section" className="downtime-months">
-      <h2>Unplanned loss by month <span className="muted small">oil lost (Sm³), by the month each downtime started</span></h2>
+      <h2>Unplanned loss by month <span className="muted small">oil lost (bbl), by the month each downtime started</span></h2>
       <Status error={error} onRetry={reload} empty={rows?.length === 0}>Nothing recorded.</Status>
       {months.length > 0 && (
         <ol className="month-bars" aria-label="Unplanned oil lost by month">
           {months.map((r) => (
-            <li key={r.month} title={`${monthName(r.month)}: ${fmt(r.unplanned_sm3)} Sm³ unplanned in ${r.unplanned_events}, ${fmt(r.planned_sm3)} Sm³ planned in ${r.planned_events}`}>
-              <span className="month-value">{r.unplanned_sm3 ? fmt(r.unplanned_sm3) : ""}</span>
+            <li key={r.month} title={`${monthName(r.month)}: ${fmt(r.unplanned_bbl)} bbl unplanned in ${r.unplanned_events}, ${fmt(r.planned_bbl)} bbl planned in ${r.planned_events}`}>
+              <span className="month-value">{r.unplanned_bbl ? fmt(r.unplanned_bbl) : ""}</span>
               <span className="month-stack">
-                <span className="unplanned" style={{ height: `${(100 * r.unplanned_sm3) / top}%` }} />
+                <span className="unplanned" style={{ height: `${(100 * r.unplanned_bbl) / top}%` }} />
               </span>
               <span className="month-name">{shortMonth(r.month)}</span>
-              <span className="month-planned">{r.planned_sm3 ? <>+{fmt(r.planned_sm3)}<br />planned</> : ""}</span>
+              <span className="month-planned">{r.planned_bbl ? <>+{fmt(r.planned_bbl)}<br />planned</> : ""}</span>
             </li>
           ))}
         </ol>
@@ -153,14 +153,14 @@ function Months({ rows, error, reload }: { rows?: DowntimeMonth[]; error?: strin
 function Ranking({ title, rows, error, reload, named }: {
   title: string; rows?: RankRow[]; error?: string; reload: () => void; named?: boolean;
 }) {
-  const top = Math.max(1, ...(rows ?? []).map((r) => r.lost_oil_sm3));
+  const top = Math.max(1, ...(rows ?? []).map((r) => r.lost_oil_bbl));
   return (
     <UICard  as="section">
       <h2>{title}</h2>
       <Status loading={!rows && !error} error={error} onRetry={reload} empty={rows?.length === 0}>
         Nothing recorded.
       </Status>
-      {rows && rows.length > 0 && <p className="small">Oil lost (Sm³)</p>}
+      {rows && rows.length > 0 && <p className="small">Oil lost (bbl)</p>}
       <ul className="coverage ranking">
         {rows?.map((r) => (
           <li key={r.label ?? "none"} className={r.unattributed ? "unattributed" : undefined}>
@@ -171,8 +171,8 @@ function Ranking({ title, rows, error, reload, named }: {
                 r.label
               )}
             </span>
-            <Bar className="bar" value={(100 * r.lost_oil_sm3) / top} />
-            <span className="muted small">{fmt(r.lost_oil_sm3)}</span>
+            <Bar className="bar" value={(100 * r.lost_oil_bbl) / top} />
+            <span className="muted small">{fmt(r.lost_oil_bbl)}</span>
           </li>
         ))}
       </ul>

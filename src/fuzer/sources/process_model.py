@@ -429,7 +429,7 @@ class Window:
             for e in self.ev(u["train"], "share"):  # their control line
                 share = share * self.path(e["points"], 1.0)
             share = np.maximum(share, 0.62 * 1.1)
-            return load * share * u.get("duty", 0.57) * u.get("iso_kw", 5670.0) * (1 + 0.01 * self.noise(unit + "kw", 20))
+            return load * share * u.get("duty", 0.57) * u.get("iso_hp", 5670.0) * (1 + 0.01 * self.noise(unit + "kw", 20))
         if var == "lube_pressure":  # barg at the lube oil header: the pumps run while it turns; a plugging filter
             plug = sum((self.path(e["points"]) for e in self.ev(unit, "lube_filter")), np.zeros_like(self.t))
             return u.get("lube_pressure", 2.6) - plug + 0.02 * self.noise(unit + "lp", 10)
@@ -444,7 +444,7 @@ class Window:
             return self.get(unit, "exhaust_temperature") + load * (off + cold) + 1.2 * self.noise(f"{unit}tc{n}", 10)
         if var == "fuel_flow":  # Sm3/h: output times the heat rate at that load and ambient, worse as it fouls
             amb = self.ambient()
-            avail = u.get("iso_kw", 5670.0) * (1 - 0.0075 * (amb - 15))
+            avail = u.get("iso_hp", 5670.0) * (1 - 0.0075 * (amb - 15))
             pw = self.get(unit, "power")
             frac = np.clip(pw / np.maximum(avail, 1), 0.3, 1.0)
             hr = u.get("iso_heat_rate", 11300.0) * (1 + 0.55 * (1 - frac) ** 1.6) * (1 + 0.0032 * (amb - 15))

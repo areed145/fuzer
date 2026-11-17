@@ -58,7 +58,7 @@ def test_the_monthly_flare_report_is_drafted_from_its_records_with_estimates_mar
     for f in meters:
         loaded = conn.execute("select sum(value) as v from measurement where fuzer_id = %s and quantity = 'volume' "
                               "and at >= %s and at <= %s", (f["subject"], f"{period}-01", yesterday)).fetchone()["v"]
-        assert f["value"] == round(loaded, 1) and f["unit"] == "kSm3", f["label"]
+        assert f["value"] == round(loaded, 1) and f["unit"] == "Mscf", f["label"]
         for row in f["rows"]:
             record = row["ref"].removeprefix("record:")
             assert conn.execute("select value from measurement where record = %s and quantity = 'volume'",
@@ -74,7 +74,7 @@ def test_the_monthly_flare_report_is_drafted_from_its_records_with_estimates_mar
 
     # The flare meter's daily volume, the highest on yesterday's episode; the flared energy is always an estimate.
     [flared] = [f for k, f in figs.items() if k.startswith("flare:")]
-    assert flared["unit"] == "kSm3" and flared["basis"] == "measured" and flared["value"] > 0
+    assert flared["unit"] == "Mscf" and flared["basis"] == "measured" and flared["value"] > 0
     peak = max(flared["rows"], key=lambda x: x["value"])
     assert peak["label"] == yesterday.isoformat() and peak["ref"].endswith(f"@{yesterday.isoformat()}")
     assert figs["ghg:flared_volume"]["value"] == flared["value"]

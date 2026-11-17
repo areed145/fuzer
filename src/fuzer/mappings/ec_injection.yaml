@@ -10,6 +10,6 @@ measurements:
   at: month
   method: monthly injection
   values:
-    - {quantity: water_injected, from: water_inj_sm3, unit: Sm3}
+    - {quantity: water_injected, from: water_inj_bbl, unit: bbl}
     - {quantity: injection_days, from: on_days, unit: d}
-    - {quantity: injection_pressure, from: whp_barg, unit: barg}
+    - {quantity: injection_pressure, from: whp_psig, unit: psig}

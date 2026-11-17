@@ -76,8 +76,9 @@ def test_kestrel_trip_reaches_the_rest_of_the_plant():
 
 
 def test_kestrel_teg_reboiler_runs_cool_and_the_analyser_agrees_with_the_lab():
-    """The TEG reboiler's burner fouling over six weeks: C1-TT-3008 drifts below its 195 degC alarm, and the online
-    moisture analyser C1-AT-3011 follows the lab's water content at the contactor outlet."""
+    """The TEG reboiler's burner fouling over six weeks: C1-TT-3008 drifts below its 195 degC (383 °F) alarm, and the
+    online moisture analyser C1-AT-3011 follows the lab's water content at the contactor outlet (the model works in
+    SI; the lab reports in lb/MMscf, as the analyser's point does)."""
     m = process_model.load(KESTREL)
     now = datetime.combine(plant_today(), datetime.min.time()) + timedelta(hours=9)
     reboiler = [v for _, v in m.values("KRGP:C1.TT3008.PV", now - timedelta(days=45), now, 24 * 60)]
@@ -85,7 +86,7 @@ def test_kestrel_teg_reboiler_runs_cool_and_the_analyser_agrees_with_the_lab():
     lab = [r for r in connectors.find(KESTREL, "lims_results").rows() if r["analyte"] == "water_content"]
     for r in lab:
         t = datetime.fromisoformat(r["sampled_at"])
-        assert abs(m.values("KRGP:C1.AT3011.PV", t, t, 5)[0][1] - float(r["result"])) < 10, r
+        assert abs(m.values("KRGP:C1.AT3011.PV", t, t, 5)[0][1] * 0.062428 - float(r["result"])) < 0.6, r
 
 
 def test_a_controlled_value_holds_steps_drifts_and_idles():
@@ -148,8 +149,8 @@ def test_a_meter_export_is_suggested_as_measurements_on_its_tags_and_wells():
     m = suggest.draft("daily_volumes", sug, "measurement", "daily_volume")
     assert "entity" not in m and m["measurements"]["of"] == {"from": "meter", "as": "tag_or_well"}
     assert {v["quantity"]: v.get("unit") for v in m["measurements"]["values"]} == {
-        "volume": "kSm3", "energy": "GJ", "hhv": "MJ/Sm3", "flow_hours": "h"}
-    volume = next(x for x in suggest.profile(c, pack)["columns"] if x["name"] == "volume_ksm3")
+        "volume": "Mscf", "energy": "MMBtu", "hhv": "Btu/scf", "flow_hours": "h"}
+    volume = next(x for x in suggest.profile(c, pack)["columns"] if x["name"] == "volume_mscf")
     assert volume["place"] == 0  # 1426.9 is a volume, not well KR 14-26 written without its prefix (#459)
     rows = list(c.rows())
     assert {r["gas_day"] for r in rows} >= {(plant_today() - timedelta(days=1)).isoformat()}  # relative too

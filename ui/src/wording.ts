@@ -25,11 +25,11 @@ export function alarm(key: string | null | undefined): string {
 
 const lowerFirst = (s: string) => (s.length > 1 && s[1] === s[1].toUpperCase() && /[A-Z]/.test(s[1]) ? s : s[0].toLowerCase() + s.slice(1));
 
-const UNIT = /(?<![\w])(?:k|M)?(?:Sm3|Am3|m3)(?!\w)|(?<![\w])degC(?!\w)|(?<=\d ?)um(?!\w)|^um$/g;
+const UNIT = /(?<![\w])(?:k|M)?(?:Sm3|Am3|m3)(?!\w)|(?<![\w])deg[CF](?!\w)|(?<=\d ?)um(?!\w)|^um$/g;
 
-/** Unit spellings in running text as their symbols: degC is °C, Sm3 Sm³, um µm (only after a number). */
+/** Unit spellings in running text as their symbols: degF is °F, degC is °C, Sm3 Sm³, um µm (only after a number). */
 export function units(text: string): string {
-  return text.replace(UNIT, (s) => (s === "um" ? "µm" : s === "degC" ? "°C" : s.replace("3", "³")));
+  return text.replace(UNIT, (s) => (s === "um" ? "µm" : s === "degC" ? "°C" : s === "degF" ? "°F" : s.replace("3", "³")));
 }
 
 /** A unit as printed. */

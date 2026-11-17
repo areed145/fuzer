@@ -17,7 +17,7 @@ service) with each line's rate, remaining life and next inspection date. Read it
 - **Remaining life and retirement.** The retirement thickness is the Barlow pressure design thickness at the line's
   MOP and size on an assumed grade (API 5L X52, design factor 0.72) unless one is passed in: `retirement_assumed`
   says so. Say the remaining life is an estimate on that assumption and ask for the line's design thickness;
-  with it, rerun with `min_required_mm`.
+  with it, rerun with `min_required_in`.
 - **Next inspection.** Half the remaining life, at most 10 years, after the last survey: the interval the rate
   supports, not a decision. `inspection_overdue` means that date has passed.
 - **Flags.** `retire_soon` (under 5 years) and `inspection_overdue` go to the integrity engineer now.
@@ -29,8 +29,8 @@ apart, a CML whose newest reading is thicker than the one before (a measurement 
 vessel without a retirement thickness (it gets no remaining life, and the result says so).
 
 1. **Wall loss.** `plot_wall_thickness()` ranks the items losing wall fastest; `plot_wall_thickness(ref)` shows each
-   CML over time. `measurements(ref, "wall_thickness")` gives the readings (mm) and the fitted `per_year`.
-   `calc("wall_loss", ref, min_required_mm=...)` gives remaining life. Without a stated minimum thickness there is no
+   CML over time. `measurements(ref, "wall_thickness")` gives the readings (in) and the fitted `per_year` (in a year; ×1,000 is mpy).
+   `calc("wall_loss", ref, min_required_in=...)` gives remaining life. Without a stated minimum thickness there is no
    retirement date: say so rather than assume one. With one, `next_inspection_years` is the API 570 / 510 interval
    from the rate (half the remaining life, at most 10 years): give it as the interval the rate supports, not a
    decision. Fewer than three readings on a CML is not a rate; a single fast CML (`localised`) points at local

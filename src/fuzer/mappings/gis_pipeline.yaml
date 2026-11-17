@@ -10,8 +10,8 @@ entity:
     - [description, name]
     - service
     - [diameter_in, {from: diameter_in, as: number}]
-    - [length_km, {from: length_km, as: number}]
-    - [mop_barg, {from: mop_barg, as: number}]
+    - [length_mi, {from: length_mi, as: number}]
+    - [mop_psig, {from: mop_psig, as: number}]
     - install_year
     - status
     - geometry

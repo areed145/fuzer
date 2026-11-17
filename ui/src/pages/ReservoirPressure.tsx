@@ -17,8 +17,8 @@ export function ReservoirPressure() {
       {d && mb && pi && <>
         <div className="small rp-summary">
           {mb.verdict === "fitted"
-            ? <>Pressure falls {mb.bar_per_million_rm3} bar per million reservoir m³ taken out net of injection
-              (r² {mb.r2}, {mb.wells} wells): about {mb.decline_bar_per_year} bar a year at the current rate.</>
+            ? <>Pressure falls {mb.psi_per_million_rb} psi per million reservoir barrels taken out net of injection
+              (r² {mb.r2}, {mb.wells} wells): about {mb.decline_psi_per_year} psi a year at the current rate.</>
             : mb.note}
         </div>
         {pi.wells.length > 0 && <Table density="compact" className="rp-wells phone-rows">

@@ -669,7 +669,7 @@ function DowntimeCard({ id }: { id: string }) {
       <h2>
         Downtime{" "}
         <span className="muted small">
-          {Math.round(d.data.lost_oil_sm3).toLocaleString()} Sm³ oil lost over {d.data.events} events
+          {Math.round(d.data.lost_oil_bbl).toLocaleString()} bbl oil lost over {d.data.events} events
         </span>
       </h2>
       <ul className="timeline">
@@ -682,7 +682,7 @@ function DowntimeCard({ id }: { id: string }) {
                 <a href={entityHref(r.id)}>{r.comment}</a>
               </div>
               <div className="muted small">
-                {r.duration_h} h · {Math.round(r.lost_oil_sm3 ?? 0).toLocaleString()} Sm³
+                {r.duration_h} h · {Math.round(r.lost_oil_bbl ?? 0).toLocaleString()} bbl
                 {r.reason_check && <span className="error"> · {r.reason_check}</span>}
               </div>
             </div>
@@ -940,7 +940,7 @@ function DepthCard({ id }: { id: string }) {
   );
 }
 
-const km = (m: unknown) => (typeof m === "number" ? (m / 1000).toFixed(3) : "");
+const mi = (ft: unknown) => (typeof ft === "number" ? (ft / 5280).toFixed(3) : "");
 
 /** A pipeline's segments and what in-line inspection found on it, by station (#61). */
 function AlongCard({ id }: { id: string }) {
@@ -953,14 +953,14 @@ function AlongCard({ id }: { id: string }) {
       <h2>Along the line <span className="muted small">by station, distance from the line's start</span></h2>
       {segments.length > 0 && (
         <Table variant="list">
-          <thead><tr><th>Segment</th><th>From (km)</th><th>To (km)</th><th>Wall (mm)</th><th>Class location</th></tr></thead>
+          <thead><tr><th>Segment</th><th>From (MP, mi)</th><th>To (MP, mi)</th><th>Wall (in)</th><th>Class location</th></tr></thead>
           <tbody>
             {segments.map((s) => (
               <tr key={s.id}>
                 <td><a href={entityHref(s.id)} className="mono">{s.label}</a><div className="muted small">{fmt(s.description)}</div></td>
-                <td className="small mono">{km(s.station_from_m)}</td>
-                <td className="small mono">{km(s.station_to_m)}</td>
-                <td className="small">{fmt(s.wall_thickness_mm)}</td>
+                <td className="small mono">{mi(s.station_from_ft)}</td>
+                <td className="small mono">{mi(s.station_to_ft)}</td>
+                <td className="small">{fmt(s.wall_thickness_in)}</td>
                 <td className="small">{fmt(s.class_location)}</td>
               </tr>
             ))}
@@ -971,16 +971,16 @@ function AlongCard({ id }: { id: string }) {
         <>
           <h3>Found by in-line inspection</h3>
           <Table variant="list">
-            <thead><tr><th>Feature</th><th>Station (km)</th><th>Clock</th><th>Segment</th><th>Depth (% of wall)</th><th>Length (mm)</th><th>Run</th></tr></thead>
+            <thead><tr><th>Feature</th><th>Station (MP, mi)</th><th>Clock</th><th>Segment</th><th>Depth (% of wall)</th><th>Length (in)</th><th>Run</th></tr></thead>
             <tbody>
               {features.map((f) => (
                 <tr key={f.id}>
                   <td><a href={entityHref(f.id)} className="mono">{f.label}</a><div className="small">{fmt(f.feature_type)}</div></td>
-                  <td className="small mono">{km(f.station_m)}</td>
+                  <td className="small mono">{mi(f.station_ft)}</td>
                   <td className="small mono">{fmt(f.clock)}</td>
                   <td className="small mono">{f.segment ? seg[f.segment] ?? "" : <span className="muted">no segment holds it</span>}</td>
                   <td className="small">{fmt(f.depth_pct)}</td>
-                  <td className="small">{fmt(f.length_mm)}</td>
+                  <td className="small">{fmt(f.length_in)}</td>
                   <td className="muted small">{fmt(f.run_id)} {f.run_date ? `· ${fmt(f.run_date)}` : ""}</td>
                 </tr>
               ))}

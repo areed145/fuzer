@@ -3,14 +3,14 @@
 - `exhaust_spread(ref)`: a gas turbine's exhaust thermocouples: the spread (hottest less coldest) against its own
   clean level, and which thermocouple has wandered from the others. A widening spread is a combustion problem (a
   plugged fuel nozzle, a cracked liner or transition piece) or a failed thermocouple; left alone it burns the hot
-  section. Flags `exhaust_spread` when the spread has doubled and is more than 25 degC wider than it was.
+  section. Flags `exhaust_spread` when the spread has doubled and is more than 45 °F wider than it was.
 - `hot_section(ref)`: fired hours since the last hot section inspection, from the maintenance plan that schedules it
   ("every 30,000 fired hours") and the driver's own running hours since it was last done, and the date it falls due
   at the recent running rate. Flags `inspection_overdue` (past the interval) and `inspection_due` (90 % used, or due
   within 90 days).
 - `engine_cylinders(ref)`: a gas engine driver's exhaust temperature at each cylinder against the others: a cylinder
   running cold is misfiring (a spark plug, its coil or a gas valve) and one running hot is overloaded or detonating.
-  Flags `cylinder_misfire` (a cylinder 60 degC or more under the others' median) and `cylinder_hot` (50 degC over).
+  Flags `cylinder_misfire` (a cylinder 108 °F or more under the others' median) and `cylinder_hot` (90 °F over).
 """
 
 import re
@@ -22,9 +22,9 @@ from .calcs import CalcError, _label, read, result, window_of
 from .condition import TREND_MIN_DAYS, daily, points_like, projection, running
 from .forecast import sufficiency
 
-SPREAD_TIMES, SPREAD_WIDER = 2.0, 25.0
+SPREAD_TIMES, SPREAD_WIDER = 2.0, 45.0  # °F
 DUE_SHARE, DUE_DAYS = 0.9, 90
-MISFIRE, HOT = 60.0, 50.0
+MISFIRE, HOT = 108.0, 90.0  # °F
 STEP = 120  # minutes: fired hours are counted on a two-hour grid over years of history
 
 
@@ -61,9 +61,9 @@ def exhaust_spread(conn, fid: str, days: int = 120, until: str | None = None, sr
     return result(round(now, 1), round(base, 1), flag,
                   f"exhaust thermocouple spread (hottest less coldest), daily medians of hourly readings while running; "
                   f"expected is its own clean level (the window's first quarter); flagged at {SPREAD_TIMES:g} times "
-                  f"and {SPREAD_WIDER:g} degC wider. The thermocouple that wandered most from the others since the "
+                  f"and {SPREAD_WIDER:g} °F wider. The thermocouple that wandered most from the others since the "
                   f"window began names the combustor (or the thermocouple) to look at",
-                  [tag, *[p["id"] for p in pts]], unit="degC", machine=_label(conn, tag), thermocouples=len(pts),
+                  [tag, *[p["id"] for p in pts]], unit="°F", machine=_label(conn, tag), thermocouples=len(pts),
                   wandered=moved, wandered_by=round(dev[moved] - dev0[moved], 1), deviations=dev,
                   data_from=days_[0], data_to=days_[-1], readings=len(times),
                   daily=[{"day": d, "spread": round(float(y), 1)} for d, y in zip(days_, ys)][-60:])
@@ -163,7 +163,7 @@ def engine_cylinders(conn, fid: str, days: int = 30, until: str | None = None, s
     worst = cold if flag != "cylinder_hot" else hot
     return result(dev[worst], 0.0, flag,
                   f"each cylinder's exhaust temperature less the median of the others, median of the last 2 days' "
-                  f"hourly readings while running; a misfire at {MISFIRE:g} degC or more under, hot at {HOT:g} over",
-                  [tag, *[p["id"] for p in pts]], unit="degC from the others", machine=_label(conn, tag),
+                  f"hourly readings while running; a misfire at {MISFIRE:g} °F or more under, hot at {HOT:g} over",
+                  [tag, *[p["id"] for p in pts]], unit="°F from the others", machine=_label(conn, tag),
                   cylinder=num(worst), cylinders=len(pts), deviations={num(k): x for k, x in dev.items()},
                   data_from=recent[0][:10], data_to=recent[-1][:10], readings=len(recent) * len(pts))

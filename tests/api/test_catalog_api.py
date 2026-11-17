@@ -53,7 +53,7 @@ def test_a_new_source_from_the_api_alone(client):
     assert {d["name"] for d in sap["datasets"]} >= {"sap_equipment", "sap_floc"}
     assert "pi_web_api" in cat["types"]["connections"] and "not_null" in cat["check_kinds"]
 
-    (client.data / "vendor_pumps.csv").write_text("pump_id,tag,make,model,rated_kw\nVP1,20-P-1001A,Acme,AX-1,55\n"
+    (client.data / "vendor_pumps.csv").write_text("pump_id,tag,make,model,rated_hp\nVP1,20-P-1001A,Acme,AX-1,55\n"
                                                   "VP2,20-P-1001B,Acme,AX-1,-5\n")
     assert "vendor_pumps" in ok(client.get(f"/sources/connections/{files['id']}/discover"))["uncovered"]
     test = ok(client.post(f"/sources/connections/{files['id']}/test"))
@@ -87,7 +87,7 @@ def test_a_new_source_from_the_api_alone(client):
 
     # a blocking range check holds the next load
     ok(client.post("/sources/datasets/vendor_pumps/checks",
-                   json={"kind": "range", "column": "rated_kw", "params": {"min": 0}, "blocking": True, "by": "ana"}))
+                   json={"kind": "range", "column": "rated_hp", "params": {"min": 0}, "blocking": True, "by": "ana"}))
     held = ok(client.post("/sources/datasets/vendor_pumps/run", params={"full": "true"}))
     assert held["held"] == ["vendor_pumps"]
     chk = ok(client.get("/sources/datasets/vendor_pumps"))["checks"][0]

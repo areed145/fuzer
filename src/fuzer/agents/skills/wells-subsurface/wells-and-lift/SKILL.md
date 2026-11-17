@@ -13,7 +13,7 @@ wider history reading; this pack is the standard analysis of one well.
 
 **Start with the test.** Every other number rests on the well tests, so check them first. `well_performance(ref=well)`
 gives the test history; say when the latest test was, because a stale test is a finding, not a current rate.
-`calc("test_check", well)` says whether the latest test is believable against the well's own inflow per bar of
+`calc("test_check", well)` says whether the latest test is believable against the well's own inflow per psi of
 drawdown and, on a lifted well, its lift curve: `test_suspect` means retest before trending or allocating on it, and
 `off_lift_curve` means the well made less oil than its curve predicts at that lift gas.
 
@@ -60,8 +60,8 @@ hydraulics detectors, and a scanned gain is an `opportunity` case. Say when the 
 **Reservoir pressure.** Where pressure surveys are recorded, `productivity_index(well)` (charted with
 `plot_productivity_index(well)`) gives the well's index survey by survey; `fallen` is a lead for damage, scale or a
 changing drive, set beside the test history. `material_balance()` (charted with `plot_material_balance()`) fits the
-static pressures against the reservoir volume taken out net of injection: quote the bar lost per million reservoir
-m³, the decline a year at the current net voidage and r², and always the assumptions it returns. It is a one-tank
+static pressures against the reservoir volume taken out net of injection: quote the psi lost per million reservoir
+barrels, the decline a year at the current net voidage and r², and always the assumptions it returns. It is a one-tank
 estimate, not the oil in place.
 
 **Say what you cannot check.** Drive mechanism, aquifer, connectivity and completion design are unknown unless a

@@ -56,7 +56,7 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
                        "meter_agreement", "pm_interval", "spares_coverage", "inspection_plan", "loop_oscillation",
                        "contactor_foaming", "treated_gas", "regenerator", "chiller"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
-         breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
+         breakeven: float | None = None, min_required_in: float | None = None, until: str | None = None) -> dict[str, Any]:
     """One diagnostic check as a number against what it should be: {value, expected, deviation,
     deviation_pct, flag, basis, sources}. Cite it as evidence; flag is set only when they disagree enough to
     act on. decline (well): latest test against its Arps fit (below_decline, step_down). gas_lift (well):
@@ -65,13 +65,13 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     or choke): effective Cv against the characteristic (eroded, restricted). reliability (tag, equipment or
     class; method weibull | crow_amsaa): beta against 1 (wear_out, early_life, failures_accelerating).
     wall_loss (vessel, piping, pipeline): fastest CML loss against the median, remaining life with
-    min_required_mm (retire_soon, localised). well_constraint (well): shut_in, choke (critical flow) or
+    min_required_in (retire_soon, localised). well_constraint (well): shut_in, choke (critical flow) or
     back_pressure (the header holds it back), from back / wellhead pressure. dp_drift (well): the wellhead to
     header pressure drop rising (dp_rising: a flowline waxing or scaling) since when. until (ISO) works it out
     as of then. compressor_performance (stage tag, e.g. 20-K-2300A): polytropic efficiency against its first
     week (efficiency_drop). cooler_fouling (cooler tag): outlet temperature above its clean baseline, the rate
     since the last clean and when it reaches its limit (fouling). peers (tag, class or model): the class's units
-    side by side, outliers or class_wide_failures. vibration (machine): overall mm/s against the ISO 20816-3
+    side by side, outliers or class_wide_failures. vibration (machine): overall in/s against the ISO 20816-3
     zones for its group (a reciprocating compressor: its maker's frame alarm and trip), trend and the date it
     reaches zone D (zone_d, zone_c, rising). pump_bep (pump): flow
     against the best efficiency point, time in the preferred region and below minimum stable flow (low_flow,
@@ -113,7 +113,7 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     summed by cause (unexplained_shortfall). vessel_loading (separator, scrubber or meter): what the wells upstream
     offer at their tested rates against its standing rating in its own units, now and 90 days before (overloaded,
     near_capacity). corrosion_circuit (pipeline): the lines in its service, each with its API 570 rate, remaining
-    life and next inspection date (retire_soon, inspection_overdue, localised); min_required_mm replaces the
+    life and next inspection date (retire_soon, inspection_overdue, localised); min_required_in replaces the
     assumed retirement thickness. allocation_factor (flow meter): its volume against what the wells upstream offer
     at their tests. meter_agreement (flow meter): its ratio to the nearest other meter on the stream now against
     before (meter_drift). pm_interval (tag or class): the class's PM interval against its Weibull life
@@ -131,7 +131,7 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
             return err
         try:
             return _plain(calcs.run(conn, check, fid, method=method, model=model, days=days, breakeven=breakeven,
-                                    min_required_mm=min_required_mm, until=until))
+                                    min_required_in=min_required_in, until=until))
         except calcs.CalcError as e:  # a named refusal: say why, and never estimate in its place
             return {"error": str(e), **e.refusal()}
 

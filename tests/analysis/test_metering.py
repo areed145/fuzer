@@ -32,7 +32,7 @@ def test_the_sales_meter_allocates_low_once_it_drifts(conn):
     month = _run(conn, "allocation_factor", "H1-FT-8010")
     sales = _run(conn, "allocation_factor", "H1-FT-8010", days=7)  # the last week alone: out of it
     assert sales["flag"] == "af_low" and 0.85 < sales["value"] < 0.9 and sales["phase"] == "gas"
-    assert sales["wells"] == 2 and sales["unit"] == "kSm3/d" and "lift gas left out" in sales["basis"]
+    assert sales["wells"] == 2 and sales["unit"] == "Mscf/d" and "lift gas left out" in sales["basis"]
     dry = _run(conn, "allocation_factor", "C1-FT-3005")  # upstream of the drift: inside the band and steady
     assert dry["flag"] is None and 0.92 < dry["value"] < 0.97 and abs(dry["value"] - dry["previous"]) < 0.05
     before = _run(conn, "allocation_factor", "H1-FT-8010", days=7, until=month["window"][0])  # a month earlier

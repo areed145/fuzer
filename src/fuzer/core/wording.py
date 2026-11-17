@@ -48,12 +48,13 @@ def lower_first(s: str) -> str:
 SYMBOLS = {"degC": "°C", "degF": "°F", "deg C": "°C", "um": "µm", "um/s": "µm/s", "Sm3": "Sm³", "kSm3": "kSm³",
            "MSm3": "MSm³", "Sm3/d": "Sm³/d", "kSm3/d": "kSm³/d", "MSm3/d": "MSm³/d", "Sm3/h": "Sm³/h",
            "Am3/h": "Am³/h", "Am3/d": "Am³/d", "m3": "m³", "m3/h": "m³/h", "m3/d": "m³/d", "Sm3/Sm3": "Sm³/Sm³",
-           "kSm3/Sm3": "kSm³/Sm³", "degC/week": "°C/week", "kg/m3": "kg/m³"}
-_UNIT = re.compile(r"(?<![\w])(?:k|M)?(?:Sm3|Am3|m3)(?!\w)|(?<![\w])degC(?!\w)|(?<=\d )um(?!\w)|(?<=\d)um(?!\w)|^um(?!\w)")
+           "kSm3/Sm3": "kSm³/Sm³", "degC/week": "°C/week", "kg/m3": "kg/m³",
+           "deg F": "°F", "degF/week": "°F/week", "in2": "in²", "ft3": "ft³"}
+_UNIT = re.compile(r"(?<![\w])(?:k|M)?(?:Sm3|Am3|m3)(?!\w)|(?<![\w])deg[CF](?!\w)|(?<=\d )um(?!\w)|(?<=\d)um(?!\w)|^um(?!\w)")
 
 
 def unit(u: str | None) -> str:
-    """A unit as printed: degC is °C, Sm3/d is Sm³/d, um is µm."""
+    """A unit as printed: degF is °F, degC is °C, Sm3/d is Sm³/d, um is µm."""
     if not u:
         return ""
     return SYMBOLS.get(u) or units(u)
@@ -63,7 +64,7 @@ def units(text: str) -> str:
     """Unit spellings in running text as their symbols. `um` only after a number, where it can't be a word."""
     def sub(m):
         s = m.group(0)
-        return "µm" if s == "um" else "°C" if s == "degC" else s.replace("3", "³")
+        return "µm" if s == "um" else "°C" if s == "degC" else "°F" if s == "degF" else s.replace("3", "³")
     return _UNIT.sub(sub, text)
 
 

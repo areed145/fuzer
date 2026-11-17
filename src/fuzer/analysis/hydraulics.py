@@ -9,7 +9,7 @@ wellhead pressure 0.55 or more) the back-pressure reaches the well; at critical 
   header, separator, compressor suction) and the drop across each segment.
 - `well_constraint(well)`: shut in, choke-limited (critical flow) or back-pressure-limited (subcritical),
   with lift-limited added when the well's gas lift curve says more gas pays.
-- `backpressure_sensitivity(scope)`: oil change per bar of back-pressure for each subcritical well, two
+- `backpressure_sensitivity(scope)`: oil change per psi of back-pressure for each subcritical well, two
   ways that are reported side by side: from the inflow and choke equations, and by regression of its well
   tests on the header pressure at the time (with the decline taken out). Flagged where they disagree.
 - `dp_drift(well)`: the wellhead-to-header pressure drop drifting up (a flowline waxing or scaling) or
@@ -27,9 +27,9 @@ import numpy as np
 from ..core import wording
 from .calcs import CalcError, _label, result, window_of
 
-RISE_BAR, RISE_SHARE = 0.7, 0.4  # a rising pressure drop must be up this much (bar) and this share
+RISE_PSI, RISE_SHARE = 10.0, 0.4  # a rising pressure drop must be up this much (psi) and this share
 CRITICAL = 0.55  # back / wellhead pressure (absolute) under this: the choke is at critical flow
-ATM = 1.013
+ATM = 14.7  # psi
 
 
 def _pt(conn, tag_label: str, ending: str = "Pressure") -> dict | None:
@@ -103,19 +103,19 @@ def pressure_profile(conn, well: str, at: str | None = None, src=None) -> dict:
     seen = {p["id"] for _, p in path if p}
     for r in edges.trace(conn, well, "flows_to", "down", None, 4):
         p = _pt(conn, r["label"]) if r.get("label") else None
-        if p and p["id"] not in seen and (p["uom"] or "").startswith("bar"):
+        if p and p["id"] not in seen and (p["uom"] or "").startswith(("psi", "bar")):
             seen.add(p["id"])
             path.append((r["label"], p))
     vals, end = _now(conn, {i: p for i, (_, p) in enumerate(path) if p}, at, src=src)
-    nodes = [{"node": n, "point": p["point"] if p else None, "pressure_barg": round(vals[i], 2) if p and vals.get(i) is not None
+    nodes = [{"node": n, "point": p["point"] if p else None, "pressure_psig": round(vals[i], 2) if p and vals.get(i) is not None
               else None} for i, (n, p) in enumerate(path)]
-    known = [x for x in nodes if x["pressure_barg"] is not None]
-    segs = [{"from": a["node"], "to": b["node"], "dp_bar": round(a["pressure_barg"] - b["pressure_barg"], 2)}
+    known = [x for x in nodes if x["pressure_psig"] is not None]
+    segs = [{"from": a["node"], "to": b["node"], "dp_psi": round(a["pressure_psig"] - b["pressure_psig"], 2)}
             for a, b in itertools.pairwise(known)]
-    biggest = max(segs, key=lambda s: s["dp_bar"]) if segs else None
-    return result(biggest["dp_bar"] if biggest else None, None, None,
+    biggest = max(segs, key=lambda s: s["dp_psi"]) if segs else None
+    return result(biggest["dp_psi"] if biggest else None, None, None,
                   f"median of each pressure over the 24 h to {end:%Y-%m-%d %H:%M}, down the flows_to path",
-                  [well, *[p["id"] for _, p in path if p]], unit="bar", nodes=nodes, segments=segs,
+                  [well, *[p["id"] for _, p in path if p]], unit="psi", nodes=nodes, segments=segs,
                   largest_drop=biggest)
 
 
@@ -131,7 +131,7 @@ def well_constraint(conn, well: str, at: str | None = None, src=None) -> dict:
     v, end = _now(conn, {k: pts[k] for k in ("whp", "back", "choke")}, at, hours=6, src=src)
     whp, back, opening = v["whp"], v["back"], v.get("choke")
     ratio = (back + ATM) / (whp + ATM)
-    flowing = (opening is None or opening > 2) and whp - back > 0.2
+    flowing = (opening is None or opening > 2) and whp - back > 3
     flag = "shut_in" if not flowing else "choke" if ratio < CRITICAL else "back_pressure"
     lift = None
     if flowing:
@@ -142,7 +142,7 @@ def well_constraint(conn, well: str, at: str | None = None, src=None) -> dict:
     return result(round(ratio, 3), CRITICAL, flag,
                   f"back over wellhead pressure (absolute), medians over 6 h to {end:%Y-%m-%d %H:%M}; under {CRITICAL} the "
                   "choke is at critical flow", [well, pts["whp"]["id"], pts["back"]["id"]], unit="pressure ratio",
-                  whp_barg=round(whp, 2), back_barg=round(back, 2), choke_pct=round(opening, 1) if opening is not None else None,
+                  whp_psig=round(whp, 2), back_psig=round(back, 2), choke_pct=round(opening, 1) if opening is not None else None,
                   lift_limited=lift)
 
 
@@ -173,16 +173,16 @@ def _wells(conn, scope: str) -> list[str]:
 
 
 def backpressure_sensitivity(conn, scope: str, at: str | None = None, src=None, limit: int = 200) -> dict:
-    """Oil change per bar of back-pressure (Sm3/d per bar, negative: more back-pressure, less oil) for
+    """Oil change per psi of back-pressure (bbl/d per psi, negative: more back-pressure, less oil) for
     each flowing subcritical well in scope, model-based and data-based, summed per header."""
     out, by_header = sensitivities(conn, scope, at, src, limit)
-    total = round(sum(r["model_sm3d_per_bar"] or 0 for r in out), 2)
+    total = round(sum(r["model_bbld_per_psi"] or 0 for r in out), 2)
     disagree = [r["well"] for r in out if r["agree"] is False]
     return result(total, None, "model_and_data_disagree" if disagree else None,
                   "model: linear inflow at the wellhead to the shut-in pressure, choke and flowline drop growing with "
                   "rate squared, differentiated at today's point; data: the well's tests against the header pressure "
-                  "at the time, decline taken out", [r["latest_test"] for r in out][:20], unit="Sm3/d oil per bar",
-                  wells=sorted(out, key=lambda r: r["model_sm3d_per_bar"] or 0)[:50], by_header=list(by_header.values()),
+                  "at the time, decline taken out", [r["latest_test"] for r in out][:20], unit="bbl/d oil per psi",
+                  wells=sorted(out, key=lambda r: r["model_bbld_per_psi"] or 0)[:50], by_header=list(by_header.values()),
                   disagree=disagree)
 
 
@@ -206,21 +206,21 @@ def sensitivities(conn, scope: str, at: str | None = None, src=None, limit: int 
         q = (t.get("oil_rate") or 0) / (1 - wc)
         psi = _shut_in_whp(conn, pts, end, src=src)
         model = None
-        if psi and q > 0 and psi > c["whp_barg"]:
-            k = (c["whp_barg"] - c["back_barg"]) / q ** 2  # choke and flowline, bar per (Sm3/d)^2
-            J = q / (psi - c["whp_barg"])
+        if psi and q > 0 and psi > c["whp_psig"]:
+            k = (c["whp_psig"] - c["back_psig"]) / q ** 2  # choke and flowline, psi per (bbl/d)^2
+            J = q / (psi - c["whp_psig"])
             model = round(-J / (1 + 2 * J * k * q) * (1 - wc), 3)
         data = _test_regression(conn, pts, tests, end, src)
         agree = None if model is None or data is None else (model * data > 0 and 0.5 <= model / data <= 2)
-        row = {"well": _label(conn, well), "id": well, "header": pts["back"]["point"], "oil_sm3d": round(t.get("oil_rate") or 0, 1),
-               "model_sm3d_per_bar": model, "data_sm3d_per_bar": data, "agree": agree, "shut_in_whp": psi,
+        row = {"well": _label(conn, well), "id": well, "header": pts["back"]["point"], "oil_bbld": round(t.get("oil_rate") or 0, 1),
+               "model_bbld_per_psi": model, "data_bbld_per_psi": data, "agree": agree, "shut_in_whp": psi,
                "latest_test": t["record"]}
         out.append(row)
-        row |= {"whp_barg": c["whp_barg"], "back_barg": c["back_barg"], "choke_pct": c["choke_pct"]}
-        h = by_header.setdefault(pts["back"]["point"], {"header": pts["back"]["point"], "wells": 0, "model_sm3d_per_bar": 0.0,
-                                                         "back_barg": c["back_barg"]})
+        row |= {"whp_psig": c["whp_psig"], "back_psig": c["back_psig"], "choke_pct": c["choke_pct"]}
+        h = by_header.setdefault(pts["back"]["point"], {"header": pts["back"]["point"], "wells": 0, "model_bbld_per_psi": 0.0,
+                                                         "back_psig": c["back_psig"]})
         h["wells"] += 1
-        h["model_sm3d_per_bar"] = round(h["model_sm3d_per_bar"] + (model or 0), 3)
+        h["model_bbld_per_psi"] = round(h["model_bbld_per_psi"] + (model or 0), 3)
     return out, by_header
 
 
@@ -237,7 +237,7 @@ def _test_regression(conn, pts: dict, tests: list[dict], end: datetime, src=None
         key = t["at"].replace(hour=12, minute=0).isoformat(timespec="minutes")
         if key in v:
             rows.append(((t["at"] - recent[0]["at"]).days / 365.25, v[key], t["oil_rate"]))
-    if len(rows) < 5 or np.ptp([r[1] for r in rows]) < 0.5:
+    if len(rows) < 5 or np.ptp([r[1] for r in rows]) < 7:
         return None  # the header hardly moved: nothing to learn from
     X = np.array([[1.0, r[0], r[1]] for r in rows])
     coef = np.linalg.lstsq(X, np.array([r[2] for r in rows]), rcond=None)[0]
@@ -246,7 +246,7 @@ def _test_regression(conn, pts: dict, tests: list[dict], end: datetime, src=None
 
 def dp_drift(conn, well: str, days: int = 60, until: str | None = None, src=None) -> dict:
     """The wellhead-to-header pressure drop over `days`: rising (a flowline restriction building, wax or
-    scale: a drift still going at the end and up `RISE_BAR` and `RISE_SHARE` on where it started, more than
+    scale: a drift still going at the end and up `RISE_PSI` and `RISE_SHARE` on where it started, more than
     the rate's own wander between tests moves it) or stepping (a choke move, a reroute), with when it
     started."""
     from . import calcs, signals
@@ -265,10 +265,10 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None, src=None
     first = float(np.median(dp[: max(24, len(dp) // 10)])) if len(dp) else None
     now = float(np.median(dp[-24:])) if len(dp) else None
     seg = rising[-1] if rising else None  # measured on the drift itself, so a step before it doesn't count
-    big = seg is not None and seg["after"] - seg["before"] >= max(RISE_BAR, RISE_SHARE * abs(seg["before"]))
+    big = seg is not None and seg["after"] - seg["before"] >= max(RISE_PSI, RISE_SHARE * abs(seg["before"]))
     if big and v.get("wht"):  # more flow (a warmer wellhead) raises the drop too: a restriction cuts the flow
         w = [x for t, x in sorted(v["wht"].items()) if t >= seg["start"]]
-        if len(w) >= 48 and np.median(w[-24:]) - np.median(w[:24]) > 0.5:
+        if len(w) >= 48 and np.median(w[-24:]) - np.median(w[:24]) > 0.9:  # degF
             big = False
     if rising and v.get("choke"):  # the choke moving changes the drop too: that isn't the flowline
         since = rising[-1]["start"]
@@ -280,7 +280,7 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None, src=None
                   "dp_rising" if rising and big else None,
                   f"wellhead minus jacket header pressure, hourly over {days} days; expected is where a rise began, "
                   "else its first days",
-                  [well, pts["whp"]["id"], pts["back"]["id"]], unit="bar",
+                  [well, pts["whp"]["id"], pts["back"]["id"]], unit="psi",
                   rising_since=rising[-1]["start"] if rising else None,
                   changes=[{k: c.get(k) for k in ("kind", "start", "end", "before", "after", "per_day")} for c in found][-8:])
 
@@ -330,13 +330,13 @@ def _separator_of(conn, well: str, cache: dict) -> str | None:
 
 
 def debottleneck_options(conn, pack, scope: str = "facility", at: str | None = None, src=None, limit: int = 10) -> dict:
-    """Candidate actions against back-pressure, ranked by oil gained (Sm3/d), each with its basis,
+    """Candidate actions against back-pressure, ranked by oil gained (bbl/d), each with its basis,
     confidence, the next constraint it runs into and what would confirm it. Proposals for people, not
     operating instructions."""
     from . import limits
 
     rows, _ = sensitivities(conn, scope, at, src, limit=1000)
-    rows = [r for r in rows if r["model_sm3d_per_bar"] is not None]
+    rows = [r for r in rows if r["model_bbld_per_psi"] is not None]
     end = datetime.fromisoformat(at) if at else window_of(conn, 1)[1]
     options, cache = [], {}
 
@@ -351,37 +351,37 @@ def debottleneck_options(conn, pack, scope: str = "facility", at: str | None = N
         v, _ = _now(conn, {"p": p}, end.isoformat(), src=src)
         lines = limits.lines(limits.for_points(conn, pack, [p["id"]], end)[p["id"]])
         floor = [(x["value"], f"{wording.lower_first(wording.alarm(x['basis'] + ':' + x['type']))} of "
-                              f"{round(x['value'], 1):g} barg" + (f" ({x['iow']})" if x.get("iow") else ""),
+                              f"{round(x['value']):g} psig" + (f" ({x['iow']})" if x.get("iow") else ""),
                   x["basis"] == "iow" or bool(x.get("iow")))
                  for x in lines if x["type"] in ("lo", "lolo") and x["value"] < v["p"]]
         if not floor:
             continue
-        bound, what, _ = max(floor, key=lambda f: f[0] if f[2] else f[0] - 100)  # an IOW binds before an alarm
-        room = round(v["p"] - bound, 2)
-        per_bar = -sum(r["model_sm3d_per_bar"] for r in ws)
-        if room > 0.1:
-            options.append({"action": f"Lower {_label(conn, sep)} pressure by {room:g} bar, to its {what}",
-                            "kind": "lower_pressure", "target": sep, "gain_sm3d": round(per_bar * room, 1),
-                            "per_bar_sm3d": round(per_bar, 2), "wells": len(ws), "confidence": "medium",
+        bound, what, _ = max(floor, key=lambda f: f[0] if f[2] else f[0] - 1500)  # an IOW binds before an alarm
+        room = round(v["p"] - bound, 1)
+        per_psi = -sum(r["model_bbld_per_psi"] for r in ws)
+        if room > 1.5:
+            options.append({"action": f"Lower {_label(conn, sep)} pressure by {room:g} psi, to its {what}",
+                            "kind": "lower_pressure", "target": sep, "gain_bbld": round(per_psi * room, 1),
+                            "per_psi_bbld": round(per_psi, 2), "wells": len(ws), "confidence": "medium",
                             "next_constraint": f"{_label(conn, sep)} {what}; compressor suction follows the separator down",
                             "side_effect": "lower separator pressure: more gas to recompress, check compressor suction and power headroom",
                             "confirm_by": "a stepped setpoint change with well tests before and after",
                             "basis": f"model sensitivity of {len(ws)} back-pressure-limited wells, summed, times the room to the limit"})
 
-    headers = sorted({(r["header"], r["back_barg"]) for r in rows}, key=lambda h: h[1])
+    headers = sorted({(r["header"], r["back_psig"]) for r in rows}, key=lambda h: h[1])
     for r in rows:
-        low = next((h for h in headers if h[1] < r["back_barg"] - 1.0), None)
+        low = next((h for h in headers if h[1] < r["back_psig"] - 15), None)
         if low:
-            dp = r["back_barg"] - low[1]
-            options.append({"action": f"Reroute {r['well']} from header {r['header']} to {low[0]} ({dp:.1f} bar lower)",
-                            "kind": "reroute", "target": r["id"], "gain_sm3d": round(-r["model_sm3d_per_bar"] * dp, 1),
+            dp = r["back_psig"] - low[1]
+            options.append({"action": f"Reroute {r['well']} from header {r['header']} to {low[0]} ({dp:.0f} psi lower)",
+                            "kind": "reroute", "target": r["id"], "gain_bbld": round(-r["model_bbld_per_psi"] * dp, 1),
                             "confidence": "low", "next_constraint": f"capacity of the line to {low[0]}; its other wells see more back-pressure",
                             "side_effect": "needs a route between the headers (check the P&IDs)",
                             "confirm_by": "a well test on the new route", "basis": "model sensitivity times the header difference"})
         if r["choke_pct"] is not None and r["choke_pct"] < 80:
-            dp = 0.5 * (r["whp_barg"] - r["back_barg"])
+            dp = 0.5 * (r["whp_psig"] - r["back_psig"])
             options.append({"action": f"Open {r['well']}'s choke from {r['choke_pct']:.0f}%", "kind": "open_choke", "target": r["id"],
-                            "gain_sm3d": round(-r["model_sm3d_per_bar"] * dp, 1), "confidence": "low",
+                            "gain_bbld": round(-r["model_bbld_per_psi"] * dp, 1), "confidence": "low",
                             "next_constraint": "sand or water coning at a higher drawdown; the header's other wells",
                             "side_effect": "higher drawdown", "confirm_by": "a step-rate test",
                             "basis": "model sensitivity times half the drop across the choke"})
@@ -392,19 +392,19 @@ def debottleneck_options(conn, pack, scope: str = "facility", at: str | None = N
             continue
         if d["flag"] == "dp_rising":
             dp = d["value"] - d["expected"]
-            options.append({"action": f"Pig or clean {r['well']}'s flowline (pressure drop up {dp:.1f} bar since {d['rising_since'][:10]})",
-                            "kind": "pig_flowline", "target": r["id"], "gain_sm3d": round(-r["model_sm3d_per_bar"] * dp, 1),
+            options.append({"action": f"Pig or clean {r['well']}'s flowline (pressure drop up {dp:.0f} psi since {d['rising_since'][:10]})",
+                            "kind": "pig_flowline", "target": r["id"], "gain_bbld": round(-r["model_bbld_per_psi"] * dp, 1),
                             "confidence": "medium", "next_constraint": "the well's choke and the header",
                             "side_effect": "pigging run", "confirm_by": "the pressure drop back at its baseline after pigging",
                             "basis": "model sensitivity times the rise in the wellhead-to-header drop"})
-    options.sort(key=lambda o: -o["gain_sm3d"])
+    options.sort(key=lambda o: -o["gain_bbld"])
     for i, o in enumerate(options, 1):
         o["rank"] = i
     top = options[0] if options else None
-    return result(top["gain_sm3d"] if top else 0.0, None, None,
+    return result(top["gain_bbld"] if top else 0.0, None, None,
                   "ranked by oil gained from the back-pressure model (IPR and choke) at today's operating point; "
                   "proposals for people, not operating instructions", [r["latest_test"] for r in rows][:20],
-                  unit="Sm3/d oil", at=end.isoformat(timespec="minutes"), options=options[:limit], considered=len(options))
+                  unit="bbl/d oil", at=end.isoformat(timespec="minutes"), options=options[:limit], considered=len(options))
 
 
 def store_options(conn, pack, at: str | None = None, src=None, keep: int = 25, options: dict | None = None) -> dict:
@@ -415,8 +415,8 @@ def store_options(conn, pack, at: str | None = None, src=None, keep: int = 25, o
     out = options or debottleneck_options(conn, pack, "facility", at, src, limit=keep)
     conn.execute("delete from debottleneck_option")
     for o in out["options"][:keep]:
-        conn.execute("insert into debottleneck_option (as_of, rank, kind, target, action, gain_sm3d, detail) "
+        conn.execute("insert into debottleneck_option (as_of, rank, kind, target, action, gain_bbld, detail) "
                      "values (%s, %s, %s, %s, %s, %s, %s)", (out["at"], o["rank"], o["kind"], o["target"], o["action"],
-                                                             o["gain_sm3d"], Jsonb(o)))
+                                                             o["gain_bbld"], Jsonb(o)))
     conn.commit()
     return {"options": len(out["options"][:keep]), "considered": out["considered"], "top": out["options"][:1]}

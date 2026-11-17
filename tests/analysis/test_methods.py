@@ -83,8 +83,8 @@ def test_a_method_that_cannot_answer_refuses_by_name():
 SKILLS = ROOT / "src/fuzer/agents/skills"
 UNITS = {"%": "%", "day": "days", "days": "days", "year": "years", "years": "years", "h": "h", "hour": "h",
          "hours": "h", "month": "months", "months": "months", "min": "min", "minutes": "min", "bar": "bar",
-         "barg": "barg", "psi": "psi", "°C": "degC", "degC": "degC", "mm": "mm", "mm/s": "mm/s", "mm/yr": "mm/yr",
-         "ppm": "ppm"}
+         "barg": "barg", "psi": "psi", "psig": "psig", "°C": "degC", "degC": "degC", "°F": "degF", "degF": "degF", "mm": "mm",
+         "mm/s": "mm/s", "mm/yr": "mm/yr", "in/s": "in/s", "mpy": "mpy", "ppm": "ppm"}
 STATED = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))? ?(" + "|".join(
     re.escape(u) for u in sorted(UNITS, key=len, reverse=True)) + r")(?![\w/])")
 

@@ -42,8 +42,8 @@ def production_efficiency(conn, pack, grain=None, at=None) -> dict:
             continue
         s = out["summary"]
         rows.append((f["fuzer_id"], f["label"], s["efficiency_pct"], [f["fuzer_id"]]))
-        if s["allocated_sm3"] is not None and s["dynamic_max_sm3"]:
-            alloc, top = alloc + s["allocated_sm3"], top + s["dynamic_max_sm3"]
+        if s["allocated_bbl"] is not None and s["dynamic_max_bbl"]:
+            alloc, top = alloc + s["allocated_bbl"], top + s["dynamic_max_bbl"]
         ends.append(out["end"])
     if not rows:
         return {"note": "no facility has daily production reports"}

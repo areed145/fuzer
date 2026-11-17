@@ -4,7 +4,7 @@ opportunities, so the SRE (#96), the work board (#99) and the opportunity scan (
 `score(item, cfg)` is pure: an `Item` (what is at stake, gathered from Fuzer data) and the pack's `value`
 config in, a breakdown out. Every component is in money over the pack's horizon and shown on its own:
 
-- production: oil / gas at risk or to gain (Sm3/d) x how long x price.
+- production: oil / gas at risk or to gain (bbl/d, Mscf/d) x how long x price; in BOE when both.
 - risk: worst credible consequence (from SAP ABC criticality) x likelihood (failures per year) on the
   risk matrix; money is consequence x the share of failures that reach it x failures in the horizon.
 - compliance: days overdue x a rate per kind (PM, INSP, IOW) x a criticality factor.
@@ -20,13 +20,14 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from ..core import units
 from ..graph import operations
 from ..graph.criticality import NOT_ASSESSED
 from ..graph.operations import _num, _rows, _tags_of
 
 DEFAULTS = {
     "currency": "USD",
-    "prices": {"oil_sm3": 470.0, "gas_ksm3": 150.0},
+    "prices": {"oil_bbl": 75.0, "gas_mscf": 4.25},
     "horizon_days": 90,
     "risk_matrix": {"consequence_usd": [1e4, 1e5, 1e6, 1e7, 1e8], "likelihood_per_year": [0.1, 0.3, 1, 3],
                     "bands": {"low": 4, "medium": 9, "high": 15, "extreme": 25}, "worst_case_share": 0.01},
@@ -66,8 +67,8 @@ class Item:
     text: str | None = None
     tag: str | None = None
     tag_id: str | None = None
-    oil_sm3d: float | None = None               # at risk (or to gain, for an opportunity)
-    gas_ksm3d: float | None = None
+    oil_bbld: float | None = None               # at risk (or to gain, for an opportunity)
+    gas_mscfd: float | None = None
     duration_days: float | None = None          # how long that rate counts; None: the horizon
     chance: float | None = 1.0                  # that it happens (a repeat of a closed upset); None: unknown
     criticality: str | None = None              # SAP ABC indicator
@@ -97,17 +98,18 @@ def _band(cell: int, bands: dict) -> str:
 
 
 def production(item: Item, cfg: dict) -> dict:
-    if item.oil_sm3d is None and item.gas_ksm3d is None:
+    if item.oil_bbld is None and item.gas_mscfd is None:
         return {"status": "unknown", "value_usd": None, "note": "no rate at risk or to gain"}
     if item.chance is None:
         return {"status": "unknown", "value_usd": None, "note": "chance it happens unknown"}
     days = item.duration_days if item.duration_days is not None else cfg["horizon_days"]
     p = cfg["prices"]
-    oil, gas = item.oil_sm3d or 0.0, item.gas_ksm3d or 0.0
-    value = (oil * p["oil_sm3"] + gas * p["gas_ksm3"]) * days * item.chance
-    return {"status": "ok", "value_usd": round(value), "oil_sm3d": round(oil, 1), "gas_ksm3d": round(gas, 1),
-            "days": round(days, 1), "oil_sm3": round(oil * days), "chance": round(item.chance, 2), "prices": p,
-            "sources": {k: item.sources[k] for k in ("oil_sm3d", "gas_ksm3d", "chance") if k in item.sources}
+    oil, gas = item.oil_bbld or 0.0, item.gas_mscfd or 0.0
+    value = (oil * p["oil_bbl"] + gas * p["gas_mscf"]) * days * item.chance
+    return {"status": "ok", "value_usd": round(value), "oil_bbld": round(oil, 1), "gas_mscfd": round(gas, 1),
+            "days": round(days, 1), "oil_bbl": round(oil * days), "boe": round(units.boe(oil, gas) * days),
+            "gas_mscf": round(gas * days), "chance": round(item.chance, 2), "prices": p,
+            "sources": {k: item.sources[k] for k in ("oil_bbld", "gas_mscfd", "chance") if k in item.sources}
             | {"prices": cfg["source"]}}
 
 
@@ -205,8 +207,9 @@ def reason(item: Item, parts: dict, u: dict, e: dict, total: float) -> str:
     bits = []
     if p["value_usd"]:
         verb = "to gain" if item.kind == "opportunity" else "at risk"
-        what = (f"{p['oil_sm3']:,} Sm3 oil {verb} over {p['days']:g} d" if p["chance"] == 1 else
-                f"{p['oil_sm3']:,} Sm3 oil per repeat x {p['chance']:.0%} chance")
+        volume = f"{p['boe']:,} BOE" if p.get("gas_mscf") else f"{p['oil_bbl']:,} bbl oil"
+        what = (f"{volume} {verb} over {p['days']:g} d" if p["chance"] == 1 else
+                f"{volume} per repeat x {p['chance']:.0%} chance")
         bits.append((p["value_usd"], f"{what} ({_money(p['value_usd'])})"))
     if r["status"] == "ok" and r["value_usd"]:
         what = f"risk {r['band']} ({item.criticality}-critical, {r['failures_per_year']:g} failures/yr"
@@ -233,7 +236,7 @@ def _context(conn, today: str) -> dict:
     failures = {a["id"]: a["failures"] for a in actors["bad_actors"]}
     years = (date.fromisoformat(actors["until"]) - date.fromisoformat(actors["since"])).days / 365.25
     since = (date.fromisoformat(today) - timedelta(days=365)).isoformat()
-    lost = {r["fuzer_id"]: r["lost_oil_sm3"] for r in
+    lost = {r["fuzer_id"]: r["lost_oil_bbl"] for r in
             operations.deferment_pareto(conn, "tag", since, None, 100000)["items"]}
     crit = {r["fuzer_id"]: r["v"] for r in conn.execute(
         "select fuzer_id, value #>> '{}' as v from golden where field = 'criticality'")}
@@ -257,11 +260,11 @@ def _tag_inputs(ctx: dict, tag_id: str | None, sources: dict) -> dict:
         return {}
     out = {"criticality": ctx["crit"].get(tag_id) or None,
            "failures_per_year": ctx["failures"].get(tag_id, 0) / ctx["years"],
-           "oil_sm3d": ctx["lost"].get(tag_id, 0) / 365.0}
+           "oil_bbld": ctx["lost"].get(tag_id, 0) / 365.0}
     if out["criticality"]:
         sources["criticality"] = "SAP functional location ABC indicator"
     sources["failures_per_year"] = f"SAP notifications {ctx['window']}"
-    sources["oil_sm3d"] = f"EC downtime caused by the tag since {ctx['since']}, per day"
+    sources["oil_bbld"] = f"EC downtime caused by the tag since {ctx['since']}, per day"
     return out
 
 
@@ -290,7 +293,7 @@ def _incidents(conn, ctx: dict, today: str, horizon: int) -> list[Item]:
         src = {}
         t = _tag_inputs(ctx, tid, src)
         days = (date.fromisoformat(f["end"]) - date.fromisoformat(f["start"])).days + 1
-        lost = _num(f.get("lost_oil_sm3"))
+        lost = _num(f.get("lost_oil_bbl"))
         ongoing = f["end"] >= (date.fromisoformat(today) - timedelta(days=1)).isoformat()
         fpy = t.get("failures_per_year")
         notes = []
@@ -307,9 +310,9 @@ def _incidents(conn, ctx: dict, today: str, horizon: int) -> list[Item]:
             notes.append(f"closed {f['end']}: scored as the cost of a repeat")
             if ttc is not None:
                 src["time_to_consequence_days"] = "MTBF of the unit (SAP notifications) since the incident"
-        src["oil_sm3d"] = "EC downtime in the incident"
+        src["oil_bbld"] = "EC downtime in the incident"
         out.append(Item("incident", r["id"], r["label"] or f.get("unit"), f.get("description"), f.get("unit"), tid,
-                        oil_sm3d=lost / days, duration_days=days, chance=chance,
+                        oil_bbld=lost / days, duration_days=days, chance=chance,
                         criticality=t.get("criticality"), failures_per_year=fpy, time_to_consequence_days=ttc,
                         sources=src, notes=notes))
     return out
@@ -339,7 +342,7 @@ def _work_orders(conn, ctx: dict, today: str) -> list[Item]:
         notes = [f"{overdue} d past basic finish {due}"] if overdue else []
         out.append(Item("work_order", o["id"], f"{o['label']} {t.get('label') or ''}".strip(), f.get("text"),
                         t.get("label"), t.get("id"),
-                        oil_sm3d=ti.get("oil_sm3d"), criticality=ti.get("criticality"),
+                        oil_bbld=ti.get("oil_bbld"), criticality=ti.get("criticality"),
                         failures_per_year=ti.get("failures_per_year"), time_to_consequence_days=ttc,
                         effort_usd=cost, effort_basis=basis, sources=src, notes=notes))
     return out
@@ -358,7 +361,7 @@ def _plans(conn, ctx: dict, today: str, horizon: int) -> list[Item]:
             src["effort_usd"] = "SAP work orders"
         out.append(Item("maintenance_plan", p["id"], f"{p['plan']} {p['tag'] or ''}".strip(), p["task"],
                         p["tag"], p["tag_id"],
-                        oil_sm3d=ti.get("oil_sm3d"), criticality=ti.get("criticality"),
+                        oil_bbld=ti.get("oil_bbld"), criticality=ti.get("criticality"),
                         failures_per_year=ti.get("failures_per_year"), overdue_days=p["overdue_days"],
                         compliance_kind=p["kind"], time_to_consequence_days=ttc, effort_usd=cost,
                         effort_basis=basis, sources=src,
@@ -374,8 +377,8 @@ def _opportunities(conn, ctx: dict) -> list[Item]:
         conn.execute("select exists (select 1 from opportunity) as x").fetchone()["x"]
     if scanned:
         return [Item("opportunity", f"scan:{o['key']}", o["title"], o["detail"].get("basis"), None, o["target"],
-                     oil_sm3d=o["gain_sm3d"], risk_applies=False, time_to_consequence_days=0.0,
-                     sources={"oil_sm3d": f"opportunity scan: {o['detail'].get('basis')}",
+                     oil_bbld=o["gain_bbld"], risk_applies=False, time_to_consequence_days=0.0,
+                     sources={"oil_bbld": f"opportunity scan: {o['detail'].get('basis')}",
                               "time_to_consequence_days": "gain starts when it is done"},
                      notes=[f"confidence {o['detail'].get('confidence')}", f"confirm by {o['detail'].get('confirm_by')}"])
                 for o in conn.execute("select * from opportunity where status = 'open'")] + _debottleneck(conn)
@@ -398,14 +401,14 @@ def _gas_lift_moves(conn, ctx: dict) -> list[Item]:
         gain = hi["response_oil_per_extra_gas"] - lo["response_oil_per_extra_gas"]
         if gain <= 0:
             continue
-        move = lo["lift_gas_ksm3d"] * share
+        move = lo["lift_gas_mscfd"] * share
         out.append(Item(
             "opportunity", f"gas_lift:{lo['id']}->{hi['id']}", f"Lift gas {lo['well']} -> {hi['well']}",
-            f"Move {move:.0f} kSm3/d lift gas on {header} from {lo['well']} "
-            f"({lo['response_oil_per_extra_gas']:g} Sm3 oil per kSm3) to {hi['well']} "
+            f"Move {move:.0f} Mscf/d lift gas on {header} from {lo['well']} "
+            f"({lo['response_oil_per_extra_gas']:g} bbl oil per Mscf) to {hi['well']} "
             f"({hi['response_oil_per_extra_gas']:g})", hi["well"], hi["id"],
-            oil_sm3d=move * gain, risk_applies=False, time_to_consequence_days=0.0,
-            sources={"oil_sm3d": f"EC well tests {net['since']} to {net['until']}: lift gas response",
+            oil_bbld=move * gain, risk_applies=False, time_to_consequence_days=0.0,
+            sources={"oil_bbld": f"EC well tests {net['since']} to {net['until']}: lift gas response",
                      "time_to_consequence_days": "gain starts when the move is made"},
             notes=[f"moves {share:.0%} of {lo['well']}'s lift gas"]))
     return out
@@ -414,13 +417,13 @@ def _gas_lift_moves(conn, ctx: dict) -> list[Item]:
 def _debottleneck(conn) -> list[Item]:
     out = []
     exists = conn.execute("select to_regclass('debottleneck_option') is not null as x").fetchone()["x"]
-    for o in conn.execute("select * from debottleneck_option where gain_sm3d > 0 order by rank") if exists else []:
+    for o in conn.execute("select * from debottleneck_option where gain_bbld > 0 order by rank") if exists else []:
         d = o["detail"]
         out.append(Item(
             "opportunity", f"debottleneck:{o['kind']}:{o['target']}", o["action"], d.get("basis"),
-            None, o["target"] if (o["target"] or "").startswith("fz-tag") else None, oil_sm3d=o["gain_sm3d"],
+            None, o["target"] if (o["target"] or "").startswith("fz-tag") else None, oil_bbld=o["gain_bbld"],
             risk_applies=False, time_to_consequence_days=0.0,
-            sources={"oil_sm3d": f"back-pressure model (#107), scanned {o['as_of']}", "time_to_consequence_days":
+            sources={"oil_bbld": f"back-pressure model (#107), scanned {o['as_of']}", "time_to_consequence_days":
                      "gain starts when the change is made"},
             notes=[f"confidence {d.get('confidence')}", f"next constraint: {d.get('next_constraint')}",
                    f"confirm by {d.get('confirm_by')}"]))

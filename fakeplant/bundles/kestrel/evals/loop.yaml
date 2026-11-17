@@ -25,7 +25,7 @@ arrive:
   source_quality_drop: {deliver: deliveries/thin-delivery, datasets: [oplogs], rebuild: true, about: source}
   mapping_to_approve: {suggest: deliveries/new-export, about: source}  # a new export: a suggested mapping
   # An operator's reading on a round, outside its limits: the compressor frame shaking above its zone
-  round_finding: {round: {point: R-B1-03, value: 9.4}}
+  round_finding: {round: {point: R-B1-03, value: 0.37}}
   # A stop in the next downtime delivery that neither the operator log nor a notification mentions
   records_gap: {deliver: deliveries/unlogged-stop, datasets: [ec_downtime], rebuild: true, detector: records_gaps}
   # A revision of the smart P&ID export: train B1's alarm table disagrees with the DCS, and A1 sends a fuel gas line
@@ -44,7 +44,7 @@ arrive:
   well_test_review: {deliver: deliveries/well-test, datasets: [ec_well_tests], incremental: true, rebuild: true,
                      detector: well_tests}
   gas_lift_instability: {not_here: "its wells flow on their own; none is on gas lift"}
-  # The sales gas's water content climbing from about 90 to 141 mg/Sm3 over its last three weekly samples
+  # The sales gas's water content climbing from about 5.6 to 8.8 lb/MMscf over its last three weekly samples
   quality_drift: {detector: quality_drift}
   # The flare during yesterday's compressor trip, matched to the downtime and the operator's log entries
   flare_event: {detector: flare_events}

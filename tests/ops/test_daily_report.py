@@ -37,7 +37,7 @@ def test_last_week_every_line_cited_and_matching(conn):
         assert r["facts"]["day"] == day
         assert "Headline" in r["facts"]["sections"]
         rec = daily_report._day001(conn, day)
-        assert f"Oil {float(rec['oil_sm3']):,.0f} Sm3" in r["markdown"] and rec["id"] in r["markdown"]
+        assert f"Oil {float(rec['oil_bbl']):,.0f} bbl" in r["markdown"] and rec["id"] in r["markdown"]
         assert [line for line in r["markdown"].splitlines() if line.startswith("## ")] == \
             [f"## {n}. {s}" for n, s in enumerate(daily_report.OUTLINE, 1)]
     assert daily_report.close_day(conn, PACK, last.isoformat())["changed"] is False  # nothing new: no new version
@@ -49,8 +49,8 @@ def test_a_trip_day_leads_with_the_trip(conn):
     head = report["markdown"].split("## 2.")[0]
     headline = report["facts"]["sections"]["Headline"]
     trip = conn.execute("select fuzer_id from golden where field = 'start' and value #>> '{}' = '2024-11-05T05:30'").fetchone()
-    assert "Biggest loss: Process trip, 146 Sm3 oil, back at 10:30" in head and trip["fuzer_id"] in head
-    assert any("Biggest loss: Process trip, 146 Sm3 oil" in fact["text"] for fact in headline)
+    assert "Biggest loss: Process trip, 918 bbl oil, back at 10:30" in head and trip["fuzer_id"] in head
+    assert any("Biggest loss: Process trip, 918 bbl oil" in fact["text"] for fact in headline)
     assert any("7-day average" in fact["text"] for fact in report["facts"]["sections"]["Production and deferment"])
 
 
@@ -72,10 +72,10 @@ def test_efficiency_is_the_registered_metric_for_the_report_day(conn):
 def test_late_records_make_a_new_version(conn):
     day = "2025-12-29"
     rec = daily_report._day001(conn, day)
-    conn.execute("update golden set value = '7000.0'::jsonb where fuzer_id = %s and field = 'oil_sm3'", (rec["id"],))
+    conn.execute("update golden set value = '7000.0'::jsonb where fuzer_id = %s and field = 'oil_bbl'", (rec["id"],))
     out = daily_report.close_day(conn, PACK, day)
     assert out["version"] == 2 and "Production and deferment" in out["changes"] and "Headline" in out["changes"]
-    assert any("Oil 7,000 Sm3" in a for a in out["changes"]["Headline"]["added"])
+    assert any("Oil 7,000 bbl" in a for a in out["changes"]["Headline"]["added"])
     r = daily_report.get(conn, day)
     assert r["versions"] == [1, 2] and daily_report.get(conn, day, 1)["version"] == 1
     conn.rollback()
@@ -85,11 +85,11 @@ GOOD = """# Daily operations report 2024-11-05
 
 ## 1. Headline
 
-- Train C tripped at 05:30 on high scrubber level, losing 146 Sm3 of oil; it was back at 10:30. [{trip}]
+- Train C tripped at 05:30 on high scrubber level, losing 918 bbl of oil; it was back at 10:30. [{trip}]
 
 ## 2. Production and deferment
 
-- Oil was 7,098 Sm3 against a potential of 7,244 Sm3. [{day}]
+- Oil was 44,645 bbl against a potential of 45,563 bbl. [{day}]
 
 ## 3. Upsets and events
 
@@ -113,9 +113,9 @@ def test_claude_draft_is_checked(conn):
     r = daily_report.get(conn, "2024-11-05")
     assert r["drafted_by"] == "claude" and r["usage"]["cost_usd"] == 0.05 and r["seconds"] is not None
 
-    bad = good + "\n- Production will recover to 7,600 Sm3 tomorrow.\n- Oil was 6,123 Sm3. [fz-made-up-0123456789]\n"
+    bad = good + "\n- Production will recover to 7,600 bbl tomorrow.\n- Oil was 6,123 bbl. [fz-made-up-0123456789]\n"
     c = daily_report.check(bad, r and daily_report.latest(conn, "2024-11-05")["facts"])
-    assert c["uncited_lines"] == ["- Production will recover to 7,600 Sm3 tomorrow."]
+    assert c["uncited_lines"] == ["- Production will recover to 7,600 bbl tomorrow."]
     assert c["unknown_citations"] == ["fz-made-up-0123456789"] and set(c["unknown_numbers"]) == {"7,600", "6,123"}
     bold = re.sub(r"(?m)^## (\d+\. .+)$", r"**\1**", good)  # headings in bold, as Claude sometimes writes them
     assert bold != good and daily_report.check(bold, daily_report.latest(conn, "2024-11-05")["facts"])["ok"]
@@ -175,8 +175,8 @@ def test_reporter_step_and_tools(conn, monkeypatch):
 
 def test_comparisons_never_read_as_production_values():
     """A change from yesterday or the 7-day average is phrased as above, below or unchanged (#390)."""
-    assert daily_report._vs("yesterday's {prev} Sm3", 0.0) == "Oil unchanged from yesterday's {prev} Sm3"
-    up = daily_report._f(daily_report._vs("the 7-day average of {avg} Sm3", 20), [], change=20, avg=7452)
-    assert up["text"] == "Oil 20 Sm3 above the 7-day average of 7,452 Sm3"
-    down = daily_report._f(daily_report._vs("yesterday's {prev} Sm3", -35.5), [], change=35.5, prev=7472.0)
-    assert down["text"] == "Oil 35.5 Sm3 below yesterday's 7,472 Sm3"
+    assert daily_report._vs("yesterday's {prev} bbl", 0.0) == "Oil unchanged from yesterday's {prev} bbl"
+    up = daily_report._f(daily_report._vs("the 7-day average of {avg} bbl", 20), [], change=20, avg=7452)
+    assert up["text"] == "Oil 20 bbl above the 7-day average of 7,452 bbl"
+    down = daily_report._f(daily_report._vs("yesterday's {prev} bbl", -35.5), [], change=35.5, prev=7472.0)
+    assert down["text"] == "Oil 35.5 bbl below yesterday's 7,472 bbl"

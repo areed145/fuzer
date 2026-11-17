@@ -26,10 +26,10 @@ from .calcs import CalcError, _label, _r, result
 
 YEAR = 365.25
 # Pressure design thickness (Barlow): t = P D / (2 S F). The grade isn't in the register, so it is assumed and named.
-SMYS_MPA = 359.0  # API 5L X52
+SMYS_PSI = 52000.0  # API 5L X52
 DESIGN_FACTOR = 0.72  # ASME B31.4 / B31.8 class 1
-OD_MM = {2: 60.3, 3: 88.9, 4: 114.3, 6: 168.3, 8: 219.1, 10: 273.1, 12: 323.9, 14: 355.6, 16: 406.4, 18: 457.0,
-         20: 508.0, 24: 610.0}
+OD_IN = {2: 2.375, 3: 3.5, 4: 4.5, 6: 6.625, 8: 8.625, 10: 10.75, 12: 12.75, 14: 14.0, 16: 16.0, 18: 18.0,
+         20: 20.0, 24: 24.0}
 RETIRE_YEARS = 5.0
 MAX_INTERVAL = 10.0  # years, API 570
 
@@ -46,16 +46,21 @@ def _num(v) -> float | None:
         return None
 
 
-def design_thickness(mop_barg: float | None, diameter_in: float | None) -> float | None:
-    """Barlow pressure design thickness in mm at the MOP, on the assumed grade and design factor."""
-    if not mop_barg or not diameter_in:
+def design_thickness(mop_psig: float | None, diameter_in: float | None) -> float | None:
+    """Barlow pressure design thickness in inches at the MOP, on the assumed grade and design factor."""
+    if not mop_psig or not diameter_in:
         return None
-    od = OD_MM.get(round(diameter_in), diameter_in * 25.4)
-    return mop_barg / 10 * od / (2 * SMYS_MPA * DESIGN_FACTOR)
+    od = OD_IN.get(round(diameter_in), diameter_in)
+    return mop_psig * od / (2 * SMYS_PSI * DESIGN_FACTOR)
+
+
+def _mpy(in_per_year: float | None) -> float | None:
+    """A wall loss rate in mils a year (mpy) from inches a year."""
+    return None if in_per_year is None else _r(in_per_year * 1000, 1)
 
 
 def cml_rate(values: list[dict]) -> dict | None:
-    """One CML's rates (mm/year, positive = loss): long-term first to last, short-term over the last two readings,
+    """One CML's rates (in/year, positive = loss): long-term first to last, short-term over the last two readings,
     and the governing one (the greater)."""
     pts = [(datetime.fromisoformat(v["at"][:19]), float(v["value"])) for v in values]
     if len(pts) < 2:
@@ -69,12 +74,12 @@ def cml_rate(values: list[dict]) -> dict | None:
     rates = [x for x in (lt, st) if x is not None]
     if not rates:
         return None
-    return {"long_term": lt, "short_term": st, "governing": max(rates), "latest_mm": pts[-1][1],
+    return {"long_term": lt, "short_term": st, "governing": max(rates), "latest_in": pts[-1][1],
             "latest_at": pts[-1][0].date().isoformat()}
 
 
 def recorded_minimum(conn, fid: str, until: str | None = None) -> dict[str, float]:
-    """CML -> the minimum required thickness (mm) the inspection system records for it, latest first; empty where
+    """CML -> the minimum required thickness (in) the inspection system records for it, latest first; empty where
     the source records none."""
     from ..graph import measurements as m
 
@@ -82,38 +87,38 @@ def recorded_minimum(conn, fid: str, until: str | None = None) -> dict[str, floa
             m.for_entity(conn, fid, "minimum_required_thickness", until=until)["series"] if s["location"]}
 
 
-def _line(conn, fid: str, until: str | None, min_required_mm: float | None, at: date) -> dict | None:
+def _line(conn, fid: str, until: str | None, min_required_in: float | None, at: date) -> dict | None:
     from ..graph import measurements as m
 
     series = m.for_entity(conn, fid, "wall_thickness", until=until)["series"]
     f = _fields(conn, fid)
-    recorded = {} if min_required_mm else recorded_minimum(conn, fid, until)
-    line_tmin = min_required_mm or design_thickness(_num(f.get("mop_barg")), _num(f.get("diameter_in")))
+    recorded = {} if min_required_in else recorded_minimum(conn, fid, until)
+    line_tmin = min_required_in or design_thickness(_num(f.get("mop_psig")), _num(f.get("diameter_in")))
     cmls = []
     for s in series:
         r = cml_rate(s["values"])
         if r is None:
             continue
         tmin = recorded.get(s["location"]) or line_tmin
-        life = (r["latest_mm"] - tmin) / r["governing"] if tmin and r["governing"] > 0 else None
+        life = (r["latest_in"] - tmin) / r["governing"] if tmin and r["governing"] > 0 else None
         cmls.append({"cml": s["location"], "record": s["latest"]["record"], "remaining_years": life,
-                     "retirement_mm": tmin, **r})
+                     "retirement_in": tmin, **r})
     if not cmls:
         return None
     worst = max(cmls, key=lambda c: c["governing"])
     lives = [c["remaining_years"] for c in cmls if c["remaining_years"] is not None]
     shortest = min(lives) if lives else None
     governs = min((c for c in cmls if c["remaining_years"] is not None), key=lambda c: c["remaining_years"], default=None)
-    tmin = governs["retirement_mm"] if governs else line_tmin
-    basis = ("given" if min_required_mm else "recorded minimum thickness"
+    tmin = governs["retirement_in"] if governs else line_tmin
+    basis = ("given" if min_required_in else "recorded minimum thickness"
              if governs and governs["cml"] in recorded else "Barlow at MOP, assumed grade") if tmin else None
     last = max(c["latest_at"] for c in cmls)
     interval = min(max(shortest, 0) / 2, MAX_INTERVAL) if shortest is not None else None
     due = (date.fromisoformat(last).toordinal() + int(interval * YEAR)) if interval is not None else None
     return {"id": fid, "line": _label(conn, fid), "service": f.get("service"),
-            "rate_mm_per_year": _r(worst["governing"], 3), "long_term_mm_per_year": _r(worst["long_term"], 3),
-            "short_term_mm_per_year": _r(worst["short_term"], 3), "fastest_cml": worst["cml"],
-            "latest_mm": _r(worst["latest_mm"], 2), "retirement_mm": _r(tmin, 2),
+            "rate_mpy": _mpy(worst["governing"]), "long_term_mpy": _mpy(worst["long_term"]),
+            "short_term_mpy": _mpy(worst["short_term"]), "fastest_cml": worst["cml"],
+            "latest_in": _r(worst["latest_in"], 3), "retirement_in": _r(tmin, 3),
             "retirement_basis": basis, "governing_cml": governs["cml"] if governs else None,
             "remaining_years": _r(shortest, 1), "last_survey": last,
             "next_inspection_years": _r(interval, 1),
@@ -122,7 +127,7 @@ def _line(conn, fid: str, until: str | None, min_required_mm: float | None, at: 
             "records": [c["record"] for c in sorted(cmls, key=lambda c: -c["governing"])[:2]]}
 
 
-def corrosion_circuit(conn, fid: str, min_required_mm: float | None = None, until: str | None = None) -> dict:
+def corrosion_circuit(conn, fid: str, min_required_in: float | None = None, until: str | None = None) -> dict:
     from ..graph import operations
 
     kind = conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()
@@ -141,35 +146,35 @@ def corrosion_circuit(conn, fid: str, min_required_mm: float | None = None, unti
               and coalesce(st.value #>> '{}', 'in service') = 'in service'
             order by 1
             """, (service,)).fetchall()] or [fid]
-    lines = [x for x in (_line(conn, m, until, min_required_mm, at) for m in members) if x]
+    lines = [x for x in (_line(conn, m, until, min_required_in, at) for m in members) if x]
     if not lines:
         raise CalcError("no wall thickness readings on that item" + (f" or its {service} circuit" if service else ""))
-    lines.sort(key=lambda x: -(x["rate_mm_per_year"] or 0))
-    rates = sorted(x["rate_mm_per_year"] for x in lines)
+    lines.sort(key=lambda x: -(x["rate_mpy"] or 0))
+    rates = sorted(x["rate_mpy"] for x in lines)
     median = rates[len(rates) // 2]
     soon = [x for x in lines if x["remaining_years"] is not None and x["remaining_years"] < RETIRE_YEARS]
     overdue = [x for x in lines if x["overdue"]]
-    localised = [x for x in lines if len(lines) >= 3 and x["rate_mm_per_year"] > 2 * max(median, 0.01)]
+    localised = [x for x in lines if len(lines) >= 3 and x["rate_mpy"] > 2 * max(median, 0.4)]
     flag = "retire_soon" if soon else "inspection_overdue" if overdue else "localised" if localised else None
     me = next((x for x in lines if x["id"] == fid), None)
     assumed = any(x["retirement_basis"] == "Barlow at MOP, assumed grade" for x in lines)
     recorded = any(x["retirement_basis"] == "recorded minimum thickness" for x in lines) and not assumed
-    return result(lines[0]["rate_mm_per_year"], median, flag,
+    return result(lines[0]["rate_mpy"], median, flag,
                   (f"the {service} corrosion circuit: {len(lines)} in-service line(s) in that service" if service else
                    "no circuit on record for this item, so it stands alone")
                   + "; per CML the greater of the long-term (first to last) and short-term (last two readings) wall "
                   "loss rate (API 570 7.1); value is the circuit's fastest line, expected its median; remaining life to "
-                  + ("the given retirement thickness" if min_required_mm else
+                  + ("the given retirement thickness" if min_required_in else
                      "each CML's minimum required thickness as the inspection system records it" if recorded else
                      f"the Barlow pressure design thickness at each line's MOP (assumed API 5L X52, design factor "
                      f"{DESIGN_FACTOR}: confirm against the line's design)" if assumed else
-                     "a retirement thickness, which isn't on record here: pass min_required_mm from the design")
+                     "a retirement thickness, which isn't on record here: pass min_required_in from the design")
                   + f"; next inspection at half the remaining life, at most {MAX_INTERVAL:g} years, after the last "
                   f"survey; retire soon under {RETIRE_YEARS:g} years",
-                  [fid, *dict.fromkeys(r for x in lines[:3] for r in x["records"])], unit="mm/year",
+                  [fid, *dict.fromkeys(r for x in lines[:3] for r in x["records"])], unit="mpy",
                   circuit=service or _label(conn, fid), at=at.isoformat(), line=me, lines=lines[:15],
                   retire_soon=[x["line"] for x in soon], inspection_overdue=[x["line"] for x in overdue],
-                  localised=[x["line"] for x in localised], retirement_assumed=assumed and not min_required_mm,
+                  localised=[x["line"] for x in localised], retirement_assumed=assumed and not min_required_in,
                   shortest_remaining_years=min((x["remaining_years"] for x in lines
                                                 if x["remaining_years"] is not None), default=None))
 
@@ -228,7 +233,7 @@ def inspection_plan(conn, fid: str, until: str | None = None) -> dict:
     sooner = bool(wall and wall["next_inspection_due"] and plan["next_due"] and wall["next_inspection_due"] < plan["next_due"])
     flag = ("inspection_overdue" if overdue else "due_sooner" if sooner else "interval_too_long" if too_long else None)
     why = ("no wall thickness readings on it" if wall is None else
-           "no retirement thickness on record for it (pass min_required_mm to corrosion_circuit from its design)"
+           "no retirement thickness on record for it (pass min_required_in to corrosion_circuit from its design)"
            if supported is None else None)
     return result(plan["interval_years"], supported, flag,
                   f"the condition inspection plan in the maintenance plans against the interval its wall loss supports: "

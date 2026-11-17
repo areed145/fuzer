@@ -11,7 +11,7 @@ returns them all as one record.
     raise_exception(conn, TYPE, key, title, by, refs=[...], value_usd=..., finding=Finding(
         "limits.iow", DETERMINISTIC, method="Time outside an integrity operating window", standard="API RP 584",
         start=first, end=last,
-        items=[fact("Limit", 85.0, "barg"), fact("Peak", 91.2, "barg"), at("First outside", first),
+        items=[fact("Limit", 1233.0, "psig"), fact("Peak", 1323.0, "psig"), at("First outside", first),
                asset("Measured on", point_id)],
         data={"iow": iow, "level": level}))
 

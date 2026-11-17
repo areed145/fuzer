@@ -1,5 +1,5 @@
 """Operational against accounting volumes, and unit cost (P7.5c, #372): the daily allocated figures set beside what
-production accounting closed for the month, and the ledger's operating cost per accounted Sm3 of oil.
+production accounting closed for the month, and the ledger's operating cost per accounted barrel of oil.
 
     reconcile(conn, since, until)   per month and product: the sum of the daily reports (EC DAY001) over the
                                     accounting period against the accounted volume, with both sources, both periods
@@ -25,7 +25,7 @@ from datetime import date, timedelta
 from ..graph import operations as ops
 
 TOLERANCE_PCT = 1.0  # a month within this of the accounted volume agrees
-PRODUCTS = {"oil": ("oil_sm3", "Sm3"), "gas": ("gas_ksm3", "ksm3")}
+PRODUCTS = {"oil": ("oil_bbl", "bbl"), "gas": ("gas_mscf", "Mscf")}
 REFS = 50
 OPERATIONAL = "daily allocated production (EC DAY001 daily reports)"
 ACCOUNTING = "production accounting (monthly volumes on the custody meters)"
@@ -160,17 +160,17 @@ def unit_cost(conn, since: str | None = None, until: str | None = None, days: in
         rows.append({"period": period, "currency": cur, "cost": round(c["amount"]), "entries": c["entries"],
                      "entries_without_amount": c["without_amount"],
                      "by_element": {k: round(v) for k, v in sorted(c["elements"].items())},
-                     "oil_sm3": vol, "oil_status": b["f"].get("status") if b else None,
-                     "per_sm3": per, "why_unknown": None if closed else
+                     "oil_bbl": vol, "oil_status": b["f"].get("status") if b else None,
+                     "per_bbl": per, "why_unknown": None if closed else
                      (f"no accounted oil for {period}" if not b else f"{period}'s oil isn't closed in accounting"),
                      "refs": c["refs"][:REFS] + ([b["id"]] if b else [])})
         if closed and not c["without_amount"]:
             totals[cur][0] += c["amount"]
             totals[cur][1] += vol
     currencies = sorted({cur for _, cur in cost}, key=lambda c: (c == "unknown", c))
-    return {"since": since, "until": until, "unit": "per accounted Sm3 of oil",
+    return {"since": since, "until": until, "unit": "per accounted barrel of oil",
             "sources": {"cost": LEDGER, "volume": ACCOUNTING}, "currencies": currencies,
-            "window": {cur: {"cost": round(t[0]), "oil_sm3": round(t[1]), "per_sm3": round(t[0] / t[1], 2)}
+            "window": {cur: {"cost": round(t[0]), "oil_bbl": round(t[1]), "per_bbl": round(t[0] / t[1], 2)}
                        for cur, t in totals.items() if t[1]},
             "months": rows,
             "note": "Booked operating cost over the month's closed accounted oil, each currency apart and never "

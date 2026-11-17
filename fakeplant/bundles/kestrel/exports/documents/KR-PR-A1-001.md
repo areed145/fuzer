@@ -8,8 +8,8 @@ Used when compression is lost or reduced and the inlet separator A1-V-1001 press
 
 1. Confirm A1-PT-1001 against the local gauge on A1-V-1001.
 2. Choke KR 12-03H and KR 12-04H back to 10% in two steps, two minutes apart.
-3. If A1-PT-1001 still rises above 27 barg, close the inlet ESD valve A1-XV-1003 and call the shift supervisor; A1-PSV-1001 lifts at 30 barg.
-4. When compression is back, open the chokes to 50% and return the separator setpoint to 25 barg.
+3. If A1-PT-1001 still rises above 392 psig, close the inlet ESD valve A1-XV-1003 and call the shift supervisor; A1-PSV-1001 lifts at 435 psig.
+4. When compression is back, open the chokes to 50% and return the separator setpoint to 363 psig.
 
 ## Notes
 

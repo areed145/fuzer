@@ -24,7 +24,7 @@ def test_downtime_links_wells_facility_and_causes(conn):
     assert well["events"] >= 1 and all(r["affects"] for r in well["recent"])
     compressor = queries.downtime(conn, fid(conn, "20-K-2200B"))
     facility = queries.downtime(conn, fid(conn, "OKAN"))
-    assert facility["lost_oil_sm3"] > compressor["lost_oil_sm3"] > 0
+    assert facility["lost_oil_bbl"] > compressor["lost_oil_bbl"] > 0
 
 
 def test_rollup_to_class(conn):
@@ -34,25 +34,25 @@ def test_rollup_to_class(conn):
 
 def test_rankings(conn):
     by_reason = {r["label"]: r for r in queries.downtime_ranking(conn, "reason")}
-    assert by_reason and all(r["lost_oil_sm3"] > 0 for r in by_reason.values())  # no "Hydrates 0" (#403)
+    assert by_reason and all(r["lost_oil_bbl"] > 0 for r in by_reason.values())  # no "Hydrates 0" (#403)
     by_tag = queries.downtime_ranking(conn, "tag")
     tags = [r for r in by_tag if not r.get("unattributed")]
-    assert tags and tags[0]["lost_oil_sm3"] >= tags[-1]["lost_oil_sm3"]
+    assert tags and tags[0]["lost_oil_bbl"] >= tags[-1]["lost_oil_bbl"]
     by_class = queries.downtime_ranking(conn, "class")
     assert {r["label"].split(".")[0] for r in by_class if not r.get("unattributed")} <= {"ISO14224:CO", "ISO14224:VE"}
 
 
 def test_rankings_account_for_the_whole_total(conn):
     """Loss that names no equipment shows as its own row, so the cards add up to the header (#403)."""
-    total = queries.downtime(conn)["lost_oil_sm3"]
+    total = queries.downtime(conn)["lost_oil_bbl"]
     by_reason = queries.downtime_ranking(conn, "reason", limit=200)
-    assert abs(sum(r["lost_oil_sm3"] for r in by_reason) - total) < 1
+    assert abs(sum(r["lost_oil_bbl"] for r in by_reason) - total) < 1
     by_tag = queries.downtime_ranking(conn, "tag", limit=200)
     rest = [r for r in by_tag if r.get("unattributed")]
     assert len(rest) == 1 and by_tag[-1] is rest[0] and rest[0]["fuzer_id"] is None
-    unattributed = sum(r["lost_oil_sm3"] for r in queries.downtime(conn, limit=1000)["recent"]
-                       if not r["caused_by"] and r["lost_oil_sm3"])
-    assert abs(rest[0]["lost_oil_sm3"] - unattributed) < 1
+    unattributed = sum(r["lost_oil_bbl"] for r in queries.downtime(conn, limit=1000)["recent"]
+                       if not r["caused_by"] and r["lost_oil_bbl"])
+    assert abs(rest[0]["lost_oil_bbl"] - unattributed) < 1
 
 
 def test_reason_code_mismatch_flagged(conn):
@@ -68,7 +68,7 @@ def test_since_filter(conn):
 
 def test_daily_reports(conn):
     e = queries.entity(conn, fid(conn, "2024-03-14"), pack=PACK)
-    assert e["kind"] == "production_day" and e["golden"]["oil_sm3"]["value"] > 0
+    assert e["kind"] == "production_day" and e["golden"]["oil_bbl"]["value"] > 0
     assert any(x["rel"] == "reports_on" and x["other_label"] == "OKAN" for x in e["edges"])
 
 
@@ -98,11 +98,11 @@ def test_planned_apart_from_unplanned(conn):
     total = queries.downtime(conn)
     planned = total["planned"]
     assert 0 < planned["events"] < total["events"]
-    unplanned = sum(r["lost_oil_sm3"] for r in queries.downtime_ranking(conn, "reason", planned=False))
-    only = sum(r["lost_oil_sm3"] for r in queries.downtime_ranking(conn, "reason", planned=True))
-    assert unplanned + only == pytest.approx(total["lost_oil_sm3"], abs=1)
-    assert only == pytest.approx(planned["lost_oil_sm3"], abs=1)
+    unplanned = sum(r["lost_oil_bbl"] for r in queries.downtime_ranking(conn, "reason", planned=False))
+    only = sum(r["lost_oil_bbl"] for r in queries.downtime_ranking(conn, "reason", planned=True))
+    assert unplanned + only == pytest.approx(total["lost_oil_bbl"], abs=1)
+    assert only == pytest.approx(planned["lost_oil_bbl"], abs=1)
     months = queries.downtime_monthly(conn)
     assert [m["month"] for m in months] == sorted(m["month"] for m in months)
     assert sum(m["planned_events"] + m["unplanned_events"] for m in months) == total["events"]
-    assert sum(m["planned_sm3"] for m in months) == pytest.approx(planned["lost_oil_sm3"], abs=1)
+    assert sum(m["planned_bbl"] for m in months) == pytest.approx(planned["lost_oil_bbl"], abs=1)

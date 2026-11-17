@@ -38,7 +38,7 @@ engineer sees an interactive chart there (zoom, hover, click a point to open its
 - Numbers you derived that no tool reads: `plot_custom` (labelled as assistant-entered; last resort).
 
 **Reading the summary.** Say what the chart shows in words with the numbers: "OK-J07-03 declines
-11 %/yr (exponential, r² 0.96) after the November 2024 valve repair; at this rate it makes 38 Sm³/d in
+11 %/yr (exponential, r² 0.96) after the November 2024 valve repair; at this rate it makes 240 bbl/d in
 a year." Name step changes and left-out points; they are often the story. If a summary has a `note`
 (synthetic values, assistant-entered data, no minimum thickness), carry it into the answer.
 

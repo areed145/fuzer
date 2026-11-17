@@ -19,9 +19,9 @@ CFG = value.config(PACK)
 
 
 def test_config_merges_pack_over_defaults():
-    assert CFG["prices"] == {"oil_sm3": 470, "gas_ksm3": 150} and CFG["source"] == "pack okan"
-    bare = value.config(dataclasses.replace(PACK, value={"prices": {"oil_sm3": 600}}))
-    assert bare["prices"] == {"oil_sm3": 600, "gas_ksm3": 150.0}  # one price changed, the rest default
+    assert CFG["prices"] == {"oil_bbl": 75, "gas_mscf": 4.25} and CFG["source"] == "pack okan"
+    bare = value.config(dataclasses.replace(PACK, value={"prices": {"oil_bbl": 600}}))
+    assert bare["prices"] == {"oil_bbl": 600, "gas_mscf": 4.25}  # one price changed, the rest default
     assert bare["risk_matrix"] == value.DEFAULTS["risk_matrix"]
     assert value.config(dataclasses.replace(PACK, value={}))["source"] == "built-in defaults"
 
@@ -29,15 +29,15 @@ def test_config_merges_pack_over_defaults():
 # --- components --------------------------------------------------------------------------------------
 
 def test_production():
-    p = value.production(Item("work_order", "x", "x", oil_sm3d=10, gas_ksm3d=2, duration_days=5), CFG)
-    assert p["status"] == "ok" and p["value_usd"] == (10 * 470 + 2 * 150) * 5 and p["oil_sm3"] == 50
-    assert value.production(Item("work_order", "x", "x", oil_sm3d=10), CFG)["days"] == 90  # the horizon
-    half = value.production(Item("incident", "x", "x", oil_sm3d=10, duration_days=1, chance=0.5), CFG)
-    assert half["value_usd"] == 2350
+    p = value.production(Item("work_order", "x", "x", oil_bbld=10, gas_mscfd=2, duration_days=5), CFG)
+    assert p["status"] == "ok" and p["value_usd"] == round((10 * 75 + 2 * 4.25) * 5) and p["oil_bbl"] == 50
+    assert value.production(Item("work_order", "x", "x", oil_bbld=10), CFG)["days"] == 90  # the horizon
+    half = value.production(Item("incident", "x", "x", oil_bbld=10, duration_days=1, chance=0.5), CFG)
+    assert half["value_usd"] == 375
     assert value.production(Item("work_order", "x", "x"), CFG) == {
         "status": "unknown", "value_usd": None, "note": "no rate at risk or to gain"}
-    assert value.production(Item("incident", "x", "x", oil_sm3d=10, chance=None), CFG)["status"] == "unknown"
-    zero = value.production(Item("work_order", "x", "x", oil_sm3d=0.0), CFG)
+    assert value.production(Item("incident", "x", "x", oil_bbld=10, chance=None), CFG)["status"] == "unknown"
+    zero = value.production(Item("work_order", "x", "x", oil_bbld=0.0), CFG)
     assert zero["status"] == "ok" and zero["value_usd"] == 0  # known to be nothing is not unknown
 
 
@@ -59,7 +59,7 @@ def test_risk_unknown_criticality_is_not_assessed_not_zero():
     assert value.risk(Item("work_order", "x", "x", criticality="Z", failures_per_year=1), CFG)["status"] == "unknown"
     assert "failures per year" in value.risk(Item("work_order", "x", "x", criticality="A"), CFG)["note"]
     assert value.risk(Item("opportunity", "x", "x", risk_applies=False), CFG)["status"] == "n/a"
-    s = value.score(Item("work_order", "x", "20-P-1", oil_sm3d=1, failures_per_year=1), CFG)
+    s = value.score(Item("work_order", "x", "20-P-1", oil_bbld=1, failures_per_year=1), CFG)
     assert s["criticality"] == "not assessed" and "risk" in s["unknown"]
     assert s["components"]["risk"]["value_usd"] is None and "criticality not assessed" in s["reason"]
 
@@ -91,24 +91,24 @@ def test_urgency_and_effort():
 
 
 def test_score_adds_up_and_explains():
-    item = Item("maintenance_plan", "p1", "INSP-1 20-V-2001", oil_sm3d=1.0, criticality="A", failures_per_year=0.5,
+    item = Item("maintenance_plan", "p1", "INSP-1 20-V-2001", oil_bbld=6.29, criticality="A", failures_per_year=0.5,
                 overdue_days=20, compliance_kind="INSP", time_to_consequence_days=0, effort_usd=10000,
                 sources={"criticality": "SAP functional location ABC indicator"})
     s = value.score(item, CFG)
     parts = [s["components"][k]["value_usd"] for k in ("production", "risk", "compliance")]
     assert s["value_usd"] == sum(parts) and s["value_per_effort"] == round(s["value_usd"] / 10000, 2)
     assert s["unknown"] == [] and s["components"]["risk"]["sources"]["criticality"].startswith("SAP")
-    assert s["reason"].startswith("INSP-1 20-V-2001: 90 Sm3 oil at risk over 90 d ($42k); INSP 20 d overdue")
+    assert s["reason"].startswith("INSP-1 20-V-2001: 566 bbl oil at risk over 90 d ($42k); INSP 20 d overdue")
     assert "due now" in s["reason"]  # biggest part first
     later = value.score(dataclasses.replace(item, time_to_consequence_days=30), CFG)
     assert later["value_usd"] == round(s["value_usd"] / 2)
-    nothing = value.score(Item("work_order", "w", "W1", oil_sm3d=0.0, criticality="C", failures_per_year=0.0,
+    nothing = value.score(Item("work_order", "w", "W1", oil_bbld=0.0, criticality="C", failures_per_year=0.0,
                                time_to_consequence_days=7), CFG)
     assert nothing["value_usd"] == 0 and "nothing at stake found" in nothing["reason"]
 
 
 def test_changing_price_or_matrix_reranks():
-    oil = Item("opportunity", "gl", "gas lift", oil_sm3d=4, risk_applies=False, time_to_consequence_days=0)
+    oil = Item("opportunity", "gl", "gas lift", oil_bbld=25.2, risk_applies=False, time_to_consequence_days=0)
     comp = Item("maintenance_plan", "pm", "inspection", criticality="A", failures_per_year=0.2, overdue_days=150,
                 compliance_kind="INSP", time_to_consequence_days=0)
 
@@ -116,7 +116,7 @@ def test_changing_price_or_matrix_reranks():
         return [s["id"] for s in sorted((value.score(i, cfg) for i in (oil, comp)), key=lambda s: -s["value_usd"])]
 
     assert order(CFG) == ["pm", "gl"]
-    rich = value.config(dataclasses.replace(PACK, value={**PACK.value, "prices": {"oil_sm3": 1500, "gas_ksm3": 150}}))
+    rich = value.config(dataclasses.replace(PACK, value={**PACK.value, "prices": {"oil_bbl": 240, "gas_mscf": 4.25}}))
     assert order(rich) == ["gl", "pm"]
     lax = value.config(dataclasses.replace(PACK, value={**PACK.value, "compliance": {
         **PACK.value["compliance"], "usd_per_day_overdue": {"PM": 10, "INSP": 40}}}))
@@ -179,7 +179,7 @@ def test_every_kind_scored_on_okan(conn):
 
 def test_ranking_follows_pack_config(conn):
     base = [s["id"] for s in value.ranked(conn, PACK, limit=10)["items"]]
-    cheap_oil = dataclasses.replace(PACK, value={**PACK.value, "prices": {"oil_sm3": 5, "gas_ksm3": 1}})
+    cheap_oil = dataclasses.replace(PACK, value={**PACK.value, "prices": {"oil_bbl": 5, "gas_mscf": 1}})
     moved = value.ranked(conn, cheap_oil, limit=10)["items"]
     assert [s["id"] for s in moved] != base and all(s["kind"] != "opportunity" for s in moved[:5])
 

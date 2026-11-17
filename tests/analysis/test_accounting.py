@@ -59,7 +59,7 @@ def test_unit_cost_keeps_currencies_apart(okan_db):
     nov = [m for m in out["months"] if m["period"] == "2025-11"]
     assert {m["currency"] for m in nov} == {"NGN", "USD"}
     usd = next(m for m in nov if m["currency"] == "USD")
-    assert abs(usd["per_sm3"] - usd["cost"] / usd["oil_sm3"]) < 0.01
+    assert abs(usd["per_bbl"] - usd["cost"] / usd["oil_bbl"]) < 0.01
     assert "Logistics" not in usd["by_element"]  # billed in NGN, never added to the USD
     # a month whose oil isn't closed has no unit cost
     oil = conn.execute("select fuzer_id from golden where field = 'description' and value #>> '{}' = "
@@ -67,7 +67,7 @@ def test_unit_cost_keeps_currencies_apart(okan_db):
     conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, 'status', %s, 'test', 'test') "
                  "on conflict (fuzer_id, field) do update set value = excluded.value", (oil, Jsonb("preliminary")))
     nov2 = next(m for m in accounting.unit_cost(conn)["months"] if m["period"] == "2025-11" and m["currency"] == "USD")
-    assert nov2["per_sm3"] is None and "isn't closed" in nov2["why_unknown"]
+    assert nov2["per_bbl"] is None and "isn't closed" in nov2["why_unknown"]
     conn.rollback()
 
 

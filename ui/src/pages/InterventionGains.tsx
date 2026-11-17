@@ -29,12 +29,12 @@ export function InterventionGains() {
                 <td><a href={entityHref(i.well_id)}>{i.well}</a> <span className="small">{i.start.slice(0, 10)}</span>
                   <div className="small muted">{i.reason}</div></td>
                 <td data-label="Result"><Badge tone={TONE[i.verdict]} className="intervention-verdict">{SAY[i.verdict]}</Badge>
-                  {i.gain_sm3d != null && <div className="small">{i.gain_sm3d > 0 ? "+" : ""}{i.gain_sm3d} Sm3/d net of decline</div>}
+                  {i.gain_bbld != null && <div className="small">{i.gain_bbld > 0 ? "+" : ""}{i.gain_bbld} bbl/d net of decline</div>}
                   {i.why && <div className="small muted">{i.why}</div>}</td>
-                <td data-label="Oil after">{i.oil_after_sm3d != null ? `${i.oil_after_sm3d} Sm3/d` : "unknown"}
+                <td data-label="Oil after">{i.oil_after_bbld != null ? `${i.oil_after_bbld} bbl/d` : "unknown"}
                   <div className="small muted">{i.tests_after} tests after, {i.tests_before} before</div></td>
-                <td data-label="Its decline said">{i.oil_expected_sm3d != null ? `${i.oil_expected_sm3d} Sm3/d` : "–"}
-                  {i.oil_range_sm3d && <div className="small muted">90% range {i.oil_range_sm3d[0]} to {i.oil_range_sm3d[1]}</div>}</td>
+                <td data-label="Its decline said">{i.oil_expected_bbld != null ? `${i.oil_expected_bbld} bbl/d` : "–"}
+                  {i.oil_range_bbld && <div className="small muted">90% range {i.oil_range_bbld[0]} to {i.oil_range_bbld[1]}</div>}</td>
                 <td data-label="Water cut">{i.water_cut_change_pct != null ? `${i.water_cut_change_pct > 0 ? "+" : ""}${i.water_cut_change_pct} points` : "unknown"}</td>
               </tr>
             ))}</tbody>

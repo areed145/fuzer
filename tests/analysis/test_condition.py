@@ -33,8 +33,8 @@ def test_the_thrust_bearing_walked_toward_its_trip_before_the_march_trips(conn):
     assert p["flag"] == "thrust_wear" and "API 670" in p["basis"]
     ch = {c["channel"]: c for c in p["channels"]}
     assert set(ch) == {"shaft vibration", "axial position", "thrust bearing temperature", "journal bearing temperature"}
-    assert ch["axial position"]["state"] == "alarm" and ch["axial position"]["alarm"] == 0.4
-    assert ch["axial position"]["per_week"] > 0.03 and ch["axial position"]["reaches_trip"] < "2024-04-15"
+    assert ch["axial position"]["state"] == "alarm" and ch["axial position"]["alarm"] == 0.016
+    assert ch["axial position"]["per_week"] > 0.0012  # in a week (0.03 mm) and ch["axial position"]["reaches_trip"] < "2024-04-15"
     trip = next(e for e in p["etas"] if e["what"].startswith("axial position"))
     assert trip["range"][0] <= trip["reaches"] <= trip["range"][1]
     after = protection.protection(conn, fid(conn, "20-K-2200B"), until="2024-05-20")  # new bearings on 3 April
@@ -45,7 +45,7 @@ def test_outright_surges_on_the_slow_anti_surge_valve(conn):
     s = rotating.surge_events(conn, fid(conn, "20-K-2100C"))
     assert s["flag"] == "surge_events" and s["value"] == 3 and s["last_30_days"] == 3
     assert [e["at"][:10] for e in s["events"]] == ["2025-12-08", "2025-12-15", "2025-12-22"]
-    assert all(e["asv_after"] >= 95 and e["flow_min"] < 0.5 * e["flow_before"] and e["thrust_kick_mm"] < -0.2
+    assert all(e["asv_after"] >= 95 and e["flow_min"] < 0.5 * e["flow_before"] and e["thrust_kick_in"] < -0.008
                for e in s["events"])
     assert rotating.surge_events(conn, fid(conn, "20-K-2100A"))["flag"] is None
 
@@ -78,13 +78,13 @@ def test_the_lean_combustor_and_the_hot_section_hours(conn):
 def test_real_gas_performance_and_the_power_balance(conn):
     g = compression.gas_performance(conn, fid(conn, "20-K-2200A"))
     assert g["gas"]["from"] == "gas analysis" and 0.73 < g["gas"]["relative_density"] < 0.77
-    assert 1.22 < g["k"] < 1.30 and 0.9 < g["z_suction"] < 1.0 and g["gas_power_kw"] > 0
+    assert 1.22 < g["k"] < 1.30 and 0.9 < g["z_suction"] < 1.0 and g["gas_power_hp"] > 0
     assert g["value"] < g["ideal_gas_efficiency"]  # a fixed k of 1.3 overstates the efficiency of this gas
     first = compression.gas_performance(conn, fid(conn, "20-K-2100A"))
-    assert "ambient temperature + 8" in first["basis"]
+    assert "ambient temperature + 14 °F" in first["basis"]
     pb = compression.power_balance(conn, fid(conn, "20-GT-2000A"))
     assert pb["flag"] is None and 0.6 < pb["value"] < 1.0 and len(pb["by_stage"]) == 3
-    assert abs(pb["gas_power_kw"] - sum(s["gas_power_kw"] for s in pb["by_stage"])) < 50
+    assert abs(pb["gas_power_hp"] - sum(s["gas_power_hp"] for s in pb["by_stage"])) < 50
 
 
 def test_which_machines_make_the_april_turnaround(conn):

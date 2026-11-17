@@ -117,8 +117,8 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
         for mv in o["moves"]:
             a = calcs.gas_lift_fit(conn, mv["from_id"], breakeven, until)
             b = calcs.gas_lift_fit(conn, mv["to_id"], breakeven, until)
-            hand += mv["ksm3d"] * (b["marginal"] - a["marginal"])
-        errs.append(abs(hand - o["gain_sm3d"]) / max(abs(hand), 1e-9))
+            hand += mv["mscfd"] * (b["marginal"] - a["marginal"])
+        errs.append(abs(hand - o["gain_bbld"]) / max(abs(hand), 1e-9))
     out["opportunities"] = {"gas_lift_reallocations": len(errs),
                             "worst_gain_error": round(max(errs), 4) if errs else None}
     out["seconds"] = round(time.perf_counter() - t0, 1)

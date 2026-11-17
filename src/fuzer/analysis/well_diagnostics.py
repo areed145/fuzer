@@ -41,16 +41,16 @@ def diagnose(conn, well: str) -> dict:
             prev = tests[i - 1]
             days = (t["at"] - prev["at"]).days
             cum += days * ((prev.get("oil_rate") or 0) + (t.get("oil_rate") or 0)) / 2
-        points.append({"at": t["at"].date().isoformat(), "record": t["record"], "oil_sm3d": t.get("oil_rate"),
-                       "water_cut_pct": t.get("water_cut"), "gor": t.get("gor"), "cum_oil_sm3": round(cum)})
+        points.append({"at": t["at"].date().isoformat(), "record": t["record"], "oil_bbld": t.get("oil_rate"),
+                       "water_cut_pct": t.get("water_cut"), "gor": t.get("gor"), "cum_oil_bbl": round(cum)})
     step = None
     wcs = [p["water_cut_pct"] for p in points]
     for i in range(WINDOW, len(points)):
         before = [w for w in wcs[i - WINDOW:i] if w is not None]
         if wcs[i] is not None and before and wcs[i] - median(before) >= WC_STEP:
-            step = {"at": points[i]["at"], "record": points[i]["record"], "cum_oil_sm3": points[i]["cum_oil_sm3"],
+            step = {"at": points[i]["at"], "record": points[i]["record"], "cum_oil_bbl": points[i]["cum_oil_bbl"],
                     "water_cut_before_pct": round(median(before), 1), "water_cut_after_pct": wcs[i],
-                    "oil_before_sm3d": points[i - 1]["oil_sm3d"], "oil_after_sm3d": points[i]["oil_sm3d"]}
+                    "oil_before_bbld": points[i - 1]["oil_bbld"], "oil_after_bbld": points[i]["oil_bbld"]}
             break
     gors = [p["gor"] for p in points if p["gor"] is not None]
     climb = None
@@ -61,7 +61,7 @@ def diagnose(conn, well: str) -> dict:
     return {"well_id": well, "well": _label(conn, well), "tests": len(points), "points": points,
             "water_cut_step": step, "gor_climb": climb,
             "verdict": "water_cut_step" if step else "gor_climb" if climb else "no_pattern",
-            "cumulative": {"oil_sm3": round(cum), "basis": ESTIMATED},
+            "cumulative": {"oil_bbl": round(cum), "basis": ESTIMATED},
             "thresholds": {"water_cut_step_points": WC_STEP, "gor_rise": GOR_RISE, "tests_for_a_level": WINDOW,
                            "tests_for_a_gor_level": GOR_WINDOW},
             "source": "well tests (oil rate, water cut, GOR)",

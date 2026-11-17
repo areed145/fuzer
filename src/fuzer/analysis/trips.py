@@ -44,6 +44,8 @@ LOOKBACK_HOURS = 6  # the window before a trip a precursor is looked for in
 BASELINE_HOURS = 24  # the stretch before that the points' normal is taken from
 Z = 4.0  # robust z-score a point must pass to have moved
 SUSTAIN = 2  # steps in a row past it
+# the least a point must vary to count as moving, in its own unit: 0.05 of most, a few thousandths of an inch
+FLOOR = {"in/s": 0.002, "in": 0.002, "mils": 2.0, "in/s RMS": 0.002}
 REPEAT_DAYS = 30  # a second trip of the same family on the train within this: inspect, don't restart
 REVIEW_DAYS = 45  # any earlier trip within this: ask reliability to review
 CO = r"^ISO14224:CO([.]|$)"
@@ -294,7 +296,7 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
         if len(base) < 24:
             continue
         med = float(np.median(base))
-        scale = max(1.4826 * float(np.median(np.abs(base - med))), 0.02 * abs(med), 0.05)
+        scale = max(1.4826 * float(np.median(np.abs(base - med))), 0.02 * abs(med), FLOOR.get(p["uom"], 0.05))
         win = sorted((t, x) for t, x in v.items() if base_end.isoformat() <= t <= look.isoformat(timespec="minutes"))
         z = [(t, (x - med) / scale) for t, x in win]
         for i in range(len(z) - SUSTAIN + 1):
@@ -304,8 +306,8 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
                 moved.append({"point": p["point"], "id": pid, "unit": p["unit_label"], "unit_id": p["unit"],
                               "measures": p["description"], "at": run_[0][0][:16],
                               "lead_minutes": int((t0 - datetime.fromisoformat(run_[0][0])).total_seconds() // 60),
-                              "direction": "up" if d > 0 else "down", "from": round(med, 2),
-                              "to": round(float(win[-1][1]), 2), "unit_of_measure": p["uom"],
+                              "direction": "up" if d > 0 else "down", "from": round(med, 3),
+                              "to": round(float(win[-1][1]), 3), "unit_of_measure": p["uom"],
                               "family": _family(p["role"], p["classes"], d)})
                 break
         # at its trip setting in the quarter hour up to the trip (not after: a falling flow is the trip, not its cause)
@@ -313,10 +315,10 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
         lim = lims.get(pid, {})
         hit = None
         if last and "hihi" in lim and max(last) >= lim["hihi"]:
-            hit = {"point": p["point"], "value": round(float(max(last)), 2), "trip_setting": lim["hihi"],
+            hit = {"point": p["point"], "value": round(float(max(last)), 3), "trip_setting": lim["hihi"],
                    "side": "high", "unit": p["unit_label"]}
         elif last and "lolo" in lim and min(last) <= lim["lolo"]:
-            hit = {"point": p["point"], "value": round(float(min(last)), 2), "trip_setting": lim["lolo"],
+            hit = {"point": p["point"], "value": round(float(min(last)), 3), "trip_setting": lim["lolo"],
                    "side": "low", "unit": p["unit_label"]}
         if hit:
             # how it got there: the step from its normal to past the setting, in one reading or over several
@@ -324,7 +326,7 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
             prev = before[-1] if before else None
             hit.update(id=pid, unit_id=p["unit"], measures=p["description"],
                        from_normal=prev is not None and abs(prev - med) <= max(Z * scale, 0.1 * abs(med)),
-                       before=round(float(prev), 2) if prev is not None else None)
+                       before=round(float(prev), 3) if prev is not None else None)
             at_trip.append(hit)
     moved.sort(key=lambda m: (m["at"], m["point"]))
     first = moved[0] if moved else None

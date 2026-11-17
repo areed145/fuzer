@@ -216,7 +216,7 @@ def gis(xy, first_line: int) -> tuple[list[dict], list[dict]]:
     place["10"], place["20"] = xy(0.0, 0.0), xy(0.08, 0.0)
     feats = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": place[a]},
               "properties": {"facility_id": code, "floc": f"{FIELD}-{a}", "name": name, "type": kind,
-                             "water_depth_m": 17.1, "install_year": 1998,
+                             "water_depth_ft": 17.1, "install_year": 1998,
                              "longitude": place[a][0], "latitude": place[a][1]}}
              for a, (code, name, kind, _, _) in AREAS.items() if a in place]
     pipes = []

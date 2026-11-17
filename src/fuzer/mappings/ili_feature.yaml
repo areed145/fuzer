@@ -10,10 +10,10 @@ entity:
   kind: pipeline_feature
   fields:
     - feature_type
-    - [station_m, {from: station_m, as: number}]
+    - [station_ft, {from: station_ft, as: number}]
     - [depth_pct, {from: depth_pct, as: number}]
-    - [length_mm, {from: length_mm, as: number}]
-    - [width_mm, {from: width_mm, as: number}]
+    - [length_in, {from: length_in, as: number}]
+    - [width_in, {from: width_in, as: number}]
     - clock
     - run_id
     - run_date

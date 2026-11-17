@@ -29,7 +29,7 @@ def test_pfds_draw_trains_once_with_a_stream_table(pfds):
     assert not any(c["from"][-1] != c["to"][-1] and c["from"] != "20-V-2001" for c in gas["connections"])
     table = gas["tables"][0]
     assert table["kind"] == "streams" and table["columns"][0] == "STREAM No." and len(table["columns"]) == 12
-    assert [r["cells"][0] for r in table["rows"]] == ["DESCRIPTION", "PHASE", "PRESSURE (barg)", "TEMPERATURE (DEG C)",
+    assert [r["cells"][0] for r in table["rows"]] == ["DESCRIPTION", "PHASE", "PRESSURE (psig)", "TEMPERATURE (DEG F)",
                                                      "FLOW"]
 
 

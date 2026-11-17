@@ -25,7 +25,7 @@ def test_bearing_wear_climbs_through_the_iso_zones_before_the_trips(conn):
     k = fid(conn, "20-K-2200B")
     early = rotating.vibration(conn, k, until="2024-02-15T00:00")
     assert early["group"] == "group1" and early["zone"] == "C" and early["flag"] == "zone_c"
-    assert early["trend_mm_s_per_week"] > 0 and "2024-02-15" < early["reaches_zone_d"] < "2024-04-01"
+    assert early["trend_in_s_per_week"] > 0 and "2024-02-15" < early["reaches_zone_d"] < "2024-04-01"
     late = rotating.vibration(conn, k, until="2024-03-05T00:00")
     assert late["zone"] == "D" and late["flag"] == "zone_d" and late["value"] > late["zones"]["C/D"]
     after = rotating.vibration(conn, k, until="2024-05-01T00:00")  # bearings replaced on 3 April
@@ -99,7 +99,7 @@ def test_a_fouling_gas_turbine_burns_more_fuel_than_its_curves_expect_until_wash
     above what Solar's curves expect at the same load and ambient temperature, and recovers after the wash."""
     k = fid(conn, "20-GT-2000B")
     clean = rotating.heat_rate(conn, k, until="2025-05-15T00:00")
-    assert clean["flag"] is None and abs(clean["excess_pct"]) < 1.5 and clean["unit"] == "kJ/kWh"
+    assert clean["flag"] is None and abs(clean["excess_pct"]) < 1.5 and clean["unit"] == "Btu/kWh"
     fouled = rotating.heat_rate(conn, k, until="2025-11-10T00:00")
     assert fouled["flag"] == "heat_rate_high" and fouled["excess_pct"] > 5 and fouled["trend_pct_per_week"] > 0
     assert fouled["value"] > fouled["expected"] and "LHV" in fouled["basis"] and 50 < fouled["load_pct"] <= 100
@@ -117,7 +117,7 @@ def test_a_pump_with_a_passing_recirculation_valve_runs_its_motor_above_the_serv
     rating on its SAP equipment record). The fleet screen finds it without being told which pump to check."""
     b = fid(conn, "10-P-1001B")
     clean = rotating.motor_load(conn, b, until="2025-10-01T00:00")
-    assert clean["flag"] is None and clean["unit"] == "kW" and clean["rated_kw"] == 260
+    assert clean["flag"] is None and clean["unit"] == "hp" and clean["rated_hp"] == 349  # 260 kW
     assert clean["service_factor"] == 1.15 and 75 < clean["load_pct"] < 100
     assert clean["hours_above_service_factor"] == 0 and "SAP equipment" in clean["basis"]
     over = rotating.motor_load(conn, b, until="2025-11-25T00:00")

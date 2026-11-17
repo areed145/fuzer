@@ -46,7 +46,7 @@ def _signals(conn) -> list[dict]:
         left join golden gt on gt.fuzer_id = s.fuzer_id and gt.field = 'timestamp' and s.kind = 'event'
         left join golden gs on gs.fuzer_id = s.fuzer_id and gs.field = 'start' and s.kind = 'downtime'
         left join golden gc on gc.fuzer_id = s.fuzer_id and gc.field = 'created' and s.kind = 'notification'
-        left join golden gl on gl.fuzer_id = s.fuzer_id and gl.field = 'lost_oil_sm3'
+        left join golden gl on gl.fuzer_id = s.fuzer_id and gl.field = 'lost_oil_bbl'
         left join golden gd on gd.fuzer_id = s.fuzer_id and gd.field = 'comment'
         left join golden gsum on gsum.fuzer_id = s.fuzer_id and gsum.field = 'summary'
         left join golden gtx on gtx.fuzer_id = s.fuzer_id and gtx.field = 'short_text'
@@ -126,7 +126,7 @@ def _incident(unit: str, unit_label: str, group: list[dict]) -> Candidate:
         "notifications": kinds["notification"],
         **({"upsets": sorted(int(g["id"].split(":")[1]) for g in group if g["kind"] == "upset"),
             "status": "confirmed" if len(kinds) > 1 else "detected"} if kinds["upset"] else {}),
-        "lost_oil_sm3": float(sum(g["lost_oil"] or 0 for g in group)),
+        "lost_oil_bbl": float(sum(g["lost_oil"] or 0 for g in group)),
         **({"failure_modes": modes} if modes else {}), **({"event_types": types} if types else {}),
         "_unit": unit, "_signals": [g["id"] for g in group],
     }

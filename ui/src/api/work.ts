@@ -220,7 +220,7 @@ export interface WorkRow {
   process_key: string | null;
   bulk: string[];
   covering_for?: string | null;
-  /** Why it was last handed on, e.g. "Back from the field: done: gauge reads 13 barg". */
+  /** Why it was last handed on, e.g. "Back from the field: done: gauge reads 190 psig". */
   handed_reason?: string | null;
 }
 
@@ -796,7 +796,7 @@ export interface TurnaroundScope {
   scoped_work: { id: string; order: string | null; tag: string | null; tag_id: string | null; priority: string | null;
     text: string | null; planned_start: string | null; status: string | null }[];
   shutdown_plans_not_in_scope: { id: string; plan: string | null; task: string | null; tag: string | null; next_due: string }[];
-  bad_actors_not_in_scope: { id: string; tag: string | null; failures: number; lost_oil_sm3: number | null }[];
+  bad_actors_not_in_scope: { id: string; tag: string | null; failures: number; lost_oil_bbl: number | null }[];
   spares_out_of_stock: { for: string | null; material: string | null; id: string; description: string | null }[];
   window: { start: string; end: string } | null;
   on_plan: PlanItem[]; ride_along: PlanItem[]; shutdown_outside: PlanItem[];

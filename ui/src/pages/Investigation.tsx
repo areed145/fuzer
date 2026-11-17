@@ -171,8 +171,8 @@ function EvidenceCard({ evidence: e, number, selected }: {
         <span>{e.text ?? e.label}</span>
       </h3>
       {!e.text && <p className="section-text">No record text is available.</p>}
-      {e.lost_oil_sm3 !== null && <p><strong>{e.lost_oil_sm3.toLocaleString()} Sm³ recorded lost oil</strong>
-        {" "}(standard cubic metres, not Sm³/day)</p>}
+      {e.lost_oil_bbl !== null && <p><strong>{e.lost_oil_bbl.toLocaleString()} bbl recorded lost oil</strong>
+        {" "}(stock tank barrels, not bbl/d)</p>}
       <Provenance records={e.records} />
       <p className="small">Register record: <code>{e.label}</code></p>
     </article>

@@ -10,7 +10,7 @@ from ..mcp_server import _chart, _plain, _resolve, capability
 
 @capability("production-surveillance", "field-operations-facilities", kind="calc")
 def backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> dict[str, Any]:
-    """Oil gained per bar less back-pressure, for each back-pressure-limited well in scope (a well, a jacket
+    """Oil gained per psi less back-pressure, for each back-pressure-limited well in scope (a well, a jacket
     area or "facility") and summed per header: from the inflow and choke equations, and from the well's
     tests against the header pressure at the time. Where the two disagree, say so."""
     from ...analysis import hydraulics
@@ -59,7 +59,7 @@ def opportunities(status: Literal["open", "rejected", "accepted", "project", "go
                   limit: int = 20) -> dict[str, Any]:
     """Gains left on the table from the daily opportunity scan (#102): lift gas to reallocate between wells,
     wells below their decline or with stale tests, units worth a permanent fix, shut-in wells that may be
-    recoverable. Each with its gain (Sm3/d oil), #100 value, basis, confidence, cited evidence and what would
+    recoverable. Each with its gain (bbl/d oil), #100 value, basis, confidence, cited evidence and what would
     confirm it. Proposals for engineers to accept or reject on the board."""
     from ...ops import opportunities as opp
     with db.connect() as conn:
@@ -128,8 +128,8 @@ def plot_water_diagnostic(well: str) -> dict[str, Any]:
 @capability("production-surveillance", "wells-subsurface", kind="plot")
 def plot_gas_lift_curve(well: str, breakeven: float = 0.5) -> dict[str, Any]:
     """Chart a gas lifted well's performance curve: oil against lift gas from its tests (decline taken
-    out), the current point, the marginal response there, and the optimum where one more kSm3/d of gas
-    gains `breakeven` Sm3/d of oil. Tests far below the curve (valve failed open) are shown apart."""
+    out), the current point, the marginal response there, and the optimum where one more Mscf/d of gas
+    gains `breakeven` bbl/d of oil. Tests far below the curve (valve failed open) are shown apart."""
     from ...plots import production
     return _chart(production.gas_lift_curve, {"breakeven": breakeven}, {"well": well})
 
@@ -181,7 +181,7 @@ def plot_gas_lift_allocation(ref: str | None = None) -> dict[str, Any]:
 
 @capability("production-surveillance", "field-operations-facilities", kind="plot")
 def plot_backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> dict[str, Any]:
-    """Chart oil per bar of back-pressure for each back-pressure-limited well: the model's figure and the
+    """Chart oil per psi of back-pressure for each back-pressure-limited well: the model's figure and the
     tests' side by side. scope: a well, a jacket area or "facility"."""
     from ...plots import production
     if scope == "facility":
@@ -366,7 +366,7 @@ def plot_hall(well: str | None = None, since: str | None = None, until: str | No
 @capability("hse-incident-management", "production-surveillance", kind="calc")
 def gas_balance(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
     """The daily gas balance (#369): gas handled against export, lift gas, flare, fuel and vent from the daily report,
-    with the closure gap every day in kSm3 and as a share of gas handled. A day is open past 2 % of gas handled; the
+    with the closure gap every day in Mscf and as a share of gas handled. A day is open past 2 % of gas handled; the
     stretches it stayed open are listed with any term reading zero meanwhile, which points at that meter. A term the
     report doesn't carry isn't taken as zero: the gap includes it and the response names it. Evidence only, not an
     emissions inventory."""
@@ -395,7 +395,7 @@ def productivity_index(well: str | None = None) -> dict[str, Any]:
 @capability("wells-subsurface", kind="calc")
 def material_balance(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
     """A one-tank material balance (#364): static survey pressures against the reservoir volume taken out net of
-    water injected, fitted with one slope and each well's own level. The bar lost per million reservoir m3, the
+    water injected, fitted with one slope and each well's own level. The psi lost per million reservoir barrels, the
     compressible volume it implies (not oil in place), r squared, and the decline a year at the latest months' net
     voidage. Unknown without recorded PVT; insufficient with too few surveys. Returns its assumptions."""
     from ...analysis import reservoir_pressure as rp

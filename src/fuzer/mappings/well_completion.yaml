@@ -10,9 +10,9 @@ entity:
   kind: completion_component
   fields:
     - [description, component]
-    - [top_md_m, {from: top_md_m, as: number}]
-    - [base_md_m, {from: base_md_m, as: number}]
-    - [size_mm, {from: size_mm, as: number}]
+    - [top_md_ft, {from: top_md_ft, as: number}]
+    - [base_md_ft, {from: base_md_ft, as: number}]
+    - [size_in, {from: size_in, as: number}]
     - installed
 links:
   - rel: part_of

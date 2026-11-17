@@ -23,7 +23,7 @@ arrive:
   source_quality_drop: {deliver: deliveries/thin-delivery, datasets: [oplogs], rebuild: true, about: source}
   mapping_to_approve: {suggest: deliveries/new-export, about: source}
   # An operator's reading on a round, outside its limits: the VRU frame shaking above its zone
-  round_finding: {round: {point: R-G1-02, value: 9.1}}
+  round_finding: {round: {point: R-G1-02, value: 0.36}}
   # A mainline pump stop in the next downtime delivery that neither the operator log nor a notification mentions
   records_gap: {deliver: deliveries/unlogged-stop, datasets: [ec_downtime], rebuild: true, detector: records_gaps}
   # A revision of the smart P&ID export: area G1's alarm table disagrees with the DCS, and A1 sends a vapour line to

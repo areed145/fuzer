@@ -103,7 +103,7 @@ def test_live_ingest_loads_pi_and_adx_and_values_come_from_them(data, live):
         vib = conn.execute("select fuzer_id from entity_key where kind = 'timeseries' and key = 'OK_GGCP:20-VT-2200B.PV'"
                            ).fetchone()["fuzer_id"]
         ent = queries.entity(conn, vib)
-        assert ent["golden"]["uom"]["value"] == "mm/s"
+        assert ent["golden"]["uom"]["value"] == "in/s"
         assert ent["golden"]["adx_table"]["value"] == "PiValues" and ent["golden"]["adx_series_id"]["value"]
         assert conn.execute("select count(*) as n from entity where kind = 'timeseries' and retired_at is null "
                             "and merged_into is null").fetchone()["n"] == len(list(

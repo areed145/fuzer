@@ -3,6 +3,7 @@ schema, and bring new built-in mappings and changed exports to one that is alrea
 deployment's choice (`python -m fuzer.cli.deploy --bundle <folder>`); nothing here names a facility."""
 
 import os
+import re
 from pathlib import Path
 
 from ..core import bundles, db, projects
@@ -12,6 +13,20 @@ from ..resources import BUNDLES
 from ..sources import catalog, ingest
 
 LOCK = 0x465A444D  # session lock: held across the ingest and rebuild commits
+# The exports moved to US oilfield units (oil_sm3 is oil_bbl, whp_barg whp_psig, station_m station_ft): a column
+# named for a metric unit in a dataset's last-loaded schema is that move, not drift for the steward to review.
+METRIC_COLUMN = re.compile(r"(_(sm3d?|ksm3d?|sm3_sm3|mj_sm3|barg|bara|bar|mm|mm_y|m|km|kw|gj|rm3|kg|degc)|^kp)$", re.IGNORECASE)
+
+
+def _units_moved(conn) -> list[str]:
+    """Forget the last-loaded schema of each dataset still on metric column names, so its US export loads instead
+    of being held as drift. Idempotent: once loaded, no metric name is left to match."""
+    moved = [r["name"] for r in conn.execute("select name, schema from source_dataset where schema is not null")
+             if any(METRIC_COLUMN.search(str(c[0])) for c in r["schema"] or [])]
+    if moved:
+        conn.execute("update source_dataset set schema = null where name = any(%s)", (moved,))
+        print(f"US oilfield units: {len(moved)} datasets reload on their new column names", flush=True)
+    return moved
 
 
 def refresh(conn, folder: Path, pack=None) -> None:
@@ -23,6 +38,7 @@ def refresh(conn, folder: Path, pack=None) -> None:
     """
     try:
         seeded = catalog.seed(conn)
+        _units_moved(conn)
         from ..core import access
         from ..sources import demo_hold
 

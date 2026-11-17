@@ -40,7 +40,7 @@ from contextvars import copy_context
 from PIL import Image
 from psycopg.types.json import Jsonb
 
-from ..core import llm, nel
+from ..core import llm, nel, units
 from ..core.findings import AGENTIC, Finding, fact, shown
 from ..core.llm import call, run_batch, usage
 from ..core.model import Edge, Limit, Measurement
@@ -366,7 +366,7 @@ def read_foot(tables: list[dict], notes: list[dict], area: str | None, pack: Pac
                         if word in label:
                             if k in ("pressure", "temperature"):
                                 st[k] = _number(cell)
-                                st[k + "_unit"] = _unit_in(str(r[0])) or ("barg" if k == "pressure" else "degC")
+                                st[k + "_unit"] = _unit_in(str(r[0])) or ("psig" if k == "pressure" else "degF")
                             elif k == "flow":
                                 st["flow"] = _number(cell)
                                 st["flow_unit"] = re.sub(r"^[-+\d.,\s]+", "", cell).strip() or None
@@ -395,9 +395,9 @@ def read_foot(tables: list[dict], notes: list[dict], area: str | None, pack: Pac
                     return str(row[i]).strip() if i is not None and i < len(row) else ""
 
                 row = {"tag": key, "text": str(r[0]), "service": cell(r, isv) or None,
-                       "design_pressure": _number(cell(r, ip)), "pressure_unit": _unit_in(raw[ip]) or "barg",
+                       "design_pressure": _number(cell(r, ip)), "pressure_unit": _unit_in(raw[ip]) or "psig",
                        "design_temperature": _number(cell(r, it)) if it is not None else None,
-                       "temperature_unit": (_unit_in(raw[it]) if it is not None else None) or "degC",
+                       "temperature_unit": (_unit_in(raw[it]) if it is not None else None) or "degF",
                        "capacity": cell(r, ic) if cell(r, ic) not in ("", "-") else None}
                 equipment.append(row)
     read_notes = []
@@ -658,6 +658,12 @@ def _date(text: str | None) -> str | None:
     return m[0] if m else None
 
 
+def _stored(value: float, unit: str | None) -> tuple[float, str | None, str | None]:
+    """A drawing's value in the stored unit (units.yaml), with what the drawing said when it was converted."""
+    v, stored = units.normalise(float(value), unit)
+    return round(v, 6), stored, (f"{value:g} {unit}" if stored != unit else None)
+
+
 def design_limits(conn, sheets: dict[str, dict], pack: Pack) -> list[tuple[str, Limit]]:
     """The alarm and trip settings the drawings show, as `design` limits on each instrument's point (#475): never
     the limits that count (those come from the DCS and AF), but checked against them, so an alarm moved without
@@ -666,8 +672,9 @@ def design_limits(conn, sheets: dict[str, dict], pack: Pack) -> list[tuple[str, 
     for sk, f in feet(conn, sheets, pack).items():
         for sp in f["setpoints"]:
             for t, v in sp["limits"].items():
-                out.append(("pid", Limit(f"pid:sheet:{sk}#{sp['tag']}", [("tag", sp["tag"])], t, "design", v,
-                                         sp.get("unit"), valid_from=_date(f.get("date")),
+                value, unit, said = _stored(v, sp.get("unit"))
+                out.append(("pid", Limit(f"pid:sheet:{sk}#{sp['tag']}", [("tag", sp["tag"])], t, "design", value,
+                                         unit, said, valid_from=_date(f.get("date")),
                                          note=f"alarm and trip table on {sk}")))
     return out
 
@@ -683,14 +690,16 @@ def design_measurements(conn, sheets: dict[str, dict], pack: Pack) -> list[Measu
         for e in f["equipment_data"]:
             for q, unit in (("design_pressure", "pressure_unit"), ("design_temperature", "temperature_unit")):
                 if e.get(q) is not None:
-                    out.append(Measurement(f"pid:sheet:{sk}#{e['tag']}", [("tag", e["tag"])], q, at, e[q],
-                                           e.get(unit), method="pid_table"))
+                    value, u, said = _stored(e[q], e.get(unit))
+                    out.append(Measurement(f"pid:sheet:{sk}#{e['tag']}", [("tag", e["tag"])], q, at, value, u,
+                                           reported=said, method="pid_table"))
         for st in f.get("streams", []):  # a PFD's design case, on the item each stream leaves
             for tag in st.get("from", []):
                 for q in ("pressure", "temperature", "flow"):
                     if st.get(q) is not None:
+                        value, u, said = _stored(st[q], st.get(f"{q}_unit"))
                         out.append(Measurement(f"pid:sheet:{sk}#stream{st['n']}#{tag}", [("tag", tag)],
-                                               f"design_case_{q}", at, st[q], st.get(f"{q}_unit"),
+                                               f"design_case_{q}", at, value, u, reported=said,
                                                method="pfd_design", location=f"stream {st['n']}"))
     return out
 

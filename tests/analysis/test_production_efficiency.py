@@ -16,16 +16,16 @@ def report(day="2026-11-05", allocated=80, potential=120, id="report"):
 
 def bound(id="separator", value=100, day="2026-11-05", **kwargs):
     return {"date": day, "id": id, "record": f"capacity:{id}:{day}", "value": value,
-            "unit": "Sm3/d", "category": id, **kwargs}
+            "unit": "bbl/d", "category": id, **kwargs}
 
 
 def test_minimum_binding_ties_and_negative_gap_are_not_clamped():
     out = calculate([report(allocated=110)], [bound(), bound("export"), bound("wells", 120)], END)
     point = out["points"][-1]
-    assert point["dynamic_max_sm3d"] == 100
+    assert point["dynamic_max_bbld"] == 100
     assert point["active_constraint_id"] == "export"
     assert point["binding_constraint_ids"] == ["export", "separator"]
-    assert point["gap_sm3d"] == -10
+    assert point["gap_bbld"] == -10
     assert point["efficiency_pct"] == pytest.approx(110)
     assert point["flags"] == ["allocated_above_capacity", "tied_constraints"]
     assert len(out["constraints"]) == 3
@@ -37,13 +37,13 @@ def test_fourteen_days_including_leap_day_and_unknown_reported_potential_constra
     assert out["until"] == "2024-03-02"
     assert len(out["points"]) == 14
     point = out["points"][-2]
-    assert point["dynamic_max_sm3d"] == 120
+    assert point["dynamic_max_bbld"] == 120
     assert point["capacity_basis"] == "reported_potential"
     assert point["active_constraint_id"] is None
     assert point["binding_constraint_ids"] == []
     assert point["efficiency_pct"] == pytest.approx(80 / 120 * 100)
-    assert out["points"][-1]["allocated_sm3d"] is None
-    assert out["points"][-1]["dynamic_max_sm3d"] is None
+    assert out["points"][-1]["allocated_bbld"] is None
+    assert out["points"][-1]["dynamic_max_bbld"] is None
     assert out["summary"]["paired_days"] == 1
 
 
@@ -51,42 +51,42 @@ def test_period_efficiency_uses_paired_volumes_not_mean_percentages():
     reports = [report("2026-11-03", 50, 100), report("2026-11-04", 180, 200),
                report(allocated=None, potential=1000)]
     out = calculate(reports, [], END)
-    assert out["summary"] == {"allocated_sm3": 230, "dynamic_max_sm3": 300, "paired_days": 2,
+    assert out["summary"] == {"allocated_bbl": 230, "dynamic_max_bbl": 300, "paired_days": 2,
                               "efficiency_pct": pytest.approx(230 / 300 * 100)}
 
 
 @pytest.mark.parametrize("value", [None, -1, "bad", float("nan"), float("inf"), True])
 def test_bad_allocation_is_not_zero(value):
     out = calculate([report(allocated=value)], [], END)
-    assert out["points"][-1]["allocated_sm3d"] is None
+    assert out["points"][-1]["allocated_bbld"] is None
     assert out["points"][-1]["efficiency_pct"] is None
     assert out["summary"]["paired_days"] == 0
 
 
 @pytest.mark.parametrize("limit", [
-    bound(value=-1), bound(value=float("nan")), bound(unit="kSm3/d"),
+    bound(value=-1), bound(value=float("nan")), bound(unit="Mscf/d"),
     bound(qualifier="<"), bound(value=True),
 ])
 def test_invalid_bounds_do_not_silently_fall_back_to_potential(limit):
     point = calculate([report()], [bound("wells", 120), limit], END)["points"][-1]
-    assert point["dynamic_max_sm3d"] is None
+    assert point["dynamic_max_bbld"] is None
     assert "invalid_capacity_limit" in point["flags"]
 
 
 def test_duplicate_reports_and_conflicting_bounds_are_ambiguous():
     point = calculate([report(), report(id="other")], [], END)["points"][-1]
-    assert point["allocated_sm3d"] is None
-    assert point["dynamic_max_sm3d"] is None
+    assert point["allocated_bbld"] is None
+    assert point["dynamic_max_bbld"] is None
     assert "ambiguous_report" in point["flags"]
     point = calculate([report()], [bound(), bound(value=90)], END)["points"][-1]
-    assert point["dynamic_max_sm3d"] is None
+    assert point["dynamic_max_bbld"] is None
     assert "ambiguous_capacity_limit" in point["flags"]
 
 
 def test_zero_capacity_is_real_and_has_no_efficiency_percentage():
     point = calculate([report(allocated=0)], [bound(value=0)], END)["points"][-1]
-    assert point["dynamic_max_sm3d"] == 0
-    assert point["gap_sm3d"] == 0
+    assert point["dynamic_max_bbld"] == 0
+    assert point["gap_bbld"] == 0
     assert point["efficiency_pct"] is None
     assert point["active_constraint_id"] == "separator"
     assert "zero_capacity" in point["flags"]
@@ -99,8 +99,8 @@ def test_derived_overflow_stays_json_safe_and_period_ratio_is_scaled():
     assert out["summary"]["efficiency_pct"] is None
     json.dumps(out, allow_nan=False)
     out = calculate([report("2026-11-04", 1e308, 1e308), report(allocated=1e308, potential=1e308)], [], END)
-    assert out["summary"]["allocated_sm3"] is None
-    assert out["summary"]["dynamic_max_sm3"] is None
+    assert out["summary"]["allocated_bbl"] is None
+    assert out["summary"]["dynamic_max_bbl"] is None
     assert out["summary"]["efficiency_pct"] == 100
     json.dumps(out, allow_nan=False)
 
@@ -142,14 +142,14 @@ def graph():
                             values (%s, %s, %s, %s, %s, '{}', 1)""", (src, rel, dst, start, end))
         for id, day in [("fz-pe-day1", "2026-11-04"), ("fz-pe-day2", "2026-11-05"),
                         ("fz-pe-other-day", "2026-12-01")]:
-            for field, value in [("report_date", day), ("oil_sm3", 80), ("oil_potential_sm3", 120)]:
+            for field, value in [("report_date", day), ("oil_bbl", 80), ("oil_potential_bbl", 120)]:
                 conn.execute("insert into golden values (%s, %s, %s, 'ec', 'test')", (id, field, Jsonb(value)))
         for id, day, value in [("fz-pe-separator", "2026-11-04", 100),
                                ("fz-pe-separator", "2026-11-05", 1),
                                ("fz-pe-export", "2026-11-05", 90),
                                ("fz-pe-other", "2026-11-05", 1)]:
             conn.execute("""insert into measurement(record, quantity, fuzer_id, at, value, unit)
-                            values (%s, 'system_oil_capacity', %s, %s, %s, 'Sm3/d')""",
+                            values (%s, 'system_oil_capacity', %s, %s, %s, 'bbl/d')""",
                          (f"{id}:{day}", id, day, value))
         try:
             yield conn
@@ -160,12 +160,12 @@ def graph():
 def test_graph_scope_dates_cycle_and_latest_facility_report(graph):
     out = production_efficiency(graph, "fz-pe-facility")
     assert out["end"] == "2026-11-05"  # not the other facility's December report
-    assert out["points"][-2]["dynamic_max_sm3d"] == 100
+    assert out["points"][-2]["dynamic_max_bbld"] == 100
     assert out["points"][-2]["active_constraint_id"] == "fz-pe-separator"
-    assert out["points"][-1]["dynamic_max_sm3d"] == 90
+    assert out["points"][-1]["dynamic_max_bbld"] == 90
     assert out["points"][-1]["active_constraint_id"] == "fz-pe-export"
     assert out["facility"]["id"] == "fz-pe-facility"
-    assert out["points"][-1]["allocated_sm3d"] == 80
+    assert out["points"][-1]["allocated_bbld"] == 80
     assert len(out["points"]) == 14
 
 
@@ -176,9 +176,9 @@ def test_a_bound_at_a_downstream_sales_point_limits_the_facility(graph):
     graph.execute("""insert into edge(src, rel, dst, sources, confidence)
                      values ('fz-pe-export', 'flows_to', 'fz-pe-sales', '{}', 1)""")
     graph.execute("""insert into measurement(record, quantity, fuzer_id, at, value, unit)
-                     values ('takeaway', 'system_oil_capacity', 'fz-pe-sales', '2026-11-05', 70, 'Sm3/d')""")
+                     values ('takeaway', 'system_oil_capacity', 'fz-pe-sales', '2026-11-05', 70, 'bbl/d')""")
     out = production_efficiency(graph, "fz-pe-facility")
-    assert out["points"][-1]["dynamic_max_sm3d"] == 70
+    assert out["points"][-1]["dynamic_max_bbld"] == 70
     assert out["points"][-1]["active_constraint_id"] == "fz-pe-sales"
 
 
@@ -201,10 +201,10 @@ def test_existing_mapped_reports_supply_capacity_reference(okan_db):
 
 def test_well_potential_limits_alongside_declared_bounds():
     report = {"id": "r", "date": "2026-11-05", "allocated": 80, "potential": 90}
-    limit = {"date": "2026-11-05", "id": "sep", "label": "Sep", "record": "x", "value": 100, "unit": "Sm3/d", "qualifier": None}
+    limit = {"date": "2026-11-05", "id": "sep", "label": "Sep", "record": "x", "value": 100, "unit": "bbl/d", "qualifier": None}
     point = calculate([report], [limit], date(2026, 11, 5))["points"][-1]
-    assert point["dynamic_max_sm3d"] == 90
+    assert point["dynamic_max_bbld"] == 90
     assert point["binding_constraint_ids"] == ["reported_potential"]
     assert point["capacity_basis"] == "declared_limits"
     tighter = calculate([report], [{**limit, "value": 85}], date(2026, 11, 5))["points"][-1]
-    assert (tighter["dynamic_max_sm3d"], tighter["binding_constraint_ids"]) == (85, ["sep"])
+    assert (tighter["dynamic_max_bbld"], tighter["binding_constraint_ids"]) == (85, ["sep"])

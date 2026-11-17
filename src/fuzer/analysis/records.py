@@ -156,7 +156,7 @@ def mismatch(conn, since: str | None = None, until: str | None = None, days: int
         missing = (["log"] if not log_ids else []) + (["notification"] if want_note and not note_ids else [])
         row = {"record": d["id"], "label": d["label"], "kind": "downtime", "at": d["start"].isoformat(timespec="minutes"),
                "end": d["end"].isoformat(timespec="minutes"), "reason": f.get("reason") or f.get("reason_code"),
-               "reason_category": cat, "comment": f.get("comment"), "lost_oil_sm3": f.get("lost_oil_sm3"),
+               "reason_category": cat, "comment": f.get("comment"), "lost_oil_bbl": f.get("lost_oil_bbl"),
                "about": names(d["subjects"]), "subjects": d["subjects"], "missing": missing,
                "logs": log_ids[:5], "notifications": note_ids[:5],
                "notification_expected": want_note}
@@ -260,7 +260,7 @@ def watch(conn, by: str = "agent:records_check") -> dict:
             start=r["at"], data={"at": r["at"], "record": r["record"]},
             items=(at("When", r["at"]), fact("Missing", ", ".join(r["missing"])), fact("About", ", ".join(r["about"])),
                    fact("Reason recorded", r.get("reason")), fact("Comment", r.get("comment")),
-                   fact("Log entry", r.get("text")), fact("Lost oil", r.get("lost_oil_sm3"), "Sm³"),
+                   fact("Log entry", r.get("text")), fact("Lost oil", r.get("lost_oil_bbl"), "bbl"),
                    fact("Matched within", tolerance), fact("Note", m["caveats"][0])))
         try:
             x = raise_exception(conn, GAP_TYPE, r["record"], title(r), by, source="records_check",

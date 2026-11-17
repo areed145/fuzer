@@ -24,7 +24,7 @@ function Value({ item }: { item: FindingItem }) {
 const WHO: Record<Finding["origin"], string> = { deterministic: "A rule", agentic: "An agent", external: "Another system" };
 
 /** What was found, as one sentence a person reads first (#1082): who found it, when, what, and what is at stake.
- * "A rule found this on Dec 30, 2025, 9:20 PM: Low alarm on OK-J08-03 (peak 10.78 barg) ..., still going. $4,026 at
+ * "A rule found this on Dec 30, 2025, 9:20 PM: Low alarm on OK-J08-03 (peak 156 psig) ..., still going. $4,026 at
  * stake." The labelled fields stay one tap away. */
 export function findingSentence(finding: Finding, title: string): string {
   const going = finding.items.find((i) => i.kind === "flag" && /still going/i.test(i.label));

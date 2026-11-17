@@ -19,7 +19,7 @@ def test_a_known_decline_change_shows_in_the_gap(okan_db):
     assert (out["since"], out["until"]) == ("2024-12-31", "2025-12-31")
     j = _w(out, "OK-J03-02")
     assert j["verdict"] == "below_forecast" and j["below_since"] == "2025-06-08"  # the breakthrough, not before it
-    assert j["gap_sm3d"] < -25 and j["fit"]["to"] < out["since"]  # fitted only on tests before the window
+    assert j["gap_bbld"] < -25 and j["fit"]["to"] < out["since"]  # fitted only on tests before the window
     before = [p for p in j["points"] if p["at"] < "2025-06-01"]
     assert before and all(p["outside"] is None for p in before)  # natural decline until then
     assert out["wells"][0]["well"] == "OK-J03-02"  # the largest new loss leads
@@ -30,7 +30,7 @@ def test_a_known_decline_change_shows_in_the_gap(okan_db):
     assert _w(out, "OK-J07-03")["fit"]["left_out"]
     f = out["field"]
     assert f["wells_compared"] == len(out["wells"]) and "OK-J03-02" in f["below_forecast"]
-    assert round(f["actual_sm3d"] - f["forecast_sm3d"], 1) == f["gap_sm3d"]
+    assert round(f["actual_bbld"] - f["forecast_bbld"], 1) == f["gap_bbld"]
     assert out["level"] == 0.9 and "well tests" in out["source"] and "never a plan" in out["note"]
     conn.rollback()
 
@@ -41,7 +41,7 @@ def test_a_well_with_too_few_tests_is_listed_not_fitted(okan_db):
     assert out["wells"] == [] and out["not_fitted"]
     nf = out["not_fitted"][0]
     assert nf["tests_before"] < fa.MIN_TESTS and "fewer than the 6 it needs" in nf["reason"]
-    assert "forecast_sm3d" not in nf
+    assert "forecast_bbld" not in nf
     assert out["field"]["wells_compared"] == 0
     conn.rollback()
 

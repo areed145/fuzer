@@ -2,7 +2,7 @@ floc,parent,description,abc_indicator
 HRPT,,Harrier crude pipeline and terminal,A
 HRPT-A1,HRPT,Area A1 origin pump station,
 HRPT-B1,HRPT,Area B1 intermediate pump station (KP 110),
-HRPT-C1,HRPT,"Area C1 mainline, origin to terminal (210 km)",
+HRPT-C1,HRPT,"Area C1 mainline, origin to terminal (130.5 mi)",
 HRPT-D1,HRPT,Area D1 terminal receipt,
 HRPT-E1,HRPT,Area E1 terminal tank farm,
 HRPT-F1,HRPT,Area F1 ship loading and custody transfer,

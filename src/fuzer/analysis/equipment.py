@@ -23,6 +23,7 @@ from .calcs import CalcError, _label, read, result, window_of
 CLASS_WIDE = 1.5  # failures per year at the class median: a class-wide problem
 K = 1.3  # ratio of specific heats for the lift gas
 R_GAS = 0.5  # kJ/kg K (natural gas, molar mass about 16.6)
+FT_PER_KJ_KG = 334.553  # polytropic head: 1 kJ/kg is 334.553 ft (ft-lbf/lbm)
 
 
 def _unit_point(conn, fid: str | None, ending: str) -> dict | None:
@@ -74,14 +75,14 @@ def compressor_performance(conn, fid: str, days: int = 30, until: str | None = N
     for t in sorted(v["pd"]):
         ps, pd_, td = v["ps"].get(t), v["pd"][t], v["td"].get(t)
         ts = v["ts"].get(t) if pts["ts"] else None
-        if ps is None or td is None or ts is None or pd_ / max(ps, 0.1) < 1.3:
+        if ps is None or td is None or ts is None or (pd_ + 14.7) / (max(ps, 0.0) + 14.7) < 1.3:
             continue  # stopped or recycling: the ratio says nothing
-        pr, tr = (pd_ + 1.013) / (ps + 1.013), (td + 273.15) / (ts + 273.15)
+        pr, tr = (pd_ + 14.7) / (ps + 14.7), (td + 459.67) / (ts + 459.67)  # psig, °F
         if tr <= 1.0:
             continue
         eta = (K - 1) / K * math.log(pr) / math.log(tr)
         n = 1 / (1 - (K - 1) / (K * eta))  # polytropic exponent
-        head = R_GAS * (ts + 273.15) * n / (n - 1) * (pr ** ((n - 1) / n) - 1)
+        head = R_GAS * (ts + 459.67) / 1.8 * n / (n - 1) * (pr ** ((n - 1) / n) - 1) * FT_PER_KJ_KG
         rows.append((t, eta, head))
     if len(rows) < 48:
         if not pts["ts"]:
@@ -96,13 +97,13 @@ def compressor_performance(conn, fid: str, days: int = 30, until: str | None = N
     return result(round(now, 3), round(base, 3), "efficiency_drop" if now <= base - drop else None,
                   f"polytropic efficiency ((k-1)/k) ln(Pd/Ps) / ln(Td/Ts), k {K}, hourly while running; the last 3 days "
                   f"against the window's first week", [fid, *[p["id"] for p in pts.values() if p]], unit="polytropic efficiency",
-                  head_kj_kg=round(float(np.median([r[2] for r in last])), 1),
+                  head_ft=round(float(np.median([r[2] for r in last]))),
                   daily=[{"day": d, "efficiency": round(float(np.median(x)), 3)} for d, x in sorted(daily.items())],
                   note="surge margin against the machine's OEM map: calc surge")
 
 
 def cooler_fouling(conn, fid: str, days: int = 180, until: str | None = None, src=None, pack=None,
-                   rise: float = 5.0) -> dict:
+                   rise: float = 9.0) -> dict:
     """A cooler's outlet temperature against its clean baseline: degrees above it now, the rate since it was
     last cleaned and when it reaches its high limit at that rate. Flags `fouling` at `rise` degrees or more."""
     from . import limits, signals
@@ -136,7 +137,7 @@ def cooler_fouling(conn, fid: str, days: int = 180, until: str | None = None, sr
         reach = (end + timedelta(days=(hi - now) / slope)).date().isoformat()
     return result(round(now, 1), round(clean, 1), "fouling" if now - clean >= rise and slope > 0 else None,
                   f"daily median outlet temperature; expected is the window's coolest tenth of days (clean); the rate "
-                  f"is since the last drop (a clean), {since[:10]}", [fid, p["id"]], unit="degC",
+                  f"is since the last drop (a clean), {since[:10]}", [fid, p["id"]], unit="°F",
                   rise_per_day=round(slope, 3), since_clean=since[:10], high_limit=hi, reaches_limit=reach,
                   daily=[{"day": d, "temp": round(float(m), 2)} for d, m in zip(days_, med)][-120:])
 
@@ -171,13 +172,13 @@ def peers(conn, fid: str, z: float = 3.0, src=None) -> dict:
     rows = []
     for m in members:
         a = ba.get(m, {})
-        vib = next((p for p in _unit_points(conn, m, 10) if (p["uom"] or "") == "mm/s"), None)
+        vib = next((p for p in _unit_points(conn, m, 10) if (p["uom"] or "") == "in/s"), None)
         v = None
         if vib:
             x = read({"v": vib}, end - timedelta(days=7), end, 360, src)["v"]
             v = round(float(np.median(list(x.values()))), 2) if x else None
         rows.append({"tag": _label(conn, m), "id": m, "failures_per_year": round(a.get("failures", 0) / years, 2),
-                     "mtbf_days": a.get("mtbf_days"), "lost_oil_sm3": a.get("lost_oil_sm3", 0), "vibration_mm_s": v})
+                     "mtbf_days": a.get("mtbf_days"), "lost_oil_bbl": a.get("lost_oil_bbl", 0), "vibration_in_s": v})
 
     def robust_z(key):
         xs = np.array([r[key] for r in rows if r[key] is not None], float)
@@ -189,9 +190,9 @@ def peers(conn, fid: str, z: float = 3.0, src=None) -> dict:
             if r[key] is not None:
                 r[f"{key}_z"] = round(float((r[key] - med) / mad), 1)
 
-    for key in ("failures_per_year", "vibration_mm_s"):
+    for key in ("failures_per_year", "vibration_in_s"):
         robust_z(key)
-    out = [r for r in rows if any(abs(r.get(f"{k}_z") or 0) >= z for k in ("failures_per_year", "vibration_mm_s"))]
+    out = [r for r in rows if any(abs(r.get(f"{k}_z") or 0) >= z for k in ("failures_per_year", "vibration_in_s"))]
     fpy = sorted(r["failures_per_year"] for r in rows)
     wide = fpy[len(fpy) // 2] >= CLASS_WIDE  # most of the class fails often: the model or its service, not one unit
     return result(len(out), 0, "outliers" if out else "class_wide_failures" if wide else None,

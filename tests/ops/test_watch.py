@@ -135,6 +135,7 @@ def test_live_the_watch_raises_each_proposal_for_triage_its_budget_stops_it_and_
     conn = okan_db.conn
     a, b = "2024-03-09T00:00", "2024-03-10T00:00"
     passed = [{"kind": "watch", "bundle": "okan", "passes": True, "windows": [{}] * 5}]
+    conn.execute("delete from watch_spend")  # the shadow test's spend today would otherwise hold this one to budget
     settings.set(conn, "watch.max_areas", 2, by="test")
     settings.set(conn, "watch.max_usd", 5.0, by="test")
     settings.set(conn, "watch.daily_usd", 0.05, by="test")

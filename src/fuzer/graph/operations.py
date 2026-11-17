@@ -10,8 +10,13 @@ fake asset reads as if it were current; pass as_of to look from another day.
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
+from ..core import units
 from . import queries
 from .queries import _DOWNTIME
+
+# Lost oil and gas together as barrels of oil equivalent (6 Mscf a barrel), summed over downtime records.
+BOE = (f"sum(coalesce((f->>'lost_oil_bbl')::numeric, 0) + coalesce((f->>'lost_gas_mscf')::numeric, 0) "
+       f"/ {units.MSCF_PER_BOE:g})")
 
 MOSTLY_WATER = 70  # % water cut at which lift gas is mostly lifting water
 OPEN = ("CRTD", "REL", "OSNO", "OSTS")  # SAP: created, released, outstanding notification / task
@@ -87,7 +92,8 @@ def _num(v) -> float:
 
 def production_summary(conn, since: str | None = None, until: str | None = None, by: str = "month") -> dict:
     """Oil actual against potential (production efficiency), gas export, lift gas and flare per month or
-    week, with deferred oil by reason from downtime. Default: the last 12 months."""
+    week, oil and sales gas together in BOE (6 Mscf a barrel), with deferred oil by reason from downtime.
+    Default: the last 12 months."""
     since, until = _window(conn, since, until)
     days = _rows(conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
                  {"s": since, "u": until})
@@ -97,44 +103,48 @@ def production_summary(conn, since: str | None = None, until: str | None = None,
     for r in days:
         p = agg[period(r["f"]["report_date"])]
         p["days"] += 1
-        for k in ("oil_sm3", "oil_potential_sm3", "gas_export_ksm3", "lift_gas_ksm3", "flare_ksm3"):
+        for k in ("oil_bbl", "oil_potential_bbl", "gas_export_mscf", "lift_gas_mscf", "flare_mscf"):
             p[k] += _num(r["f"].get(k))
     lost = defaultdict(lambda: defaultdict(float))
     for r in conn.execute(_DOWNTIME + "select f from dd", {"id": None, "since": since, "until": until}):
-        lost[period(r["f"]["start"][:10])][r["f"].get("reason") or "Unknown"] += _num(r["f"].get("lost_oil_sm3"))
+        lost[period(r["f"]["start"][:10])][r["f"].get("reason") or "Unknown"] += _num(r["f"].get("lost_oil_bbl"))
     periods = []
     for k in sorted(agg):
         p = agg[k]
-        pot = p["oil_potential_sm3"]
-        periods.append({"period": k, "days": int(p["days"]), "oil_sm3": round(p["oil_sm3"]),
-                        "oil_potential_sm3": round(pot) if pot else None,
-                        "efficiency_pct": round(p["oil_sm3"] / pot * 100, 1) if pot else None,
-                        "oil_sm3_per_day": round(p["oil_sm3"] / p["days"]),
-                        "gas_export_ksm3": round(p["gas_export_ksm3"]), "lift_gas_ksm3_per_day":
-                            round(p["lift_gas_ksm3"] / p["days"]), "flare_ksm3": round(p["flare_ksm3"]),
+        pot = p["oil_potential_bbl"]
+        periods.append({"period": k, "days": int(p["days"]), "oil_bbl": round(p["oil_bbl"]),
+                        "oil_potential_bbl": round(pot) if pot else None,
+                        "efficiency_pct": round(p["oil_bbl"] / pot * 100, 1) if pot else None,
+                        "oil_bbl_per_day": round(p["oil_bbl"] / p["days"]),
+                        "boe_per_day": round(units.boe(p["oil_bbl"], p["gas_export_mscf"]) / p["days"]),
+                        "gas_export_mscf": round(p["gas_export_mscf"]), "lift_gas_mscf_per_day":
+                            round(p["lift_gas_mscf"] / p["days"]), "flare_mscf": round(p["flare_mscf"]),
                         "deferred_oil_by_reason": {r: round(v) for r, v in
                                                    sorted(lost[k].items(), key=lambda x: -x[1])}})
-    oil = sum(p["oil_sm3"] for p in periods)
-    pot = sum(p["oil_potential_sm3"] or 0 for p in periods)
+    oil = sum(p["oil_bbl"] for p in periods)
+    pot = sum(p["oil_potential_bbl"] or 0 for p in periods)
+    gas = sum(p["gas_export_mscf"] for p in periods)
     return {"since": since, "until": until, "source": "EC DAY001 daily reports and EC downtime",
-            "total": {"oil_sm3": oil, "oil_potential_sm3": pot or None,
+            "total": {"oil_bbl": oil, "oil_potential_bbl": pot or None, "gas_export_mscf": gas,
+                      "boe": round(units.boe(oil, gas)),
                       "efficiency_pct": round(oil / pot * 100, 1) if pot else None},
             "periods": periods}
 
 
 def deferment_pareto(conn, by: str = "reason", since: str | None = None, until: str | None = None,
                      limit: int = 15) -> dict:
-    """Deferred (lost) oil ranked by reason, reason category, causing tag, its ISO 14224 class, or the
-    well affected, with each group's share of the total. Default: the last 12 months."""
+    """Deferred (lost) production ranked by reason, reason category, causing tag, its ISO 14224 class, or the
+    well affected, with each group's share of the total: lost oil (bbl) and gas (Mscf), ranked on the two together
+    in BOE (6 Mscf a barrel). Default: the last 12 months."""
     since, until = _window(conn, since, until)
     params = {"id": None, "since": since, "until": until, "limit": limit}
     if by in ("reason", "category"):
         col = "reason" if by == "reason" else "reason_category"
         sql = f"""
             select coalesce(f->>'{col}', 'Unknown') as label, null::text as fuzer_id, count(*) as events,
-                   sum((f->>'lost_oil_sm3')::numeric) as lost_oil_sm3, sum((f->>'duration_h')::numeric) as hours,
-                   max(f->>'start') as last
-            from dd group by 1 order by lost_oil_sm3 desc nulls last limit %(limit)s
+                   sum((f->>'lost_oil_bbl')::numeric) as lost_oil_bbl, sum((f->>'lost_gas_mscf')::numeric) as lost_gas_mscf,
+                   {BOE} as lost_boe, sum((f->>'duration_h')::numeric) as hours, max(f->>'start') as last
+            from dd group by 1 order by lost_boe desc nulls last limit %(limit)s
         """
     elif by in ("tag", "class", "well"):
         rel = "affects" if by == "well" else "caused_by"
@@ -143,22 +153,25 @@ def deferment_pareto(conn, by: str = "reason", since: str | None = None, until: 
         well = "join entity w on w.fuzer_id = c.dst and w.kind = 'well'" if by == "well" else ""
         sql = f"""
             select l.label, {target} as fuzer_id, count(distinct dd.id) as events,
-                   sum((dd.f->>'lost_oil_sm3')::numeric) as lost_oil_sm3, sum((dd.f->>'duration_h')::numeric) as hours,
-                   max(dd.f->>'start') as last
+                   sum((dd.f->>'lost_oil_bbl')::numeric) as lost_oil_bbl,
+                   sum((dd.f->>'lost_gas_mscf')::numeric) as lost_gas_mscf, {BOE.replace("f->>", "dd.f->>")} as lost_boe,
+                   sum((dd.f->>'duration_h')::numeric) as hours, max(dd.f->>'start') as last
             from dd join edge c on c.src = dd.id and c.rel = '{rel}' {well} {via}
             left join entity_label l on l.fuzer_id = {target}
-            group by l.label, {target} order by lost_oil_sm3 desc nulls last limit %(limit)s
+            group by l.label, {target} order by lost_boe desc nulls last limit %(limit)s
         """
     else:
         raise ValueError("by must be reason, category, tag, class or well")
     rows = conn.execute(_DOWNTIME + sql, params).fetchall()
-    total = conn.execute(_DOWNTIME + "select coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as t from dd",
-                         params).fetchone()["t"]
-    total = float(total)
-    return {"since": since, "until": until, "by": by, "total_lost_oil_sm3": round(total),
-            "source": "EC downtime (deferment) records",
-            "items": [{**r, "lost_oil_sm3": round(float(r["lost_oil_sm3"] or 0)), "hours": float(r["hours"] or 0),
-                       "share_pct": round(float(r["lost_oil_sm3"] or 0) / total * 100, 1) if total else None}
+    t = conn.execute(_DOWNTIME + "select coalesce(sum((f->>'lost_oil_bbl')::numeric), 0) as oil, "
+                     f"coalesce({BOE}, 0) as boe from dd", params).fetchone()
+    total, boe = float(t["oil"]), float(t["boe"])
+    return {"since": since, "until": until, "by": by, "total_lost_oil_bbl": round(total), "total_lost_boe": round(boe),
+            "source": "EC downtime (deferment) records", "unit": "BOE (oil bbl + gas Mscf / 6)",
+            "items": [{**r, "lost_oil_bbl": round(float(r["lost_oil_bbl"] or 0)),
+                       "lost_gas_mscf": round(float(r["lost_gas_mscf"] or 0)), "lost_boe": round(float(r["lost_boe"] or 0)),
+                       "hours": float(r["hours"] or 0),
+                       "share_pct": round(float(r["lost_boe"] or 0) / boe * 100, 1) if boe else None}
                       for r in rows]}
 
 
@@ -176,29 +189,30 @@ def constraints(conn, since: str | None = None, until: str | None = None) -> dic
         left join entity_label l on l.fuzer_id = c.dst
         group by dd.id, dd.f
     """, params).fetchall()
-    out = defaultdict(lambda: {"events": 0, "lost_oil_sm3": 0.0, "lost_gas_ksm3": 0.0, "hours": 0.0,
+    out = defaultdict(lambda: {"events": 0, "lost_oil_bbl": 0.0, "lost_gas_mscf": 0.0, "hours": 0.0,
                                "first_half_oil": 0.0, "second_half_oil": 0.0, "last": "", "units": defaultdict(int)})
     for r in rows:
         f = r["f"]
         g = out[(f.get("reason") or "Unknown", f.get("reason_category"))]
-        oil = _num(f.get("lost_oil_sm3"))
+        oil = _num(f.get("lost_oil_bbl"))
         g["events"] += 1
-        g["lost_oil_sm3"] += oil
-        g["lost_gas_ksm3"] += _num(f.get("lost_gas_ksm3"))
+        g["lost_oil_bbl"] += oil
+        g["lost_gas_mscf"] += _num(f.get("lost_gas_mscf"))
         g["hours"] += _num(f.get("duration_h"))
         g["first_half_oil" if f["start"] < mid else "second_half_oil"] += oil
         g["last"] = max(g["last"], f["start"])
         for label, fid in zip(r["caused_by"], r["caused_by_ids"]):
             g["units"][(label, fid)] += 1
     items = []
-    for (reason, cat), g in sorted(out.items(), key=lambda x: -x[1]["lost_oil_sm3"]):
+    for (reason, cat), g in sorted(out.items(), key=lambda x: -units.boe(x[1]["lost_oil_bbl"], x[1]["lost_gas_mscf"])):
         a, b = g.pop("first_half_oil"), g.pop("second_half_oil")
-        units = g.pop("units")
+        by_unit = g.pop("units")
         items.append({"reason": reason, "category": cat, **{k: (round(v) if isinstance(v, float) else v)
                                                              for k, v in g.items()},
+                      "lost_boe": round(units.boe(g["lost_oil_bbl"], g["lost_gas_mscf"])),
                       "trend": "worse" if b > a * 1.25 else "better" if b < a * 0.75 else "steady",
                       "caused_by": [{"label": u[0], "id": u[1], "events": n}
-                                    for u, n in sorted(units.items(), key=lambda x: -x[1])[:5]]})
+                                    for u, n in sorted(by_unit.items(), key=lambda x: -x[1])[:5]]})
     return {"since": since, "until": until, "split_at": mid, "source": "EC downtime records and their causes",
             "items": items}
 
@@ -220,25 +234,25 @@ def well_performance(conn, ref_id: str | None = None, since: str | None = None, 
     by_well = defaultdict(list)
     for r in tests:
         by_well[(r["well"], r["well_label"])].append(r)
-    keep = ("test_date", "oil_sm3d", "water_cut_pct", "gor_sm3_sm3", "lift_gas_ksm3d", "whp_barg")
+    keep = ("test_date", "oil_bbld", "water_cut_pct", "gor_scf_bbl", "lift_gas_mscfd", "whp_psig")
     if ref_id:
         hist = sorted((r for rs in by_well.values() for r in rs), key=lambda r: r["f"]["test_date"])
         return {"since": since, "until": until, "source": "EC well tests",
                 "tests": [{"id": r["id"], **{k: r["f"].get(k) for k in keep}} for r in hist]}
-    lost = {r["fuzer_id"]: r["lost_oil_sm3"] for r in deferment_pareto(conn, "well", since, until, 500)["items"]}
+    lost = {r["fuzer_id"]: r["lost_oil_bbl"] for r in deferment_pareto(conn, "well", since, until, 500)["items"]}
     ranked = []
     for (well, label), rs in by_well.items():
         rs.sort(key=lambda r: r["f"]["test_date"])
         a, b = rs[0]["f"], rs[-1]["f"]
-        q0, q1 = _num(a.get("oil_sm3d")), _num(b.get("oil_sm3d"))
+        q0, q1 = _num(a.get("oil_bbld")), _num(b.get("oil_bbld"))
         ranked.append({"well": label, "id": well, "tests": len(rs), "first_test": a.get("test_date"),
-                       "latest_test": b.get("test_date"), "latest_test_id": rs[-1]["id"], "oil_sm3d_first": q0,
-                       "oil_sm3d_latest": q1, "oil_change_pct": round((q1 - q0) / q0 * 100, 1) if q0 else None,
+                       "latest_test": b.get("test_date"), "latest_test_id": rs[-1]["id"], "oil_bbld_first": q0,
+                       "oil_bbld_latest": q1, "oil_change_pct": round((q1 - q0) / q0 * 100, 1) if q0 else None,
                        "water_cut_first": _num(a.get("water_cut_pct")), "water_cut_latest": _num(b.get("water_cut_pct")),
-                       "lift_gas_ksm3d": _num(b.get("lift_gas_ksm3d")), "deferred_oil_sm3": lost.get(well, 0)})
+                       "lift_gas_mscfd": _num(b.get("lift_gas_mscfd")), "deferred_oil_bbl": lost.get(well, 0)})
     ranked.sort(key=lambda r: (r["oil_change_pct"] if r["oil_change_pct"] is not None else 0))
     return {"since": since, "until": until, "source": "EC well tests and EC downtime", "wells": len(ranked),
-            "field_oil_sm3d_latest": round(sum(r["oil_sm3d_latest"] for r in ranked), 1),
+            "field_oil_bbld_latest": round(sum(r["oil_bbld_latest"] for r in ranked), 1),
             "biggest_declines": ranked[:limit],
             "water_cut_risers": sorted(ranked, key=lambda r: r["water_cut_first"] - r["water_cut_latest"])[:limit // 2]}
 
@@ -276,12 +290,12 @@ def bad_actors(conn, since: str | None = None, until: str | None = None, limit: 
         items.append({"id": tid, "tag": label, "description": desc, "class": cls[1] if cls else None,
                       "failures": p["failures"], "mtbf_days": round(years * 365.25 / p["failures"]),
                       "repeat_failure_modes": repeat, "last_failure": p["last"],
-                      "downtime_events": d.get("events", 0), "lost_oil_sm3": d.get("lost_oil_sm3", 0)})
+                      "downtime_events": d.get("events", 0), "lost_oil_bbl": d.get("lost_oil_bbl", 0)})
         if cls:
             by_class[cls]["units"].add(tid)
             by_class[cls]["failures"] += p["failures"]
-    # downtime caused weighs most, then failures (one failure ~ 200 Sm3), then repeats
-    items.sort(key=lambda r: (-(r["lost_oil_sm3"] or 0) - 200 * r["failures"], -sum(r["repeat_failure_modes"].values()),
+    # downtime caused weighs most, then failures (one failure ~ 1,250 bbl), then repeats
+    items.sort(key=lambda r: (-(r["lost_oil_bbl"] or 0) - 1250 * r["failures"], -sum(r["repeat_failure_modes"].values()),
                               r["tag"] or ""))
     return {"since": since, "until": until, "source": "SAP notifications (ISO 14224 failure modes), EC downtime",
             "bad_actors": items[:limit],
@@ -566,9 +580,9 @@ def turnaround_scope(conn, revision: str | None = None, months_ahead: int = 18, 
 # --- gas lift --------------------------------------------------------------------------------------
 
 def _response(tests: list[dict]) -> float | None:
-    """Oil gained per extra lift gas (Sm3/d oil per kSm3/d gas) from a well's tests: the slope of rate on
+    """Oil gained per extra lift gas (bbl/d oil per Mscf/d gas) from a well's tests: the slope of rate on
     injection after taking out the time trend (decline), so months of decline don't read as no response."""
-    pts = [(i, _num(t["oil_sm3d"]), _num(t["lift_gas_ksm3d"])) for i, t in enumerate(tests) if t.get("oil_sm3d")]
+    pts = [(i, _num(t["oil_bbld"]), _num(t["lift_gas_mscfd"])) for i, t in enumerate(tests) if t.get("oil_bbld")]
     if len(pts) < 5:
         return None
 
@@ -666,12 +680,12 @@ def gas_lift_network(conn, ref_id: str | None = None, since: str | None = None, 
         manifolds = [n for n in path if info[n]["type"] == "manifold"]
         header = own_header(w)
         last = ts[-1] if ts else {}
-        gas, oil = _num(last.get("lift_gas_ksm3d")), _num(last.get("oil_sm3d"))
+        gas, oil = _num(last.get("lift_gas_mscfd")), _num(last.get("oil_bbld"))
         per_well.append({
             "well": info[w]["label"], "id": w, "header": info[header]["label"] if header else None, "header_id": header,
             "jacket": jacket(manifolds[0]) if manifolds else None,
             "through_jackets": [jacket(m) for m in manifolds[1:]],
-            "latest_test": last.get("test_date"), "lift_gas_ksm3d": gas, "oil_sm3d": oil,
+            "latest_test": last.get("test_date"), "lift_gas_mscfd": gas, "oil_bbld": oil,
             "water_cut_pct": _num(last.get("water_cut_pct")) if last else None,
             "oil_per_lift_gas": round(oil / gas, 2) if gas else None,
             "response_oil_per_extra_gas": _response(ts), "tests": len(ts)})
@@ -684,18 +698,18 @@ def gas_lift_network(conn, ref_id: str | None = None, since: str | None = None, 
     for h in sorted({w["header_id"] for w in per_well if w["header_id"]}, key=lambda h: info[h]["label"] or ""):
         ws = [w for w in per_well if w["header_id"] == h]
         manifolds = [n for n in below(h) if info[n]["type"] == "manifold" and own_header(n) == h]
-        gas = round(sum(w["lift_gas_ksm3d"] for w in ws), 1)
-        oil = round(sum(w["oil_sm3d"] for w in ws), 1)
+        gas = round(sum(w["lift_gas_mscfd"] for w in ws), 1)
+        oil = round(sum(w["oil_bbld"] for w in ws), 1)
         headers.append({"header": info[h]["label"], "description": info[h]["description"], "id": h,
                         "fed_by": [info[p]["label"] for p in parents.get(h, [])],
                         "jackets": sorted(jacket(m) for m in manifolds),
                         "jackets_through_another_jacket": sum(1 for m in manifolds if info[parents[m][0]]["type"] == "manifold"),
-                        "gas_lifted_wells": len(ws), "lift_gas_ksm3d": gas, "oil_sm3d": oil,
+                        "gas_lifted_wells": len(ws), "lift_gas_mscfd": gas, "oil_bbld": oil,
                         "oil_per_lift_gas": round(oil / gas, 2) if gas else None})
-    rated = [w for w in per_well if w["response_oil_per_extra_gas"] is not None and w["lift_gas_ksm3d"]]
+    rated = [w for w in per_well if w["response_oil_per_extra_gas"] is not None and w["lift_gas_mscfd"]]
     out = {"since": since, "until": until, "source": "EC lift gas network and well tests",
            "headers": headers, "gas_lifted_wells": len(per_well),
-           "lift_gas_ksm3d": round(sum(w["lift_gas_ksm3d"] for w in per_well), 1),
+           "lift_gas_mscfd": round(sum(w["lift_gas_mscfd"] for w in per_well), 1),
            "least_response": sorted(rated, key=lambda w: w["response_oil_per_extra_gas"])[:limit],
            "most_response": sorted(rated, key=lambda w: -w["response_oil_per_extra_gas"])[:limit],
            "lifting_mostly_water": sorted((w for w in per_well if (w["water_cut_pct"] or 0) >= MOSTLY_WATER),
@@ -747,9 +761,9 @@ def what_changed(conn, since: str, until: str | None = None, limit: int = 20) ->
                               "failure_mode_name", "status"),
         "work_orders_started": pick(kind("work_order", "start"), "start", "order_type", "description", "status"),
         "work_orders_finished": pick(kind("work_order", "finish"), "finish", "order_type", "description", "status"),
-        "downtime_started": pick(kind("downtime", "start"), "start", "reason", "comment", "end", "lost_oil_sm3"),
-        "downtime_ended": pick(kind("downtime", "end"), "end", "reason", "start", "duration_h", "lost_oil_sm3"),
-        "incidents": pick(kind("incident", "start"), "start", "description", "end", "lost_oil_sm3"),
+        "downtime_started": pick(kind("downtime", "start"), "start", "reason", "comment", "end", "lost_oil_bbl"),
+        "downtime_ended": pick(kind("downtime", "end"), "end", "reason", "start", "duration_h", "lost_oil_bbl"),
+        "incidents": pick(kind("incident", "start"), "start", "description", "end", "lost_oil_bbl"),
     }
     tags = _tags_of(conn, [x["id"] for k in ("notifications", "work_orders_started", "work_orders_finished")
                            for x in out[k]])

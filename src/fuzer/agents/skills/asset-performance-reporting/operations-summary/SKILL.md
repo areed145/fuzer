@@ -13,7 +13,7 @@ source as the scorecard gives them. When the question is whether the operational
 `accounting_reconciliation` (and `plot_accounting_reconciliation`): it sets each month's daily allocated oil and gas
 against what production accounting closed, and every month cites both sources and both periods. The accounted
 volume is the authority; report a difference for production accounting to resolve and never restate either figure.
-For cost per barrel or per Sm3, use `unit_cost`, which keeps each currency apart. For a requested
+For cost per barrel, use `unit_cost`, which keeps each currency apart. For a requested
 time window, use `production_summary`, `deferment_pareto`, and `production_constraints`; add `well_performance`
 when the question concerns well tests or well-level production. For maintenance and work context, use
 `bad_actors`, `work_order_backlog`, `maintenance_compliance`, and `turnaround_scope` as applicable. `value_score`

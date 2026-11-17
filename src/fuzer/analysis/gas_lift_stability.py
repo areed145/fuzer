@@ -61,7 +61,7 @@ def _assess(series: dict[str, list]) -> dict:
     together = sorted(r for r, s in sig.items() if s["cycles"] and period and s["period_min"]
                       and abs(s["period_min"] - period) <= SAME_PERIOD * period)
     return {"verdict": verdict, "period_min": period, "cycling_together": together,
-            "casing_swing_bar": casing["amplitude"], "casing_swing_pct": casing["swing_pct"], "r": casing["r"],
+            "casing_swing_psi": casing["amplitude"], "casing_swing_pct": casing["swing_pct"], "r": casing["r"],
             "signals": sig}
 
 

@@ -11,15 +11,15 @@ entity:
     - comments
     - [timestamp, {from: _key, keep: true}]
     - [description, {template: "Daily report {_key}", keep: true}]
-    - [oil_sm3, {from: oil_sm3, as: number, keep: true}]
-    - [oil_potential_sm3, {from: oil_potential_sm3, as: number}]
-    - [gas_ksm3, {from: gas_ksm3, as: number, keep: true}]
-    - [water_inj_sm3, {from: water_inj_sm3, as: number, keep: true}]
-    - [gas_export_ksm3, {from: gas_export_ksm3, as: number}]
-    - [lift_gas_ksm3, {from: lift_gas_ksm3, as: number}]
-    - [flare_ksm3, {from: flare_ksm3, as: number}]
-    - [fuel_gas_ksm3, {from: fuel_gas_ksm3, as: number}]
-    - [vent_ksm3, {from: vent_ksm3, as: number}]
+    - [oil_bbl, {from: oil_bbl, as: number, keep: true}]
+    - [oil_potential_bbl, {from: oil_potential_bbl, as: number}]
+    - [gas_mscf, {from: gas_mscf, as: number, keep: true}]
+    - [water_inj_bbl, {from: water_inj_bbl, as: number, keep: true}]
+    - [gas_export_mscf, {from: gas_export_mscf, as: number}]
+    - [lift_gas_mscf, {from: lift_gas_mscf, as: number}]
+    - [flare_mscf, {from: flare_mscf, as: number}]
+    - [fuel_gas_mscf, {from: fuel_gas_mscf, as: number}]
+    - [vent_mscf, {from: vent_mscf, as: number}]
 links:
   - rel: reports_on
     when: facility

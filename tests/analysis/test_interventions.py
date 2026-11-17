@@ -16,11 +16,11 @@ def test_the_gain_is_net_of_the_decline_before(okan_db):
     said = [i for i in out["interventions"] if i["verdict"] != "unknown"]
     for i in said:
         # the gain is the rate after against where the decline put the well, not after less before
-        assert abs(i["gain_sm3d"] - (i["oil_after_sm3d"] - i["oil_expected_sm3d"])) <= 0.11  # each rounded to 0.1
-        assert i["oil_range_sm3d"][0] <= i["oil_expected_sm3d"] <= i["oil_range_sm3d"][1]
+        assert abs(i["gain_bbld"] - (i["oil_after_bbld"] - i["oil_expected_bbld"])) <= 0.11  # each rounded to 0.1
+        assert i["oil_range_bbld"][0] <= i["oil_expected_bbld"] <= i["oil_range_bbld"][1]
     # OK-J20-01 was on a steep decline: after less before is +6 Sm3/d, net of its decline the gain is far larger
     j = next(i for i in said if i["well"] == "OK-J20-01")
-    assert j["gain_sm3d"] > j["oil_after_sm3d"] - j["oil_before_sm3d"] + 10
+    assert j["gain_bbld"] > j["oil_after_bbld"] - j["oil_before_bbld"] + 10
     # the background shut-ins left their wells on their decline
     assert out["summary"]["no_clear_change"] >= len(said) - 2
     assert all(i["water_cut_change_pct"] is not None for i in said)
@@ -31,9 +31,9 @@ def test_an_intervention_with_no_test_on_one_side_is_unknown_not_zero(okan_db):
     conn = okan_db.conn
     out = iv.gains(conn)
     unk = next(i for i in out["interventions"] if i["well"] == "OK-J14-05")  # a week after the tests begin
-    assert unk["verdict"] == "unknown" and "too few tests before" in unk["why"] and "gain_sm3d" not in unk
+    assert unk["verdict"] == "unknown" and "too few tests before" in unk["why"] and "gain_bbld" not in unk
     assert out["summary"]["unknown"] >= 1
-    assert out["summary"]["net_gain_sm3d"] == round(sum(i["gain_sm3d"] for i in out["interventions"]
+    assert out["summary"]["net_gain_bbld"] == round(sum(i["gain_bbld"] for i in out["interventions"]
                                                         if i["verdict"] != "unknown"), 1)
     late = iv.gains(conn, since="2025-12-01")  # the latest has one test after it at most
     for i in late["interventions"]:

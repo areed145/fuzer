@@ -86,13 +86,15 @@ POINT = re.compile(r"[./:][A-Z][A-Z0-9_]*$")  # a historian point's signal suffi
 START = {"start", "startdate", "plannedstart", "earlystart", "begin", "scheduledstart", "targetstart"}
 FINISH = {"finish", "finishdate", "plannedfinish", "earlyfinish", "end", "enddate", "scheduledfinish", "targetfinish",
           "due", "duedate"}
-# A measured column's unit, from the end of its header (volume_ksm3, energy_gj, hhv_mj_sm3): the quantity is the rest.
-UNIT_SUFFIXES = [("mj_sm3", "MJ/Sm3"), ("ksm3d", "kSm3/d"), ("ksm3", "kSm3"), ("sm3d", "Sm3/d"), ("sm3", "Sm3"),
+# A measured column's unit, from the end of its header (volume_mscf, energy_gj, hhv_btu_scf): the quantity is the rest.
+UNIT_SUFFIXES = [("btu_scf", "Btu/scf"), ("mmbtu", "MMBtu"), ("mscfd", "Mscf/d"), ("mscf", "Mscf"), ("bbld", "bbl/d"),
+                 ("mpy", "mpy"), ("mj_sm3", "MJ/Sm3"), ("ksm3d", "kSm3/d"), ("ksm3", "kSm3"), ("sm3d", "Sm3/d"), ("sm3", "Sm3"),
                  ("gj", "GJ"), ("barg", "barg"), ("kpa", "kPa"), ("psig", "psig"), ("degc", "degC"), ("degf", "degF"),
                  ("pct", "%"), ("ppm", "ppm"), ("mmscf", "MMscf"), ("mcf", "Mcf"), ("bbl", "bbl")]
 INSTALLED = re.compile(r"(install|commission|startup|inservice|fitted)")
 UNITS = {"barg", "bara", "bar", "psi", "psig", "kpa", "mpa", "degc", "degf", "%", "m3/h", "sm3/d", "bbl/d", "kg",
-         "mm", "in", "mm/s", "hz", "rpm", "kw", "mw", "ppm", "m3", "l/min", "ft", "kgf/cm2"}
+         "mm", "in", "mm/s", "hz", "rpm", "kw", "mw", "ppm", "m3", "l/min", "ft", "kgf/cm2", "mscf/d", "mmscf/d",
+         "in/s", "hp", "mpy", "scf/bbl", "gpm", "bbl", "mscf"}
 
 
 def _norm(name: str) -> str:

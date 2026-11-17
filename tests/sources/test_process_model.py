@@ -59,7 +59,9 @@ def test_points_are_modelled_and_values_are_window_independent(data, model):
     # the fake PI / ADX historian serves the same numbers
     plant = historian.Plant(data)
     got = plant.values(p, datetime(2024, 3, 14, 2), datetime(2024, 3, 14, 6), 10)
-    assert [round(v, 3) for _, v in got] == [v for _, v in sorted(a.items())]
+    from fuzer.sources.timeseries import to_point_unit  # the model works in SI, the historian in the point's psig
+
+    assert [round(v, 3) for _, v in got] == [v for _, v in to_point_unit(sorted(a.items()), "psig")]
 
 
 def test_compressor_trip_drops_the_lift_gas_header_and_the_wells_follow(data, model):

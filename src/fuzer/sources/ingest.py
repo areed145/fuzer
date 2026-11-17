@@ -122,7 +122,7 @@ def _well_logs(path: Path):
             rows = [r for r in log["rows"] if r[c["mnemonic"]] is not None]
             yield "drilling", "log_curve", f"{Path(item['file']).stem}-{c['mnemonic']}", {
                 "well": well, "curve": c["mnemonic"], "unit": c["unit"], "description": c["description"],
-                "md_m": [r["md_m"] for r in rows], "values": [r[c["mnemonic"]] for r in rows],
+                "md_ft": [r["md_ft"] for r in rows], "values": [r[c["mnemonic"]] for r in rows],
                 "file": item["file"], "format": f"las {log['version']}",
                 "sha256": hashlib.sha256(file.read_bytes()).hexdigest()}
 

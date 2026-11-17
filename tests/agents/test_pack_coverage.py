@@ -110,8 +110,8 @@ def test_on_kestrel_a_gas_well_declines_on_its_gas_rate(kestrel):
 
     w = kestrel.execute("select fuzer_id from entity_label where label = 'KR 12-03H'").fetchone()["fuzer_id"]
     d = calcs.run(kestrel, "decline", w)
-    assert (d["product"], d["unit"], d["flag"]) == ("gas", "kSm3/d", None) and "on gas rate" in d["basis"]
-    assert 700 < d["value"] < 800 and 10 < d["effective_decline_pct_per_year"] < 15
+    assert (d["product"], d["unit"], d["flag"]) == ("gas", "Mscf/d", None) and "on gas rate" in d["basis"]
+    assert 24700 < d["value"] < 28300 and 10 < d["effective_decline_pct_per_year"] < 15  # Mscf/d (700 to 800 kSm3/d)
     with pytest.raises(calcs.CalcError, match="no oil rate"):
         calcs.decline_fit(kestrel, w, product="oil")
     with pytest.raises(ChartError, match="gas well's gas rate"):
@@ -127,7 +127,7 @@ def test_on_kestrel_well_hydraulics_find_their_points_by_role(kestrel):
     pts = hydraulics.well_points(kestrel, w)
     assert pts["whp"]["point"] == "KR12-03H.THP" and pts["choke"] is None and pts["back"] is not None
     c = calcs.run(kestrel, "well_constraint", w)
-    assert c["flag"] in ("choke", "back_pressure") and 0 < c["back_barg"] < c["whp_barg"]
+    assert c["flag"] in ("choke", "back_pressure") and 0 < c["back_psig"] < c["whp_psig"]
     assert calcs.run(kestrel, "dp_drift", w)["value"] > 0
 
 
@@ -141,8 +141,8 @@ def test_on_okan_the_wells_pack_nets_an_intervention_against_the_decline_before_
     w = c.execute("select fuzer_id from entity_label where label = 'OK-J07-05'").fetchone()["fuzer_id"]
     (i,) = interventions.gains(c, "2025-04-01", "2025-05-01", well=w)["interventions"]
     assert (i["tests_before"], i["tests_after"], i["verdict"]) == (5, 4, "no_clear_change")
-    low, high = i["oil_range_sm3d"]
-    assert i["gain_sm3d"] < 0 and low < i["oil_after_sm3d"] < i["oil_expected_sm3d"] < high
+    low, high = i["oil_range_bbld"]
+    assert i["gain_bbld"] < 0 and low < i["oil_after_bbld"] < i["oil_expected_bbld"] < high
 
 
 def test_on_kestrel_the_reliability_pack_finds_the_critical_compressor_without_its_packing(kestrel):

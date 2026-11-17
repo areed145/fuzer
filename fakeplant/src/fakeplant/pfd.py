@@ -19,7 +19,7 @@ from pathlib import Path
 from . import pid
 
 W, H = 2600, 1050
-ROWS = ("DESCRIPTION", "PHASE", "PRESSURE (barg)", "TEMPERATURE (DEG C)", "FLOW")
+ROWS = ("DESCRIPTION", "PHASE", "PRESSURE (psig)", "TEMPERATURE (DEG F)", "FLOW")
 
 
 def _diamond(d, x, y, n: int, font):

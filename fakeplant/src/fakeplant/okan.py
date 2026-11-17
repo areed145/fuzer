@@ -43,6 +43,7 @@ from . import (
     journal,
     limits,
     measurements,
+    oilfield,
     okan_flare,
     pfd,
     pid,
@@ -326,8 +327,9 @@ UNEXPLAINED_FLARE = "2025-11-08"
 FUEL_METER_FAILED = ("2025-09-15", "2025-10-08")  # the GGCP fuel gas meter reads zero (#369)
 PRES_K = 2.4e-6  # bar of reservoir pressure lost per reservoir m3 produced net of injection (#364)
 # Reservoir fluid properties at reservoir conditions, from the field's PVT study (#365): formation volume factors in
-# reservoir m3 per standard m3, and the gas dissolved in the oil.
-PVT = [("oil_fvf", 1.28, "rm3/Sm3"), ("water_fvf", 1.02, "rm3/Sm3"), ("gas_fvf", 0.0052, "rm3/Sm3"),
+# reservoir m3 per standard m3 (the gas's written as a US study gives it, reservoir barrels per Mscf: 0.0052 rm3/Sm3),
+# and the gas dissolved in the oil.
+PVT = [("oil_fvf", 1.28, "rm3/Sm3"), ("water_fvf", 1.02, "rm3/Sm3"), ("gas_fvf", 0.926, "rb/Mscf"),
        ("solution_gor", 95, "Sm3/Sm3")]
 
 
@@ -347,7 +349,7 @@ def _km(a: list[float], b: list[float]) -> float:
 
 
 # Equipment data on the P&IDs (#475): design pressure (barg) and temperature (deg C) by kind and area, as the 1998
-# datasheets set them; the capacity column carries the design basis rating where there is one.
+# datasheets set them (drawn in psig and deg F); the capacity column carries the design basis rating where there is one.
 DESIGN_PT = {"V": (110, 120), "K": (125, 180), "E": (125, 200), "P": (60, 90)}
 DESIGN_PT_BY_AREA = {"10": {"V": (25, 110), "P": (75, 90), "E": (25, 150)}, "25": {"V": (10, 200)}, "26": {"V": (5, 200)}}
 
@@ -375,17 +377,21 @@ def _sheet_data(tags: list[Tag], titles: dict[str, str], designed: dict[str, dic
         if not pt:
             continue
         p, temp = rated(t, "PT", 5, 10) or pt[0], (rated(t, "TT", 10, 60) if t.func != "E" else None) or pt[1]
+        p, temp = round(p * 14.5038 / 5) * 5, round((temp * 1.8 + 32) / 5) * 5  # the drawings are in psig and deg F
         eq[t.canonical] = {"service": titles.get(t.canonical, ""), "design_pressure": p, "design_temperature": temp,
                            "capacity": cap.get(t.canonical)}
         if t.func == "V" and len(notes) < 2:
-            notes.append({"text": f"PSV-{t.loop}{t.suffix} ON {t.canonical} SET AT {p} barg.", "tags": [t.canonical]})
+            notes.append({"text": f"PSV-{t.loop}{t.suffix} ON {t.canonical} SET AT {p} psig.", "tags": [t.canonical]})
     lt = next((t for t in tags if t.func == "LT"), None)
     if lt:
         notes.append({"text": f"{lt.fmt('{f}-{l}{s}')} IS GUIDED WAVE RADAR; SEE DATASHEET.", "tags": [lt.canonical]})
     # a field change the register never caught (#475): train B's 2nd stage suction pressure transmitter was moved
     # from the scrubber to the compressor's suction nozzle; the drawing shows it there, SAP still has the scrubber
     moved = {"20-PT-2201B": "20-K-2200B"} if any(t.canonical == "20-K-2200B" for t in tags) else {}
-    return {"equipment": eq, "setpoints": sp, "notes": notes, "date": "2019-05-14", "moved": moved}
+    us = {k: {**v, **{q: float(oilfield.convert_raw(v[q], v.get("unit") or "") or v[q])
+                      for q in ("lolo", "lo", "hi", "hihi") if v.get(q) is not None},
+              "unit": oilfield.target(v.get("unit") or "") or v.get("unit")} for k, v in sp.items()}
+    return {"equipment": eq, "setpoints": us, "notes": notes, "date": "2019-05-14", "moved": moved}
 
 
 # Process flow diagrams (#475): the oil plant drawn clean, the gas plant an old scan with its three trains drawn once.
@@ -416,6 +422,8 @@ def _pfds(out: Path, titles: dict[str, str], designed: dict[str, dict], point_ta
         def at(t, func):
             area, _, rest = t.split("/")[0].split("-", 2)
             v = normal.get(f"{area}-{func}-{rest}")
+            if v and oilfield.target(v[1]):  # the drawings are in US units
+                v = (float(oilfield.convert_raw(f"{v[0]:g}", v[1])), oilfield.target(v[1]))
             return f"{v[0]:g}" if v and func != "FT" else f"{v[0]:g} {v[1]}" if v else "-"
 
         streams = [{"n": 1, "from": src, "to": 0, "description": src.removeprefix("FROM "), "phase": "MIXED",
@@ -1081,17 +1089,17 @@ def generate(out, seed: int = 11) -> dict:
     place = {area: _xy(*f[3]) for area, f in FACILITIES.items()} | {a: _xy(*xy) for a, xy in jacket_at.items()}
     feats = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": place[a]},
               "properties": {"facility_id": f[0], "floc": f"{FIELD}-{a}", "name": f[1], "type": f[2],
-                             "water_depth_m": round(rng.uniform(12, 22), 1), "install_year": 2022 if a == "50" else 1998,
+                             "water_depth_ft": round(rng.uniform(12, 22), 1), "install_year": 2022 if a == "50" else 1998,
                              "longitude": place[a][0], "latitude": place[a][1]}} for a, f in FACILITIES.items()]
     feats += [{"type": "Feature", "geometry": {"type": "Point", "coordinates": place[a]},
                "properties": {"facility_id": f"OKJ-{int(a) - 60:02d}", "floc": f"{FIELD}-{a}",
                               "name": f"Okan Jacket {int(a) - 60:02d}", "type": "wellhead jacket",
-                              "water_depth_m": round(rng.uniform(10, 24), 1), "install_year": rng.choice([1998, 2004, 2011]),
+                              "water_depth_ft": round(rng.uniform(10, 24), 1), "install_year": rng.choice([1998, 2004, 2011]),
                               "longitude": place[a][0], "latitude": place[a][1]}} for a in jacket_at]
     for fid, name, at in [("EGP", "Escravos Gas Plant", EGP_AT), ("ESCRAVOS", "Escravos crude terminal", TERMINAL_AT)]:
         feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": list(at)},
                       "properties": {"facility_id": fid, "floc": fid, "name": name, "type": "field facility",
-                                     "water_depth_m": 0, "install_year": 1997, "longitude": at[0], "latitude": at[1]}})
+                                     "water_depth_ft": 0, "install_year": 1997, "longitude": at[0], "latitude": at[1]}})
     lines = []
 
     spatial_truth = []
@@ -1422,7 +1430,9 @@ def generate(out, seed: int = 11) -> dict:
                           "notes": "open loop, controller in manual, output stepped by hand"})
     _write_csv(out / "dcs_step_tests.csv", step_rows)
     (out / "answer_keys" / "step_tests.json").write_text(json.dumps(
-        {tid: {"loop": ltag, "gain": k, "tau_s": tau, "dead_s": dead} for tid, ltag, _, _, _, k, tau, dead in steps},
+        {tid: {"loop": ltag, "gain": round(k * (4.40287 if "-FIC-" in ltag else 14.5038), 4), "tau_s": tau,
+               "dead_s": dead}  # the gain in the exported PV's unit (gpm or psi per % output)
+         for tid, ltag, _, _, _, k, tau, dead in steps},
         indent=1))
     (out / "answer_keys" / "control_loops.json").write_text(json.dumps(
         {d[0]: (d[9] or {}).get("kind", "healthy") for d in loop_defs}, indent=1))
@@ -1522,10 +1532,10 @@ def generate(out, seed: int = 11) -> dict:
         {"condition_id": "PC-OK-04", "permit": "OK-ENV-GAS-2022", "tag": "20-V-2400", "quantity": "h2s",
          "limit_value": "30", "limit_type": "max", "unit": "ppm(v)", "basis": "each_sample", "frequency": "monthly",
          "report_due_days": "15", "text": "Hydrogen sulphide in the dry gas shall not exceed 30 ppm by volume."},
-        {"condition_id": "PC-OK-05", "permit": "OK-ENV-FLR-2021", "facility": FIELD, "quantity": "flare_ksm3",
-         "limit_value": "3000", "limit_type": "max", "unit": "", "basis": "period_sum", "frequency": "monthly",
+        {"condition_id": "PC-OK-05", "permit": "OK-ENV-FLR-2021", "facility": FIELD, "quantity": "flare_mscf",
+         "limit_value": "106000", "limit_type": "max", "unit": "Mscf", "basis": "period_sum", "frequency": "monthly",
          "report_due_days": "10",
-         "text": "Gas flared at the field shall not exceed 3,000 thousand standard cubic metres in any calendar month."},
+         "text": "Gas flared at the field shall not exceed 106,000 Mscf (106 MMscf) in any calendar month."},
         {"condition_id": "PC-OK-06", "permit": "OK-ENV-GAS-2022", "tag": "20-V-2400", "quantity": "water_dewpoint",
          "limit_value": "", "limit_type": "", "unit": "degC", "basis": "each_sample", "frequency": "monthly",
          "report_due_days": "15",
@@ -1715,6 +1725,8 @@ def generate(out, seed: int = 11) -> dict:
 
     legacy = registers.generate(out, equipment, FIELD)  # JDE and Maximo copies of SAP items, and the match key
     incoming.generate(out, equipment, floc, [w["name"] for w in wells])
+    # What a US operator's systems export: the generator works in SI, its exports are in oilfield units.
+    oilfield.convert_dir(out)
     return {"asset": "okan", "facilities": len(FACILITIES), "jackets": JACKETS, "wells": len(wells),
             "gl_wells": len(gl_wells) + sum(1 for w in wells if w["site"] == "NWP" and w["lift"] == "GL"),
             "gas_producers": len(gas_wells), "equipment": len(equipment), "flocs": len(floc), "pi_points": len(points),

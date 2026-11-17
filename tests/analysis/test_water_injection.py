@@ -19,7 +19,7 @@ def test_voidage_replacement_reads_injection_against_produced_reservoir_volume(o
             assert r["status"] == "no_injection" and r["vrr"] is None, r
         else:
             assert r["status"] == "injecting" and 0 < r["vrr"] < 2, r
-            assert r["voidage_rm3"] > r["oil_sm3"]  # oil shrinks to the stock tank; water and free gas add to it
+            assert r["voidage_rb"] > r["oil_bbl"]  # oil shrinks to the stock tank; water and free gas add to it
     # Okan's three injectors replace about two thirds of what it produces, and less as OK-NWP-W2 plugs
     assert v["verdict"] == "under_replacing" and v["summary"]["latest_vrr"] < wi.VRR_LOW
     conn.rollback()
@@ -45,7 +45,7 @@ def test_the_plugging_injector_bends_its_hall_plot(okan_db):
     assert by[plugged]["verdict"] == "rising" and by[plugged]["slope_ratio"] > wi.HALL_RISE
     assert all(i["verdict"] == "steady" for w, i in by.items() if w != plugged)
     pts = by[plugged]["points"]
-    assert all(b["cumulative_water_sm3"] > a["cumulative_water_sm3"] for a, b in pairwise(pts))
+    assert all(b["cumulative_water_bbl"] > a["cumulative_water_bbl"] for a, b in pairwise(pts))
     assert wi.hall(conn, well=plugged.lower())["injectors"][0]["well"] == plugged
     conn.rollback()
 

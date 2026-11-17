@@ -29,7 +29,7 @@ def test_a_report_without_fuel_or_vent_says_the_gap_includes_them(okan_db, monke
     real = gb.ops._rows
 
     def no_fuel(*a, **k):
-        return [{**r, "f": {k2: v for k2, v in r["f"].items() if k2 not in ("fuel_gas_ksm3", "vent_ksm3")}}
+        return [{**r, "f": {k2: v for k2, v in r["f"].items() if k2 not in ("fuel_gas_mscf", "vent_mscf")}}
                 for r in real(*a, **k)]
     monkeypatch.setattr(gb.ops, "_rows", no_fuel)
     b = gb.daily(conn, since="2025-12-01", until="2025-12-31")
@@ -48,8 +48,8 @@ def test_the_charts_and_the_card_reach_people_and_agents(okan_db):
     fig = production.gas_balance(conn, since="2025-09-01", until="2025-11-01")
     assert fig.summary["episodes"] and any(t["name"].startswith("gap") for t in fig.data)
     fl = general.flare(conn, "2025-09-01", "2025-11-01")
-    assert {"fuel (kSm³/d)", "vent (kSm³/d)"} <= {t["name"] for t in fl.data}
-    assert fl.summary["fuel_ksm3"] > 0 and "fuel gas and venting aren't" not in fl.summary["note"]
+    assert {"fuel (Mscf/d)", "vent (Mscf/d)"} <= {t["name"] for t in fl.data}
+    assert fl.summary["fuel_mscf"] > 0 and "fuel gas and venting aren't" not in fl.summary["note"]
     with pytest.raises(ChartError):
         production.gas_balance(conn, since="2020-01-01", until="2020-02-01")
     r = TestClient(api.app).get("/plant/gas-balance")

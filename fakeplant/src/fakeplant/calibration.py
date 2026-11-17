@@ -160,7 +160,7 @@ def stages(spec: dict, zs: list[float], heads: dict[int, float] | None = None) -
         out.append(_check("stage_efficiency", name, round(td, 1), round(eta, 3), ETA[0] <= eta <= ETA[1],
                           f"{ps} to {pd} barg from {ts:.1f} degC (gas of molar mass {mw:.1f}): the model's {td:.1f} "
                           f"degC discharge is a polytropic efficiency of {eta:.3f} on the equation of state"))
-        f = compression.stage_state(g, ps, pd, ts, td)
+        f = compression.stage_state(g, ps * 14.5038, pd * 14.5038, ts * 1.8 + 32, td * 1.8 + 32)  # Fuzer reads psig, °F
         out.append(_check("fuzer_efficiency", name, round(f["eta"], 3), round(eta, 3), abs(f["eta"] - eta) <= 0.03,
                           "Fuzer's Schultz efficiency on an ideal k against the equation of state's"))
         for end, p, t, z in (("suction", ps, ts, f["z1"]), ("discharge", pd, td, f["z2"])):
