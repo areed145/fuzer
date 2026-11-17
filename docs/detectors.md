@@ -368,7 +368,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Setting `watch.live`:** Raise the agentic watch's proposals as work for a person to triage (live mode), once it has passed its bar on every bundle; off: kept in shadow and scored (default False)
 - **Setting `watch.daily_usd`:** Model spend a day for the agentic watch on this asset (USD); once spent it reads again the next day (default 2.0)
 - **Setting `watch.max_usd`:** Model spend cap per agentic watch run, all areas (USD) (default 2.0)
-- **Setting `watch.max_areas`:** Process areas the agentic watch reads per run (default 12)
+- **Setting `watch.max_areas`:** Process areas the agentic watch reads per run (default 40)
 - **Scored by:** `tests/ops/test_watch.py::test_the_watch_in_shadow_keeps_proposals_and_routes_nothing`, on the fake plant
 
 ## repeat_leaks

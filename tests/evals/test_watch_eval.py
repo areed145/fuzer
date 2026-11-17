@@ -111,3 +111,26 @@ def test_a_set_run_is_scored_over_all_its_windows(monkeypatch):
     assert res["proposals"] == 6 and res["matched_uncaught"] == 4 and res["matched"] == round(4 / 6, 3)
     assert res["passes"] and res["recall"] == 0.5 and res["usd"] == 0.6 and len(res["windows"]) == 2
     assert [w["why"] for w in res["windows"]] == ["a", "b"]
+
+
+def test_offline_answers_from_files(tmp_path):
+    """Scored on a subscription: each question is written out, answered in a file, and read back on the next run, with
+    the ids minted for this database swapped in for the ones the answer was written against."""
+    from fuzer.ops import watch
+
+    old = 'Area: A\n{"id": "fz-timeseries-aaaaaaaaaaaa"} {"id": "fz-log_entry-bbbbbbbbbbbb"} exception:3'
+    new = old.replace("aaaaaaaaaaaa", "cccccccccccc").replace("bbbbbbbbbbbb", "dddddddddddd")
+    ask = watch_eval.Offline(tmp_path)
+    assert ask(old)["answer"] == '{"proposals": []}' and ask.missing == {ask.key(old)}
+    assert ask.key(new) == ask.key(old) != ask.key(old.replace("exception:3", "exception:4"))
+    assert (tmp_path / "prompts" / f"{ask.key(old)}.txt").read_text() == old
+    (tmp_path / "answers").mkdir()
+    (tmp_path / "answers" / f"{ask.key(old)}.md").write_text(
+        'why\n```json\n{"proposals": [{"why": "x", "evidence": ["fz-timeseries-aaaaaaaaaaaa", "exception:3"]}]}\n```')
+    again = watch_eval.Offline(tmp_path)
+    got = again(new)
+    assert again.missing == set() and again.asked == {again.key(new)} and got["usage"]["cost_usd"] == 0
+    assert watch._parse(got["answer"])[0]["evidence"] == ["fz-timeseries-cccccccccccc", "exception:3"]
+    # an offline run never earns live mode
+    run = {"kind": "watch", "bundle": "b", "windows": [{}], "passes": True}
+    assert watch.bar_met([run])["met"] and not watch.bar_met([{**run, "offline": True}])["met"]

@@ -28,7 +28,11 @@ tests the wiring without a provider.
 
 import json
 import re
+import warnings
 from datetime import datetime, timedelta
+from pathlib import Path
+
+import numpy as np
 
 from ..core import clock, detectors, llm, settings
 from . import around
@@ -37,40 +41,15 @@ SPE_QUANTILE = 99.0  # the multivariate detector's bar is 99.9: the watch reads 
 SPE_MINUTES = 30
 TRAIN_DAYS = 7
 DRIFT_DAYS = 90  # how far back a drift is measured from
+DRIFT_MIN_CHANGE = 0.03  # a drift shown: 3% of its level, below the detector's bar, as the watch reads below it
+WELL_MIN_CHANGE = 0.1  # but a well's: each well's pressure wanders its own way by a few percent as the reservoir does
 DRIFT_FIELDS = ("baseline", "now", "change", "peers_change", "peers", "role", "baseline_from")  # shown of a drift
 MAX_EACH = 15  # of each kind of evidence, so one noisy area doesn't fill the question
 MAX_TOKENS = 2000
 OFF = "No model provider is configured, so the agentic watch is off. Nothing else changes."
 
-PROMPT = """You are watching one process area of an oil and gas facility, as an experienced process engineer scanning
-the day. Below is what happened in it over the window: stretches its own multivariate model could not explain (with the
-points contributing most), detections already made, open exceptions, alarms, operator log entries and maintenance
-notifications, and points that have drifted on their own over the months before (with where they started, where they
-are now and how far their peers moved). A detection with a "drift" is a slow drift the drift detector already raised:
-use it to explain what else moved in the area, but don't propose it again. Each item has an id.
-
-Propose what looks unusual that no detection or open exception already covers: an equipment problem developing, an
-instrument going bad, a process change nobody recorded. A drift may be slow degradation (fouling, wear, a plugging
-choke, a pump losing head) or a deliberate change (a choke moved, a setpoint changed); say which and why: a drift marked
-stepwise (held flat between a few moves) or whose own log entries record the change (a choke opened or closed, a
-setpoint moved) was deliberate, not a problem, and may explain the drifts beside it. For a
-drift, the start is when it began. For each, say why it is unusual, cite the ids of the evidence
-it rests on (only ids given below), and say what you ruled out (normal operation, a planned change, a known cause).
-Propose nothing when nothing is unusual: a quiet day is the common case, and every proposal costs a person's time.
-Never give an operating instruction.
-
-End with a JSON block:
-```json
-{{"proposals": [{{"subject": "<the point or equipment, as named below>", "start": "<ISO time>", "end": "<ISO time>",
-  "why": "<one or two sentences>", "ruled_out": "<what you ruled out>", "evidence": ["<id>", "..."]}}]}}
-```
-
-Area: {area}
-Window: {since} to {until}
-
-Evidence:
-{evidence}
-"""
+GUIDANCE = Path(__file__).with_name("watch_guidance")  # the watch's instructions, kept apart to lift and shift
+PROMPT = (GUIDANCE / "prompt.md").read_text()  # a str.format template: {area}, {since}, {until}, {evidence}
 
 
 def _iso(t) -> str | None:
@@ -121,11 +100,12 @@ def evidence(conn, area: dict, since: datetime, until: datetime, src=None) -> di
         """
         select d.id, d.point_id, coalesce(l.label, d.point_id) as point, d.detector, d.key, d.start, d."end", d.evidence
         from detection d left join entity_label l on l.fuzer_id = d.point_id
-        where d.point_id = any(%s) and d.start < %s and coalesce(d."end", d.start) >= %s order by d.start limit %s
+        where d.point_id = any(%s) and d.start < %s and coalesce(d."end", d.start) >= %s order by d.start, d.id limit %s
         """, (points, until, since, MAX_EACH))]
-    drifts = [{"id": d["point_id"], "name": d["point"], "since": d["since"], "baseline": d["baseline"], "now": d["now"],
-               "change": d["change"], "peers_change": d["peers_change"], "peers": d["peers"], "stepwise": d["stepwise"]}
-              for d in clusters.drifts(conn, area["id"], _iso(since), _iso(until), days=DRIFT_DAYS, src=src)][:MAX_EACH]
+    drifts = [{"id": d["point_id"], "name": d["point"], "baseline_from": d["since"], "baseline": d["baseline"], "now": d["now"],
+               "change": d["change"], "peers_change": d["peers_change"], "peers": d["peers"], "stepwise": d["stepwise"],
+               **({"choke_moved": d["choke_moved"]} if "choke_moved" in d else {})}
+              for d in _drifts(conn, area["id"], since, until, src)][:MAX_EACH]
     if drifts:  # what the operators wrote about each drifting point's equipment over the drift: a choke they moved
         owner = {r["dst"]: r["src"] for r in conn.execute(
             "select src, dst from edge where dst = any(%s) and rel = 'has_timeseries'", ([d["id"] for d in drifts],))}
@@ -144,6 +124,44 @@ def evidence(conn, area: dict, since: datetime, until: datetime, src=None) -> di
              if tags & set(n["subjects"])][:MAX_EACH]
     return {"area": area["label"], "since": _iso(since), "until": _iso(until), "unexplained_stretches": spe,
             "drifts": drifts, "detections": dets, "open_exceptions": open_x, "alarms": alarms, "log": log, "notifications": notes}
+
+
+def _drifts(conn, area: str, since: datetime, until: datetime, src) -> list[dict]:
+    """The area's points drifting on their own, judged as the drift detector judges them where measurement roles are
+    known (`drift.watched`): only the points it reads (not a position, a speed, the weather or a wellhead's
+    temperature), each set against its role on its class of equipment rather than any point with the same suffix, a
+    stopped or shut-in stretch left out, and one coming back to normal not taken for a drift. One on equipment whose
+    choke or valve the operators moved over the months is marked `choke_moved` (`drift.moved_by_hand`): the detector
+    leaves it alone, but a choke opened to hold a rate that still falls is the plugging it hides. A whole field declining
+    or a season warming moves the peers too, so it isn't shown."""
+    from ..analysis import clusters
+    from . import drift
+
+    judge: dict = {}
+    if conn.execute(drift.ROLES).fetchone():
+        _, peers, asset, hand = drift.watched(conn)
+        judge = {"peers_by": peers, "idle": drift.IDLE, "min_peers": drift.MIN_PEERS, "progressive": True}
+    found = clusters.drifts(conn, area, _iso(since), _iso(until), days=DRIFT_DAYS, src=src, limit=None,
+                           min_change=DRIFT_MIN_CHANGE if judge else 0.1, **judge)
+    if not judge:
+        return found
+    found = [d for d in found if d["point_id"] in peers and abs(d["change"] - d["peers_change"])
+             >= (WELL_MIN_CHANGE if peers[d["point_id"]][1] == "well" else DRIFT_MIN_CHANGE)]
+    pos = sorted({i for d in found for i in hand.get(asset.get(d["point_id"]), [])})
+    if pos:  # on equipment whose choke or valve the operators moved over the months: perhaps set by hand
+        from ..analysis import studies
+        from ..sources import timeseries
+
+        pts = list(timeseries._points(conn, pos).values())
+        times, X = studies.matrix(pts, since - timedelta(days=DRIFT_DAYS), until, 360, src)
+        days = times.astype("datetime64[D]")  # each day's level, as the drift detector keeps it
+        with np.errstate(all="ignore"), warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            X = np.array([np.nanmedian(X[days == d], axis=0) for d in np.unique(days)]).reshape(-1, len(pts))
+        moved = {asset[i] for i in drift.moved_by_hand(X, [p["id"] for p in pts])}
+        for d in found:
+            d["choke_moved"] = asset.get(d["point_id"]) in moved
+    return found
 
 
 def _ids(ev: dict) -> set[str]:
@@ -282,7 +300,8 @@ def bar_met(recorded: list[dict] | None = None) -> dict:
         from ..resources import ROOT
 
         recorded = [json.loads(f.read_text()) for f in sorted((ROOT / "evals" / "runs").glob("*-watch-*.json"))]
-    latest = {r["bundle"]: r for r in recorded if r.get("kind") == "watch" and r.get("windows")}
+    latest = {r["bundle"]: r for r in recorded  # a run answered offline (watch_eval.Offline) never earns it
+              if r.get("kind") == "watch" and r.get("windows") and not r.get("offline")}
     short = sorted(b for b, r in latest.items() if not r.get("passes"))
     return {"met": bool(latest) and not short, "bundles": sorted(latest), "short": short}
 

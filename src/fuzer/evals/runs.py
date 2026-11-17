@@ -41,7 +41,7 @@ def packs(res: dict, models: dict | None = None) -> dict:
 
 
 WATCH = ("upsets", "caught", "uncaught", "proposals", "matched_uncaught", "matched_caught", "false_proposals", "matched",
-         "precision", "recall", "cited", "passes", "uncaught_examples", "false_examples")
+         "precision", "recall", "cited", "passes", "uncaught_examples", "false_examples", "offline", "asked", "missing")
 
 
 def watch(res: dict, model: str | None) -> dict:
