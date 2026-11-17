@@ -16,6 +16,7 @@ Fuzer never copies time series: it asks a provider for values when needed. Each 
 """
 
 import hashlib
+import math
 from datetime import datetime, timedelta
 from typing import Protocol
 
@@ -49,7 +50,10 @@ def to_point_unit(values: list[tuple[str, float]], uom: str) -> list[tuple[str, 
     if not conv:
         return values
     f, o = conv
-    return [(t, round(x * f + o, 3)) for t, x in values]
+    # to the same resolution the model gave: a millimetre's noise in inches needs more decimals than 3, or an axial
+    # position or a vibration reads flat (frozen)
+    n = 3 + max(0, -math.floor(math.log10(f)))
+    return [(t, round(x * f + o, n)) for t, x in values]
 
 
 def base_level(uom: str, description: str = "", levels=()) -> float:
