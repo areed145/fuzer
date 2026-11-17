@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTheme } from "./theme";
+import { DiagramNeedsReload, staleBuild } from "./DiagramNeedsReload";
 
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
 
@@ -10,10 +11,11 @@ export function MermaidDiagram({ source }: { source: string }) {
   const id = useId().replace(/\W/g, "");
   const theme = useTheme();
   const [failed, setFailed] = useState(false);
+  const [stale, setStale] = useState(false);
   const [drawn, setDrawn] = useState(false);
   useEffect(() => {
     let gone = false;
-    setFailed(false); setDrawn(false);
+    setFailed(false); setStale(false); setDrawn(false);
     import("mermaid").then(async ({ default: mermaid }) => {
       mermaid.initialize({
         startOnLoad: false, securityLevel: "strict", theme: "base", fontFamily: getComputedStyle(document.body).fontFamily,
@@ -26,9 +28,10 @@ export function MermaidDiagram({ source }: { source: string }) {
       if (gone || !element.current) return;
       element.current.innerHTML = svg;
       setDrawn(true);
-    }).catch(() => { if (!gone) setFailed(true); });
+    }).catch((error) => { if (!gone) { setFailed(true); setStale(staleBuild(error)); } });
     return () => { gone = true; };
   }, [source, theme, id]);
+  if (stale) return <DiagramNeedsReload source={source} />;
   return <figure className="md-diagram">
     {failed
       ? <p className="small muted">This diagram could not be drawn, so its source is shown below.</p>

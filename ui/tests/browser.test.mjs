@@ -2742,6 +2742,23 @@ test("A diagram Mermaid can't draw shows its source, and diagram text can't run 
   assert.equal(await page.locator('.md-diagram svg img[onerror], .md-diagram svg script, .md-diagram svg a[href^="javascript"]').count(), 0);
 });
 
+const GANTT = ["```mermaid", "gantt", "    title OK-TAR-2026 scoped work", "    dateFormat YYYY-MM-DD", "    section MECH crew",
+  "    50000306 20-K-2200B overhaul :crit, t306, 2027-02-22, 5d", "    50000307 20-E-2350A retube :t307, 2027-02-22, 4d", "```"].join("\n");
+
+test("Ask draws a Mermaid Gantt", async () => {
+  await askFor(GANTT);
+  await page.locator(".md-diagram svg").getByText("20-K-2200B overhaul", { exact: false }).first().waitFor();
+});
+
+test("A diagram whose drawing code went with an earlier deploy offers a reload, not a dead diagram (P5.18a)", async () => {
+  await page.route("**/assets/ganttDiagram-*", (route) => route.fulfill({ status: 404, body: "Not Found" }));
+  await askFor(GANTT);
+  await page.getByText("Fuzer was updated since this page opened", { exact: false }).waitFor();
+  await page.locator(".md-diagram").getByRole("button", { name: "Reload" }).waitFor();
+  await page.locator(".md-diagram pre").getByText("20-K-2200B overhaul", { exact: false }).waitFor();
+  assert.equal(await page.getByText("could not be drawn", { exact: false }).count(), 0, "It isn't blamed on the diagram");
+});
+
 test("Citations read as linked names, and raw ids never reach the page", async () => {
   const well = "fz-well-2526585e8224", term = "fz-allocation_node-b708d0477249", day = "fz-daily_report-82c067e8e550", unknown = "fz-tag-000000000000";
   await page.route("**/entities/names*", (route) => route.fulfill({ json: {
