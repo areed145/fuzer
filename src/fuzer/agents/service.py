@@ -35,7 +35,7 @@ def team():
         from . import team as make_team
         from .history import PostgresHistory
 
-        if not llm.configured("agents"):
+        if not llm.configured("agents", person=True):  # a person asks: the monthly budget doesn't stop them
             raise Unavailable("Configure the agents provider API key to use the operations assistant.")
         _team = make_team(history=PostgresHistory())
     return _team
@@ -75,7 +75,10 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
         _jobs.pop(finished)
 
     async def run():
+        from ..core import usage
+
         ASKER.set(by)  # this task's own context: what the assistant drafts belongs to who asked
+        usage._person.set(True)  # and a person is waiting on it, so the monthly cap on automated use doesn't apply
         try:
             async with asyncio.timeout(settings.get(None, "assistant.timeout_seconds")):
                 out = await ask(sent, agent, session, job["trace"], images)

@@ -7,8 +7,10 @@ results are kept the same way, at the batch price. So an administrator sees the 
 
 - `feature("case brief")` names the feature for the calls inside it. Without one, the calling module is named.
 - `month_spend()` is this calendar month's estimated spend, all projects (UTC months, as the provider bills).
-- The setting `llm.budget_usd_month` caps it: at the cap, `llm.configured()` says no provider is configured, so each
-  feature turns itself off as it does without a key, and a call that is made anyway is refused (`BudgetReached`).
+- The setting `llm.budget_usd_month` caps automated use: at the cap, `llm.configured()` says no provider is configured,
+  so each background feature turns itself off as it does without a key, and a call made anyway is refused
+  (`BudgetReached`). A person's own question (Ask, "remember this") runs inside `person()` and is never capped: its
+  spend still counts toward the month, so it keeps the automated features off, but it isn't refused.
   At `llm.budget_alert_pct` of the cap the alert webhook is told once a month.
 - `summary(conn, days)` is the page: totals, by day, by feature, by model and by project, with the budget.
 
@@ -28,6 +30,7 @@ from . import db, settings
 log = logging.getLogger(__name__)
 
 _feature: ContextVar[str | None] = ContextVar("fuzer_llm_feature", default=None)
+_person: ContextVar[bool] = ContextVar("fuzer_llm_person", default=False)
 SPEND_SECONDS = 30  # how long the month's spend is kept before it is read again
 _spend: dict[str, tuple[float, float]] = {}
 _alerted: set[str] = set()
@@ -47,6 +50,20 @@ NAMES = {
     "sources.suggest": "Source mapping suggestions", "sources.onboard": "Source onboarding",
     "sources.preview": "Source preview", "evals": "Evaluations",
 }
+
+
+@contextmanager
+def person():
+    """Calls inside the block answer a person who is waiting (Ask, "remember this"): the monthly cap doesn't refuse them."""
+    token = _person.set(True)
+    try:
+        yield
+    finally:
+        _person.reset(token)
+
+
+def asked_by_person() -> bool:
+    return _person.get()
 
 
 class BudgetReached(RuntimeError):
@@ -112,7 +129,9 @@ def over_budget() -> bool:
 
 
 def check() -> None:
-    """Refuse a call once the month's spend has reached its cap."""
+    """Refuse an automated call once the month's spend has reached its cap; a person's own question goes through."""
+    if _person.get():
+        return
     cap = budget()
     if cap and (spent := month_spend()) >= cap:
         raise BudgetReached(f"This month's model spend (${spent:.2f}) has reached its budget of ${cap:.2f} "
