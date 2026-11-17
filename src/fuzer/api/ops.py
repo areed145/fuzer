@@ -458,7 +458,7 @@ def plant_intervention_gains(days: int = 730, conn=Depends(get_conn)):
 
 @router.get("/plant/accounting")
 def plant_accounting(days: int = 365, conn=Depends(get_conn)):
-    """Each month's daily allocated oil and gas against production accounting, and operating cost per accounted Sm3,
+    """Each month's daily allocated oil and gas against production accounting, and operating cost per accounted barrel,
     each citing both sources and periods (P7.5c, #372)."""
     from ..analysis import accounting
     days = max(31, min(days, 1825))

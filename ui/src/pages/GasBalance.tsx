@@ -42,10 +42,10 @@ export function GasBalance() {
           <tbody>{latest.map((r) => (
             <tr key={r.date} data-date={r.date}>
               <td>{r.date}</td>
-              <td data-label="Gas handled">{r.gas_in_ksm3} kSm³</td>
+              <td data-label="Gas handled">{r.gas_in_mscf} Mscf</td>
               <td data-label="Fuel">{r.fuel ?? "not reported"}</td>
               <td data-label="Vent">{r.vent ?? "not reported"}</td>
-              <td data-label="Gap">{r.gap_ksm3} kSm³ ({r.gap_pct}%)</td>
+              <td data-label="Gap">{r.gap_mscf} Mscf ({r.gap_pct}%)</td>
             </tr>
           ))}</tbody>
         </Table>

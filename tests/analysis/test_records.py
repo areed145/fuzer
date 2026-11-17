@@ -34,7 +34,7 @@ def test_the_planted_mismatches_are_found_with_the_tolerances_stated(conn):
     assert "12 h" in m["basis"] and m["records_through"].startswith("2025-12-30")
     [dt] = m["downtime_without_records"]
     assert dt["at"] == "2025-12-27T02:40" and dt["about"][0] == "40-V-2002" and dt["reason"] == "Process trip"
-    assert dt["missing"] == ["log", "notification"] and dt["lost_oil_sm3"] == 300
+    assert dt["missing"] == ["log", "notification"] and dt["lost_oil_bbl"] == 1887
     [lg] = m["log_stops_without_downtime"]
     assert lg["about"] == ["OK-J09-02"] and lg["missing"] == ["downtime"] and "shut in" in lg["text"]
     assert "not proof" in m["caveats"][0]

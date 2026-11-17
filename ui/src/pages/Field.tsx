@@ -406,7 +406,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
           <Input aria-label="What was read" placeholder="what (e.g. bearing temperature)" value={what} onChange={(e) => setWhat(e.target.value)} />
           <Input aria-label="Reading" type="number" inputMode="decimal" step="any" placeholder="value" value={value}
             onChange={(e) => setValue(e.target.value)} />
-          <Input aria-label="Unit" placeholder="unit (°C, barg, mm/s)" value={unit} onChange={(e) => setUnit(e.target.value)} />
+          <Input aria-label="Unit" placeholder="unit (°F, psig, in/s)" value={unit} onChange={(e) => setUnit(e.target.value)} />
         </div>
         <label className="small" htmlFor={`photo-${job.id}`}>Photos {photos.length ? `(${photos.length})` : ""}</label>
         <input id={`photo-${job.id}`} type="file" accept="image/*" capture="environment" multiple

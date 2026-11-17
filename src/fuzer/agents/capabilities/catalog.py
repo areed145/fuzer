@@ -166,7 +166,7 @@ AGENT_CATALOG = (
         (MAINTENANCE_COORDINATOR, RELIABILITY_ENGINEER, INSPECTION_SPECIALIST, INTEGRITY_ENGINEER),
         ("Linked work orders, incidents, PM/inspection records, and measured condition data where available.",),
         ("Ranked evidence summaries with data dates, units, and explicit coverage gaps.",),
-        ("OEM curves cover only the models loaded, so `equipment_curves` decides whether a curve comparison is possible; vibration is overall mm/s from PI, with spectra only where the condition-monitoring route takes them (`vibration_spectra`); no inferred inspection status.",),
+        ("OEM curves cover only the models loaded, so `equipment_curves` decides whether a curve comparison is possible; vibration is overall in/s from PI, with spectra only where the condition-monitoring route takes them (`vibration_spectra`); no inferred inspection status.",),
         ("Maintenance execution, deferral, integrity acceptance, and shutdown decisions require accountable human approval.",),
     ),
     AgentDefinition(

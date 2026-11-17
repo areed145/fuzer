@@ -27,6 +27,9 @@ AIR = 28.9647  # g/mol
 DEFAULT_SG = 0.68  # a lean associated gas, when no analysis is on file
 DROP = 0.03
 MISMATCH = 0.08
+ACFM_PER_M3H = 0.588578  # suction flow points are in acfm; the density is per m3
+HP_PER_KW = 1.34102
+FT_PER_KJ_KG = 334.553  # polytropic head: 1 kJ/kg is 334.553 ft (ft-lbf/lbm)
 
 
 def _tag(conn, fid: str) -> str:
@@ -83,9 +86,11 @@ def k_ideal(g: dict, t_k: float) -> float:
 
 
 def stage_state(g: dict, ps: float, pd: float, ts: float, td: float) -> dict | None:
-    """Polytropic efficiency, head (kJ/kg) and the suction density on real-gas properties, from gauge pressures
-    (barg) and temperatures (degC). None when the stage isn't compressing."""
-    p1, p2, t1, t2 = ps + 1.01325, pd + 1.01325, ts + 273.15, td + 273.15
+    """Polytropic efficiency, head (kJ/kg) and the suction density (kg/m3) on real-gas properties, from gauge
+    pressures (psig) and temperatures (°F). The correlations are SI, so the inputs convert here. None when the stage
+    isn't compressing."""
+    p1, p2 = (ps + 14.696) / 14.5038, (pd + 14.696) / 14.5038  # bara
+    t1, t2 = (ts - 32) / 1.8 + 273.15, (td - 32) / 1.8 + 273.15  # K
     if p2 / p1 < 1.2 or t2 <= t1:
         return None
     z1, z2 = z_factor(g, p1, t1), z_factor(g, p2, t2)
@@ -102,7 +107,7 @@ def stage_state(g: dict, ps: float, pd: float, ts: float, td: float) -> dict | N
 
 
 def _stage(conn, label: str) -> dict:
-    """A stage's points: pressures and temperatures (the cooler before it, else the ambient + 8 for a 1st stage
+    """A stage's points: pressures and temperatures (the cooler before it, else the ambient + 14 °F for a 1st stage
     with no suction thermometer), and its suction flow."""
     from ..graph import roles
     from .equipment import _stage_points, role_point
@@ -118,7 +123,7 @@ def _stage(conn, label: str) -> dict:
             from ..sources.timeseries import _point
 
             pts["ts"] = _point(conn, amb)
-            assumed = "the ambient temperature + 8 degC (no suction thermometer on a 1st stage)"
+            assumed = "the ambient temperature + 14 °F (no suction thermometer on a 1st stage)"
     missing = [k for k in ("ps", "pd", "ts", "td") if not pts.get(k)]
     if missing:
         raise CalcError(f"{label}: no " + ", ".join(missing) + " point")
@@ -129,11 +134,11 @@ def _rows(g: dict, st: dict, v: dict, ts: str) -> dict | None:
     x = {k: v[k].get(ts) for k in st["points"]}
     if any(x[k] is None for k in ("ps", "pd", "ts", "td")):
         return None
-    t_s = x["ts"] + 8 if st["assumed_suction"] else x["ts"]
+    t_s = x["ts"] + 14 if st["assumed_suction"] else x["ts"]
     s = stage_state(g, x["ps"], x["pd"], t_s, x["td"])
     if s and x.get("q"):
-        s["mass_kg_s"] = x["q"] * s["rho1"] / 3600
-        s["gas_kw"] = s["mass_kg_s"] * s["head"] / s["eta"]
+        s["mass_kg_s"] = x["q"] / ACFM_PER_M3H * s["rho1"] / 3600  # suction flow in acfm
+        s["gas_hp"] = s["mass_kg_s"] * s["head"] / s["eta"] * HP_PER_KW
     return s
 
 
@@ -173,10 +178,10 @@ def gas_performance(conn, fid: str, days: int = 30, until: str | None = None, sr
                   + (f"; suction temperature taken as {st['assumed_suction']}" if st["assumed_suction"] else ""),
                   [tag, *[p["id"] for p in st["points"].values()], *([g["source"]] if g["source"] else [])],
                   unit="polytropic efficiency", machine=label, gas=g,
-                  head_kj_kg=round(med(last, "head"), 1), k=round(med(last, "k"), 3),
+                  head_ft=round(med(last, "head") * FT_PER_KJ_KG), k=round(med(last, "k"), 3),
                   z_suction=round(med(last, "z1"), 3), z_discharge=round(med(last, "z2"), 3),
-                  mass_flow_kg_s=round(m, 2) if (m := med(last, "mass_kg_s")) else None,
-                  gas_power_kw=round(p, 0) if (p := med(last, "gas_kw")) else None,
+                  mass_flow_lb_s=round(m * 2.20462, 2) if (m := med(last, "mass_kg_s")) else None,
+                  gas_power_hp=round(p, 0) if (p := med(last, "gas_hp")) else None,
                   ideal_gas_efficiency=ideal, data_from=rows[0][0][:10], data_to=rows[-1][0][:10], readings=len(rows),
                   daily=[{"day": d, "efficiency": round(float(np.median(x)), 3)} for d, x in sorted(daily.items())][-60:])
 
@@ -209,8 +214,8 @@ def power_balance(conn, fid: str, days: int = 30, until: str | None = None, src=
         if pw[t] < 0.5 * top:
             continue
         parts = [_rows(g, sts[s], vals[s], t) for s in stages]
-        if all(p and "gas_kw" in p for p in parts):
-            rows.append((t, sum(p["gas_kw"] for p in parts), pw[t], [p["gas_kw"] for p in parts]))
+        if all(p and "gas_hp" in p for p in parts):
+            rows.append((t, sum(p["gas_hp"] for p in parts), pw[t], [p["gas_hp"] for p in parts]))
     if len(rows) < 48:
         raise CalcError("the train hardly ran with every stage measurable in that window")
     first = [r for r in rows if r[0] < (start + timedelta(days=7)).isoformat()] or rows[:72]
@@ -225,8 +230,8 @@ def power_balance(conn, fid: str, days: int = 30, until: str | None = None, src=
                   f"the power estimate are right; a shift of {MISMATCH * 100:g} % or more means one of them moved",
                   [tag, power["id"], *[p["id"] for st in sts.values() for p in st["points"].values()]],
                   unit="closure (gas power / driver power)", machine=_label(conn, tag), driver=gt, train=tr["name"],
-                  shift_pct=round(shift * 100, 1), gas_power_kw=round(float(np.median([r[1] for r in last])), 0),
-                  driver_power_kw=round(float(np.median([r[2] for r in last])), 0),
-                  by_stage=[{"stage": s, "gas_power_kw": round(float(np.median([r[3][i] for r in last])), 0)}
+                  shift_pct=round(shift * 100, 1), gas_power_hp=round(float(np.median([r[1] for r in last])), 0),
+                  driver_power_hp=round(float(np.median([r[2] for r in last])), 0),
+                  by_stage=[{"stage": s, "gas_power_hp": round(float(np.median([r[3][i] for r in last])), 0)}
                             for i, s in enumerate(stages)], gas=g,
                   data_from=rows[0][0][:10], data_to=rows[-1][0][:10], readings=len(rows))

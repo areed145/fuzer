@@ -192,7 +192,7 @@ downtime_reasons:
 # rank on one board. Change a price or the matrix here and everything re-ranks; no code changes.
 value:
   currency: USD
-  prices: {oil_sm3: 470, gas_ksm3: 150}       # ~75 $/bbl Brent; EGP gas contract
+  prices: {oil_bbl: 75, gas_mscf: 4.25}       # ~75 $/bbl Brent; gas contract about 4.25 $/Mscf
   horizon_days: 90                            # how long a risk or a gain counts if nothing is done
   incident_lookback_days: 365                 # upsets this recent are scored (as the cost of a repeat)
   risk_matrix:
@@ -226,9 +226,9 @@ value:
 limits:
   priority: [dcs, pi_af]
   run_signals:
-    - {uom: kW, above: 20}
+    - {uom: hp, above: 27}
     - {uom: rpm, above: 3000}
-    - {uom: mm/s, above: 1.0}
+    - {uom: in/s, above: 0.04}
     - {point: '\.CHOKE$', above: 5}
   settle_minutes: 180     # after a start, temperatures and pressures settle before limits count
   # Positions operators set get no learned range.

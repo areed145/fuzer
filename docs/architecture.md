@@ -595,6 +595,7 @@ The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 - **Uses:** agents, analysis, api, core, evals, graph, ops, sources, workflow
 - **Writes** ([schema](schema.md)):
     - `llm_extraction`
+    - `source_dataset`
 - **Tests:** [`tests/cli`](https://github.com/areed145/fuzer/tree/main/tests/cli)
 
 ### Core

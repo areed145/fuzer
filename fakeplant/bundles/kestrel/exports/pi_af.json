@@ -27,11 +27,11 @@
    {
     "name": "Inlet Separator Pressure",
     "pi_point": "KRGP:A1.PT1001.PV",
-    "uom": "barg",
-    "HiHi": 28.5,
-    "Hi": 27.0,
-    "Lo": 22.0,
-    "LoLo": 20.0
+    "uom": "psig",
+    "HiHi": 413.4,
+    "Hi": 391.6,
+    "Lo": 319.1,
+    "LoLo": 290.1
    },
    {
     "name": "Inlet Separator Liquid Level",
@@ -51,7 +51,7 @@
    {
     "name": "Inlet Gas Flow",
     "pi_point": "KRGP:A1.FT1002.PV",
-    "uom": "ksm3/d"
+    "uom": "Mscf/d"
    }
   ]
  },
@@ -62,31 +62,31 @@
    {
     "name": "Compressor Discharge Pressure",
     "pi_point": "KRGP:B1.PT2001.PV",
-    "uom": "barg",
-    "HiHi": 75,
-    "Hi": 72,
-    "Lo": 55
+    "uom": "psig",
+    "HiHi": 1088.0,
+    "Hi": 1044.0,
+    "Lo": 797.7
    },
    {
     "name": "Compressor Discharge Temperature",
     "pi_point": "KRGP:B1.TT2002.PV",
-    "uom": "degC",
-    "HiHi": 150,
-    "Hi": 140
+    "uom": "degF",
+    "HiHi": 302.0,
+    "Hi": 284.0
    },
    {
     "name": "Compressor Vibration",
     "pi_point": "KRGP:B1.VT2003.PV",
-    "uom": "mm/s",
-    "HiHi": 11.2,
-    "Hi": 7.1
+    "uom": "in/s",
+    "HiHi": 0.441,
+    "Hi": 0.28
    },
    {
     "name": "Compressor Suction Pressure",
     "pi_point": "KRGP:B1.PT2006.PV",
-    "uom": "barg",
-    "Hi": 27.0,
-    "Lo": 20.0
+    "uom": "psig",
+    "Hi": 391.6,
+    "Lo": 290.1
    },
    {
     "name": "Compressor Speed",
@@ -98,101 +98,101 @@
    {
     "name": "Compressor Interstage Pressure",
     "pi_point": "KRGP:B1.PT2007.PV",
-    "uom": "barg",
-    "HiHi": 50,
-    "Hi": 48,
-    "Lo": 36
+    "uom": "psig",
+    "HiHi": 725.2,
+    "Hi": 696.2,
+    "Lo": 522.1
    },
    {
     "name": "Compressor Cylinder 1 Discharge Temperature",
     "pi_point": "KRGP:B1.TT2021.PV",
-    "uom": "degC",
-    "HiHi": 150,
-    "Hi": 140
+    "uom": "degF",
+    "HiHi": 302.0,
+    "Hi": 284.0
    },
    {
     "name": "Compressor Cylinder 2 Discharge Temperature",
     "pi_point": "KRGP:B1.TT2022.PV",
-    "uom": "degC",
-    "HiHi": 150,
-    "Hi": 140
+    "uom": "degF",
+    "HiHi": 302.0,
+    "Hi": 284.0
    },
    {
     "name": "Compressor Cylinder 3 Discharge Temperature",
     "pi_point": "KRGP:B1.TT2023.PV",
-    "uom": "degC",
-    "HiHi": 150,
-    "Hi": 140
+    "uom": "degF",
+    "HiHi": 302.0,
+    "Hi": 284.0
    },
    {
     "name": "Compressor Cylinder 4 Discharge Temperature",
     "pi_point": "KRGP:B1.TT2024.PV",
-    "uom": "degC",
-    "HiHi": 150,
-    "Hi": 140
+    "uom": "degF",
+    "HiHi": 302.0,
+    "Hi": 284.0
    },
    {
     "name": "Compressor Frame Lube Oil Pressure",
     "pi_point": "KRGP:B1.PT2008.PV",
-    "uom": "barg",
-    "Lo": 2.8,
-    "LoLo": 2.0
+    "uom": "psig",
+    "Lo": 40.61,
+    "LoLo": 29.01
    },
    {
     "name": "Engine Cylinder 1 Exhaust Temperature",
     "pi_point": "KRGP:B1.TT2031.PV",
-    "uom": "degC",
-    "HiHi": 650,
-    "Hi": 620
+    "uom": "degF",
+    "HiHi": 1202.0,
+    "Hi": 1148.0
    },
    {
     "name": "Engine Cylinder 2 Exhaust Temperature",
     "pi_point": "KRGP:B1.TT2032.PV",
-    "uom": "degC",
-    "HiHi": 650,
-    "Hi": 620
+    "uom": "degF",
+    "HiHi": 1202.0,
+    "Hi": 1148.0
    },
    {
     "name": "Engine Cylinder 3 Exhaust Temperature",
     "pi_point": "KRGP:B1.TT2033.PV",
-    "uom": "degC",
-    "HiHi": 650,
-    "Hi": 620
+    "uom": "degF",
+    "HiHi": 1202.0,
+    "Hi": 1148.0
    },
    {
     "name": "Engine Cylinder 4 Exhaust Temperature",
     "pi_point": "KRGP:B1.TT2034.PV",
-    "uom": "degC",
-    "HiHi": 650,
-    "Hi": 620
+    "uom": "degF",
+    "HiHi": 1202.0,
+    "Hi": 1148.0
    },
    {
     "name": "Engine Cylinder 5 Exhaust Temperature",
     "pi_point": "KRGP:B1.TT2035.PV",
-    "uom": "degC",
-    "HiHi": 650,
-    "Hi": 620
+    "uom": "degF",
+    "HiHi": 1202.0,
+    "Hi": 1148.0
    },
    {
     "name": "Engine Cylinder 6 Exhaust Temperature",
     "pi_point": "KRGP:B1.TT2036.PV",
-    "uom": "degC",
-    "HiHi": 650,
-    "Hi": 620
+    "uom": "degF",
+    "HiHi": 1202.0,
+    "Hi": 1148.0
    },
    {
     "name": "Engine Cylinder 7 Exhaust Temperature",
     "pi_point": "KRGP:B1.TT2037.PV",
-    "uom": "degC",
-    "HiHi": 650,
-    "Hi": 620
+    "uom": "degF",
+    "HiHi": 1202.0,
+    "Hi": 1148.0
    },
    {
     "name": "Engine Cylinder 8 Exhaust Temperature",
     "pi_point": "KRGP:B1.TT2038.PV",
-    "uom": "degC",
-    "HiHi": 650,
-    "Hi": 620
+    "uom": "degF",
+    "HiHi": 1202.0,
+    "Hi": 1148.0
    }
   ]
  },
@@ -203,9 +203,9 @@
    {
     "name": "Aftercooler Outlet Temperature",
     "pi_point": "KRGP:B1.TT2011.PV",
-    "uom": "degC",
-    "HiHi": 55,
-    "Hi": 45
+    "uom": "degF",
+    "HiHi": 131.0,
+    "Hi": 113.0
    }
   ]
  },
@@ -216,7 +216,7 @@
    {
     "name": "Dry Gas Flow",
     "pi_point": "KRGP:C1.FT3005.PV",
-    "uom": "ksm3/d"
+    "uom": "Mscf/d"
    }
   ]
  },
@@ -252,9 +252,9 @@
    {
     "name": "Inlet Filter Coalescer Differential Pressure",
     "pi_point": "KRGP:A1.PDT1004.PV",
-    "uom": "bar",
-    "HiHi": 1.0,
-    "Hi": 0.8
+    "uom": "psi",
+    "HiHi": 14.5,
+    "Hi": 11.6
    }
   ]
  },
@@ -265,8 +265,8 @@
    {
     "name": "Inlet Condensate Flow",
     "pi_point": "KRGP:A1.FT1008.PV",
-    "uom": "m3/d",
-    "Lo": 40
+    "uom": "bbl/d",
+    "Lo": 251.6
    }
   ]
  },
@@ -290,11 +290,11 @@
    {
     "name": "TEG Reboiler Temperature",
     "pi_point": "KRGP:C1.TT3008.PV",
-    "uom": "degC",
-    "HiHi": 204,
-    "Hi": 202,
-    "Lo": 195,
-    "LoLo": 190
+    "uom": "degF",
+    "HiHi": 399.2,
+    "Hi": 395.6,
+    "Lo": 383.0,
+    "LoLo": 374.0
    }
   ]
  },
@@ -305,9 +305,9 @@
    {
     "name": "Dry Gas Water Content",
     "pi_point": "KRGP:C1.AT3011.PV",
-    "uom": "mg/Sm3",
-    "HiHi": 112,
-    "Hi": 100
+    "uom": "lb/MMscf",
+    "HiHi": 6.992,
+    "Hi": 6.243
    }
   ]
  },
@@ -318,9 +318,9 @@
    {
     "name": "Amine Contactor Differential Pressure",
     "pi_point": "KRGP:D1.PDT4001.PV",
-    "uom": "bar",
-    "HiHi": 0.9,
-    "Hi": 0.6
+    "uom": "psi",
+    "HiHi": 13.05,
+    "Hi": 8.702
    },
    {
     "name": "Sweet Gas CO2",
@@ -338,10 +338,10 @@
    {
     "name": "Amine Reboiler Temperature",
     "pi_point": "KRGP:D1.TT4006.PV",
-    "uom": "degC",
-    "HiHi": 127,
-    "Hi": 125,
-    "Lo": 115
+    "uom": "degF",
+    "HiHi": 260.6,
+    "Hi": 257.0,
+    "Lo": 239.0
    }
   ]
  },
@@ -352,9 +352,9 @@
    {
     "name": "Lean Amine Temperature",
     "pi_point": "KRGP:D1.TT4007.PV",
-    "uom": "degC",
-    "HiHi": 60,
-    "Hi": 55
+    "uom": "degF",
+    "HiHi": 140.0,
+    "Hi": 131.0
    }
   ]
  },
@@ -365,9 +365,9 @@
    {
     "name": "Lean Amine Circulation",
     "pi_point": "KRGP:D1.FT4009.PV",
-    "uom": "m3/h",
-    "Lo": 15,
-    "LoLo": 12
+    "uom": "gpm",
+    "Lo": 66.04,
+    "LoLo": 52.83
    }
   ]
  },
@@ -378,9 +378,9 @@
    {
     "name": "Low Temperature Separator Temperature",
     "pi_point": "KRGP:E1.TT5003.PV",
-    "uom": "degC",
-    "HiHi": -12,
-    "Hi": -15
+    "uom": "degF",
+    "HiHi": 10.4,
+    "Hi": 5.0
    }
   ]
  },
@@ -391,9 +391,9 @@
    {
     "name": "Refrigeration Compressor Suction Pressure",
     "pi_point": "KRGP:E1.PT5004.PV",
-    "uom": "barg",
-    "Hi": 1.5,
-    "Lo": 0.2
+    "uom": "psig",
+    "Hi": 21.76,
+    "Lo": 2.901
    }
   ]
  },
@@ -404,8 +404,8 @@
    {
     "name": "Propane Condenser Outlet Temperature",
     "pi_point": "KRGP:E1.TT5005.PV",
-    "uom": "degC",
-    "Hi": 50
+    "uom": "degF",
+    "Hi": 122.0
    }
   ]
  },
@@ -416,9 +416,9 @@
    {
     "name": "Stabilizer Reboiler Temperature",
     "pi_point": "KRGP:F1.TT6003.PV",
-    "uom": "degC",
-    "Hi": 175,
-    "Lo": 150
+    "uom": "degF",
+    "Hi": 347.0,
+    "Lo": 302.0
    }
   ]
  },
@@ -443,10 +443,10 @@
    {
     "name": "Hot Oil Supply Temperature",
     "pi_point": "KRGP:G1.TT7001.PV",
-    "uom": "degC",
-    "HiHi": 260,
-    "Hi": 250,
-    "Lo": 215
+    "uom": "degF",
+    "HiHi": 500.0,
+    "Hi": 482.0,
+    "Lo": 419.0
    }
   ]
  },
@@ -457,9 +457,9 @@
    {
     "name": "Instrument Air Header Pressure",
     "pi_point": "KRGP:G1.PT7005.PV",
-    "uom": "barg",
-    "Lo": 6.5,
-    "LoLo": 5.5
+    "uom": "psig",
+    "Lo": 94.27,
+    "LoLo": 79.77
    }
   ]
  },
@@ -470,8 +470,8 @@
    {
     "name": "Flare Gas Flow",
     "pi_point": "KRGP:H1.FT8003.PV",
-    "uom": "ksm3/d",
-    "Hi": 50
+    "uom": "Mscf/d",
+    "Hi": 1766.0
    }
   ]
  },
@@ -482,8 +482,8 @@
    {
     "name": "Sales Gas Flow",
     "pi_point": "KRGP:H1.FT8010.PV",
-    "uom": "ksm3/d",
-    "Lo": 1100
+    "uom": "Mscf/d",
+    "Lo": 38846.0
    }
   ]
  }

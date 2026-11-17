@@ -30,7 +30,7 @@ def test_the_flare_takes_relief_from_both_installations(conn):
 def test_the_unexplained_day_is_read_on_the_meter_once(conn):
     [e] = flare.events(conn, "2025-11-09T00:00", 3)
     assert e["source"] == "point" and e["label"] == "25-FT-4003" and not e["attributed"]
-    assert e["start"].startswith("2025-11-08") and 150 < e["volume"] < 190  # the daily report's 170 kSm3 over routine
+    assert e["start"].startswith("2025-11-08") and 5300 < e["volume"] < 6700  # the daily report's 6,000 Mscf over routine
     # before the meter was installed, the daily report is still the flare's only reading
     assert all(x["source"] == "daily_report" for x in flare.events(conn, "2025-02-11T00:00", 3))
 
@@ -38,14 +38,14 @@ def test_the_unexplained_day_is_read_on_the_meter_once(conn):
 def test_ec_allocates_the_flare_back_to_pp_and_ggcp(conn):
     a = flare_review.allocation(conn, "2025-01-01", "2026-01-01")
     by = {g["label"]: g for g in a["sources"]}
-    assert set(by) == {"OKAN-10", "OKAN-20"} and by["OKAN-20"]["ksm3"] > by["OKAN-10"]["ksm3"]
+    assert set(by) == {"OKAN-10", "OKAN-20"} and by["OKAN-20"]["mscf"] > by["OKAN-10"]["mscf"]
     assert "non-routine: export curtailment" in by["OKAN-20"]["by_kind"]
     assert "non-routine: export curtailment" not in by["OKAN-10"]["by_kind"]
     assert {"metered", "estimated"} <= set(by["OKAN-20"]["by_basis"])
     booked = sum(float(r["v"]) for r in conn.execute(
         "select g.value #>> '{}' as v from golden g join golden d on d.fuzer_id = g.fuzer_id and d.field = 'report_date'"
-        " where g.field = 'flare_ksm3' and d.value #>> '{}' >= '2025-01-01'"))
-    assert abs(a["ksm3"] - booked) < 1  # every kSm3 the daily report flared is allocated, no more
+        " where g.field = 'flare_mscf' and d.value #>> '{}' >= '2025-01-01'"))
+    assert abs(a["mscf"] - booked) < 1  # every Mscf the daily report flared is allocated, no more
     assert flare_review.review(conn)["allocation"]["sources"]
 
 

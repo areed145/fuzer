@@ -1,7 +1,7 @@
 """Machinery protection and auxiliaries: the channels a machinery engineer reads before the vibration trend.
 
-- `protection(ref)`: the API 670 protection channels on a machine: shaft vibration at the proximity probes (um
-  pk-pk), the rotor's axial (thrust) position (mm), and the journal and thrust bearing temperatures, each against its
+- `protection(ref)`: the API 670 protection channels on a machine: shaft vibration at the proximity probes (mils
+  pk-pk), the rotor's axial (thrust) position (in), and the journal and thrust bearing temperatures, each against its
   alarm and trip settings, with its 30-day trend and the date it reaches them at that rate. Flags `thrust_wear` (axial
   position or thrust pad temperature past its alarm: the thrust bearing is going, and a thrust failure wrecks the
   rotor), `bearing_hot` (a journal bearing past its alarm), `shaft_vibration_high` (shaft vibration past its alarm),
@@ -26,10 +26,10 @@ from .condition import crossed, daily, eta, points_like, projection, running, se
 SOON_DAYS = 30  # a channel reaching its alarm within this is flagged as rising
 
 CHANNELS = [  # (name, description pattern, unit, which side its limits are on)
-    ("shaft vibration", r"shaft vibration", "um", "hi"),
-    ("axial position", r"axial position|thrust position", "mm", "hi"),
-    ("thrust bearing temperature", r"thrust bearing temp", "degC", "hi"),
-    ("journal bearing temperature", r"journal bearing temp|^(?!.*thrust).*bearing temp", "degC", "hi"),
+    ("shaft vibration", r"shaft vibration", "mils", "hi"),
+    ("axial position", r"axial position|thrust position", "in", "hi"),
+    ("thrust bearing temperature", r"thrust bearing temp", "degF", "hi"),
+    ("journal bearing temperature", r"journal bearing temp|^(?!.*thrust).*bearing temp", "degF", "hi"),
 ]
 
 
@@ -170,7 +170,7 @@ def lube_oil(conn, fid: str, days: int = 90, until: str | None = None, src=None)
         now = float(np.median(ys[-3:]))
         state = crossed(now, lim, side)
         out[k] = {"point": p["point"], "id": p["id"], "now": round(now, 2), "unit": p["uom"], "alarm": alarm,
-                  "trip": trip, "state": state or "normal", "per_week": round(a["per_day"] * 7, 3),
+                  "trip": trip, "state": state or "normal", "per_week": float(f"{a['per_day'] * 7:.3g}"),
                   "reaches_alarm": a["reaches"], "reaches_trip": t["reaches"], "data_from": days_[0],
                   "data_to": days_[-1], "readings": len(ys),
                   "daily": [{"day": d, "value": round(float(y), 2)} for d, y in zip(days_, ys)][-60:]}

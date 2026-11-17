@@ -22,10 +22,10 @@ export function FlareAttribution() {
       <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
       {d && s && <>
         <div className="small flare-summary">
-          {d.since} to {d.until}: {s.flare_ksm3.toLocaleString()} kSm3 flared, {s.episodes} episodes above the baseline
+          {d.since} to {d.until}: {s.flare_mscf.toLocaleString()} Mscf flared, {s.episodes} episodes above the baseline
           {" "}({s.attributed} with records around them, {s.unknown} cause unknown)
           {s.explained_share_pct != null && <>; the records explain {s.explained_share_pct}% of the
-            {" "}{s.over_baseline_ksm3.toLocaleString()} kSm3 over the baseline</>}.
+            {" "}{s.over_baseline_mscf.toLocaleString()} Mscf over the baseline</>}.
         </div>
         {d.episodes.length ? (
           <ul className="plain small flare-episodes">{d.episodes.map((e) => (
@@ -49,11 +49,11 @@ export function FlareAttribution() {
         ))}
         {d.allocation && d.allocation.sources.length > 0 && (
           <Table density="compact" className="flare-allocation phone-rows">
-            <thead><tr><th>Allocated to</th><th>kSm3</th><th>Share</th><th>Non-routine</th><th>Metered</th></tr></thead>
+            <thead><tr><th>Allocated to</th><th>Mscf</th><th>Share</th><th>Non-routine</th><th>Metered</th></tr></thead>
             <tbody>{d.allocation.sources.map((g) => (
               <tr key={g.source}>
                 <td><a href={entityHref(g.source)}>{g.name}</a></td>
-                <td>{g.ksm3.toLocaleString()}</td>
+                <td>{g.mscf.toLocaleString()}</td>
                 <td>{g.share_pct != null ? `${g.share_pct}%` : "-"}</td>
                 <td>{Object.entries(g.by_kind).filter(([k]) => k !== "routine")
                   .reduce((t, [, v]) => t + v, 0).toLocaleString()}</td>

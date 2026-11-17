@@ -180,8 +180,8 @@ def bar(conn, dataset: str, since: str | None = None, until: str | None = None, 
     if dataset.startswith("deferment_by_"):
         by = dataset.removeprefix("deferment_by_")
         out = ops.deferment_pareto(conn, by, since, until, limit)
-        items = [(r.get("label") or r.get(by) or "?", r["lost_oil_sm3"], r.get("fuzer_id")) for r in out["items"]]
-        unit, total, what = "Sm3 oil", out["total_lost_oil_sm3"], f"Deferred oil by {by}"
+        items = [(r.get("label") or r.get(by) or "?", r["lost_oil_bbl"], r.get("fuzer_id")) for r in out["items"]]
+        unit, total, what = "bbl oil", out["total_lost_oil_bbl"], f"Deferred oil by {by}"
     elif dataset == "failures_by_tag":
         out = ops.bad_actors(conn, since, until, limit)
         items = [(r["tag"], r["failures"], r["id"]) for r in out["bad_actors"]]
@@ -307,12 +307,12 @@ def loss_waterfall(conn, since: str, until: str, pack=None) -> Figure:
                             {"s": since, "u": until})
     if not days:
         raise ChartError("no DAY001 reports in that period")
-    pot = sum(operations._num(d["f"].get("oil_potential_sm3")) for d in days)
-    act = sum(operations._num(d["f"].get("oil_sm3")) for d in days)
+    pot = sum(operations._num(d["f"].get("oil_potential_bbl")) for d in days)
+    act = sum(operations._num(d["f"].get("oil_bbl")) for d in days)
     planned, unplanned = 0.0, {}
     for r in operations._rows(conn, "downtime", "f->>'start' >= %(s)s and f->>'start' < %(u)s", {"s": since, "u": until}):
         f = r["f"]
-        lost = operations._num(f.get("lost_oil_sm3"))
+        lost = operations._num(f.get("lost_oil_bbl"))
         if (f.get("reason_code") or "").startswith("PLAN") or f.get("reason_category") == "planned":
             planned += lost
         else:
@@ -325,16 +325,16 @@ def loss_waterfall(conn, since: str, until: str, pack=None) -> Figure:
             level -= v
             steps.append((name, -v, level))
     steps.append(("actual", act, 0.0))
-    price = value.config(pack)["prices"]["oil_sm3"] if pack else value.DEFAULTS["prices"]["oil_sm3"]
+    price = value.config(pack)["prices"]["oil_bbl"] if pack else value.DEFAULTS["prices"]["oil_bbl"]
     data = [{"type": "bar", "name": "oil", "x": [s[0] for s in steps], "y": [abs(s[1]) for s in steps],
-             "base": [s[2] for s in steps], "text": [f"{abs(s[1]):,.0f} Sm3, ${abs(s[1]) * price:,.0f}" for s in steps],
+             "base": [s[2] for s in steps], "text": [f"{abs(s[1]):,.0f} bbl, ${abs(s[1]) * price:,.0f}" for s in steps],
              "marker": {"color": ["rgba(90,110,140,0.8)" if s[1] >= 0 else "rgba(210,60,50,0.75)" for s in steps]},
              "hovertemplate": "%{x}: %{text}<extra></extra>"}]
-    lay = layout(f"Production losses {since} to {until}", None, "oil (Sm3)", showlegend=False)
+    lay = layout(f"Production losses {since} to {until}", None, "oil (bbl)", showlegend=False)
     return Figure("loss_waterfall", lay["title"]["text"], data, lay, {
-        "potential_sm3": round(pot), "actual_sm3": round(act), "planned_sm3": round(planned),
-        "unplanned_sm3": {k: round(v) for k, v in sorted(unplanned.items(), key=lambda kv: -kv[1])},
-        "unexplained_sm3": round(other), "lost_usd": round((pot - act) * price), "oil_price_usd_sm3": price,
+        "potential_bbl": round(pot), "actual_bbl": round(act), "planned_bbl": round(planned),
+        "unplanned_bbl": {k: round(v) for k, v in sorted(unplanned.items(), key=lambda kv: -kv[1])},
+        "unexplained_bbl": round(other), "lost_usd": round((pot - act) * price), "oil_price_usd_bbl": price,
         "efficiency_pct": round(act / pot * 100, 1) if pot else None}, [d["id"] for d in days][:5])
 
 
@@ -361,7 +361,7 @@ def score_breakdown(conn, ref: str, pack=None) -> Figure:
         "reason": s["reason"]}, [s["id"]])
 
 
-CO2_T_PER_KSM3_FLARED = 2.0  # tonnes CO2 per kSm3 gas flared (combustion of a typical associated gas); an estimate
+CO2_T_PER_MSCF_FLARED = 0.0566  # tonnes CO2 per Mscf gas flared (2.0 t per thousand Sm3) (combustion of a typical associated gas); an estimate
 
 
 def flare(conn, since: str, until: str) -> Figure:
@@ -374,31 +374,31 @@ def flare(conn, since: str, until: str) -> Figure:
     if not days:
         raise ChartError("no DAY001 reports in that period")
     x = [d["f"]["report_date"] for d in days]
-    fl = [operations._num(d["f"].get("flare_ksm3")) for d in days]
-    oil = [operations._num(d["f"].get("oil_sm3")) for d in days]
-    intensity = [round(f * CO2_T_PER_KSM3_FLARED * 1000 / (o * 6.2898), 2) if o > 0 else None for f, o in zip(fl, oil)]
+    fl = [operations._num(d["f"].get("flare_mscf")) for d in days]
+    oil = [operations._num(d["f"].get("oil_bbl")) for d in days]
+    intensity = [round(f * CO2_T_PER_MSCF_FLARED * 1000 / o, 2) if o > 0 else None for f, o in zip(fl, oil)]
     top, bottom = stacked(2, 0.1)
     from ..analysis.gas_balance import _f
-    fuel = [_f(d["f"].get("fuel_gas_ksm3")) for d in days]
-    vent = [_f(d["f"].get("vent_ksm3")) for d in days]
+    fuel = [_f(d["f"].get("fuel_gas_mscf")) for d in days]
+    vent = [_f(d["f"].get("vent_mscf")) for d in days]
     has_fuel, has_vent = any(v is not None for v in fuel), any(v is not None for v in vent)
-    data = [{"type": "bar", "name": "flare (kSm3/d)", "x": x, "y": fl, "yaxis": "y"},
-            *([{"type": "bar", "name": "fuel (kSm3/d)", "x": x, "y": fuel, "yaxis": "y"}] if has_fuel else []),
-            *([{"type": "bar", "name": "vent (kSm3/d)", "x": x, "y": vent, "yaxis": "y"}] if has_vent else []),
+    data = [{"type": "bar", "name": "flare (Mscf/d)", "x": x, "y": fl, "yaxis": "y"},
+            *([{"type": "bar", "name": "fuel (Mscf/d)", "x": x, "y": fuel, "yaxis": "y"}] if has_fuel else []),
+            *([{"type": "bar", "name": "vent (Mscf/d)", "x": x, "y": vent, "yaxis": "y"}] if has_vent else []),
             {"type": "scatter", "mode": "lines", "name": "flare CO2 (kg per bbl oil)", "x": x, "y": intensity, "yaxis": "y2",
              "xaxis": "x2"}]
     lay = layout(f"Flare{', fuel and vent' if has_fuel or has_vent else ''} and the flare's CO2 intensity {since} to {until}")
     lay["barmode"] = "group"
-    lay["yaxis"] = {"domain": top, "title": {"text": "kSm3/d"}}
+    lay["yaxis"] = {"domain": top, "title": {"text": "Mscf/d"}}
     lay["yaxis2"] = {"domain": bottom, "anchor": "x2", "title": {"text": "kg CO2 / bbl"}}
     lay["xaxis2"] = {"anchor": "y2", "matches": "x"}
     vals = [i for i in intensity if i is not None]
     return Figure("flare", lay["title"]["text"], data, lay, {
-        "days": len(days), "flare_ksm3": round(sum(fl)), "co2_t": round(sum(fl) * CO2_T_PER_KSM3_FLARED),
+        "days": len(days), "flare_mscf": round(sum(fl)), "co2_t": round(sum(fl) * CO2_T_PER_MSCF_FLARED, 1),
         "co2_kg_per_bbl_median": round(sorted(vals)[len(vals) // 2], 2) if vals else None,
-        "fuel_ksm3": round(sum(v for v in fuel if v)) if has_fuel else None,
-        "vent_ksm3": round(sum(v for v in vent if v), 1) if has_vent else None,
-        "note": f"CO2 estimated at {CO2_T_PER_KSM3_FLARED} t per kSm3 flared, for the flare only. "
+        "fuel_mscf": round(sum(v for v in fuel if v)) if has_fuel else None,
+        "vent_mscf": round(sum(v for v in vent if v), 1) if has_vent else None,
+        "note": f"CO2 estimated at {CO2_T_PER_MSCF_FLARED} t per Mscf flared, for the flare only. "
                 + ("Fuel gas and vent are the report's own volumes; " if has_fuel or has_vent else "")
                 + ("" if has_fuel and has_vent else "the report carries no "
                    + " or ".join(n for n, h in (("fuel gas", has_fuel), ("vent", has_vent)) if not h) + "; ")

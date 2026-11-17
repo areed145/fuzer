@@ -69,7 +69,7 @@ def priority(conn, pack, upset: dict, today: str | None = None) -> dict:
     times = 1 if ongoing else repeats(conn, upset)
     if rate and (ongoing or times >= 2):
         share = cfg["upsets"]["rate_at_risk_share"]
-        oil, gas = rate["oil_sm3d"] * share, rate["gas_ksm3d"] * share
+        oil, gas = rate["oil_bbld"] * share, rate["gas_mscfd"] * share
         if ongoing:
             days, how = cfg["upsets"]["days"], f"for {cfg['upsets']['days']:g} d while it lasts"
         else:
@@ -77,18 +77,18 @@ def priority(conn, pack, upset: dict, today: str | None = None) -> dict:
             days = lasted * times / REPEAT_DAYS * horizon
             how = (f"for {lasted * 24:,.1f} h each time, {times} times in the last {REPEAT_DAYS} d, "
                    f"so about {times / REPEAT_DAYS * horizon:,.0f} times in {horizon} d")
-        if oil * days > (t.get("oil_sm3d") or 0) * horizon * (chance or 0):  # more than its unit's downtime history
-            t["oil_sm3d"], t["gas_ksm3d"], duration, chance = oil, gas, days, 1.0
-            src["oil_sm3d"] = (f"{share:.0%} of the latest tested rate of the {rate['wells']} producing well(s) it "
-                               f"reaches ({rate['oil_sm3d']:,.1f} Sm3/d oil, {rate['gas_ksm3d']:,.1f} kSm3/d gas), {how}")
+        if oil * days > (t.get("oil_bbld") or 0) * horizon * (chance or 0):  # more than its unit's downtime history
+            t["oil_bbld"], t["gas_mscfd"], duration, chance = oil, gas, days, 1.0
+            src["oil_bbld"] = (f"{share:.0%} of the latest tested rate of the {rate['wells']} producing well(s) it "
+                               f"reaches ({rate['oil_bbld']:,.0f} bbl/d oil, {rate['gas_mscfd']:,.0f} Mscf/d gas), {how}")
             src["chance"] = "still going" if ongoing else f"came back {times - 1} time(s) in {REPEAT_DAYS} d"
             notes = notes[:1] + ([] if ongoing else [f"recovered: {times} times in {REPEAT_DAYS} d"])
             if not ongoing:
                 ttc = REPEAT_DAYS / times
                 src["time_to_consequence_days"] = f"the next repeat, at the rate it came back in {REPEAT_DAYS} d"
     item = value.Item("upset", f"upset:{upset['id']}", upset.get("label") or f"upset {upset['id']}",
-                      upset.get("text"), upset.get("unit_label"), upset["first_unit"], oil_sm3d=t.get("oil_sm3d"),
-                      gas_ksm3d=t.get("gas_ksm3d"), duration_days=duration,
+                      upset.get("text"), upset.get("unit_label"), upset["first_unit"], oil_bbld=t.get("oil_bbld"),
+                      gas_mscfd=t.get("gas_mscfd"), duration_days=duration,
                       chance=chance, criticality=t.get("criticality"), failures_per_year=fpy,
                       time_to_consequence_days=ttc, sources=src, notes=notes)
     return value.score(item, cfg)
@@ -112,7 +112,7 @@ def repeats(conn, upset: dict) -> int:
 
 def rate_at_risk(conn, unit_ids: list[str]) -> dict | None:
     """The producing wells an upset reaches (its units that are wells, or equipment part of a well) and their
-    latest EC well test: oil (Sm3/d) and gas (kSm3/d, the test's gas rate or oil x GOR). None when it reaches no
+    latest EC well test: oil (bbl/d) and gas (Mscf/d, the test's gas rate or oil x GOR). None when it reaches no
     tested producing well."""
     rows = conn.execute(
         """
@@ -131,11 +131,11 @@ def rate_at_risk(conn, unit_ids: list[str]) -> dict | None:
     oil = gas = 0.0
     wells = 0
     for r in rows:
-        q = _num(r["f"].get("oil_sm3d"))
-        g = _num(r["f"].get("gas_ksm3d")) or q * _num(r["f"].get("gor_sm3_sm3")) / 1000.0
+        q = _num(r["f"].get("oil_bbld"))
+        g = _num(r["f"].get("gas_mscfd")) or q * _num(r["f"].get("gor_scf_bbl")) / 1000.0
         if q > 0 or g > 0:
             oil, gas, wells = oil + q, gas + g, wells + 1
-    return {"oil_sm3d": oil, "gas_ksm3d": gas, "wells": wells} if wells else None
+    return {"oil_bbld": oil, "gas_mscfd": gas, "wells": wells} if wells else None
 
 
 # ---- diagnosis ------------------------------------------------------------------------------------
@@ -189,7 +189,7 @@ def diagnose(conn, upset: dict, ask=None) -> dict:
 
 def title(u: dict) -> str:
     """The case title an operator scans in Inbox and Cases (#405): what was seen, on which tag, the peak for a limit
-    excursion, and when it started (the data's time), e.g. "High-high alarm on 30-PT-2002 (peak 90 barg) from
+    excursion, and when it started (the data's time), e.g. "High-high alarm on 30-PT-2002 (peak 1,305 psig) from
     2025-12-24 00:00"."""
     from . import sre
 

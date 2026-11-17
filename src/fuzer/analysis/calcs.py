@@ -123,7 +123,7 @@ def rate(fit: dict, t: float) -> float:
     return fit["qi"] / (1 + fit["b"] * fit["D"] * t) ** (1 / fit["b"])
 
 
-PRODUCTS = (("oil", "oil_rate", "Sm3/d"), ("gas", "gas_rate", "kSm3/d"))  # a well's product: oil if it makes any
+PRODUCTS = (("oil", "oil_rate", "bbl/d"), ("gas", "gas_rate", "Mscf/d"))  # a well's product: oil if it makes any
 
 
 def decline_fit(conn, well: str, model: str = "auto", until: str | None = None, product: str | None = None) -> dict:
@@ -192,7 +192,7 @@ def _solve3(m: list[list[float]], v: list[float]) -> list[float] | None:
 def _glfit(pts: list[tuple[float, float, float]]) -> dict | None:
     """q = a + d t + c (1 - exp(-g / k)): the gas lift response with the decline taken out."""
     best = None
-    for k in [x / 2 for x in range(2, 61)]:
+    for k in [x * 17.5 for x in range(2, 61)]:  # 35 to 1050 Mscf/d
         rows = [(1.0, t, 1 - math.exp(-g / k)) for g, _, t in pts]
         ys = [q for _, q, _ in pts]
         m = [[sum(r[i] * r[j] for r in rows) for j in range(3)] for i in range(3)]
@@ -206,7 +206,7 @@ def _glfit(pts: list[tuple[float, float, float]]) -> dict | None:
     return best
 
 
-def gas_lift_fit(conn, well: str, breakeven: float = 0.5, until: str | None = None) -> dict:
+def gas_lift_fit(conn, well: str, breakeven: float = 0.09, until: str | None = None) -> dict:
     """A gas lifted well's performance curve from its tests, decline taken out, with tests far below the
     curve (a valve failed open) left out: {tests, pts (gas, oil, years), keep, fit, a, c, k (the curve
     today), g_now, q_now, marginal, g_opt, gain}."""
@@ -238,11 +238,11 @@ def gas_lift_fit(conn, well: str, breakeven: float = 0.5, until: str | None = No
             "g_now": g_now, "q_now": q_now, "marginal": c / k * math.exp(-g_now / k), "g_opt": g_opt, "gain": gain}
 
 
-def gas_lift(conn, well: str, breakeven: float = 0.5, min_gain: float = 1.0, until: str | None = None) -> dict:
-    """The well's lift gas against the optimum on its curve (where one more kSm3/d of gas gains
-    `breakeven` Sm3/d of oil). Flags `below_curve` when the latest test was left out of the fit (more gas,
+def gas_lift(conn, well: str, breakeven: float = 0.09, min_gain: float = 6.0, until: str | None = None) -> dict:
+    """The well's lift gas against the optimum on its curve (where one more Mscf/d of gas gains
+    `breakeven` bbl/d of oil). Flags `below_curve` when the latest test was left out of the fit (more gas,
     less oil: a valve failed open), else `more_gas` / `less_gas` when moving to the optimum is worth at
-    least `min_gain` Sm3/d of oil or saves gas for less than that."""
+    least `min_gain` bbl/d of oil or saves gas for less than that."""
     g = gas_lift_fit(conn, well, breakeven, until)
     last = len(g["pts"]) - 1
     move = g["g_opt"] - g["g_now"]
@@ -251,9 +251,9 @@ def gas_lift(conn, well: str, breakeven: float = 0.5, min_gain: float = 1.0, unt
             "less_gas" if move < 0 and abs(move) >= 0.2 * g["g_now"] and -g["gain"] < min_gain else None)
     return result(_r(g["g_now"], 1), _r(g["g_opt"], 1), flag,
                   f"curve q = a + c(1 - exp(-g/k)) fitted to {len(g['keep'])} of {len(g['pts'])} tests with decline "
-                  f"taken out; optimum at {breakeven} Sm3 oil per kSm3 gas", [well, g["tests"][-1]["record"]],
-                  unit="kSm3/d lift gas", at=g["tests"][-1]["at"].isoformat()[:10], oil_sm3d=_r(g["q_now"], 1),
-                  marginal_oil_per_extra_gas=_r(g["marginal"], 2), oil_change_at_optimum_sm3d=_r(g["gain"], 1),
+                  f"taken out; optimum at {breakeven} bbl oil per Mscf gas", [well, g["tests"][-1]["record"]],
+                  unit="Mscf/d lift gas", at=g["tests"][-1]["at"].isoformat()[:10], oil_bbld=_r(g["q_now"], 1),
+                  marginal_oil_per_extra_gas=_r(g["marginal"], 3), oil_change_at_optimum_bbld=_r(g["gain"], 1),
                   tests_left_out=len(g["pts"]) - len(g["keep"]))
 
 
@@ -292,8 +292,8 @@ def curve_for(conn, model: str | None, what: str) -> dict:
                                                                                   " and no datasheet for it"))
 
 
-def pump_operation(conn, fid: str, days: int = 365, rho: float = 850.0, src=None, until: str | None = None) -> dict:
-    """A pump's operating points from PI (head from discharge minus suction pressure) against its OEM
+def pump_operation(conn, fid: str, days: int = 365, sg: float = 0.85, src=None, until: str | None = None) -> dict:
+    """A pump's operating points from PI (head in ft from discharge minus suction pressure, 2.31 ft per psi of water) against its OEM
     head curve: {tag, label, curve, start, end, ops [(time, flow, head)], by_month [{month,
     head_vs_curve_pct}]}."""
     from ..sources import curves, timeseries
@@ -315,7 +315,7 @@ def pump_operation(conn, fid: str, days: int = 365, rho: float = 850.0, src=None
     times = sorted(set(v["flow"]) & set(v["suction"]) & set(v["discharge"]))
     bep = c["ratings"].get("bep", [None, None])
     mcsf = (c["ratings"].get("mcsf") or [0])[0] or 0.3 * (bep[0] or 100)
-    ops = [(t, v["flow"][t], (v["discharge"][t] - v["suction"][t]) * 1e5 / (rho * 9.81)) for t in times
+    ops = [(t, v["flow"][t], (v["discharge"][t] - v["suction"][t]) * 2.31 / sg) for t in times
            if v["flow"][t] > 0.5 * mcsf]
     if len(ops) < 10:
         raise CalcError("the pump hardly ran in that window")
@@ -404,7 +404,7 @@ def choke_operation(conn, fid: str, days: int = 730, sg: float = SG, src=None, u
     if by_end["qgas"]:  # gas: rate against upstream pressure (critical flow), scaled on the early points
         v = read({k: by_end[k] for k in ("whp", "opening", "qgas")}, start, end, 360, src)
         typical = sorted(v["qgas"].values())[len(v["qgas"]) // 2]
-        raw = [(t, v["opening"][t], v["qgas"][t] / (v["whp"][t] + 1.013)) for t in sorted(v["qgas"])
+        raw = [(t, v["opening"][t], v["qgas"][t] / (v["whp"][t] + 14.7)) for t in sorted(v["qgas"])
                if v["qgas"][t] > 0.3 * typical and v["opening"][t] > 2 and t in v["whp"]]  # flowing, not ramping
         if len(raw) < 10:
             raise CalcError("the gas well hardly flowed in that window")
@@ -419,7 +419,7 @@ def choke_operation(conn, fid: str, days: int = 730, sg: float = SG, src=None, u
                               "quantity in ('oil_rate', 'water_cut') and at >= %s and at < %s", (well, start, end)):
             tests.setdefault(r["record"], {"at": r["at"]})[r["quantity"]] = r["value"]
         area = tl.split("-")[0]
-        back = conn.execute("select t.dst as id, l.label as point, null as description, 'barg' as uom from entity_label h "
+        back = conn.execute("select t.dst as id, l.label as point, null as description, 'psig' as uom from entity_label h "
                             "join edge t on t.src = h.fuzer_id and t.rel = 'has_timeseries' "
                             "join entity_label l on l.fuzer_id = t.dst where h.label = %s", (f"{area}-PT-3002",)).fetchone()
         need = {"whp": by_end["whp"], "opening": by_end["opening"], **({"back": back} if back else {})}
@@ -429,13 +429,13 @@ def choke_operation(conn, fid: str, days: int = 730, sg: float = SG, src=None, u
             if "oil_rate" not in t or when not in v["whp"]:
                 continue
             liquid = t["oil_rate"] / (1 - min(t.get("water_cut", 0), 98) / 100)
-            dp = v["whp"][when] - (v["back"][when] if back else 11.0)
-            if dp > 0.2 and v["opening"][when] > 2:
-                rows.append((when, v["opening"][when], liquid / 24 * 4.403 / math.sqrt(dp * 14.5038 / sg)))
+            dp = v["whp"][when] - (v["back"][when] if back else 160.0)
+            if dp > 3 and v["opening"][when] > 2:  # gpm (42 gal / 1440 min per bbl/d) over sqrt(dp psi / SG)
+                rows.append((when, v["opening"][when], liquid * 42 / 1440 / math.sqrt(dp / sg)))
         if len(rows) < 4:
             raise CalcError("fewer than four well tests with pressures in that window")
         if not back:
-            note = "no production header transmitter: downstream pressure taken as 11 barg"
+            note = "no production header transmitter: downstream pressure taken as 160 psig"
     ratio = [(t, o, cv, cv / ref) for t, o, cv in rows if (ref := curves.at(cv_curve, o))]
     cut = installs[-1] if installs else None
     before = [r[3] for r in ratio if not cut or r[0] < cut]
@@ -646,16 +646,16 @@ def pm_interval(conn, fid: str, until: str | None = None) -> dict:
 
 # ---- inspection -----------------------------------------------------------------------------------
 
-def remaining_life(latest_mm: float, per_year: float | None, min_required_mm: float | None) -> float | None:
+def remaining_life(latest_in: float, per_year: float | None, min_required_in: float | None) -> float | None:
     """Years until a CML losing `per_year` (negative) reaches the minimum required thickness."""
-    if not min_required_mm or not per_year or per_year >= 0:
+    if not min_required_in or not per_year or per_year >= 0:
         return None
-    return (latest_mm - min_required_mm) / -per_year
+    return (latest_in - min_required_in) / -per_year
 
 
-def wall_loss(conn, fid: str, min_required_mm: float | None = None, warn_years: float = 5.0,
+def wall_loss(conn, fid: str, min_required_in: float | None = None, warn_years: float = 5.0,
               until: str | None = None) -> dict:
-    """An item's fastest wall loss across its CMLs (mm/year, least squares per CML) against the median
+    """An item's fastest wall loss across its CMLs (mpy, mils a year, least squares per CML) against the median
     of its CMLs, with remaining life per CML when the minimum required thickness is given. Flags
     `retire_soon` when a CML reaches it within `warn_years`, else `localised` when the fastest CML loses
     more than twice the median. With a remaining life, `next_inspection_years` is the API 570 / 510
@@ -667,22 +667,22 @@ def wall_loss(conn, fid: str, min_required_mm: float | None = None, warn_years: 
         raise CalcError("no wall thickness readings on that item")
     cmls = []
     for s in series:
-        life = remaining_life(s["latest"]["value"], s["per_year"], min_required_mm)
-        cmls.append({"cml": s["location"], "latest_mm": _r(s["latest"]["value"], 2), "latest_at": s["latest"]["at"][:10],
-                     "loss_mm_per_year": _r(-(s["per_year"] or 0), 3), "record": s["latest"]["record"],
+        life = remaining_life(s["latest"]["value"], s["per_year"], min_required_in)
+        cmls.append({"cml": s["location"], "latest_in": _r(s["latest"]["value"], 3), "latest_at": s["latest"]["at"][:10],
+                     "loss_mpy": _r(-(s["per_year"] or 0) * 1000, 1), "record": s["latest"]["record"],
                      **({"remaining_years": _r(life, 1)} if life is not None else {})})
-    cmls.sort(key=lambda c: -c["loss_mm_per_year"])
-    losses = sorted(c["loss_mm_per_year"] for c in cmls)
+    cmls.sort(key=lambda c: -c["loss_mpy"])
+    losses = sorted(c["loss_mpy"] for c in cmls)
     median = losses[len(losses) // 2]
     shortest = min((c["remaining_years"] for c in cmls if "remaining_years" in c), default=None)
     flag = ("retire_soon" if shortest is not None and shortest < warn_years else
-            "localised" if len(cmls) >= 3 and cmls[0]["loss_mm_per_year"] > 2 * max(median, 0.01) else None)
+            "localised" if len(cmls) >= 3 and cmls[0]["loss_mpy"] > 2 * max(median, 0.4) else None)
     interval = _r(min(shortest / 2, 10.0), 1) if shortest is not None else None
-    return result(cmls[0]["loss_mm_per_year"], median, flag,
+    return result(cmls[0]["loss_mpy"], median, flag,
                   f"least-squares wall loss per CML over {len(cmls)} CMLs; expected is their median"
-                  + (f"; remaining life to {min_required_mm} mm; next inspection at half the remaining life, "
-                     "at most 10 years (API 570 / 510)" if min_required_mm else ""),
-                  [fid, *[c["record"] for c in cmls[:3]]], unit="mm/year", fastest_cml=cmls[0]["cml"],
+                  + (f"; remaining life to {min_required_in} in; next inspection at half the remaining life, "
+                     "at most 10 years (API 570 / 510)" if min_required_in else ""),
+                  [fid, *[c["record"] for c in cmls[:3]]], unit="mpy", fastest_cml=cmls[0]["cml"],
                   shortest_remaining_years=shortest, next_inspection_years=interval, cmls=cmls[:10])
 
 
@@ -839,8 +839,8 @@ CHECKS |= {
         "ref": "jacket, area or facility (or one well)", "used_by": {"agent": "calc", "detector": None}},
     "vessel_loading": {"fn": lambda conn, fid, until=None: _module("facilities", "vessel_loading")(conn, fid, until=until),
                        "ref": "separator, scrubber or meter tag with a rating", "used_by": {"agent": "calc", "detector": None}},
-    "corrosion_circuit": {"fn": lambda conn, fid, min_required_mm=None, until=None: _module("integrity", "corrosion_circuit")(
-        conn, fid, min_required_mm=min_required_mm, until=until), "ref": "pipeline, vessel or piping tag",
+    "corrosion_circuit": {"fn": lambda conn, fid, min_required_in=None, until=None: _module("integrity", "corrosion_circuit")(
+        conn, fid, min_required_in=min_required_in, until=until), "ref": "pipeline, vessel or piping tag",
         "used_by": {"agent": "calc", "detector": None}},
     "spares_coverage": {"fn": lambda conn, fid, until=None: _module("spares", "coverage")(conn, fid, until=until),
                         "ref": "tag or equipment, equipment class or model, area or facility",

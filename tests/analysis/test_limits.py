@@ -53,10 +53,10 @@ def test_durations_as_registers_write_them():
 def test_mappings_read_af_traits_dcs_alarms_and_iows():
     m = mappings.load()
     dcs = m[("dcs", "alarm")].limits("30PT2001>PVHI", {
-        "tag": "30PT2001", "alarm": "PVHI", "setpoint": "200", "eu": "psig", "priority": "2", "enabled": "N",
+        "tag": "30PT2001", "alarm": "PVHI", "setpoint": "13.79", "eu": "barg", "priority": "2", "enabled": "N",
         "last_changed": "2019-05-14"}, PACK)
     assert [(x.limit_type, round(x.value, 2), x.unit, x.reported, x.enabled, x.level) for x in dcs] == [
-        ("hi", 13.79, "barg", "200 psig", False, "2")]
+        ("hi", 200.01, "psig", "13.79 barg", False, "2")]
     assert dcs[0].of == [("timeseries", "30PT2001"), ("tag", "30-PT-2001")]
 
     iow = m[("iow", "window")].limits("IOW-001>B", {
@@ -65,14 +65,14 @@ def test_mappings_read_af_traits_dcs_alarms_and_iows():
         "damage_mechanism": "seal damage", "response": "cut load", "effective_date": "2025-01-01",
         "superseded_date": ""}, PACK)
     assert [(x.limit_type, x.value, x.basis, x.level, x.allowed_minutes, x.valid_from, x.valid_to) for x in iow] == [
-        ("hi", 144.0, "iow", "critical", 120.0, "2025-01-01", None)]
+        ("hi", 291.2, "iow", "critical", 120.0, "2025-01-01", None)]
     assert iow[0].note.startswith("IOW-001 rev B")
 
     af = m[("pi_af", "element")].limits("OKAN\\10 OKA_PP\\10-V-2001", {"attributes": [
         {"name": "Pressure", "pi_point": "oka_pp.10pt2001.pv", "uom": "barg", "Hi": 14, "HiHi": 15.5},
         {"name": "Level", "pi_point": "OKA_PP.10LT2001.PV", "uom": "%"}]}, PACK)
     assert [(x.record, x.limit_type, x.value) for x in af] == [
-        ("pi_af:element:OKAN\\10 OKA_PP\\10-V-2001#1", "hihi", 15.5), ("pi_af:element:OKAN\\10 OKA_PP\\10-V-2001#1", "hi", 14.0)]
+        ("pi_af:element:OKAN\\10 OKA_PP\\10-V-2001#1", "hihi", 224.8089), ("pi_af:element:OKAN\\10 OKA_PP\\10-V-2001#1", "hi", 203.0532)]
     assert af[0].of == [("timeseries", "OKA_PP.10PT2001.PV")]
 
 
@@ -83,10 +83,10 @@ def test_limits_land_dated_against_points(conn):
     # pid: the smart P&IDs' alarm and trip tables, as designed; checked against the others, never counted (#475)
     assert set(sources) == {"pi_af", "dcs", "iow", "pid"} and sources["dcs"] > sources["pi_af"]
     assert {r["basis"] for r in conn.execute("select distinct basis from point_limit where source = 'pid'")} == {"design"}
-    # ST1's DCS is in psig; stored in barg with what it said kept.
-    st1 = conn.execute("select value, unit, reported from point_limit where source = 'dcs' and reported like '%%psig' "
+    # ST1's older DCS is in barg; stored in psig with what it said kept.
+    st1 = conn.execute("select value, unit, reported from point_limit where source = 'dcs' and reported like '%%barg' "
                        "limit 1").fetchone()
-    assert st1["unit"] == "barg" and st1["value"] < 100
+    assert st1["unit"] == "psig" and st1["value"] > 100
     # The IOW on an instrument tag counts for its one point; rev A was superseded by rev B.
     rows = conn.execute("select record, value, valid_from, valid_to, level, allowed_minutes from point_limit "
                         "where point_id = %s and basis = 'iow' order by record", (point(conn, "OK_GGCP:20-TT-2300A.PV"),)).fetchall()

@@ -34,7 +34,8 @@ def test_no_water_chemistry_means_no_prediction(okan_db):
 
 
 def test_de_waard_milliams_matches_the_hand_calculation():
-    m = co2_corrosion.predicted_rate(55.0, 71.0, 2.1)
-    # T 328.15 K; pCO2 1.491 bar; fugacity 10^(71 x (0.0031 - 1.4/328.15)) = 0.826; below the scaling temperature
-    assert round(m["pco2_bar"], 3) == 1.491 and round(m["fugacity_coefficient"], 3) == 0.826
-    assert m["scale_factor"] == 1.0 and round(m["rate_mm_per_year"], 2) == 4.46
+    m = co2_corrosion.predicted_rate(131.0, 71.0 * 14.5038, 2.1)
+    # 131 °F is 328.15 K; 1,030 psia is 71 bara; pCO2 1.491 bar (21.6 psi); fugacity 10^(71 x (0.0031 - 1.4/328.15)) =
+    # 0.826; below the scaling temperature; 4.46 mm/y is 176 mpy
+    assert round(m["pco2_psi"], 1) == 21.6 and round(m["fugacity_coefficient"], 3) == 0.826
+    assert m["scale_factor"] == 1.0 and round(m["rate_mpy"] / 39.3701, 2) == 4.46

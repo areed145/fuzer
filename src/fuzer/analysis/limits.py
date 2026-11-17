@@ -34,7 +34,7 @@ COLS = ["record", "limit_type", "point_id", "source", "basis", "value", "unit", 
         "enabled", "valid_from", "valid_to", "note"]
 TYPES = ("lolo", "lo", "hi", "hihi")
 HIGH = {"hi", "hihi"}
-DEFAULTS = {"priority": ["dcs", "pi_af"], "run_signals": [{"uom": "kW", "above": 20}, {"uom": "rpm", "above": 1000}]}
+DEFAULTS = {"priority": ["dcs", "pi_af"], "run_signals": [{"uom": "hp", "above": 27}, {"uom": "rpm", "above": 1000}]}
 IOW_BREACH = exception_type("iow_breach", "IOW breach", process="iow_breach", audience=("ioc", "field"),
                             description="An integrity operating window held past its allowed time.").name
 WORK_LEVELS = {"critical": 2.0, "standard": 1.0}  # IOW classes whose breaches past their time open work, by priority

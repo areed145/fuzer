@@ -11,4 +11,4 @@ measurements:
   at: report_date
   method: {template: "flare allocation: {category}; {basis}; {allocation}"}
   values:
-    - {quantity: flare_allocated, from: flare_ksm3, unit: kSm3}
+    - {quantity: flare_allocated, from: flare_mscf, unit: Mscf}

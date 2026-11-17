@@ -71,7 +71,7 @@ def test_calcs_find_the_stories(conn, spec):
     assert d["flag"] == "dp_rising" and "2025-10" <= d["rising_since"] <= "2025-11-05" and d["value"] > d["expected"]
     prof = hydraulics.pressure_profile(conn, fl, "2025-09-15T12:00")
     assert [n["node"] for n in prof["nodes"][:2]] == ["wellhead", "jacket production header"]
-    assert all(s["dp_bar"] > 0 for s in prof["segments"][:1])
+    assert all(s["dp_psi"] > 0 for s in prof["segments"][:1])
 
     m, at = ProcessModel(spec), "2025-09-15T12:00"
     wells = [n for n, u in spec["units"].items() if u.get("type") == "well" and u.get("kind") != "gas" and u.get("jacket")]
@@ -81,11 +81,11 @@ def test_calcs_find_the_stories(conn, spec):
     assert agree / len(wells) >= 0.9
 
     s = hydraulics.backpressure_sensitivity(conn, "facility", "2025-12-28T00:00", limit=25)
-    rows = [r for r in s["wells"] if r["model_sm3d_per_bar"] is not None]
-    assert rows and all(r["model_sm3d_per_bar"] < 0 for r in rows)  # more back-pressure, less oil
-    both = [r for r in rows if r["data_sm3d_per_bar"] is not None]
-    model = sorted(r["model_sm3d_per_bar"] for r in both)[len(both) // 2]
-    data = sorted(r["data_sm3d_per_bar"] for r in both)[len(both) // 2]
+    rows = [r for r in s["wells"] if r["model_bbld_per_psi"] is not None]
+    assert rows and all(r["model_bbld_per_psi"] < 0 for r in rows)  # more back-pressure, less oil
+    both = [r for r in rows if r["data_bbld_per_psi"] is not None]
+    model = sorted(r["model_bbld_per_psi"] for r in both)[len(both) // 2]
+    data = sorted(r["data_bbld_per_psi"] for r in both)[len(both) // 2]
     # the setpoint change teaches the data side; regression on noisy tests reads weaker (attenuation)
     assert both and data < 0 and 1 / 3 <= model / data <= 3, (model, data)
 
@@ -113,7 +113,7 @@ def test_debottleneck_options_board_and_charts(conn, spec, monkeypatch):
     top = out["options"][0]
     assert top["kind"] == "lower_pressure" and top["target"] == fid(conn, "10-V-2001"), out["options"][:3]
     assert "IOW limit" in top["action"] and top["next_constraint"] and top["confirm_by"]
-    assert re.search(r" of -?\d+(\.\d)? barg", top["action"]), top["action"]  # the limit is rounded to 0.1 bar
+    assert re.search(r" of -?\d+ psig", top["action"]), top["action"]  # the limit is rounded to the psi
 
     m = ProcessModel(spec)  # the model's own response to the 2-bar cut it applies on 25 November
     gain = 0.0
@@ -123,11 +123,12 @@ def test_debottleneck_options_board_and_charts(conn, spec, monkeypatch):
             t = calcs.well_tests(conn, fid(conn, w), "2025-11-20T00:00")[-1]
             wc = min(t.get("water_cut", 0) or 0, 98) / 100
             gain += (m.at(w, "liquid", datetime(2025, 11, 26, 12)) - m.at(w, "liquid", datetime(2025, 11, 24, 12))) * (1 - wc)
-    assert abs(top["per_bar_sm3d"] - gain / 2) <= 0.2 * gain / 2, (top["per_bar_sm3d"], gain / 2)
+    per_psi = gain * 6.28981 / (2 * 14.5038)  # the model's Sm3/d for its 2 bar cut, in bbl/d a psi
+    assert abs(top["per_psi_bbld"] - per_psi) <= 0.2 * per_psi, (top["per_psi_bbld"], per_psi)
 
     hydraulics.store_options(conn, PACK, "2025-11-20T00:00", options=out)
     opp = [i for i in value.items(conn, PACK, ("opportunity",)) if i.id.startswith("debottleneck:")]
-    assert opp and opp[0].oil_sm3d == top["gain_sm3d"]
+    assert opp and opp[0].oil_bbld == top["gain_bbld"]
     board.refresh(conn, PACK)
     assert any(c["key"].startswith("opportunity:debottleneck:lower_pressure") for c in board.cards(conn, kind="opportunity")["cards"])
 

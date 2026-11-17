@@ -18,8 +18,8 @@ entity:
     - [overall, {from: overall, as: number}]
     - bearing
     - [rolling_elements, {from: rolling_elements, as: number}]
-    - [element_diameter_mm, {from: element_diameter_mm, as: number}]
-    - [pitch_diameter_mm, {from: pitch_diameter_mm, as: number}]
+    - [element_diameter_in, {from: element_diameter_in, as: number}]
+    - [pitch_diameter_in, {from: pitch_diameter_in, as: number}]
     - [contact_angle_deg, {from: contact_angle_deg, as: number}]
     - peaks
 links:

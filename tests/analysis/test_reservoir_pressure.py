@@ -30,8 +30,8 @@ def test_material_balance_recovers_the_tank_and_states_its_assumptions(okan_db):
     key = json.loads((okan_db.data / "answer_keys" / "pressure.json").read_text())
     mb = rp.material_balance(conn)
     assert mb["verdict"] == "fitted" and mb["assumptions"] and mb["r2"] > 0.8
-    assert mb["bar_per_million_rm3"] == pytest.approx(key["k_bar_per_rm3"] * 1e6, rel=0.35)
-    assert mb["decline_bar_per_year"] > 0 and mb["compressible_volume_rm3_per_bar"] > 0
+    assert mb["psi_per_million_rb"] == pytest.approx(key["k_psi_per_rb"] * 1e6, rel=0.35)
+    assert mb["decline_psi_per_year"] > 0 and mb["compressible_volume_rb_per_psi"] > 0
     assert mb["wells"] == len(key["wells"])
     early = rp.material_balance(conn, since="2024-01-01", until="2024-03-01")  # one survey round only
     assert early["verdict"] == "insufficient" and early["assumptions"]

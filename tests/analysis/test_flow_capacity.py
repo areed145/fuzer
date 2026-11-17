@@ -23,11 +23,11 @@ EDGES = [("w1", "m1"), ("w2", "m2"), ("m2", "m1"), ("m1", "sa"), ("m2", "sb"), (
 
 
 def latest(limit=100, basis="reported_potential", binding=(), flags=()):
-    return {"dynamic_max_sm3d": limit, "allocated_sm3d": 90, "capacity_basis": basis,
+    return {"dynamic_max_bbld": limit, "allocated_bbld": 90, "capacity_basis": basis,
             "binding_constraint_ids": list(binding), "flags": list(flags)}
 
 
-def bound(id, value, unit="Sm3/d", qualifier=None):
+def bound(id, value, unit="bbl/d", qualifier=None):
     return {"id": id, "label": id, "record": f"{id}:r", "value": value, "unit": unit, "qualifier": qualifier}
 
 
@@ -68,12 +68,12 @@ def test_no_declared_capacity_uses_labeled_evidence_and_names_what_is_missing():
     tests = [{"fuzer_id": "w1", "at": "2026-11-01", "value": 70}, {"fuzer_id": "w2", "at": "2026-11-02", "value": 60}]
     out = run(tests=tests, reports=[report("2026-09-01", 110), report("2026-10-01", 95)])
     stage = by_label(out)
-    assert (stage["Wells"]["capacity_sm3d"], stage["Wells"]["basis"]) == (130, "well_tests")
-    assert (stage["Compression"]["capacity_sm3d"], stage["Compression"]["basis"]) == (110, "demonstrated")
+    assert (stage["Wells"]["capacity_bbld"], stage["Wells"]["basis"]) == (130, "well_tests")
+    assert (stage["Compression"]["capacity_bbld"], stage["Compression"]["basis"]) == (110, "demonstrated")
     assert stage["Compression"]["undeclared"] == 2
     assert set(stage["Compression"]["undeclared_examples"]) == {"ka", "kb"}
-    assert out["demonstrated"] | {"since": None} == {"peak_sm3d": 110, "date": "2026-09-01", "since": None}
-    assert out["system"]["limit_sm3d"] == 100
+    assert out["demonstrated"] | {"since": None} == {"peak_bbld": 110, "date": "2026-09-01", "since": None}
+    assert out["system"]["limit_bbld"] == 100
     assert out["system"]["established"] is False
     assert out["system"]["binding_stages"] == []
     assert out["well_tests"]["not_tested"] == 0
@@ -84,7 +84,7 @@ def test_every_stage_declared_establishes_the_bottleneck():
     limits = [bound(id, 500) for id in NODES if id not in ("ka", "kb")] + [bound("ka", 100), bound("kb", 200)]
     out = run(limits, state=latest(100, "declared_limits", ["ka"]))
     assert all(row["basis"] == "declared" and row["undeclared"] == 0 for row in out["stages"])
-    assert by_label(out)["Compression"]["capacity_sm3d"] == 100
+    assert by_label(out)["Compression"]["capacity_bbld"] == 100
     assert by_label(out)["Compression"]["binding"] is True
     assert out["system"]["established"] is True
     assert out["system"]["binding_stages"] == ["Compression"]
@@ -100,7 +100,7 @@ def test_partial_declarations_do_not_claim_a_bottleneck():
 
 
 @pytest.mark.parametrize("limits", [
-    [bound("hp", -1)], [bound("hp", 100, unit="kSm3/d")], [bound("hp", 100, qualifier="<")],
+    [bound("hp", -1)], [bound("hp", 100, unit="Mscf/d")], [bound("hp", 100, qualifier="<")],
     [bound("hp", 100), bound("hp", 120)],
 ])
 def test_invalid_or_ambiguous_bounds_are_not_capacity(limits):
@@ -110,7 +110,7 @@ def test_invalid_or_ambiguous_bounds_are_not_capacity(limits):
 
 def test_invalid_bound_flag_warns():
     out = run(state=latest(None, "missing", flags=["invalid_capacity_limit"]))
-    assert out["system"]["limit_sm3d"] is None
+    assert out["system"]["limit_bbld"] is None
     assert "withheld" in out["warnings"][0]
 
 
@@ -122,14 +122,14 @@ def test_bound_off_the_network_still_appears():
 def test_demonstrated_peak_skips_invalid_and_ambiguous_days():
     out = run(reports=[report("2026-09-01", -24745), report("2026-09-02", None),
                        report("2026-09-03", 500), report("2026-09-03", 600), report("2026-09-04", 90)])
-    assert out["demonstrated"]["peak_sm3d"] == 90
+    assert out["demonstrated"]["peak_bbld"] == 90
     assert out["demonstrated"]["date"] == "2026-09-04"
 
 
 def test_no_evidence_stays_unknown():
     out = run()
     assert {row["basis"] for row in out["stages"]} == {"unknown"}
-    assert all(row["capacity_sm3d"] is None for row in out["stages"])
+    assert all(row["capacity_bbld"] is None for row in out["stages"])
 
 
 def test_no_network_says_so():
@@ -152,4 +152,4 @@ def test_okan_network_gives_the_real_stages_and_agrees_with_the_production_chart
     assert labels.index("Field separators") < labels.index("HP Production Separator") < labels.index("Compression")
     efficiency = production_efficiency(okan_db.conn, facility)
     assert out["as_of"] == efficiency["end"]
-    assert out["system"]["limit_sm3d"] == efficiency["points"][-1]["dynamic_max_sm3d"]
+    assert out["system"]["limit_bbld"] == efficiency["points"][-1]["dynamic_max_bbld"]

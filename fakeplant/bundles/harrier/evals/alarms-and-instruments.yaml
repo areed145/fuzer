@@ -5,5 +5,5 @@
   must_mention: [[alarm rate, per hour, per 10 minutes], [standing, none standing, no standing]]
   specialists: [field-operations-facilities]
 - question: Can we trust the oxidiser firebox temperature H1-TT-8007?
-  must_mention: [H1-TT-8007, [barg, units, engineering unit]]
+  must_mention: [H1-TT-8007, [psig, units, engineering unit]]
   specialists: [field-operations-facilities]

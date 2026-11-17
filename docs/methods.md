@@ -9,54 +9,54 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 | Method | Standard or practice | Inputs | Needs |
 |---|---|---|---|
-| [`decline`](#decline) Latest well test against the Arps decline | Arps, Analysis of Decline Curves (1945) | Well tests (oil rate (Sm³/d or kSm³/d) | At least four well tests. |
-| [`gas_lift`](#gas_lift) Lift gas against the economic optimum of the well's lift curve | Engineering practice | Well tests (oil rate) (Sm³/d); Lift gas rate (kSm³/d) | At least four well tests with a lift gas rate. |
-| [`pump_curve`](#pump_curve) Pump head against the OEM curve at the same flow | Engineering practice | Flow (m³/h); Suction and discharge pressure (barg); OEM head curve (m) | A minimum count of running readings in the recent window. |
-| [`choke`](#choke) Choke effective Cv against its characteristic | Engineering practice | Choke opening (%); Upstream and downstream pressure (barg); Well test rates (Sm³/d) | Three or more readings since the trim was last replaced, else the latest readings before. |
+| [`decline`](#decline) Latest well test against the Arps decline | Arps, Analysis of Decline Curves (1945) | Well tests (oil rate (bbl/d or Mscf/d) | At least four well tests. |
+| [`gas_lift`](#gas_lift) Lift gas against the economic optimum of the well's lift curve | Engineering practice | Well tests (oil rate) (bbl/d); Lift gas rate (Mscf/d) | At least four well tests with a lift gas rate. |
+| [`pump_curve`](#pump_curve) Pump head against the OEM curve at the same flow | Engineering practice | Flow (gpm); Suction and discharge pressure (psig); OEM head curve (ft) | A minimum count of running readings in the recent window. |
+| [`choke`](#choke) Choke effective Cv against its characteristic | Engineering practice | Choke opening (%); Upstream and downstream pressure (psig); Well test rates (bbl/d) | Three or more readings since the trim was last replaced, else the latest readings before. |
 | [`reliability`](#reliability) Weibull and Crow-AMSAA on the failure history | IEC 61649 (Weibull analysis); IEC 61164 (reliability growth, power law) | Failure notifications (dates) | Three times between failures for Weibull; four failures for Crow-AMSAA. |
 | [`pm_interval`](#pm_interval) Preventive maintenance interval against the class's failure pattern | IEC 61649 (Weibull analysis); IEC 60300-3-11 (reliability centred maintenance) | Failure notifications on the class's units (dates); Preventive plan intervals (days) | Three times between failures in the class, else the class is reported as insufficient. |
 | [`spares_coverage`](#spares_coverage) Critical spares coverage, ranked by criticality and failure history | ISO 14224 (equipment and failure data); ISO 55000 (criticality-based asset management) | Bill of materials of each unit's installed equipment (materials); Stock on hand (each); Criticality (A (class); Failure notifications (count) | A bill of materials on the unit's installed equipment. |
-| [`wall_loss`](#wall_loss) Wall loss rate and remaining life per CML | API 570 / API 510 | Wall thickness readings per CML (mm); Minimum required thickness (mm) | Wall thickness readings on the item. |
-| [`corrosion_circuit`](#corrosion_circuit) Corrosion circuit: long and short term rate, remaining life, next inspection | API 570 7.1 | Wall thickness readings per CML (mm); Maximum operating pressure (barg); Nominal diameter (in) | Wall thickness readings on a line of the circuit. |
-| [`well_constraint`](#well_constraint) What limits a well (choke, back-pressure or lift) | Engineering practice | Wellhead and header pressure (barg); Choke opening (%) | A production header pressure for the well's jacket. |
-| [`dp_drift`](#dp_drift) Wellhead-to-header pressure drop drift | Engineering practice | Wellhead and header pressure (barg) | A production header pressure for the well's jacket. |
-| [`compressor_performance`](#compressor_performance) Compressor stage polytropic efficiency and head | Engineering practice | Suction and discharge pressure (barg); Suction and discharge temperature (°C) | A suction temperature for the stage and enough running time in the window. |
-| [`cooler_fouling`](#cooler_fouling) Cooler outlet temperature against its clean baseline | Engineering practice | Outlet temperature (°C) | At least 14 days of outlet temperature. |
-| [`peers`](#peers) Units of a class side by side | Engineering practice | Failure notifications (dates); Vibration (mm/s) | At least three units to compare. |
-| [`vibration`](#vibration) Overall vibration against the evaluation zones | ISO 20816-3 (formerly ISO 10816-3); ISO 20816-8 for reciprocating compressors | Overall vibration velocity (mm/s RMS) | A vibration point in mm/s with enough readings in the window. |
-| [`pump_bep`](#pump_bep) Pump operating region against best efficiency point | API 610 (preferred and allowable operating regions) | Flow (m³/h); OEM curve with best efficiency point (m³/h) | An OEM curve with a best efficiency point. |
-| [`surge`](#surge) Compressor surge margin against the OEM map | Engineering practice | Suction flow (m³/h); Speed (rpm); Anti-surge valve opening (%) | An OEM map for the stage and enough running time in the window. |
-| [`surge_events`](#surge_events) Surge events from their signature | Engineering practice | Suction flow (m³/h); Anti-surge valve opening (%) | Suction flow and valve position over the window. |
-| [`heat_rate`](#heat_rate) Gas turbine heat rate against the OEM curves | Engineering practice | Fuel gas flow (Sm³/h); Output power (kW); Ambient temperature (°C) | OEM curves for the model and enough running time in the window. |
-| [`motor_load`](#motor_load) Motor load against nameplate and service factor | Engineering practice | Motor power (kW); Nameplate rating (kW) | A motor power point and enough running time in the window. |
+| [`wall_loss`](#wall_loss) Wall loss rate and remaining life per CML | API 570 / API 510 | Wall thickness readings per CML (in); Minimum required thickness (in) | Wall thickness readings on the item. |
+| [`corrosion_circuit`](#corrosion_circuit) Corrosion circuit: long and short term rate, remaining life, next inspection | API 570 7.1 | Wall thickness readings per CML (in); Maximum operating pressure (psig); Nominal diameter (in) | Wall thickness readings on a line of the circuit. |
+| [`well_constraint`](#well_constraint) What limits a well (choke, back-pressure or lift) | Engineering practice | Wellhead and header pressure (psig); Choke opening (%) | A production header pressure for the well's jacket. |
+| [`dp_drift`](#dp_drift) Wellhead-to-header pressure drop drift | Engineering practice | Wellhead and header pressure (psig) | A production header pressure for the well's jacket. |
+| [`compressor_performance`](#compressor_performance) Compressor stage polytropic efficiency and head | Engineering practice | Suction and discharge pressure (psig); Suction and discharge temperature (°F) | A suction temperature for the stage and enough running time in the window. |
+| [`cooler_fouling`](#cooler_fouling) Cooler outlet temperature against its clean baseline | Engineering practice | Outlet temperature (°F) | At least 14 days of outlet temperature. |
+| [`peers`](#peers) Units of a class side by side | Engineering practice | Failure notifications (dates); Vibration (in/s) | At least three units to compare. |
+| [`vibration`](#vibration) Overall vibration against the evaluation zones | ISO 20816-3 (formerly ISO 10816-3); ISO 20816-8 for reciprocating compressors | Overall vibration velocity (in/s RMS) | A vibration point in in/s with enough readings in the window. |
+| [`pump_bep`](#pump_bep) Pump operating region against best efficiency point | API 610 (preferred and allowable operating regions) | Flow (gpm); OEM curve with best efficiency point (gpm) | An OEM curve with a best efficiency point. |
+| [`surge`](#surge) Compressor surge margin against the OEM map | Engineering practice | Suction flow (gpm); Speed (rpm); Anti-surge valve opening (%) | An OEM map for the stage and enough running time in the window. |
+| [`surge_events`](#surge_events) Surge events from their signature | Engineering practice | Suction flow (gpm); Anti-surge valve opening (%) | Suction flow and valve position over the window. |
+| [`heat_rate`](#heat_rate) Gas turbine heat rate against the OEM curves | Engineering practice | Fuel gas flow (scfh); Output power (hp); Ambient temperature (°F) | OEM curves for the model and enough running time in the window. |
+| [`motor_load`](#motor_load) Motor load against nameplate and service factor | Engineering practice | Motor power (hp); Nameplate rating (hp) | A motor power point and enough running time in the window. |
 | [`rotating_health`](#rotating_health) Rotating machine health summary | ISO 14224 (rotating classes); each check that applies cites its own standard | The inputs of every check that applies to the machine's class (various) | At least one check able to run on the machine. |
-| [`rod_load`](#rod_load) Reciprocating compressor rod load and reversal | API 618 | Cylinder suction and discharge pressure (barg); Rated rod load (kN) | Cylinder pressures and enough running time in the window. |
-| [`valve_health`](#valve_health) Reciprocating compressor valve health | API 618 | Cylinder discharge temperatures (°C); Stage pressures (barg) | Two cylinder discharge temperatures on the same stage and enough running time. |
-| [`compressor_trip`](#compressor_trip) Trip diagnosis from the first point to move | ISO 13379-1 (symptom to cause) | Run signal (kW or rpm); Every point on the train (various); Alarm and trip settings (various) | A trip of the train in the two days before the time asked about. |
-| [`failed_starts`](#failed_starts) Failed start attempts | Engineering practice | Run signal (kW or rpm) | A run signal over the window. |
-| [`protection`](#protection) Machinery protection channels against their settings | API 670 | Shaft vibration (µm); Axial position (mm); Bearing temperature (°C) | Protection channels on the machine and enough running time in the window. |
-| [`seal_gas`](#seal_gas) Dry gas seal primary vent flow | API 692 | Primary vent flow (Nm³/h) | At least 14 running days of seal vent flow. |
-| [`lube_oil`](#lube_oil) Lube oil header pressure and supply temperature | API 614 | Header pressure (barg); Supply temperature (°C) | A lube oil pressure or temperature point and enough running time. |
-| [`gas_performance`](#gas_performance) Compressor stage performance on real-gas properties | ASME PTC 10 (Schultz polytropic analysis); ISO 5389 | Suction and discharge pressure (barg); Suction and discharge temperature (°C); Gas analysis (mol %) | A centrifugal stage and enough running time in the window. |
-| [`power_balance`](#power_balance) Stage gas power against driver output | ASME PTC 10 | Stage gas power (kW); Gas turbine output power (kW) | An output power point on the driver and every stage measurable in the window. |
-| [`exhaust_spread`](#exhaust_spread) Gas turbine exhaust temperature spread | Engineering practice | Exhaust thermocouples (°C) | Three exhaust thermocouples and enough running time in the window. |
-| [`hot_section`](#hot_section) Fired hours against the hot section inspection interval | Engineering practice | Run signal (kW or rpm); Hot section inspection plan (h) | A hot section inspection plan with a last-done date and an interval. |
-| [`engine_cylinders`](#engine_cylinders) Gas engine cylinder exhaust temperatures | Engineering practice | Cylinder exhaust temperatures (°C) | Cylinder exhaust temperatures and running time in the last two days. |
+| [`rod_load`](#rod_load) Reciprocating compressor rod load and reversal | API 618 | Cylinder suction and discharge pressure (psig); Rated rod load (lbf) | Cylinder pressures and enough running time in the window. |
+| [`valve_health`](#valve_health) Reciprocating compressor valve health | API 618 | Cylinder discharge temperatures (°F); Stage pressures (psig) | Two cylinder discharge temperatures on the same stage and enough running time. |
+| [`compressor_trip`](#compressor_trip) Trip diagnosis from the first point to move | ISO 13379-1 (symptom to cause) | Run signal (hp or rpm); Every point on the train (various); Alarm and trip settings (various) | A trip of the train in the two days before the time asked about. |
+| [`failed_starts`](#failed_starts) Failed start attempts | Engineering practice | Run signal (hp or rpm) | A run signal over the window. |
+| [`protection`](#protection) Machinery protection channels against their settings | API 670 | Shaft vibration (mils); Axial position (in); Bearing temperature (°F) | Protection channels on the machine and enough running time in the window. |
+| [`seal_gas`](#seal_gas) Dry gas seal primary vent flow | API 692 | Primary vent flow (scfm) | At least 14 running days of seal vent flow. |
+| [`lube_oil`](#lube_oil) Lube oil header pressure and supply temperature | API 614 | Header pressure (psig); Supply temperature (°F) | A lube oil pressure or temperature point and enough running time. |
+| [`gas_performance`](#gas_performance) Compressor stage performance on real-gas properties | ASME PTC 10 (Schultz polytropic analysis); ISO 5389 | Suction and discharge pressure (psig); Suction and discharge temperature (°F); Gas analysis (mol %) | A centrifugal stage and enough running time in the window. |
+| [`power_balance`](#power_balance) Stage gas power against driver output | ASME PTC 10 | Stage gas power (hp); Gas turbine output power (hp) | An output power point on the driver and every stage measurable in the window. |
+| [`exhaust_spread`](#exhaust_spread) Gas turbine exhaust temperature spread | Engineering practice | Exhaust thermocouples (°F) | Three exhaust thermocouples and enough running time in the window. |
+| [`hot_section`](#hot_section) Fired hours against the hot section inspection interval | Engineering practice | Run signal (hp or rpm); Hot section inspection plan (h) | A hot section inspection plan with a last-done date and an interval. |
+| [`engine_cylinders`](#engine_cylinders) Gas engine cylinder exhaust temperatures | Engineering practice | Cylinder exhaust temperatures (°F) | Cylinder exhaust temperatures and running time in the last two days. |
 | [`remaining_life`](#remaining_life) Remaining life from the trend to its limit | ISO 13381-1 | A trended condition parameter (various); Its alarm or trip limit (various) | A trend on the machine that heads for a limit. |
-| [`test_check`](#test_check) Latest well test against inflow and the lift curve | Engineering practice | Well tests with water cut (Sm³/d); Flowing and shut-in wellhead pressure (barg) | At least four oil well tests with a water cut, and a shut-in wellhead pressure. |
-| [`deferment_attribution`](#deferment_attribution) Shortfall against decline, by cause | Engineering practice | Well tests (oil rate) (Sm³/d); Deferment records (Sm³) | At least one oil well in scope with enough tests for a decline fit. |
-| [`vessel_loading`](#vessel_loading) Offered load against a rating | Engineering practice | Well test rates of the wells upstream (Sm³/d); Rating (the rating's own) | A rating on record and wells upstream of the item. |
+| [`test_check`](#test_check) Latest well test against inflow and the lift curve | Engineering practice | Well tests with water cut (bbl/d); Flowing and shut-in wellhead pressure (psig) | At least four oil well tests with a water cut, and a shut-in wellhead pressure. |
+| [`deferment_attribution`](#deferment_attribution) Shortfall against decline, by cause | Engineering practice | Well tests (oil rate) (bbl/d); Deferment records (bbl) | At least one oil well in scope with enough tests for a decline fit. |
+| [`vessel_loading`](#vessel_loading) Offered load against a rating | Engineering practice | Well test rates of the wells upstream (bbl/d); Rating (the rating's own) | A rating on record and wells upstream of the item. |
 | [`backlog_health`](#backlog_health) Open maintenance backlog by age, urgency and criticality | Engineering practice | Open work orders (created (orders) | At least one open order. |
-| [`voidage_replacement`](#voidage_replacement) Water injected against the reservoir volume produced | Engineering practice | Allocated oil (Sm³); Water injected (Sm³); Well tests (oil rate (Sm³/d, %, Sm³/Sm³); Formation volume factors and solution GOR (rm³/Sm³, Sm³/Sm³) | A daily report, injection records and the four PVT values; without PVT the ratio is unknown, and with no injection there is no ratio. |
-| [`hall_plot`](#hall_plot) An injector's Hall plot slope against its own earlier slope | Engineering practice | Monthly water injected (Sm³); Days on injection (days); Average wellhead injection pressure (barg) | Twice the comparison months of injection. |
-| [`gas_balance`](#gas_balance) Daily gas balance and its closure gap | Engineering practice | Gas handled (kSm³/d); Gas export, lift gas, flare, fuel gas and vent (kSm³/d) | A daily report with the gas handled. |
-| [`productivity_index`](#productivity_index) Productivity index from a flowing survey against the static pressure before it | Engineering practice | Static bottomhole pressure (barg); Flowing bottomhole pressure (barg); Oil rate at the flowing survey (Sm³/d) | A flowing survey with a rate and a static survey on the same well shortly before it. |
-| [`material_balance`](#material_balance) One-tank material balance from static pressures and net voidage | Engineering practice | Static bottomhole pressures (barg); Allocated oil (rm³); Water injected (rm³) | The PVT voidage replacement needs, and static surveys on at least two dates. |
+| [`voidage_replacement`](#voidage_replacement) Water injected against the reservoir volume produced | Engineering practice | Allocated oil (bbl); Water injected (bbl); Well tests (oil rate (bbl/d, %, scf/bbl); Formation volume factors and solution GOR (rb/STB, rb/Mscf, scf/bbl) | A daily report, injection records and the four PVT values; without PVT the ratio is unknown, and with no injection there is no ratio. |
+| [`hall_plot`](#hall_plot) An injector's Hall plot slope against its own earlier slope | Engineering practice | Monthly water injected (bbl); Days on injection (days); Average wellhead injection pressure (psig) | Twice the comparison months of injection. |
+| [`gas_balance`](#gas_balance) Daily gas balance and its closure gap | Engineering practice | Gas handled (Mscf/d); Gas export, lift gas, flare, fuel gas and vent (Mscf/d) | A daily report with the gas handled. |
+| [`productivity_index`](#productivity_index) Productivity index from a flowing survey against the static pressure before it | Engineering practice | Static bottomhole pressure (psig); Flowing bottomhole pressure (psig); Oil rate at the flowing survey (bbl/d) | A flowing survey with a rate and a static survey on the same well shortly before it. |
+| [`material_balance`](#material_balance) One-tank material balance from static pressures and net voidage | Engineering practice | Static bottomhole pressures (psig); Allocated oil (rb); Water injected (rb) | The PVT voidage replacement needs, and static surveys on at least two dates. |
 | [`permit_conditions`](#permit_conditions) Permit conditions beside the recorded values | Engineering practice | Permit register limits (as written); Laboratory results and survey readings (stored unit); Daily reported volumes (as reported) | The register; a condition without a quantity, a link or a value in the window is reported unknown. |
 | [`ldar`](#ldar) LDAR survey leaks, repeat leakers and coverage | US EPA Method 21 (determination of volatile organic compound leaks) | Component screening readings by survey (ppm) | At least one survey; equipment of a surveyed class with no reading is reported unknown. |
-| [`ili_strength`](#ili_strength) ILI anomaly growth between runs and remaining strength against MOP | ASME B31G (modified, 0.85 dL); ASME B31.8 design factors | Anomaly depth (% of wall); Anomaly length (mm); Wall thickness (mm); Outside diameter (mm); SMYS of the API 5L grade (MPa); Maximum operating pressure (barg) | ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade. |
-| [`co2_corrosion`](#co2_corrosion) CO2 corrosion rate predicted against measured, per line | de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections | Produced water temperature (degC); Gas CO2 (% mol); Gas H2S (ppmv); Maximum operating pressure (barg); CML wall thickness readings (mm) | Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison. |
-| [`vibration_spectra`](#vibration_spectra) Vibration spectrum against fault frequencies (bearing defects, 1x, 2x) | ISO 13373-3 (vibration condition monitoring: diagnostics); rolling element bearing defect frequencies from bearing geometry | Spectrum peak table (mm/s RMS); Running speed (rpm); Bearing geometry (elements (mm) | Condition-monitoring spectra with running speed; bearing frequencies need the bearing geometry. |
+| [`ili_strength`](#ili_strength) ILI anomaly growth between runs and remaining strength against MOP | ASME B31G (modified, 0.85 dL); ASME B31.8 design factors | Anomaly depth (% of wall); Anomaly length (in); Wall thickness (in); Outside diameter (in); SMYS of the API 5L grade (psi); Maximum operating pressure (psig) | ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade. |
+| [`co2_corrosion`](#co2_corrosion) CO2 corrosion rate predicted against measured, per line | de Waard and Milliams (1991), with the de Waard, Lotz and Milliams (1993) fugacity and scale corrections | Produced water temperature (°F); Gas CO2 (% mol); Gas H2S (ppmv); Maximum operating pressure (psig); CML wall thickness readings (in) | Produced water chemistry with a temperature on the line, its MOP and a gas CO2 sample; CML readings for the comparison. |
+| [`vibration_spectra`](#vibration_spectra) Vibration spectrum against fault frequencies (bearing defects, 1x, 2x) | ISO 13373-3 (vibration condition monitoring: diagnostics); rolling element bearing defect frequencies from bearing geometry | Spectrum peak table (in/s RMS); Running speed (rpm); Bearing geometry (elements (in) | Condition-monitoring spectra with running speed; bearing frequencies need the bearing geometry. |
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
@@ -67,13 +67,13 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`loop_health`](#loop_health) Control loop health ranking (time in manual, output saturation, setpoint error, oscillation) | Engineering practice | Process value (each loop's own); Setpoint (each loop's own); Controller output (%); Mode (1 auto (-) | A day or more of 5-minute readings on all four points. |
 | [`loop_tuning`](#loop_tuning) Step test model fit (first order plus dead time) and SIMC PI tuning range | Engineering practice | Process value (high rate) (each loop's own); Controller output (%); Process value span (each loop's own) | The step test's window read every few seconds (a bounded high-rate read), and the value's span from the loop list for a gain in % per %. |
 | [`valve_stiction`](#valve_stiction) Valve stiction from controller output against process value (cross-correlation test) | Engineering practice | Process value (each loop's own); Controller output (%); Mode (1 auto (-) | A day or more of 5-minute readings covering at least four cycles. |
-| [`contactor_foaming`](#contactor_foaming) Contactor differential pressure against its clean level (foaming and fouling) | Engineering practice | Contactor differential pressure (bar); Treated gas analyser (optional) (mol% or mg/Sm³) | A week of differential pressure history before the last two days. |
-| [`treated_gas`](#treated_gas) Treated gas analyser against its operating window | Engineering practice | Treated gas analyser (mol% or mg/Sm³); Operating window (same) | Seven days of analyser readings and an operating window on the point. |
-| [`regenerator`](#regenerator) Reboiler temperature against its operating window | Engineering practice | Reboiler temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
-| [`chiller`](#chiller) Low temperature separator temperature against its operating window | Engineering practice | Separator temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
-| [`inspection_plan`](#inspection_plan) Condition inspection plan against the interval the wall loss supports | API 510 / API 570 | Inspection plan interval and dates (days); Wall thickness readings per CML (mm); Minimum required thickness (mm) | A condition inspection plan concerning the item. |
-| [`allocation_factor`](#allocation_factor) Allocation factor of a meter against the well tests upstream of it | Engineering practice | Meter flow (Sm³/d or kSm³/d); Well tests upstream (oil rate (Sm³/d or kSm³/d) | A well test within the test age for the wells upstream, and days with the meter flowing. |
-| [`meter_agreement`](#meter_agreement) A meter against the nearest other meter on the same stream | Engineering practice | Meter flow (Sm³/d or kSm³/d); Other meter's flow on the same stream (same) | Three days with both flowing in the window and seven in the month before it. |
+| [`contactor_foaming`](#contactor_foaming) Contactor differential pressure against its clean level (foaming and fouling) | Engineering practice | Contactor differential pressure (psi); Treated gas analyser (optional) (mol% or lb/MMscf) | A week of differential pressure history before the last two days. |
+| [`treated_gas`](#treated_gas) Treated gas analyser against its operating window | Engineering practice | Treated gas analyser (mol% or lb/MMscf); Operating window (same) | Seven days of analyser readings and an operating window on the point. |
+| [`regenerator`](#regenerator) Reboiler temperature against its operating window | Engineering practice | Reboiler temperature (°F); Operating window (°F) | Seven days of temperature readings and an operating window on the point. |
+| [`chiller`](#chiller) Low temperature separator temperature against its operating window | Engineering practice | Separator temperature (°F); Operating window (°F) | Seven days of temperature readings and an operating window on the point. |
+| [`inspection_plan`](#inspection_plan) Condition inspection plan against the interval the wall loss supports | API 510 / API 570 | Inspection plan interval and dates (days); Wall thickness readings per CML (in); Minimum required thickness (in) | A condition inspection plan concerning the item. |
+| [`allocation_factor`](#allocation_factor) Allocation factor of a meter against the well tests upstream of it | Engineering practice | Meter flow (bbl/d or Mscf/d); Well tests upstream (oil rate (bbl/d or Mscf/d) | A well test within the test age for the wells upstream, and days with the meter flowing. |
+| [`meter_agreement`](#meter_agreement) A meter against the nearest other meter on the same stream | Engineering practice | Meter flow (bbl/d or Mscf/d); Other meter's flow on the same stream (same) | Three days with both flowing in the window and seven in the month before it. |
 | [`proof_test`](#proof_test) A safeguard's last proof test against its proof test interval | IEC 61511-1 16.3 | Proof test interval on the safeguard register (months); Last proof test (date) | A proof test interval on the register; a safeguard with one and no test on file is overdue. |
 | [`demand_rate`](#demand_rate) A safeguard's demands over the last year against the demand rate it was designed for | IEC 61511-1 16.2.9 | The site's demand log (when (demands); Designed demand rate on the safeguard register (per year) | At least one demand in the window; with no designed rate on the register, the IEC 61508 low demand boundary. |
 | [`flare_relief`](#flare_relief) The equipment relieving into the flare during an episode, and the devices it relieved through | Engineering practice | Piping into the flare system (P&IDs and the line list) (lines); Pressure of each relieved item (its own) | A flare flow point, the piping into the flare's area and a pressure point on the relieved item. |
@@ -154,7 +154,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Vessels, piping and pipelines with repeat thickness surveys at the same locations.
 - **Needs:** Wall thickness readings on the item.
-- **Test vector:** 8.0 mm losing 0.5 mm a year reaches a 5.0 mm minimum in 6 years. (`remaining_life`)
+- **Test vector:** 0.500 in losing 0.020 in (20 mpy) a year reaches a 0.300 in minimum in 10 years. (`remaining_life`)
 
 ## corrosion_circuit
 
@@ -164,8 +164,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Needs:** Wall thickness readings on a line of the circuit.
 - **Threshold `retire_soon`:** Remaining life under this goes to the integrity engineer now. (5 years)
 - **Threshold `longest_interval`:** The next inspection is at half the remaining life, at most this long after the last survey. (10 years)
-- **Test vector:** 1.4 mm lost over six years is 0.233 mm/year long term; 0.4 mm in the last year governs. (`cml_rate`)
-- **Test vector:** Barlow at 100 barg on 323.9 mm OD, X52 at a 0.72 design factor: 10 x 323.9 / (2 x 359 x 0.72). (`design_thickness`)
+- **Test vector:** 0.055 in lost over six years is 9.2 mpy long term; 15 mpy in the last year governs. (`cml_rate`)
+- **Test vector:** Barlow at 1,450 psig on 12.75 in OD, X52 at a 0.72 design factor: 1450 x 12.75 / (2 x 52000 x 0.72). (`design_thickness`)
 
 ## well_constraint
 
@@ -211,9 +211,9 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 **Overall vibration against the evaluation zones.** ISO 20816-3 (formerly ISO 10816-3); ISO 20816-8 for reciprocating compressors.
 
-- **Valid for:** Group 1 (300 kW to 50 MW) and group 2 (15 to 300 kW) machines on rigid or flexible foundations, while running.
-- **Needs:** A vibration point in mm/s with enough readings in the window.
-- **Test vector:** 5.0 mm/s on a group 1 machine on a rigid foundation is between 4.5 and 7.1, which is zone C. (`zone_of`)
+- **Valid for:** Group 1 (400 hp to 67,000 hp) and group 2 (20 to 400 hp) machines on rigid or flexible foundations, while running.
+- **Needs:** A vibration point in in/s with enough readings in the window.
+- **Test vector:** 0.20 in/s on a group 1 machine on a rigid foundation is between 0.177 and 0.280 (4.5 and 7.1 mm/s), which is zone C. (`zone_of`)
 
 ## pump_bep
 
@@ -375,7 +375,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 ## test_check
 
-**Latest well test against inflow and the lift curve.** Engineering practice. The test's liquid rate against the well's own inflow per bar of drawdown and, on a lifted well, its lift curve.
+**Latest well test against inflow and the lift curve.** Engineering practice. The test's liquid rate against the well's own inflow per psi of drawdown and, on a lifted well, its lift curve.
 
 - **Valid for:** Oil wells with a shut-in wellhead pressure in the last two years.
 - **Needs:** At least four oil well tests with a water cut, and a shut-in wellhead pressure.
@@ -492,16 +492,16 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 ## ili_strength
 
-**ILI anomaly growth between runs and remaining strength against MOP.** ASME B31G (modified, 0.85 dL); ASME B31.8 design factors. Metal loss anomalies are matched between in-line inspection runs by type and station; growth is the depth change over the years between runs, projected ahead at that rate. Failure pressure uses the flow stress SMYS + 69 MPa; the safe pressure is the failure pressure times the class location's design factor, and ERF is MOP over the safe pressure. The matching distance, horizon and depth limit are this registry's own screening choices.
+**ILI anomaly growth between runs and remaining strength against MOP.** ASME B31G (modified, 0.85 dL); ASME B31.8 design factors. Metal loss anomalies are matched between in-line inspection runs by type and station; growth is the depth change over the years between runs, projected ahead at that rate. Failure pressure uses the flow stress SMYS + 10 ksi; the safe pressure is the failure pressure times the class location's design factor, and ERF is MOP over the safe pressure. The matching distance, horizon and depth limit are this registry's own screening choices.
 
 - **Valid for:** External or internal metal loss on carbon steel line pipe sized by an in-line inspection tool, on a segment with a recorded grade, wall and class location.
 - **Needs:** ILI features on a line with PODS segments; two runs for growth. No strength without a recorded material grade.
 - **Run by:** `ili_anomalies`
-- **Threshold `match`:** An anomaly of the same type within this many metres in the next run is the same anomaly. (1.5)
+- **Threshold `match`:** An anomaly of the same type within this many feet in the next run is the same anomaly. (5)
 - **Threshold `horizon`:** Growth is projected this far ahead of the latest run. (5 years)
 - **Threshold `depth_limit`:** An anomaly this deep (% of wall) crosses the screen whatever its pressure. (80 %)
 - **Threshold `tool_tolerance`:** Growth (% of wall) under this between two runs may be tool sizing, and is said so. (10 %)
-- **Test vector:** 49 % deep, 131 mm long on 610 x 15.9 mm API 5L X65: modified B31G at a 517 MPa flow stress fails at 220.7 bar. (`failure_pressure`)
+- **Test vector:** 49 % deep, 5.16 in long on 24 x 0.626 in API 5L X65: modified B31G at a 75 ksi flow stress fails at 3,203 psi. (`failure_pressure`)
 
 ## co2_corrosion
 
@@ -512,7 +512,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Run by:** `co2_corrosion_screen`
 - **Threshold `out_of_step`:** A line whose measured share of its prediction is over this many times its peers' median corrodes out of step. (2)
 - **Threshold `sour`:** pCO2/pH2S under this: H2S takes part, and the CO2 model gives no prediction. (500)
-- **Test vector:** 55 degC water at 71 bara with 2.1 % mol CO2: pCO2 1.49 bar, fugacity 0.83, below the scaling temperature, 4.46 mm/y uninhibited. (`predicted_rate`)
+- **Test vector:** 131 °F water at 1,030 psia with 2.1 % mol CO2: pCO2 21.6 psi, fugacity 0.83, below the scaling temperature, 176 mpy (4.46 mm/y) uninhibited. (`predicted_rate`)
 
 ## vibration_spectra
 
@@ -522,11 +522,11 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Needs:** Condition-monitoring spectra with running speed; bearing frequencies need the bearing geometry.
 - **Run by:** `vibration_spectra`
 - **Threshold `tolerance`:** A peak within this share of a fault frequency sits on it. (1.5 %)
-- **Threshold `amplitude`:** A peak under this is the spectrum's floor. (0.1 mm/s)
+- **Threshold `amplitude`:** A peak under this is the spectrum's floor. (0.004 in/s)
 - **Threshold `harmonics`:** Of the first three harmonics of a bearing frequency, this many must show. (2)
 - **Threshold `misalignment`:** 2x over this share of 1x reads misalignment. (0.5)
 - **Threshold `unbalance`:** 1x over this share of the overall level reads unbalance. (0.9)
-- **Test vector:** 8 balls of 23.8 mm on a 100 mm pitch at 3000 rpm: BPFO 4 x 50 x 0.762 = 152.4 Hz, BPFI 247.6 Hz, cage 19.05 Hz. (`bearing_frequencies`)
+- **Test vector:** 8 balls of 0.937 in on a 3.937 in pitch at 3000 rpm: BPFO 4 x 50 x 0.762 = 152.4 Hz, BPFI 247.6 Hz, cage 19.05 Hz. (`bearing_frequencies`)
 
 ## lead_in
 

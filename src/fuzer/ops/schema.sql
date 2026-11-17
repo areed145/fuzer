@@ -233,7 +233,7 @@ create table if not exists opportunity (
     kind        text not null,
     title       text not null,
     target      text,
-    gain_sm3d   double precision,
+    gain_bbld   double precision,
     value_usd   double precision,
     detail      jsonb not null,
     fingerprint text not null,

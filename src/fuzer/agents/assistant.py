@@ -45,7 +45,7 @@ def brief(conn, pack: Pack, fuzer_id: str) -> dict:
     return {
         "about": {"id": unit, "label": queries.entity(conn, unit, per_group=1)["label"]},
         "incident": ({"id": incident, **{k: (inc.get(k) or {}).get("value") for k in
-                                         ("description", "start", "end", "lost_oil_sm3", "failure_modes", "event_types")},
+                                         ("description", "start", "end", "lost_oil_bbl", "failure_modes", "event_types")},
                       "timeline": queries.incident_timeline(conn, incident)} if incident else None),
         "similar_incidents": queries.similar_incidents(conn, incident, 5) if incident else [],
         "lessons": {"approved": [{k: lsn[k] for k in ("id", "title", "text", "stats")} for lsn in approved],

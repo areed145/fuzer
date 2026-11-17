@@ -79,7 +79,7 @@ def test_wells_behind_overlapping_shutdowns_are_counted_once_with_the_durations_
     assert wells and all(w["hours"] == 72.0 for w in wells)  # 0-48 h and 24-72 h overlap: 72 h, not 96
     gas = next(r for r in first["at_risk"] if r["quantity"] == "gas_rate")
     expected = sum(w["rates"]["gas_rate"]["value"] for w in wells if "gas_rate" in w["rates"]) * 3
-    assert abs(gas["value"] - round(expected, 1)) < 0.2 and gas["unit"] == "kSm3"
+    assert abs(gas["value"] - round(expected, 1)) < 0.2 and gas["unit"] == "Mscf"
     # the aftercooler isn't on the flow network: its train's units are, so its wells are at risk too
     assert [u["label"] for u in second["items"][0]["units"]] and second["wells"]
     assert all(w["hours"] == 12.0 for w in second["wells"])
@@ -112,5 +112,5 @@ def test_okan_oil_at_risk_behind_a_unit(okan_db):
     [w] = [x for x in at_risk.windows(conn, datetime.now(UTC), days=30)["windows"]
            if any(i["title"] == "Manifold repair" for i in x["items"])]
     oil = next(r for r in w["at_risk"] if r["quantity"] == "oil_rate")
-    assert oil["value"] > 0 and oil["unit"] == "Sm3" and len(w["wells"]) >= 2
+    assert oil["value"] > 0 and oil["unit"] == "bbl" and len(w["wells"]) >= 2
     conn.rollback()

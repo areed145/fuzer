@@ -6,7 +6,7 @@ and a steward confirms the uncertain ones:
 
 - its description (the historian's descriptor or the AF attribute name): "Compressor Suction Pressure"
 - its instrument letters, read with the pack's tag grammar or ISA-style from the point name: PT, TT, PDT, VT
-- its units: barg, degC, mm/s
+- its units: psig, degF, in/s
 - the class of the equipment it is on (P&ID position and the register's classification): a compressor, a vessel
 
 `propose` weighs these into one role with a confidence and the evidence behind it. Nothing here knows a facility's
@@ -77,11 +77,11 @@ _UNITS = [
     (r"^(barg?|bara|psi[ag]?|kpa[ag]?|mpa[ag]?|kg/cm2g?|mbar|inh2o)$", "pressure"),
     (r"^(degc|degf|°c|°f|c|f|k)$", "temperature"),
     (r"^(mm/s|in/s|ips|g)$", "vibration"),
-    (r"^(um|µm|mil|mils|mm)$", "displacement"),
-    (r"(m3|sm3|nm3|am3|scf|bbl|kg|t|lb)[a-z0-9]*/(s|min|h|hr|d|day)$|^(mmscfd|bpd|kbd)$", "flow"),
+    (r"^(um|µm|mil|mils|mm|in)$", "displacement"),
+    (r"(m3|sm3|nm3|am3|scf|bbl|kg|t|lb)[a-z0-9]*/(s|min|h|hr|d|day)$|^(mmscfd|bpd|kbd|gpm|acfm|scfm|scfh|bopd|bwpd)$", "flow"),
     (r"^(rpm|hz)$", "speed"),
     (r"^(w|kw|mw|hp)$", "power"),
-    (r"^(mol%|ppm|ppmv|ppb|mg/sm3|mg/nm3|mg/l|ph|%h2s|%co2|g/sm3)$", "composition"),
+    (r"^(mol%|ppm|ppmv|ppb|mg/sm3|mg/nm3|mg/l|ph|%h2s|%co2|g/sm3|lb/mmscf)$", "composition"),
 ]
 
 # Words in a description that name a role, most specific first; `quantity` limits the rule to points of that kind.

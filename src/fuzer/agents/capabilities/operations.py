@@ -114,7 +114,7 @@ def well_performance(ref: str | None = None, since: str | None = None, limit: in
 def gas_lift_network(ref: str | None = None, since: str | None = None, limit: int = 15) -> dict[str, Any]:
     """The gas lift network: compression -> lift gas headers -> jacket gas lift manifolds (some through
     another jacket) -> gas lifted wells. Per header: jackets, wells, lift gas and oil from latest tests. Per
-    well: lift gas, oil per lift gas and measured response to more lift gas (Sm3/d oil per extra kSm3/d),
+    well: lift gas, oil per lift gas and measured response to more lift gas (bbl/d oil per extra Mscf/d),
     least and most responsive wells, wells lifting mostly water. With ref (header, manifold, jacket,
     compressor or well): only that part, plus its supply path. Default window: 12 months of tests."""
     from ...graph import operations
@@ -206,7 +206,7 @@ def accounting_reconciliation(since: str | None = None, until: str | None = None
 
 @capability("asset-performance-reporting", kind="calc")
 def unit_cost(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
-    """Operating cost per accounted Sm3 of oil (#372): the cost ledger's booked cost by month and cost element over
+    """Operating cost per accounted barrel of oil (#372): the cost ledger's booked cost by month and cost element over
     that month's closed accounted oil, each currency apart and never converted or summed. A month whose oil isn't
     closed has no unit cost (unknown, never zero)."""
     from ...analysis import accounting

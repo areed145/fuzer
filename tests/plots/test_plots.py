@@ -47,10 +47,10 @@ def test_decline_fits_after_the_valve_repair(conn):
     assert any(a.startswith("2024-09") for a in steps) and any(a.startswith("2024-12") for a in steps)
     assert s["fit_from"] >= "2024-11" and s["tests_in_fit"] >= 10
     assert 3 < s["effective_decline_pct_per_year"] < 20 and s["r2_log"] > 0.5
-    assert s["forecast"]["oil_sm3"] > 0 and fig.layout["yaxis"]["type"] == "log"
+    assert s["forecast"]["oil_bbl"] > 0 and fig.layout["yaxis"]["type"] == "log"
     f = s["forecast"]  # P4.6: the forecast carries its range, window, point count and sufficiency verdict
-    assert f["oil_range_sm3"][0] < f["oil_sm3"] < f["oil_range_sm3"][1]
-    assert f["rate_at_end_range_sm3d"][0] <= f["rate_at_end_sm3d"] <= f["rate_at_end_range_sm3d"][1]
+    assert f["oil_range_bbl"][0] < f["oil_bbl"] < f["oil_range_bbl"][1]
+    assert f["rate_at_end_range_bbld"][0] <= f["rate_at_end_bbld"] <= f["rate_at_end_range_bbld"][1]
     assert f["sufficiency"]["verdict"] != "too_little_data" and f["points"] == s["tests_in_fit"] and f["window"]
     renders(fig)
 
@@ -79,7 +79,7 @@ def test_gas_lift_allocation(conn):
     fig = production.gas_lift_allocation(conn)
     s = fig.summary
     assert s["wells"] > 20 and len(s["headers"]) == 3 and s["suggested_moves"]
-    assert all(m["oil_gain_sm3d"] >= 0 for m in s["suggested_moves"])
+    assert all(m["oil_gain_bbld"] >= 0 for m in s["suggested_moves"])
     renders(fig)
 
 
@@ -88,10 +88,10 @@ def test_gas_lift_allocation(conn):
 def test_wall_loss_ranking_and_one_pipeline(conn):
     rank = maintenance.wall_thickness(conn, kind="pipeline")
     top = rank.summary["items"][0]
-    assert "production flowline" in top["description"] and top["fastest_loss_mm_per_year"] > 0.35
-    assert top["fastest_loss_mm_per_year"] > 2 * rank.summary["median_of_shown_mm_per_year"]
+    assert "production flowline" in top["description"] and top["fastest_loss_mpy"] > 13.8  # mpy (0.35 mm a year)
+    assert top["fastest_loss_mpy"] > 2 * rank.summary["median_of_shown_mpy"]
     renders(rank)
-    line = maintenance.wall_thickness(conn, fid(conn, top["label"]), min_required_mm=6.0)
+    line = maintenance.wall_thickness(conn, fid(conn, top["label"]), min_required_in=6.0)
     assert len(line.summary["cmls"]) == 4 and all("retirement_year" in c for c in line.summary["cmls"])
     renders(line)
 
@@ -151,7 +151,7 @@ def test_incident_correlation_and_vibration(conn):
     assert n >= 3 and len(cor.data[0]["z"]) == n and cor.summary["against_target"]["best_lag"]
     renders(cor)
     vib = troubleshooting.vibration(conn, k)
-    assert vib.summary["zone_limits_mm_s"] == [3.5, 7.1, 11.0] and vib.summary["peak_zone"] in "ABCD"
+    assert vib.summary["zone_limits_in_s"] == [0.138, 0.28, 0.433] and vib.summary["peak_zone"] in "ABCD"
     renders(vib)
 
 

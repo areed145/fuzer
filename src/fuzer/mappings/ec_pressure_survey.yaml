@@ -10,5 +10,5 @@ measurements:
   at: survey_date
   method: {template: "{kind} pressure survey"}
   values:
-    - {quantity: {template: "{kind}_bottomhole_pressure"}, from: pressure_barg, unit: barg}
-    - {quantity: survey_oil_rate, from: oil_sm3d, unit: Sm3/d}
+    - {quantity: {template: "{kind}_bottomhole_pressure"}, from: pressure_psig, unit: psig}
+    - {quantity: survey_oil_rate, from: oil_bbld, unit: bbl/d}

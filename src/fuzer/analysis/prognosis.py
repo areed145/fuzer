@@ -56,10 +56,10 @@ def _vibration_eta(conn, tag: str, until: str | None) -> list[dict]:
     import numpy as np
 
     days = [d["day"] for d in v["daily"]]
-    e = eta(days, np.array([d["mm_s"] for d in v["daily"]]), v["zones"]["C/D"])
+    e = eta(days, np.array([d["in_s"] for d in v["daily"]]), v["zones"]["C/D"])
     if not e["reaches"]:
         return []
-    return [projection(f"vibration reaches zone D ({v['zones']['C/D']:g} mm/s)", v["point"], e)]
+    return [projection(f"vibration reaches zone D ({v['zones']['C/D']:g} in/s)", v["point"], e)]
 
 
 def remaining_life(conn, fid: str, until: str | None = None) -> dict:

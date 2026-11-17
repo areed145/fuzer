@@ -235,8 +235,8 @@ function IncidentsCard() {
           {recentIncidents.map((incident) => (
             <li key={incident.id}>
               <a href={entityHref(incident.id)}>{say(incident.description)}</a>
-              <span className="muted small">Started {incident.start}{incident.lost_oil_sm3 > 0
-                && ` · ${Math.round(incident.lost_oil_sm3).toLocaleString()} Sm³ lost oil`}</span>
+              <span className="muted small">Started {incident.start}{incident.lost_oil_bbl > 0
+                && ` · ${Math.round(incident.lost_oil_bbl).toLocaleString()} bbl lost oil`}</span>
             </li>
           ))}
         </ul>

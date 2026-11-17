@@ -136,7 +136,7 @@ def watch(conn, until: str | None = None, by: str = "agent:well_tests") -> dict:
                    fact("Days since it", r.get("age_days")), fact("Usual interval, days", r.get("usual_days")),
                    fact("Water cut, %", r.get("water_cut")),
                    fact(f"Water cut over the {BASE} tests before, median %", r.get("water_cut_before")),
-                   fact("GOR, Sm3/Sm3", r.get("gor")),
+                   fact("GOR, scf/bbl", r.get("gor")),
                    fact("GOR over the tests before the last two, median", r.get("gor_before")),
                    fact("Note", "A pattern to look at, not a reservoir diagnosis.")))
         try:

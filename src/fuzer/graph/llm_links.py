@@ -66,7 +66,7 @@ null. Never use an id that is not in that entry's list. confidence is 0 to 1. no
 events: what happened, one item per distinct occurrence, typed with the closest type. involves lists
 the candidates taking part with their role: subject (the thing the event is about), from / to (for
 changeovers and swaps), location (where it happened). details holds useful values as name/value
-pairs, e.g. choke_from_pct, choke_to_pct, vibration_mm_s, reason, duration. Return no events for an
+pairs, e.g. choke_from_pct, choke_to_pct, vibration_in_s, reason, duration. Return no events for an
 entry that only records a reading or a routine status.
 
 Return every entry you were given, in the same order, with its entry_id."""

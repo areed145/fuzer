@@ -54,7 +54,7 @@ def _pvt(conn, until: str) -> tuple[dict, dict]:
 
 
 def _injected(conn, since: str, until: str) -> dict[str, dict[str, dict]]:
-    """Injector -> month -> {water_sm3, days, whp_barg} from the monthly injection records."""
+    """Injector -> month -> {water_bbl, days, whp_psig} from the monthly injection records."""
     out: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(dict))
     names = {}
     for r in conn.execute(
@@ -89,8 +89,8 @@ def voidage(conn, since: str | None = None, until: str | None = None, days: int 
     oil: dict[str, float] = defaultdict(float)
     daily_inj: dict[str, float] = defaultdict(float)
     for day, f in booked.items():
-        oil[day[:7]] += ops._num(f.get("oil_sm3"))
-        daily_inj[day[:7]] += ops._num(f.get("water_inj_sm3"))
+        oil[day[:7]] += ops._num(f.get("oil_bbl"))
+        daily_inj[day[:7]] += ops._num(f.get("water_inj_bbl"))
     tests: dict[str, list[tuple]] = defaultdict(list)  # well -> [(at, quantity, value)]
     for r in conn.execute(
             "select fuzer_id, at, quantity, value from measurement where method = 'well test' "
@@ -116,22 +116,22 @@ def voidage(conn, since: str | None = None, until: str | None = None, days: int 
         injected = by_month_inj.get(m) or daily_inj.get(m, 0.0)
         water = oil[m] * q_water / q_oil if q_oil else None
         gas = oil[m] * q_gas / q_oil if q_oil else None
-        void = (oil[m] * pvt["oil_fvf"] + water * pvt["water_fvf"] + gas * pvt["gas_fvf"]
+        void = (oil[m] * pvt["oil_fvf"] + water * pvt["water_fvf"] + gas / 1000 * pvt["gas_fvf"]  # rb/Mscf
                 if not missing and water is not None else None)
         inj_r = injected * pvt["water_fvf"] if "water_fvf" in pvt else None
         if void and inj_r is not None:
             cum_inj, cum_void = cum_inj + inj_r, cum_void + void
         status = "no_injection" if injected <= 0 else "unknown" if not void or inj_r is None else "injecting"
-        rows.append({"month": m, "oil_sm3": round(oil[m]), "water_sm3": round(water) if water is not None else None,
-                     "free_gas_sm3": round(gas) if gas is not None else None, "injected_sm3": round(injected),
-                     "voidage_rm3": round(void) if void else None, "injected_rm3": round(inj_r) if inj_r is not None else None,
+        rows.append({"month": m, "oil_bbl": round(oil[m]), "water_bbl": round(water) if water is not None else None,
+                     "free_gas_mscf": round(gas / 1000, 1) if gas is not None else None, "injected_bbl": round(injected),
+                     "voidage_rb": round(void) if void else None, "injected_rb": round(inj_r) if inj_r is not None else None,
                      "vrr": round(inj_r / void, 3) if status == "injecting" else None,
                      "cumulative_vrr": round(cum_inj / cum_void, 3) if status == "injecting" and cum_void else None,
                      "injectors": sorted(w for w, months in per_well.items() if months.get(m, {}).get("water_injected")),
                      "status": status})
     latest = [r["vrr"] for r in rows if r["vrr"] is not None][-VRR_MONTHS:]
     level = round(median(latest), 3) if latest else None
-    if not any(r["injected_sm3"] for r in rows):
+    if not any(r["injected_bbl"] for r in rows):
         verdict, note = "no_injection", "No water injection recorded in the window: there is no ratio to read, not a ratio of zero."
     elif missing:
         verdict, note = "unknown", f"No recorded {', '.join(missing)}, so reservoir volumes can't be worked out and the ratio is unknown."
@@ -174,9 +174,9 @@ def hall(conn, since: str | None = None, until: str | None = None, days: int = 7
             if w <= 0 or p is None or d <= 0:
                 continue
             cw, cpt = cw + w, cpt + p * d
-            pts.append({"month": m, "water_sm3": round(w), "days": d, "whp_barg": p,
-                        "cumulative_water_sm3": round(cw), "cumulative_bar_days": round(cpt, 1)})
-        xy = [(p["cumulative_water_sm3"], p["cumulative_bar_days"]) for p in pts]
+            pts.append({"month": m, "water_bbl": round(w), "days": d, "whp_psig": p,
+                        "cumulative_water_bbl": round(cw), "cumulative_psi_days": round(cpt, 1)})
+        xy = [(p["cumulative_water_bbl"], p["cumulative_psi_days"]) for p in pts]
         early = _slope(xy[:len(xy) // 2]) if len(xy) >= 2 * HALL_MONTHS else None
         late = _slope(xy[-HALL_MONTHS - 1:]) if len(xy) >= 2 * HALL_MONTHS else None
         ratio = round(late / early, 2) if early and late else None

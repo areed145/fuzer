@@ -6,15 +6,15 @@ Troubleshooting guide for the vapour recovery unit at Harrier terminal. Written 
 
 ## First minutes
 
-When G1-K-7001 trips, tank vapours have nowhere to go but the thermal oxidiser H1-H-8006. Confirm the oxidiser is lit and taking flow on H1-FT-8005, and hold the tank vapour header E1-PT-5003 below 15 mbarg. Above that, slow receipts into the tanks before the roof seals and vents lift.
+When G1-K-7001 trips, tank vapours have nowhere to go but the thermal oxidiser H1-H-8006. Confirm the oxidiser is lit and taking flow on H1-FT-8005, and hold the tank vapour header E1-PT-5003 below 6.0 inH2O. Above that, slow receipts into the tanks before the roof seals and vents lift.
 
 ## High discharge temperature trip
 
-A trip on G1-TT-7006 above 150 degC: the aftercooler G1-E-7003 is air cooled, so check the fan is turning and its belts are on before anything else. A cylinder discharge temperature (G1-TT-7021, G1-TT-7022) running more than 15 degC above its neighbour points to a leaking valve on that cylinder.
+A trip on G1-TT-7006 above 302 °F: the aftercooler G1-E-7003 is air cooled, so check the fan is turning and its belts are on before anything else. A cylinder discharge temperature (G1-TT-7021, G1-TT-7022) running more than 27 °F above its neighbour points to a leaking valve on that cylinder.
 
 ## High vibration trip
 
-A trip on G1-VT-7007 above 11.2 mm/s: check the frame bolts and the probe mounting before restarting. A single step to the trip value with nothing else moving is usually the probe or its cable.
+A trip on G1-VT-7007 above 0.441 in/s: check the frame bolts and the probe mounting before restarting. A single step to the trip value with nothing else moving is usually the probe or its cable.
 
 ## Escalation
 

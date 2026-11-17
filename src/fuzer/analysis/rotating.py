@@ -1,7 +1,7 @@
 """Rotating equipment analysis (#474): what an experienced machinery engineer checks first, as calcs ({value,
 expected, flag, basis, sources}) the maintenance and integrity specialist cites.
 
-- `vibration(ref)`: overall vibration (mm/s RMS) against the ISO 20816-3 (formerly 10816-3) zones for the machine's group
+- `vibration(ref)`: overall vibration (in/s RMS) against the ISO 20816-3 (formerly 10816-3) zones for the machine's group
   and foundation, its trend over the last 30 days and, when rising, the date it reaches zone D at that rate. Flags
   `zone_d` (damage likely: act now), `zone_c` (not for long-term running: plan the repair), `rising`.
 - `pump_bep(ref)`: where a pump runs against its best efficiency point: the share of running time inside the
@@ -11,10 +11,10 @@ expected, flag, basis, sources}) the maintenance and integrity specialist cites.
   driver's speed, how often the anti-surge valve is open, head against the map at the same flow and speed, and the
   same stage on the other trains. Flags `near_surge` (the last week's 5th percentile margin under 5 %) and
   `recycling` (the valve open more than 30 % of the time). A machine without its map says so.
-- `heat_rate(ref)`: a gas turbine driver's heat rate (fuel energy per kWh out) against its OEM curves at the same
+- `heat_rate(ref)`: a gas turbine driver's heat rate (fuel energy in Btu per kWh out) against its OEM curves at the same
   load and ambient temperature, and its weekly trend. Flags `heat_rate_high` at 4 % or more above expected.
 - `motor_load(ref)`: an electric motor driver's measured power against its nameplate rating and service factor (the
-  motor's rated kW and service factor on the driven item's SAP equipment record), with the running hours above the
+  motor's rated hp and service factor on the driven item's SAP equipment record), with the running hours above the
   rating and above the service factor. Flags `motor_overload` (the last week runs above the service factor:
   insulation life is being spent) and `motor_high` (above the rating, inside the service factor).
 - `health(ref)`: one machine's health summary: every check that applies (curve, operating region, vibration,
@@ -52,10 +52,11 @@ from ..core import detectors
 from ..core.findings import DETERMINISTIC, Finding, at, fact
 from .calcs import CalcError, _label, read, result, window_of
 
-# ISO 10816-3 / 20816-3 zone boundaries, mm/s RMS: (A/B, B/C, C/D). Group 1: large machines (300 kW to 50 MW,
-# compressors, turbines, large pumps); group 2: medium (15 to 300 kW, most pumps and fans).
-ZONES = {("group1", "rigid"): (2.3, 4.5, 7.1), ("group1", "flexible"): (3.5, 7.1, 11.0),
-         ("group2", "rigid"): (1.4, 2.8, 4.5), ("group2", "flexible"): (2.3, 4.5, 7.1)}
+# ISO 10816-3 / 20816-3 zone boundaries in in/s RMS (the standard's 2.3, 4.5, 7.1 mm/s and so on): (A/B, B/C, C/D).
+# Group 1: large machines (400 hp to 67,000 hp: compressors, turbines, large pumps); group 2: medium (20 to 400 hp,
+# most pumps and fans).
+ZONES = {("group1", "rigid"): (0.091, 0.177, 0.280), ("group1", "flexible"): (0.138, 0.280, 0.433),
+         ("group2", "rigid"): (0.055, 0.110, 0.177), ("group2", "flexible"): (0.091, 0.177, 0.280)}
 LARGE = ("compressor", "turbine", "generator", "expander", "blower")
 POR = (0.70, 1.20)  # API 610 preferred operating region, fraction of BEP flow
 AOR = (0.50, 1.30)  # allowable operating region when the datasheet gives none
@@ -106,7 +107,7 @@ def recip_bounds(conn, point_ids: list[str]) -> tuple[float, float, float]:
     if not row or row["hi"] is None or row["hihi"] is None:
         raise CalcError("no frame vibration alarm and trip on record for this reciprocating compressor (its datasheet "
                         "gives them); the centrifugal zones don't apply")
-    return (round(row["hi"] / 2, 2), float(row["hi"]), float(row["hihi"]))
+    return (round(row["hi"] / 2, 3), float(row["hi"]), float(row["hihi"]))
 
 
 def zone_of(v: float, bounds: tuple[float, float, float]) -> str:
@@ -163,7 +164,7 @@ def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: s
             r2 = 1 - float(np.sum((ys - (slope * xs + icpt)) ** 2)) / ss if ss else 0.0
             slope = float(slope)
         row = {"point": p["point"], "id": p["id"], "description": p["description"], "now": now,
-               "per_week": slope * 7, "r2": r2, "daily": [{"day": d, "mm_s": round(m, 2)} for d, m in zip(days_, med)],
+               "per_week": slope * 7, "r2": r2, "daily": [{"day": d, "in_s": round(m, 3)} for d, m in zip(days_, med)],
                "first": days_[0], "last": days_[-1], "readings": len(series)}
         if worst is None or now > worst["now"]:
             worst = row
@@ -175,14 +176,14 @@ def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: s
     flag = "zone_d" if zone == "D" else "zone_c" if zone == "C" else "rising" if rising else None
     return result(round(worst["now"], 2), bounds[0], flag,
                   f"overall vibration, median of the last 3 days of daily medians, on the highest of {len(pts)} "
-                  f"mm/s point(s), against "
-                  + (f"the maker's frame vibration alarm ({bounds[1]:g}) and trip ({bounds[2]:g} mm/s) for a "
+                  f"in/s point(s), against "
+                  + (f"the maker's frame vibration alarm ({bounds[1]:g}) and trip ({bounds[2]:g} in/s) for a "
                      f"reciprocating compressor (ISO 20816-8; zone A/B at half the alarm)" if recip else
                      f"ISO 20816-3 (formerly ISO 10816-3) {group.replace('group', 'group ')} {foundation} zones")
-                  + f" (A/B {bounds[0]:g}, B/C {bounds[1]:g}, C/D {bounds[2]:g} mm/s); trend fitted to the last 30 days",
-                  [tag, worst["id"]], unit="mm/s RMS", zone=zone, zones={"A/B": bounds[0], "B/C": bounds[1],
+                  + f" (A/B {bounds[0]:g}, B/C {bounds[1]:g}, C/D {bounds[2]:g} in/s); trend fitted to the last 30 days",
+                  [tag, worst["id"]], unit="in/s RMS", zone=zone, zones={"A/B": bounds[0], "B/C": bounds[1],
                                                                         "C/D": bounds[2]},
-                  group=group, foundation=foundation, point=worst["point"], trend_mm_s_per_week=round(worst["per_week"], 3),
+                  group=group, foundation=foundation, point=worst["point"], trend_in_s_per_week=round(worst["per_week"], 4),
                   trend_r2=round(worst["r2"], 2), reaches_zone_d=to_d,
                   data_from=worst["first"], data_to=worst["last"], readings=worst["readings"], daily=worst["daily"][-60:])
 
@@ -305,11 +306,11 @@ def surge(conn, fid: str, days: int = 30, until: str | None = None, recent_days:
     # analysis's real-gas properties, else on an ideal gas
     for how, fn in (("real", compression.gas_performance), ("ideal", equipment.compressor_performance)):
         try:
-            h = fn(conn, tag, days=days, until=until, src=src)["head_kj_kg"] if mh else None
+            h = fn(conn, tag, days=days, until=until, src=src)["head_ft"] if mh else None
         except CalcError:
             continue
         if h:
-            head = {"data_kj_kg": h, "map_kj_kg": round(mh, 1), "vs_map_pct": round((h / mh - 1) * 100, 1), "gas": how}
+            head = {"data_ft": h, "map_ft": round(mh), "vs_map_pct": round((h / mh - 1) * 100, 1), "gas": how}
         break
     siblings = []
     from ..graph import structure
@@ -381,7 +382,7 @@ def surge_events(conn, fid: str, days: int = 30, until: str | None = None, src=N
                 before = [v["axial"][x] for x in ts[max(0, i - 15):i - 3] if x in v["axial"]]
                 if near and before:
                     kick = min(near) - float(np.median(before))
-                    ev["thrust_kick_mm"] = round(float(kick), 2)
+                    ev["thrust_kick_in"] = round(float(kick), 4)
             events.append(ev)
     recent = [e for e in events if e["at"] >= (end - timedelta(days=30)).isoformat()]
     return result(len(events), 0, "surge_events" if events else None,
@@ -406,7 +407,7 @@ def _ambient_point(conn) -> dict | None:
 
 
 def heat_rate(conn, fid: str, days: int = 30, until: str | None = None, recent_days: int = 7, src=None) -> dict:
-    """A gas turbine driver's heat rate (fuel energy per kWh of output) against what its OEM curves expect at the
+    """A gas turbine driver's heat rate (fuel energy in Btu per kWh of output) against what its OEM curves expect at the
     same load and ambient temperature. A rising excess is the air compressor fouling (an offline water wash
     recovers it) or hot section wear (it doesn't). Flags `heat_rate_high` when the last week runs 4 % or more above
     expected."""
@@ -427,17 +428,17 @@ def heat_rate(conn, fid: str, days: int = 30, until: str | None = None, recent_d
         raise CalcError("no " + ", ".join(missing or ["design fuel heating value"]) + " point for that driver")
     start, end = window_of(conn, days, until)
     v = read(parts, start, end, 60, src)
-    iso_kw = float(np.interp(15, *zip(*sorted(c["series"]["power_ambient"]))))
+    iso_hp = float(np.interp(59, *zip(*sorted(c["series"]["power_ambient"]))))  # at ISO ambient, 59 F (15 C)
     rows = []
     for t, f in sorted(v["fuel"].items()):
         pw, amb = v["power"].get(t), v["ambient"].get(t)
-        if pw is None or amb is None or pw < 0.3 * iso_kw or f <= 0:
+        if pw is None or amb is None or pw < 0.3 * iso_hp or f <= 0:
             continue  # stopped or idling
         avail = float(np.interp(amb, *zip(*sorted(c["series"]["power_ambient"]))))
         load = min(100.0, pw / avail * 100)
         expected = (float(np.interp(load, *zip(*sorted(c["series"]["heat_rate_load"]))))
                     * float(np.interp(amb, *zip(*sorted(c["series"]["heat_rate_ambient"])))))
-        rows.append((t, f * lhv * 1000 / pw, expected, load))
+        rows.append((t, f * lhv / (pw * 0.7457), expected, load))  # scfh x Btu/scf / kW
     if len(rows) < 24:
         raise CalcError("the driver hardly ran in that window")
     cut = (datetime.fromisoformat(rows[-1][0]) - timedelta(days=recent_days)).isoformat()
@@ -451,10 +452,10 @@ def heat_rate(conn, fid: str, days: int = 30, until: str | None = None, recent_d
     xs = np.arange(len(days_), dtype=float)
     slope = float(np.polyfit(xs, [d[1] for d in days_], 1)[0]) * 7 if len(days_) >= 7 else None
     return result(round(actual, 0), round(expected, 0), "heat_rate_high" if excess >= HEAT_RATE_HIGH else None,
-                  f"heat rate = fuel gas flow x the design fuel's LHV ({lhv:g} MJ/Sm3) / output power, hourly while "
+                  f"heat rate = fuel gas flow x the design fuel's LHV ({lhv:g} Btu/scf) / output power, hourly while "
                   f"loaded, against the {c['source']} curves' heat rate at the same load and ambient temperature; "
                   f"the last {recent_days} days' median. High at {HEAT_RATE_HIGH:g} % or more above expected",
-                  [tag, c["model_id"], *[p["id"] for p in parts.values()]], unit="kJ/kWh",
+                  [tag, c["model_id"], *[p["id"] for p in parts.values()]], unit="Btu/kWh",
                   excess_pct=round(excess, 1), trend_pct_per_week=round(slope, 2) if slope is not None else None,
                   load_pct=round(float(np.median([r[3] for r in recent])), 1),
                   data_from=rows[0][0][:10], data_to=rows[-1][0][:10], readings=len(rows),
@@ -466,13 +467,13 @@ MOTOR_HIGH_SHARE = 25.0  # % of the last week's running hours above the rating: 
 
 
 def motor_rating(conn, tag: str) -> dict:
-    """The nameplate of the motor driving the unit installed at `tag`: rated kW and service factor from that unit's
+    """The nameplate of the motor driving the unit installed at `tag`: rated hp and service factor from that unit's
     SAP equipment record, with the record's id as the source. The rating follows the physical unit, so a swapped
     pump brings its own motor's rating."""
     rows = conn.execute(
         """
         select e.src as unit, g.field, g.value #>> '{}' as v from edge e
-        join golden g on g.fuzer_id = e.src and g.field in ('motor_rated_kw', 'motor_service_factor')
+        join golden g on g.fuzer_id = e.src and g.field in ('motor_rated_hp', 'motor_service_factor')
         where e.rel = 'installed_at' and e.dst = %s and e.valid_to is null
         """, (tag,)).fetchall()
     out: dict = {}
@@ -482,9 +483,9 @@ def motor_rating(conn, tag: str) -> dict:
         except (TypeError, ValueError):
             continue
         out["unit"] = r["unit"]
-    if not out.get("motor_rated_kw"):
-        raise CalcError("no motor rating (rated kW) on the equipment installed there")
-    return {"rated_kw": out["motor_rated_kw"], "service_factor": out.get("motor_service_factor"), "unit": out["unit"]}
+    if not out.get("motor_rated_hp"):
+        raise CalcError("no motor rating (rated hp) on the equipment installed there")
+    return {"rated_hp": out["motor_rated_hp"], "service_factor": out.get("motor_service_factor"), "unit": out["unit"]}
 
 
 def motor_load(conn, fid: str, days: int = 30, until: str | None = None, recent_days: int = 7, src=None) -> dict:
@@ -496,10 +497,10 @@ def motor_load(conn, fid: str, days: int = 30, until: str | None = None, recent_
 
     tag = _tag(conn, fid)
     rating = motor_rating(conn, tag)
-    rated, sf = rating["rated_kw"], rating["service_factor"]
+    rated, sf = rating["rated_hp"], rating["service_factor"]
     p = role_point(conn, tag, "power")
     if not p:
-        raise CalcError("no motor power (kW) point on that machine")
+        raise CalcError("no motor power (hp) point on that machine")
     start, end = window_of(conn, days, until)
     v = read({"power": p}, start, end, 60, src)["power"]
     running = sorted((t, x) for t, x in v.items() if x > 0.1 * rated)
@@ -519,14 +520,14 @@ def motor_load(conn, fid: str, days: int = 30, until: str | None = None, recent_
     for t, x in running:
         daily.setdefault(t[:10], []).append(x)
     return result(round(median, 0), rated, flag,
-                  f"measured motor power, hourly while running (above 10 % of rating), against the {rated:g} kW "
-                  f"nameplate rating" + (f" and its {sf:g} service factor ({limit:g} kW)" if sf else
+                  f"measured motor power, hourly while running (above 10 % of rating), against the {rated:g} hp "
+                  f"nameplate rating" + (f" and its {sf:g} service factor ({limit:g} hp)" if sf else
                                          " (no service factor on record: the rating is the limit)")
                   + f" from the SAP equipment record; the last {recent_days} days' median. Overload when "
                   f"{MOTOR_OVERLOAD_SHARE:g} % or more of those running hours are above the service factor; high "
                   f"when {MOTOR_HIGH_SHARE:g} % or more are above the rating",
-                  [tag, rating["unit"], p["id"]], unit="kW", load_pct=round(median / rated * 100, 1),
-                  rated_kw=rated, service_factor=sf, hours_above_rating=len(over_rated),
+                  [tag, rating["unit"], p["id"]], unit="hp", load_pct=round(median / rated * 100, 1),
+                  rated_hp=rated, service_factor=sf, hours_above_rating=len(over_rated),
                   hours_above_service_factor=len(over_sf), recent_above_sf_pct=round(share_sf, 1),
                   first_above_service_factor=over_sf[0][:16] if over_sf else None,
                   data_from=running[0][0][:10], data_to=running[-1][0][:10], readings=len(running),
@@ -680,7 +681,7 @@ def health(conn, fid: str, until: str | None = None) -> dict:
                          "unit": r.get("unit"), "basis": r["basis"], "sources": r["sources"],
                          "data": {k: r[k] for k in ("data_from", "data_to", "at", "first", "last") if r.get(k)},
                          "confidence": _confidence("reliability" if name == "failure_trend" else name, r),
-                         **{k: r[k] for k in ("zone", "reaches_zone_d", "trend_mm_s_per_week", "in_preferred_pct",
+                         **{k: r[k] for k in ("zone", "reaches_zone_d", "trend_in_s_per_week", "in_preferred_pct",
                                               "below_min_flow_pct", "reading", "eta_days", "worst_month", "margin_p5", "excess_pct",
                                               "load_pct", "hours_above_service_factor",
                                               "asv_open_pct", "head", "siblings", "pct_of_rating", "worst_throw",

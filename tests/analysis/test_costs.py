@@ -43,9 +43,9 @@ def test_the_cost_of_unreliability_adds_parts_only_in_one_currency(okan_db):
     conn = okan_db.conn
     pack = load_pack("okan")
     out = costs.unreliability(conn, pack, limit=0)
-    assert out["price"] == {"oil_sm3": 470.0, "currency": "USD", "source": "pack okan"}
+    assert out["price"] == {"oil_bbl": 75.0, "currency": "USD", "source": "pack okan"}
     sep = next(u for u in out["units"] if u["unit"] == "40-V-2002")
-    assert sep["lost_oil_value"] == round(sep["lost_oil_sm3"] * 470) and list(sep["order_cost"]) == ["unknown"]
+    assert sep["lost_oil_value"] == round(sep["lost_oil_bbl"] * 75) and list(sep["order_cost"]) == ["unknown"]
     parts = sep["order_cost"]["unknown"]
     assert parts > 0
     assert sep["total"] is None and "no currency in the source" in sep["why_no_total"]  # never added
@@ -71,5 +71,5 @@ def test_costs_reach_people_and_agents(okan_db):
     fig = maintenance.spend(conn, by="unit")
     assert fig.data[0]["name"] == "cost, currency unknown"  # the plot labels an unknown currency as unknown
     fig = maintenance.unreliability(conn, load_pack("okan"))
-    assert [t["name"] for t in fig.data] == ["lost oil (USD at 470 per Sm³)", "corrective orders, currency unknown"]
+    assert [t["name"] for t in fig.data] == ["lost oil (USD at 75 per bbl)", "corrective orders, currency unknown"]
     conn.rollback()

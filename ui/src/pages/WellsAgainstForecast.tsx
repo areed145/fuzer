@@ -5,7 +5,7 @@ import { api } from "../api";
 import { Card, Disclosure, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
-const sm3 = (v: number | null | undefined) => (v == null ? "–" : `${v.toLocaleString()} Sm3/d`);
+const sm3 = (v: number | null | undefined) => (v == null ? "–" : `${v.toLocaleString()} bbl/d`);
 
 export function WellsAgainstForecast() {
   const data = useAsync(() => api.forecastVsActual(), []);
@@ -16,8 +16,8 @@ export function WellsAgainstForecast() {
       <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
       {d && <>
         <div className="small">
-          {d.since} to {d.until}. Across {d.field.wells_compared} wells the latest tests make {sm3(d.field.actual_sm3d)} against
-          a forecast of {sm3(d.field.forecast_sm3d)} ({d.field.gap_sm3d > 0 ? "+" : ""}{d.field.gap_sm3d} Sm3/d).
+          {d.since} to {d.until}. Across {d.field.wells_compared} wells the latest tests make {sm3(d.field.actual_bbld)} against
+          a forecast of {sm3(d.field.forecast_bbld)} ({d.field.gap_bbld > 0 ? "+" : ""}{d.field.gap_bbld} bbl/d).
           {" "}{below.length} under their forecast, {d.field.above_forecast.length} over it.
         </div>
         {below.length ? (
@@ -26,10 +26,10 @@ export function WellsAgainstForecast() {
             <tbody>{below.map((w) => (
               <tr key={w.id} data-well={w.well}>
                 <td><a href={entityHref(w.id)}>{w.well}</a></td>
-                <td data-label="Latest test">{sm3(w.latest?.actual_sm3d)}<div className="small muted">{w.latest?.at}</div></td>
-                <td data-label="Forecast">{sm3(w.latest?.forecast_sm3d)}
-                  {w.latest?.low_sm3d != null && <div className="small muted">90% range {w.latest.low_sm3d} to {w.latest.high_sm3d}</div>}</td>
-                <td data-label="Gap"><strong>{w.gap_sm3d} Sm3/d</strong></td>
+                <td data-label="Latest test">{sm3(w.latest?.actual_bbld)}<div className="small muted">{w.latest?.at}</div></td>
+                <td data-label="Forecast">{sm3(w.latest?.forecast_bbld)}
+                  {w.latest?.low_bbld != null && <div className="small muted">90% range {w.latest.low_bbld} to {w.latest.high_bbld}</div>}</td>
+                <td data-label="Gap"><strong>{w.gap_bbld} bbl/d</strong></td>
                 <td data-label="Under since">{w.below_since ?? "–"}</td>
                 <td data-label="Downtime" className="small">{w.downtime.length
                   ? w.downtime.map((x) => <div key={x.id}><a href={entityHref(x.id)}>{x.start.slice(0, 10)}</a> {x.reason}</div>)

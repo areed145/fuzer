@@ -53,13 +53,13 @@ def test_well_performance_finds_the_water_breakthrough(conn):
     assert w["biggest_declines"][0]["well"] == "OK-J03-02"
     assert w["biggest_declines"][0]["water_cut_latest"] > 80
     one = operations.well_performance(conn, queries.resolve_ref(conn, PACK, "OK-J07-05"), "2025-01-01")
-    rates = {t["test_date"][:7]: t["oil_sm3d"] for t in one["tests"]}
+    rates = {t["test_date"][:7]: t["oil_bbld"] for t in one["tests"]}
     assert rates["2025-05"] < rates["2025-03"] * 0.7  # gas lift valve failed in April
 
 
 def test_reliability_backlog_compliance_and_turnaround(conn):
     bad = operations.bad_actors(conn)["bad_actors"]
-    assert bad[0]["tag"] == "20-K-2200B" and bad[0]["lost_oil_sm3"] > 0
+    assert bad[0]["tag"] == "20-K-2200B" and bad[0]["lost_oil_bbl"] > 0
     assert any(b["tag"] == "20-E-2350A" and b["repeat_failure_modes"] for b in bad)
     backlog = operations.work_order_backlog(conn)
     assert backlog["open_orders"] > 20 and backlog["overdue"] > 0 and backlog["in_a_turnaround"] == 5
@@ -79,13 +79,13 @@ def test_gas_lift_network(conn):
     hdr = {h["description"]: h for h in g["headers"]}
     assert set(hdr) == {"GGCP Lift Gas Header Flow", "ST1 Lift Gas Header Flow", "ST2 Lift Gas Header Flow"}
     assert sum(h["gas_lifted_wells"] for h in hdr.values()) == g["gas_lifted_wells"] > 100
-    assert all(h["jackets"] and h["lift_gas_ksm3d"] > 0 for h in hdr.values())
+    assert all(h["jackets"] and h["lift_gas_mscfd"] > 0 for h in hdr.values())
     assert sum(h["jackets_through_another_jacket"] for h in hdr.values()) >= 3
     assert {"20-K-2300A", "20-V-2001"} <= set(hdr["GGCP Lift Gas Header Flow"]["fed_by"])
     assert hdr["ST1 Lift Gas Header Flow"]["fed_by"] == ["20-FT-3002"]
     # the gas lift valve failure: more gas, less oil -> the least responsive well
     assert g["least_response"][0]["well"] == "OK-J07-05" and g["least_response"][0]["response_oil_per_extra_gas"] < 0
-    assert g["most_response"][0]["response_oil_per_extra_gas"] > 0.5
+    assert g["most_response"][0]["response_oil_per_extra_gas"] > 0.09  # bbl a Mscf (0.5 Sm³ a kSm³)
     # one well: its supply path runs manifold(s) -> header -> compression
     deep = next(w for w in g["most_response"] + g["least_response"] if w["through_jackets"]) if any(
         w["through_jackets"] for w in g["most_response"] + g["least_response"]) else None

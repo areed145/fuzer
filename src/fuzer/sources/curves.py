@@ -10,13 +10,27 @@ the curve through instance_of. Charts (plot_pump_curve, plot_choke) read them fr
 import itertools
 from collections import Counter
 
-from ..core import db
+from ..core import db, units
 
 COLS = ["model_id", "source", "series", "x", "curve", "y", "x_unit", "y_unit", "record"]
 
 
+def _us(x, unit):
+    """A curve coordinate in its stored unit (units.yaml: gpm, ft, hp, acfm): a vendor's metric datasheet and the
+    PI points it is compared with then agree."""
+    if x is None or not unit:
+        return x, unit
+    v, to = units.normalise(float(x), unit)
+    return v, to
+
+
+def _row(fid, src, series, x, curve, y, xu, yu, record):
+    (x, xu), (y, yu) = _us(x, xu), _us(y, yu)
+    return (fid, src, series, float(x), curve, y, xu, yu, record)
+
+
 def build(conn, pack, maps: dict, endpoint) -> dict:
-    """Vendor exports and accepted datasheet readings into equipment_curve."""
+    """Vendor exports and accepted datasheet readings into equipment_curve, in stored units."""
     rows, unresolved = {}, Counter()
     for m in maps.values():
         if not m.curve_spec:
@@ -28,22 +42,23 @@ def build(conn, pack, maps: dict, endpoint) -> dict:
                 if fid is None:
                     unresolved[f"{m.source} {m.record_type}: {why}"] += 1
                     continue
-                rows[(fid, m.source, p.series, p.x)] = (fid, m.source, p.series, p.x, p.curve, p.y, p.x_unit, p.y_unit,
-                                                         p.record)
+                row = _row(fid, m.source, p.series, p.x, p.curve, p.y, p.x_unit, p.y_unit, p.record)
+                rows[(fid, m.source, p.series, row[3])] = row
     for d in conn.execute("select * from curve_digitised"):
         fid, why = endpoint(("equipment_model", d["model_key"]))
         if fid is None:
             unresolved[f"datasheet {d['doc_number']}: {why}"] += 1
             continue
         r, src = d["result"], f"datasheet:{d['doc_number']}"
-        units = r.get("units", {})
+        units_ = r.get("units", {})
         for name, pts in r.get("series", {}).items():
             for x, y in pts:
-                rows[(fid, src, name, float(x))] = (fid, src, name, float(x), r.get("curve"), y, units.get("x"),
-                                                    units.get(name), d["document_key"])
+                row = _row(fid, src, name, x, r.get("curve"), y, units_.get("x"), units_.get(name), d["document_key"])
+                rows[(fid, src, name, row[3])] = row
         for name, xy in r.get("ratings", {}).items():
             x, y = (xy + [None])[:2] if isinstance(xy, list) else (xy, None)
-            if x is not None:
+            if x is not None:  # a rating's flow is in the curve's flow unit
+                x = _us(x, units_.get("x"))[0]
                 rows[(fid, src, name, float(x))] = (fid, src, name, float(x), r.get("curve"), y, None, None, d["document_key"])
     sync = db.sync_table(conn, "equipment_curve", COLS[:4], COLS[4:], rows.values())
     return {"curve_points": len(rows), "unresolved_curve_points": dict(unresolved),

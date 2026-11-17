@@ -31,13 +31,13 @@ detection_providers:
   type: corrosion_alert
   key: "{alert_id}"
   refs: ["tag:{vessel}"]
-  title: "{vessel}: corrosion rate {rate_mm_y} mm/y"
+  title: "{vessel}: corrosion rate {rate_mpy} mpy"
   severity: {from: level, map: {alarm: 0.9, warning: 0.6, advisory: 0.3}}
   start: "{raised}"
   link: "{report}"
   items:
-  - {label: Corrosion rate, from: rate_mm_y, unit: mm/y}
-  - {label: Remaining wall to minimum, from: remaining_mm, unit: mm}
+  - {label: Corrosion rate, from: rate_mpy, unit: mpy}
+  - {label: Remaining wall to minimum, from: remaining_in, unit: in}
   clear_when: {state: {in: [closed]}}
   poll: corrosion_alerts
   feedback: true

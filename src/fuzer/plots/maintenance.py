@@ -9,7 +9,7 @@ from ..analysis import calcs
 from . import ChartError, Figure, layout, rnd
 
 
-def wall_thickness(conn, fid: str | None = None, kind: str | None = None, min_required_mm: float | None = None,
+def wall_thickness(conn, fid: str | None = None, kind: str | None = None, min_required_in: float | None = None,
                    limit: int = 20) -> Figure:
     """One item's CMLs over time with fitted loss lines (and retirement dates when the minimum required
     thickness is given); without an item, the items losing wall fastest across the asset."""
@@ -31,26 +31,26 @@ def wall_thickness(conn, fid: str | None = None, kind: str | None = None, min_re
                      "x": [v["at"][:10] for v in vals], "y": [v["value"] for v in vals],
                      "text": [v["reported"] and f"reported {v['reported']}" or (v["method"] or "") for v in vals],
                      "line": {"width": 3 if hot else 1.5}, "meta": {"entity": s["of"]["id"]},
-                     "hovertemplate": "%{y:.2f} mm<br>%{x}<br>%{text}<extra>%{fullData.name}</extra>"})
+                     "hovertemplate": "%{y:.3f} in<br>%{x}<br>%{text}<extra>%{fullData.name}</extra>"})
         retire = None
-        if (years := calcs.remaining_life(s["latest"]["value"], s["per_year"], min_required_mm)) is not None:
+        if (years := calcs.remaining_life(s["latest"]["value"], s["per_year"], min_required_in)) is not None:
             retire = ts[-1].year + years
             end = ts[-1].replace(year=min(2200, int(retire)))
             data.append({"type": "scatter", "mode": "lines", "name": f"{s['location']} projected", "showlegend": False,
-                         "x": [ts[-1].isoformat()[:10], end.isoformat()[:10]], "y": [s["latest"]["value"], min_required_mm],
+                         "x": [ts[-1].isoformat()[:10], end.isoformat()[:10]], "y": [s["latest"]["value"], min_required_in],
                          "line": {"dash": "dot", "width": 1}})
-        cmls.append({"cml": s["location"], "readings": s["count"], "latest_mm": rnd(s["latest"]["value"], 2),
-                     "latest_at": s["latest"]["at"][:10], "loss_mm_per_year": rnd(-(s["per_year"] or 0), 3),
+        cmls.append({"cml": s["location"], "readings": s["count"], "latest_in": rnd(s["latest"]["value"], 3),
+                     "latest_at": s["latest"]["at"][:10], "loss_mpy": rnd(-(s["per_year"] or 0) * 1000, 1),
                      **({"retirement_year": rnd(retire, 1)} if retire else {})})
-    lay = layout(f"Wall thickness at the CMLs on {label}", None, "wall thickness (mm)")
-    if min_required_mm:
-        lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": min_required_mm,
-                          "y1": min_required_mm, "line": {"color": "rgba(210,60,50,0.8)", "dash": "dash"}}]
-    cmls.sort(key=lambda c: -c["loss_mm_per_year"])
+    lay = layout(f"Wall thickness at the CMLs on {label}", None, "wall thickness (in)")
+    if min_required_in:
+        lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": min_required_in,
+                          "y1": min_required_in, "line": {"color": "rgba(210,60,50,0.8)", "dash": "dash"}}]
+    cmls.sort(key=lambda c: -c["loss_mpy"])
     return Figure("wall_thickness", lay["title"]["text"], data, lay, {
         "item": label, "cmls": cmls, "fastest": cmls[0]["cml"],
-        "min_required_mm": min_required_mm,
-        "note": None if min_required_mm else "no minimum required thickness given, so no retirement dates"}, [fid])
+        "min_required_in": min_required_in,
+        "note": None if min_required_in else "no minimum required thickness given, so no retirement dates"}, [fid])
 
 
 def _wall_ranking(conn, kind: str | None, limit: int) -> Figure:
@@ -71,19 +71,19 @@ def _wall_ranking(conn, kind: str | None, limit: int) -> Figure:
     if not rows:
         raise ChartError("no wall thickness readings")
     data = [{"type": "bar", "orientation": "h", "name": "fastest CML", "y": [r["label"] for r in rows],
-             "x": [round(-r["worst"], 3) for r in rows], "customdata": [r["fuzer_id"] for r in rows],
-             "text": [r["description"] or "" for r in rows], "hovertemplate": "%{y}: %{x:.3f} mm/year<br>%{text}<extra></extra>"},
+             "x": [round(-r["worst"] * 1000, 1) for r in rows], "customdata": [r["fuzer_id"] for r in rows],
+             "text": [r["description"] or "" for r in rows], "hovertemplate": "%{y}: %{x:.1f} mpy<br>%{text}<extra></extra>"},
             {"type": "bar", "orientation": "h", "name": "mean of its CMLs", "y": [r["label"] for r in rows],
-             "x": [round(-r["mean"], 3) for r in rows], "customdata": [r["fuzer_id"] for r in rows]}]
-    lay = layout("Fastest wall loss" + (f" ({kind}s)" if kind else ""), "wall loss (mm/year)", None, barmode="group")
+             "x": [round(-r["mean"] * 1000, 1) for r in rows], "customdata": [r["fuzer_id"] for r in rows]}]
+    lay = layout("Fastest wall loss" + (f" ({kind}s)" if kind else ""), "wall loss (mpy, mils a year)", None, barmode="group")
     lay["yaxis"] = {"autorange": "reversed"}
     lay["height"] = 200 + 26 * len(rows)
     rates = sorted(-r["worst"] for r in rows)
     return Figure("wall_ranking", lay["title"]["text"], data, lay, {
         "items": [{"label": r["label"], "kind": r["kind"], "description": r["description"], "cmls": r["cmls"],
-                   "fastest_loss_mm_per_year": rnd(-r["worst"], 3), "mean_loss_mm_per_year": rnd(-r["mean"], 3)}
+                   "fastest_loss_mpy": rnd(-r["worst"] * 1000, 1), "mean_loss_mpy": rnd(-r["mean"] * 1000, 1)}
                   for r in rows[:10]],
-        "median_of_shown_mm_per_year": rnd(rates[len(rates) // 2], 3)}, [r["fuzer_id"] for r in rows])
+        "median_of_shown_mpy": rnd(rates[len(rates) // 2] * 1000, 1)}, [r["fuzer_id"] for r in rows])
 
 
 def reliability(conn, fid: str, method: str = "weibull") -> Figure:
@@ -135,14 +135,14 @@ def bad_actors(conn, since: str | None = None, until: str | None = None, limit: 
     for cls in dict.fromkeys(i["class"] or "unclassified" for i in items):
         xs = [i for i in items if (i["class"] or "unclassified") == cls]
         data.append({"type": "scatter", "mode": "markers+text", "name": cls, "x": [i["failures"] for i in xs],
-                     "y": [i["lost_oil_sm3"] for i in xs], "text": [i["tag"] for i in xs], "textposition": "top center",
+                     "y": [i["lost_oil_bbl"] for i in xs], "text": [i["tag"] for i in xs], "textposition": "top center",
                      "customdata": [i["id"] for i in xs],
                      "marker": {"size": [10 + 4 * min(10, i["downtime_events"]) for i in xs], "opacity": 0.7},
-                     "hovertemplate": "%{text}: %{x} failures, %{y:.0f} Sm3 lost<extra>%{fullData.name}</extra>"})
-    lay = layout(f"Bad actors {out['since']} to {out['until']}", "failures (corrective notifications)", "oil lost (Sm3)")
+                     "hovertemplate": "%{text}: %{x} failures, %{y:,.0f} bbl lost<extra>%{fullData.name}</extra>"})
+    lay = layout(f"Bad actors {out['since']} to {out['until']}", "failures (corrective notifications)", "oil lost (bbl)")
     return Figure("bad_actors", lay["title"]["text"], data, lay, {
         "since": out["since"], "until": out["until"],
-        "top": [{k: i[k] for k in ("tag", "class", "failures", "mtbf_days", "lost_oil_sm3", "downtime_events",
+        "top": [{k: i[k] for k in ("tag", "class", "failures", "mtbf_days", "lost_oil_bbl", "downtime_events",
                                     "repeat_failure_modes")} for i in items[:6]]}, [i["id"] for i in items])
 
 
@@ -194,11 +194,11 @@ def compliance(conn, as_of: str | None = None, horizon_days: int = 90) -> Figure
         [i["id"] for i in out["overdue"] + out["due_soon"]])
 
 
-def pump_curve(conn, fid: str, days: int = 365, rho: float = 850.0) -> Figure:
+def pump_curve(conn, fid: str, days: int = 365, sg: float = 0.85) -> Figure:
     """A pump's OEM head and efficiency curves, with its operating points from PI (head from discharge
     minus suction pressure) coloured by time, the BEP and the preferred / allowable operating regions.
     Points falling below the curve at the same flow mean lost head (wear rings, impeller)."""
-    p = calcs.pump_operation(conn, fid, days, rho)
+    p = calcs.pump_operation(conn, fid, days, sg)
     tag, c, start, end, ops, bep, deficit = p["tag"], p["curve"], p["start"], p["end"], p["ops"], p["bep"], p["by_month"]
     head = c["series"]["head"]
     t0 = datetime.fromisoformat(ops[0][0])
@@ -231,11 +231,11 @@ def pump_curve(conn, fid: str, days: int = 365, rho: float = 850.0) -> Figure:
     qs = sorted(o[1] for o in ops)
     return Figure("pump_curve", lay["title"]["text"], data, lay, {
         "pump": label, "curve_source": c["source"], "window": [start.date().isoformat(), end.date().isoformat()],
-        "running_readings": len(ops), "bep": {"flow_m3h": bep[0], "head_m": bep[1]},
-        "median_flow_m3h": round(qs[len(qs) // 2], 1), "median_flow_vs_bep_pct": round(qs[len(qs) // 2] / bep[0] * 100)
+        "running_readings": len(ops), "bep": {"flow_gpm": bep[0], "head_ft": bep[1]},
+        "median_flow_gpm": round(qs[len(qs) // 2]), "median_flow_vs_bep_pct": round(qs[len(qs) // 2] / bep[0] * 100)
         if bep[0] else None, "share_in_preferred_region": round(in_por, 3) if in_por is not None else None,
         "head_vs_curve_by_month": deficit, "worst_month": worst,
-        "latest": {"at": ops[-1][0][:16], "flow_m3h": round(ops[-1][1], 1), "head_m": round(ops[-1][2], 1)},
+        "latest": {"at": ops[-1][0][:16], "flow_gpm": round(ops[-1][1]), "head_ft": round(ops[-1][2])},
         "note": "head from discharge minus suction pressure at SG 0.85; points below the curve at the same flow "
                 "mean lost head"}, [tag, c["model_id"]])
 
@@ -254,7 +254,7 @@ def compressor_performance(conn, fid: str, days: int = 90, until: str | None = N
     lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": out["expected"], "y1": out["expected"],
                       "line": {"dash": "dash", "width": 1}}]
     return Figure("compressor_performance", lay["title"]["text"], data, lay, {
-        k: out[k] for k in ("value", "expected", "deviation", "flag", "basis", "head_kj_kg", "note")}, out["sources"])
+        k: out[k] for k in ("value", "expected", "deviation", "flag", "basis", "head_ft", "note")}, out["sources"])
 
 
 def cooler_fouling(conn, fid: str, days: int = 240, until: str | None = None) -> Figure:
@@ -265,7 +265,7 @@ def cooler_fouling(conn, fid: str, days: int = 240, until: str | None = None) ->
     d = out["daily"]
     data = [{"type": "scatter", "mode": "lines", "name": "outlet temperature (daily median)", "x": [x["day"] for x in d],
              "y": [x["temp"] for x in d]}]
-    lay = layout(f"{calcs._label(conn, fid)} fouling: outlet temperature", None, "degC")
+    lay = layout(f"{calcs._label(conn, fid)} fouling: outlet temperature", None, "°F")
     lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": out["expected"], "y1": out["expected"],
                       "line": {"dash": "dash", "width": 1}}]
     if out["high_limit"] is not None:
@@ -327,7 +327,7 @@ def unreliability(conn, pack, since: str | None = None, until: str | None = None
     if not rows:
         raise ChartError("no downtime caused by a unit and no corrective orders in that window")
     p = out["price"]
-    data = [{"type": "bar", "orientation": "h", "name": f"lost oil ({p['currency']} at {p['oil_sm3']:g} per Sm3)",
+    data = [{"type": "bar", "orientation": "h", "name": f"lost oil ({p['currency']} at {p['oil_bbl']:g} per bbl)",
              "x": [r["lost_oil_value"] for r in rows], "y": [r["unit"] for r in rows],
              "meta": {"entity": [r["id"] for r in rows]},
              "hovertemplate": f"%{{y}}: %{{x:,.0f}} {p['currency']} of lost oil<extra></extra>"}]
@@ -340,7 +340,7 @@ def unreliability(conn, pack, since: str | None = None, until: str | None = None
     lay["yaxis"] = {"autorange": "reversed"}
     return Figure("unreliability", lay["title"]["text"], data, lay, {
         "since": out["since"], "until": out["until"], "price": p, "order_currencies": out["order_currencies"],
-        "units": [{k: r[k] for k in ("unit", "lost_oil_sm3", "lost_oil_value", "order_cost", "total",
+        "units": [{k: r[k] for k in ("unit", "lost_oil_bbl", "lost_oil_value", "order_cost", "total",
                                      "total_currency", "why_no_total")} for r in rows[:10]],
         "source": out["source"], "note": out["note"]}, [r["id"] for r in rows[:10]])
 
@@ -402,14 +402,14 @@ def ili_anomalies(conn, line: str | None = None) -> Figure:
     feats = conn.execute(
         "select g.field, g.value #>> '{}' as v, g.fuzer_id from golden g join edge e on e.src = g.fuzer_id "
         "where e.dst = %s and e.rel = 'found_on' and e.valid_to is null and g.field = any(%s)",
-        (ln["id"], ["run_id", "station_m", "depth_pct", "feature_type"])).fetchall()
+        (ln["id"], ["run_id", "station_ft", "depth_pct", "feature_type"])).fetchall()
     by: dict[str, dict] = {}
     for r in feats:
         by.setdefault(r["fuzer_id"], {})[r["field"]] = r["v"]
     colors = ["rgba(150,150,150,0.8)", "rgba(40,110,190,0.9)", "rgba(40,150,90,0.9)"]
     data = []
     for i, run in enumerate(ln["runs"]):
-        pts = sorted((float(f["station_m"]) / 1000, float(f["depth_pct"])) for f in by.values()
+        pts = sorted((float(f["station_ft"]) / 5280, float(f["depth_pct"])) for f in by.values()
                      if f.get("run_id") == run["run"] and f.get("feature_type") == ili.METAL_LOSS and f.get("depth_pct"))
         data.append({"type": "scatter", "mode": "markers", "name": f"{run['run']} ({run['date']})",
                      "x": [p[0] for p in pts], "y": [p[1] for p in pts],
@@ -417,15 +417,15 @@ def ili_anomalies(conn, line: str | None = None) -> Figure:
     flagged = [a for a in ln["anomalies"] if a["screen"].startswith("exceeds")]
     if flagged:
         data.append({"type": "scatter", "mode": "markers", "name": "crosses the screen",
-                     "x": [a["station_m"] / 1000 for a in flagged], "y": [a["depth_pct"] for a in flagged],
+                     "x": [a["station_ft"] / 5280 for a in flagged], "y": [a["depth_pct"] for a in flagged],
                      "text": [a["feature"] for a in flagged],
                      "marker": {"symbol": "circle-open", "size": 16, "color": "rgba(210,60,50,0.95)", "line": {"width": 2}}})
-    lay = layout(f"ILI metal loss along {ln['line']}", "station (km)", "depth (% of wall)")
+    lay = layout(f"ILI metal loss along {ln['line']}", "station (mi)", "depth (% of wall)")
     lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "y0": ili.DEPTH_LIMIT, "y1": ili.DEPTH_LIMIT,
                       "line": {"dash": "dot", "color": "rgba(210,60,50,0.6)"}}]
     return Figure("ili_anomalies", lay["title"]["text"], data, lay, {
         "line": ln["line"], "verdict": out["verdict"], "summary": out["summary"], "runs": ln["runs"],
-        "anomalies": [{k: a.get(k) for k in ("feature", "station_m", "depth_pct", "rate_pct_per_year", "erf",
+        "anomalies": [{k: a.get(k) for k in ("feature", "station_ft", "depth_pct", "rate_pct_per_year", "erf",
                                                "projected_erf", "screen")} for a in ln["anomalies"]],
         "method": out["method"], "source": out["source"], "note": out["note"]}, [a["id"] for a in flagged][:10])
 
@@ -436,21 +436,21 @@ def co2_corrosion(conn, until: str | None = None, days: int = 365) -> Figure:
     from ..analysis import co2_corrosion as cc
 
     out = cc.screen(conn, until, days)
-    rows = [x for x in out["lines"] if x["predicted_mm_per_year"] is not None and x["measured_mm_per_year"] is not None]
+    rows = [x for x in out["lines"] if x["predicted_mpy"] is not None and x["measured_mpy"] is not None]
     if not rows:
         raise ChartError(out["note"] if not out["lines"] else "no line has both a prediction and a measured CML rate")
     x = [r["line"] for r in rows]
     flagged = [r for r in rows if r["flag"] in ("out_of_step", "above_prediction")]
-    data = [{"type": "bar", "name": "predicted, uninhibited (mm/y)", "x": x,
-             "y": [r["predicted_mm_per_year"] for r in rows], "marker": {"color": "rgba(150,150,150,0.6)"}},
-            {"type": "bar", "name": "measured CML rate (mm/y)", "x": x, "y": [r["measured_mm_per_year"] for r in rows],
+    data = [{"type": "bar", "name": "predicted, uninhibited (mpy)", "x": x,
+             "y": [r["predicted_mpy"] for r in rows], "marker": {"color": "rgba(150,150,150,0.6)"}},
+            {"type": "bar", "name": "measured CML rate (mpy)", "x": x, "y": [r["measured_mpy"] for r in rows],
              "marker": {"color": ["rgba(210,60,50,0.9)" if r in flagged else "rgba(40,110,190,0.9)" for r in rows]}}]
-    lay = layout(f"CO2 corrosion: predicted against measured, {out['since']} to {out['until']}", None, "mm/y")
+    lay = layout(f"CO2 corrosion: predicted against measured, {out['since']} to {out['until']}", None, "mpy")
     lay["barmode"] = "group"
     lay["yaxis"]["type"] = "log"
     return Figure("co2_corrosion", lay["title"]["text"], data, lay, {
         "verdict": out["verdict"], "summary": out["summary"], "typical_ratio": out["typical_ratio"],
-        "lines": [{k: r.get(k) for k in ("line", "predicted_mm_per_year", "measured_mm_per_year",
+        "lines": [{k: r.get(k) for k in ("line", "predicted_mpy", "measured_mpy",
                                          "measured_over_predicted", "flag")} for r in rows],
         "method": out["method"], "source": out["source"], "note": out["note"]},
         [rec for r in flagged for rec in r["records"]][:10])
@@ -473,7 +473,7 @@ def vibration_spectrum(conn, tag: str, point: str | None = None) -> Figure:
     for hz, a in peaks:  # stems
         xs += [hz, hz, None]
         ys += [0, a, None]
-    data = [{"type": "scatter", "mode": "lines", "name": f"spectrum {p['latest']} ({p['unit'] or 'mm/s'})",
+    data = [{"type": "scatter", "mode": "lines", "name": f"spectrum {p['latest']} ({p['unit'] or 'in/s'})",
              "x": xs, "y": ys, "line": {"color": "rgba(40,110,190,0.9)", "width": 2}}]
     top = max((a for _, a in peaks), default=1.0)
     colours = {"1x": "rgba(90,90,90,0.7)", "2x": "rgba(90,90,90,0.5)", "bpfo": "rgba(210,60,50,0.8)",
@@ -484,7 +484,7 @@ def vibration_spectrum(conn, tag: str, point: str | None = None) -> Figure:
             shapes.append({"type": "line", "x0": h * hz, "x1": h * hz, "y0": 0, "y1": top * 1.1,
                            "line": {"dash": "dot" if h > 1 else "dash", "color": colours[name], "width": 1}})
             markers.append({"name": name, "harmonic": h, "hz": round(h * hz, 1)})
-    lay = layout(f"Spectrum, {p['tag']} {p['point']}, {p['latest']}", "frequency (Hz)", f"amplitude ({p['unit'] or 'mm/s'})")
+    lay = layout(f"Spectrum, {p['tag']} {p['point']}, {p['latest']}", "frequency (Hz)", f"amplitude ({p['unit'] or 'in/s'})")
     lay["shapes"] = shapes
     lay["xaxis"]["range"] = [0, max(max((hz for hz, _ in peaks), default=0), 3.3 * p["frequencies"].get("bpfi", 0)) * 1.05]
     return Figure("vibration_spectrum", lay["title"]["text"], data, lay, {

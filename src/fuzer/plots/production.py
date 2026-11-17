@@ -56,7 +56,7 @@ def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> 
         data.insert(0, {"type": "scatter", "mode": "markers", "name": "before the last step change",
                         "x": [t["at"].isoformat() for t in tests[:start]], "y": [t["oil_rate"] for t in tests[:start]],
                         "marker": {"size": 6, "color": "rgba(140,140,140,0.6)"}})
-    lay = layout(f"{name} oil rate decline", None, "oil rate (Sm3/d)")
+    lay = layout(f"{name} oil rate decline", None, "oil rate (bbl/d)")
     lay["yaxis"]["type"] = "log"
     lay["shapes"] = [{"type": "line", "xref": "x", "yref": "paper", "x0": tests[i]["at"].isoformat(),
                       "x1": tests[i]["at"].isoformat(), "y0": 0, "y1": 1, "line": {"dash": "dot", "width": 1}} for i in cuts]
@@ -64,13 +64,13 @@ def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> 
     return Figure("decline", lay["title"]["text"], data, lay, {
         "well": name, "tests": len(tests), "fit_from": t0.isoformat()[:10], "tests_in_fit": len(seg),
         "step_changes": [{"at": tests[i]["at"].isoformat()[:10], "from": rnd(qs[i - 1], 1), "to": rnd(qs[i], 1)} for i in cuts],
-        "model": fit["model"], "qi_sm3d": rnd(fit["qi"], 1), "b": rnd(fit["b"], 2),
+        "model": fit["model"], "qi_bbld": rnd(fit["qi"], 1), "b": rnd(fit["b"], 2),
         "nominal_decline_per_year": rnd(fit["D"], 3), "effective_decline_pct_per_year": rnd(effective * 100, 1),
-        "r2_log": rnd(fit["r2"], 3), "latest_test": {"at": last.isoformat()[:10], "oil_sm3d": rnd(seg[-1]["oil_rate"], 1)},
-        "fit_rate_now_sm3d": rnd(rate(fit, (last - t0).days / YEAR), 1),
-        "forecast": {"months": forecast_months, "rate_at_end_sm3d": rnd(end_band["value"], 1),
-                     "rate_at_end_range_sm3d": [rnd(x, 1) for x in end_band["range"]] if end_band["range"] else None,
-                     "oil_sm3": round(cum), "oil_range_sm3": cum_range, "level": end_band["level"],
+        "r2_log": rnd(fit["r2"], 3), "latest_test": {"at": last.isoformat()[:10], "oil_bbld": rnd(seg[-1]["oil_rate"], 1)},
+        "fit_rate_now_bbld": rnd(rate(fit, (last - t0).days / YEAR), 1),
+        "forecast": {"months": forecast_months, "rate_at_end_bbld": rnd(end_band["value"], 1),
+                     "rate_at_end_range_bbld": [rnd(x, 1) for x in end_band["range"]] if end_band["range"] else None,
+                     "oil_bbl": round(cum), "oil_range_bbl": cum_range, "level": end_band["level"],
                      "window": enough["window"], "points": enough["points"], "sufficiency": enough,
                      "is": "an estimate from the fit, not a plan or a commitment"}}, [well])
 
@@ -97,7 +97,7 @@ def water_diagnostic(conn, well: str) -> Figure:
     x = [t["at"].isoformat()[:10] for t in tests]
     data = [
         {"type": "scatter", "mode": "lines+markers", "name": "water cut (%)", "x": cum, "y": [t["water_cut"] for t in tests],
-         "xaxis": "x2", "yaxis": "y2", "text": x, "hovertemplate": "%{y:.1f}% at %{x:.0f} Sm3<br>%{text}<extra></extra>"},
+         "xaxis": "x2", "yaxis": "y2", "text": x, "hovertemplate": "%{y:.1f}% at %{x:,.0f} bbl<br>%{text}<extra></extra>"},
         {"type": "scatter", "mode": "lines+markers", "name": "WOR", "x": x, "y": wor},
         {"type": "scatter", "mode": "lines", "name": "WOR' (per year)", "x": x, "y": [abs(d) or None for d in smooth],
          "line": {"dash": "dash"}},
@@ -106,14 +106,14 @@ def water_diagnostic(conn, well: str) -> Figure:
     lay["yaxis"] = {"domain": bottom, "type": "log", "title": {"text": "WOR, |WOR'| (log)"}}
     lay["xaxis"] = {"anchor": "y", "title": {"text": "test date"}}
     lay["yaxis2"] = {"domain": top, "anchor": "x2", "title": {"text": "water cut (%)"}}
-    lay["xaxis2"] = {"anchor": "y2", "title": {"text": "cumulative oil since first test (Sm3, estimated from well tests)"}}
+    lay["xaxis2"] = {"anchor": "y2", "title": {"text": "cumulative oil since first test (bbl, estimated from well tests)"}}
     lay["height"] = 620
     jumps = [(x[i], round(wor[i] - wor[i - 1], 3)) for i in range(1, len(wor))]
     third = max(2, len(wor) // 3)
     early = linreg(yrs[:third], [math.log(w) for w in wor[:third]])[1] if min(wor[:third]) > 0 else None
     late = linreg(yrs[-third:], [math.log(w) for w in wor[-third:]])[1] if min(wor[-third:]) > 0 else None
     return Figure("water_diagnostic", lay["title"]["text"], data, lay, {
-        "well": name, "tests": len(tests), "cumulative_oil_sm3": round(run),
+        "well": name, "tests": len(tests), "cumulative_oil_bbl": round(run),
         "cumulative_basis": "estimated from well tests (rate held between tests); no per-well allocation is loaded",
         "water_cut": {"first": rnd(tests[0]["water_cut"], 1), "latest": rnd(tests[-1]["water_cut"], 1)},
         "wor": {"first": rnd(wor[0]), "latest": rnd(wor[-1])},
@@ -122,10 +122,10 @@ def water_diagnostic(conn, well: str) -> Figure:
         "largest_wor_step": dict(zip(("at", "change"), max(jumps, key=lambda j: j[1]))) if jumps else None}, [well])
 
 
-def gas_lift_curve(conn, well: str, breakeven: float = 0.5) -> Figure:
+def gas_lift_curve(conn, well: str, breakeven: float = 0.09) -> Figure:
     """A gas lifted well's performance curve: oil against lift gas from its tests (colour = date), with
     the decline taken out, the current operating point, the marginal response there, and the optimum
-    where one more kSm3/d of gas gains `breakeven` Sm3/d of oil. Tests far below the curve (a valve
+    where one more Mscf/d of gas gains `breakeven` bbl/d of oil. Tests far below the curve (a valve
     failed open: more gas, less oil) are left out of the fit and shown apart."""
     g = calcs.gas_lift_fit(conn, well, breakeven)
     tests, pts, keep, fit, t_now = g["tests"], g["pts"], g["keep"], g["fit"], g["t_now"]
@@ -142,10 +142,10 @@ def gas_lift_curve(conn, well: str, breakeven: float = 0.5) -> Figure:
     data = [
         {"type": "scatter", "mode": "markers", "name": "tests, adjusted to today for decline",
          "x": [pts[i][0] for i in keep], "y": [now[i] for i in keep],
-         "text": [f"{dates[i]}, tested {pts[i][1]:.1f} Sm3/d" for i in keep], "customdata": [tests[i]["record"] for i in keep],
+         "text": [f"{dates[i]}, tested {pts[i][1]:.0f} bbl/d" for i in keep], "customdata": [tests[i]["record"] for i in keep],
          "marker": {"size": 8, "color": [pts[i][2] for i in keep], "colorscale": "Viridis",
                     "colorbar": {"title": {"text": "years"}}},
-         "hovertemplate": "%{y:.1f} Sm3/d today at %{x:.1f} kSm3/d<br>%{text}<extra></extra>"},
+         "hovertemplate": "%{y:.0f} bbl/d today at %{x:.0f} Mscf/d<br>%{text}<extra></extra>"},
         {"type": "scatter", "mode": "lines", "name": f"performance curve now ({dates[-1]})", "x": gs, "y": curve},
         {"type": "scatter", "mode": "markers", "name": "latest test", "x": [g_now], "y": [q_now],
          "marker": {"size": 14, "symbol": "star"}},
@@ -155,18 +155,18 @@ def gas_lift_curve(conn, well: str, breakeven: float = 0.5) -> Figure:
                      "x": [pts[i][0] for i in out_pts], "y": [now[i] for i in out_pts], "text": [dates[i] for i in out_pts],
                      "marker": {"size": 8, "symbol": "x"}, "hovertemplate": "%{y:.1f} at %{x:.1f}<br>%{text}<extra></extra>"})
     if g_opt:
-        data.append({"type": "scatter", "mode": "markers", "name": f"optimum at {breakeven} Sm3 oil per kSm3 gas",
+        data.append({"type": "scatter", "mode": "markers", "name": f"optimum at {breakeven} bbl oil per Mscf gas",
                      "x": [g_opt], "y": [a + c * (1 - math.exp(-g_opt / k))], "marker": {"size": 12, "symbol": "diamond"}})
-    lay = layout(f"{name} gas lift performance", "lift gas (kSm3/d)", "oil rate (Sm3/d)")
+    lay = layout(f"{name} gas lift performance", "lift gas (Mscf/d)", "oil rate (bbl/d)")
     return Figure("gas_lift_curve", lay["title"]["text"], data, lay, {
         "well": name, "tests": len(tests), "tests_left_out": [{"at": dates[i], "lift_gas": rnd(pts[i][0], 1),
                                                                 "oil": rnd(pts[i][1], 1)} for i in out_pts],
-        "curve": {"oil_at_zero_gas": rnd(a, 1), "max_gain_from_gas": rnd(c, 1), "saturation_ksm3d": rnd(k, 1),
-                  "decline_sm3d_per_year": rnd(fit["d"], 1)},
-        "now": {"lift_gas_ksm3d": rnd(g_now, 1), "oil_sm3d": rnd(q_now, 1),
+        "curve": {"oil_at_zero_gas": rnd(a, 1), "max_gain_from_gas": rnd(c, 1), "saturation_mscfd": rnd(k, 1),
+                  "decline_bbld_per_year": rnd(fit["d"], 1)},
+        "now": {"lift_gas_mscfd": rnd(g_now, 1), "oil_bbld": rnd(q_now, 1),
                 "marginal_oil_per_extra_gas": rnd(marginal, 2)},
-        "optimum": {"breakeven_oil_per_gas": breakeven, "lift_gas_ksm3d": rnd(g_opt, 1),
-                    "oil_change_sm3d": rnd(gain, 1), "gas_change_ksm3d": rnd(g_opt - g_now, 1)}}, [well])
+        "optimum": {"breakeven_oil_per_gas": breakeven, "lift_gas_mscfd": rnd(g_opt, 1),
+                    "oil_change_bbld": rnd(gain, 1), "gas_change_mscfd": rnd(g_opt - g_now, 1)}}, [well])
 
 
 def gas_lift_allocation(conn, ref: str | None = None) -> Figure:
@@ -182,22 +182,22 @@ def gas_lift_allocation(conn, ref: str | None = None) -> Figure:
     for h in dict.fromkeys(w["header"] or "no header" for w in wells):
         ws = [w for w in wells if (w["header"] or "no header") == h]
         data.append({"type": "bar", "name": h, "x": [w["well"] for w in ws], "y": [w["response_oil_per_extra_gas"] for w in ws],
-                     "customdata": [w["id"] for w in ws], "text": [f"{w['lift_gas_ksm3d']} kSm3/d gas, {w['oil_sm3d']} Sm3/d oil"
+                     "customdata": [w["id"] for w in ws], "text": [f"{w['lift_gas_mscfd']} Mscf/d gas, {w['oil_bbld']} bbl/d oil"
                                                                  for w in ws],
-                     "hovertemplate": "%{x}: %{y:.2f} Sm3/d per kSm3/d<br>%{text}<extra>%{fullData.name}</extra>"})
-        if len(ws) >= 2 and ws[-1]["lift_gas_ksm3d"]:
+                     "hovertemplate": "%{x}: %{y:.3f} bbl/d per Mscf/d<br>%{text}<extra>%{fullData.name}</extra>"})
+        if len(ws) >= 2 and ws[-1]["lift_gas_mscfd"]:
             hi, lo = ws[0], ws[-1]
-            move = round(min(2.0, lo["lift_gas_ksm3d"] * 0.3), 1)
-            moves.append({"header": h, "from": lo["well"], "to": hi["well"], "move_ksm3d": move,
-                          "oil_gain_sm3d": rnd((hi["response_oil_per_extra_gas"] - lo["response_oil_per_extra_gas"]) * move, 1)})
-    lay = layout("Marginal gas lift response by well", None, "oil gained per extra lift gas (Sm3/d per kSm3/d)",
+            move = round(min(70.0, lo["lift_gas_mscfd"] * 0.3))
+            moves.append({"header": h, "from": lo["well"], "to": hi["well"], "move_mscfd": move,
+                          "oil_gain_bbld": rnd((hi["response_oil_per_extra_gas"] - lo["response_oil_per_extra_gas"]) * move, 1)})
+    lay = layout("Marginal gas lift response by well", None, "oil gained per extra lift gas (bbl/d per Mscf/d)",
                  barmode="group")
     lay["xaxis"] = {"tickangle": -60}
     return Figure("gas_lift_allocation", lay["title"]["text"], data, lay, {
-        "since": out["since"], "until": out["until"], "wells": len(wells), "lift_gas_ksm3d": out["lift_gas_ksm3d"],
-        "headers": [{k: h[k] for k in ("header", "gas_lifted_wells", "lift_gas_ksm3d", "oil_sm3d")} for h in out["headers"]],
-        "most_response": [{k: w[k] for k in ("well", "header", "response_oil_per_extra_gas", "lift_gas_ksm3d")} for w in wells[:5]],
-        "least_response": [{k: w[k] for k in ("well", "header", "response_oil_per_extra_gas", "lift_gas_ksm3d")} for w in wells[-5:]],
+        "since": out["since"], "until": out["until"], "wells": len(wells), "lift_gas_mscfd": out["lift_gas_mscfd"],
+        "headers": [{k: h[k] for k in ("header", "gas_lifted_wells", "lift_gas_mscfd", "oil_bbld")} for h in out["headers"]],
+        "most_response": [{k: w[k] for k in ("well", "header", "response_oil_per_extra_gas", "lift_gas_mscfd")} for w in wells[:5]],
+        "least_response": [{k: w[k] for k in ("well", "header", "response_oil_per_extra_gas", "lift_gas_mscfd")} for w in wells[-5:]],
         "suggested_moves": moves,
         "note": "response is a slope from tests over the window; check against a step-rate test before moving gas"},
         [w["id"] for w in wells])
@@ -250,20 +250,20 @@ def pressure_profile(conn, well: str, at: str | None = None, ref_at: str | None 
 
     now = hydraulics.pressure_profile(conn, well, at)
     data = [{"type": "scatter", "mode": "lines+markers", "name": f"at {at or 'today'}", "x": [n["node"] for n in now["nodes"]],
-             "y": [n["pressure_barg"] for n in now["nodes"]], "text": [n["point"] for n in now["nodes"]],
-             "hovertemplate": "%{x}: %{y:.2f} barg<br>%{text}<extra></extra>"}]
+             "y": [n["pressure_psig"] for n in now["nodes"]], "text": [n["point"] for n in now["nodes"]],
+             "hovertemplate": "%{x}: %{y:.0f} psig<br>%{text}<extra></extra>"}]
     ref = hydraulics.pressure_profile(conn, well, ref_at) if ref_at else None
     if ref:
         data.append({"type": "scatter", "mode": "lines+markers", "name": f"at {ref_at}", "line": {"dash": "dot"},
-                     "x": [n["node"] for n in ref["nodes"]], "y": [n["pressure_barg"] for n in ref["nodes"]]})
-    lay = layout(f"{_label(conn, well)} pressure down its flow path", None, "pressure (barg)")
+                     "x": [n["node"] for n in ref["nodes"]], "y": [n["pressure_psig"] for n in ref["nodes"]]})
+    lay = layout(f"{_label(conn, well)} pressure down its flow path", None, "pressure (psig)")
     return Figure("pressure_profile", lay["title"]["text"], data, lay, {
         "well": _label(conn, well), "nodes": now["nodes"], "segments": now["segments"], "largest_drop": now["largest_drop"],
         **({"reference": {"at": ref_at, "nodes": ref["nodes"]}} if ref else {})}, now["sources"][:8])
 
 
 def backpressure_sensitivity(conn, scope: str = "facility", at: str | None = None) -> Figure:
-    """Oil per bar of back-pressure for each back-pressure-limited well: the model's and the tests'."""
+    """Oil per psi of back-pressure for each back-pressure-limited well: the model's and the tests'."""
     from ..analysis import hydraulics
 
     s = hydraulics.backpressure_sensitivity(conn, scope, at)
@@ -271,14 +271,14 @@ def backpressure_sensitivity(conn, scope: str = "facility", at: str | None = Non
     if not ws:
         raise ChartError("no back-pressure-limited wells with tests in that scope")
     data = [{"type": "bar", "name": "model (inflow and choke)", "x": [w["well"] for w in ws],
-             "y": [w["model_sm3d_per_bar"] for w in ws], "customdata": [w["id"] for w in ws]},
+             "y": [w["model_bbld_per_psi"] for w in ws], "customdata": [w["id"] for w in ws]},
             {"type": "bar", "name": "data (tests against header pressure)", "x": [w["well"] for w in ws],
-             "y": [w["data_sm3d_per_bar"] for w in ws], "customdata": [w["id"] for w in ws]}]
-    lay = layout("Oil per bar of back-pressure", None, "Sm3/d oil per bar (negative: more back-pressure, less oil)",
+             "y": [w["data_bbld_per_psi"] for w in ws], "customdata": [w["id"] for w in ws]}]
+    lay = layout("Oil per psi of back-pressure", None, "bbl/d oil per psi (negative: more back-pressure, less oil)",
                  barmode="group")
     lay["xaxis"] = {"tickangle": -60}
     return Figure("backpressure_sensitivity", lay["title"]["text"], data, lay, {
-        "total_model_sm3d_per_bar": s["value"], "wells": len(ws), "by_header": s["by_header"][:10],
+        "total_model_bbld_per_psi": s["value"], "wells": len(ws), "by_header": s["by_header"][:10],
         "disagree": s["disagree"][:10], "basis": s["basis"]}, [w["id"] for w in ws])
 
 
@@ -325,14 +325,14 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None) -> Figur
     lo, hi = base[len(base) // 10], base[-max(1, len(base) // 10)]
     xs, ys = thin(times, [round(x, 3) for x in dp])
     data = [{"type": "scatter", "mode": "lines", "name": "wellhead - header pressure", "x": xs, "y": ys}]
-    lay = layout(f"{_label(conn, well)} pressure drop to the header", None, "bar")
+    lay = layout(f"{_label(conn, well)} pressure drop to the header", None, "psi")
     lay["shapes"] = [{"type": "rect", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": lo, "y1": hi, "layer": "below",
                       "fillcolor": "rgba(110,120,135,0.15)", "line": {"width": 0}}]
     if d["rising_since"]:
         lay["shapes"].append({"type": "line", "xref": "x", "x0": d["rising_since"], "x1": d["rising_since"], "yref": "paper",
                               "y0": 0, "y1": 1, "line": {"dash": "dot", "color": "rgba(210,60,50,0.8)"}})
     return Figure("dp_drift", lay["title"]["text"], data, lay, {
-        "well": _label(conn, well), "dp_now_bar": d["value"], "dp_before_bar": d["expected"], "flag": d["flag"],
+        "well": _label(conn, well), "dp_now_psi": d["value"], "dp_before_psi": d["expected"], "flag": d["flag"],
         "rising_since": d["rising_since"], "baseline_band": [round(lo, 2), round(hi, 2)], "changes": d["changes"]},
         d["sources"])
 
@@ -350,14 +350,14 @@ def debottleneck(conn, scope: str = "facility", at: str | None = None, pack=None
     for kind in dict.fromkeys(o["kind"] for o in opts):
         os_ = [o for o in opts if o["kind"] == kind]
         data.append({"type": "bar", "orientation": "h", "name": kind.replace("_", " "), "y": [o["action"] for o in os_],
-                     "x": [o["gain_sm3d"] for o in os_], "text": [f"confidence {o['confidence']}" for o in os_],
-                     "hovertemplate": "%{y}: %{x:.0f} Sm3/d<br>%{text}<extra></extra>"})
-    lay = layout("Debottleneck options by oil gained", "oil gained (Sm3/d)", None)
+                     "x": [o["gain_bbld"] for o in os_], "text": [f"confidence {o['confidence']}" for o in os_],
+                     "hovertemplate": "%{y}: %{x:.0f} bbl/d<br>%{text}<extra></extra>"})
+    lay = layout("Debottleneck options by oil gained", "oil gained (bbl/d)", None)
     lay["yaxis"] = {"autorange": "reversed", "automargin": True}
     lay["height"] = 220 + 28 * len(opts)
     return Figure("debottleneck", lay["title"]["text"], data, lay, {
         "at": out["at"], "considered": out["considered"],
-        "options": [{k: o[k] for k in ("rank", "action", "gain_sm3d", "confidence", "next_constraint", "confirm_by")} for o in opts[:8]],
+        "options": [{k: o[k] for k in ("rank", "action", "gain_bbld", "confidence", "next_constraint", "confirm_by")} for o in opts[:8]],
         "note": "proposals for people, not operating instructions"}, [o["target"] for o in opts if o.get("target")][:10])
 
 
@@ -378,35 +378,35 @@ def forecast_vs_actual(conn, well: str | None = None, since: str | None = None, 
             raise ChartError("no well test in the window to compare")
         xs = [p["at"] for p in pts]
         data = [
-            {"type": "scatter", "mode": "lines", "name": "90 % range", "x": xs, "y": [p["high_sm3d"] for p in pts],
+            {"type": "scatter", "mode": "lines", "name": "90 % range", "x": xs, "y": [p["high_bbld"] for p in pts],
              "line": {"width": 0}, "showlegend": False, "hoverinfo": "skip"},
-            {"type": "scatter", "mode": "lines", "name": "90 % range", "x": xs, "y": [p["low_sm3d"] for p in pts],
+            {"type": "scatter", "mode": "lines", "name": "90 % range", "x": xs, "y": [p["low_bbld"] for p in pts],
              "line": {"width": 0}, "fill": "tonexty", "fillcolor": "rgba(120,120,120,0.18)"},
             {"type": "scatter", "mode": "lines", "name": "forecast (its own decline)", "x": xs,
-             "y": [p["forecast_sm3d"] for p in pts], "line": {"dash": "dash"}},
-            {"type": "scatter", "mode": "markers", "name": "well tests", "x": xs, "y": [p["actual_sm3d"] for p in pts],
+             "y": [p["forecast_bbld"] for p in pts], "line": {"dash": "dash"}},
+            {"type": "scatter", "mode": "markers", "name": "well tests", "x": xs, "y": [p["actual_bbld"] for p in pts],
              "customdata": [p["record"] for p in pts], "marker": {"size": 8, "color": [
                  "rgba(210,60,50,0.9)" if p["outside"] == "below" else "rgba(40,110,180,0.9)" for p in pts]}},
         ]
-        lay = layout(f"{w['well']} forecast against tests {out['since']} to {out['until']}", None, "oil rate (Sm3/d)")
+        lay = layout(f"{w['well']} forecast against tests {out['since']} to {out['until']}", None, "oil rate (bbl/d)")
         lay["shapes"] = [{"type": "rect", "xref": "x", "yref": "paper", "x0": d["start"], "x1": d["end"] or d["start"],
                           "y0": 0, "y1": 1, "fillcolor": "rgba(230,150,40,0.25)", "line": {"width": 0}}
                          for d in w["downtime"] if d["start"]]
         return Figure("forecast_vs_actual", lay["title"]["text"], data, lay, {
-            "well": w["well"], "verdict": w["verdict"], "gap_sm3d": w.get("gap_sm3d"), "below_since": w.get("below_since"),
+            "well": w["well"], "verdict": w["verdict"], "gap_bbld": w.get("gap_bbld"), "below_since": w.get("below_since"),
             "fit": w.get("fit"), "downtime": w["downtime"], "since": out["since"], "until": out["until"],
             "source": out["source"], "note": out["note"]}, [w["id"]] + [p["record"] for p in pts][-3:])
-    ranked = [w for w in out["wells"] if w.get("gap_sm3d") is not None]
-    ranked = sorted(ranked, key=lambda w: w["gap_sm3d"])[:15]
+    ranked = [w for w in out["wells"] if w.get("gap_bbld") is not None]
+    ranked = sorted(ranked, key=lambda w: w["gap_bbld"])[:15]
     if not ranked:
         raise ChartError("no well has a forecast and a test in the window")
-    data = [{"type": "bar", "orientation": "h", "name": "latest gap to forecast", "x": [w["gap_sm3d"] for w in ranked],
+    data = [{"type": "bar", "orientation": "h", "name": "latest gap to forecast", "x": [w["gap_bbld"] for w in ranked],
              "y": [w["well"] for w in ranked], "meta": {"entity": [w["id"] for w in ranked]},
              "marker": {"color": ["rgba(210,60,50,0.85)" if w["verdict"] == "below_forecast" else "rgba(140,140,140,0.6)"
                                   for w in ranked]},
-             "hovertemplate": "%{y}: %{x} Sm3/d against its forecast<extra></extra>"}]
+             "hovertemplate": "%{y}: %{x} bbl/d against its forecast<extra></extra>"}]
     lay = layout(f"Wells furthest under their forecast, {out['since']} to {out['until']}",
-                 "latest test less forecast (Sm3/d)", None)
+                 "latest test less forecast (bbl/d)", None)
     lay["yaxis"] = {"autorange": "reversed"}
     return Figure("forecast_vs_actual", lay["title"]["text"], data, lay, {
         "field": out["field"], "not_fitted": len(out["not_fitted"]), "since": out["since"], "until": out["until"],
@@ -425,15 +425,15 @@ def intervention_gains(conn, since: str | None = None, until: str | None = None,
     said.sort(key=lambda i: i["start"])
     names = [f"{i['well']} {i['start'][:10]}" for i in said]
     colour = {"gained": "rgba(40,150,90,0.85)", "lost": "rgba(210,60,50,0.85)", "no_clear_change": "rgba(140,140,140,0.7)"}
-    err = [(i["oil_range_sm3d"][1] - i["oil_expected_sm3d"]) if i["oil_range_sm3d"] else 0 for i in said]
-    data = [{"type": "bar", "name": "oil gain net of decline", "x": names, "y": [i["gain_sm3d"] for i in said],
+    err = [(i["oil_range_bbld"][1] - i["oil_expected_bbld"]) if i["oil_range_bbld"] else 0 for i in said]
+    data = [{"type": "bar", "name": "oil gain net of decline", "x": names, "y": [i["gain_bbld"] for i in said],
              "meta": {"entity": [i["well_id"] for i in said]},
              "error_y": {"type": "data", "array": [rnd(e, 1) for e in err], "visible": True},
              "marker": {"color": [colour[i["verdict"]] for i in said]},
              "text": [i["reason"] or "" for i in said],
-             "hovertemplate": "%{x}: %{y} Sm3/d against its decline<br>%{text}<extra></extra>"}]
+             "hovertemplate": "%{x}: %{y} bbl/d against its decline<br>%{text}<extra></extra>"}]
     lay = layout(f"Oil gain by well intervention, net of decline, {out['since']} to {out['until']}", None,
-                 "oil gain (Sm3/d)")
+                 "oil gain (bbl/d)")
     return Figure("intervention_gains", lay["title"]["text"], data, lay, {
         "summary": out["summary"], "unknown": [{k: i[k] for k in ("well", "start", "why")} for i in out["interventions"]
                                                if i["verdict"] == "unknown"],
@@ -454,14 +454,14 @@ def gor_trend(conn, well: str) -> Figure:
     if not pts:
         raise ChartError("no GOR on that well's tests")
     x = [p["at"] for p in pts]
-    data = [{"type": "scatter", "mode": "lines+markers", "name": "GOR (Sm3/Sm3)", "x": x, "y": [p["gor"] for p in pts]}]
+    data = [{"type": "scatter", "mode": "lines+markers", "name": "GOR (scf/bbl)", "x": x, "y": [p["gor"] for p in pts]}]
     if d["gor_climb"]:
         c, n = d["gor_climb"], d["thresholds"]["tests_for_a_gor_level"]
         data += [{"type": "scatter", "mode": "lines", "name": f"first {n} tests' median", "x": [x[0], x[n - 1]],
                   "y": [c["first_gor"]] * 2, "line": {"dash": "dot"}},
                  {"type": "scatter", "mode": "lines", "name": f"latest {n} tests' median", "x": [x[-n], x[-1]],
                   "y": [c["latest_gor"]] * 2, "line": {"dash": "dot", "color": "rgba(210,60,50,0.9)"}}]
-    lay = layout(f"{d['well']}: GOR over its well tests", None, "GOR (Sm3/Sm3)")
+    lay = layout(f"{d['well']}: GOR over its well tests", None, "GOR (scf/bbl)")
     return Figure("gor_trend", lay["title"]["text"], data, lay, {
         "verdict": d["verdict"], "gor_climb": d["gor_climb"], "water_cut_step": d["water_cut_step"],
         "tests": d["tests"], "thresholds": d["thresholds"], "note": d["note"]}, [p["record"] for p in pts][-10:])
@@ -512,7 +512,7 @@ def gas_lift_heading(conn, well: str, days: int = 3, until: str | None = None) -
     lay = layout(f"{d['well']}: casing, wellhead and lift gas, last {days} days ({d['verdict']})", None, "pressure")
     lay["yaxis2"] = {"title": {"text": "lift gas"}, "overlaying": "y", "side": "right", "showgrid": False}
     return Figure("gas_lift_heading", lay["title"]["text"], data, lay, {
-        k: d[k] for k in ("verdict", "period_min", "cycling_together", "casing_swing_bar", "casing_swing_pct", "r",
+        k: d[k] for k in ("verdict", "period_min", "cycling_together", "casing_swing_psi", "casing_swing_pct", "r",
                           "window")} | {"signals": d["signals"]}, [p["id"] for p in d["points"].values()])
 
 
@@ -546,9 +546,9 @@ def voidage_replacement(conn, since: str | None = None, until: str | None = None
         raise ChartError(out["note"])
     months = out["months"]
     x = [m["month"] for m in months]
-    data = [{"type": "bar", "name": "produced (reservoir m3)", "x": x, "y": [m["voidage_rm3"] for m in months],
+    data = [{"type": "bar", "name": "produced (reservoir bbl)", "x": x, "y": [m["voidage_rb"] for m in months],
              "marker": {"color": "rgba(150,150,150,0.45)"}},
-            {"type": "bar", "name": "injected (reservoir m3)", "x": x, "y": [m["injected_rm3"] for m in months],
+            {"type": "bar", "name": "injected (reservoir bbl)", "x": x, "y": [m["injected_rb"] for m in months],
              "marker": {"color": "rgba(60,130,200,0.8)"}},
             {"type": "scatter", "mode": "lines+markers", "name": "ratio", "x": x, "y": [m["vrr"] for m in months],
              "yaxis": "y2", "line": {"color": "rgba(210,90,40,0.95)"}},
@@ -575,11 +575,11 @@ def hall_plot(conn, well: str | None = None, since: str | None = None, until: st
         raise ChartError(f"no water injection recorded for {well}" if well else out["note"])
     tone = {"rising": "rgba(210,60,50,0.9)", "falling": "rgba(230,150,40,0.9)"}
     data = [{"type": "scatter", "mode": "lines+markers", "name": f"{i['well']} ({i['verdict'].replace('_', ' ')})",
-             "x": [p["cumulative_water_sm3"] for p in i["points"]], "y": [p["cumulative_bar_days"] for p in i["points"]],
+             "x": [p["cumulative_water_bbl"] for p in i["points"]], "y": [p["cumulative_psi_days"] for p in i["points"]],
              "text": [p["month"] for p in i["points"]], **({"line": {"color": tone[i["verdict"]]}} if i["verdict"] in tone else {})}
             for i in out["injectors"]]
     lay = layout(f"Hall plot{' ' + out['injectors'][0]['well'] if well else ''}, {out['since']} to {out['until']}",
-                 "cumulative water injected (Sm3)", "cumulative wellhead pressure x days (bar d)")
+                 "cumulative water injected (bbl)", "cumulative wellhead pressure x days (psi d)")
     return Figure("hall_plot", lay["title"]["text"], data, lay, {
         "verdict": out["verdict"], "since": out["since"], "until": out["until"], "thresholds": out["thresholds"],
         "source": out["source"], "note": out["note"],
@@ -598,10 +598,10 @@ def gas_balance(conn, since: str | None = None, until: str | None = None, days: 
         raise ChartError(out["note"] if out["verdict"] == "no_daily_report" else "no day with gas handled in that window")
     x = [r["date"] for r in rows]
     top, bottom = stacked(2, 0.1)
-    data = [{"type": "bar", "name": f"{name} (kSm3/d)", "x": x, "y": [r[name] for r in rows], "yaxis": "y"}
+    data = [{"type": "bar", "name": f"{name} (Mscf/d)", "x": x, "y": [r[name] for r in rows], "yaxis": "y"}
             for _, name in gb.OUT if name not in out["missing_terms"]]
-    data += [{"type": "scatter", "mode": "lines", "name": "gas handled (kSm3/d)", "x": x,
-              "y": [r["gas_in_ksm3"] for r in rows], "yaxis": "y", "line": {"color": "rgba(30,30,30,0.85)"}},
+    data += [{"type": "scatter", "mode": "lines", "name": "gas handled (Mscf/d)", "x": x,
+              "y": [r["gas_in_mscf"] for r in rows], "yaxis": "y", "line": {"color": "rgba(30,30,30,0.85)"}},
              {"type": "bar", "name": "gap (% of gas handled)", "x": x, "y": [r["gap_pct"] for r in rows], "yaxis": "y2",
               "xaxis": "x2", "marker": {"color": ["rgba(210,60,50,0.85)" if r["open"] else "rgba(150,150,150,0.6)"
                                                   for r in rows]}},
@@ -611,7 +611,7 @@ def gas_balance(conn, since: str | None = None, until: str | None = None, days: 
               "hoverinfo": "skip"}]
     lay = layout(f"Gas balance, {out['since']} to {out['until']} ({out['verdict'].replace('_', ' ')})")
     lay["barmode"] = "stack"
-    lay["yaxis"] = {"domain": top, "title": {"text": "kSm3/d"}}
+    lay["yaxis"] = {"domain": top, "title": {"text": "Mscf/d"}}
     lay["yaxis2"] = {"domain": bottom, "anchor": "x2", "title": {"text": "gap %"}}
     lay["xaxis2"] = {"anchor": "y2", "matches": "x"}
     return Figure("gas_balance", lay["title"]["text"], data, lay, {
@@ -652,17 +652,17 @@ def material_balance(conn, since: str | None = None, until: str | None = None, d
     by = defaultdict(list)
     for s in out["surveys"]:
         by[s["well"]].append(s)
-    data = [{"type": "scatter", "mode": "lines+markers", "name": w, "x": [s["cumulative_net_voidage_rm3"] / 1e6 for s in ss],
-             "y": [s["static_barg"] for s in ss], "text": [s["date"] for s in ss], "line": {"width": 1},
+    data = [{"type": "scatter", "mode": "lines+markers", "name": w, "x": [s["cumulative_net_voidage_rb"] / 1e6 for s in ss],
+             "y": [s["static_psig"] for s in ss], "text": [s["date"] for s in ss], "line": {"width": 1},
              "marker": {"size": 6}} for w, ss in sorted(by.items())]
-    xs = [s["cumulative_net_voidage_rm3"] / 1e6 for s in out["surveys"]]
-    mx, my = sum(xs) / len(xs), sum(s["static_barg"] for s in out["surveys"]) / len(xs)
-    k = out["bar_per_million_rm3"]
-    data.append({"type": "scatter", "mode": "lines", "name": f"fit: {k} bar per million rm3 (r² {out['r2']})",
+    xs = [s["cumulative_net_voidage_rb"] / 1e6 for s in out["surveys"]]
+    mx, my = sum(xs) / len(xs), sum(s["static_psig"] for s in out["surveys"]) / len(xs)
+    k = out["psi_per_million_rb"]
+    data.append({"type": "scatter", "mode": "lines", "name": f"fit: {k} psi per million rb (r² {out['r2']})",
                  "x": [min(xs), max(xs)], "y": [my - k * (min(xs) - mx), my - k * (max(xs) - mx)],
                  "line": {"color": "rgba(30,30,30,0.9)", "width": 3, "dash": "dash"}})
     lay = layout(f"Material balance, {out['since']} to {out['until']}", "reservoir volume taken out net of injection "
-                 "(million rm3)", "static pressure (barg)")
+                 "(million rb)", "static pressure (psig)")
     return Figure("material_balance", lay["title"]["text"], data, lay, {
-        k2: out[k2] for k2 in ("verdict", "bar_per_million_rm3", "compressible_volume_rm3_per_bar", "r2", "wells",
-                               "decline_bar_per_year", "assumptions", "pvt", "since", "until", "source", "note")}, [])
+        k2: out[k2] for k2 in ("verdict", "psi_per_million_rb", "compressible_volume_rb_per_psi", "r2", "wells",
+                               "decline_psi_per_year", "assumptions", "pvt", "since", "until", "source", "note")}, [])

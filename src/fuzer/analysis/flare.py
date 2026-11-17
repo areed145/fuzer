@@ -99,7 +99,7 @@ def _from_reports(conn, start: datetime, end: datetime) -> list[dict]:
     days = conn.execute(
         """
         select e.fuzer_id, coalesce(l.label, e.fuzer_id) as label, g.value #>> '{}' as day,
-               (select f.value #>> '{}' from golden f where f.fuzer_id = e.fuzer_id and f.field = 'flare_ksm3') as flare
+               (select f.value #>> '{}' from golden f where f.fuzer_id = e.fuzer_id and f.field = 'flare_mscf') as flare
         from entity e join golden g on g.fuzer_id = e.fuzer_id and g.field = 'report_date'
         left join lateral (select label from entity_label where fuzer_id = e.fuzer_id order by label limit 1) l on true
         where e.kind = 'production_day' and e.retired_at is null and e.merged_into is null
@@ -116,8 +116,8 @@ def _from_reports(conn, start: datetime, end: datetime) -> list[dict]:
         if base > 0 and v >= DAY_SPIKE * base:
             nxt = (datetime.fromisoformat(day) + timedelta(days=1)).isoformat(timespec="minutes")
             out.append({"source": "daily_report", "subject": d["fuzer_id"], "label": d["label"], "point": None,
-                        "start": f"{day}T00:00", "end": nxt, "peak": v, "baseline": round(base, 1), "uom": "kSm3/d",
-                        "volume": round(v - base, 1), "volume_unit": "kSm3", "provider": None})
+                        "start": f"{day}T00:00", "end": nxt, "peak": v, "baseline": round(base, 1), "uom": "Mscf/d",
+                        "volume": round(v - base, 1), "volume_unit": "Mscf", "provider": None})
     return out
 
 
@@ -278,7 +278,7 @@ _KIND = {"downtime": "Downtime", "log_entry": "Log", "detection": "Detection"}
                     kind=detectors.RULE, cadence="daily", raises=(EVENT_TYPE,), roles=("flare_flow",),
                     needs={"a flare flow point or a daily flare volume":
                            "select 1 where exists (select 1 from measurement_role where role = 'flare_flow') or exists "
-                           "(select 1 from golden where field = 'flare_ksm3')"},
+                           "(select 1 from golden where field = 'flare_mscf')"},
                     eval="test:tests/analysis/test_flare.py::test_a_flare_event_is_raised_with_its_records_or_unknown",
                     found=lambda out: len(out["raised"]))
 def watch(conn, until: str | None = None, days: int = DAYS, by: str = "agent:flare", src=None) -> dict:

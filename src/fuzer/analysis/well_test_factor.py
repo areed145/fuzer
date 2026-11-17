@@ -45,7 +45,7 @@ def trend(conn, since: str | None = None, until: str | None = None, days: int = 
     since, until = ops._window(conn, since, until, days)
     if not given and since[8:10] != "01":  # whole months: start at the first month wholly in the window
         since = (date.fromisoformat(since[:8] + "01") + timedelta(days=32)).replace(day=1).isoformat()
-    booked = {r["f"]["report_date"][:10]: ops._num(r["f"].get("oil_sm3")) for r in ops._rows(
+    booked = {r["f"]["report_date"][:10]: ops._num(r["f"].get("oil_bbl")) for r in ops._rows(
         conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s", {"s": since, "u": until})}
     if not booked:
         return {"since": since, "until": until, "months": [], "summary": {"months": 0}, "verdict": "no_daily_report", "flags": [],
@@ -79,8 +79,8 @@ def trend(conn, since: str | None = None, until: str | None = None, days: int = 
                 upset[day].append(r["id"])
     months: dict[str, dict] = {}
     for day in sorted(booked):
-        m = months.setdefault(day[:7], {"month": day[:7], "allocated_sm3": 0.0, "offered_sm3": 0.0,
-                                         "offered_ignoring_downtime_sm3": 0.0, "days": 0, "days_left_out": 0,
+        m = months.setdefault(day[:7], {"month": day[:7], "allocated_bbl": 0.0, "offered_bbl": 0.0,
+                                         "offered_ignoring_downtime_bbl": 0.0, "days": 0, "days_left_out": 0,
                                          "left_out": {"facility_or_tag_downtime": 0, "field_trip": 0},
                                          "ages": [], "wells": set(), "well_days_shut_in": 0.0, "no_live_test": set()})
         if upset.get(day):
@@ -109,15 +109,15 @@ def trend(conn, since: str | None = None, until: str | None = None, days: int = 
             m["wells"].add(w)
             m["ages"].append((end - at).days)
         m["days"] += 1
-        m["allocated_sm3"] += booked[day]
-        m["offered_sm3"] += offer
-        m["offered_ignoring_downtime_sm3"] += raw
+        m["allocated_bbl"] += booked[day]
+        m["offered_bbl"] += offer
+        m["offered_ignoring_downtime_bbl"] += raw
     rows = []
     for m in months.values():
-        f = m["allocated_sm3"] / m["offered_sm3"] if m["offered_sm3"] else None
-        f0 = m["allocated_sm3"] / m["offered_ignoring_downtime_sm3"] if m["offered_ignoring_downtime_sm3"] else None
+        f = m["allocated_bbl"] / m["offered_bbl"] if m["offered_bbl"] else None
+        f0 = m["allocated_bbl"] / m["offered_ignoring_downtime_bbl"] if m["offered_ignoring_downtime_bbl"] else None
         rows.append({k: m[k] for k in ("month", "days", "days_left_out", "left_out")} | {
-            "allocated_sm3": round(m["allocated_sm3"]), "offered_sm3": round(m["offered_sm3"]),
+            "allocated_bbl": round(m["allocated_bbl"]), "offered_bbl": round(m["offered_bbl"]),
             "factor": round(f, 3) if f else None, "factor_ignoring_downtime": round(f0, 3) if f0 else None,
             "wells_offering": len(m["wells"]), "well_days_shut_in": round(m["well_days_shut_in"], 1),
             "wells_without_a_live_test": len(m["no_live_test"]),

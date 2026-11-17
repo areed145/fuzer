@@ -47,10 +47,10 @@ def test_the_flare_consent_is_read_from_the_daily_reports(okan_db):
     monthly: dict[str, float] = defaultdict(float)
     with (okan_db.data / "ec_day001.csv").open() as f:
         for r in csv.DictReader(f):
-            if "2024-12-01" <= r["report_date"] <= got["as_of"] and r["flare_ksm3"]:
-                monthly[r["report_date"][:7]] += float(r["flare_ksm3"])
+            if "2024-12-01" <= r["report_date"] <= got["as_of"] and r["flare_mscf"]:
+                monthly[r["report_date"][:7]] += float(r["flare_mscf"])
     assert {p["period"]: p["figure"] for p in flare["periods"]} == pytest.approx(dict(monthly))
-    assert flare["verdict"] == ("exceeded" if max(monthly.values()) > 3000 else "within")
+    assert flare["verdict"] == ("exceeded" if max(monthly.values()) > 106000 else "within")
 
 
 def test_one_permit_and_a_missing_one(okan_db):

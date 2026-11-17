@@ -471,7 +471,7 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
                     k2001 = k.execute("select fuzer_id from entity_key where key = 'B1-K-2001'").fetchone()["fuzer_id"]
                     got = values.around(k, k2001, f"{plant_today() - timedelta(days=1)}T04:30", 12, 12, pack=pack)
                 pd = {s["point"]: s for s in got["series"]}["KRGP:B1.PT2001.PV"]
-                assert pd.get("modelled") and pd["max"] > 60 and pd["min"] < 35
+                assert pd.get("modelled") and pd["max"] > 870 and pd["min"] < 508  # psig (60 and 35 barg)
                 assert all(s["values"] for s in got["series"])
                 # The API's rebuild queue runs Kestrel's rebuild on its own thread, in Kestrel's schema.
                 deps.rebuilder.request()

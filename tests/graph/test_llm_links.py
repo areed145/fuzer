@@ -34,7 +34,7 @@ class FakeClaude:
                 events = [{"type": "trip", "summary": "20-K-2200B tripped on high vibration",
                            "involves": [{"candidate_id": ids["20-K-2200B"], "role": "subject"},
                                         {"candidate_id": "c999", "role": "location"}],
-                           "details": [{"name": "vibration_mm_s", "value": "9"}]}]
+                           "details": [{"name": "vibration_in_s", "value": "9"}]}]
             out.append({"entry_id": e["entry_id"], "mentions": mentions, "events": events})
         text = json.dumps({"entries": out})
         return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=text)],
@@ -75,7 +75,7 @@ def test_run_links_and_events_reach_the_graph(conn):
     compressor = queries.resolve_ref(conn, PACK, "20-K-2200B")
     evs = queries.events(conn, compressor)
     assert evs and all(e["type"] == "trip" for e in evs)
-    assert evs[0]["details"]["vibration_mm_s"] == "9"
+    assert evs[0]["details"]["vibration_in_s"] == "9"
     linked = conn.execute("select sources from edge where rel = 'mentions' and dst = %s", (compressor,)).fetchall()
     assert any("claude" in r["sources"] for r in linked)
 

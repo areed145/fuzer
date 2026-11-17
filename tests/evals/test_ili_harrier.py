@@ -21,7 +21,7 @@ def test_growth_and_strength_screen_the_mainline_and_refuse_strength_without_a_g
     assert crossing["within_tool_tolerance"]  # 8 % of wall in a year: flagged, and the tolerance said
     assert by["ILI-26-0090"]["screen"] == "within_screen" and by["ILI-26-0090"]["previous"] == "ILI-24-0094"
     new = by["ILI-26-0112"]
-    assert new["screen"] == "no_strength" and new["failure_barg"] is None and "material grade" in new["why"]
+    assert new["screen"] == "no_strength" and new["failure_psig"] is None and "material grade" in new["why"]
     assert new["new_since"] == "RUN-2024-MFL"
     assert line["anomalies"][0]["feature"] == "ILI-26-0029"
     assert line["not_in_latest_run"] == []
@@ -31,6 +31,6 @@ def test_growth_and_strength_screen_the_mainline_and_refuse_strength_without_a_g
 
 
 def test_b31g_failure_pressure_matches_the_hand_calculation():
-    # 49 % deep, 131 mm long on 610 x 15.9 mm X65: z = 1.769, M = 1.452, flow stress 517 MPa
-    assert round(ili.failure_pressure(49, 131, 15.9, 610.0, 448), 1) == 220.7
-    assert ili.smys("API 5L X65") == 448 and ili.smys("Grade B") == 241 and ili.smys("") is None
+    # 49 % deep, 5.16 in long on 24 x 0.626 in X65: z = 1.772, M = 1.453, flow stress 75 ksi
+    assert round(ili.failure_pressure(49, 5.16, 0.626, 24.0, 65000)) == 3203
+    assert ili.smys("API 5L X65") == 65000 and ili.smys("Grade B") == 35000 and ili.smys("") is None

@@ -16,8 +16,8 @@ from ..core import db
 
 EARTH_M = 6_371_000
 # Properties shown on the map, from golden values.
-MAP_FIELDS = ("description", "service", "diameter_in", "length_km", "mop_barg", "status", "facility_type",
-              "gis_name", "install_year", "water_depth_m")
+MAP_FIELDS = ("description", "service", "diameter_in", "length_mi", "mop_psig", "status", "facility_type",
+              "gis_name", "install_year", "water_depth_ft")
 
 
 def metres(a: tuple[float, float], b: tuple[float, float]) -> float:

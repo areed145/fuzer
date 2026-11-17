@@ -442,7 +442,7 @@ Each finding gives the item, the survey or plan date and the source. Say what wa
 
 1. **Wall loss.** `plot_wall_thickness()` ranks the items losing wall fastest; `measurements(ref,
    "wall_thickness")` gives the readings (mm) and the fitted `per_year`. `calc("wall_loss", ref,
-   min_required_mm=...)` gives remaining life. Without a stated minimum thickness there is no retirement
+   min_required_in=...)` gives remaining life. Without a stated minimum thickness there is no retirement
    date: say so rather than assume one.
 ...
 Fitness for service, integrity acceptance, inspection deferral and any shutdown are accountable human

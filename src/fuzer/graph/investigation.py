@@ -36,7 +36,7 @@ class Evidence:
     label: str
     at: str | None
     text: str | None
-    lost_oil_sm3: float | None
+    lost_oil_bbl: float | None
     records: list[SourceRecord]
 
 
@@ -115,7 +115,7 @@ def guided_investigation(conn, pack: Pack) -> Investigation:
     for row in conn.execute(
         """
         select distinct en.fuzer_id as id, en.kind, l.label, t.value #>> '{}' as at,
-               g.value #>> '{}' as text, null::numeric as lost_oil_sm3
+               g.value #>> '{}' as text, null::numeric as lost_oil_bbl
         from edge e join entity en on en.fuzer_id = e.src
         join golden t on t.fuzer_id = en.fuzer_id and t.field = 'timestamp'
         join golden g on g.fuzer_id = en.fuzer_id and g.field = 'text'
@@ -134,21 +134,21 @@ def guided_investigation(conn, pack: Pack) -> Investigation:
         if notification["created"] and notification["created"] < until:
             items[notification["id"]] = {
                 "id": notification["id"], "kind": "notification", "label": notification["label"],
-                "at": notification["created"], "text": notification["text"], "lost_oil_sm3": None,
+                "at": notification["created"], "text": notification["text"], "lost_oil_bbl": None,
             }
             for order in notification["work_orders"]:
                 if order["start"] and until <= order["start"] < followup:
                     followup_notifications.add(notification["id"])
                     items[order["id"]] = {
                         "id": order["id"], "kind": "work_order", "label": order["label"],
-                        "at": order["start"], "text": order["text"], "lost_oil_sm3": None,
+                        "at": order["start"], "text": order["text"], "lost_oil_bbl": None,
                     }
     if not items:
         raise InvestigationUnavailable("The investigation's supporting records are not available.")
     records = _records(conn, [asset_id, *items])
     evidence = [
         Evidence(r["id"], r["kind"], r["label"] or r["id"], r["at"], r["text"],
-                 float(r["lost_oil_sm3"]) if r["lost_oil_sm3"] is not None else None, records[r["id"]])
+                 float(r["lost_oil_bbl"]) if r["lost_oil_bbl"] is not None else None, records[r["id"]])
         for r in sorted(items.values(), key=lambda r: (r["at"] or "", r["kind"], r["id"]))
     ]
     downtime = [e for e in evidence if e.kind == "downtime"]
@@ -166,11 +166,11 @@ def guided_investigation(conn, pack: Pack) -> Investigation:
             "Read their comments for the recorded trip and lift-gas impact.",
             [e.id for e in downtime],
         ))
-        if all(e.lost_oil_sm3 is not None for e in downtime):
-            total = sum(e.lost_oil_sm3 for e in downtime)
+        if all(e.lost_oil_bbl is not None for e in downtime):
+            total = sum(e.lost_oil_bbl for e in downtime)
             findings.append(Finding(
-                f"Those records report {total:,.0f} Sm3 of lost oil in total "
-                "(standard cubic metres, a volume, not a daily rate). "
+                f"Those records report {total:,.0f} bbl of lost oil in total "
+                "(stock tank barrels, a volume, not a daily rate). "
                 "This is the recorded loss, not an independently calculated causal allocation.",
                 [e.id for e in downtime],
             ))

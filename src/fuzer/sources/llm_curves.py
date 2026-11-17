@@ -36,7 +36,7 @@ whole curve from its first to its last point, using the axis gridlines to read v
 Report values in the units on the sheet and name them.
 
 Ratings: bep (x = flow, y = head), mcsf (x = flow), por and aor (x = low flow, y = high flow),
-rated_speed (x = rpm), impeller (x = mm), cv_max (x), trim_size (x = inches), xt (x). Use y = 0 when
+rated_speed (x = rpm), impeller (x = inches), cv_max (x), trim_size (x = inches), xt (x). Use y = 0 when
 a rating has only one value. Leave out anything the sheet doesn't show; never guess a value.
 
 read_from: "table" if you copied a table, "curve" if you read points off a drawing, "both" if both."""

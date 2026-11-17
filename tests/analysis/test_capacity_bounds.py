@@ -76,7 +76,7 @@ def test_okan_names_the_generators_bottleneck(plant):
     assert truth["binding"] == "hp_separator"
     assert out["system"]["established"] is True
     assert out["system"]["binding_stages"] == ["HP Production Separator"]
-    assert out["system"]["limit_sm3d"] == pytest.approx(truth["limit_sm3d"], abs=1)
+    assert out["system"]["limit_bbld"] == pytest.approx(truth["limit_bbld"], abs=1)
     assert all(row["undeclared"] == 0 for row in out["stages"])
     grades = {row["label"]: (row["basis"], row["grade"]) for row in out["stages"]}
     assert grades["Wells"] == ("reported_potential", None)
@@ -93,9 +93,9 @@ def test_okan_history_respects_the_limits_and_the_binding_stage_moves(plant):
         points = production_efficiency(db.conn, facility, date.fromisoformat(day) + timedelta(days=2))["points"]
         expected = next(t for t in truth if t["date"] == day)
         point = next(p for p in points if p["date"] == day)
-        assert point["dynamic_max_sm3d"] == pytest.approx(expected["limit_sm3d"], abs=1)
+        assert point["dynamic_max_bbld"] == pytest.approx(expected["limit_bbld"], abs=1)
         assert ("reported_potential" in point["binding_constraint_ids"]) == (expected["binding"] == "wells")
-        assert point["allocated_sm3d"] <= point["dynamic_max_sm3d"] + 1
+        assert point["allocated_bbld"] <= point["dynamic_max_bbld"] + 1
 
 
 def test_an_open_moc_never_sets_capacity(plant):
@@ -103,7 +103,7 @@ def test_an_open_moc_never_sets_capacity(plant):
     hp = db.conn.execute(
         """select max(m.value) as value from measurement m join entity_label l using (fuzer_id)
            where m.quantity = 'liquid_capacity' and l.label = '10-V-2001' and m.method = 'moc_open'""").fetchone()
-    assert hp["value"] == 15500  # landed as a record
+    assert hp["value"] == 97492  # landed as a record (15,500 Sm³/d in bbl/d)
     bound = db.conn.execute(
         """select m.method from measurement m join entity_label l using (fuzer_id)
            where m.quantity = 'system_oil_capacity' and l.label = '10-V-2001' and m.at = '2025-12-30'""").fetchone()

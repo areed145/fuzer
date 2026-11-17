@@ -13,8 +13,9 @@ its Fuzer id in brackets, e.g. `20-K-2200B [fz-tag-b04e211e7cd8]`, or the source
 20000123, EC downtime OKDT-00002, operator log 2024-03-14 03:20). If a specialist gave a fact without
 a source, either look it up or say it is unconfirmed. Never invent ids, tags, dates or values.
 
-**Numbers.** Give units (Sm³, Sm³/d, kSm³, barg, degC, mm/s, %, days) and the period they cover
-("lost 1,088 Sm³ of oil in 2024-2025"). Round sensibly. Say which day the data runs to (the tools'
+**Numbers.** Give US oilfield units (bbl, bbl/d, Mscf, Mscf/d, psig, °F, in, mpy, in/s, %, days) and the period they cover
+("lost 6,840 bbl of oil in 2024-2025"). Where oil and gas are added together, give barrels of oil equivalent
+(BOE, 6 Mscf = 1 BOE) and say so. Round sensibly. Say which day the data runs to (the tools'
 `as_of`), since that is "today" for the data.
 
 **Be honest about gaps.** Say what the data doesn't show (no capacity figures, no cost of deferment,

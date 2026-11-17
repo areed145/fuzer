@@ -69,7 +69,7 @@ def _daily(conn, p: dict, start: datetime, end: datetime, src) -> dict[str, floa
 
 
 def _offer(conn, wells: list[str], days: list[str], phase: str) -> tuple[dict[str, float], list[str]]:
-    """What the wells offer each day at their latest test within TEST_DAYS: oil, or formation gas (kSm3/d)."""
+    """What the wells offer each day at their latest test within TEST_DAYS: oil (bbl/d), or formation gas (Mscf/d)."""
     if not days:
         return {}, []
     first = date.fromisoformat(days[0]) - timedelta(days=TEST_DAYS)
@@ -122,7 +122,7 @@ def allocation_factor(conn, fid: str, days: int = 30, until: str | None = None, 
     prev, _, _, _ = _factor(before, prev_offered)
     flag = ("af_low" if af < AF_LOW else "af_high" if af > AF_HIGH
             else "af_shift" if prev is not None and abs(af - prev) >= AF_SHIFT else None)
-    unit = "kSm3/d" if phase == "gas" else "Sm3/d"
+    unit = "Mscf/d" if phase == "gas" else "bbl/d"
     return result(_r(af), 1.0, flag,
                   f"measured {phase} over {n} flowing days against the latest test (within {TEST_DAYS} days) of each of "
                   f"{len(wells)} wells upstream on the allocation network ({'formation gas, lift gas left out' if phase == 'gas' else 'oil'})",

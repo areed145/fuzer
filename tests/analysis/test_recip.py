@@ -60,10 +60,10 @@ def test_a_leaking_second_stage_valve_pushes_first_stage_rod_load_past_the_ratin
 
     conn, pack = kestrel
     r = calcs.run(conn, "rod_load", k2001(conn, pack))
-    assert r["flag"] == "rod_load_high" and r["expected"] == 95 and r["value"] > 95 and r["unit"] == "kN"
+    assert r["flag"] == "rod_load_high" and r["expected"] == 21357 and r["value"] > 21357 and r["unit"] == "lbf"
     by = {t["throw"]: t for t in r["throws"]}
     assert r["worst_throw"] in (1, 2) and by[1]["stage"] == 1 and by[3]["stage"] == 2
-    assert by[1]["daily"][0]["kn"] < 90 < by[1]["daily"][-1]["kn"]  # it climbed with the leak
+    assert by[1]["daily"][0]["lbf"] < 20233 < by[1]["daily"][-1]["lbf"]  # it climbed with the leak
     assert all(t["reversal_ratio"] > 0.05 for t in r["throws"]) and r["hours_over_rating"] > 0
     assert "API 618" in r["basis"] and "inertia" in r["basis"]
 
@@ -75,7 +75,7 @@ def test_the_leaking_cylinder_runs_hot_and_the_stage_ratios_shift(kestrel):
     v = recip.valve_health(conn, k2001(conn, pack))
     assert v["flag"] == "valve_leak" and v["hottest_cylinder"] == 3 and v["hottest_stage"] == 2
     cyl = {c["cylinder"]: c for c in v["cylinders"]}
-    assert cyl[3]["above_stage_c"] >= 10 and abs(cyl[3]["at_start_c"]) < 5 and abs(cyl[1]["above_stage_c"]) < 5
+    assert cyl[3]["above_stage_f"] >= 18 and abs(cyl[3]["at_start_f"]) < 9 and abs(cyl[1]["above_stage_f"]) < 9
     assert v["stage_ratio"]["change"] > 0.04 and v["weak_stage"] == 2
 
 
@@ -84,7 +84,7 @@ def test_recip_vibration_uses_the_makers_limits_and_health_says_act(kestrel):
 
     conn, pack = kestrel
     vib = rotating.vibration(conn, k2001(conn, pack))
-    assert vib["group"] == "reciprocating" and vib["zones"] == {"A/B": 3.55, "B/C": 7.1, "C/D": 11.2}
+    assert vib["group"] == "reciprocating" and vib["zones"] == {"A/B": 0.14, "B/C": 0.28, "C/D": 0.441}
     assert "ISO 20816-8" in vib["basis"] and vib["zone"] in ("A", "B")
     h = rotating.health(conn, k2001(conn, pack))
     by = {f["check"]: f for f in h["findings"]}
@@ -101,7 +101,7 @@ def test_yesterdays_vibration_trip_and_the_one_five_weeks_ago(kestrel):
     conn, pack = kestrel
     d = trips.diagnose(conn, k2001(conn, pack), pack=pack)
     assert d["value"] == "vibration" and d["first_out"]["point"] == "KRGP:B1.VT2003.PV"
-    assert any(x["point"] == "KRGP:B1.VT2003.PV" and x["trip_setting"] == 11.2 for x in d["tripped_on"])
+    assert any(x["point"] == "KRGP:B1.VT2003.PV" and x["trip_setting"] == 0.441 for x in d["tripped_on"])
     assert d["verdict"] == "review" and d["prior_trips"][0]["family"] == "discharge_temperature"
     assert 33 <= d["prior_trips"][0]["days_before"] <= 36 and "reliability" in d["checklist"][-1]
     # the utility power dip three months ago had no warning in the data
@@ -120,7 +120,7 @@ def test_a_loose_probe_tripped_it_two_months_ago_and_the_first_restart_failed_on
     day = (plant_today() - timedelta(days=60)).isoformat()
     d = trips.diagnose(conn, k2001(conn, pack), day + "T09:12", pack=pack)
     assert d["value"] == "spurious" and d["first_out"] is None and "likely spurious" in d["title"]
-    assert d["spurious"]["point"] == "KRGP:B1.VT2003.PV" and d["spurious"]["before"] < 4 and d["spurious"]["value"] >= 11.2
+    assert d["spurious"]["point"] == "KRGP:B1.VT2003.PV" and d["spurious"]["before"] < 0.157 and d["spurious"]["value"] >= 0.441
     assert "transmitter" in d["checklist"][0] and "spurious operation" in " ".join(d["checklist"])
     assert len(d["restart_attempts"]) == 1 and "lube oil pressure" in d["restart_attempts"][0]["reason"]
     assert "restart attempt" in d["checklist"][-1]

@@ -76,10 +76,10 @@ export interface GeoFeature {
 /** What is along a pipeline or segment, by station (#61). Golden values come as stored. */
 export interface Along {
   line: string | null;
-  segments: { id: string; label: string; description: unknown; station_from_m: unknown; station_to_m: unknown;
-              wall_thickness_mm: unknown; grade: unknown; class_location: unknown }[];
-  features: { id: string; label: string; feature_type: unknown; station_m: unknown; depth_pct: unknown;
-              length_mm: unknown; clock: unknown; run_id: unknown; run_date: unknown; segment: string | null }[];
+  segments: { id: string; label: string; description: unknown; station_from_ft: unknown; station_to_ft: unknown;
+              wall_thickness_in: unknown; grade: unknown; class_location: unknown }[];
+  features: { id: string; label: string; feature_type: unknown; station_ft: unknown; depth_pct: unknown;
+              length_in: unknown; clock: unknown; run_id: unknown; run_date: unknown; segment: string | null }[];
 }
 
 export interface GeoCollection {

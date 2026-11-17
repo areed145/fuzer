@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 from .calcs import CalcError, _label, _r, result
 
 BBL = 6.2898  # bbl per Sm3
-MMSCF = 28.3168  # kSm3 per MMscf
+MSCF_PER_KSM3 = 35.3147
 NEAR = 90.0
 OVERLOADED = 100.0  # % of the standing rating
 BACK_DAYS = 90  # how far back the loading is compared with
@@ -38,7 +38,7 @@ def _ratings(conn, fid: str, day: date) -> dict | None:
 
 
 def _through(conn, fid: str, day: date) -> tuple[dict, list[str], list[str]]:
-    """Oil, water and gas (Sm3/d, kSm3/d) from the latest test, within TEST_DAYS, of each well upstream on `day`."""
+    """Oil, water and gas (bbl/d, Mscf/d) from the latest test, within TEST_DAYS, of each well upstream on `day`."""
     from ..graph import edges
 
     wells = [r["fuzer_id"] for r in edges.trace(conn, fid, "flows_to", "up", day, 12) if r["kind"] == "well"]
@@ -70,10 +70,11 @@ def _in_units(quantity: str, unit: str, flow: dict) -> float | None:
     """The throughput in the rating's own quantity and unit."""
     u = (unit or "").lower()
     if quantity in ("liquid_capacity", "oil_capacity"):
-        sm3 = flow["oil"] + (flow["water"] if quantity == "liquid_capacity" else 0.0)
-        return sm3 * BBL if u.startswith("bbl") else sm3 if u.startswith("sm3") else None
+        bbl = flow["oil"] + (flow["water"] if quantity == "liquid_capacity" else 0.0)
+        return bbl if u.startswith(("bbl", "stb")) else bbl / BBL if u.startswith("sm3") else None
     if quantity in ("gas_capacity", "export_gas_capacity"):
-        return flow["gas"] / MMSCF if u.startswith("mmscf") else flow["gas"] if u.startswith("ksm3") else None
+        return (flow["gas"] / 1000 if u.startswith("mmscf") else flow["gas"] if u.startswith("mscf")
+                else flow["gas"] / MSCF_PER_KSM3 if u.startswith("ksm3") else None)
     return None
 
 
@@ -111,5 +112,5 @@ def vessel_loading(conn, fid: str, until: str | None = None, back_days: int = BA
                   f"over 100 % the item holds production back or runs above its rating. Near capacity at {NEAR:g} %",
                   [fid, worst["record"], *records[:3]], unit=worst["unit"], at=day.isoformat(),
                   loading_pct=worst["loading_pct"], loading_pct_before=worst["loading_pct_before"], loads=loads,
-                  wells_upstream=len(wells), water_cut_pct=_r(cut, 1), oil_sm3d=_r(flow["oil"], 1),
-                  water_sm3d=_r(flow["water"], 1), gas_ksm3d=_r(flow["gas"], 1))
+                  wells_upstream=len(wells), water_cut_pct=_r(cut, 1), oil_bbld=_r(flow["oil"], 1),
+                  water_bbld=_r(flow["water"], 1), gas_mscfd=_r(flow["gas"], 1))

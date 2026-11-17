@@ -12,8 +12,8 @@ entity:
     - reason_code
     - comment
     - [timestamp, {from: start, keep: true}]
-    - [lost_oil_sm3, {from: lost_oil_sm3, as: number, keep: true}]
-    - [lost_gas_ksm3, {from: lost_gas_ksm3, as: number, keep: true}]
+    - [lost_oil_bbl, {from: lost_oil_bbl, as: number, keep: true}]
+    - [lost_gas_mscf, {from: lost_gas_mscf, as: number, keep: true}]
 links:
   - rel: affects
     to: {from: object_code, default: "", as: facility_or_well}

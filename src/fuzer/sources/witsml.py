@@ -7,15 +7,15 @@ WITSML XML. Both generations are read:
   capital first letter (`Md`, `Incl`, `Azi`, `DTimStn`, ...), so both are matched without regard to case.
 
 Each station becomes the same record a survey CSV gives (sources/../mappings/well_survey.yaml): well, measured depth
-in metres, inclination and azimuth in degrees, survey date and tool. Standard library only.
+in feet, inclination and azimuth in degrees, survey date and tool. Standard library only.
 """
 
 import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-FEET = 0.3048
-_LENGTH = {"m": 1.0, "ft": FEET, "usft": 1200 / 3937}
+FT_PER_M = 3.28084
+_LENGTH = {"m": FT_PER_M, "ft": 1.0, "usft": 1200 / 3937 * FT_PER_M}
 _ANGLE = {"dega": 1.0, "deg": 1.0, "rad": 180 / math.pi}
 
 
@@ -39,7 +39,7 @@ def _measure(el, name: str, units: dict[str, float]) -> float | None:
     uom = (c.get("uom") or next(iter(units))).strip()
     if uom not in units:
         raise ValueError(f"WITSML {name} in {uom!r}: not a unit read here ({', '.join(units)})")
-    return round(float(c.text) * units[uom], 2 if units is _LENGTH else 3)  # centimetres; a thousandth of a degree
+    return round(float(c.text) * units[uom], 2 if units is _LENGTH else 3)  # a hundredth of a foot; a thousandth of a degree
 
 
 def read(path: Path):
@@ -60,7 +60,7 @@ def read(path: Path):
             if md is None:
                 continue
             yield well, f"{uid}-{st.get('uid') or md}", {
-                "well": well, "md_m": md, "inclination_deg": _measure(st, "incl", _ANGLE),
+                "well": well, "md_ft": md, "inclination_deg": _measure(st, "incl", _ANGLE),
                 "azimuth_deg": _measure(st, "azi", _ANGLE), "survey_date": _text(st, "dTimStn")[:10] or None,
                 "tool": _text(st, "typeSurveyTool") or _text(st, "typeTrajStation") or None,
                 "format": fmt, "trajectory": uid}

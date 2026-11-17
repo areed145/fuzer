@@ -45,8 +45,8 @@ export function WaterInjection() {
               <td>{m.month}</td>
               <td data-label="Ratio">{m.vrr ?? "unknown"}</td>
               <td data-label="Running">{m.cumulative_vrr ?? "unknown"}</td>
-              <td data-label="Injected">{m.injected_rm3 != null ? `${m.injected_rm3.toLocaleString()} rm³` : "unknown"}</td>
-              <td data-label="Produced">{m.voidage_rm3 != null ? `${m.voidage_rm3.toLocaleString()} rm³` : "unknown"}</td>
+              <td data-label="Injected">{m.injected_rb != null ? `${m.injected_rb.toLocaleString()} rb` : "unknown"}</td>
+              <td data-label="Produced">{m.voidage_rb != null ? `${m.voidage_rb.toLocaleString()} rb` : "unknown"}</td>
             </tr>
           ))}</tbody>
         </Table>

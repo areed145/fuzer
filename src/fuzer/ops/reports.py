@@ -180,7 +180,7 @@ def _meters(conn, since: date, through: date) -> tuple[list[dict], dict]:
         total = sum(x["value"] for x in lines if x["value"] is not None)
         out.append({**figure(f"meter:{fid}", f"Metered gas, {m['label']}", _num(total), m["unit"], lines),
                     "subject": fid})
-    return out, {"energy_gj": energy, "volume": volume}
+    return out, {"energy_mmbtu": energy, "volume": volume}
 
 
 def _per_day(uom: str | None) -> tuple[str | None, float | None]:
@@ -194,7 +194,7 @@ def _per_day(uom: str | None) -> tuple[str | None, float | None]:
 
 
 def _unit(u: str | None) -> str | None:
-    return {"ksm3": "kSm3", "sm3": "Sm3", "msm3": "MSm3"}.get((u or "").lower(), u)
+    return {"ksm3": "kSm3", "sm3": "Sm3", "msm3": "MSm3", "mscf": "Mscf", "mmscf": "MMscf"}.get((u or "").lower(), u)
 
 
 def _flared(conn, since: date, through: date, src) -> list[dict]:
@@ -277,11 +277,11 @@ def flare_emissions(conn, pack, since: date, through: date, src=None) -> list[di
         ghg.append(figure("ghg:flared_volume", "Flared gas volume", _num(vol), total[0]["unit"],
                           [{"label": f["label"], "value": f["value"], "basis": f["basis"], "ref": None,
                             "figure": f["key"]} for f in total], basis=basis))
-        if hhv["volume"] and total[0]["unit"] == "kSm3":
-            mj = hhv["energy_gj"] / hhv["volume"]  # GJ per kSm3 is MJ per Sm3
-            ghg.append(figure("ghg:flared_energy", "Flared gas energy", _num(vol * mj, 0), "GJ",
-                              [{"label": "Heating value of the gas metered this month", "value": _num(mj, 2),
-                                "unit": "MJ/Sm3", "basis": "estimated", "ref": None}],
+        if hhv["volume"] and total[0]["unit"] == "Mscf":
+            btu = hhv["energy_mmbtu"] / hhv["volume"] * 1000  # MMBtu per Mscf is 1,000 Btu per scf
+            ghg.append(figure("ghg:flared_energy", "Flared gas energy", _num(vol * btu / 1000, 0), "MMBtu",
+                              [{"label": "Heating value of the gas metered this month", "value": _num(btu, 0),
+                                "unit": "Btu/scf", "basis": "estimated", "ref": None}],
                               note="At the heating value of the gas metered this month, not of the flare gas",
                               basis="estimated"))
     return [{"title": "Metered gas", "figures": meters},

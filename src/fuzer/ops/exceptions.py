@@ -633,7 +633,7 @@ def _reading(reading: dict | None) -> dict | None:
         raise ExceptionError("a reading needs a number") from None
     unit = str(reading.get("unit") or "").strip()
     if not unit or len(unit) > 20:
-        raise ExceptionError("a reading needs its unit (°C, barg, mm/s...)")
+        raise ExceptionError("a reading needs its unit (°F, psig, in/s...)")
     what = str(reading.get("what") or "").strip()[:80] or None
     return {"value": value, "unit": unit, "what": what}
 

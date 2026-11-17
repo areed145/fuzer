@@ -26,36 +26,36 @@ def review(conn, since: str | None = None, until: str | None = None, days: int =
     the days before it, and every episode with the downtime, log entries and detections around it."""
     since, until = ops._window(conn, since, until, days)
     first = (date.fromisoformat(since) - timedelta(days=flare.DAY_BASE)).isoformat()
-    booked = sorted((r["f"]["report_date"][:10], ops._num(r["f"].get("flare_ksm3"))) for r in ops._rows(
-        conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s and f ? 'flare_ksm3'",
+    booked = sorted((r["f"]["report_date"][:10], ops._num(r["f"].get("flare_mscf"))) for r in ops._rows(
+        conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s and f ? 'flare_mscf'",
         {"s": first, "u": until}))
     daily = []
     for i, (day, v) in enumerate(booked):
         if day < since:
             continue
         before = [x for _, x in booked[max(0, i - flare.DAY_BASE):i]]
-        daily.append({"day": day, "flare_ksm3": v, "baseline_ksm3": median(before) if before else None})
+        daily.append({"day": day, "flare_mscf": v, "baseline_mscf": median(before) if before else None})
     n = (date.fromisoformat(until) - date.fromisoformat(since)).days
     episodes = [e for e in flare.events(conn, until + "T00:00", n) if since <= e["start"][:10] < until]
     reasons: dict[str, float] = {}
     for e in episodes:
         why = next((c["text"].split(" ", 1)[0] for c in e["causes"] if c["kind"] == "downtime"), None) or (
             "log entry or detection only" if e["attributed"] else "unknown")
-        if e["volume_unit"] == "kSm3":
+        if e["volume_unit"] == "Mscf":
             reasons[why] = reasons.get(why, 0.0) + e["volume"]
-    total = sum(d["flare_ksm3"] for d in daily)
-    over = sum(e["volume"] for e in episodes if e["volume_unit"] == "kSm3")
-    explained = sum(e["volume"] for e in episodes if e["volume_unit"] == "kSm3" and e["attributed"])
+    total = sum(d["flare_mscf"] for d in daily)
+    over = sum(e["volume"] for e in episodes if e["volume_unit"] == "Mscf")
+    explained = sum(e["volume"] for e in episodes if e["volume_unit"] == "Mscf" and e["attributed"])
     return {"since": since, "until": until, "days": daily,
             "episodes": [{k: e[k] for k in ("source", "subject", "label", "point", "start", "end", "peak", "baseline",
                                            "uom", "volume", "volume_unit", "attributed")}
                          | {"causes": e["causes"][:8]} for e in episodes],
-            "summary": {"days": len(daily), "flare_ksm3": round(total, 1), "episodes": len(episodes),
+            "summary": {"days": len(daily), "flare_mscf": round(total, 1), "episodes": len(episodes),
                         "attributed": sum(1 for e in episodes if e["attributed"]),
                         "unknown": sum(1 for e in episodes if not e["attributed"]),
-                        "over_baseline_ksm3": round(over, 1), "explained_ksm3": round(explained, 1),
+                        "over_baseline_mscf": round(over, 1), "explained_mscf": round(explained, 1),
                         "explained_share_pct": round(100 * explained / over, 1) if over else None,
-                        "by_reason_ksm3": {k: round(v, 1) for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])}},
+                        "by_reason_mscf": {k: round(v, 1) for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])}},
             "systems": systems(conn), "allocation": allocation(conn, since, until),
             "thresholds": {"day_spike": flare.DAY_SPIKE, "day_base": flare.DAY_BASE, "spike": flare.SPIKE},
             "source": "daily report flare volume and flare flow points, downtime, operator log, detections",
@@ -115,18 +115,18 @@ def allocation(conn, since: str, until: str) -> dict | None:
     by: dict[str, dict] = {}
     for r in rows:
         kind, basis, *_ = [x.strip() for x in (r["method"] or "").removeprefix("flare allocation:").split(";")] + ["", ""]
-        g = by.setdefault(r["fuzer_id"], {"source": r["fuzer_id"], "label": r["label"], "ksm3": 0.0, "by_kind": {},
+        g = by.setdefault(r["fuzer_id"], {"source": r["fuzer_id"], "label": r["label"], "mscf": 0.0, "by_kind": {},
                                           "by_basis": {}})
-        g["ksm3"] += float(r["v"])
+        g["mscf"] += float(r["v"])
         g["by_kind"][kind or "unstated"] = g["by_kind"].get(kind or "unstated", 0.0) + float(r["v"])
         g["by_basis"][basis or "unstated"] = g["by_basis"].get(basis or "unstated", 0.0) + float(r["v"])
-    total = sum(g["ksm3"] for g in by.values())
+    total = sum(g["mscf"] for g in by.values())
     names = _names(conn, by)
     for g in by.values():
         g["name"] = names.get(g["source"]) or g["label"]
-    sources = sorted(({**g, "ksm3": round(g["ksm3"], 1), "share_pct": round(100 * g["ksm3"] / total, 1) if total else None,
+    sources = sorted(({**g, "mscf": round(g["mscf"], 1), "share_pct": round(100 * g["mscf"] / total, 1) if total else None,
                        "by_kind": {k: round(v, 1) for k, v in sorted(g["by_kind"].items(), key=lambda kv: -kv[1])},
                        "by_basis": {k: round(v, 1) for k, v in g["by_basis"].items()}} for g in by.values()),
-                     key=lambda g: -g["ksm3"])
-    return {"ksm3": round(total, 1), "unit": "kSm3", "sources": sources,
+                     key=lambda g: -g["mscf"])
+    return {"mscf": round(total, 1), "unit": "Mscf", "sources": sources,
             "source": "production accounting's daily flare allocation"}

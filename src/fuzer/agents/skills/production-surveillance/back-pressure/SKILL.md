@@ -1,6 +1,6 @@
 ---
 name: back-pressure
-description: Back-pressure and hydraulics - what holds wells back without a deferment record (jacket header, separator, a fouling flowline, the choke), how much oil a bar is worth, and the ranked debottleneck options with their next constraint.
+description: Back-pressure and hydraulics - what holds wells back without a deferment record (jacket header, separator, a fouling flowline, the choke), how much oil a psi is worth, and the ranked debottleneck options with their next constraint.
 ---
 
 # Back-pressure
@@ -19,7 +19,7 @@ a deferment record. Work through it in this order, citing the numbers each tool 
    wellhead to compressor suction, and the drop across each segment. The largest drop is where to look.
    `calc("dp_drift", well)` says whether the wellhead-to-header drop is rising (`dp_rising`, and since
    when): a flowline waxing or scaling, not a choke move.
-3. **What a bar is worth.** `backpressure_sensitivity(scope)` gives oil per bar for each back-pressure-
+3. **What a psi is worth.** `backpressure_sensitivity(scope)` gives oil per psi for each back-pressure-
    limited well, from the inflow and choke model and from its tests against the header pressure. Quote
    both. When they disagree (`disagree`), say the estimate is uncertain and why: few tests, or a header
    that hardly moved.
@@ -41,4 +41,4 @@ Charts: `plot_pressure_profile` (today against a reference date), `plot_backpres
 `plot_choke_criticality` (pressure ratio over time against 0.55), `plot_dp_drift`, `plot_debottleneck`.
 
 These are proposals for people to decide. Never give operating instructions ("lower the setpoint to
-10 bar"); say what the option is worth and what would confirm it.
+150 psig"); say what the option is worth and what would confirm it.

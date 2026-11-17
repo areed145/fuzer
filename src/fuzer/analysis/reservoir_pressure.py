@@ -4,7 +4,7 @@ balance for the field. Both are estimates: every result returns the assumptions 
     productivity(conn, well=None)   per well: each flowing survey's rate over its drawdown from the static pressure
                                     surveyed just before, and whether the index has fallen since the first
     material_balance(conn, ...)     static pressures against the reservoir volume produced net of water injected:
-                                    the pressure lost per reservoir m3, the compressible volume it implies, and the
+                                    the pressure lost per reservoir barrel, the compressible volume it implies, and the
                                     decline at the latest months' net voidage
 
 The material balance reuses the voidage of water_injection.voidage (allocated oil with its water and free gas at
@@ -35,7 +35,7 @@ MB_ASSUMPTIONS = [
     "Voidage is allocated oil with its water and free gas at reservoir conditions, from the recorded PVT and each "
     "well's latest test, less water injected; gas injection is not counted.",
     "Formation volume factors are constant over the window.",
-    "The slope is pressure per reservoir m3 net of injection; its inverse is the compressible volume (pore volume "
+    "The slope is pressure per reservoir barrel net of injection; its inverse is the compressible volume (pore volume "
     "times total compressibility), not the oil in place.",
 ]
 
@@ -67,13 +67,13 @@ def productivity(conn, well: str | None = None) -> dict:
             before = [(d, p) for d, p, _ in static.get(name, []) if day - timedelta(days=PAIR_DAYS) <= d <= day]
             q = rates.get((ids.get(name), day))
             if not before or q is None:
-                points.append({"date": day.isoformat(), "flowing_barg": pwf, "record": record, "pi": None,
+                points.append({"date": day.isoformat(), "flowing_psig": pwf, "record": record, "pi": None,
                                "why": "no static survey just before" if not before else "no rate on the survey"})
                 continue
             sd, ps = before[-1]
             dd = ps - pwf
-            points.append({"date": day.isoformat(), "static_barg": ps, "static_date": sd.isoformat(), "flowing_barg": pwf,
-                           "oil_sm3d": q, "drawdown_bar": round(dd, 1), "record": record,
+            points.append({"date": day.isoformat(), "static_psig": ps, "static_date": sd.isoformat(), "flowing_psig": pwf,
+                           "oil_bbld": q, "drawdown_psi": round(dd, 1), "record": record,
                            "pi": round(q / dd, 2) if dd > 0 else None,
                            **({"why": "no drawdown"} if dd <= 0 else {})})
         said = [p for p in points if p["pi"]]
@@ -81,7 +81,7 @@ def productivity(conn, well: str | None = None) -> dict:
         verdict = "too_few_surveys" if ratio is None else "fallen" if ratio < PI_DROP else "holding"
         wells.append({"well": name, "surveys": points, "first_pi": said[0]["pi"] if said else None,
                       "latest_pi": said[-1]["pi"] if said else None, "ratio": ratio, "verdict": verdict})
-    return {"wells": wells, "unit": "Sm3/d per bar", "threshold": PI_DROP, "pair_days": PAIR_DAYS,
+    return {"wells": wells, "unit": "bbl/d per psi", "threshold": PI_DROP, "pair_days": PAIR_DAYS,
             "verdict": "no_surveys" if not wells else "flagged" if any(w["verdict"] == "fallen" for w in wells)
             else "holding", "assumptions": PI_ASSUMPTIONS,
             "source": "pressure surveys (static and flowing bottomhole pressure, survey rate)",
@@ -116,14 +116,14 @@ def material_balance(conn, since: str | None = None, until: str | None = None, d
     base = {"since": v["since"], "until": v["until"], "assumptions": MB_ASSUMPTIONS, "pvt": v["pvt"],
             "min_surveys": MIN_SURVEYS,
             "source": "pressure surveys (static), daily report oil, monthly injection, well tests, PVT measurements"}
-    months = [m for m in v["months"] if m["voidage_rm3"] is not None]
+    months = [m for m in v["months"] if m["voidage_rb"] is not None]
     if v["missing_pvt"] or not months:
         return base | {"verdict": "unknown", "surveys": [], "note": (
             f"No recorded {', '.join(v['missing_pvt'])}, so the reservoir volume taken out is unknown."
             if v["missing_pvt"] else "No month with produced reservoir volume in the window.")}
     cum, start = {}, 0.0  # cumulative net voidage at the start of each month
     for m in months:
-        cum[m["month"]] = (start, m["voidage_rm3"] - (m["injected_rm3"] or 0))
+        cum[m["month"]] = (start, m["voidage_rb"] - (m["injected_rb"] or 0))
         start += cum[m["month"]][1]
 
     def at(day: date) -> float | None:
@@ -142,8 +142,8 @@ def material_balance(conn, since: str | None = None, until: str | None = None, d
             if nv is None:
                 continue
             pts.append((name, nv, p))
-            rows.append({"well": name, "date": day.isoformat(), "static_barg": p,
-                         "cumulative_net_voidage_rm3": round(nv), "record": record})
+            rows.append({"well": name, "date": day.isoformat(), "static_psig": p,
+                         "cumulative_net_voidage_rb": round(nv), "record": record})
     fit = _fit(pts)
     if fit is None or fit[0] >= 0:
         return base | {"verdict": "insufficient", "surveys": rows, "note": (
@@ -151,13 +151,13 @@ def material_balance(conn, since: str | None = None, until: str | None = None, d
             if fit is None else "Pressure doesn't fall with net voidage here, so a one-tank balance doesn't hold.")}
     slope, r2 = fit
     latest = months[-water_injection.VRR_MONTHS:]
-    net_rate = sum(m["voidage_rm3"] - (m["injected_rm3"] or 0) for m in latest) / len(latest) * 12
+    net_rate = sum(m["voidage_rb"] - (m["injected_rb"] or 0) for m in latest) / len(latest) * 12
     return base | {
         "verdict": "fitted", "surveys": rows,
-        "bar_per_million_rm3": round(-slope * 1e6, 3), "compressible_volume_rm3_per_bar": round(-1 / slope),
+        "psi_per_million_rb": round(-slope * 1e6, 2), "compressible_volume_rb_per_psi": round(-1 / slope),
         "r2": round(r2, 3), "wells": len({r["well"] for r in rows}),
-        "decline_bar_per_year": round(-slope * net_rate, 1),
-        "net_voidage_rm3_per_year": round(net_rate),
-        "note": (f"Pressure falls {round(-slope * 1e6, 2)} bar per million reservoir m3 taken out net of injection "
+        "decline_psi_per_year": round(-slope * net_rate, 1),
+        "net_voidage_rb_per_year": round(net_rate),
+        "note": (f"Pressure falls {round(-slope * 1e6, 2)} psi per million reservoir barrels taken out net of injection "
                  f"(r² {round(r2, 2)}, {len(rows)} static surveys); at the latest {len(latest)} months' net voidage "
-                 f"that is {round(-slope * net_rate, 1)} bar a year. An estimate: see assumptions.")}
+                 f"that is {round(-slope * net_rate, 1)} psi a year. An estimate: see assumptions.")}

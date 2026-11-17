@@ -9,7 +9,7 @@ entity:
   fields:
     - [gis_name, name]
     - [facility_type, type]
-    - [water_depth_m, {from: water_depth_m, as: number}]
+    - [water_depth_ft, {from: water_depth_ft, as: number}]
     - install_year
     - [latitude, {from: latitude, as: number}]
     - [longitude, {from: longitude, as: number}]

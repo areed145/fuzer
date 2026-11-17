@@ -52,7 +52,7 @@ BRANCHES = ("sample_point", "drain", "vent")  # drawn off a line, not on it: not
 INSULATION = ("", "", "-IH", "-PP", "-IC", "-ET")  # none, heat conservation, personnel protection, cold, traced
 TALL = ("V", "T", "F", "H", "FL")
 ROW = 28  # data table row height
-EQ_COLS = (("TAG", 170), ("SERVICE", 330), ("DES. P (barg)", 150), ("DES. T (DEG C)", 160), ("CAPACITY", 160))
+EQ_COLS = (("TAG", 170), ("SERVICE", 330), ("DES. P (psig)", 150), ("DES. T (DEG F)", 160), ("CAPACITY", 160))
 SP_COLS = (("TAG", 160), ("LL", 110), ("L", 110), ("H", 110), ("HH", 110), ("UNITS", 120))
 ABBREV = {"SEPARATOR": "SEP.", "COMPRESSOR": "COMPR.", "EXCHANGER": "EXCH.", "PRESSURE": "PRESS.", "TRAIN": "TRN",
           "DISCHARGE": "DISCH.", "SUCTION": "SUCT.", "COOLER": "CLR", "SCRUBBER": "SCRUB.", "PRODUCTION": "PROD."}

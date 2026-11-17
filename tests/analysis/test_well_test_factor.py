@@ -19,8 +19,8 @@ def test_the_factor_per_month_reads_low_with_its_test_age(okan_db):
     s = out["summary"]
     assert 0.6 < s["factor"] < s["band"][0]
     for m in out["months"]:
-        assert m["factor"] == round(m["allocated_sm3"] / m["offered_sm3"], 3) or abs(
-            m["factor"] - m["allocated_sm3"] / m["offered_sm3"]) < 0.002
+        assert m["factor"] == round(m["allocated_bbl"] / m["offered_bbl"], 3) or abs(
+            m["factor"] - m["allocated_bbl"] / m["offered_bbl"]) < 0.002
         assert m["factor_ignoring_downtime"] <= m["factor"]  # taking a shut-in well out can only lower the offer
         assert m["median_test_age_days"] <= tf.TEST_DAYS and m["wells_offering"] > 100
         assert m["days"] + m["days_left_out"] <= 31
@@ -44,7 +44,7 @@ def test_a_well_down_all_day_offers_nothing_that_day(okan_db):
     conn.execute("insert into edge (src, rel, dst, sources, confidence) values (%s, 'affects', %s, '{test}', 1)", (dt, well))
     after = tf.trend(conn, "2025-10-01", "2025-11-01")["months"][0]
     assert after["well_days_shut_in"] == before["well_days_shut_in"] + 5
-    assert after["offered_sm3"] < before["offered_sm3"] and after["factor"] > before["factor"]
+    assert after["offered_bbl"] < before["offered_bbl"] and after["factor"] > before["factor"]
     assert after["factor_ignoring_downtime"] == before["factor_ignoring_downtime"]
     conn.rollback()
 

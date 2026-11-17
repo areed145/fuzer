@@ -46,11 +46,11 @@ def downtime(conn, fuzer_id: str | None = None, since: str | None = None, until:
     planned (reason category `planned`) or only unplanned downtime; the totals also say how much of it was planned."""
     params = {"id": fuzer_id, "since": since, "until": until, "limit": limit, "planned": planned}
     totals = conn.execute(_DOWNTIME_PLANNED + """
-        select count(*) as events, coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as lost_oil_sm3,
+        select count(*) as events, coalesce(sum((f->>'lost_oil_bbl')::numeric), 0) as lost_oil_bbl,
                coalesce(sum((f->>'duration_h')::numeric), 0) as hours,
                count(*) filter (where f->>'reason_category' = 'planned') as planned_events,
-               coalesce(sum((f->>'lost_oil_sm3')::numeric) filter (where f->>'reason_category' = 'planned'), 0)
-                 as planned_lost_oil_sm3
+               coalesce(sum((f->>'lost_oil_bbl')::numeric) filter (where f->>'reason_category' = 'planned'), 0)
+                 as planned_lost_oil_bbl
         from dd
     """, params).fetchone()
     rows = conn.execute(_DOWNTIME_PLANNED + """
@@ -68,10 +68,10 @@ def downtime(conn, fuzer_id: str | None = None, since: str | None = None, until:
     ):
         links[r["src"]][r["rel"]].append({"id": r["dst"], "label": r["label"]})
     return {
-        "events": totals["events"], "lost_oil_sm3": float(totals["lost_oil_sm3"]), "hours": float(totals["hours"]),
-        "planned": {"events": totals["planned_events"], "lost_oil_sm3": float(totals["planned_lost_oil_sm3"])},
+        "events": totals["events"], "lost_oil_bbl": float(totals["lost_oil_bbl"]), "hours": float(totals["hours"]),
+        "planned": {"events": totals["planned_events"], "lost_oil_bbl": float(totals["planned_lost_oil_bbl"])},
         "recent": [{"id": r["id"], "label": r["label"], **{k: r["f"].get(k) for k in (
-            "start", "end", "duration_h", "reason", "reason_category", "lost_oil_sm3", "comment", "reason_check")},
+            "start", "end", "duration_h", "reason", "reason_category", "lost_oil_bbl", "comment", "reason_check")},
                     **links[r["id"]]} for r in rows],
     }
 
@@ -86,42 +86,42 @@ def downtime_ranking(conn, by: str = "tag", since: str | None = None, until: str
     if by == "reason":
         sql = """
             select coalesce(f->>'reason', 'Unknown') as label, null::text as description, null::text as fuzer_id,
-                   count(*) as events, sum((f->>'lost_oil_sm3')::numeric) as lost_oil_sm3,
+                   count(*) as events, sum((f->>'lost_oil_bbl')::numeric) as lost_oil_bbl,
                    sum((f->>'duration_h')::numeric) as hours
-            from dd group by 1 having coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) > 0
-            order by lost_oil_sm3 desc nulls last limit %(limit)s
+            from dd group by 1 having coalesce(sum((f->>'lost_oil_bbl')::numeric), 0) > 0
+            order by lost_oil_bbl desc nulls last limit %(limit)s
         """
     elif by in ("tag", "class"):
         via = ("join edge k on k.src = c.dst and k.rel = 'classified_as'" if by == "class" else "")
         target = "k.dst" if by == "class" else "c.dst"
         sql = f"""
             select l.label, gd.value #>> '{{}}' as description, {target} as fuzer_id, count(distinct dd.id) as events,
-                   sum((dd.f->>'lost_oil_sm3')::numeric) as lost_oil_sm3, sum((dd.f->>'duration_h')::numeric) as hours
+                   sum((dd.f->>'lost_oil_bbl')::numeric) as lost_oil_bbl, sum((dd.f->>'duration_h')::numeric) as hours
             from dd
             join edge c on c.src = dd.id and c.rel = 'caused_by'
             {via}
             left join entity_label l on l.fuzer_id = {target}
             left join golden gd on gd.fuzer_id = {target} and gd.field = 'description'
-            group by l.label, gd.value, {target} order by lost_oil_sm3 desc nulls last limit %(limit)s
+            group by l.label, gd.value, {target} order by lost_oil_bbl desc nulls last limit %(limit)s
         """
     else:
         raise ValueError("by must be tag, class or reason")
-    rows = [{**r, "lost_oil_sm3": float(r["lost_oil_sm3"] or 0), "hours": float(r["hours"] or 0)}
+    rows = [{**r, "lost_oil_bbl": float(r["lost_oil_bbl"] or 0), "hours": float(r["hours"] or 0)}
             for r in conn.execute(_DOWNTIME_PLANNED + sql, params)]
     if by in ("tag", "class"):
         named = ("exists (select 1 from edge c join edge k on k.src = c.dst and k.rel = 'classified_as' "
                  "where c.src = dd.id and c.rel = 'caused_by')" if by == "class" else
                  "exists (select 1 from edge c where c.src = dd.id and c.rel = 'caused_by')")
         rest = conn.execute(_DOWNTIME_PLANNED + f"""
-            select count(*) as events, coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as lost_oil_sm3,
+            select count(*) as events, coalesce(sum((f->>'lost_oil_bbl')::numeric), 0) as lost_oil_bbl,
                    coalesce(sum((f->>'duration_h')::numeric), 0) as hours
             from dd where not {named}
         """, params).fetchone()
-        if rest["lost_oil_sm3"] > 0:
+        if rest["lost_oil_bbl"] > 0:
             rows.append({"label": "No equipment named" if by == "tag" else "No classified equipment named",
                          "description": "Downtime whose record names no " + ("equipment" if by == "tag" else
                                                                                "equipment with a class"),
-                         "fuzer_id": None, "events": rest["events"], "lost_oil_sm3": float(rest["lost_oil_sm3"]),
+                         "fuzer_id": None, "events": rest["events"], "lost_oil_bbl": float(rest["lost_oil_bbl"]),
                          "hours": float(rest["hours"]), "unattributed": True})
     return rows
 
@@ -131,15 +131,15 @@ def downtime_monthly(conn, since: str | None = None, until: str | None = None) -
     params = {"id": None, "since": since, "until": until, "planned": None}
     rows = conn.execute(_DOWNTIME_PLANNED + """
         select left(f->>'start', 7) as month, f->>'reason_category' = 'planned' as planned, count(*) as events,
-               coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as lost_oil_sm3
+               coalesce(sum((f->>'lost_oil_bbl')::numeric), 0) as lost_oil_bbl
         from dd where f->>'start' is not null group by 1, 2 order by 1
     """, params).fetchall()
     months: dict[str, dict] = {}
     for r in rows:
-        m = months.setdefault(r["month"], {"month": r["month"], "planned_sm3": 0.0, "unplanned_sm3": 0.0,
+        m = months.setdefault(r["month"], {"month": r["month"], "planned_bbl": 0.0, "unplanned_bbl": 0.0,
                                            "planned_events": 0, "unplanned_events": 0})
         kind = "planned" if r["planned"] else "unplanned"
-        m[f"{kind}_sm3"] += float(r["lost_oil_sm3"])
+        m[f"{kind}_bbl"] += float(r["lost_oil_bbl"])
         m[f"{kind}_events"] += r["events"]
     return list(months.values())
 
@@ -221,7 +221,7 @@ def incident_timeline(conn, fuzer_id: str) -> list[dict]:
                     "at": f.get("timestamp") or f.get("start") or f.get("created"),
                     "text": f.get("summary") or f.get("comment") or f.get("short_text") or f.get("description"),
                     "detail": f.get("event_type") or f.get("reason") or f.get("failure_mode_name"),
-                    "lost_oil_sm3": f.get("lost_oil_sm3")})
+                    "lost_oil_bbl": f.get("lost_oil_bbl")})
     return sorted(out, key=lambda x: (x["at"] or "", x["kind"]))
 
 
@@ -263,6 +263,6 @@ def similar_incidents(conn, fuzer_id: str, limit: int = 10) -> list[dict]:
             + jaccard(me["f"].get("failure_modes"), r["f"].get("failure_modes")) \
             + jaccard(me["f"].get("event_types"), r["f"].get("event_types"))
         scored.append({"id": r["id"], "score": round(score, 2), "same_unit": r["unit"] == me["unit"],
-                       **{k: r["f"].get(k) for k in ("description", "start", "end", "lost_oil_sm3", "failure_modes",
+                       **{k: r["f"].get(k) for k in ("description", "start", "end", "lost_oil_bbl", "failure_modes",
                                                     "event_types")}})
     return sorted(scored, key=lambda x: (-x["score"], x["start"] or ""), reverse=False)[:limit]

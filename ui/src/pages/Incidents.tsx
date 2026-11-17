@@ -65,7 +65,7 @@ export function IncidentList({ items, all = items }: { items: Incident[]; all?: 
               {i.downtime_records > 0 && <UIBadge className="badge event-type">downtime</UIBadge>}
               {i.events > 0 && <span>{plural(i.events, "event")}</span>}
               {i.notifications > 0 && <span>{plural(i.notifications, "notification")}</span>}
-              {i.lost_oil_sm3 > 0 && <span>{Math.round(i.lost_oil_sm3).toLocaleString()} Sm³ lost</span>}
+              {i.lost_oil_bbl > 0 && <span>{Math.round(i.lost_oil_bbl).toLocaleString()} bbl lost</span>}
               {i.failure_modes?.map((m) => <UIBadge key={m} className="badge" title={`ISO 14224 ${m}`}>
                 {i.failure_mode_words?.[m] ?? m}</UIBadge>)}
             </div>

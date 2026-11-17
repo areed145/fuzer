@@ -227,7 +227,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Runs:** Once a day
 - **Raises:** `opportunity`
 - **Equipment classes:** well
-- **Setting `opportunities.gas_lift_breakeven`:** Sm3/d of oil per kSm3/d of lift gas below which more gas isn't worth it (default 0.5)
+- **Setting `opportunities.gas_lift_breakeven`:** bbl/d of oil per Mscf/d of lift gas below which more gas isn't worth it (default 0.09)
 - **Setting `opportunities.stale_days`:** Days without a well test before the test is stale (default 90)
 - **Setting `opportunities.material`:** A decided opportunity comes back when its gain moves by this share (default 0.5)
 - **Scored by:** `tests/ops/test_opportunities.py::test_scan_board_and_rejection`, on the fake plant

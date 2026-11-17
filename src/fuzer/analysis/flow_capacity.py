@@ -17,7 +17,7 @@ TEST_DAYS = 90    # a well test older than this no longer says what the well mak
 EXAMPLES = 5
 GRADES = ["design", "statement", "moc", "tested"]  # evidence behind a bound, weakest first
 SEPARATOR, MANIFOLD, COMPRESSOR, METER, SALES = "separator", "manifold", "compressor", "meter", "sales_point"
-METADATA = "Dated system_oil_capacity measurement (Sm3/d, facility oil equivalent, engineering-converted)"
+METADATA = "Dated system_oil_capacity measurement (bbl/d, facility oil equivalent, engineering-converted)"
 
 
 def _longest(nodes: dict, edges: list[tuple[str, str]], weight=lambda node: 1) -> dict:
@@ -120,7 +120,7 @@ def calculate(nodes: dict, edges: list[tuple[str, str]], limits: list[dict], tes
     tested = [row for row in tests if pe._number(row["value"]) is not None]
     tested_total = sum(float(row["value"]) for row in tested) if tested else None
     binding = set(latest["binding_constraint_ids"])
-    potential = latest.get("reported_potential_sm3d") if latest["capacity_basis"] == "declared_limits" else None
+    potential = latest.get("reported_potential_bbld") if latest["capacity_basis"] == "declared_limits" else None
     grades = {row["id"]: (row.get("method") or "").removeprefix("derived from ") for row in limits}
     grouped = stages(nodes, edges)
     placed = {m["id"] for stage in grouped for m in stage["members"]}
@@ -148,7 +148,7 @@ def calculate(nodes: dict, edges: list[tuple[str, str]], limits: list[dict], tes
         complete = basis in ("declared", "reported_potential")
         rows.append({
             "id": "-".join(str(part) for part in _flat(stage["key"])), "label": stage["label"],
-            "capacity_sm3d": capacity, "basis": basis,
+            "capacity_bbld": capacity, "basis": basis,
             "grade": min((grades[m["id"]] for m in members if m["id"] in bounds),
                          key=lambda g: GRADES.index(g) if g in GRADES else len(GRADES), default=None),
             "binding": any(m["id"] in binding for m in members) or (wells and pe.WELLS["id"] in binding),
@@ -165,16 +165,16 @@ def calculate(nodes: dict, edges: list[tuple[str, str]], limits: list[dict], tes
     return {
         "as_of": end.isoformat(), "unit": UNIT, "stages": rows,
         "system": {
-            "limit_sm3d": latest["dynamic_max_sm3d"], "allocated_sm3d": latest["allocated_sm3d"],
+            "limit_bbld": latest["dynamic_max_bbld"], "allocated_bbld": latest["allocated_bbld"],
             "basis": latest["capacity_basis"], "established": established,
             "binding_stages": [row["label"] for row in rows if row["binding"]],
         },
         "demonstrated": {
-            "peak_sm3d": peak[0] if peak else None, "date": peak[1] if peak else None,
+            "peak_bbld": peak[0] if peak else None, "date": peak[1] if peak else None,
             "since": (end - timedelta(days=PEAK_DAYS - 1)).isoformat(),
         },
         "well_tests": {
-            "total_sm3d": tested_total, "wells": len(tested),
+            "total_bbld": tested_total, "wells": len(tested),
             "first": min((str(row["at"])[:10] for row in tested), default=None),
             "last": max((str(row["at"])[:10] for row in tested), default=None),
             "not_tested": sum(n["type"] == "well" for n in nodes.values()) - len(tested),

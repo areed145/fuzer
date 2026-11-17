@@ -15,7 +15,7 @@ bearing harmonic that lands on a whole order of running speed can't be told from
 import math
 
 TOLERANCE_PCT = 1.5  # a peak within this share of a fault frequency sits on it (speed and resolution spread)
-AMPLITUDE_MIN = 0.1  # mm/s RMS: a peak under this is the spectrum's floor
+AMPLITUDE_MIN = 0.004  # in/s RMS (0.1 mm/s): a peak under this is the spectrum's floor
 BEARING_HARMONICS = 2  # of the first three harmonics, at least this many must show for a bearing indication
 MISALIGN_RATIO = 0.5  # 2x over this share of 1x: a misalignment indication
 UNBALANCE_RATIO = 0.9  # 1x over this share of the overall level: an unbalance indication
@@ -63,7 +63,7 @@ def read(s: dict) -> dict:
         return {"frequencies": {}, "indications": [], "why": "no running speed or no peaks on the spectrum"}
     fr = rpm / 60
     freqs = {"1x": fr, "2x": 2 * fr}
-    geo = [_num(s.get(k)) for k in ("rolling_elements", "element_diameter_mm", "pitch_diameter_mm")]
+    geo = [_num(s.get(k)) for k in ("rolling_elements", "element_diameter_in", "pitch_diameter_in")]
     if all(geo):
         freqs |= bearing_frequencies(rpm, *geo, _num(s.get("contact_angle_deg")) or 0.0)
     ind = []
@@ -142,5 +142,5 @@ def spectra(conn, tag: str | None = None) -> dict:
         "summary": {"points": len(points), "machines": len({p["id"] for p in points}),
                     "with_indications": [f"{p['tag']} {p['point']}" for p in flagged]},
         "note": (f"A bearing defect shows when {BEARING_HARMONICS} of its first three harmonics stand above "
-                 f"{AMPLITUDE_MIN:g} mm/s; peaks within {TOLERANCE_PCT:g}% of a frequency sit on it. Fault indications "
+                 f"{AMPLITUDE_MIN:g} in/s; peaks within {TOLERANCE_PCT:g}% of a frequency sit on it. Fault indications "
                  "for the reliability engineer to confirm, not a diagnosis.")}

@@ -50,7 +50,7 @@ def _vs(ref: str, delta: float) -> str:
     """Phrase a comparison so the change never reads as a production value (#390)."""
     if round(delta, 1) == 0:
         return "Oil unchanged from " + ref
-    return "Oil {change} Sm3 " + ("above " if delta > 0 else "below ") + ref
+    return "Oil {change} bbl " + ("above " if delta > 0 else "below ") + ref
 
 
 def _show(v):
@@ -85,13 +85,13 @@ def facts(conn, pack, day: str) -> dict:
     num = operations._num
 
     # production and deferment
-    oil, pot = num(today.get("oil_sm3")), num(today.get("oil_potential_sm3"))
+    oil, pot = num(today.get("oil_bbl")), num(today.get("oil_potential_bbl"))
     prev = _day001(conn, (d - timedelta(days=1)).isoformat())
     week = [r for r in (_day001(conn, (d - timedelta(days=i)).isoformat()) for i in range(1, 8)) if r]
-    avg = sum(num(r.get("oil_sm3")) for r in week) / len(week) if week else None
+    avg = sum(num(r.get("oil_bbl")) for r in week) / len(week) if week else None
     # The day's oil against its reported potential, named so it can't be read as the registered production efficiency,
     # which follows next, read from the metric registry for the 14 days to this report (P7.1b).
-    prod = _f("Oil {oil} Sm3 against a potential of {pot} Sm3 ({share}% of potential)", [today["id"]], oil=oil, pot=pot,
+    prod = _f("Oil {oil} bbl against a potential of {pot} bbl ({share}% of potential)", [today["id"]], oil=oil, pot=pot,
               share=round(oil / pot * 100, 1) if pot else None)
     sections["Production and deferment"].append(prod)
     eff = metrics.value(conn, pack, "production.efficiency", at=d)
@@ -100,26 +100,26 @@ def facts(conn, pack, day: str) -> dict:
             "Production efficiency {eff}% over the 14 days to {day} ({standard})", eff["refs"], eff=eff["value"], day=day,
             standard=eff["standard"]))
     if prev:
-        p_oil = num(prev.get("oil_sm3"))
-        sections["Production and deferment"].append(_f(_vs("yesterday's {prev} Sm3", oil - p_oil), [today["id"], prev["id"]],
+        p_oil = num(prev.get("oil_bbl"))
+        sections["Production and deferment"].append(_f(_vs("yesterday's {prev} bbl", oil - p_oil), [today["id"], prev["id"]],
                                                        change=abs(oil - p_oil), prev=p_oil))
     if avg is not None:
-        sections["Production and deferment"].append(_f(_vs("the 7-day average of {avg} Sm3", round(oil - avg)),
+        sections["Production and deferment"].append(_f(_vs("the 7-day average of {avg} bbl", round(oil - avg)),
                                                        [today["id"], *[r["id"] for r in week]],
                                                        change=abs(round(oil - avg)), avg=round(avg)))
     sections["Production and deferment"].append(_f(
-        "Gas export {gas} kSm3, lift gas {lift} kSm3, flare {flare} kSm3", [today["id"]],
-        gas=num(today.get("gas_export_ksm3")), lift=num(today.get("lift_gas_ksm3")), flare=num(today.get("flare_ksm3"))))
+        "Gas export {gas} Mscf, lift gas {lift} Mscf, flare {flare} Mscf", [today["id"]],
+        gas=num(today.get("gas_export_mscf")), lift=num(today.get("lift_gas_mscf")), flare=num(today.get("flare_mscf"))))
     w = operations.what_changed(conn, day, nxt, limit=50)
-    losses = sorted(w["downtime_started"], key=lambda x: -num(x.get("lost_oil_sm3")))
+    losses = sorted(w["downtime_started"], key=lambda x: -num(x.get("lost_oil_bbl")))
     def status(x):
         end = x.get("end") or ""
         return f"back at {end[11:16]}" if end[:10] == day else f"back {end[:10]} {end[11:16]}" if end else "still down"
 
     for x in losses:
         sections["Production and deferment"].append(_f(
-            "Downtime from {at}: {reason}, {lost} Sm3 oil lost, {status} ({comment})", [x["id"]], at=x["at"][11:16] or x["at"],
-            reason=x.get("reason") or "unknown reason", lost=num(x.get("lost_oil_sm3")), status=status(x),
+            "Downtime from {at}: {reason}, {lost} bbl oil lost, {status} ({comment})", [x["id"]], at=x["at"][11:16] or x["at"],
+            reason=x.get("reason") or "unknown reason", lost=num(x.get("lost_oil_bbl")), status=status(x),
             comment=x.get("comment") or ""))
 
     # upsets and events
@@ -148,7 +148,7 @@ def facts(conn, pack, day: str) -> dict:
         if p and p["value"]:
             pct = (q - p["value"]) / p["value"] * 100
             if abs(pct) >= mover:
-                sections["Wells"].append(_f("{well} tested {q} Sm3/d, {pct}% against its previous test ({prev} Sm3/d)",
+                sections["Wells"].append(_f("{well} tested {q} bbl/d, {pct}% against its previous test ({prev} bbl/d)",
                                             [t["record"], p["record"]], well=t["well"]["label"], q=round(q, 1),
                                             pct=round(pct, 1), prev=round(p["value"], 1)))
     if w["well_tests"] and not sections["Wells"]:
@@ -198,8 +198,8 @@ def facts(conn, pack, day: str) -> dict:
     sections["Headline"].append(prod)
     if losses:
         x = losses[0]
-        sections["Headline"].append(_f("Biggest loss: {reason}, {lost} Sm3 oil, {status} ({comment})", [x["id"]],
-                                       reason=x.get("reason") or "downtime", lost=num(x.get("lost_oil_sm3")), status=status(x),
+        sections["Headline"].append(_f("Biggest loss: {reason}, {lost} bbl oil, {status} ({comment})", [x["id"]],
+                                       reason=x.get("reason") or "downtime", lost=num(x.get("lost_oil_bbl")), status=status(x),
                                        comment=x.get("comment") or ""))
     elif ups:
         sections["Headline"].append(sections["Upsets and events"][0])

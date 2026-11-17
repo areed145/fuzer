@@ -56,7 +56,7 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
         {t.bad_actors_not_in_scope.length > 0 && <Card title="Worst bad actors not in scope">
           <ul className="plain">{t.bad_actors_not_in_scope.map((a) => <li key={a.id}>
             <a href={entityHref(a.id)}>{a.tag ?? a.id}</a> <span className="muted small">{a.failures} failures
-              {a.lost_oil_sm3 ? ` · ${Math.round(a.lost_oil_sm3).toLocaleString()} Sm3 lost` : ""}</span></li>)}</ul></Card>}
+              {a.lost_oil_bbl ? ` · ${Math.round(a.lost_oil_bbl).toLocaleString()} bbl lost` : ""}</span></li>)}</ul></Card>}
         {t.spares_out_of_stock.length > 0 && <Card title="Spares out of stock">
           <ul className="plain">{t.spares_out_of_stock.map((p, n) => <li key={`${p.id}-${n}`}>
             <a href={entityHref(p.id)}>{p.material ?? p.id}</a> <span className="muted small">for {p.for} · {p.description}</span></li>)}</ul></Card>}

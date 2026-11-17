@@ -27,8 +27,8 @@
     "from_floc": "",
     "to_floc": "KRGP-A1",
     "diameter_in": 8,
-    "length_km": 1.9,
-    "mop_barg": 90,
+    "length_mi": 1.181,
+    "mop_psig": 1305.0,
     "install_year": 2015,
     "status": "in service"
    }
@@ -59,8 +59,8 @@
     "from_floc": "KRGP-H1",
     "to_floc": "",
     "diameter_in": 12,
-    "length_km": 2.4,
-    "mop_barg": 80,
+    "length_mi": 1.491,
+    "mop_psig": 1160.0,
     "install_year": 2015,
     "status": "in service"
    }

@@ -27,7 +27,7 @@ def test_the_amine_contactor_plan_outlasts_its_wall(request):
     wall = _run(conn, "corrosion_circuit", "D1-V-4001")
     me = wall["line"]
     assert me["retirement_basis"] == "recorded minimum thickness" and me["governing_cml"] == "CML-V2"
-    assert me["retirement_mm"] == 23.4 and 3 < me["remaining_years"] < 5 and wall["flag"] == "retire_soon"
+    assert me["retirement_in"] == 0.921 and 3 < me["remaining_years"] < 5 and wall["flag"] == "retire_soon"
     assert "as the inspection system records it" in wall["basis"]
     plan = _run(conn, "inspection_plan", "D1-V-4001")
     assert plan["flag"] == "interval_too_long" and plan["value"] == 5.0 and 1.5 < plan["expected"] < 2.5

@@ -30,6 +30,28 @@ BASE_BY_DESCRIPTION = [("Lift Gas Header Pressure", 88.0), ("Lift Gas Header Flo
                        ("Gas Export Meter", 1700.0), ("Gas Rate", 600.0)]
 
 
+# A fake plant's process model and the per-point fallback work in SI (bar, degC, Sm3/d, kSm3/d); its PI points carry
+# US oilfield units, as a US site's historian would. A point's values are made in the model's unit for its quantity
+# and converted to the point's (fakeplant.oilfield writes the points' units).
+MODEL_UNIT = {"psig": "barg", "psi": "bar", "psia": "bara", "degF": "degC", "in/s": "mm/s", "bbl/d": "Sm3/d",
+              "Mscf/d": "kSm3/d", "MMscf/d": "kSm3/d", "gpm": "m3/h", "hp": "kW", "acfm": "Am3/h", "scfm": "Nm3/h",
+              "mils": "um", "in": "mm", "scfh": "Sm3/h", "inH2O": "mbarg", "lb/MMscf": "mg/Sm3", "Btu/scf": "MJ/Sm3"}
+_TO_POINT = {"psig": (14.5038, 0.0), "psi": (14.5038, 0.0), "psia": (14.5038, 0.0), "degF": (1.8, 32.0),
+             "in/s": (1 / 25.4, 0.0), "bbl/d": (6.28981, 0.0), "Mscf/d": (35.3147, 0.0), "MMscf/d": (0.0353147, 0.0),
+             "gpm": (4.40287, 0.0), "hp": (1.34102, 0.0), "acfm": (0.588578, 0.0), "scfm": (0.621, 0.0),
+             "mils": (0.0393701, 0.0), "in": (1 / 25.4, 0.0), "scfh": (35.3147, 0.0), "inH2O": (0.401865, 0.0),
+             "lb/MMscf": (0.062428, 0.0), "Btu/scf": (26.8392, 0.0)}
+
+
+def to_point_unit(values: list[tuple[str, float]], uom: str) -> list[tuple[str, float]]:
+    """Values made in the model's SI unit in the point's own unit (unchanged for a unit the model works in)."""
+    conv = _TO_POINT.get(uom or "")
+    if not conv:
+        return values
+    f, o = conv
+    return [(t, round(x * f + o, 3)) for t, x in values]
+
+
 def base_level(uom: str, description: str = "", levels=()) -> float:
     return next((float(v) for k, v in [*levels, *BASE_BY_DESCRIPTION] if k in (description or "")),
                 BASE.get(uom, 10.0))
@@ -99,6 +121,11 @@ class SyntheticProvider:
         return self.values(s["point"], s["uom"] or "", start, end, step_minutes, s["upsets"], s.get("description") or "")
 
     def values(self, point, uom, start, end, step_minutes, upsets, description=""):
+        """The point's values in its own unit: made (and faulted) in the model's SI unit, then converted."""
+        return to_point_unit(self._model_values(point, MODEL_UNIT.get(uom, uom), start, end, step_minutes, upsets,
+                                                description), uom)
+
+    def _model_values(self, point, uom, start, end, step_minutes, upsets, description=""):
         out = self._clean(point, uom, start, end, step_minutes, upsets, description)
         if not out or not self.faults or not self.faults.touches(point, start, end):
             return out
@@ -113,7 +140,7 @@ class SyntheticProvider:
     def high_rate(self, s, start, end, step_seconds):
         """Points the process model covers, every `step_seconds`; others have no high-rate values here."""
         if self.model and self.model.covers(s["point"]):
-            return self.model.fine(s["point"], start, end, step_seconds)
+            return to_point_unit(self.model.fine(s["point"], start, end, step_seconds), s.get("uom") or "")
         return []
 
     def states(self, point, start, end):

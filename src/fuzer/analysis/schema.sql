@@ -67,6 +67,12 @@ create table if not exists debottleneck_option (
     kind       text not null,
     target     text,
     action     text not null,
-    gain_sm3d  double precision not null,
+    gain_bbld  double precision not null,
     detail     jsonb not null
 );
+-- US oilfield units: the gain was kept in Sm3/d before; the next scan replaces those rows.
+do $$ begin
+    if exists (select 1 from information_schema.columns where table_name = 'debottleneck_option' and column_name = 'gain_sm3d') then
+        alter table debottleneck_option rename column gain_sm3d to gain_bbld;
+    end if;
+end $$;

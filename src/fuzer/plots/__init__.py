@@ -38,7 +38,7 @@ class Figure:
     by: str = "fuzer"  # "assistant" when the agent supplied the numbers (plot_custom)
 
     def __post_init__(self) -> None:
-        # Unit symbols in every label, legend, hover and table the chart shows (#1072): °C, Sm³, µm. Data stays.
+        # Unit symbols in every label, legend, hover and table the chart shows (#1072): °F, ft³, µm. Data stays.
         self.title = _worded(self.title)
         self.data = [_worded(t) for t in self.data]
         self.layout = _worded(self.layout)

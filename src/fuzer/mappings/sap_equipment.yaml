@@ -10,7 +10,7 @@ entity:
   kind: equipment
   key: {from: serial, as: serial}
   block: {from: floc, as: tag}
-  fields: [description, manufacturer, model, serial, motor_rated_kw, motor_service_factor]
+  fields: [description, manufacturer, model, serial, motor_rated_hp, motor_service_factor]
 links:
   - rel: installed_at
     to: {kind: tag, from: floc, as: tag}

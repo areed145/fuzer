@@ -15,16 +15,16 @@ def test_ili_features_link_to_the_right_segment_and_station(harrier_db):
     line = _id(conn, "HR-PL-001")
     out = positions.along(conn, line)
     assert [s["label"] for s in out["segments"]] == [f"HR-PL-001-S0{i}" for i in range(1, 6)]
-    where = {f["label"]: (f["segment"], f["station_m"]) for f in out["features"] if f["run_id"] == "RUN-2024-MFL"}
+    where = {f["label"]: (f["segment"], f["station_ft"]) for f in out["features"] if f["run_id"] == "RUN-2024-MFL"}
     seg = {s["id"]: s["label"] for s in out["segments"]}
     expect = {"ILI-24-0007": "S01", "ILI-24-0031": "S02", "ILI-24-0032": "S02", "ILI-24-0058": "S03",
               "ILI-24-0071": "S03", "ILI-24-0072": "S04", "ILI-24-0094": "S04", "ILI-24-0118": "S05"}
     assert {k: seg[v[0]][-3:] for k, v in where.items()} == expect
-    assert where["ILI-24-0031"][1] == 38912.3
+    assert where["ILI-24-0031"][1] == 127665.0
     # the same links are in the graph, with the station on the link
     edge = conn.execute("select e.props from edge e where e.src = %s and e.rel = 'found_on' and e.dst = %s",
                         (_id(conn, "ILI-24-0031"), _id(conn, "HR-PL-001-S02"))).fetchone()
-    assert edge["props"]["station_m"] == 38912.3
+    assert edge["props"]["station_ft"] == 127665.0
     # a segment shows only its own features
     assert [f["label"] for f in positions.along(conn, _id(conn, "HR-PL-001-S02"))["features"]] == [
         "ILI-24-0031", "ILI-26-0029", "ILI-24-0032", "ILI-26-0030"]  # both runs (#366), in station order
@@ -33,12 +33,12 @@ def test_ili_features_link_to_the_right_segment_and_station(harrier_db):
 def test_features_and_segments_are_placed_along_the_route_by_station(harrier_db):
     conn = harrier_db
     route = conn.execute("select geometry from geo_index where fuzer_id = %s", (_id(conn, "HR-PL-001"),)).fetchone()
-    st = positions.stationing(route["geometry"], 210_000)
-    assert st[0][0] == 0 and round(st[-1][0]) == 210_000
+    st = positions.stationing(route["geometry"], 688_976)
+    assert st[0][0] == 0 and round(st[-1][0]) == 688_976
     first = route["geometry"]["coordinates"][0]
     near = conn.execute("select geometry from geo_index where fuzer_id = %s", (_id(conn, "ILI-24-0007"),)).fetchone()
     lon, lat = near["geometry"]["coordinates"]
-    assert abs(lon - first[0]) < 0.02 and abs(lat - first[1]) < 0.01  # 1.2 km from the origin
+    assert abs(lon - first[0]) < 0.02 and abs(lat - first[1]) < 0.01  # 0.75 mi from the origin
     seg = conn.execute("select geometry from geo_index where fuzer_id = %s", (_id(conn, "HR-PL-001-S05"),)).fetchone()
     assert seg["geometry"]["type"] == "LineString" and seg["geometry"]["coordinates"][-1] == route["geometry"][
         "coordinates"][-1]

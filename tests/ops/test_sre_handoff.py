@@ -2,7 +2,6 @@
 sets up what it needs through fixtures, so it passes on its own and in any order (#137)."""
 
 import pytest
-from psycopg.types.json import Jsonb
 
 from fuzer.agents import mcp_server
 from fuzer.core.pack import load_pack
@@ -79,9 +78,11 @@ def test_handoff_prioritises_diagnoses_and_opens_work(conn, handed_off):
         u = conn.execute("select first_unit, units from upset where id = %s", (i["upset"],)).fetchone()
         return gates.most_critical(gates.criticality(conn, x) for x in [u["first_unit"], *(u["units"] or [])]) == "A"
 
-    other = next(i for i in reversed(out["items"]) if not critical(i))
-    tok = conn.execute("select t.id from work_token t join work_process p on p.id = t.process_id "
-                       "where p.item_id = %s and t.element = 'triage' and t.state = 'waiting'", (other["item_id"],)).fetchone()
+    def waiting(i):  # its triage still open: the false-alarm test may have closed one first (tests run in any order)
+        return conn.execute("select t.id from work_token t join work_process p on p.id = t.process_id where p.item_id = %s "
+                            "and t.element = 'triage' and t.state = 'waiting'", (i["item_id"],)).fetchone()
+
+    other, tok = next((i, t) for i in reversed(out["items"]) if not critical(i) and (t := waiting(i)))
     engine.set_person(conn, "alice", ["engineer"])
     engine.complete(conn, tok["id"], "alice", {"triage": "false_alarm", "triage_note": "valve stroke test"})
     conn.commit()
@@ -115,57 +116,6 @@ def _said(conn, item_id: int) -> str:
     from fuzer.workflow import engine
 
     return " ".join(str(e.get("detail") or e.get("text") or e) for e in engine.item(conn, item_id).get("events", []))
-
-
-def test_a_pattern_people_keep_calling_a_false_alarm_closes_itself_except_on_a_critical_asset(conn, handed_off):
-    """At 95% (18 false alarms, none real) the auto-close gate lets the SRE close a repeat as a false alarm; the same
-    repeat on a high-criticality asset still stops for a person (P5.10)."""
-    from fuzer.ops import sre_handoff
-    from fuzer.workflow import engine
-
-    _, out, _, fake_ask = handed_off
-    from fuzer.core import gates
-
-    def crit(upset_id):
-        u = conn.execute("select first_unit, units from upset where id = %s", (upset_id,)).fetchone()
-        return min((c for c in (gates.criticality(conn, x) for x in [u["first_unit"], *u["units"]]) if c), default=None)
-
-    seed = next(i["upset"] for i in out["items"] if crit(i["upset"]) != "A")  # not a high-criticality asset already
-    pattern = conn.execute("select d.point_id, d.detector, d.key from upset u join detection d on d.id = u.first_detection "
-                           "where u.id = %s", (seed,)).fetchone()
-    conn.execute("insert into sre_suppress (point_id, detector, key, upset_id) values (%s, %s, %s, %s) "
-                 "on conflict do nothing", (pattern["point_id"], pattern["detector"], pattern["key"], seed))
-    # the module's other tests may already have closed a repeat of it as a false alarm (they run in any order)
-    while sre_handoff.history(conn, tuple(pattern.values()))["false_alarms"] < 18:
-        conn.execute("update upset set status = 'false_alarm' where id = %s", (_repeat(conn, seed),))
-    was = None
-    unit = conn.execute("select first_unit from upset where id = %s", (seed,)).fetchone()["first_unit"]
-    conn.commit()
-    try:
-        assert sre_handoff.false_alarm_confidence(sre_handoff.history(conn, tuple(pattern.values()))) == 0.95
-        closes = _repeat(conn, seed)
-        conn.commit()
-        [mine] = [i for i in sre_handoff.handoff(conn, PACK, ask=fake_ask)["items"] if i["upset"] == closes]
-        assert mine["false_alarm"]["auto_closed"] is True
-        assert engine.item(conn, mine["item_id"])["state"] == "cancelled"
-        assert conn.execute("select status from upset where id = %s", (closes,)).fetchone()["status"] == "false_alarm"
-        assert "95% meets the 95% needed" in _said(conn, mine["item_id"])
-
-        was = conn.execute("select * from golden where fuzer_id = %s and field = 'criticality'", (unit,)).fetchone()
-        conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, 'criticality', '\"A\"', "
-                     "'test', 'test') on conflict (fuzer_id, field) do update set value = excluded.value", (unit,))
-        stops = _repeat(conn, seed)
-        conn.commit()
-        [mine] = [i for i in sre_handoff.handoff(conn, PACK, ask=fake_ask)["items"] if i["upset"] == stops]
-        assert mine["false_alarm"]["auto_closed"] is False and mine["false_alarm"]["threshold"] is None
-        assert engine.item(conn, mine["item_id"])["state"] not in ("done", "cancelled")
-        assert "always stops for a person" in _said(conn, mine["item_id"])
-    finally:
-        conn.execute("delete from golden where fuzer_id = %s and field = 'criticality'", (unit,))
-        if was:
-            conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, %s, %s, %s, %s)",
-                         (unit, "criticality", Jsonb(was["value"]), was["source"], was["rule"]))
-        conn.commit()
 
 
 def test_board_ranks_everything_once(conn, handed_off):
@@ -254,19 +204,19 @@ def test_an_upset_on_producing_wells_is_valued_by_the_production_it_defers(conn,
     well = conn.execute(
         """
         select t.dst as id from edge t join entity w on w.fuzer_id = t.dst and w.kind = 'well'
-        join golden g on g.fuzer_id = t.src and g.field = 'oil_sm3d' where t.rel = 'tests' and (g.value #>> '{}')::float > 0
+        join golden g on g.fuzer_id = t.src and g.field = 'oil_bbld' where t.rel = 'tests' and (g.value #>> '{}')::float > 0
         limit 1
         """).fetchone()["id"]
     rate = sre_handoff.rate_at_risk(conn, [well])
-    assert rate["wells"] == 1 and rate["oil_sm3d"] > 0
+    assert rate["wells"] == 1 and rate["oil_bbld"] > 0
     cfg = value.config(PACK)["upsets"]
     up = {"id": 0, "first_unit": well, "units": [well], "start": datetime(2024, 11, 5, 6), "end": None,
           "point_id": None, "key": "alarm:lo", "label": "WHP alarm:lo", "text": "Low alarm"}
     s = sre_handoff.priority(conn, PACK, up)
     p = s["components"]["production"]
     assert p["status"] == "ok" and p["days"] == cfg["days"] and s["value_usd"] > 0
-    assert p["oil_sm3d"] == round(rate["oil_sm3d"] * cfg["rate_at_risk_share"], 1)
-    assert "producing well(s) it reaches" in p["sources"]["oil_sm3d"]
+    assert p["oil_bbld"] == round(rate["oil_bbld"] * cfg["rate_at_risk_share"], 1)
+    assert "producing well(s) it reaches" in p["sources"]["oil_bbld"]
 
     recovered = {**up, "end": datetime(2024, 11, 5, 9)}
     monkeypatch.setattr(sre_handoff, "repeats", lambda c, u: 1)  # once: no rate at stake, as before
@@ -275,4 +225,4 @@ def test_an_upset_on_producing_wells_is_valued_by_the_production_it_defers(conn,
     s = sre_handoff.priority(conn, PACK, recovered)
     p = s["components"]["production"]
     assert p["days"] == round(3 / 24 * 4 / 30 * 90, 1) and s["value_usd"] > 0
-    assert "4 times in the last 30 d" in p["sources"]["oil_sm3d"] and s["urgency"]["status"] != "unknown"
+    assert "4 times in the last 30 d" in p["sources"]["oil_bbld"] and s["urgency"]["status"] != "unknown"

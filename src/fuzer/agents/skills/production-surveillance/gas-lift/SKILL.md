@@ -12,7 +12,7 @@ pressure, so the reservoir pushes more liquid into the well.
 
 More gas helps up to a point. The **gas lift performance curve** (oil rate against injection rate)
 rises and then flattens. Past the optimum, extra gas only adds friction and buys little or nothing.
-- **Response:** the slope of that curve, in Sm3/d of oil per extra kSm3/d of gas. It is what matters
+- **Response:** the slope of that curve, in bbl/d of oil per extra Mscf/d of gas. It is what matters
   when deciding where gas goes.
 - **Oil per lift gas** (average) only tells you how hard a well is being lifted, not where the next
   unit of gas does most.
@@ -44,7 +44,7 @@ differently.
    its tests (decline taken out).
 2. **Reallocation.** Gas is worth more on wells with high response than on wells with near-zero
    response. Moving gas from `least_response` to `most_response` wells on the same header, within
-   header capacity, raises oil at no extra gas. Quote the Sm3/d gained per kSm3/d moved, and say it is
+   header capacity, raises oil at no extra gas. Quote the bbl/d gained per Mscf/d moved, and say it is
    an estimate from test scatter that needs a step-rate test to confirm.
 3. **Wasted gas.** Wells in `lifting_mostly_water` (water cut 70%+) and wells with near-zero or
    negative response spend lift gas for little oil. Candidates: cut the gas, water shut-off, or a

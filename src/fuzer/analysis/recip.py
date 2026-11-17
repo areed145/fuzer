@@ -11,7 +11,7 @@
 - `valve_health(ref)`: the most common recip failure, read from process data. A leaking suction or discharge valve
   recompresses gas it already moved, so its cylinder runs hotter than the others on the same stage, and the stage
   loses capacity, which shifts the pressure ratio between stages (a leak on the 2nd stage pushes the interstage
-  pressure up and the 1st stage works harder). Flags `valve_leak` (a cylinder 10 degC or more above its stage and the
+  pressure up and the 1st stage works harder). Flags `valve_leak` (a cylinder 18 °F or more above its stage and the
   gap grown since the window's first week) and `ratio_shift` (the 1st stage's share of the total ratio moved by 0.04
   or more): the stage whose ratio fell holds the leaking valve.
 
@@ -26,14 +26,15 @@ import numpy as np
 
 from .calcs import CalcError, _label, read, result, window_of
 
-HOT = 10.0  # degC a cylinder runs above its stage's others: a leaking valve
-GROWN = 6.0  # degC the gap grew since the window's first week
+HOT = 18.0  # °F a cylinder runs above its stage's others: a leaking valve
+GROWN = 11.0  # °F the gap grew since the window's first week
 SHIFT = 0.04  # change in the 1st stage's share of the total (log) pressure ratio
+ATM = 14.7  # psi: gauge to absolute
 REVERSAL = 0.05  # a direction's load under this share of the other: the load hardly reverses
 
 
 def geometry(conn, tag: str) -> dict:
-    """Each throw's stage, bore and rod (mm) and the frame's gas rod load rating (kN), from the maker's frame and
+    """Each throw's stage, bore and rod (in) and the frame's gas rod load rating (lbf), from the maker's frame and
     cylinder data for the machine's model."""
     from ..sources import curves
 
@@ -49,9 +50,9 @@ def geometry(conn, tag: str) -> dict:
     rod = {int(x): y for x, y in s.get("rod@throw", [])}
     stage = {int(x): int(y) for x, y in s["stage@throw"]}
     limit = c["ratings"].get("rod_load_limit")
-    return {"throws": {int(x): {"bore_mm": y, "rod_mm": rod.get(int(x)), "stage": stage.get(int(x))}
+    return {"throws": {int(x): {"bore_in": y, "rod_in": rod.get(int(x)), "stage": stage.get(int(x))}
                        for x, y in s["bore@throw"]},
-            "limit_kn": limit[1] if limit else None, "model": c["model_id"], "source": c["source"]}
+            "limit_lbf": limit[1] if limit else None, "model": c["model_id"], "source": c["source"]}
 
 
 def _points(conn, tag: str) -> dict:
@@ -108,45 +109,44 @@ def rod_load(conn, fid: str, days: int = 30, until: str | None = None, recent_da
     cut = (end - timedelta(days=recent_days)).isoformat()
     throws, worst = [], None
     for n, t in sorted(g["throws"].items()):
-        a_h = math.pi / 4 * (t["bore_mm"] / 1000) ** 2
-        a_r = math.pi / 4 * ((t["rod_mm"] or 0) / 1000) ** 2
+        a_h = math.pi / 4 * t["bore_in"] ** 2  # in2
+        a_r = math.pi / 4 * (t["rod_in"] or 0) ** 2
         lo, hi = edges[t["stage"]]
         comp, tens, times = [], [], []
         for ts in run:
             ps, pd = v[lo].get(ts), v[hi].get(ts)
             if ps is None or pd is None:
                 continue
-            ps, pd = ps * 1e5, pd * 1e5  # barg -> Pa (gauge)
-            comp.append((pd * a_h - ps * (a_h - a_r)) / 1000)
-            tens.append((pd * (a_h - a_r) - ps * a_h) / 1000)
+            comp.append(pd * a_h - ps * (a_h - a_r))  # psig x in2 = lbf
+            tens.append(pd * (a_h - a_r) - ps * a_h)
             times.append(ts)
         recent = [i for i, ts in enumerate(times) if ts >= cut] or list(range(len(times)))
         c95 = float(np.percentile([comp[i] for i in recent], 95))
         t95 = float(np.percentile([tens[i] for i in recent], 95))
         reversal = float(np.percentile([min(comp[i], tens[i]) / max(comp[i], tens[i], 1e-9) for i in recent], 5))
-        over = [times[i] for i in range(len(times)) if g["limit_kn"] and max(comp[i], tens[i]) > g["limit_kn"]]
+        over = [times[i] for i in range(len(times)) if g["limit_lbf"] and max(comp[i], tens[i]) > g["limit_lbf"]]
         daily: dict[str, list[float]] = {}
         for i, ts in enumerate(times):
             daily.setdefault(ts[:10], []).append(max(comp[i], tens[i]))
-        row = {"throw": n, "stage": t["stage"], "compression_kn": round(c95, 1), "tension_kn": round(t95, 1),
-               "pct_of_rating": round(max(c95, t95) / g["limit_kn"] * 100, 1) if g["limit_kn"] else None,
+        row = {"throw": n, "stage": t["stage"], "compression_lbf": round(c95), "tension_lbf": round(t95),
+               "pct_of_rating": round(max(c95, t95) / g["limit_lbf"] * 100, 1) if g["limit_lbf"] else None,
                "reversal_ratio": round(reversal, 3), "hours_over_rating": len(over),
                "first_over_rating": over[0][:16] if over else None,
-               "daily": [{"day": d, "kn": round(float(np.median(x)), 1)} for d, x in sorted(daily.items())][-60:]}
+               "daily": [{"day": d, "lbf": round(float(np.median(x)))} for d, x in sorted(daily.items())][-60:]}
         throws.append(row)
-        if worst is None or max(c95, t95) > max(worst["compression_kn"], worst["tension_kn"]):
+        if worst is None or max(c95, t95) > max(worst["compression_lbf"], worst["tension_lbf"]):
             worst = row
-    peak = max(worst["compression_kn"], worst["tension_kn"])
+    peak = max(worst["compression_lbf"], worst["tension_lbf"])
     rev = min(throws, key=lambda r: r["reversal_ratio"])
-    flag = ("rod_load_high" if g["limit_kn"] and peak > g["limit_kn"] else
+    flag = ("rod_load_high" if g["limit_lbf"] and peak > g["limit_lbf"] else
             "no_reversal" if rev["reversal_ratio"] < REVERSAL else None)
-    return result(peak, g["limit_kn"], flag,
+    return result(peak, g["limit_lbf"], flag,
                   "gas rod load per throw from its stage's suction and discharge pressure (gauge) and its bore and rod: "
                   "compression Pd x A_head - Ps x (A_head - A_rod), tension Pd x (A_head - A_rod) - Ps x A_head (API "
                   f"618); the last {recent_days} days' 95th percentile while running, against the frame's "
-                  + (f"{g['limit_kn']:g} kN gas rod load rating" if g["limit_kn"] else "rating (none on record)")
+                  + (f"{g['limit_lbf']:,.0f} lbf gas rod load rating" if g["limit_lbf"] else "rating (none on record)")
                   + f" ({g['source']} data for {_label(conn, g['model'])}). Gas loads only: inertia needs crank-angle "
-                  "data", [tag, g["model"], *[p["id"] for p in keys.values()]], unit="kN",
+                  "data", [tag, g["model"], *[p["id"] for p in keys.values()]], unit="lbf",
                   worst_throw=worst["throw"], pct_of_rating=worst["pct_of_rating"], throws=throws,
                   least_reversal_throw=rev["throw"], reversal_ratio=rev["reversal_ratio"],
                   hours_over_rating=sum(r["hours_over_rating"] for r in throws),
@@ -185,34 +185,34 @@ def valve_health(conn, fid: str, days: int = 30, until: str | None = None, src=N
                  if t in v[f"c{n}"] and all(t in v[f"c{m}"] for m in mates)]  # noqa: B023
             return float(np.median(d)) if d else 0.0
         now, then = gap(last), gap(first)
-        row = {"cylinder": n, "stage": stage_of.get(n), "above_stage_c": round(now, 1), "at_start_c": round(then, 1),
+        row = {"cylinder": n, "stage": stage_of.get(n), "above_stage_f": round(now, 1), "at_start_f": round(then, 1),
                "point": pts["cylinders"][n]["point"],
-               "temp_c": round(float(np.median([v[f"c{n}"][t] for t in last if t in v[f"c{n}"]])), 1)}
+               "temp_f": round(float(np.median([v[f"c{n}"][t] for t in last if t in v[f"c{n}"]])), 1)}
         cyl.append(row)
-        if worst is None or now > worst["above_stage_c"]:
+        if worst is None or now > worst["above_stage_f"]:
             worst = row
     if worst is None:
         raise CalcError("no two cylinders on the same stage to compare")
     ratio = None
     if all(k in v for k in ("ps", "pi", "pd")):
         def share(ts: list[str]) -> float:
-            s = [math.log((v["pi"][t] + 1) / (v["ps"][t] + 1)) / math.log((v["pd"][t] + 1) / (v["ps"][t] + 1))
-                 for t in ts if all(t in v[k] for k in ("ps", "pi", "pd")) and v["pd"][t] > v["ps"][t] + 1]
+            s = [math.log((v["pi"][t] + ATM) / (v["ps"][t] + ATM)) / math.log((v["pd"][t] + ATM) / (v["ps"][t] + ATM))
+                 for t in ts if all(t in v[k] for k in ("ps", "pi", "pd")) and v["pd"][t] > v["ps"][t] + 15]
             return float(np.median(s)) if s else float("nan")
         a, b = share(first), share(last)
         ratio = {"first_stage_share_then": round(a, 3), "first_stage_share_now": round(b, 3), "change": round(b - a, 3),
-                 "interstage_barg": round(float(np.median([v["pi"][t] for t in last if t in v["pi"]])), 1)}
-    leak = worst["above_stage_c"] >= HOT and worst["above_stage_c"] - worst["at_start_c"] >= GROWN
+                 "interstage_psig": round(float(np.median([v["pi"][t] for t in last if t in v["pi"]])), 1)}
+    leak = worst["above_stage_f"] >= HOT and worst["above_stage_f"] - worst["at_start_f"] >= GROWN
     shifted = ratio is not None and abs(ratio["change"]) >= SHIFT
     flag = "valve_leak" if leak else "ratio_shift" if shifted else None
     weak = None
     if ratio and shifted:
         weak = 2 if ratio["change"] > 0 else 1  # the stage whose share fell lost capacity
-    return result(worst["above_stage_c"], 0.0, flag,
+    return result(worst["above_stage_f"], 0.0, flag,
                   "each cylinder's discharge temperature against the median of the others on its stage, hourly while "
-                  f"running: the last 3 days against the window's first week; leak at {HOT:g} degC above its stage and "
-                  f"{GROWN:g} degC more than at the start. The stage pressure ratios split as the 1st stage's share of "
+                  f"running: the last 3 days against the window's first week; leak at {HOT:g} °F above its stage and "
+                  f"{GROWN:g} °F more than at the start. The stage pressure ratios split as the 1st stage's share of "
                   f"the total (log) ratio; a shift of {SHIFT:g} or more means a stage lost capacity",
-                  [tag, *[p["id"] for p in keys.values()]], unit="degC above its stage", hottest_cylinder=worst["cylinder"],
+                  [tag, *[p["id"] for p in keys.values()]], unit="°F above its stage", hottest_cylinder=worst["cylinder"],
                   hottest_stage=worst["stage"], cylinders=cyl, stage_ratio=ratio, weak_stage=weak,
                   data_from=run[0][:10], data_to=run[-1][:10], readings=len(run))

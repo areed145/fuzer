@@ -35,9 +35,9 @@ export function WellScreen() {
                   {p.verdict === "water_cut_step" ? "water cut step" : "GOR climb"}</Badge></td>
                 <td data-label="What the tests show">
                   {p.water_cut_step && <>Water cut {p.water_cut_step.water_cut_before_pct}% to {p.water_cut_step.water_cut_after_pct}% on
-                    {" "}{p.water_cut_step.at}, oil {p.water_cut_step.oil_before_sm3d} to {p.water_cut_step.oil_after_sm3d} Sm3/d,
-                    {" "}at about {p.water_cut_step.cum_oil_sm3.toLocaleString()} Sm3 cumulative (estimated from tests)</>}
-                  {p.gor_climb && <>GOR {p.gor_climb.first_gor} to {p.gor_climb.latest_gor} Sm3/Sm3 (x{p.gor_climb.ratio})</>}
+                    {" "}{p.water_cut_step.at}, oil {p.water_cut_step.oil_before_bbld} to {p.water_cut_step.oil_after_bbld} bbl/d,
+                    {" "}at about {p.water_cut_step.cum_oil_bbl.toLocaleString()} bbl cumulative (estimated from tests)</>}
+                  {p.gor_climb && <>GOR {p.gor_climb.first_gor} to {p.gor_climb.latest_gor} scf/bbl (x{p.gor_climb.ratio})</>}
                 </td>
               </tr>
             ))}</tbody>

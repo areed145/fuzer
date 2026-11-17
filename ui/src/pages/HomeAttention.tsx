@@ -45,7 +45,7 @@ export function AttentionCard() {
     const pts = (geo.data?.features ?? []).filter((f) => f.geometry.type === "Point").map((f) => f.geometry.coordinates as number[]);
     if (!pts.length) return false;
     const span = (i: number) => Math.max(...pts.map((p) => p[i])) - Math.min(...pts.map((p) => p[i]));
-    return span(0) < 0.015 && span(1) < 0.015;  // every located point within about 1.5 km: one site, not a field
+    return span(0) < 0.015 && span(1) < 0.015;  // every located point within about a mile: one site, not a field
   }, [geo.data]);
   const mapped = (geo.data?.features.length ?? 0) > 0 && !oneSite;
   const ready = spots.data !== undefined && (geo.data !== undefined || !!geo.error);

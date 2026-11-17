@@ -39,4 +39,4 @@ trips on one unit (a reliability fix pays back in production), flaring during ex
 wells shut in for interventions longer than planned.
 
 Report: the trend in numbers (start, end, change, %), the top 2-3 explanations ranked by volume with
-sources, and the upside you'd chase first with an estimate (Sm³/d) where the data supports one.
+sources, and the upside you'd chase first with an estimate (bbl/d, or BOE/d where gas counts) where the data supports one.

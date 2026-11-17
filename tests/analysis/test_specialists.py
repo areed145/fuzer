@@ -25,7 +25,7 @@ def test_a_test_separator_over_read_is_caught_before_anyone_acts_on_it(conn):
     w = fid(conn, "OK-J08-04")
     bad = calcs.run(conn, "test_check", w, until="2025-10-31")
     assert bad["flag"] == "test_suspect" and bad["at"].startswith("2025-10") and bad["choke_deviation_pct"] > 30
-    assert bad["value"] > bad["expected"] and "choke" in bad["basis"] and bad["unit"] == "Sm3/d liquid"
+    assert bad["value"] > bad["expected"] and "choke" in bad["basis"] and bad["unit"] == "bbl/d liquid"
     assert len(bad["sources"]) == 3 and bad["sources"][1].startswith("ec:well_test:")
     assert surveillance.test_check(conn, w, until="2025-11-30")["flag"] is None
     assert surveillance.test_check(conn, fid(conn, "OK-J09-02"), until="2025-10-31")["flag"] is None
@@ -41,12 +41,12 @@ def test_a_failed_gas_lift_valve_shows_as_a_believable_test_below_the_lift_curve
 def test_each_wells_shortfall_gets_one_cause_and_they_add_up(conn):
     may = surveillance.deferment_attribution(conn, fid(conn, "OKAN-67"), at="2025-05-01")
     j0705 = next(x for x in may["wells"] if x["well"] == "OK-J07-05")
-    assert j0705["cause"] == "recorded deferment" and "valve" in j0705["evidence"].lower() and j0705["deferred_oil_sm3"] > 0
+    assert j0705["cause"] == "recorded deferment" and "valve" in j0705["evidence"].lower() and j0705["deferred_oil_bbl"] > 0
     july = calcs.run(conn, "deferment_attribution", fid(conn, "OKAN-63"), until="2025-07-01")
     j0302 = july["wells"][0]
-    assert j0302["well"] == "OK-J03-02" and j0302["cause"] == "water" and j0302["gap_sm3d"] > 20
-    assert july["by_cause"][0]["cause"] == "water" and july["unit"] == "Sm3/d oil"
-    assert july["value"] == pytest.approx(sum(b["gap_sm3d"] for b in july["by_cause"]), abs=0.5)
+    assert j0302["well"] == "OK-J03-02" and j0302["cause"] == "water" and j0302["gap_bbld"] > 20
+    assert july["by_cause"][0]["cause"] == "water" and july["unit"] == "bbl/d oil"
+    assert july["value"] == pytest.approx(sum(b["gap_bbld"] for b in july["by_cause"]), abs=0.5)
     assert {b["cause"] for b in july["by_cause"]} <= set(surveillance.CAUSES)
 
 
@@ -56,7 +56,7 @@ def test_a_separator_loading_rises_with_water_cut_against_its_own_rating(conn):
     hp = fid(conn, "10-V-2001")
     r = calcs.run(conn, "vessel_loading", hp)
     assert r["flag"] == "overloaded" and r["loads"][0]["quantity"] == "liquid_capacity" and r["loads"][0]["grade"] == "moc"
-    assert r["loading_pct"] > r["loading_pct_before"] and r["unit"] == "Sm3/d" and r["wells_upstream"] > 100
+    assert r["loading_pct"] > r["loading_pct_before"] and r["unit"] == "bbl/d" and r["wells_upstream"] > 100
     early = facilities.vessel_loading(conn, hp, until="2024-06-01")
     assert early["loads"][0]["grade"] == "statement" and early["water_cut_pct"] < r["water_cut_pct"]
     st2 = facilities.vessel_loading(conn, fid(conn, "40-V-2002"))

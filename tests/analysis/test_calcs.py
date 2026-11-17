@@ -118,8 +118,8 @@ def test_checks_flag_the_okan_stories_as_of_then(conn):
 
     line = conn.execute("select fuzer_id from measurement m join entity e using (fuzer_id) where m.quantity = "
                         "'wall_thickness' and e.kind = 'pipeline' group by 1 order by min(m.value) limit 1").fetchone()
-    wall = calcs.wall_loss(conn, line["fuzer_id"], min_required_mm=6.0)
-    assert wall["flag"] == "retire_soon" and wall["shortest_remaining_years"] < 5 and wall["unit"] == "mm/year"
+    wall = calcs.wall_loss(conn, line["fuzer_id"], min_required_in=0.236)
+    assert wall["flag"] == "retire_soon" and wall["shortest_remaining_years"] < 5 and wall["unit"] == "mpy"
     assert wall["next_inspection_years"] == round(min(wall["shortest_remaining_years"] / 2, 10), 1)
     assert calcs.wall_loss(conn, line["fuzer_id"])["shortest_remaining_years"] is None  # no minimum, no life
 
@@ -127,9 +127,9 @@ def test_checks_flag_the_okan_stories_as_of_then(conn):
 def test_charts_draw_from_the_same_calcs(conn):
     well = fid(conn, "OK-J07-03")
     fig, out = production.decline(conn, well).summary, calcs.decline(conn, well)
-    assert (fig["qi_sm3d"], fig["effective_decline_pct_per_year"]) == (out["qi"], out["effective_decline_pct_per_year"])
+    assert (fig["qi_bbld"], fig["effective_decline_pct_per_year"]) == (out["qi"], out["effective_decline_pct_per_year"])
     gl, g = production.gas_lift_curve(conn, well).summary, calcs.gas_lift(conn, well)
-    assert (gl["optimum"]["lift_gas_ksm3d"], gl["now"]["lift_gas_ksm3d"]) == (g["expected"], g["value"])
+    assert (gl["optimum"]["lift_gas_mscfd"], gl["now"]["lift_gas_mscfd"]) == (g["expected"], g["value"])
     pump = fid(conn, "10-P-1001A")
     assert maintenance.pump_curve(conn, pump).summary["worst_month"] == calcs.pump_curve(conn, pump)["worst_month"]
     k = fid(conn, "20-K-2200B")
@@ -311,15 +311,15 @@ def test_the_wet_flowline_leads_its_corrosion_circuit_and_retires_soon(conn):
     after = calcs.run(conn, "corrosion_circuit", wet)
     me = after["line"]
     assert after["flag"] == "retire_soon" and after["retire_soon"] == [me["line"]] and after["lines"][0]["id"] == wet
-    assert me["short_term_mm_per_year"] > 2 * me["long_term_mm_per_year"] and me["remaining_years"] < 2
+    assert me["short_term_mpy"] > 2 * me["long_term_mpy"] and me["remaining_years"] < 2
     assert me["last_survey"] == "2025-11-18" and "2026" in me["next_inspection_due"]
     assert after["retirement_assumed"] and "assumed API 5L X52" in after["basis"] and after["value"] > 5 * after["expected"]
     assert len(after["lines"]) > 5 and all(x["service"] == "production flowline" for x in after["lines"])
-    given = calcs.run(conn, "corrosion_circuit", wet, min_required_mm=5.0)
+    given = calcs.run(conn, "corrosion_circuit", wet, min_required_in=5.0)
     assert not given["retirement_assumed"] and given["line"]["remaining_years"] < me["remaining_years"]
     vessel = calcs.run(conn, "corrosion_circuit", fid(conn, "10-V-2001"))
     assert vessel["circuit"] == "10-V-2001" and vessel["line"]["remaining_years"] is None
-    assert "stands alone" in vessel["basis"] and "min_required_mm" in vessel["basis"]
+    assert "stands alone" in vessel["basis"] and "min_required_in" in vessel["basis"]
 
 
 def test_pm_intervals_are_read_against_how_each_class_fails(conn):

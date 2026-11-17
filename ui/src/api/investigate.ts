@@ -21,7 +21,7 @@ export interface Investigation {
     label: string;
     at: string | null;
     text: string | null;
-    lost_oil_sm3: number | null;
+    lost_oil_bbl: number | null;
     records: InvestigationRecord[];
   }[];
   findings: { text: string; evidence_ids: string[] }[];
@@ -87,7 +87,7 @@ export interface DowntimeRow {
   duration_h: number | null;
   reason: string | null;
   reason_category: string | null;
-  lost_oil_sm3: number | null;
+  lost_oil_bbl: number | null;
   comment: string | null;
   reason_check: string | null;
   affects: { id: string; label: string | null }[];
@@ -96,21 +96,21 @@ export interface DowntimeRow {
 
 export interface Downtime {
   events: number;
-  lost_oil_sm3: number;
+  lost_oil_bbl: number;
   hours: number;
   /** How much of it was planned (reason category `planned`), so the unplanned loss can be read on its own (#1078). */
-  planned?: { events: number; lost_oil_sm3: number };
+  planned?: { events: number; lost_oil_bbl: number };
   recent: DowntimeRow[];
 }
 
-export interface DowntimeMonth { month: string; planned_sm3: number; unplanned_sm3: number; planned_events: number; unplanned_events: number }
+export interface DowntimeMonth { month: string; planned_bbl: number; unplanned_bbl: number; planned_events: number; unplanned_events: number }
 
 export interface RankRow {
   label: string | null;
   description: string | null;
   fuzer_id: string | null;
   events: number;
-  lost_oil_sm3: number;
+  lost_oil_bbl: number;
   hours: number;
   /** The loss whose records name no (classified) equipment, so the ranking adds up to the total (#403). */
   unattributed?: boolean;
@@ -126,7 +126,7 @@ export interface Incident {
   events: number;
   downtime_records: number;
   notifications: number;
-  lost_oil_sm3: number;
+  lost_oil_bbl: number;
   failure_modes?: string[];
   /** Each failure-mode code as its ISO 14224 word (#1072). */
   failure_mode_words?: Record<string, string>;
@@ -177,7 +177,7 @@ export interface TimelineItem {
   at: string | null;
   text: string | null;
   detail: string | null;
-  lost_oil_sm3: number | null;
+  lost_oil_bbl: number | null;
 }
 
 export interface Passage {
@@ -516,7 +516,7 @@ export interface LinkedOrder {
 export interface IncidentRepeats {
   since: string; until: string; as_of: string; follow_days: number; source: string; note: string;
   units: { unit_id: string | null; unit: string; incidents: number; repeat: boolean; days_between: number[];
-    lost_oil_sm3: number; came_back_after_closed_work: { incident: string; start: string; after: string; closed_orders: string[] }[];
+    lost_oil_bbl: number; came_back_after_closed_work: { incident: string; start: string; after: string; closed_orders: string[] }[];
     items: { id: string; start: string; description: string | null; linked_orders: number; open_orders: number }[] }[];
   open_work: (LinkedOrder & { incidents: string[] })[];
   closed_work: LinkedOrder[];

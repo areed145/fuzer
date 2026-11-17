@@ -18,17 +18,17 @@ def test_episodes_with_their_records_or_cause_unknown(okan_db):
     assert all(any(c["kind"] == "downtime" and "EXT-EGP" in c["text"] for c in e["causes"]) for e in known)
     unknown = next(e for e in out["episodes"] if not e["attributed"])
     assert unknown["causes"] == [] and unknown["start"].startswith("2025-11")
-    assert s["explained_ksm3"] == sum(e["volume"] for e in known)
-    assert s["over_baseline_ksm3"] == round(sum(e["volume"] for e in out["episodes"]), 1)
-    assert 50 < s["explained_share_pct"] < 100 and set(s["by_reason_ksm3"]) == {"EXT-EGP", "unknown"}
+    assert s["explained_mscf"] == sum(e["volume"] for e in known)
+    assert s["over_baseline_mscf"] == round(sum(e["volume"] for e in out["episodes"]), 1)
+    assert 50 < s["explained_share_pct"] < 100 and set(s["by_reason_mscf"]) == {"EXT-EGP", "unknown"}
     assert "not an emissions inventory" in out["note"] and "no permit limit" in out["note"]
 
 
 def test_each_day_has_its_baseline_from_the_days_before(okan_db):
     out = fr.review(okan_db.conn, "2025-02-01", "2025-03-01")
     spike = next(d for d in out["days"] if d["day"] == "2025-02-10")
-    assert spike["flare_ksm3"] >= 1.5 * spike["baseline_ksm3"]
-    assert all(d["baseline_ksm3"] is not None for d in out["days"])  # the 30 days before the window count
+    assert spike["flare_mscf"] >= 1.5 * spike["baseline_mscf"]
+    assert all(d["baseline_mscf"] is not None for d in out["days"])  # the 30 days before the window count
     assert [e["start"][:10] for e in out["episodes"]] == ["2025-02-10"]
 
 
@@ -40,6 +40,6 @@ def test_flare_attribution_reaches_people_and_agents(okan_db):
     out = mcp_server.flare_attribution()
     assert len(out["days"]) <= 31 and out["summary"]["episodes"] == 3
     fig = troubleshooting.flare_attribution(okan_db.conn)
-    assert fig.data[0]["name"] == "flare (kSm³/d)" and len(fig.data[2]["x"]) == 3
+    assert fig.data[0]["name"] == "flare (Mscf/d)" and len(fig.data[2]["x"]) == 3
     assert fig.data[2]["marker"]["symbol"].count("circle-open") == 1
     okan_db.conn.rollback()

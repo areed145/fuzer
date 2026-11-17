@@ -9,7 +9,7 @@ description: Production efficiency (PE) and deferment accounting - PE by period,
 - Production efficiency (PE) = actual oil / potential oil over the period, in %. From EC DAY001
   (`production_summary`: `efficiency_pct` per period and in `total`).
 - Deferment = potential not produced, recorded in EC downtime records with a reason code and lost
-  oil (Sm³) and gas (kSm³). Categories: planned (maintenance, TAR), equipment (trips, failures),
+  oil (bbl) and gas (Mscf), and the two together in BOE (6 Mscf = 1 BOE). Categories: planned (maintenance, TAR), equipment (trips, failures),
   process (hydrates), well (interventions, GL valve), external (export curtailment, weather).
 - Unplanned PE excludes planned deferment: (actual) / (potential - planned deferment).
 

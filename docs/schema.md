@@ -1441,7 +1441,7 @@ Debottleneck options (#107): ranked proposals against back-pressure, kept from t
 | `kind` | text |  |
 | `target` | text |  |
 | `action` | text |  |
-| `gain_sm3d` | double precision |  |
+| `gain_bbld` | double precision |  |
 | `detail` | jsonb |  |
 
 ## Operations
@@ -1700,7 +1700,7 @@ The opportunity scan (#102): gains left on the table, one row per opportunity un
 | `kind` | text |  |
 | `title` | text |  |
 | `target` | text |  |
-| `gain_sm3d` | double precision |  |
+| `gain_bbld` | double precision |  |
 | `value_usd` | double precision |  |
 | `detail` | jsonb |  |
 | `fingerprint` | text |  |

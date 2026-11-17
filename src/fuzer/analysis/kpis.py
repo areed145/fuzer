@@ -24,20 +24,20 @@ REFS = 50  # records kept behind one value; the count says how many there are
 
 
 def _production_efficiency(conn, since: str, until: str) -> dict:
-    t = ops.daily_totals(conn, since, until, ("oil_sm3", "oil_potential_sm3"))
+    t = ops.daily_totals(conn, since, until, ("oil_bbl", "oil_potential_bbl"))
     if not t["days"]:
         return {"note": "no daily report in the period"}
-    if not t["oil_potential_sm3"]["days"] or not t["oil_potential_sm3"]["sum"]:
+    if not t["oil_potential_bbl"]["days"] or not t["oil_potential_bbl"]["sum"]:
         return {"note": "the daily reports in the period state no oil potential", "refs": t["refs"]}
-    return {"value": round(100 * t["oil_sm3"]["sum"] / t["oil_potential_sm3"]["sum"], 1), "refs": t["refs"],
-            "note": None if t["days"] == t["oil_potential_sm3"]["days"]
-            else f"{t['days'] - t['oil_potential_sm3']['days']} of {t['days']} days state no potential"}
+    return {"value": round(100 * t["oil_bbl"]["sum"] / t["oil_potential_bbl"]["sum"], 1), "refs": t["refs"],
+            "note": None if t["days"] == t["oil_potential_bbl"]["days"]
+            else f"{t['days'] - t['oil_potential_bbl']['days']} of {t['days']} days state no potential"}
 
 
 def _deferred_oil(conn, since: str, until: str) -> dict:
     if not ops.daily_totals(conn, since, until, ())["days"]:
         return {"note": "no daily report in the period, so no downtime record can be trusted to be complete"}
-    rows = conn.execute(_DOWNTIME + "select id, f->>'lost_oil_sm3' as lost from dd",
+    rows = conn.execute(_DOWNTIME + "select id, f->>'lost_oil_bbl' as lost from dd",
                         {"id": None, "since": since, "until": until}).fetchall()
     if not rows and not conn.execute("select 1 from entity where kind = 'downtime' limit 1").fetchone():
         return {"note": "no downtime records are loaded"}
@@ -45,12 +45,12 @@ def _deferred_oil(conn, since: str, until: str) -> dict:
 
 
 def _flare(conn, since: str, until: str) -> dict:
-    t = ops.daily_totals(conn, since, until, ("flare_ksm3",))
-    if not t["flare_ksm3"]["days"]:
+    t = ops.daily_totals(conn, since, until, ("flare_mscf",))
+    if not t["flare_mscf"]["days"]:
         return {"note": "no daily report in the period states flare" if t["days"] else "no daily report in the period"}
-    return {"value": round(t["flare_ksm3"]["sum"]), "refs": t["refs"],
-            "note": None if t["days"] == t["flare_ksm3"]["days"]
-            else f"{t['days'] - t['flare_ksm3']['days']} of {t['days']} days state no flare"}
+    return {"value": round(t["flare_mscf"]["sum"]), "refs": t["refs"],
+            "note": None if t["days"] == t["flare_mscf"]["days"]
+            else f"{t['days'] - t['flare_mscf']['days']} of {t['days']} days state no flare"}
 
 
 def _backlog(conn, since: str, until: str) -> dict:
@@ -93,9 +93,9 @@ def _repeats(conn, since: str, until: str) -> dict:
 KPIS = (
     ("production_efficiency", "Production efficiency", "%", "higher", "daily production reports (EC DAY001)",
      "Oil allocated against the oil potential, summed over the period's days.", _production_efficiency),
-    ("deferred_oil", "Deferred oil", "Sm3", "lower", "downtime (deferment) records",
+    ("deferred_oil", "Deferred oil", "bbl", "lower", "downtime (deferment) records",
      "Oil lost to downtime events that started in the period.", _deferred_oil),
-    ("flare", "Flare", "kSm3", "lower", "daily production reports (EC DAY001)",
+    ("flare", "Flare", "Mscf", "lower", "daily production reports (EC DAY001)",
      "Gas flared, summed over the period's days.", _flare),
     ("corrective_backlog", "Corrective backlog", "orders", "lower", "SAP work orders (PM01)",
      "Corrective orders open at the end of the period: created before it ended and not finished by then.", _backlog),

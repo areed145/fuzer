@@ -27,7 +27,7 @@ def _case(conn) -> int:
     with conn.transaction():
         item = conn.execute("insert into work_item (type, title, subjects, payload, created_by) values ('machine_health', "
                             "'Pump vibration rising', '{fz-pump-1}', %s, 'test') returning id",
-                            (Jsonb({"detector": "vibration", "peak_mm_s": 7.1}),)).fetchone()["id"]
+                            (Jsonb({"detector": "vibration", "peak_in_s": 7.1}),)).fetchone()["id"]
         conn.execute("insert into work_event (item_id, kind, actor, element, data) values (%s, 'agent_result', "
                      "'agent:maintenance-integrity', 'brief', %s)", (item, Jsonb({"step": "brief", "data": {"brief": {"brief": {
                          "what_happened": "Vibration on the drive end doubled in a week.",
@@ -41,7 +41,7 @@ def test_a_case_context_carries_its_subjects_what_raised_it_and_its_brief(conn):
     assert brief.latest(conn, item)["brief"]["what_happened"]
     ctx = context.about(conn, item)
     assert ctx["item_id"] == item and ctx["subject"] == "fz-pump-1" and ctx["label"] == f"case {item}: Pump vibration rising"
-    for said in ("Pump vibration rising", "fz-pump-1", "peak_mm_s", "doubled in a week", "check the coupling alignment",
+    for said in ("Pump vibration rising", "fz-pump-1", "peak_in_s", "doubled in a week", "check the coupling alignment",
                  "a person decides", "no spectrum"):
         assert said in ctx["text"], said
     asset = context.about(conn, subject="fz-pump-1")

@@ -135,7 +135,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 
 | Setting | Type | Default | Range | What it is |
 |---|---|---|---|---|
-| `opportunities.gas_lift_breakeven` | float | `0.5` | 0 to 10 | Sm3/d of oil per kSm3/d of lift gas below which more gas isn't worth it. |
+| `opportunities.gas_lift_breakeven` | float | `0.09` | 0 to 2 | bbl/d of oil per Mscf/d of lift gas below which more gas isn't worth it. |
 | `opportunities.stale_days` | int | `90` | 7 to 730 | Days without a well test before the test is stale. |
 | `opportunities.material` | float | `0.5` | 0.05 to 10 | A decided opportunity comes back when its gain moves by this share. |
 

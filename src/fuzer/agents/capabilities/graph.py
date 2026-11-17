@@ -186,7 +186,7 @@ def maintenance_history(ref: str, since: str | None = None, limit: int = 20) -> 
 )
 def downtime(ref: str | None = None, since: str | None = None, until: str | None = None,
              rank_by: Literal["tag", "class", "reason"] | None = None, limit: int = 20) -> dict[str, Any]:
-    """Production downtime and deferment from Energy Components, with lost oil (Sm3) and hours.
+    """Production downtime and deferment from Energy Components, with lost oil (bbl) and hours.
 
     rank_by ranks lost oil by causing tag, by class of the causing equipment, or by reason (for "what
     costs us most?"). Otherwise lists downtime affecting a well / the facility, or caused by a tag,

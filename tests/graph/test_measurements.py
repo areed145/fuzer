@@ -29,10 +29,10 @@ def fid(conn, ref):
 
 
 def test_units_from_reference_data():
-    assert units.normalise(0.5, "in") == (12.7, "mm")
-    assert units.normalise(100, "psig")[1] == "barg" and round(units.normalise(100, "psig")[0], 2) == 6.89
-    assert units.normalise(862, "kg/m3") == (0.862, "g/cm3")
-    assert round(units.normalise(14, "degF")[0], 1) == -10.0
+    assert round(units.normalise(12.7, "mm")[0], 4) == 0.5 and units.normalise(12.7, "mm")[1] == "in"
+    assert units.normalise(6.89, "barg")[1] == "psig" and round(units.normalise(6.89, "barg")[0]) == 100
+    assert units.normalise(862, "kg/m3")[1] == "API" and round(units.normalise(862, "kg/m3")[0], 1) == 32.5
+    assert units.normalise(-10, "degC") == (14.0, "degF") and units.normalise(0.5, "in") == (0.5, "in")
     assert units.normalise(3, "% vol") == (3, "%") and units.normalise(3, "furlongs") == (3, "furlongs")
     assert units.reading("<5") == (5.0, "<") and units.reading("1,250") == (1250.0, None)
     assert units.reading("n/a") is None and units.reading("") is None
@@ -40,10 +40,10 @@ def test_units_from_reference_data():
 
 def test_mapping_reads_one_row_into_several_quantities():
     m = mappings.load()[("ec", "well_test")]
-    out = m.measure("WT-1", {"well": "OK-J03-02", "test_date": "2025-06-12", "oil_sm3d": "41.5",
-                             "water_cut_pct": "72", "gor_sm3_sm3": "120", "lift_gas_ksm3d": "", "whp_barg": "18"}, PACK)
+    out = m.measure("WT-1", {"well": "OK-J03-02", "test_date": "2025-06-12", "oil_bbld": "41.5",
+                             "water_cut_pct": "72", "gor_scf_bbl": "120", "lift_gas_mscfd": "", "whp_psig": "18"}, PACK)
     assert [(x.quantity, x.value, x.unit) for x in out] == [
-        ("oil_rate", 41.5, "Sm3/d"), ("water_cut", 72.0, "%"), ("gor", 120.0, "Sm3/Sm3"), ("wellhead_pressure", 18.0, "barg")]
+        ("oil_rate", 41.5, "bbl/d"), ("water_cut", 72.0, "%"), ("gor", 120.0, "scf/bbl"), ("wellhead_pressure", 18.0, "psig")]
     assert out[0].of == [("well", "OK-J03-02")] and out[0].method == "well test" and out[0].record == "ec:well_test:WT-1"
 
     lab = mappings.load()[("lims", "result")].measure("S1>oil_in_water", {
@@ -60,10 +60,10 @@ def test_measurements_land_on_wells_tags_and_pipelines(conn):
     # sales points and manifolds have ratings; the field has its PVT study (#365); loops their dated settings (#358);
     # the platforms have the flare EC allocates to them
     assert kinds == {"well", "tag", "pipeline", "allocation_node", "facility", "control_loop", "area"}
-    # Older surveys reported in inches are stored in mm, with what the source said kept.
+    # Older surveys reported in mm are stored in inches, with what the source said kept.
     old = conn.execute("select value, unit, reported from measurement where quantity = 'wall_thickness' "
                        "and at < '2021-01-01' limit 1").fetchone()
-    assert old["unit"] == "mm" and old["reported"].endswith(" in") and 5 < old["value"] < 30
+    assert old["unit"] == "in" and old["reported"].endswith(" mm") and 0.2 < old["value"] < 1.2
 
 
 def test_well_test_history_and_the_planted_stories(conn):
@@ -82,7 +82,7 @@ def test_well_test_history_and_the_planted_stories(conn):
         s = measurements.for_entity(conn, r["fuzer_id"], "wall_thickness")["series"]
         rates[r["fuzer_id"]] = min(x["per_year"] for x in s)
     worst = min(rates, key=rates.get)
-    assert rates[worst] < -0.35 and sorted(rates.values())[1] > -0.2
+    assert rates[worst] < -0.0138 and sorted(rates.values())[1] > -0.0079  # in a year: 0.35 and 0.2 mm
     assert "production flowline" in queries.entity(conn, worst, per_group=1)["golden"]["description"]["value"]
     # After the breakthrough it loses wall faster still: the November follow-up survey is the thinnest yet at every
     # CML, and the loss since the summer survey runs well above the line's long-term rate.

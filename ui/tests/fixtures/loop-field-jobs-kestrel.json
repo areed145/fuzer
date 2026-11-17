@@ -3,14 +3,14 @@
   "ask": null,
   "assets": [
    {
-    "fuzer_id": "fz-timeseries-5d7614730698",
+    "fuzer_id": "fz-timeseries-c12ab24c43a3",
     "kind": "timeseries",
     "label": "KRGP:A1.PT1001.PV",
     "lat": null,
     "lon": null
    },
    {
-    "fuzer_id": "fz-tag-96ba991f9ecf",
+    "fuzer_id": "fz-tag-090ea9434b11",
     "kind": "tag",
     "label": "A1-V-1001",
     "lat": 40.8712,
@@ -21,22 +21,22 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-13T18:24:24.941407+00:00",
+  "due": "2026-11-17T14:14:11.138025+00:00",
   "evidence": {
    "allowed_minutes": 120.0,
    "breaches": 1,
    "excursions": [
     {
-     "end": "2026-11-12T06:50:00",
+     "end": "2026-11-16T06:50:00",
      "id": 15,
      "minutes_outside": 190.0,
-     "peak": 27.668,
-     "start": "2026-11-12T03:40:00"
+     "peak": 402.567,
+     "start": "2026-11-16T03:40:00"
     }
    ],
    "finding": {
     "detector": "limits.iow",
-    "end": "2026-11-12T06:50",
+    "end": "2026-11-16T06:50",
     "items": [
      {
       "kind": "text",
@@ -46,12 +46,12 @@
      {
       "kind": "asset",
       "label": "Measured on",
-      "value": "fz-timeseries-5d7614730698"
+      "value": "fz-timeseries-c12ab24c43a3"
      },
      {
       "kind": "asset",
       "label": "Unit",
-      "value": "fz-tag-96ba991f9ecf"
+      "value": "fz-tag-090ea9434b11"
      },
      {
       "kind": "text",
@@ -61,8 +61,8 @@
      {
       "kind": "number",
       "label": "Limit",
-      "unit": "barg",
-      "value": 27.0
+      "unit": "psig",
+      "value": 392.0
      },
      {
       "kind": "text",
@@ -72,8 +72,8 @@
      {
       "kind": "number",
       "label": "Peak",
-      "unit": "barg",
-      "value": 27.668
+      "unit": "psig",
+      "value": 402.567
      },
      {
       "kind": "number",
@@ -95,38 +95,38 @@
      {
       "kind": "time",
       "label": "First outside",
-      "value": "2026-11-12T03:40"
+      "value": "2026-11-16T03:40"
      },
      {
       "kind": "text",
       "label": "Note",
-      "value": "IOW-KR-002 rev A, Inlet separator pressure: Overpressure toward the PSV set pressure (30 barg). Response: Choke back the Pad 12 wells, restore compression or flare"
+      "value": "IOW-KR-002 rev A, Inlet separator pressure: Overpressure toward the PSV set pressure (435 psig). Response: Choke back the Pad 12 wells, restore compression or flare"
      }
     ],
     "method": "Time outside an integrity operating window, past its allowed time",
     "origin": "deterministic",
     "standard": "API RP 584",
-    "start": "2026-11-12T03:40",
+    "start": "2026-11-16T03:40",
     "v": 1
    },
    "hours_outside": 3.2,
    "iow": "IOW-KR-002",
    "level": "standard",
-   "limit": 27.0,
-   "note": "IOW-KR-002 rev A, Inlet separator pressure: Overpressure toward the PSV set pressure (30 barg). Response: Choke back the Pad 12 wells, restore compression or flare",
-   "peak": 27.668,
+   "limit": 392.0,
+   "note": "IOW-KR-002 rev A, Inlet separator pressure: Overpressure toward the PSV set pressure (435 psig). Response: Choke back the Pad 12 wells, restore compression or flare",
+   "peak": 402.567,
    "point": "KRGP:A1.PT1001.PV",
-   "point_id": "fz-timeseries-5d7614730698",
+   "point_id": "fz-timeseries-c12ab24c43a3",
    "record": "iow:window:IOW-KR-002>A",
    "side": "hi",
-   "unit_id": "fz-tag-96ba991f9ecf"
+   "unit_id": "fz-tag-090ea9434b11"
   },
   "field": [],
   "finding": {
    "checks": [],
    "confidence": null,
    "detector": "limits.iow",
-   "end": "2026-11-12T06:50",
+   "end": "2026-11-16T06:50",
    "items": [
     {
      "kind": "text",
@@ -137,13 +137,13 @@
      "kind": "asset",
      "label": "Measured on",
      "text": "KRGP:A1.PT1001.PV",
-     "value": "fz-timeseries-5d7614730698"
+     "value": "fz-timeseries-c12ab24c43a3"
     },
     {
      "kind": "asset",
      "label": "Unit",
      "text": "A1-V-1001",
-     "value": "fz-tag-96ba991f9ecf"
+     "value": "fz-tag-090ea9434b11"
     },
     {
      "kind": "text",
@@ -153,8 +153,8 @@
     {
      "kind": "number",
      "label": "Limit",
-     "unit": "barg",
-     "value": 27.0
+     "unit": "psig",
+     "value": 392.0
     },
     {
      "kind": "text",
@@ -164,8 +164,8 @@
     {
      "kind": "number",
      "label": "Peak",
-     "unit": "barg",
-     "value": 27.668
+     "unit": "psig",
+     "value": 402.567
     },
     {
      "kind": "number",
@@ -187,41 +187,41 @@
     {
      "kind": "time",
      "label": "First outside",
-     "value": "2026-11-12T03:40"
+     "value": "2026-11-16T03:40"
     },
     {
      "kind": "text",
      "label": "Note",
-     "value": "IOW-KR-002 rev A, Inlet separator pressure: Overpressure toward the PSV set pressure (30 barg). Response: Choke back the Pad 12 wells, restore compression or flare"
+     "value": "IOW-KR-002 rev A, Inlet separator pressure: Overpressure toward the PSV set pressure (435 psig). Response: Choke back the Pad 12 wells, restore compression or flare"
     }
    ],
    "method": "Time outside an integrity operating window, past its allowed time",
    "origin": "deterministic",
    "origin_label": "Rule",
    "standard": "API RP 584",
-   "start": "2026-11-12T03:40",
+   "start": "2026-11-16T03:40",
    "subjects": [
-    "fz-timeseries-5d7614730698",
-    "fz-tag-96ba991f9ecf"
+    "fz-timeseries-c12ab24c43a3",
+    "fz-tag-090ea9434b11"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-13T14:24:24.934813+00:00",
+  "first_seen": "2026-11-17T10:14:11.124389+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-13T14:24:24.098589+00:00",
+    "first_seen": "2026-11-17T10:14:08.934136+00:00",
     "id": 26,
     "state": "closed",
     "title": "Loop eval: steps on KRGP:A1.LT1001.PV"
    }
   ],
-  "id": 33,
-  "item_id": 33,
+  "id": 36,
+  "item_id": 36,
   "joined_to": null,
   "key": "IOW-KR-002",
   "label": "IOW breach",
-  "last_seen": "2026-11-13T14:24:24.934813+00:00",
+  "last_seen": "2026-11-17T10:14:11.124389+00:00",
   "own_step": false,
   "permit": {
    "blocked": false,
@@ -234,8 +234,8 @@
     "state": "requested",
     "type": "confined space entry",
     "valid": false,
-    "valid_from": "2027-04-12 06:00",
-    "valid_to": "2027-05-02 18:00",
+    "valid_from": "2027-04-16 06:00",
+    "valid_to": "2027-05-06 18:00",
     "why_not": "requested",
     "work": "Internal inspection inlet separator (turnaround)"
    }
@@ -246,7 +246,7 @@
   "reports": 1,
   "role": "engineer",
   "sent": {
-   "at": "2026-11-13T14:24:24.952554+00:00",
+   "at": "2026-11-17T10:14:11.163399+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -257,24 +257,24 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-timeseries-5d7614730698",
-   "fz-tag-96ba991f9ecf"
+   "fz-timeseries-c12ab24c43a3",
+   "fz-tag-090ea9434b11"
   ],
-  "task_id": 71,
+  "task_id": 80,
   "task_name": "Review IOW breach",
   "task_role": "engineer",
-  "title": "IOW IOW-KR-002 standard breach on KRGP:A1.PT1001.PV: above 27, 1 time past the allowed 2 h",
+  "title": "IOW IOW-KR-002 standard breach on KRGP:A1.PT1001.PV: above 392, 1 time past the allowed 2 h",
   "type": "iow_breach",
   "unmatched": [],
-  "updated_at": "2026-11-13T14:24:24.934813+00:00",
+  "updated_at": "2026-11-17T10:14:11.124389+00:00",
   "value_usd": null,
   "warnings": []
  },
  "machine_health": {
-  "ask": null,
+  "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-f68c38f7d52b",
+    "fuzer_id": "fz-tag-90517f1e1959",
     "kind": "tag",
     "label": "B1-K-2001",
     "lat": 40.8712,
@@ -285,7 +285,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-14T14:24:25.698035+00:00",
+  "due": "2026-11-17T18:14:12.584538+00:00",
   "evidence": {
    "at": null,
    "finding": {
@@ -368,20 +368,33 @@
    "standard": "ISO 14224 (rotating classes); each check that applies cites its own standard",
    "start": null,
    "subjects": [
-    "fz-tag-f68c38f7d52b"
+    "fz-tag-90517f1e1959"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-13T14:24:25.094952+00:00",
+  "first_seen": "2026-11-17T10:14:11.402387+00:00",
   "handover": null,
-  "history": [],
-  "id": 35,
-  "item_id": 35,
+  "history": [
+   {
+    "first_seen": "2026-11-17T10:14:08.959781+00:00",
+    "id": 30,
+    "state": "closed",
+    "title": "Loop eval: steps on KRGP:B1.PT2001.PV"
+   },
+   {
+    "first_seen": "2026-11-17T10:14:08.947611+00:00",
+    "id": 28,
+    "state": "closed",
+    "title": "Loop eval: steps on KRGP:B1.TT2035.PV"
+   }
+  ],
+  "id": 38,
+  "item_id": 38,
   "joined_to": null,
   "key": "B1-K-2001",
   "label": "Machine health",
-  "last_seen": "2026-11-13T14:24:25.094952+00:00",
-  "own_step": false,
+  "last_seen": "2026-11-17T10:14:11.402387+00:00",
+  "own_step": true,
   "permit": {
    "blocked": false,
    "blocker": null,
@@ -412,8 +425,8 @@
     "state": "issued",
     "type": "cold work",
     "valid": false,
-    "valid_from": "2026-11-12 06:00",
-    "valid_to": "2026-11-15 18:00",
+    "valid_from": "2026-11-16 06:00",
+    "valid_to": "2026-11-19 18:00",
     "why_not": "isolations not in place: ISO-24101-3 B1-K-2001 cylinders (planned)",
     "work": "Change discharge valves on cylinder 3"
    }
@@ -422,9 +435,9 @@
   "queued": false,
   "raised_count": 1,
   "reports": 1,
-  "role": "engineer",
+  "role": "operator",
   "sent": {
-   "at": "2026-11-13T14:24:25.707703+00:00",
+   "at": "2026-11-17T10:14:12.584538+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -435,23 +448,23 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-f68c38f7d52b"
+   "fz-tag-90517f1e1959"
   ],
-  "task_id": 78,
-  "task_name": "Work the case",
-  "task_role": "engineer",
+  "task_id": 90,
+  "task_name": "Field check",
+  "task_role": "operator",
   "title": "B1-K-2001 needs action: rod load past its limit, an engine cylinder misfiring, a leaking cylinder valve",
   "type": "machine_health",
   "unmatched": [],
-  "updated_at": "2026-11-13T14:24:25.094952+00:00",
+  "updated_at": "2026-11-17T10:14:11.402387+00:00",
   "value_usd": null,
   "warnings": []
  },
  "machine_trip": {
-  "ask": null,
+  "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-f68c38f7d52b",
+    "fuzer_id": "fz-tag-90517f1e1959",
     "kind": "tag",
     "label": "B1-K-2001",
     "lat": 40.8712,
@@ -465,10 +478,10 @@
    "Check the protection channels (API 670): shaft vibration, axial thrust position and bearing pad temperatures, if fitted.",
    "Walk down the machine: coupling guard, foundation bolts, lube oil pressure and temperature, oil level and colour.",
    "On restart, hold at minimum load and compare vibration with its value before the trouble began; stop if it comes back higher.",
-   "Trip 2 on this train in 45 days (last 2026-10-09, high discharge temperature): ask reliability to review it."
+   "Trip 2 on this train in 45 days (last 2026-10-13, high discharge temperature): ask reliability to review it."
   ],
   "closed_at": null,
-  "due": "2026-11-14T14:24:26.352396+00:00",
+  "due": "2026-11-17T18:14:13.219608+00:00",
   "evidence": {
    "finding": {
     "checks": [
@@ -476,14 +489,14 @@
      "Check the protection channels (API 670): shaft vibration, axial thrust position and bearing pad temperatures, if fitted.",
      "Walk down the machine: coupling guard, foundation bolts, lube oil pressure and temperature, oil level and colour.",
      "On restart, hold at minimum load and compare vibration with its value before the trouble began; stop if it comes back higher.",
-     "Trip 2 on this train in 45 days (last 2026-10-09, high discharge temperature): ask reliability to review it."
+     "Trip 2 on this train in 45 days (last 2026-10-13, high discharge temperature): ask reliability to review it."
     ],
     "detector": "trips.diagnosis",
     "items": [
      {
       "kind": "time",
       "label": "Tripped",
-      "value": "2026-11-12T03:10"
+      "value": "2026-11-16T03:10"
      },
      {
       "kind": "text",
@@ -493,7 +506,7 @@
      {
       "kind": "asset",
       "label": "Likely source",
-      "value": "fz-tag-f68c38f7d52b"
+      "value": "fz-tag-90517f1e1959"
      },
      {
       "kind": "text",
@@ -519,12 +532,12 @@
       "kind": "number",
       "label": "First out led the trip by",
       "unit": "min",
-      "value": 185
+      "value": 85
      },
      {
       "kind": "text",
       "label": "Tripped on",
-      "value": "KRGP:B1.VT2003.PV 11.48 (trip 11.2)"
+      "value": "KRGP:B1.VT2003.PV 0.47 (trip 0.441)"
      },
      {
       "kind": "number",
@@ -534,26 +547,26 @@
     ],
     "method": "compressor_trip",
     "origin": "deterministic",
-    "start": "2026-11-12T03:10",
+    "start": "2026-11-16T03:10",
     "v": 1
    },
    "sequence": [
     {
-     "at": "2026-11-12T00:05",
+     "at": "2026-11-16T01:45",
      "direction": "up",
      "family": "vibration",
-     "from": 2.41,
-     "id": "fz-timeseries-f0d4c7ec0eec",
-     "lead_minutes": 185,
+     "from": 0.09,
+     "id": "fz-timeseries-0419e84d7b48",
+     "lead_minutes": 85,
      "measures": "Compressor Vibration",
      "point": "KRGP:B1.VT2003.PV",
-     "to": 11.48,
+     "to": 0.47,
      "unit": "B1-K-2001",
-     "unit_id": "fz-tag-f68c38f7d52b",
-     "unit_of_measure": "mm/s"
+     "unit_id": "fz-tag-90517f1e1959",
+     "unit_of_measure": "in/s"
     }
    ],
-   "tripped_at": "2026-11-12T03:10",
+   "tripped_at": "2026-11-16T03:10",
    "verdict": "review"
   },
   "field": [],
@@ -563,7 +576,7 @@
     "Check the protection channels (API 670): shaft vibration, axial thrust position and bearing pad temperatures, if fitted.",
     "Walk down the machine: coupling guard, foundation bolts, lube oil pressure and temperature, oil level and colour.",
     "On restart, hold at minimum load and compare vibration with its value before the trouble began; stop if it comes back higher.",
-    "Trip 2 on this train in 45 days (last 2026-10-09, high discharge temperature): ask reliability to review it."
+    "Trip 2 on this train in 45 days (last 2026-10-13, high discharge temperature): ask reliability to review it."
    ],
    "confidence": null,
    "detector": "trips.diagnosis",
@@ -572,7 +585,7 @@
     {
      "kind": "time",
      "label": "Tripped",
-     "value": "2026-11-12T03:10"
+     "value": "2026-11-16T03:10"
     },
     {
      "kind": "text",
@@ -583,7 +596,7 @@
      "kind": "asset",
      "label": "Likely source",
      "text": "B1-K-2001",
-     "value": "fz-tag-f68c38f7d52b"
+     "value": "fz-tag-90517f1e1959"
     },
     {
      "kind": "text",
@@ -609,12 +622,12 @@
      "kind": "number",
      "label": "First out led the trip by",
      "unit": "min",
-     "value": 185
+     "value": 85
     },
     {
      "kind": "text",
      "label": "Tripped on",
-     "value": "KRGP:B1.VT2003.PV 11.48 (trip 11.2)"
+     "value": "KRGP:B1.VT2003.PV 0.47 (trip 0.441)"
     },
     {
      "kind": "number",
@@ -626,29 +639,41 @@
    "origin": "deterministic",
    "origin_label": "Rule",
    "standard": "ISO 13379-1 (symptom to cause)",
-   "start": "2026-11-12T03:10",
+   "start": "2026-11-16T03:10",
    "subjects": [
-    "fz-tag-f68c38f7d52b"
+    "fz-tag-90517f1e1959"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-13T14:24:25.730537+00:00",
+  "first_seen": "2026-11-17T10:14:12.640223+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-13T14:24:25.094952+00:00",
-    "id": 35,
+    "first_seen": "2026-11-17T10:14:11.402387+00:00",
+    "id": 38,
     "state": "closed",
     "title": "B1-K-2001 needs action: rod load past its limit, an engine cylinder misfiring, a leaking cylinder valve"
+   },
+   {
+    "first_seen": "2026-11-17T10:14:08.959781+00:00",
+    "id": 30,
+    "state": "closed",
+    "title": "Loop eval: steps on KRGP:B1.PT2001.PV"
+   },
+   {
+    "first_seen": "2026-11-17T10:14:08.947611+00:00",
+    "id": 28,
+    "state": "closed",
+    "title": "Loop eval: steps on KRGP:B1.TT2035.PV"
    }
   ],
-  "id": 36,
-  "item_id": 36,
+  "id": 39,
+  "item_id": 39,
   "joined_to": null,
-  "key": "KRGP-B1:B1-V-2005@2026-11-12T03:10",
+  "key": "KRGP-B1:B1-V-2005@2026-11-16T03:10",
   "label": "Compressor trip",
-  "last_seen": "2026-11-13T14:24:25.730537+00:00",
-  "own_step": false,
+  "last_seen": "2026-11-17T10:14:12.640223+00:00",
+  "own_step": true,
   "permit": {
    "blocked": false,
    "blocker": null,
@@ -679,8 +704,8 @@
     "state": "issued",
     "type": "cold work",
     "valid": false,
-    "valid_from": "2026-11-12 06:00",
-    "valid_to": "2026-11-15 18:00",
+    "valid_from": "2026-11-16 06:00",
+    "valid_to": "2026-11-19 18:00",
     "why_not": "isolations not in place: ISO-24101-3 B1-K-2001 cylinders (planned)",
     "work": "Change discharge valves on cylinder 3"
    }
@@ -689,9 +714,9 @@
   "queued": false,
   "raised_count": 1,
   "reports": 1,
-  "role": "engineer",
+  "role": "operator",
   "sent": {
-   "at": "2026-11-13T14:24:26.483071+00:00",
+   "at": "2026-11-17T10:14:13.219608+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -702,23 +727,23 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-f68c38f7d52b"
+   "fz-tag-90517f1e1959"
   ],
-  "task_id": 80,
-  "task_name": "Work the case",
-  "task_role": "engineer",
-  "title": "Train from B1-V-2005 (KRGP-B1) tripped 2026-11-12 03:10: high vibration on B1-K-2001, KRGP:B1.VT2003.PV moved 185 min before. Restart after checks; reliability to review",
+  "task_id": 97,
+  "task_name": "Field check",
+  "task_role": "operator",
+  "title": "Train from B1-V-2005 (KRGP-B1) tripped 2026-11-16 03:10: high vibration on B1-K-2001, KRGP:B1.VT2003.PV moved 85 min before. Restart after checks; reliability to review",
   "type": "machine_trip",
   "unmatched": [],
-  "updated_at": "2026-11-13T14:24:25.730537+00:00",
+  "updated_at": "2026-11-17T10:14:12.640223+00:00",
   "value_usd": null,
   "warnings": []
  },
  "round_finding": {
-  "ask": null,
+  "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-f68c38f7d52b",
+    "fuzer_id": "fz-tag-90517f1e1959",
     "kind": "tag",
     "label": "B1-K-2001",
     "lat": 40.8712,
@@ -729,7 +754,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-13T22:24:30.686135+00:00",
+  "due": "2026-11-17T18:14:23.401822+00:00",
   "evidence": {
    "finding": {
     "detector": "rounds.reading",
@@ -747,13 +772,13 @@
      {
       "kind": "number",
       "label": "Reading",
-      "unit": "mm/s",
+      "unit": "in/s",
       "value": 9.4
      },
      {
       "kind": "text",
       "label": "Limits",
-      "value": "0 to 7.1 mm/s"
+      "value": "0 to 0.28 in/s"
      },
      {
       "kind": "text",
@@ -773,17 +798,17 @@
      {
       "kind": "time",
       "label": "Taken",
-      "value": "2026-11-13T14:24+00:00"
+      "value": "2026-11-17T10:14+00:00"
      },
      {
       "kind": "asset",
       "label": "On",
-      "value": "fz-tag-f68c38f7d52b"
+      "value": "fz-tag-90517f1e1959"
      }
     ],
     "method": "A round reading outside its limits",
     "origin": "deterministic",
-    "start": "2026-11-13T14:24+00:00",
+    "start": "2026-11-17T10:14+00:00",
     "v": 1
    },
    "point": "R-B1-03",
@@ -810,13 +835,13 @@
     {
      "kind": "number",
      "label": "Reading",
-     "unit": "mm/s",
+     "unit": "in/s",
      "value": 9.4
     },
     {
      "kind": "text",
      "label": "Limits",
-     "value": "0 to 7.1 mm/s"
+     "value": "0 to 0.28 in/s"
     },
     {
      "kind": "text",
@@ -836,66 +861,66 @@
     {
      "kind": "time",
      "label": "Taken",
-     "value": "2026-11-13T14:24+00:00"
+     "value": "2026-11-17T10:14+00:00"
     },
     {
      "kind": "asset",
      "label": "On",
      "text": "B1-K-2001",
-     "value": "fz-tag-f68c38f7d52b"
+     "value": "fz-tag-90517f1e1959"
     }
    ],
    "method": "A round reading outside its limits",
    "origin": "deterministic",
    "origin_label": "Rule",
    "standard": null,
-   "start": "2026-11-13T14:24+00:00",
+   "start": "2026-11-17T10:14+00:00",
    "subjects": [
-    "fz-tag-f68c38f7d52b"
+    "fz-tag-90517f1e1959"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-13T14:24:30.677822+00:00",
+  "first_seen": "2026-11-17T10:14:23.365189+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-13T14:24:30.423761+00:00",
-    "id": 104,
+    "first_seen": "2026-11-17T10:14:22.923702+00:00",
+    "id": 109,
     "state": "cleared",
     "title": "Does A1-V-1001 pipe to B1-K-2001 on KRGP-A1-PID-001?"
    },
    {
-    "first_seen": "2026-11-13T14:24:30.076219+00:00",
-    "id": 96,
+    "first_seen": "2026-11-17T10:14:22.064408+00:00",
+    "id": 101,
     "state": "cleared",
     "title": "Does A1-V-1001 pipe to B1-K-2001 on KRGP-A1-PID-001?"
    },
    {
-    "first_seen": "2026-11-13T14:24:29.769024+00:00",
-    "id": 84,
+    "first_seen": "2026-11-17T10:14:21.537550+00:00",
+    "id": 89,
     "state": "cleared",
     "title": "Does A1-V-1001 pipe to B1-K-2001 on KRGP-A1-PID-001?"
    },
    {
-    "first_seen": "2026-11-13T14:24:29.258780+00:00",
-    "id": 72,
+    "first_seen": "2026-11-17T10:14:20.534591+00:00",
+    "id": 77,
     "state": "cleared",
     "title": "Does A1-V-1001 pipe to B1-K-2001 on KRGP-A1-PID-001?"
    },
    {
-    "first_seen": "2026-11-13T14:24:28.615391+00:00",
-    "id": 62,
+    "first_seen": "2026-11-17T10:14:19.550791+00:00",
+    "id": 67,
     "state": "closed",
     "title": "Does A1-V-1001 pipe to B1-K-2001 on KRGP-A1-PID-001?"
    }
   ],
-  "id": 115,
-  "item_id": 115,
+  "id": 120,
+  "item_id": 120,
   "joined_to": null,
   "key": "R-B1-03",
   "label": "Round finding",
-  "last_seen": "2026-11-13T14:24:30.677822+00:00",
-  "own_step": false,
+  "last_seen": "2026-11-17T10:14:23.365189+00:00",
+  "own_step": true,
   "permit": {
    "blocked": false,
    "blocker": null,
@@ -926,8 +951,8 @@
     "state": "issued",
     "type": "cold work",
     "valid": false,
-    "valid_from": "2026-11-12 06:00",
-    "valid_to": "2026-11-15 18:00",
+    "valid_from": "2026-11-16 06:00",
+    "valid_to": "2026-11-19 18:00",
     "why_not": "isolations not in place: ISO-24101-3 B1-K-2001 cylinders (planned)",
     "work": "Change discharge valves on cylinder 3"
    }
@@ -936,9 +961,9 @@
   "queued": false,
   "raised_count": 1,
   "reports": 1,
-  "role": "ops_lead",
+  "role": "operator",
   "sent": {
-   "at": "2026-11-13T14:24:30.698175+00:00",
+   "at": "2026-11-17T10:14:23.401822+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -949,59 +974,59 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-f68c38f7d52b"
+   "fz-tag-90517f1e1959"
   ],
-  "task_id": 265,
-  "task_name": "Work the case",
-  "task_role": "ops_lead",
-  "title": "Frame vibration on B1-K-2001: 9.4 mm/s, limits 0 to 7.1 mm/s",
+  "task_id": 317,
+  "task_name": "Field check",
+  "task_role": "operator",
+  "title": "Frame vibration on B1-K-2001: 9.4 in/s, limits 0 to 0.28 in/s",
   "type": "round_finding",
   "unmatched": [],
-  "updated_at": "2026-11-13T14:24:30.677822+00:00",
+  "updated_at": "2026-11-17T10:14:23.365189+00:00",
   "value_usd": null,
   "warnings": []
  },
  "sap_notification": {
-  "ask": null,
+  "ask": "to send it to loop-field",
   "assets": [
    {
-    "fuzer_id": "fz-equipment-9eec2648854f",
+    "fuzer_id": "fz-equipment-b02dd857a7c7",
     "kind": "equipment",
-    "label": "C1-V-3001 Glycol Contactor",
+    "label": "B1-K-2001 Sales Gas Compressor",
     "lat": null,
     "lon": null
    },
    {
-    "fuzer_id": "fz-tag-d168f0feff70",
+    "fuzer_id": "fz-tag-90517f1e1959",
     "kind": "tag",
-    "label": "C1-V-3001",
-    "lat": 40.8709,
-    "lon": -104.5112
+    "label": "B1-K-2001",
+    "lat": 40.8712,
+    "lon": -104.5119
    }
   ],
   "assignee": "loop-field",
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-27T14:24:26.647235+00:00",
+  "due": "2026-11-20T10:14:13.428100+00:00",
   "evidence": {
-   "cause_code": "CA-CONT",
-   "created": "2026-11-11",
-   "damage_code": "DM-PDE",
-   "failure_mechanism": "5.2",
-   "failure_mode": "PDE",
+   "cause_code": "CA-ALIGN",
+   "created": "2026-11-16",
+   "damage_code": "DM-VIB",
+   "failure_mechanism": "1.3",
+   "failure_mode": "VIB",
    "finding": {
     "detector": "sap.notification",
     "items": [
      {
       "kind": "text",
       "label": "Notification",
-      "value": "10004007"
+      "value": "10004001"
      },
      {
       "kind": "text",
       "label": "Notification type",
-      "value": "maintenance request (M1)"
+      "value": "malfunction report (M2)"
      },
      {
       "kind": "text",
@@ -1011,32 +1036,32 @@
      {
       "kind": "text",
       "label": "Created in SAP",
-      "value": "2026-11-11"
+      "value": "2026-11-16"
      },
      {
       "kind": "text",
       "label": "SAP priority",
-      "value": "3"
+      "value": "2"
      },
      {
       "kind": "text",
       "label": "Failure mode",
-      "value": "Parameter deviation (PDE)"
+      "value": "Vibration (VIB)"
      },
      {
       "kind": "text",
       "label": "Failure mechanism",
-      "value": "Contamination (5.2)"
+      "value": "Clearance / alignment failure (1.3)"
      }
     ],
     "method": "An open notification with no work order",
     "origin": "external",
-    "start": "2026-11-11",
+    "start": "2026-11-16",
     "v": 1
    },
-   "notif_type": "M1",
-   "notification": "10004007",
-   "priority": "3",
+   "notif_type": "M2",
+   "notification": "10004001",
+   "priority": "2",
    "status": "OSNO"
   },
   "field": [],
@@ -1049,12 +1074,12 @@
     {
      "kind": "text",
      "label": "Notification",
-     "value": "10004007"
+     "value": "10004001"
     },
     {
      "kind": "text",
      "label": "Notification type",
-     "value": "maintenance request (M1)"
+     "value": "malfunction report (M2)"
     },
     {
      "kind": "text",
@@ -1064,51 +1089,75 @@
     {
      "kind": "text",
      "label": "Created in SAP",
-     "value": "2026-11-11"
+     "value": "2026-11-16"
     },
     {
      "kind": "text",
      "label": "SAP priority",
-     "value": "3"
+     "value": "2"
     },
     {
      "kind": "text",
      "label": "Failure mode",
-     "value": "Parameter deviation (PDE)"
+     "value": "Vibration (VIB)"
     },
     {
      "kind": "text",
      "label": "Failure mechanism",
-     "value": "Contamination (5.2)"
+     "value": "Clearance / alignment failure (1.3)"
     }
    ],
    "method": "An open notification with no work order",
    "origin": "external",
    "origin_label": "Reported by",
    "standard": null,
-   "start": "2026-11-11",
+   "start": "2026-11-16",
    "subjects": [
-    "fz-equipment-9eec2648854f",
-    "fz-tag-d168f0feff70"
+    "fz-equipment-b02dd857a7c7",
+    "fz-tag-90517f1e1959"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-13T14:24:26.647235+00:00",
+  "first_seen": "2026-11-17T10:14:13.428100+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-13T14:24:26.544416+00:00",
+    "first_seen": "2026-11-17T10:14:13.405423+00:00",
+    "id": 45,
+    "state": "closed",
+    "title": "Compressor high vibration trip on B1-K-2001 demanded 2 times in 365 days, designed for 0.1"
+   },
+   {
+    "first_seen": "2026-11-17T10:14:12.640223+00:00",
     "id": 39,
     "state": "closed",
-    "title": "water_content up 26 % at Sales gas at C1-V-3001 outlet (C1-V-3001)"
+    "title": "Train from B1-V-2005 (KRGP-B1) tripped 2026-11-16 03:10: high vibration on B1-K-2001, KRGP:B1.VT2003.PV moved 85 min before. Restart after checks; reliability to review"
+   },
+   {
+    "first_seen": "2026-11-17T10:14:11.402387+00:00",
+    "id": 38,
+    "state": "closed",
+    "title": "B1-K-2001 needs action: rod load past its limit, an engine cylinder misfiring, a leaking cylinder valve"
+   },
+   {
+    "first_seen": "2026-11-17T10:14:08.959781+00:00",
+    "id": 30,
+    "state": "closed",
+    "title": "Loop eval: steps on KRGP:B1.PT2001.PV"
+   },
+   {
+    "first_seen": "2026-11-17T10:14:08.947611+00:00",
+    "id": 28,
+    "state": "closed",
+    "title": "Loop eval: steps on KRGP:B1.TT2035.PV"
    }
   ],
-  "id": 46,
-  "item_id": 43,
+  "id": 49,
+  "item_id": 46,
   "joined_to": null,
-  "key": "10004007",
+  "key": "10004001",
   "label": "SAP notification",
-  "last_seen": "2026-11-13T14:24:26.647235+00:00",
+  "last_seen": "2026-11-17T10:14:13.428100+00:00",
   "own_step": true,
   "permit": {
    "blocked": false,
@@ -1117,32 +1166,44 @@
    "permit": {
     "isolations": [
      {
-      "isolation": "ISO-24106-1",
-      "method": "inlet valve closed and locked",
-      "point": "C1-XV-3001",
+      "isolation": "ISO-24101-1",
+      "method": "suction valve closed and locked",
+      "point": "B1-XV-2001",
       "state": "applied"
+     },
+     {
+      "isolation": "ISO-24101-2",
+      "method": "discharge valve closed and locked",
+      "point": "B1-XV-2002",
+      "state": "applied"
+     },
+     {
+      "isolation": "ISO-24101-3",
+      "method": "blown down and vented to flare",
+      "point": "B1-K-2001 cylinders",
+      "state": "planned"
      }
     ],
-    "label": "PTW-24106",
-    "location_label": "C1-V-3001",
-    "state": "approved",
-    "type": "line break",
+    "label": "PTW-24101",
+    "location_label": "B1-K-2001",
+    "state": "issued",
+    "type": "cold work",
     "valid": false,
-    "valid_from": "2026-11-12 06:00",
-    "valid_to": "2026-11-15 18:00",
-    "why_not": "approved",
-    "work": "Open glycol contactor manway for tray check"
+    "valid_from": "2026-11-16 06:00",
+    "valid_to": "2026-11-19 18:00",
+    "why_not": "isolations not in place: ISO-24101-3 B1-K-2001 cylinders (planned)",
+    "work": "Change discharge valves on cylinder 3"
    }
   },
-  "priority": 2.0,
+  "priority": 3.0,
   "queued": false,
   "raised_count": 1,
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-13T14:24:26.670108+00:00",
+   "at": "2026-11-17T10:14:13.452301+00:00",
    "by": "loop-ioc",
-   "reason": "Loop eval: check it on site"
+   "reason": "to send it to loop-field"
   },
   "shelved_by": null,
   "shelved_reason": null,
@@ -1151,16 +1212,16 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-equipment-9eec2648854f",
-   "fz-tag-d168f0feff70"
+   "fz-equipment-b02dd857a7c7",
+   "fz-tag-90517f1e1959"
   ],
-  "task_id": 100,
-  "task_name": "Work the case",
+  "task_id": 128,
+  "task_name": "Field check",
   "task_role": "operator",
-  "title": "Sales gas water content high; check contactor glycol rate (notification 10004007)",
+  "title": "High vibration trip on sales gas compressor (notification 10004001)",
   "type": "sap_notification",
   "unmatched": [],
-  "updated_at": "2026-11-13T14:24:26.673364+00:00",
+  "updated_at": "2026-11-17T10:14:13.463423+00:00",
   "value_usd": null,
   "warnings": []
  },
@@ -1168,14 +1229,14 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-5b2e0d16e78e",
+    "fuzer_id": "fz-tag-45e55764e3c0",
     "kind": "tag",
     "label": "C1-AT-3011",
     "lat": 40.8709,
     "lon": -104.5112
    },
    {
-    "fuzer_id": "fz-timeseries-0dcb906c9a6c",
+    "fuzer_id": "fz-timeseries-7d9da15e746c",
     "kind": "timeseries",
     "label": "KRGP:C1.AT3011.PV",
     "lat": null,
@@ -1186,7 +1247,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-13T22:24:27.825268+00:00",
+  "due": "2026-11-17T18:14:17.370165+00:00",
   "evidence": {
    "detections": 28,
    "finding": {
@@ -1195,17 +1256,17 @@
      {
       "kind": "asset",
       "label": "First seen on",
-      "value": "fz-timeseries-0dcb906c9a6c"
+      "value": "fz-timeseries-7d9da15e746c"
      },
      {
       "kind": "asset",
       "label": "Started at",
-      "value": "fz-tag-5b2e0d16e78e"
+      "value": "fz-tag-45e55764e3c0"
      },
      {
       "kind": "time",
       "label": "Started",
-      "value": "2026-11-12T00:00"
+      "value": "2026-11-16T00:00"
      },
      {
       "kind": "flag",
@@ -1215,8 +1276,8 @@
      {
       "kind": "number",
       "label": "Peak",
-      "unit": "mg/Sm3",
-      "value": 143.277
+      "unit": "lb/MMscf",
+      "value": 8.938
      },
      {
       "kind": "number",
@@ -1231,15 +1292,15 @@
      {
       "kind": "text",
       "label": "Why this value",
-      "value": "KRGP:C1.AT3011.PV iow:hi: nothing at stake found. Worth $0, due now."
+      "value": "High-high alarm on C1-AT-3011: nothing at stake found. Worth $0, due now."
      }
     ],
     "method": "Detections grouped into one upset by time and plant topology",
     "origin": "deterministic",
-    "start": "2026-11-12T00:00",
+    "start": "2026-11-16T00:00",
     "v": 1
    },
-   "first_detection": "excursions:iow:hi",
+   "first_detection": "excursions:alarm:hihi",
    "first_point": "KRGP:C1.AT3011.PV",
    "first_unit": "C1-AT-3011",
    "incident_id": "upset:1",
@@ -1251,17 +1312,19 @@
       "value_usd": null
      },
      "production": {
+      "boe": 0,
       "chance": 1.0,
       "days": 90,
-      "gas_ksm3d": 0.0,
-      "oil_sm3": 0,
-      "oil_sm3d": 0.0,
+      "gas_mscf": 0,
+      "gas_mscfd": 0.0,
+      "oil_bbl": 0,
+      "oil_bbld": 0.0,
       "prices": {
-       "gas_ksm3": 150.0,
-       "oil_sm3": 470.0
+       "gas_mscf": 4.25,
+       "oil_bbl": 75.0
       },
       "sources": {
-       "oil_sm3d": "EC downtime caused by the tag since 2025-11-13, per day",
+       "oil_bbld": "EC downtime caused by the tag since 2025-11-17, per day",
        "prices": "built-in defaults"
       },
       "status": "ok",
@@ -1282,14 +1345,14 @@
       "matrix_cell": 3,
       "sources": {
        "criticality": "SAP functional location ABC indicator",
-       "failures_per_year": "SAP notifications 2024-11-14 to 2026-11-14",
+       "failures_per_year": "SAP notifications 2024-11-18 to 2026-11-18",
        "matrix": "built-in defaults"
       },
       "status": "ok",
       "value_usd": 0
      }
     },
-    "reason": "KRGP:C1.AT3011.PV iow:hi: nothing at stake found. Worth $0, due now.",
+    "reason": "High-high alarm on C1-AT-3011: nothing at stake found. Worth $0, due now.",
     "unknown": [
      "effort"
     ],
@@ -1303,7 +1366,7 @@
     },
     "value_usd": 0
    },
-   "start": "2026-11-12T00:00",
+   "start": "2026-11-16T00:00",
    "units": 12,
    "upset_id": 1
   },
@@ -1318,18 +1381,18 @@
      "kind": "asset",
      "label": "First seen on",
      "text": "KRGP:C1.AT3011.PV",
-     "value": "fz-timeseries-0dcb906c9a6c"
+     "value": "fz-timeseries-7d9da15e746c"
     },
     {
      "kind": "asset",
      "label": "Started at",
      "text": "C1-AT-3011",
-     "value": "fz-tag-5b2e0d16e78e"
+     "value": "fz-tag-45e55764e3c0"
     },
     {
      "kind": "time",
      "label": "Started",
-     "value": "2026-11-12T00:00"
+     "value": "2026-11-16T00:00"
     },
     {
      "kind": "flag",
@@ -1339,8 +1402,8 @@
     {
      "kind": "number",
      "label": "Peak",
-     "unit": "mg/Sm3",
-     "value": 143.277
+     "unit": "lb/MMscf",
+     "value": 8.938
     },
     {
      "kind": "number",
@@ -1355,42 +1418,42 @@
     {
      "kind": "text",
      "label": "Why this value",
-     "value": "KRGP:C1.AT3011.PV iow:hi: nothing at stake found. Worth $0, due now."
+     "value": "High-high alarm on C1-AT-3011: nothing at stake found. Worth $0, due now."
     }
    ],
    "method": "Detections grouped into one upset by time and plant topology",
    "origin": "deterministic",
    "origin_label": "Rule",
    "standard": null,
-   "start": "2026-11-12T00:00",
+   "start": "2026-11-16T00:00",
    "subjects": [
-    "fz-tag-5b2e0d16e78e",
-    "fz-timeseries-0dcb906c9a6c"
+    "fz-tag-45e55764e3c0",
+    "fz-timeseries-7d9da15e746c"
    ],
    "value_usd": 0.0
   },
-  "first_seen": "2026-11-13T14:24:27.788244+00:00",
+  "first_seen": "2026-11-17T10:14:17.302390+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-13T14:24:24.766693+00:00",
-    "id": 31,
+    "first_seen": "2026-11-17T10:14:10.805185+00:00",
+    "id": 34,
     "state": "cleared",
-    "title": "IOW IOW-KR-008 standard breach on KRGP:C1.AT3011.PV: above 112, 1 time past the allowed 4 h"
+    "title": "IOW IOW-KR-008 standard breach on KRGP:C1.AT3011.PV: above 6.99, 1 time past the allowed 4 h"
    },
    {
-    "first_seen": "2026-11-13T14:24:19.119250+00:00",
+    "first_seen": "2026-11-17T10:13:55.965825+00:00",
     "id": 22,
     "state": "cleared",
-    "title": "KRGP:C1.AT3011.PV: standing alarm"
+    "title": "C1-AT-3011: standing alarm"
    }
   ],
-  "id": 49,
-  "item_id": 49,
+  "id": 53,
+  "item_id": 53,
   "joined_to": null,
   "key": "upset:1",
   "label": "Process upset",
-  "last_seen": "2026-11-13T14:24:27.788244+00:00",
+  "last_seen": "2026-11-17T10:14:17.302390+00:00",
   "own_step": true,
   "permit": {
    "blocked": false,
@@ -1404,7 +1467,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-13T14:24:27.825268+00:00",
+   "at": "2026-11-17T10:14:17.370165+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -1415,16 +1478,16 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-5b2e0d16e78e",
-   "fz-timeseries-0dcb906c9a6c"
+   "fz-tag-45e55764e3c0",
+   "fz-timeseries-7d9da15e746c"
   ],
-  "task_id": 115,
+  "task_id": 155,
   "task_name": "Field check",
   "task_role": "operator",
-  "title": "High IOW limit on C1-AT-3011 (peak 143.3 mg/Sm3) from 2026-11-12 00:00, across 12 assets",
+  "title": "High-high alarm on C1-AT-3011 (peak 8.938 lb/MMscf) from 2026-11-16 00:00, across 12 assets",
   "type": "upset",
   "unmatched": [],
-  "updated_at": "2026-11-13T14:24:27.788244+00:00",
+  "updated_at": "2026-11-17T10:14:17.302390+00:00",
   "value_usd": 0.0,
   "warnings": []
  }
