@@ -166,7 +166,10 @@ such as a field's pressures declining together, is not counted. Neither is a cha
 choke moved or a pump swapped, nor days shut in. The drift must already show in the week before the window, so a
 sudden upset is left to the multivariate model. The model is asked when a stretch or a drift is left once what a
 detection covers is set aside. On Okan this shows OK-NWP-G3's gas rate falling a sixth at the same choke through
-August 2025, while the other gas wells hold.
+August 2025, while the other gas wells hold. Where measurement roles are known, the watch's drifts are judged as the
+slow-drift detector judges them (below): only the points it reads, set against their role on their class of equipment,
+with stopped or shut-in days left out and a point coming back to normal not taken for one. A well's pressure easing as
+the field depletes, or a temperature following the season, moves the peers too and isn't shown.
 
 **The slow-drift detector (P3.11a).** `ops/drift.py` (`peer_drifts`) does the same comparison as a statistical
 detector over months: each point's daily level against where it sat in the first third of `drift.lookback_days`, set
@@ -200,6 +203,17 @@ tests the wiring with a scripted model; a live score needs a provider key and is
 a fixed set of at least five windows in `evals/watch.yaml` (P3.11b), so runs compare: `fuzer eval --watch --record`
 with no window scores all of them, says what it will cost first, and keeps the set's score with each window's beside
 it. `--since ... --until ...` still scores one window.
+
+**The guidance, kept to lift and shift.** Everything the watch tells the model is in `ops/watch_guidance/`: `prompt.md`
+is the whole instruction (a `str.format` template filled with the area, the window and the evidence), and its README
+sets out the evidence it is given, the JSON it must answer with and how it is scored, so the guidance can be moved to
+another application on its own.
+
+**Scoring offline.** `fuzer eval --watch --offline DIR` asks the same questions without the metered provider: each
+prompt is written to `DIR/prompts/`, answered by a person or a Claude session on a subscription in `DIR/answers/`, and
+the same command run again scores the answers. Iterating on the guidance costs nothing this way. A run with any
+question unanswered doesn't pass, and an offline run never earns live mode (`watch.bar_met` reads only runs on the
+provider); the paid score is run once the offline one passes.
 
 **From confirmed findings to a rule (P3.4).** A person confirms or rejects a proposal; on replay the fake plant's events
 do (`watch_eval.judge`). A confirmed proposal is read into a pattern: the measurement role of the point it names, its

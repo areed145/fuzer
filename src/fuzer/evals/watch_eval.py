@@ -28,6 +28,7 @@ time, so one raised by a load stamped with the wall clock is missed, and the unc
 """
 
 import json
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -170,6 +171,53 @@ def run(conn, pack, bundle: str, since: str, until: str, data_dir, ask=None, src
             "notes": notes, **res}
 
 
+class Offline:
+    """The watch's model, answered outside the run (a Claude session on a subscription, not the metered API): each
+    question the watch asks is written to `<folder>/prompts/<hash>.txt`, and answered from `<folder>/answers/<hash>.md`
+    once someone has written it. A question not yet answered reads as no proposals and is counted in `missing`, so a
+    first run writes the questions and a second, with every answer in, scores them. The prompts are the ones the watch
+    sends a provider, word for word; only who answers differs. A run with any question missing doesn't pass, and an
+    offline run never earns live mode (`watch.bar_met` reads only runs on the provider)."""
+
+    model = "offline"
+
+    def __init__(self, folder):
+        self.folder = Path(folder)
+        self.missing: set[str] = set()
+        self.asked: set[str] = set()
+
+    # Entity ids are minted at random when a database is built (`graph.resolve`), so the same window asks the same
+    # question with different ids on each build. The key numbers ids by first appearance instead, and an answer is
+    # read back with the ids of the prompt it was written for swapped, in the same order, for this run's.
+    ID = re.compile(r"\bfz-[a-z_]+-[0-9a-f]{12}\b")
+
+    @classmethod
+    def ids(cls, prompt: str) -> list[str]:
+        return list(dict.fromkeys(cls.ID.findall(prompt)))
+
+    @classmethod
+    def key(cls, prompt: str) -> str:
+        import hashlib
+
+        n = {e: f"fz-id-{i}" for i, e in enumerate(cls.ids(prompt))}
+        return hashlib.sha256(cls.ID.sub(lambda m: n[m.group()], prompt).encode()).hexdigest()[:16]
+
+    def __call__(self, prompt: str) -> dict:
+        k = self.key(prompt)
+        self.asked.add(k)
+        answer, asked = self.folder / "answers" / f"{k}.md", self.folder / "prompts" / f"{k}.txt"
+        if answer.is_file():
+            text = answer.read_text()
+            if asked.is_file():
+                swap = dict(zip(self.ids(asked.read_text()), self.ids(prompt), strict=True))
+                text = self.ID.sub(lambda m: swap.get(m.group(), m.group()), text)
+            return {"answer": text, "usage": {"cost_usd": 0.0}}
+        asked.parent.mkdir(parents=True, exist_ok=True)
+        asked.write_text(prompt)
+        self.missing.add(k)
+        return {"answer": '{"proposals": []}', "usage": {"cost_usd": 0.0}}
+
+
 def windows(bundle) -> list[dict]:
     """A bundle's fixed set of windows (`evals/watch.yaml`, P3.11b), each {since, until, why}, its dates placed on the
     calendar (relative to today where the bundle's data is); none when it declares none."""
@@ -223,10 +271,17 @@ def run_set(conn, pack, bundle: str, wins: list[dict], data_dir, ask=None, src=N
             "matched": share(tot["matched_uncaught"], n), "precision": share(tot["matched_uncaught"] + tot["matched_caught"], n),
             "recall": share(tot["found_uncaught"], tot["uncaught"]),
             "cited": share(sum((r["cited"] or 0) * r["proposals"] for r in each), n),
-            "passes": n > 0 and tot["matched_uncaught"] / n >= BAR,
+            "passes": n > 0 and tot["matched_uncaught"] / n >= BAR and not getattr(ask, "missing", None),
             "uncaught_examples": [x for r in each for x in r["uncaught_examples"]][:8],
             "false_examples": [x for r in each for x in r["false_examples"]][:8],
-            "windows": [{k: r.get(k) for k in keep} for r in each]}
+            "windows": [{k: r.get(k) for k in keep} for r in each], **_offline(ask)}
+
+
+def _offline(ask) -> dict:
+    """An offline run says so, with the questions it asked and those still unanswered; one with any missing fails."""
+    if not isinstance(ask, Offline):
+        return {}
+    return {"offline": True, "asked": len(ask.asked), "missing": len(ask.missing)}
 
 
 def store(conn, res: dict) -> None:

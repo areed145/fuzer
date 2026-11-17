@@ -215,6 +215,10 @@ def parser() -> argparse.ArgumentParser:
                          "read it with the agentic watch and score its proposals against the fake plant's injected "
                          "events no rule caught (P3.3b, P3.11b; needs a model provider and costs money, shown before "
                          "it starts; exits 1 if under half match)")
+    ev.add_argument("--offline", metavar="DIR",
+                    help="with --watch: answer the watch's questions outside the run instead of on the provider (a "
+                         "Claude session on a subscription): writes each to DIR/prompts/, reads DIR/answers/ (same "
+                         "name, .md); run again once answered. Free; never earns live mode")
     ev.add_argument("--drifts", action="store_true",
                     help="replay the slow-drift detector a day at a time over the stretch in the bundle's "
                          "evals/drifts.yaml (or --since to --until) and score it against the fake plant's slow upsets "
@@ -407,16 +411,21 @@ def main(argv=None):
                 from ..evals import runs, watch_eval
 
                 name = resolve(conn).name
+                ask = watch_eval.Offline(args.offline) if args.offline else None
                 if args.since and args.until:
-                    res = watch_eval.run(conn, pack, name, args.since, args.until, data, say=_say)
+                    res = watch_eval.run(conn, pack, name, args.since, args.until, data, ask=ask, say=_say)
                 else:  # the bundle's fixed set of windows (P3.11b)
                     folder = bundles.find(name)
                     wins = watch_eval.windows(folder) if folder else []
                     if not wins:
                         raise SystemExit("--watch needs the bundle's evals/watch.yaml, or --since and --until")
-                    _say(f"{len(wins)} windows on {name}: about ${watch_eval.estimate(wins, runs.load()):.2f} on the "
-                         "model, before it starts")
-                    res = watch_eval.run_set(conn, pack, name, wins, data, say=_say)
+                    if not ask:
+                        _say(f"{len(wins)} windows on {name}: about ${watch_eval.estimate(wins, runs.load()):.2f} on "
+                             "the model, before it starts")
+                    res = watch_eval.run_set(conn, pack, name, wins, data, ask=ask, say=_say)
+                if ask and ask.missing:
+                    _say(f"{len(ask.missing)} of {len(ask.asked)} questions to answer in {args.offline}/prompts/, "
+                         f"answers to {args.offline}/answers/ (same name, .md); then run again")
                 if res["status"] != "shadow":
                     raise SystemExit(f"watch eval not run: {res['note']}")
                 watch_eval.store(conn, res)

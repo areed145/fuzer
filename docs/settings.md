@@ -90,7 +90,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `watch.max_usd` | float | `2.0` | ≥ 0 | Model spend cap per agentic watch run, all areas (USD). |
 | `watch.live` | bool | `False` |  | Raise the agentic watch's proposals as work for a person to triage (live mode), once it has passed its bar on every bundle; off: kept in shadow and scored. |
 | `watch.daily_usd` | float | `2.0` | ≥ 0 | Model spend a day for the agentic watch on this asset (USD); once spent it reads again the next day. |
-| `watch.max_areas` | int | `12` | 0 to 200 | Process areas the agentic watch reads per run. |
+| `watch.max_areas` | int | `40` | 0 to 200 | Process areas the agentic watch reads per run. |
 | `watch.promote_after` | int | `3` | 1 to 50 | Confirmed watch proposals of one pattern before the watch drafts a deterministic rule for it. |
 | `sre.step_minutes` | int | `10` | 1 to 60 | Minutes between the values the detectors read. |
 | `sre.lookback_hours` | int | `24` | 1 to 168 | Hours before the window that a step is judged against. |

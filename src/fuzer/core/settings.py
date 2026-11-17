@@ -217,7 +217,7 @@ register(
             "mode), once it has passed its bar on every bundle; off: kept in shadow and scored", "SRE"),
     Setting("watch.daily_usd", "float", 2.0, "Model spend a day for the agentic watch on this asset (USD); once spent "
             "it reads again the next day", "SRE", min=0),
-    Setting("watch.max_areas", "int", 12, "Process areas the agentic watch reads per run", "SRE", min=0, max=200),
+    Setting("watch.max_areas", "int", 40, "Process areas the agentic watch reads per run", "SRE", min=0, max=200),
     Setting("watch.promote_after", "int", 3, "Confirmed watch proposals of one pattern before the watch drafts a "
             "deterministic rule for it", "SRE", min=1, max=50),
     Setting("sre.step_minutes", "int", 10, "Minutes between the values the detectors read", "SRE", min=1, max=60),

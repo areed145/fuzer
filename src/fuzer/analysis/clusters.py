@@ -288,14 +288,15 @@ def _measure(point: str) -> str:
 
 
 def drifts(conn, scope, since: str, until: str, days: int = 90, step: int = 360, src=None, min_change: float = 0.1,
-           min_z: float = 4.0, limit: int | None = 8) -> list[dict]:
+           min_z: float = 4.0, limit: int | None = 8, **judge) -> list[dict]:
     """The points that have drifted on their own: over [since, until] each point's level against where it sat in the
     first month of the `days` before, as a share of that level, set against its peers measuring the same thing in the
     scope. A drift the peers share (a field declining, a season) is not one; a choke plugging, a pump losing head or
     a choke trimmed month by month is. Most of the change in one day is a step
     (a choke moved, a pump swapped), not a drift. It must already show in the week before the window, so a sudden upset (which
     the multivariate model reads) is not taken for a drift. One held flat between moves (a choke or setpoint set by hand
-    a few times) is marked `stepwise`. The largest departures first."""
+    a few times) is marked `stepwise`. The largest departures first. `judge` goes to `drifted` (role peers, idle,
+    progressive) to judge as the drift detector does."""
     from . import studies
 
     pts = studies.points(conn, scope)
@@ -304,7 +305,7 @@ def drifts(conn, scope, since: str, until: str, days: int = 90, step: int = 360,
     times, X = studies.matrix(pts, a0, b1, step, src)
     if not len(times) or not pts:
         return []
-    return drifted(pts, times, X, b0, days, max(1, 1440 // step), min_change, min_z, limit)
+    return drifted(pts, times, X, b0, days, max(1, 1440 // step), min_change, min_z, limit, **judge)
 
 
 def drifted(pts: list[dict], times: np.ndarray, X: np.ndarray, since: datetime, days: int, per_day: int,

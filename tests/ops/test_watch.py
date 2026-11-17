@@ -117,7 +117,7 @@ def test_the_watch_is_shown_a_choke_plugging_over_weeks_and_not_the_fields_decli
     def ask(prompt):
         seen.append(json.loads(prompt.split("Evidence:\n", 1)[1]))
         d = seen[-1]["drifts"][0] if seen[-1]["drifts"] else None
-        props = [{"subject": d["name"], "start": d["since"], "why": "falling at the same choke", "evidence": [d["id"]]}] if d else []
+        props = [{"subject": d["name"], "start": d["baseline_from"], "why": "falling at the same choke", "evidence": [d["id"]]}] if d else []
         return {"answer": "```json\n" + json.dumps({"proposals": props}) + "\n```", "usage": {"cost_usd": 0.0}}
 
     props, _ = watch.propose(conn, nwp, watch._t(a), watch._t(b), ask)
@@ -138,6 +138,7 @@ def test_live_the_watch_raises_each_proposal_for_triage_its_budget_stops_it_and_
     settings.set(conn, "watch.max_areas", 2, by="test")
     settings.set(conn, "watch.max_usd", 5.0, by="test")
     settings.set(conn, "watch.daily_usd", 0.05, by="test")
+    conn.execute("delete from watch_spend")  # what the other tests spent today on the shared asset
     assert settings.get(conn, "watch.live") is False  # off by default
     try:
         settings.set(conn, "watch.live", True, by="test")
