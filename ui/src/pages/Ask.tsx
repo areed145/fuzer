@@ -158,6 +158,15 @@ export function AskPage({ query }: { query: URLSearchParams }) {
           not tested any provider to show this.
         </UICard>
       )}
+      {ai && catalog.data?.provider_configured !== false && catalog.data?.budget_reached && (
+        <UICard className="ask-no-provider" role="note">
+          <strong>This month's AI budget is spent.</strong>{" "}
+          Fuzer has used ${(catalog.data.month_spend_usd ?? 0).toFixed(2)} of its ${(catalog.data.budget_usd_month ?? 0).toFixed(2)}{" "}
+          monthly model budget, so questions sent now will fail until the budget is raised or the month turns over.
+          An owner raises it under <a href={href("/settings", { view: "configuration", filter: "llm.budget_usd_month" })}>application
+          settings</a> and sees what spent it under <a href={href("/settings", { view: "ai-usage" })}>AI usage</a>.
+        </UICard>
+      )}
       <AboutBanner about={about} context={context} />
       {ai && turns.length === 0 && !context.data && (
         <div className="ask-examples">
