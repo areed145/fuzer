@@ -123,7 +123,7 @@ def _watch_live(conn, pack, since: str, until: str) -> str:
         ev = json.loads(prompt.split("Evidence:\n", 1)[1])
         seen = [{"subject": s["points"][0]["name"], "start": s["start"], "end": s["end"], "evidence": [s["points"][0]["id"]]}
                 for s in ev.get("unexplained_stretches") or []][:1] or [
-            {"subject": d["name"], "start": d.get("since"), "evidence": [d["id"]]} for d in ev.get("drifts") or []][:1] or [
+            {"subject": d["name"], "start": d.get("baseline_from"), "evidence": [d["id"]]} for d in ev.get("drifts") or []][:1] or [
             {"subject": x.get("name") or x.get("point") or x.get("text") or ev.get("area"), "start": x.get("start") or
              x.get("at") or ev["since"], "evidence": [x["id"]]}
             for k in ("alarms", "log", "notifications") for x in ev.get(k) or [] if isinstance(x, dict) and x.get("id")][:1]
