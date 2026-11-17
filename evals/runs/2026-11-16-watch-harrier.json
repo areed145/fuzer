@@ -1,0 +1,172 @@
+{
+  "date": "2026-11-16",
+  "kind": "watch",
+  "model": null,
+  "bundle": "harrier",
+  "since": "2026-09-16T00:00",
+  "until": "2026-11-16T00:00",
+  "usd": 0.442,
+  "upsets": 23,
+  "caught": 12,
+  "uncaught": 11,
+  "proposals": 14,
+  "matched_uncaught": 2,
+  "matched_caught": 3,
+  "false_proposals": 9,
+  "matched": 0.143,
+  "precision": 0.357,
+  "recall": 0.182,
+  "cited": 1.0,
+  "passes": false,
+  "uncaught_examples": [
+    "A1-P-1003B head_loss 2026-09-17 00:00",
+    "A1-F-1007 drift 2026-10-17 00:00",
+    "A1-P-1003B head_loss 2026-09-17 00:00",
+    "G1-K-7001 valve_leak 2026-10-29 00:00",
+    "A1-F-1007 drift 2026-10-17 00:00",
+    "A1-P-1003B head_loss 2026-09-17 00:00",
+    "A1-P-1003B head_loss 2026-09-17 00:00",
+    "meter:receipt bias 2026-11-06 00:00"
+  ],
+  "false_examples": [
+    "HRPT:A1.TT1014C.PV 2026-07-18 00:00",
+    "HRPT:G1.TT7011.PV 2026-07-18 00:00",
+    "HRPT:A1.TT1014C.PV 2026-07-19 00:00",
+    "HRPT:G1.TT7011.PV 2026-07-19 00:00",
+    "HRPT:G1.TT7011.PV 2026-07-30 00:00",
+    "HRPT:A1.TT1014C.PV 2026-07-31 00:00",
+    "HRPT:A1.TT1014C.PV 2026-08-07 00:00",
+    "HRPT:A1.TT1014C.PV 2026-08-08 00:00"
+  ],
+  "windows": [
+    {
+      "since": "2026-09-16T00:00",
+      "until": "2026-09-18T00:00",
+      "why": "A1-P-1003B starting to lose head",
+      "usd": 0.0,
+      "upsets": 1,
+      "caught": 0,
+      "uncaught": 1,
+      "proposals": 0,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 0,
+      "matched": null,
+      "precision": null,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "A1-P-1003B head_loss 2026-09-17 00:00"
+      ],
+      "false_examples": []
+    },
+    {
+      "since": "2026-10-16T00:00",
+      "until": "2026-10-18T00:00",
+      "why": "A1-F-1007 drifting",
+      "usd": 0.122,
+      "upsets": 2,
+      "caught": 0,
+      "uncaught": 2,
+      "proposals": 4,
+      "matched_uncaught": 0,
+      "matched_caught": 0,
+      "false_proposals": 4,
+      "matched": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "A1-F-1007 drift 2026-10-17 00:00",
+        "A1-P-1003B head_loss 2026-09-17 00:00"
+      ],
+      "false_examples": [
+        "HRPT:A1.TT1014C.PV 2026-07-18 00:00",
+        "HRPT:G1.TT7011.PV 2026-07-18 00:00",
+        "HRPT:A1.TT1014C.PV 2026-07-19 00:00",
+        "HRPT:G1.TT7011.PV 2026-07-19 00:00"
+      ]
+    },
+    {
+      "since": "2026-10-28T00:00",
+      "until": "2026-10-30T00:00",
+      "why": "G1-K-7001's valve starting to leak",
+      "usd": 0.1528,
+      "upsets": 3,
+      "caught": 0,
+      "uncaught": 3,
+      "proposals": 4,
+      "matched_uncaught": 2,
+      "matched_caught": 0,
+      "false_proposals": 2,
+      "matched": 0.5,
+      "precision": 0.5,
+      "recall": 0.667,
+      "cited": null,
+      "passes": true,
+      "uncaught_examples": [
+        "G1-K-7001 valve_leak 2026-10-29 00:00",
+        "A1-F-1007 drift 2026-10-17 00:00",
+        "A1-P-1003B head_loss 2026-09-17 00:00"
+      ],
+      "false_examples": [
+        "HRPT:G1.TT7011.PV 2026-07-30 00:00",
+        "HRPT:A1.TT1014C.PV 2026-07-31 00:00"
+      ]
+    },
+    {
+      "since": "2026-11-05T00:00",
+      "until": "2026-11-07T00:00",
+      "why": "the receipt meter reading off and two tank levels creeping",
+      "usd": 0.1241,
+      "upsets": 6,
+      "caught": 2,
+      "uncaught": 4,
+      "proposals": 4,
+      "matched_uncaught": 0,
+      "matched_caught": 2,
+      "false_proposals": 2,
+      "matched": 0.0,
+      "precision": 0.5,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "A1-P-1003B head_loss 2026-09-17 00:00",
+        "meter:receipt bias 2026-11-06 00:00",
+        "E1-T-5001A level 2026-11-06 00:00",
+        "E1-T-5001C level 2026-11-07 00:00"
+      ],
+      "false_examples": [
+        "HRPT:A1.TT1014C.PV 2026-08-07 00:00",
+        "HRPT:A1.TT1014C.PV 2026-08-08 00:00"
+      ]
+    },
+    {
+      "since": "2026-11-14T00:00",
+      "until": "2026-11-16T00:00",
+      "why": "G1-E-7003 fouling into yesterday's trip on train G1",
+      "usd": 0.0431,
+      "upsets": 11,
+      "caught": 10,
+      "uncaught": 1,
+      "proposals": 2,
+      "matched_uncaught": 0,
+      "matched_caught": 1,
+      "false_proposals": 1,
+      "matched": 0.0,
+      "precision": 0.5,
+      "recall": 0.0,
+      "cited": null,
+      "passes": false,
+      "uncaught_examples": [
+        "meter:receipt bias 2026-11-06 00:00"
+      ],
+      "false_examples": [
+        "HRPT:A1.TT1014C.PV 2026-08-16 00:00"
+      ]
+    }
+  ]
+}
