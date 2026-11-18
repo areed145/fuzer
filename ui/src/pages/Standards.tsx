@@ -172,7 +172,7 @@ function Next({ version: x, person, admin, busy, act, projects, rollouts }: {
       <Field label="Asset" width="sm"><Select value={chosen} onChange={(e) => setTarget(e.target.value)}>
         {targets.map((p) => <option key={p}>{p}</option>)}</Select></Field>
       {admin ? <ConfirmAction label="Roll out" busy={busy} disabled={!chosen}
-        consequence={`${chosen} starts running ${x.name} v${x.version}: its roles, settings, processes and forms change to this version. Its named setting differences are kept, and it can be rolled back.`}
+        consequence={`${chosen} starts running ${x.name} v${x.version}: its roles, settings, workflows and forms change to this version. Its named setting differences are kept, and it can be rolled back.`}
         onConfirm={() => act("Roll out", () => api.rolloutModel(chosen, x.version, loadPerson()), `${chosen} now runs v${x.version}.`)} />
         : <p className="small">Rolling out needs the {ADMIN} role.</p>}
     </>;
@@ -186,7 +186,7 @@ function Rollback({ rollout: r, person, busy, act }: { rollout: ModelRollout; pe
   return <>
     <Field label="Why" width="sm"><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
     <ConfirmAction label="Roll back" busy={busy} disabled={!reason.trim()}
-      consequence={`${r.project} goes back to ${r.from_name} v${r.from_version}: its roles, settings, processes and forms return to that version.`}
+      consequence={`${r.project} goes back to ${r.from_name} v${r.from_version}: its roles, settings, workflows and forms return to that version.`}
       onConfirm={() => act("Roll back", () => api.rollbackModel(r.project, reason, loadPerson()),
         `${r.project} is back on ${r.from_name} v${r.from_version}.`)} />
   </>;

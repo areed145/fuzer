@@ -106,7 +106,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
               )}
               {completion && demo ? <div><h3>Review task response</h3><DataView data={completion} />
                 <ConfirmAction label="task completion" busy={!!a.busy}
-                  consequence="Save this response and complete the shared task. This may advance the process or queue downstream agent work with configured AI costs. Completion is not proof that downstream work finished. After a failure, inspect the recorded task and case before retrying."
+                  consequence="Save this response and complete the shared task. This may advance the workflow or queue downstream agent work with configured AI costs. Completion is not proof that downstream work finished. After a failure, inspect the recorded task and case before retrying."
                   onConfirm={() => a.run("complete", () => api.complete(id, person, completion), () => {
                     setCompletion(null); setDone("Task response saved. Inspect the refreshed case for downstream progress."); refresh();
                   })} />{" "}
@@ -182,7 +182,7 @@ function FixForm({ busy, onRetry }: { busy: boolean; onRetry: (data: Record<stri
   }
   return (
     <div className="task-form">
-      <p className="small">Correct the process data the step tripped on, then retry it.</p>
+      <p className="small">Correct the workflow data the step tripped on, then retry it.</p>
       <textarea className="mono" rows={4} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="actions">
         <Button variant="primary" disabled={busy || !data} onClick={() => data && onRetry(data)}>Retry step</Button>
@@ -248,7 +248,7 @@ function Evidence({ v }: { v: WorkTaskView }) {
           <DataView data={m.data.payload} />
         </Disclosure>
       ))}
-      {!e.agents.length && !e.messages.length && <p className="small muted">What started the process:</p>}
+      {!e.agents.length && !e.messages.length && <p className="small muted">What started the workflow:</p>}
       {!e.agents.length && <DataView data={startedWith(v.data)} />}
     </UICard>
   );

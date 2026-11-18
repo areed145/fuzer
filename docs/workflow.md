@@ -21,7 +21,7 @@ The Workflows section is where people do it and manage it:
   work item, open or closed, with filters and bulk reassign; a case page (`#/cases/:id`) shows its
   process diagram, open steps, details and history, and takes reassign, priority, due date (on a running process,
   its open steps' SLA clock), close and cancel.
-- **Processes** (`#/processes`): each process with its health (running, steps waiting and overdue, median and p90
+- **Workflows** (`#/workflows`, under Work): each workflow with its health (running, steps waiting and overdue, median and p90
   cycle time, share of person steps that missed their SLA); a process opens with Overview, Running (its cases),
   Model (draft, check, compare, publish), Monitor (where work piles up) and SLAs & routing.
 - **Teams & routing** (`#/teams`): roles, people and agents.
@@ -120,7 +120,7 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   who holds it (or the queue and its holders), and with `to=` and `priority=`, a dispatch and when it would be due.
   **Settings > Routing** (#507) is the page on top: the table, and for a type, its process drawn with who holds
   each lane, lanes nobody holds flagged, and a form that dry-runs an intake (refs, key, priority, dispatch to).
-  Processes are edited on Processes and role SLAs and escalation under Users, as before; anyone who can read work
+  Workflows are edited on Workflows and role SLAs and escalation under Users, as before; anyone who can read work
   can read the page.
 - **Queue item.** `queue_item.bpmn` is the standard process for a type that names a queue and no process: its lane's
   role is `=role` and its case type `=case_type`, both from the type, so one process serves every queue and each

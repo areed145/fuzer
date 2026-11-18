@@ -23,6 +23,8 @@ export interface NavItem {
   /** Other first segments that count as this page (entity pages belong to Browse). */
   also?: string[];
   badge?: Badge;
+  /** A query key that picks this page out of its section (`#/plan?resources=1` is Resources, not Plan). */
+  view?: string;
   /** A link out of the app (opens in a new tab) instead of a page. */
   external?: string;
   permission?: string;
@@ -41,6 +43,28 @@ export interface NavGroup {
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
   { label: "Home", icon: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z", items: [{ label: "Home", section: "" }] },
+  {
+    label: "Work",
+    icon: "M6 4h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 10l2 2 4-4M8 16h8",
+    items: [
+      { label: "All work", section: "exceptions", also: ["board", "cases", "performance"] },
+      // Handover is reached from My work and Data review from Master data (#554).
+      { label: "My work", section: "inbox", also: ["work", "teams", "field", "handover"], badge: "work" },
+      // The playbooks the work follows, beside the work; #/processes keeps its URLs.
+      { label: "Workflows", section: "workflows", also: ["processes"] },
+      { label: "Master data", section: "masterdata", also: ["review"], badge: "review" },
+    ],
+  },
+  {
+    // The days and weeks ahead, beside Work's today: one timeline for every source, its schedules and its resources.
+    label: "Plan",
+    icon: "M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 9h16M8 2v4M16 2v4M7 13h5M10 17h7",
+    items: [
+      { label: "Plan", section: "plan", also: ["turnaround"] },
+      { label: "Schedules", section: "plan", path: "/plan?schedules=1", view: "schedules" },
+      { label: "Resources", section: "plan", path: "/plan?resources=1", view: "resources" },
+    ],
+  },
   {
     label: "Explore",
     icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z",
@@ -64,17 +88,6 @@ export const NAV: NavGroup[] = [
       { label: "Studies", section: "studies" },
     ],
   },
-  {
-    label: "Work",
-    icon: "M6 4h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 10l2 2 4-4M8 16h8",
-    items: [
-      { label: "All work", section: "exceptions", also: ["board", "cases", "performance"] },
-      // Handover is reached from My work, Turnaround is a window on Plan, Data review from Master data (#554).
-      { label: "My work", section: "inbox", also: ["work", "teams", "field", "handover"], badge: "work" },
-      { label: "Plan", section: "plan", also: ["turnaround"] },
-      { label: "Master data", section: "masterdata", also: ["review"], badge: "review" },
-    ],
-  },
   { label: "Sources", icon: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6", permission: "configure",
     // The ontology is the model sources map onto, so it sits beside them; #/ontology keeps its URL.
     items: [{ label: "Sources", section: "sources" }, { label: "Ontology", section: "ontology", permission: "configure" }] },
@@ -86,7 +99,6 @@ export const NAV: NavGroup[] = [
       { label: "Application settings", section: "settings" },
       { label: "Users", section: "users", also: ["access"], permission: "configure" },
       { label: "Routing", section: "routing" },
-      { label: "Processes", section: "processes" },
       { label: "Docs", section: "docs", external: "https://areed145.github.io/fuzer/" },
     ],
   },
@@ -103,15 +115,20 @@ function useNavigationAccess() {
     (item.permission !== "configure" || configure) && (item.permission !== "ai" || ai);
 }
 
-export function AreaNavigation({ section, demoEnabled }: { section: string; demoEnabled: boolean }) {
+/** The page a route is on within its group: a page with a `view` wins when its query key is there. */
+export const currentItem = (items: NavItem[], section: string, query?: URLSearchParams) =>
+  items.find((i) => i.view && isActive(i, section) && query?.has(i.view)) ?? items.find((i) => !i.view && isActive(i, section));
+
+export function AreaNavigation({ section, query, demoEnabled }: { section: string; query?: URLSearchParams; demoEnabled: boolean }) {
   const allowed = useNavigationAccess();
   const found = navItemFor(section);
   if (!found || !allowed(found.group) || (found.group.demo && !demoEnabled)) return null;
   const items = found.group.items.filter(allowed);
   if (items.length < 2) return null;
+  const current = currentItem(items, section, query);
   return <nav className="area-navigation" aria-label={`${found.group.label} pages`}>
-    {items.map((item) => <a key={item.section} href={item.external ?? href(item.path ?? `/${item.section}`)}
-      aria-current={isActive(item, section) ? "page" : undefined}
+    {items.map((item) => <a key={item.label} href={item.external ?? href(item.path ?? `/${item.section}`)}
+      aria-current={item === current ? "page" : undefined}
       {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}>{item.label}</a>)}
   </nav>;
 }
@@ -270,7 +287,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           const item = group.items.find((entry) => entry.section === first && allowed(entry)) ?? group.items.find(allowed);
           if (!item) return null;
           // A slot lights anywhere in its group, so the bar always shows where you are (#1131): the Work slot is lit on
-          // All work, Plan and Master data too. It is the current page only on the page it opens.
+          // All work, Workflows and Master data too. It is the current page only on the page it opens.
           const here = isActive(item, section);
           const on = here || group.items.some((entry) => isActive(entry, section));
           const count = group.items.reduce((n, entry) => n + (entry.badge === "work" ? badges.work : 0), 0);

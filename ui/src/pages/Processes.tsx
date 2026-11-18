@@ -33,7 +33,7 @@ function useAdmin(person: string) {
 
 function NeedName({ person }: { person: string }) {
   if (person) return null;
-  return <div className="status">Say who you are in the sidebar (bottom left) to edit processes.</div>;
+  return <div className="status">Say who you are in the sidebar (bottom left) to edit workflows.</div>;
 }
 
 const download = (name: string, text: string, type: string) => {
@@ -76,7 +76,7 @@ export function ProcessesPage() {
     setBusy("Creating the draft…");
     try {
       await api.importDefinition(blankProcess(key, name || key), person);
-      location.hash = href(`/processes/${key}`, { tab: "model" });
+      location.hash = href(`/workflows/${key}`, { tab: "model" });
     } catch (e) {
       setError(`Couldn't create the draft: ${(e as Error).message}`);
     } finally {
@@ -88,7 +88,7 @@ export function ProcessesPage() {
     setBusy(`Importing ${f.name}…`);
     try {
       const rows = await api.importDefinition(await f.text(), person);
-      location.hash = href(`/processes/${rows[0].process_key}`, { tab: "model", v: String(rows[0].id) });
+      location.hash = href(`/workflows/${rows[0].process_key}`, { tab: "model", v: String(rows[0].id) });
     } catch (e) {
       setError(`Couldn't import ${f.name}: ${(e as Error).message}. Fix the file and import it again.`);
     } finally {
@@ -99,7 +99,7 @@ export function ProcessesPage() {
 
   return (
     <section>
-      <PageHeader subtitle="How work moves between people and agents." help="workflow">Processes</PageHeader>
+      <PageHeader subtitle="How work moves between people and agents." help="workflow">Workflows</PageHeader>
       <p className="small muted" id="who-edits">Anyone who says who they are can draft a change and check it.
         Publishing it needs the workflow admin role{person ? (admin ? ", which you have" : ", which you don't have") : ""}.
         Which queue each type of work goes to is set on <a href={href("/routing")}>Routing</a>, not here.</p>
@@ -111,8 +111,8 @@ export function ProcessesPage() {
       {stats.error && <p className="small muted" role="status">Running counts are unavailable: {stats.error}{" "}
         <Button size="sm" onClick={stats.reload}>Try again</Button></p>}
       {groups.length > 0 && (
-        <Table variant="list" className="phone-rows" aria-label="Processes">
-          <thead><tr><th>Process</th><th>Published</th><th>Draft</th><th>Running</th><th>Steps waiting</th><th>Overdue</th>
+        <Table variant="list" className="phone-rows" aria-label="Workflows">
+          <thead><tr><th>Workflow</th><th>Published</th><th>Draft</th><th>Running</th><th>Steps waiting</th><th>Overdue</th>
             <th title="last 30 days">Cycle time (median / p90)</th><th title="person steps past their SLA, last 30 days">SLA missed</th><th>Open</th></tr></thead>
           <tbody>
             {groups.map(([k, vs]) => {
@@ -122,16 +122,16 @@ export function ProcessesPage() {
               const label = pub?.name ?? vs[0].name ?? k;
               return (
                 <tr key={k}>
-                  <td><a href={href(`/processes/${k}`)}><strong>{label}</strong></a> <span className="mono small muted">{k}</span></td>
+                  <td><a href={href(`/workflows/${k}`)}><strong>{label}</strong></a> <span className="mono small muted">{k}</span></td>
                   <td data-label="Published">{pub ? <>v{pub.version} <span className="small muted">{pub.published_at && when(pub.published_at)}</span></> : <span className="muted">not yet</span>}</td>
                   <td data-label="Draft">{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <span className="muted">none</span>}</td>
-                  <td data-label="Running"><a href={href(`/processes/${k}`, { tab: "running" })} aria-label={`${label}: running cases`}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
+                  <td data-label="Running"><a href={href(`/workflows/${k}`, { tab: "running" })} aria-label={`${label}: running cases`}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
                   <td data-label="Steps waiting">{st?.waiting ?? "–"}</td>
                   <td data-label="Overdue">{st?.overdue ? <UIBadge className="badge late">{st.overdue}</UIBadge> : st ? 0 : "–"}</td>
                   <td data-label="Cycle time" className="small">{st ? `${hours(st.median_h)} / ${hours(st.p90_h)}` : "–"}</td>
                   <td data-label="SLA missed" className="small">{st?.sla_breach_pct != null ? `${st.sla_breach_pct}%` : "–"}</td>
                   <td data-label="Open" className="small">
-                    <a href={href(`/processes/${k}`, { tab: "model" })} aria-label={`${label}: model`}>Model</a> · <a href={href(`/processes/${k}`, { tab: "monitor" })} aria-label={`${label}: monitor`}>Monitor</a>
+                    <a href={href(`/workflows/${k}`, { tab: "model" })} aria-label={`${label}: model`}>Model</a> · <a href={href(`/workflows/${k}`, { tab: "monitor" })} aria-label={`${label}: monitor`}>Monitor</a>
                   </td>
                 </tr>
               );
@@ -141,8 +141,8 @@ export function ProcessesPage() {
       )}
 
       {person && (
-        <UICard title="New process">
-          <p className="small muted">A new process starts as a draft. Nothing runs on it until it is checked and published.</p>
+        <UICard title="New workflow">
+          <p className="small muted">A new workflow starts as a draft. Nothing runs on it until it is checked and published.</p>
           <div className="actions">
             <Field label="Key" hint="lower case, e.g. lesson_review">
               <Input value={key} aria-invalid={!!keyProblem} aria-describedby={keyProblem ? "new-key-problem" : undefined}
@@ -163,14 +163,14 @@ export function ProcessesPage() {
         </UICard>
       )}
 
-      <UICard title="Task forms" actions={person ? <a className="small" href={href("/processes/forms/new")}>New form</a> : undefined}>
+      <UICard title="Task forms" actions={person ? <a className="small" href={href("/workflows/forms/new")}>New form</a> : undefined}>
         <Status loading={forms.loading && !forms.data} error={forms.error} onRetry={forms.reload}
           empty={!forms.loading && !forms.error && !forms.data?.length}>
           No forms yet. A person's step without a form asks only for a decision and a note.</Status>
         <ul className="plain">
           {forms.data?.map((f) => (
             <li key={f.key} className="row small">
-              <a className="mono" href={href(`/processes/forms/${f.key}`)}>{f.key}</a>
+              <a className="mono" href={href(`/workflows/forms/${f.key}`)}>{f.key}</a>
               <span className="muted">v{f.version} · <Actor who={f.created_by} /> {when(f.created_at)}</span>
             </li>
           ))}
@@ -198,12 +198,12 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
   return (
     <section>
       <PageHeader subtitle={chosen && <WhereYouAre chosen={chosen} published={published} draft={draft} />}
-        actions={<a href={href("/processes")}>All processes</a>}>
+        actions={<a href={href("/workflows")}>All workflows</a>}>
         {title} <span className="mono small muted">{processKey}</span></PageHeader>
-      <Tabs label="Process views" items={PROCESS_TABS.map(([k, label]) => ({
-        key: k, label, href: href(`/processes/${processKey}`, { tab: k }), current: tab === k }))} />
+      <Tabs label="Workflow views" items={PROCESS_TABS.map(([k, label]) => ({
+        key: k, label, href: href(`/workflows/${processKey}`, { tab: k }), current: tab === k }))} />
       <Status loading={defs.loading && !defs.data} error={defs.error} onRetry={defs.reload} empty={!defs.loading && !defs.error && !list.length}>
-        No process '{processKey}'. <a href={href("/processes")}>Create one</a>.
+        No workflow '{processKey}'. <a href={href("/workflows")}>Create one</a>.
       </Status>
       {chosen && tab === "overview" && <OverviewTab processKey={processKey} defs={list} published={published} />}
       {chosen && tab === "running" && <RunningTab processKey={processKey} />}
@@ -239,7 +239,7 @@ function Versions({ defs, current }: { defs: WorkDefinition[]; current: WorkDefi
   return (
     <label className="small row">
       Version
-      <Select value={current.id} onChange={(e) => (location.hash = href(`/processes/${current.process_key}`, { v: e.target.value }))}>
+      <Select value={current.id} onChange={(e) => (location.hash = href(`/workflows/${current.process_key}`, { v: e.target.value }))}>
         {defs.map((d) => (
           <option key={d.id} value={d.id}>v{d.version} · {d.state}{d.running ? ` · ${d.running} running` : ""}</option>
         ))}
@@ -360,7 +360,7 @@ function ModelTab({ def, defs, draft, reload }: {
   });
   const onDraft = (fromId?: number) => run("draft", async () => {
     const d = await api.draftDefinition(def.process_key, person, fromId);
-    location.hash = href(`/processes/${def.process_key}`, { tab: "model", v: String(d.id) });
+    location.hash = href(`/workflows/${def.process_key}`, { tab: "model", v: String(d.id) });
     reload();
   });
   const onDownload = () => run("download", async () => {
@@ -407,7 +407,7 @@ function ModelTab({ def, defs, draft, reload }: {
               title={admin ? "" : `Publishing needs the ${ADMIN.replace(/_/g, " ")} role`}>Publish</Button>
           </>
         ) : draft ? (
-          <a href={href(`/processes/${def.process_key}`, { v: String(draft.id) })}>Open draft v{draft.version}</a>
+          <a href={href(`/workflows/${def.process_key}`, { v: String(draft.id) })}>Open draft v{draft.version}</a>
         ) : (
           <Button variant="primary" disabled={!person || !!busy} onClick={() => onDraft(def.state === "published" ? undefined : def.id)}>
             {def.state === "published" ? "Edit as a new draft" : `New draft from v${def.version}`}
@@ -678,7 +678,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       else delete out.fuzer;
       const r = await api.saveForm(out, person);
       setDirty(false);
-      if (isNew) location.hash = href(`/processes/forms/${r.key}`);
+      if (isNew) location.hash = href(`/workflows/forms/${r.key}`);
       else {
         setVersion(r.version);
         setMsg({ text: `Saved v${r.version}. Steps that use this form show v${r.version} from now on; steps already filled in keep what was entered.` });
@@ -698,14 +698,14 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
 
   return (
     <section>
-      <PageHeader actions={<a href={href("/processes")}>All processes and forms</a>}
-        subtitle={isNew ? "A form is what a person fills in on a process step. Name it, add fields, then create it."
+      <PageHeader actions={<a href={href("/workflows")}>All workflows and forms</a>}
+        subtitle={isNew ? "A form is what a person fills in on a workflow step. Name it, add fields, then create it."
           : version != null ? `v${version}. Saving makes a new version; earlier versions stay with the steps that used them.` : undefined}>
         {isNew ? "New form" : <>Form <span className="mono">{formKey}</span></>}</PageHeader>
       <NeedName person={person} />
       {isNew && (
         <div className="actions">
-          <Field label="Form key" hint="what a process step names, e.g. lesson-review">
+          <Field label="Form key" hint="what a workflow step names, e.g. lesson-review">
             <Input value={newKey} aria-invalid={!!keyProblem} onChange={(e) => setNewKey(e.target.value.trim())} />
           </Field>
         </div>
@@ -713,7 +713,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       {keyProblem && <p className="small error" role="alert">{keyProblem}</p>}
       {loadError && (loadError.missing
         ? <div className="status error" role="alert">There is no form “{formKey}”.{" "}
-            <a href={href("/processes/forms/new", { key: formKey })}>Create it</a></div>
+            <a href={href("/workflows/forms/new", { key: formKey })}>Create it</a></div>
         : <div className="status error" role="alert">Couldn't load the form: {loadError.text}{" "}
             <Button onClick={() => setTries((n) => n + 1)}>Try again</Button></div>)}
       {schema && <>
@@ -758,7 +758,7 @@ function OverviewTab({ processKey, defs, published }: { processKey: string; defs
   const facts: [string, ReactNode][] = [
     ["Published", published ? <>v{published.version} {published.published_at && <span className="muted">{when(published.published_at)}</span>}</> : "not yet"],
     ["Versions", defs.map((d) => `v${d.version} ${d.state}`).join(", ")],
-    ["Running", s ? <a href={href(`/processes/${processKey}`, { tab: "running" })}>{s.running} cases</a> : "–"],
+    ["Running", s ? <a href={href(`/workflows/${processKey}`, { tab: "running" })}>{s.running} cases</a> : "–"],
     ["Steps waiting", s ? <>{s.waiting}{s.overdue ? <> (<UIBadge className="badge late">{s.overdue} overdue</UIBadge>)</> : null}</> : "–"],
     ["Finished (30 days)", s?.finished ?? "–"],
     ["Cycle time (30 days)", s ? `median ${hours(s.median_h)}, 90% within ${hours(s.p90_h)}` : "–"],
@@ -767,8 +767,8 @@ function OverviewTab({ processKey, defs, published }: { processKey: string; defs
   return (
     <>
       <Table variant="keyValue"><tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></Table>
-      <p className="small muted">Where work piles up: <a href={href(`/processes/${processKey}`, { tab: "monitor" })}>Monitor</a>. Who does each step
-        and when it escalates: <a href={href(`/processes/${processKey}`, { tab: "routing" })}>SLAs &amp; routing</a>.</p>
+      <p className="small muted">Where work piles up: <a href={href(`/workflows/${processKey}`, { tab: "monitor" })}>Monitor</a>. Who does each step
+        and when it escalates: <a href={href(`/workflows/${processKey}`, { tab: "routing" })}>SLAs &amp; routing</a>.</p>
     </>
   );
 }
@@ -804,7 +804,7 @@ function RunningTab({ processKey }: { processKey: string }) {
                 <td className="small"><Actor who={i.started_by} /></td>
                 <td>{i.state === "running" && person && (
                   <Button variant="link" className="small" disabled={!!a.busy}
-                    onClick={() => confirm(`Cancel "${i.title}"?`) && a.run(`c${i.id}`, () => api.cancelProcess(i.id, person, "cancelled from the process page"), list.reload)}>cancel</Button>
+                    onClick={() => confirm(`Cancel "${i.title}"?`) && a.run(`c${i.id}`, () => api.cancelProcess(i.id, person, "cancelled from the workflow page"), list.reload)}>cancel</Button>
                 )}</td>
               </tr>
             ))}
@@ -835,7 +835,7 @@ function RoutingTab({ def }: { def: WorkDefinition }) {
               <td>{s.sla ? duration(s.sla) : <span className="muted">none</span>} {s.sla_from === "role" && <span className="muted small">(role default)</span>}</td>
               <td className="small">{s.escalation.length ? s.escalation.join(" → ") : <span className="muted">stays with its role</span>}
                 {s.escalation_from === "role" && <span className="muted"> (role chain)</span>}</td>
-              <td className="small">{s.form ? <a className="mono" href={href(`/processes/forms/${s.form}`)}>{s.form}</a> : ""}</td>
+              <td className="small">{s.form ? <a className="mono" href={href(`/workflows/forms/${s.form}`)}>{s.form}</a> : ""}</td>
             </tr>
           ))}
         </tbody>

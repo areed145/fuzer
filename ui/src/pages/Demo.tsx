@@ -40,7 +40,7 @@ export function DemoPage({ query, stats }: {
           specialist findings and see how work passes between agents and accountable people.</p>
         <ol><li>Trace an Okan issue through its asset, evidence and cited finding.</li>
           <li>Choose a specialist or a cross-domain question; review and explicitly confirm any paid call in Ask.</li>
-          <li>Inspect loaded cases, process history and your task queue. Deliberate task actions affect shared work.</li>
+          <li>Inspect loaded cases, workflow history and your task queue. Deliberate task actions affect shared work.</li>
           <li>Leave with evidence you can check and a clear next destination.</li></ol>
         <p>The evidence journey and workflow inspection work without an AI provider.</p>
       </>}
@@ -87,7 +87,7 @@ export function DemoPage({ query, stats }: {
       {step.key === "workflow" && <Workflow />}
       {step.key === "finish" && <>
         <p>You can now trace source evidence, distinguish a specialist's answer from a human decision,
-          and inspect a case's process and recorded history. Visiting these steps does not certify that
+          and inspect a case's workflow and recorded history. Visiting these steps does not certify that
           an agent ran or a task completed.</p>
         <ul><li>Check findings against their citations and event dates, not ingestion timestamps.</li>
           <li>Review agent activity and usage in Ask; missing evidence remains unknown.</li>
@@ -116,7 +116,7 @@ function Workflow() {
     <p>Workflows connect evidence, agent steps, human review and a recorded outcome. These are actual shared
       cases, not a private sandbox and not necessarily part of the compressor scenario. No case is created by this tour.</p>
     <h3>1. Inspect a loaded case</h3>
-    <p>Open its process diagram, waiting steps and timeline. Agent steps and human-only decisions remain distinct.</p>
+    <p>Open its workflow diagram, waiting steps and timeline. Agent steps and human-only decisions remain distinct.</p>
     <Status loading={cases.loading && !cases.data} error={cases.error} onRetry={cases.reload} />
     {cases.data && !cases.error && (cases.data.items.length ? <ul>{cases.data.items.map((c) => <li key={c.id}>
       <a href={href(`/cases/${c.id}`, { demo: "workflow" })}>{c.title}</a> · {c.state} · {c.process_key ?? "No process recorded"}
@@ -125,7 +125,7 @@ function Workflow() {
       The workflow demonstration is unavailable. Ask an administrator to inspect the existing Work and Jobs setup; nothing was seeded.
     </EmptyState>)}
     <h3>2. Review your next task</h3>
-    <p>{operate ? "Claim, complete or hand off only a task you intend to change. Confirmed actions are audited and may advance the shared process."
+    <p>{operate ? "Claim, complete or hand off only a task you intend to change. Confirmed actions are audited and may advance the shared workflow."
       : "You have read-only access. Task changes require operate access and applicable workflow roles; Demo grants neither."}</p>
     <Status loading={inbox.loading && !inbox.data} error={inbox.error} onRetry={inbox.reload} />
     {!person && <p>Your account or local attribution is needed to show your queue. <a href={href("/inbox")}>Open Inbox</a>.</p>}
@@ -135,7 +135,7 @@ function Workflow() {
     <h3>3. Verify the recorded result</h3>
     <p>After a deliberate change, inspect the task and case history. After an ambiguous failure,
       inspect saved state before retrying; nothing is automatically replayed.</p>
-    <ButtonLink href={href("/processes")}>Inspect process definitions</ButtonLink>{" "}
+    <ButtonLink href={href("/workflows")}>Inspect workflow definitions</ButtonLink>{" "}
     <ButtonLink href={href("/inbox")}>Open Inbox</ButtonLink>
   </>;
 }

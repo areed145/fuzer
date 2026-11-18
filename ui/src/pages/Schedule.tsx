@@ -4,7 +4,7 @@
  * the critical path and the dates levelled against every shared resource; Schedule puts those dates on the plan. */
 import { useState } from "react";
 import { api, type ScheduleAnalysis, type ScheduleLinkRef, type ScheduleRow } from "../api";
-import { Badge, Button, ButtonLink, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs } from "../ui";
+import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs } from "../ui";
 import { Status, useAsync } from "../lib";
 import { acronyms, dayStamp, stamp } from "../wording";
 import { useAct } from "./workflows/shared";
@@ -67,8 +67,6 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
     <section>
       <PageHeader subtitle={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${dayStamp(p.start_at)}${p.finish_by ? ` to ${dayStamp(p.finish_by)}` : ""}`}
         actions={<>
-          <ButtonLink href="#/plan">Plan</ButtonLink>
-          <ButtonLink href="#/plan?resources=1">Resources</ButtonLink>
           <Button variant="primary" disabled={!person || !!busy} title={person ? undefined : "Choose who you are to schedule"}
             onClick={apply}>Schedule</Button>
         </>}>{acronyms(p.title)}</PageHeader>

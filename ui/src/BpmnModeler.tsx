@@ -228,7 +228,7 @@ const human = (s: string) => s.replace(/_/g, " ");
 
 function ProcessProps({ ed, ctx }: { ed: Editing; ctx: ModelerContext }) {
   const p = ed.process;
-  if (!p) return <Empty className="small">No process in this diagram.</Empty>;
+  if (!p) return <Empty className="small">No workflow in this diagram.</Empty>;
   const thresholds: { name: string; value: string }[] = (p.extensionElements?.values ?? [])
     .filter((v: any) => v.$type === "fuzer:Threshold").map((v: any) => ({ name: v.name ?? "", value: v.value ?? "" }));
   const saveThresholds = (rows: { name: string; value: string }[]) => {
@@ -240,14 +240,14 @@ function ProcessProps({ ed, ctx }: { ed: Editing; ctx: ModelerContext }) {
   };
   return (
     <>
-      <h3>Process</h3>
-      <Field label="Key" value={p.id} readOnly hint="Stays the same across versions; processes and the API start it by this." />
+      <h3>Workflow</h3>
+      <Field label="Key" value={p.id} readOnly hint="Stays the same across versions; workflows and the API start it by this." />
       <Text label="Name" value={p.name} onCommit={(v) => ed.setOn(p, { name: v })} />
       <Text label="Work item type" value={p.workItemType} placeholder={p.id}
         onCommit={(v) => ed.setOn(p, { workItemType: v })} hint="How its items are filed in the inbox and on the board." />
       <Text label="Correlation key" value={p.correlationKey} mono placeholder="incident_id"
         onCommit={(v) => ed.setOn(p, { correlationKey: v })}
-        hint="An expression over the start data. New evidence with the same key joins the open process instead of starting another." />
+        hint="An expression over the start data. New evidence with the same key joins the open workflow instead of starting another." />
       <Select label="Owner role" value={p.ownerRole} options={ctx.roles.person} blank="engineer (default)"
         onChange={(v) => ed.setOn(p, { ownerRole: v })} hint="Gets a step that can't go on (a failing condition, say)." />
       <Thresholds rows={thresholds} onSave={saveThresholds} />
@@ -304,8 +304,8 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
       {is(bo, "bpmn:UserTask") && <UserTaskProps ed={ed} el={el} lane={lane} ctx={ctx} />}
       {is(bo, "bpmn:ServiceTask") && <ServiceTaskProps ed={ed} el={el} lane={lane} ctx={ctx} />}
       {is(bo, "bpmn:CallActivity") && (
-        <Select label="Calls process" value={bo.calledElement} options={ctx.processes} blank="(choose a published process)"
-          onChange={(v) => ed.set(el, { calledElement: v })} hint="It runs as a child process; this step waits until it ends." />
+        <Select label="Calls workflow" value={bo.calledElement} options={ctx.processes} blank="(choose a published workflow)"
+          onChange={(v) => ed.set(el, { calledElement: v })} hint="It runs as a child workflow; this step waits until it ends." />
       )}
       {is(bo, "bpmn:ExclusiveGateway") && <GatewayProps ed={ed} el={el} />}
       {is(bo, "bpmn:ParallelGateway") && (
@@ -319,7 +319,7 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
       )}
       {def && is(def, "bpmn:TimerEventDefinition") && <TimerProps ed={ed} el={el} def={def} />}
       {def && is(def, "bpmn:MessageEventDefinition") && <MessageProps ed={ed} el={el} def={def} />}
-      {is(bo, "bpmn:StartEvent") && <p className="small">A process has exactly one start event; the start data is what the process is started with.</p>}
+      {is(bo, "bpmn:StartEvent") && <p className="small">A workflow has exactly one start event; the start data is what the workflow is started with.</p>}
     </>
   );
 }
@@ -347,7 +347,7 @@ function LaneProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerContext 
 const FIXED_GATES: Record<string, string> = {
   close_safety_case: "Closing a safety or environmental case", field_dispatch: "Dispatching people to the field",
   write_back: "Writing back to a source system", limit_change: "Changing a limit or detector parameter",
-  publish: "Publishing a process, a skill or a lesson", bypass_safeguard: "Bypassing a safeguard",
+  publish: "Publishing a workflow, a skill or a lesson", bypass_safeguard: "Bypassing a safeguard",
 };
 const CONFIDENCE_GATES: Record<string, string> = {
   auto_match: "An automatic match", auto_close: "An automatic close as duplicate or false alarm",
@@ -380,8 +380,8 @@ function UserTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: any;
           {[...new Set([...ctx.forms, ...(bo.form ? [bo.form] : [])])].sort().map((f) => <option key={f} value={f}>{f}</option>)}
         </UISelect>
         <small>
-          {bo.form && <><a href={href(`/processes/forms/${bo.form}`)} target="_blank" rel="noreferrer">Edit {bo.form}</a> · </>}
-          <a href={href("/processes/forms/new", { key: bo.form ? undefined : `${ed.process?.id ?? "form"}-${bo.id}` })} target="_blank" rel="noreferrer">New form</a>
+          {bo.form && <><a href={href(`/workflows/forms/${bo.form}`)} target="_blank" rel="noreferrer">Edit {bo.form}</a> · </>}
+          <a href={href("/workflows/forms/new", { key: bo.form ? undefined : `${ed.process?.id ?? "form"}-${bo.id}` })} target="_blank" rel="noreferrer">New form</a>
           {" "}(opens in a new tab; the field keys become process data for conditions)
         </small>
       </label>
@@ -402,17 +402,17 @@ function ServiceTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: a
         }} />
       <Text label="Instructions / parameters" value={bo.instructions} multiline
         onCommit={(v) => ed.set(el, { "fuzer:instructions": v })}
-        hint="Specify subjects, detector, time window and expected results. The worker passes these instructions with the process data to the read-only agent." />
+        hint="Specify subjects, detector, time window and expected results. The worker passes these instructions with the workflow data to the read-only agent." />
       <Select label="Agent" value={bo.agent} options={ctx.roles.agent}
         blank={lane?.agent ? `${lane.agent} (from the lane)` : "(choose)"} onChange={(v) => ed.set(el, { "fuzer:agent": v })}
         hint="A worker claims the step, runs this agent and records its result." />
-      <Select label="If the agent keeps failing" value={bo.fallbackRole} options={ctx.roles.person} blank="the process owner"
+      <Select label="If the agent keeps failing" value={bo.fallbackRole} options={ctx.roles.person} blank="the workflow owner"
         onChange={(v) => ed.set(el, { "fuzer:fallbackRole": v })} hint="The role that gets the step after the retries." />
       <Select label="Confidence gate" value={bo.gate} options={Object.keys(CONFIDENCE_GATES)} labels={CONFIDENCE_GATES}
         blank="(none: the result goes on)" onChange={(v) => ed.set(el, { "fuzer:gate": v })}
         hint="The agent's result goes on only at or above the policy's threshold for the asset's criticality (Settings)." />
       {bo.gate && <Select label="Below it, stops at" value={bo.gateRole} options={ctx.roles.person}
-        blank={bo.fallbackRole ? `${human(bo.fallbackRole)} (the fallback role)` : "the process owner"}
+        blank={bo.fallbackRole ? `${human(bo.fallbackRole)} (the fallback role)` : "the workflow owner"}
         onChange={(v) => ed.set(el, { "fuzer:gateRole": v })} hint="The role whose queue gets it, with the reason." />}
       {bo.requiresHuman && (
         <Check label="Needs a person" checked onChange={() => ed.set(el, { "fuzer:requiresHuman": undefined })}
@@ -443,7 +443,7 @@ function GatewayProps({ ed, el }: { ed: Editing; el: any }) {
         </div>
       ))}
       {bo.default && <Button size="sm" onClick={() => ed.set(el, { default: undefined })}>No default</Button>}
-      <small>The first branch whose condition is true is taken; the default when none is. Conditions read the process data
+      <small>The first branch whose condition is true is taken; the default when none is. Conditions read the workflow data
         (form fields, agent results) and <code>thresholds["…"]</code>.</small>
     </div>
   );
@@ -471,7 +471,7 @@ function TimerProps({ ed, el, def }: { ed: Editing; el: any; def: any }) {
       <Select label="Timer" value={kind} options={TIMER_KINDS.map(([k]) => k)} labels={Object.fromEntries(TIMER_KINDS.map(([k, l]) => [k, l]))}
         onChange={(v) => put(v ?? "timeDuration", body)} />
       <Text label="When" value={body} mono placeholder={TIMER_KINDS.find(([k]) => k === kind)![2]}
-        onCommit={(v) => put(kind, v)} hint="ISO 8601, or an expression over the process data." />
+        onCommit={(v) => put(kind, v)} hint="ISO 8601, or an expression over the workflow data." />
     </>
   );
 }
@@ -482,7 +482,7 @@ function MessageProps({ ed, el, def }: { ed: Editing; el: any; def: any }) {
   return (
     <Text label="Message" value={def.messageRef?.name} mono placeholder="evidence" list="fz-messages"
       onCommit={(v) => ed.setOn(def, { messageRef: v ? ed.message(v) : undefined }, el)}
-      hint="Reaches the open process with the same correlation key: evidence (agents' send_evidence), notification_raised, comment, or your own name." />
+      hint="Reaches the open workflow with the same correlation key: evidence (agents' send_evidence), notification_raised, comment, or your own name." />
   );
 }
 

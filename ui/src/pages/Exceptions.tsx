@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, type ExceptionRow, type Readiness } from "../api";
 import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty } from "../ui";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
 import { holder, reportedBy, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display, type EntityNames } from "../entityRefs";
@@ -261,7 +261,7 @@ function Row({ r, person, people, queues, onChange }: {
         <span className="muted">{event ? ` · happened ${day(event)}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</span>
       </div>
       <div className="work-row-with small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
-        : r.planned ? <a href={href("/plan")}>planned {dayStamp(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
+        : r.planned ? <a href={planItemHref(r.planned)}>planned {dayStamp(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
         : <span className="muted">not dispatched</span>}
         {fieldSaid && <div title={fieldSaid.note ?? undefined}>
           <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>
