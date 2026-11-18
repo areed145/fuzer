@@ -68,6 +68,8 @@ application permission; who gets which work is a workflow role ([page ownership]
 The menu holds eight destinations. On a phone, the bottom bar keeps Home, My work, Explore and Investigate in
 thumb reach, and **Menu** opens the rest, including Plan.
 
+![The menu on a phone](../assets/screens/guides/nav-menu-phone.png){ loading=lazy width="320" align=right }
+
 | Destination | What it is for | Main pages |
 |---|---|---|
 | **Home** | Where attention is needed now, on the field map and as a list | Home |

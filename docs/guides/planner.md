@@ -46,6 +46,8 @@ so the IOC sees it too.
 Open **Plan > Schedules** and pick one (for example **OK-TAR-2026**, the Okan 2026 turnaround) to open it as a Gantt board. Activities are grouped by work order with
 their logic drawn; switch **Rows** to **Resources** to see the same work by crew, crane or other shared resource.
 
+![Plan > Schedules: turnarounds, projects and campaigns](../assets/screens/guides/schedules-desktop.png){ loading=lazy }
+
 - Drag a bar to hold its start; drag its right edge to change how long it takes.
 - Select an activity and drag its dot to another bar to link them (finish to start, start to start, finish to
   finish, start to finish).
