@@ -94,17 +94,17 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "handed_off": return { text: <>handed <strong>{e.element ?? "the item"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "escalated": return { text: escalation(e) };
     case "timer_fired": return { text: <>timer <strong>{e.element}</strong> fired</> };
-    case "message": return { text: <>sent {d.name} {d.delivered ? "and the process moved on" : "(kept as evidence)"}</>, body: <DataView data={d.payload} /> };
+    case "message": return { text: <>sent {d.name} {d.delivered ? "and the workflow moved on" : "(kept as evidence)"}</>, body: <DataView data={d.payload} /> };
     case "agent_failed": return { text: <>failed try {d.attempt} at <strong>{e.element}</strong>; retrying</>, body: <p className="small error">{d.error}</p> };
     case "failed": return { text: <><strong>{e.element}</strong> couldn't go on; it is a task for {to(`role:${d.role}`)}</>, body: <p className="small error">{d.error}</p> };
     case "step_cancelled": return { text: <><strong>{e.element}</strong> was cancelled</>, body: d.why && <p className="small">{d.why}</p> };
-    case "completed_process": return { text: <>process {d.state}: <strong>{d.outcome}</strong></> };
+    case "completed_process": return { text: <>workflow {d.state}: <strong>{d.outcome}</strong></> };
     case "state_changed": return { text: <>item is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "commented": return { text: <>commented</>, body: <p className="section-text small">{d.text}</p> };
     case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">
       <p className="small"><strong>{d.question}</strong></p><Markdown text={String(d.answer ?? "")} /></div> };
-    case "cancelled": return { text: <>cancelled the process</>, body: d.reason && <p className="small">{d.reason}</p> };
-    case "migrated": return { text: <>moved the process to v{d.version}</> };
+    case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <p className="small">{d.reason}</p> };
+    case "migrated": return { text: <>moved the workflow to v{d.version}</> };
     case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
     case "auto_assigned": return { text: <><strong>{step ?? e.element}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
     case "delegated": return { text: <><strong>{e.element ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <p className="small">{d.reason}</p> };

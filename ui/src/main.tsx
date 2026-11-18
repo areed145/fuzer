@@ -52,7 +52,7 @@ import { startOutbox } from "./fieldOffline";
 import "./styles/field-mode.css";
 
 /** Pages that change configuration, where the demo account looks but can't change (#1068). */
-const VIEW_ONLY_SECTIONS = new Set(["sources", "ontology", "jobs", "settings", "users", "access", "processes", "routing"]);
+const VIEW_ONLY_SECTIONS = new Set(["sources", "ontology", "jobs", "settings", "users", "access", "processes", "workflows", "routing"]);
 import { UsersPage } from "./pages/Users";
 import { RoutingPage } from "./pages/Routing";
 
@@ -126,8 +126,8 @@ function App() {
     if (section !== "work") return;
     const task = query.get("task");
     const to = path[1] === "item" && path[2] ? `/cases/${path[2]}`
-      : path[1] === "processes" ? `/processes${path[2] ? `/${path[2]}` : ""}`
-      : path[1] === "forms" && path[2] ? `/processes/forms/${path[2]}`
+      : path[1] === "processes" ? `/workflows${path[2] ? `/${path[2]}` : ""}`
+      : path[1] === "forms" && path[2] ? `/workflows/forms/${path[2]}`
       : task ? `/inbox/task/${task}` : "/inbox";
     location.replace(href(to, Object.fromEntries([...query.entries()].filter(([k]) => k !== "task" && k !== "tab"))));
   }, [section, path, query]);
@@ -159,7 +159,7 @@ function App() {
         {/* The account is the round badge at the top right on every screen, as on the phone. */}
         <div className="page-account"><AccountButton /></div>
         <BackButton path={path} className="page-back" />
-        <AreaNavigation section={navSection} demoEnabled={demo.data?.enabled === true} />
+        <AreaNavigation section={navSection} query={query} demoEnabled={demo.data?.enabled === true} />
         <PageNote.Provider value={viewOnly && VIEW_ONLY_SECTIONS.has(section)
           ? <p className="notice view-only" role="note">View only: the demo account can look at this page but can't change it.</p> : null}>
         <Suspense fallback={<div className="status" role="status" aria-live="polite">Loading…</div>}>
@@ -213,11 +213,11 @@ function App() {
             <PlanPage query={query} />
           ) : section === "cases" && path[1] ? (
             <CasePage key={path[1]} id={Number(path[1])} demo={query.get("demo") === "workflow"} />
-          ) : section === "processes" && path[1] === "forms" && path[2] ? (
+          ) : (section === "processes" || section === "workflows") && path[1] === "forms" && path[2] ? (
             <FormPage key={path[2]} formKey={path[2]} query={query} />
-          ) : section === "processes" && path[1] ? (
+          ) : (section === "processes" || section === "workflows") && path[1] ? (
             <ProcessPage key={path[1]} processKey={path[1]} query={query} />
-          ) : section === "processes" ? (
+          ) : section === "processes" || section === "workflows" ? (
             <ProcessesPage />
           ) : section === "teams" ? (
             <TeamsPage query={query} />

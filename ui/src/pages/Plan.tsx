@@ -2,13 +2,14 @@
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { acronyms, dayStamp } from "../wording";
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
-import { Badge, Button, ButtonLink, Card, Input, PageHeader, Select, Empty } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
+import { Status, entityHref, href, useAsync } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
 import { ResourcesPage } from "./Resources";
+import { SchedulesPage } from "./Schedules";
 import { usePerson } from "../work";
 import { useAct } from "./workflows/shared";
 import { useEntityNames } from "../useEntityNames";
@@ -25,22 +26,32 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
   const schedule = query.get("schedule");
   // `?resources=1` is the resource owners' view: demand from every source against each resource's capacity.
   if (query.has("resources")) return <ResourcesPage query={query} person={person} />;
+  // `?schedules=1` lists the schedules (Plan's Schedules page).
+  if (query.has("schedules")) return <SchedulesPage />;
   return schedule ? <SchedulePage code={schedule} person={person} view={query.get("view")} /> : <PlanTimeline query={query} person={person} />;
 }
 
 function PlanTimeline({ query, person }: { query: URLSearchParams; person: string | null }) {
-  const schedules = useAsync(() => api.schedules(), []);
   // `?revision=TA26` opens that turnaround beside the timeline; `?revision=` opens the next one.
   const revision = query.has("revision") ? query.get("revision") ?? "" : null;
   const scope = useAsync(() => api.turnaround(revision || undefined), [revision]);
   const turnaround = revision !== null ? scope.data : undefined;
   const pick = (r: string) => { location.hash = r ? `#/plan?revision=${encodeURIComponent(r)}` : "#/plan"; };
-  const [from, setFrom] = useState(() => day(new Date(Date.now() - 7 * DAY)));
+  // `?item=12&from=…` comes from a work item's "planned" link: its bar opens, in a window that holds it.
+  const [from, setFrom] = useState(() => query.get("from") ?? day(new Date(Date.now() - 7 * DAY)));
   const [weeks, setWeeks] = useState(8);
   const to = day(new Date(new Date(from).getTime() + weeks * 7 * DAY));
   const plan = useAsync(() => api.plan({ start: from, end: to }), [from, to]);
   const { busy, error, run } = useAct();
-  const [open, setOpen] = useState<number | null>(null);
+  const [open, setOpen] = useState<number | null>(() => Number(query.get("item")) || null);
+  const askedItem = Number(query.get("item")) || null, askedFrom = query.get("from");
+  useEffect(() => {
+    if (askedItem) setOpen(askedItem);
+    if (askedFrom) setFrom(askedFrom);
+  }, [askedItem, askedFrom]);
+  useEffect(() => {
+    if (open && plan.data) document.getElementById(`plan-item-${open}`)?.scrollIntoView({ block: "center" });
+  }, [plan.data]);  // eslint-disable-line react-hooks/exhaustive-deps
   const groups = useMemo(() => {
     const out = new Map<string, PlanItem[]>();
     for (const i of plan.data ?? []) {
@@ -78,8 +89,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
   return (
     <section>
       <PageHeader subtitle="Planned activity from every source on one timeline."
-        actions={<><ButtonLink href="#/plan?resources=1">Resources</ButtonLink>
-          <Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button></>}>
+        actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
         Plan</PageHeader>
       <div className="row">
         <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
@@ -89,11 +99,6 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
         {!!scope.data?.revisions?.length && <label className="small">Turnaround <Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
           <option value="">None shown</option>
           {scope.data.revisions.map((r) => <option key={r} value={r}>{r}</option>)}
-        </Select></label>}
-        {!!schedules.data?.length && <label className="small">Schedule <Select aria-label="Open a schedule" value=""
-          onChange={(e) => { if (e.target.value) location.hash = `#/plan?schedule=${encodeURIComponent(e.target.value)}`; }}>
-          <option value="">Open…</option>
-          {schedules.data.map((x) => <option key={x.code} value={x.code}>{x.code} · {x.activities} activities</option>)}
         </Select></label>}
         <Badge>{plan.data.length} items</Badge>
         {clashes > 0 && <Badge tone="danger">{clashes} with a clash</Badge>}
@@ -119,7 +124,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
               {today > 0 && today < 100 && <span className="plan-axis-today">Today</span>}
             </div>
           </div>
-          <ul className="plan-rows">{list.map((i) => <li key={i.id} className={`plan-row status-${i.status}`}>
+          <ul className="plan-rows">{list.map((i) => <li key={i.id} id={`plan-item-${i.id}`} className={`plan-row status-${i.status}`}>
             <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
               <strong>{acronyms(i.title)}</strong>
               <span className="muted small"> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${i.crew}` : ""}</span>
@@ -161,6 +166,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
           `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</p>}
       <p className="small">{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</p>
+      {item.exception_id != null && <p className="small"><a href={href("/exceptions", { list: "open", q: item.title })}>Open this work in All work</a></p>}
       <p className="small muted">{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
         {item.deferment_usd != null ? ` · $${Math.round(item.deferment_usd).toLocaleString()} at risk` : ""}</p>
       {person ? <div className="row">

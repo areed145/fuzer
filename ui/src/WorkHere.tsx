@@ -3,7 +3,7 @@
 import { dayStamp } from "./wording";
 import { api } from "./api";
 import { Badge, Card } from "./ui";
-import { href, useAsync } from "./lib";
+import { href, planItemHref, useAsync } from "./lib";
 import { holder, when } from "./work";
 
 const day = (at: string) => dayStamp(at);
@@ -25,7 +25,7 @@ export function WorkHere({ id, area, data }: { id: string; area: boolean; data?:
         <ul className="plain small">{exceptions.map((x) => <li key={x.id}>
           <a href={href("/exceptions")}>{x.title}</a> <span className="muted">{x.type.replace(/_/g, " ")} · last {when(x.last_seen)}</span>{" "}
           {x.item_id ? <a href={href(`/cases/${x.item_id}`)}>with {holder(x.assignee, x.role)}</a>
-            : x.planned ? <span className="muted">planned</span> : <Badge tone="warn">not dispatched</Badge>}
+            : x.planned ? <a className="muted" href={planItemHref(x.planned)}>planned {dayStamp(x.planned.start_at)}</a> : <Badge tone="warn">not dispatched</Badge>}
         </li>)}</ul>
       </>}
       {items.length > 0 && <>

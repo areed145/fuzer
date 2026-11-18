@@ -395,21 +395,21 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
     <UICard className="">
       <div className="row spread">
         <h3>
-          <a href={processHref(p.process_key)} title={`version ${p.version}`}>{p.process_key.replace(/_/g, " ")} process</a>{" "}
+          <a href={processHref(p.process_key)} title={`version ${p.version}`}>{p.process_key.replace(/_/g, " ")} workflow</a>{" "}
           <span className="muted small">{cap(p.state)}{p.outcome ? `: ${say(p.outcome)}` : ""}</span>
         </h3>
         <span className="small muted" title={p.correlation_key ? `key ${p.correlation_key}` : undefined}>
           started {when(p.started_at)} by <Actor who={p.started_by} />
           {p.state === "running" && person && reload && (
             <> · <Button variant="link" disabled={!!a.busy}
-              onClick={() => confirm("Cancel this process? Its open steps are cancelled.") &&
-                a.run("cancel", () => api.cancelProcess(p.id, person, "cancelled from the case page"), reload)}>cancel process</Button></>
+              onClick={() => confirm("Cancel this workflow? Its open steps are cancelled.") &&
+                a.run("cancel", () => api.cancelProcess(p.id, person, "cancelled from the case page"), reload)}>cancel workflow</Button></>
           )}
         </span>
       </div>
       <Status loading={xml.loading} error={xml.error} />
       {xml.data && <Suspense fallback={<div className="status">Loading diagram…</div>}><BpmnView xml={xml.data} marks={marks} /></Suspense>}
-      <Disclosure className="small" label={<>Process data</>}><DataView data={p.data} /></Disclosure>
+      <Disclosure className="small" label={<>Workflow data</>}><DataView data={p.data} /></Disclosure>
       {a.error && <p className="error small">{a.error}</p>}
     </UICard>
   );

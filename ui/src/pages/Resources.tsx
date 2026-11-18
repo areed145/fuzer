@@ -20,8 +20,7 @@ export function ResourcesPage({ query, person }: { query: URLSearchParams; perso
   const go = (code: string) => { location.hash = `#/plan?resources=1${code ? `&resource=${encodeURIComponent(code)}` : ""}`; };
   return (
     <section>
-      <PageHeader subtitle="Demand on each shared resource from every source on the plan, against its capacity."
-        actions={<ButtonLink href="#/plan">Plan</ButtonLink>}>Resources</PageHeader>
+      <PageHeader subtitle="Demand on each shared resource from every source on the plan, against its capacity.">Resources</PageHeader>
       <div className="row">
         <label className="small">Resource <Select aria-label="Resource" value={pick} onChange={(e) => go(e.target.value)}>
           <option value="">All</option>
@@ -59,7 +58,8 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
         {over > 0 ? <Badge tone="danger">over capacity on {over} {over === 1 ? "day" : "days"}</Badge> : <Badge tone="ok">within capacity</Badge>}
         {r.sources.map((s) => <span key={s} className="load-legend small"><span className={`load-swatch ${color(s)}`} />{s}</span>)}
       </div>
-      {r.counts.length > 0 && <p className="small">Counts everyone working on {r.counts.join(", ")}.</p>}
+      {r.counts.length > 0 && <p className="small">{r.kind === "seats" ? `Counts ${r.counts.join(", ")} flying out for their first job on a schedule and back after their last.`
+        : `Counts everyone working on ${r.counts.join(", ")}.`}</p>}
       {r.routine_load && <p className="small">{r.routine_load.source} hold {num(r.routine_load.quantity)} the whole time: {r.routine_load.basis}.</p>}
       <div className="load-cols" role="img" aria-label={`${r.name}: ${over ? `over capacity on ${over} days` : "within capacity"}`}>
         {r.days.map((d) => <span role="button" tabIndex={0} key={d.day} aria-pressed={day === d.day} aria-label={`${dayStamp(d.day)}: ${num(d.demand)} of ${num(d.capacity)}`}

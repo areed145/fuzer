@@ -812,7 +812,7 @@ export interface ResourceMove {
 }
 export interface ResourceOverload {
   from: string; to: string; peak: number; capacity: number; over_by: number;
-  jobs: { item_id: number; title: string; source: string; code: string | null; quantity: number }[]; moves: ResourceMove[];
+  jobs: { item_id: number | null; title: string; source: string; code: string | null; quantity: number }[]; moves: ResourceMove[];
 }
 export interface ResourceLoad {
   code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];

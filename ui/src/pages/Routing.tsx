@@ -9,7 +9,7 @@ import { ExceptionTypes } from "./Exceptions";
 const BpmnView = lazy(() => import("../BpmnView"));
 
 /** Where each type of work goes when it arrives (#507, #509): one table, each type's process drawn with the people
- * who hold its lanes, and a dry run that writes nothing. Processes are edited on Processes; role SLAs on Users. */
+ * who hold its lanes, and a dry run that writes nothing. Workflows are edited on Workflows (under Work); role SLAs on Users. */
 export function RoutingPage({ query }: { query: URLSearchParams }) {
   const routes = useAsync(() => api.routes(), []);
   const type = query.get("type");
@@ -43,8 +43,8 @@ const words = (name: string | null) => (name ?? "").replace(/^role:/, "").replac
 function Starts({ r }: { r: Route }) {
   if (!r.process) return <span className="muted">waits for the IOC to dispatch</span>;
   // Most types start the plain queue process, so only a different process is worth naming.
-  const process = <a href={href(`/processes/${r.process}`)}>{words(r.process)}</a>;
-  if (!r.role) return <>the {process} process</>;
+  const process = <a href={href(`/workflows/${r.process}`)}>{words(r.process)}</a>;
+  if (!r.role) return <>the {process} workflow</>;
   return <><a href={href("/teams", { role: r.role })}>{words(r.role)} queue</a>{r.process !== "queue_item" && <> via {process}</>}</>;
 }
 
@@ -118,7 +118,7 @@ function Explanation({ x }: { x: RouteExplanation }) {
         <td className="small">{s.escalation.length ? s.escalation.map(words).join(" → ") : <span className="muted">stays with its role</span>}</td>
       </tr>)}</tbody>
     </Table>}
-    {x.process && <p className="small"><a href={href(`/processes/${x.process.key}`)}>Edit the {x.process.key} process</a>
+    {x.process && <p className="small"><a href={href(`/workflows/${x.process.key}`)}>Edit the {x.process.key} workflow</a>
       {" · "}<a href={href("/users", { view: "workflow" })}>role SLAs and escalation</a></p>}
   </>;
 }

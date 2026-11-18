@@ -1944,11 +1944,11 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.getByRole("link", { name: "Explore", exact: true }).waitFor();
-  const expected = ["#/", "#/browse", "#/downtime", "#/exceptions", "#/sources", "#/jobs", "#/settings"];
+  const expected = ["#/", "#/exceptions", "#/plan", "#/browse", "#/downtime", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Work", "Plan", "Explore", "Investigate", "Sources", "Jobs", "Settings"]);
   // Demo left the menu; its page still opens from a direct link.
   await page.goto(`${url}/#/demo`);
   await page.getByRole("heading", { level: 1, name: "Demo", exact: true }).waitFor();
@@ -1965,10 +1965,14 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "My work", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/exceptions", "#/inbox", "#/plan", "#/masterdata"]);
+    ["#/exceptions", "#/inbox", "#/workflows", "#/masterdata"]);
   // The pages that left Work's nav still open, under the entry that owns them now (#554).
+  await page.route("**/plan/schedules", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: "2026-11-01", end: "2026-12-01", days: 30, resources: [] } }));
+  await page.route("**/plan/resources", (route) => route.fulfill({ json: [] }));
   for (const [route, owner, area] of [["#/handover", "My work", "Work pages"], ["#/review", "Master data", "Work pages"],
-    ["#/processes", "Processes", "Settings pages"]]) {
+    ["#/processes", "Workflows", "Work pages"],
+    ["#/plan?resources=1", "Resources", "Plan pages"], ["#/plan?schedules=1", "Schedules", "Plan pages"]]) {
     await page.goto(`${url}/${route}`);
     await page.getByRole("navigation", { name: area, exact: true }).locator(`a[aria-current="page"]`, { hasText: owner }).waitFor();
   }
@@ -2001,6 +2005,7 @@ test("primary destination navigation keeps page headings and active context alig
     { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
     { label: "Investigate", href: "#/downtime", heading: "Downtime", area: "Investigate pages", current: "Downtime" },
     { label: "Work", href: "#/exceptions", heading: "All work", area: "Work pages", current: "All work" },
+    { label: "Plan", href: "#/plan", heading: "Plan", area: "Plan pages", current: "Plan" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
     { label: "Jobs", href: "#/jobs", heading: "Jobs" },
     { label: "Settings", href: "#/settings", heading: "Application settings", area: "Settings pages", current: "Application settings" },
@@ -3337,7 +3342,7 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
     exc(1, { title: "3rd stage compressor tripped", value_usd: 120000, raised_count: 2 }),
     exc(2, { title: "Separator level high", type: "iow_breach", source: "historian", first_seen: ago(15) }),
     exc(3, { title: "Low output from export pump", item_id: 31, assignee: "riley", value_usd: 31000 }),
-    exc(4, { title: "PSV recertification overdue", planned: { id: 1, start_at: "2026-11-17T07:00:00Z", end_at: "2026-11-17T12:00:00Z", crew: "crew B" } }),
+    exc(4, { title: "PSV recertification overdue", planned: { id: 1, start_at: new Date(Date.now() + 3 * 86_400_000).toISOString(), end_at: new Date(Date.now() + 3.2 * 86_400_000).toISOString(), crew: "crew B" } }),
     exc(5, { title: "Seal leak at export pump B", item_id: 32, assignee: "sam",
       evidence: { field: [{ at: ago(185), by: "sam", status: "on_site", note: null }] } }),
     exc(6, { title: "Drain valve weeping", type: "round_finding", source: "rounds", item_id: 33, role: "operator" }),
@@ -3550,6 +3555,15 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   await page.setViewportSize({ width: 390, height: 900 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await waveScreenshot("plan");
+  // A work item's "planned" link opens its bar on Plan, and a bar planned from work links back to it in All work.
+  items[1] = { ...items[1], exception_id: 9, source: "exceptions", source_key: "9" };
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/plan?item=2&from=${at(3).slice(0, 10)}`);
+  const back = page.getByRole("link", { name: "Open this work in All work" });
+  await back.waitFor();
+  assert.equal(await back.getAttribute("href"), "#/exceptions?list=open&q=North+train+overhaul");
+  assert.equal(await page.getByRole("button", { name: /North train overhaul/ }).getAttribute("aria-expanded"), "true");
+  assert.equal(await page.getByLabel("From").inputValue(), at(3).slice(0, 10));
 });
 
 test("an asset's page shows the open exceptions about it and the work planned on it", async () => {
@@ -3694,7 +3708,7 @@ test("a turnaround shows its scope on the plan and brings planned work into it",
   await page.waitForURL(/#\/plan\?revision=$/);
   await page.getByRole("heading", { level: 1, name: "Plan", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Turnaround TA26" }).waitFor();
-  assert.equal(await page.getByRole("navigation", { name: "Work pages", exact: true })
+  assert.equal(await page.getByRole("navigation", { name: "Plan pages", exact: true })
     .getByRole("link", { name: "Plan", exact: true }).getAttribute("aria-current"), "page");
   await page.getByText("North train overhaul").waitFor();
   await page.getByText("1 spares out of stock").waitFor();
@@ -6013,7 +6027,7 @@ test("a process page says where you are, what each step of a change does, and re
   await page.route("**/work/definitions/1/routing", flaky([]));
   await page.goto(`${url}/#/processes/shift_handover?tab=model`);
   await page.getByTestId("where-you-are").filter({ hasText: "You're looking at draft v3 (not checked yet); v2 is published, with 4 running." }).waitFor();
-  const tabs = page.getByRole("navigation", { name: "Process views" });
+  const tabs = page.getByRole("navigation", { name: "Workflow views" });
   assert.equal(await tabs.getByRole("link", { name: "Model" }).getAttribute("aria-current"), "page");
   const steps = page.getByRole("list", { name: "How a change goes live" });
   assert.match(await steps.locator('[aria-current="step"]').innerText(), /^Draft/);
@@ -6071,7 +6085,7 @@ test("the task form editor previews, survives a failed save, and recovers a miss
   await page.goto(`${url}/#/processes/forms/gone`);
   const missing = page.getByRole("alert").filter({ hasText: "There is no form “gone”." });
   await missing.waitFor();
-  assert.equal(await missing.getByRole("link", { name: "Create it" }).getAttribute("href"), "#/processes/forms/new?key=gone");
+  assert.equal(await missing.getByRole("link", { name: "Create it" }).getAttribute("href"), "#/workflows/forms/new?key=gone");
   await missing.getByRole("link", { name: "Create it" }).click();
   const key = page.getByLabel("Form key");
   assert.equal(await key.inputValue(), "gone");
@@ -8298,8 +8312,10 @@ test("A planner works a schedule on an interactive Gantt board: drags an activit
     const [tx, ty] = await centre(to);
     await page.mouse.move(tx, ty, { steps: 6 });
   };
+  // A planner reaches a schedule from Plan's Schedules page.
   await page.goto(`${url}/#/plan`);
-  await page.getByLabel("Open a schedule").selectOption("OK-TAR-2026");
+  await page.getByRole("navigation", { name: "Plan pages", exact: true }).getByRole("link", { name: "Schedules", exact: true }).click();
+  await page.getByRole("link", { name: /Okan 2026 turnaround/ }).click();
   await page.getByRole("heading", { name: /Okan 2026 turnaround/ }).waitFor();
   await page.getByText("8 critical").waitFor();
   // Activities grouped by work order, the logic drawn between them.
