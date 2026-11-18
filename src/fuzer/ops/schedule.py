@@ -715,6 +715,42 @@ def set_resource(conn, code: str, by: str, name: str | None = None, kind: str | 
 
 
 
+def _crew_changes(conn, res, start: datetime, end: datetime) -> dict[str, list[dict]]:
+    """Seats' demand, worked out from the schedules: each crew a seats resource counts flies out at its peak size
+    the day its first job on a schedule starts and back the day its last job finishes. Per seats resource, one row
+    per crew, schedule and direction, lasting that day."""
+    seats = [r for r in res if r["kind"] == "seats" and r["counts"]]
+    if not seats:
+        return {}
+    crews = sorted({c for r in seats for c in r["counts"]})
+    names = {r["code"]: r["name"] for r in conn.execute("select code, name from plan_resource where code = any(%s)", (crews,))}
+    jobs = conn.execute(
+        """
+        select d.resource, i.project, i.start_at, i.end_at, d.quantity
+        from plan_demand d join plan_item i on i.id = d.item_id
+        where d.resource = any(%s) and i.status = any(%s) and i.project is not null and i.source = 'schedule'
+        """, (crews, list(plan.ACTIVE))).fetchall()
+    groups = defaultdict(list)
+    for j in jobs:
+        groups[(j["resource"], j["project"])].append(j)
+    moves = []
+    for (crew, project), js in sorted(groups.items()):
+        # the most of the crew working at once: how many travel
+        edges = sorted([(j["start_at"], 1, j["quantity"]) for j in js] + [(j["end_at"], 0, -j["quantity"]) for j in js])
+        size = peak = 0.0
+        for _, _, q in edges:
+            size += q
+            peak = max(peak, size)
+        first, last = min(j["start_at"] for j in js), max(j["end_at"] for j in js)
+        for way, at in (("flies out", first), ("flies back", last)):
+            day = at.replace(hour=0, minute=0, second=0, microsecond=0)
+            if day < end and day + timedelta(days=1) > start:
+                moves.append({"crew": crew, "id": None, "title": f"{names.get(crew, crew)} {way}", "kind": "crew_change",
+                              "project": project, "code": None, "source": "crew change", "source_key": None, "start_at": day,
+                              "end_at": day + timedelta(days=1), "status": "scheduled", "quantity": peak})
+    return {r["code"]: [m | {"resource": r["code"]} for m in moves if m["crew"] in r["counts"]] for r in seats}
+
+
 ROUND_CHECK_MINUTES = 4  # walking to a point, reading or checking it and keying it in
 ROUTINES = ("rounds",)
 
@@ -781,6 +817,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
         except PlanError:
             pass
     routine = routine_load(conn, res)
+    trips = _crew_changes(conn, res, start, end)
     out = []
     for r in res:
         code = r["code"]
@@ -790,7 +827,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
                 cap[h] = float(w["capacity"])
         use: list[dict[str, float]] = [defaultdict(float) for _ in range(hours)]
         jobs: list[list] = [[] for _ in range(hours)]
-        mine = [x for x in rows if x["resource"] == code]
+        mine = [x for x in rows if x["resource"] == code] + trips.get(code, [])
         for x in mine:
             for h in range(max(0, int(h_of(x["start_at"]))), min(hours, int(-(-h_of(x["end_at"]) // 1)))):
                 use[h][_source(x)] += x["quantity"]
@@ -812,11 +849,11 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
                 a = h
                 while h < hours and total[h] > cap[h] + EPS:
                     h += 1
-                in_run = {x["id"]: x for hh in range(a, h) for x in jobs[hh]}
+                in_run = {x["id"] or (x["title"], x["project"]): x for hh in range(a, h) for x in jobs[hh]}
                 over = max(total[hh] - cap[hh] for hh in range(a, h))
                 moves = []
                 for x in in_run.values():
-                    if x["status"] == "in_progress" or x["quantity"] + EPS < over:
+                    if x["status"] == "in_progress" or x["quantity"] + EPS < over or x["id"] is None:
                         continue  # started work stays; moving a job too small to clear the run doesn't clear it
                     shift = h_of(start + timedelta(hours=h)) - h_of(x["start_at"])
                     fl = floats.get(x["id"])

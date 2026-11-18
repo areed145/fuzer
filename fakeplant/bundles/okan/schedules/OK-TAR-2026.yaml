@@ -20,6 +20,9 @@ resources:
   - {code: NDT, name: Inspection and NDT technicians, kind: crew, capacity: 2}
   - {code: CRANE, name: Platform crane with rigging crew, kind: crane, unit: crane, capacity: 1}
   # every visiting crew member on a job needs a bed aboard while it runs; the core crew's beds are not in this count
+  # each visiting crew flies out for its first job and back after its last; the supply vessel stands by for the bundle
+  - {code: SEATS, name: Helicopter seats, kind: seats, unit: seats a day, capacity: 12, counts: [MECH, INST, SCAF, NDT]}
+  - {code: VESSEL, name: Supply vessel alongside, kind: vessel, unit: vessel, capacity: 1}
   - {code: BEDS, name: Beds for visiting crews, kind: beds, unit: beds, capacity: 14, counts: [MECH, INST, SCAF, NDT]}
 activities:
   # 1 Shut down and make safe
@@ -35,9 +38,9 @@ activities:
   - {code: A0120, wbs: "2.3", name: "Inspect the 20-K-2200B impeller", hours: 24, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {NDT: 2}, after: [A0100]}
   - {code: A0130, wbs: "2.4", name: "Box up, align and couple 20-K-2200B", hours: 36, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4, CRANE: 1}, after: [A0110, A0120]}
   # 3 Train A 3rd stage after-cooler retube
-  - {code: A0200, wbs: "3.1", name: "Pull the 20-E-2350A tube bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1}, after: [A0030, A0050]}
+  - {code: A0200, wbs: "3.1", name: "Pull the 20-E-2350A tube bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1, VESSEL: 1}, after: [A0030, A0050]}
   - {code: A0210, wbs: "3.2", name: "Retube the 20-E-2350A bundle", hours: 48, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3}, after: [A0200]}
-  - {code: A0220, wbs: "3.3", name: "Refit and hydrotest the 20-E-2350A bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1}, after: [A0210]}
+  - {code: A0220, wbs: "3.3", name: "Refit and hydrotest the 20-E-2350A bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1, VESSEL: 1}, after: [A0210]}
   # 4 GGCP inlet separator
   - {code: A0300, wbs: "4.1", name: "Open and ventilate 20-V-2001", hours: 12, refs: [20-V-2001], order_of: 20-V-2001, needs: {MECH: 2}, after: [A0030, A0060]}
   - {code: A0310, wbs: "4.2", name: "Internal inspection of 20-V-2001 (confined space entry)", hours: 24, refs: [20-V-2001], order_of: 20-V-2001, needs: {NDT: 2}, after: [A0300]}
