@@ -31,7 +31,8 @@ def test_every_type_of_work_on_harrier_completes_the_loop(harrier_db, field_jobs
     assert res["synthetic"] == ["curve_to_confirm"], res["synthetic"]  # no Harrier datasheet has a curve to read
     # no wells, no flare meter, and too few alarmed tags to flood
     assert sorted(res["not_here"]) == ["alarm_flood", "flare_event", "gas_balance_gap", "gas_lift_instability",
-                                     "inspection_due", "repeat_leak", "well_test_review"], res["not_here"]
+                                     "inspection_due", "parts_not_ready", "repeat_leak",
+                                     "well_test_review"], res["not_here"]
     # the field's done goes back to SAP through the write-back queue: a named planner approves it, it goes in SAP's
     # batch, and SAP's confirm releases the case (#751); work no system raised says it has nowhere to go
     assert done["sap_notification"]["steps"]["write_back"].startswith("complete SAP "), done["sap_notification"]

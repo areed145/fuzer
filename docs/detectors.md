@@ -38,6 +38,8 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`gas_balance_gaps`](#gas_balance_gaps) The daily gas balance staying open for days: a meter likely off | Rule | Once a day | `gas_balance_gap` | Any asset with the inputs |
 | [`inspection_findings`](#inspection_findings) A line or vessel running out of wall, or overdue for inspection | Rule | Once a day | `inspection_due` | Any asset with the inputs |
 | [`ili_anomalies`](#ili_anomalies) A pig run anomaly that crosses the strength or depth screen | Rule | Once a day | `ili_anomaly` | Any asset with the inputs |
+| [`parts_not_ready`](#parts_not_ready) A planned job whose reserved parts won't be there on the day | Rule | Once a day | `parts_not_ready` | Any asset with the inputs |
+| [`permit_lapsed`](#permit_lapsed) A permit lapsed with plant still isolated under it | Rule | Every hour | `permit_lapsed` | Any asset with the inputs |
 | [`promoted_rules`](#promoted_rules) A rule drafted from confirmed watch findings and published by a person | Rule | Every 6 hours | `upset` | Any asset with the inputs |
 
 ## excursions
@@ -412,6 +414,26 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `ili_anomaly`
 - **Needs:** in-line inspection features
 - **Scored by:** `tests/evals/test_ili_harrier.py::test_an_ili_anomaly_over_the_screen_is_work`, on the fake plant
+
+## parts_not_ready
+
+**A planned job whose reserved parts won't be there on the day.** Each open work order with a reserved part on order too late, or short with nothing on order and no time left to get it, raised as `parts_not_ready` for the maintenance planner (keyed by the order); open ones now covered are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `parts_not_ready`
+- **Needs:** SAP reservations
+- **Scored by:** `tests/ops/test_parts_work.py::test_a_job_whose_parts_wont_arrive_is_work_until_covered`, on the fake plant
+
+## permit_lapsed
+
+**A permit lapsed with plant still isolated under it.** Each permit past its valid-to time and not closed, with isolations still applied or verified, raised as `permit_lapsed` for the ops lead (keyed by the permit); open ones closed, back in date or with nothing isolated are cleared.
+
+- **Kind:** Rule
+- **Runs:** Every hour
+- **Raises:** `permit_lapsed`
+- **Needs:** permits to work with their isolations
+- **Scored by:** `tests/ops/test_permit_work.py::test_a_lapsed_permit_with_plant_isolated_is_work_until_closed`, on the fake plant
 
 ## promoted_rules
 

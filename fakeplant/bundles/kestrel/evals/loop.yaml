@@ -75,3 +75,6 @@ arrive:
   # The inspection pack's own work (P3.12): D1-V-4001's wall loss leaves it under five years to retirement
   inspection_due: {detector: inspection_findings}
   ili_anomaly: {not_here: "no in-line inspection export: its lines are surveyed by thickness readings, not pig runs"}
+  parts_not_ready: {not_here: "no SAP reservations export: no open order reserves a part"}
+  # The permit to work system's own work (P3.14): glycol pump B's quarterly service: lapsed three days ago, its suction valve still locked shut
+  permit_lapsed: {detector: permit_lapsed}

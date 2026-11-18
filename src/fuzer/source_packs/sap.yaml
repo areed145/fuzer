@@ -5,4 +5,4 @@ fuzer_source_pack: 1
 system: {name: sap}
 datasets: [sap_floc, sap_equipment, sap_bom, sap_materials, sap_purchase_orders, sap_reservations, sap_work_centers, sap_maintenance_plans, sap_notifications, sap_work_orders, sap_maintenance_codes]
 optional: [sap_maintenance_codes, sap_purchase_orders, sap_reservations, sap_work_centers]
-detectors: [records_gaps]
+detectors: [records_gaps, parts_not_ready]

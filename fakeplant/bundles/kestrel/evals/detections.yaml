@@ -93,6 +93,13 @@ detectors:
     events:
       - {key: "D1-V-4001", from: "today", to: "today"}  # under five years of wall left
 
+  permit_lapsed:  # permits are dated from the day they are read, so is the run
+    since: "today"
+    until: "today+1d"
+    at: ["today"]
+    events:  # glycol pump B's quarterly service: lapsed three days ago, its suction valve still locked shut
+      - {key: "PTW-24102", from: "today", to: "today"}
+
   # The entries below land the next delivery in Kestrel's history first; what they land stays, so they come last.
   well_tests:
     deliver: {path: deliveries/well-test, datasets: [ec_well_tests], incremental: true, rebuild: true}
@@ -113,3 +120,4 @@ detectors:
   repeat_leaks: {not_here: "no LDAR survey export"}
   gas_balance_gaps: {not_here: "its daily report carries no fuel gas"}
   ili_anomalies: {not_here: "no in-line inspection export"}
+  parts_not_ready: {not_here: "no SAP reservations export: no open order reserves a part"}
