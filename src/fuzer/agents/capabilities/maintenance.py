@@ -363,7 +363,7 @@ def plot_crew_load(as_of: str | None = None, weeks: int = 26) -> dict[str, Any]:
 
 
 
-@capability("work-management-supply-chain", "orchestrator", kind="calc")
+@capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", kind="calc")
 def critical_path(project: str | None = None) -> dict[str, Any]:
     """A schedule on the integrated plan (P5.18; a turnaround's revision such as OK-TAR-2026, a project or a campaign;
     default: the next one): each activity's duration, early and late dates and total float in working hours, the
@@ -381,7 +381,7 @@ def critical_path(project: str | None = None) -> dict[str, Any]:
         return _plain(out)
 
 
-@capability("work-management-supply-chain", "orchestrator", kind="plot")
+@capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", kind="plot")
 def plot_gantt(project: str | None = None, levelled: bool = True) -> dict[str, Any]:
     """Chart a schedule on the integrated plan as a Gantt: a bar per activity at its levelled dates (early dates with
     levelled false), the critical path in red and the window's end marked. Use this instead of writing a diagram."""
