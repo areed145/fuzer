@@ -361,7 +361,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .gb-group .gb-label, .gb-group .gb-track { background-color: color-mix(in srgb, var(--muted) 10%, var(--panel)); }
 .gb-group .gb-label { flex-direction: row; align-items: flex-start; justify-content: flex-start; overflow: visible; border-right: 0; z-index: 4; padding-top: 3px; }
 .gb-group .gb-label strong { flex: none; max-width: min(78vw, 640px); padding-right: 6px; background-color: color-mix(in srgb, var(--muted) 10%, var(--panel)); }
-.gb-summary { position: absolute; top: 22px; height: 3px; background: var(--text); opacity: 0.55; border-radius: 1px; }
+.gb-rollup { position: absolute; top: 22px; height: 3px; background: var(--text); opacity: 0.55; border-radius: 1px; }
 .gb-puck { position: absolute; height: 24px; box-sizing: border-box; display: flex; align-items: center; border-radius: 5px;
   background: var(--accent); color: #fff; font-size: 12px; cursor: pointer; user-select: none; -webkit-user-select: none;
   touch-action: pan-y; overflow: hidden; z-index: 1; }
@@ -397,6 +397,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .gb-arrows .on path { stroke: var(--text); stroke-width: 1.75; opacity: 1; }
 .gb-arrows .on polygon { fill: var(--text); opacity: 1; }
 .gb-hint { position: absolute; right: 8px; top: -2.1rem; margin: 0; padding: 4px 8px; border-radius: 6px; background: var(--text); color: var(--panel); font-size: 12px; z-index: 5; }
+.gb-link { position: absolute; width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--text);
+  background: var(--panel); cursor: crosshair; touch-action: none; z-index: 4; }
+.gb-linking { stroke: var(--text); stroke-width: 1.75; stroke-dasharray: 4 3; }
+.gb-drop .gb-track, .gb-drop .gb-label { background-color: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+.gb[data-rows="resources"] .gb-puck.can-move { touch-action: none; }
 .gb-bar { align-items: center; }
 .gb-said { margin: 0.35rem 0; min-height: 1.2em; }
 .gb-panel .ui-card { margin: 0; }

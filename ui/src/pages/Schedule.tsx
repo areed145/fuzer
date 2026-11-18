@@ -43,7 +43,14 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
     if (!person) return;
     const a = s.activities.find((x) => x.id === c.id);
     if (!a) return;
-    const [say, forth, back] = c.kind === "stretch"
+    const named = (r: string | null) => (r ? s.resources.find((x) => x.code === r)?.name ?? r : "no shared resource");
+    const need = (r: string | null, q: number | null) => (r ? api.scheduleDemand(c.id, person, r, q) : Promise.resolve());
+    const [say, forth, back] = c.kind === "link"
+      ? [`${c.toCode} now follows ${c.code}.`, () => api.scheduleLink(person, c.id, c.to, "FS", 0), () => api.scheduleUnlink(person, c.id, c.to)] as const
+      : c.kind === "reassign"
+      ? [`${c.code} now needs ${named(c.to)}, not ${named(c.from)}.`, () => need(c.from, null).then(() => need(c.to, c.quantity)),
+         () => need(c.to, null).then(() => need(c.from, c.quantity))] as const
+      : c.kind === "stretch"
       ? [`${c.code} now takes ${hours(c.hours)} h.`, () => api.scheduleChange(c.id, person, { duration_hours: c.hours }),
          () => api.scheduleChange(c.id, person, { duration_hours: a.duration_hours ?? 0 })] as const
       : [c.earliest ? `${c.code} starts as early as its logic and crews allow.` : `${c.code} starts no earlier than ${stamp(c.start)}.`,
@@ -84,7 +91,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
       {over && <Notice tone="warn">This runs {s.overruns_window_by_days} days past the window. The finish waits
         on {[...new Set(s.levelled_chain.map((c) => c.waited_for).filter(Boolean))].join(", ") || "the logic"}.</Notice>}
       {error && <p role="alert" className="error">{error}</p>}
-      <p role="status" className="small gb-said">{busy ? `${busy}…` : said ?? (person ? "Drag an activity to move it, its right edge to change how long it takes." : "Choose who you are to change the schedule.")}</p>
+      <p role="status" className="small gb-said">{busy ? `${busy}…` : said ?? (person ? rows === "resources" ? "Drag an activity to move it, or onto another row to hand it to that resource." : "Drag an activity to move it, its right edge to change how long it takes. Select one and drag its dot to link it." : "Choose who you are to change the schedule.")}</p>
       <div className={panel ? "plan-layout with-panel" : "plan-layout"}>
         <ScheduleBoard s={s} rows={rows} zoom={zoom} selected={selected} canEdit={!!person && !busy}
           onSelect={(id) => { setSelected(id); if (id != null) setAdding(false); }} onChange={change} />
