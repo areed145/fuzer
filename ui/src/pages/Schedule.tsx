@@ -235,8 +235,9 @@ function Resources({ s, dates }: { s: ScheduleAnalysis; dates: Dates }) {
         const top = Math.max(1, ...days.map(use), ...days.map((d) => d.capacity ?? 0));
         const worst = days.reduce((m, d) => (use(d) - (d.capacity ?? Infinity) > use(m) - (m.capacity ?? Infinity) ? d : m), days[0]);
         const overDays = days.filter((d) => d.capacity != null && use(d) > d.capacity + 1e-6).length;
-        const h = (n: number): CSSProperties => ({ height: `${(n / top) * 100}%` });
-        const cap = (d: ScheduleDay): CSSProperties => ({ bottom: `${((d.capacity ?? 0) / top) * 100}%` });
+        const along = (n: number) => `${(n * 100) / top}%`;  // a bar's height on the chart's scale
+        const h = (n: number): CSSProperties => ({ height: along(n) });
+        const cap = (d: ScheduleDay): CSSProperties => ({ bottom: along(d.capacity ?? 0) });
         return <figure key={r} className="sched-histogram">
           <figcaption><strong>{info?.name ?? r}</strong> <span className="small">{r} · capacity {hours(info?.capacity)}{info?.unit ? ` ${info.unit}` : ""}</span>
             {overDays > 0 && <> <Badge tone="danger">over on {overDays} {overDays === 1 ? "day" : "days"}</Badge></>}</figcaption>
