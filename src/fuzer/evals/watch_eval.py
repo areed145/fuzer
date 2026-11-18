@@ -203,10 +203,11 @@ class Offline:
         self.missing: set[str] = set()
         self.asked: set[str] = set()
 
-    # Entity ids are minted at random when a database is built (`graph.resolve`), so the same window asks the same
-    # question with different ids on each build. The key numbers ids by first appearance instead, and an answer is
-    # read back with the ids of the prompt it was written for swapped, in the same order, for this run's.
-    ID = re.compile(r"\bfz-[a-z_]+-[0-9a-f]{12}\b")
+    # Entity ids are minted at random when a database is built (`graph.resolve`), and detections and exceptions are
+    # numbered in the order they land, so the same window asks the same question with different ids on each build. The
+    # key numbers ids by first appearance instead, and an answer is read back with the ids of the prompt it was written
+    # for swapped, in the same order, for this run's.
+    ID = re.compile(r"\bfz-[a-z_]+-[0-9a-f]{12}\b|\b(?:detection|exception):\d+\b")
 
     @classmethod
     def ids(cls, prompt: str) -> list[str]:

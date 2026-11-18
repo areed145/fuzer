@@ -66,5 +66,5 @@ subscription.
 3. Run the same command again to score. A run with any question unanswered doesn't pass, and an offline run never
    earns live mode.
 
-The key is a hash of the prompt with entity ids numbered in order, because ids are minted at random each time a
-database is built; an answer is read back with its ids mapped onto the current run's.
+The key is a hash of the prompt with entity ids and detection and exception numbers numbered in order, because they
+are minted afresh each time a database is built (the evidence itself is given in a fixed order); an answer is read back with its ids mapped onto the current run's.

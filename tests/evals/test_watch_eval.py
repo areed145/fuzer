@@ -115,22 +115,24 @@ def test_a_set_run_is_scored_over_all_its_windows(monkeypatch):
 
 def test_offline_answers_from_files(tmp_path):
     """Scored on a subscription: each question is written out, answered in a file, and read back on the next run, with
-    the ids minted for this database swapped in for the ones the answer was written against."""
+    the ids minted for this database (and the numbers its exceptions and detections landed with) swapped in for the
+    ones the answer was written against."""
     from fuzer.ops import watch
 
     old = 'Area: A\n{"id": "fz-timeseries-aaaaaaaaaaaa"} {"id": "fz-log_entry-bbbbbbbbbbbb"} exception:3'
     new = old.replace("aaaaaaaaaaaa", "cccccccccccc").replace("bbbbbbbbbbbb", "dddddddddddd")
     ask = watch_eval.Offline(tmp_path)
     assert ask(old)["answer"] == '{"proposals": []}' and ask.missing == {ask.key(old)}
-    assert ask.key(new) == ask.key(old) != ask.key(old.replace("exception:3", "exception:4"))
+    assert ask.key(new) == ask.key(old) == ask.key(old.replace("exception:3", "exception:4"))
+    assert ask.key(old) != ask.key(old.replace("Area: A", "Area: B"))
     assert (tmp_path / "prompts" / f"{ask.key(old)}.txt").read_text() == old
     (tmp_path / "answers").mkdir()
     (tmp_path / "answers" / f"{ask.key(old)}.md").write_text(
         'why\n```json\n{"proposals": [{"why": "x", "evidence": ["fz-timeseries-aaaaaaaaaaaa", "exception:3"]}]}\n```')
     again = watch_eval.Offline(tmp_path)
-    got = again(new)
+    got = again(new.replace("exception:3", "exception:7"))
     assert again.missing == set() and again.asked == {again.key(new)} and got["usage"]["cost_usd"] == 0
-    assert watch._parse(got["answer"])[0]["evidence"] == ["fz-timeseries-cccccccccccc", "exception:3"]
+    assert watch._parse(got["answer"])[0]["evidence"] == ["fz-timeseries-cccccccccccc", "exception:7"]
     # an offline run never earns live mode
     run = {"kind": "watch", "bundle": "b", "windows": [{}], "passes": True}
     assert watch.bar_met([run])["met"] and not watch.bar_met([{**run, "offline": True}])["met"]
