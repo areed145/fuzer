@@ -8272,10 +8272,11 @@ test("Ask's Gantt from a schedule on the plan draws at phone, iPad and desktop w
   }
 });
 
-test("A planner opens a schedule on Plan, reads its critical path and resources, and edits an activity at phone, iPad and desktop widths (P5.18)", async () => {
+test("A planner works a schedule on an interactive Gantt board: drags an activity, edits it beside the board, undoes, and switches to resources, at phone, iPad and desktop widths (P5.18)", async () => {
   const okan = JSON.parse(readFileSync(new URL("./fixtures/schedule-okan.json", import.meta.url)));
   const changes = [];
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
   await page.route("**/plan/schedules", (route) => route.fulfill({ json: okan.list }));
   await page.route("**/plan/schedules/OK-TAR-2026", (route) => route.fulfill({ json: okan.analysis }));
@@ -8291,29 +8292,56 @@ test("A planner opens a schedule on Plan, reads its critical path and resources,
   await page.getByLabel("Open a schedule").selectOption("OK-TAR-2026");
   await page.getByRole("heading", { name: /Okan 2026 turnaround/ }).waitFor();
   await page.getByText("8 critical").waitFor();
-  await page.getByText(/^Finishes /).waitFor();
-  await page.getByRole("heading", { name: "Resources" }).waitFor();
-  // Early dates show where the crew would be over capacity if nothing were levelled.
-  await page.getByLabel("Dates").selectOption("early");
-  await page.getByText(/over on \d+ days?/).first().waitFor();
-  await page.getByLabel("Dates").selectOption("levelled");
-  // A planner opens an activity, shortens it and adds a need.
-  await page.getByRole("button", { name: "A0100", exact: true }).click();
-  await page.getByLabel("Hours", { exact: true }).first().fill("30");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  // Activities grouped by work order, the logic drawn between them.
+  await page.locator(".gb-group", { hasText: "Overhaul train B 2nd stage compressor" }).waitFor();
+  assert.ok(await page.locator(".gb-arrows path").count() > 20, "the logic is drawn");
+  const puck = page.getByRole("button", { name: /^A0500 / });
+  await puck.scrollIntoViewIfNeeded();
+  // Drag it two days later: it is held to start no earlier than where it was dropped.
+  const box = await puck.boundingBox();
+  const day = (await page.locator(".gb-tick").nth(1).boundingBox()).x - (await page.locator(".gb-tick").nth(0).boundingBox()).x;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + day, box.y + box.height / 2, { steps: 4 });
+  await page.getByText(/A0500 starts /).waitFor();
+  await page.mouse.up();
   await expectReports(changes, 1);
   assert.equal(changes[0][0], "PATCH");
-  assert.equal(changes[0][1].duration_hours, 30);
+  assert.ok(new Date(changes[0][1].not_before) > new Date(okan.analysis.activities.find((a) => a.code === "A0500").start));
+  await page.getByText(/A0500 starts no earlier than/).waitFor();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expectReports(changes, 2);
+  assert.equal(changes[1][1].clear_not_before, true);
+  // Click an activity: its properties open beside the board, with its logic picked out.
+  await page.getByRole("button", { name: /^A0100 / }).click();
+  await page.getByRole("heading", { name: /A0100 Decouple/ }).waitFor();
+  assert.ok(await page.locator(".gb-arrows .on path").count() >= 2);
+  if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/board-selected-1280.png`, fullPage: true });
+  await page.getByLabel("Hours", { exact: true }).fill("30");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expectReports(changes, 3);
+  assert.equal(changes[2][1].duration_hours, 30);
+  await page.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Schedule", exact: true }).click();
-  await page.getByText(/Levelled dates are on the plan/).waitFor();
+  await page.getByText(/These dates are on the plan/).waitFor();
   assert.equal(changes.at(-1)[0], "apply");
-  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
-    await page.setViewportSize({ width: w, height: h });
-    await page.locator(".sched-bar").first().waitFor();
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `fits ${w} px`);
-    const bar = await page.locator(".sched-bar").nth(3).boundingBox();
-    assert.ok(bar && bar.width > 0, `the bars draw at ${w} px`);
-    if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/schedule-${w}.png`, fullPage: true });
+  // The same work by resource: a crew's row stacks what overlaps and carries its load against capacity.
+  await page.getByRole("navigation", { name: "Rows" }).getByRole("link", { name: "Resources" }).click();
+  const mech = page.locator(".gb-row", { hasText: "Mechanical fitters" });
+  await mech.getByText("6 of 6 people").waitFor();
+  assert.ok(await mech.locator(".gb-puck").count() >= 8);
+  assert.ok(await mech.locator(".gb-load.full").count() > 0);
+  for (const view of ["resources", "activities"]) {
+    await page.goto(`${url}/#/plan?schedule=OK-TAR-2026${view === "resources" ? "&view=resources" : ""}`);
+    for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.locator(".gb-puck").first().waitFor();
+      await page.waitForTimeout(150);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `fits ${w} px`);
+      const b = await page.locator(".gb-puck").nth(3).boundingBox();
+      assert.ok(b && b.width >= 6, `the pucks draw at ${w} px`);
+      if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/board-${view}-${w}.png`, fullPage: true });
+    }
   }
 });
 

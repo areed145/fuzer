@@ -478,6 +478,8 @@ create table if not exists plan_resource_capacity (
     reason    text,
     check (end_at > start_at)
 );
+-- a planner's constraint on a schedule activity: start no earlier than this (dragged on the Gantt)
+alter table plan_item add column if not exists not_before timestamptz;
 alter table plan_resource_capacity add column if not exists created_by text;
 alter table plan_resource_capacity add column if not exists created_at timestamptz not null default now();
 create table if not exists plan_demand (

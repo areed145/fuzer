@@ -181,3 +181,15 @@ def test_a_resource_owner_sees_demand_by_source_against_capacity_and_the_move_th
     assert any(d["capacity"] == 4 for d in mech["days"])
     schedule.remove_capacity_window(c, w["id"], "tests")
     c.rollback()
+
+
+def test_a_planner_holds_an_activity_to_start_no_earlier_and_lets_it_go(tar):
+    c, _ = tar
+    a = next(x for x in schedule.analyse(c, "OK-TAR-2026")["activities"] if x["code"] == "A0500")
+    later = a["start"] + timedelta(days=2)
+    schedule.change_activity(c, a["id"], "tests", not_before=later)
+    held = next(x for x in schedule.analyse(c, "OK-TAR-2026")["activities"] if x["code"] == "A0500")
+    assert held["start"] >= later and held["early_start"] >= later and held["not_before"] == later
+    schedule.change_activity(c, a["id"], "tests", not_before=None)
+    assert next(x for x in schedule.analyse(c, "OK-TAR-2026")["activities"] if x["code"] == "A0500")["start"] == a["start"]
+    c.rollback()

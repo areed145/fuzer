@@ -25,7 +25,7 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
   const schedule = query.get("schedule");
   // `?resources=1` is the resource owners' view: demand from every source against each resource's capacity.
   if (query.has("resources")) return <ResourcesPage query={query} person={person} />;
-  return schedule ? <SchedulePage code={schedule} person={person} /> : <PlanTimeline query={query} person={person} />;
+  return schedule ? <SchedulePage code={schedule} person={person} view={query.get("view")} /> : <PlanTimeline query={query} person={person} />;
 }
 
 function PlanTimeline({ query, person }: { query: URLSearchParams; person: string | null }) {

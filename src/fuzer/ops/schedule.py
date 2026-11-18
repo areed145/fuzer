@@ -449,7 +449,8 @@ def analyse(conn, code: str | None = None) -> dict:
         select i.*, la.label as area_label,
                coalesce((select json_agg(l.label order by n) from unnest(i.subjects) with ordinality u (s, n)
                          join entity_label l on l.fuzer_id = s), '[]') as asset_labels,
-               (select o.source_key from plan_item o where o.id = i.parent_id) as work_order
+               (select o.source_key from plan_item o where o.id = i.parent_id) as work_order,
+               (select o.title from plan_item o where o.id = i.parent_id) as group_title
         from plan_item i left join entity_label la on la.fuzer_id = i.area_id
         where i.project = %s and i.source = 'schedule' and i.status <> 'cancelled'
         order by i.wbs nulls last, i.code
@@ -468,6 +469,9 @@ def analyse(conn, code: str | None = None) -> dict:
     capacity, resources = _capacity_fn(conn, used, cal)
     finish_by = cal.hours(p["finish_by"]) if p["finish_by"] else None
     not_before = {a["id"]: max(0.0, cal.hours(a["start_at"])) for a in acts if a["status"] in ("in_progress", "done")}
+    for a in acts:  # a planner's "start no earlier than"
+        if a["not_before"] and a["status"] not in ("in_progress", "done"):
+            not_before[a["id"]] = max(not_before.get(a["id"], 0.0), cal.hours(a["not_before"]))
     cp = critical_path(dur, links, not_before)
     # Other planned work on the same resources in the window (an SAP order on the same work center, a campaign):
     # it holds capacity the schedule can't use, at its own dates.
@@ -497,7 +501,7 @@ def analyse(conn, code: str | None = None) -> dict:
         i = a["id"]
         rows.append({"id": i, "code": a["code"], "wbs": a["wbs"], "name": a["title"], "status": a["status"],
                      "duration_hours": a["duration_hours"], "percent_complete": a["percent_complete"],
-                     "work_order": a["work_order"], "assets": a["asset_labels"], "area": a["area_label"],
+                     "work_order": a["work_order"], "group": a["group_title"], "assets": a["asset_labels"], "area": a["area_label"],
                      "needs": demands.get(i, {}),
                      "predecessors": [{"code": label(pp), "type": t, "lag_hours": lag} for pp, s, t, lag in links if s == i],
                      "early_start": cal.at(cp["es"][i]), "early_finish": cal.at(cp["ef"][i]),
@@ -507,7 +511,7 @@ def analyse(conn, code: str | None = None) -> dict:
                      "held_back_hours": round(lv["waited"][i], 1),
                      "held_back_by": ({"resource": lv["why"][i]["resource"],
                                        "activities": [label(x) for x in lv["why"][i]["held_by"]]} if i in lv["why"] else None),
-                     "planned_start": a["start_at"], "planned_finish": a["end_at"]})
+                     "planned_start": a["start_at"], "planned_finish": a["end_at"], "not_before": a["not_before"]})
     finish, levelled = cal.at(cp["finish"]), cal.at(lv["end"])
 
     def over(rows):
@@ -597,10 +601,11 @@ def add_activity(conn, project: str, code: str, name: str, hours: float, by: str
 
 
 def change_activity(conn, item_id: int, by: str, **fields) -> dict:
-    """Rename, re-time (duration in working hours), progress (percent complete, status) or re-number an activity."""
+    """Rename, re-time (duration in working hours), progress (percent complete, status), re-number an activity, or
+    hold it to start no earlier than a time (`not_before`; None lets it start as early as its logic allows)."""
     _activity(conn, item_id)
     allowed = {"name": "title", "duration_hours": "duration_hours", "percent_complete": "percent_complete",
-               "wbs": "wbs", "code": "code", "status": "status", "notes": "notes"}
+               "wbs": "wbs", "code": "code", "status": "status", "notes": "notes", "not_before": "not_before"}
     bad = set(fields) - set(allowed)
     if bad:
         raise PlanError(f"can't change {sorted(bad)}")
