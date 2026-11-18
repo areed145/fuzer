@@ -819,6 +819,8 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
     that clears it at the least cost (the job with the most float, or work with no schedule logic behind it,
     slipped to the end of the run). `resource` narrows it to one; times are wall-clock hours."""
     start = (start or clock.now()).replace(hour=0, minute=0, second=0, microsecond=0)
+    if start.tzinfo is None:  # the page sends a day, and clock.now() is wall clock: both are the plant's time
+        start = start.replace(tzinfo=clock.zone())
     end = start + timedelta(days=days)
     res = conn.execute("select * from plan_resource" + (" where code = %s" if resource else "") + " order by kind, code",
                        (resource,) if resource else ()).fetchall()
