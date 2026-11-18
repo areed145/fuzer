@@ -151,3 +151,10 @@ def test_the_specialist_reads_the_critical_path_and_draws_a_gantt(tar):
 
 
 
+
+
+def test_a_resource_histogram_shows_each_day_s_peak_against_capacity():
+    from fuzer.ops.schedule import profile
+    out = profile({"a": 30, "b": 10}, {"a": 0, "b": 10}, {"a": {"MECH": 4}, "b": {"MECH": 3}},
+                  lambda r, h: 6, {"MECH": [(24, 48, 2)]}, end=48)
+    assert [(d["schedule"], d["other"], d["capacity"]) for d in out["MECH"]] == [(7, 0, 6), (4, 2, 6)]

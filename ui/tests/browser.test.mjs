@@ -8272,3 +8272,48 @@ test("Ask's Gantt from a schedule on the plan draws at phone, iPad and desktop w
     if (process.env.GANTT_SHOTS) await page.locator(".figure").last().screenshot({ path: `${process.env.GANTT_SHOTS}/gantt-${w}.png` });
   }
 });
+
+test("A planner opens a schedule on Plan, reads its critical path and resources, and edits an activity at phone, iPad and desktop widths (P5.18)", async () => {
+  const okan = JSON.parse(readFileSync(new URL("./fixtures/schedule-okan.json", import.meta.url)));
+  const changes = [];
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/schedules", (route) => route.fulfill({ json: okan.list }));
+  await page.route("**/plan/schedules/OK-TAR-2026", (route) => route.fulfill({ json: okan.analysis }));
+  await page.route("**/plan/schedules/OK-TAR-2026/apply", (route) => {
+    changes.push(["apply", route.request().postDataJSON()]);
+    return route.fulfill({ json: { project: "OK-TAR-2026", finish: okan.analysis.levelled_finish, unconstrained_finish: okan.analysis.unconstrained_finish } });
+  });
+  await page.route("**/plan/schedules/activities/*", (route) => {
+    changes.push([route.request().method(), route.request().postDataJSON()]);
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${url}/#/plan`);
+  await page.getByLabel("Open a schedule").selectOption("OK-TAR-2026");
+  await page.getByRole("heading", { name: /Okan 2026 turnaround/ }).waitFor();
+  await page.getByText("8 critical").waitFor();
+  await page.getByText(/^Finishes /).waitFor();
+  await page.getByRole("heading", { name: "Resources" }).waitFor();
+  // Early dates show where the crew would be over capacity if nothing were levelled.
+  await page.getByLabel("Dates").selectOption("early");
+  await page.getByText(/over on \d+ days?/).first().waitFor();
+  await page.getByLabel("Dates").selectOption("levelled");
+  // A planner opens an activity, shortens it and adds a need.
+  await page.getByRole("button", { name: "A0100", exact: true }).click();
+  await page.getByLabel("Hours", { exact: true }).first().fill("30");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expectReports(changes, 1);
+  assert.equal(changes[0][0], "PATCH");
+  assert.equal(changes[0][1].duration_hours, 30);
+  await page.getByRole("button", { name: "Schedule", exact: true }).click();
+  await page.getByText(/Levelled dates are on the plan/).waitFor();
+  assert.equal(changes.at(-1)[0], "apply");
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.locator(".sched-bar").first().waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `fits ${w} px`);
+    const bar = await page.locator(".sched-bar").nth(3).boundingBox();
+    assert.ok(bar && bar.width > 0, `the bars draw at ${w} px`);
+    if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/schedule-${w}.png`, fullPage: true });
+  }
+});

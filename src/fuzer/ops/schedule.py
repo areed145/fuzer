@@ -234,6 +234,31 @@ def overloads(durations: dict, starts: dict, demands: dict, capacity, background
     return sorted(out, key=lambda o: (o["from"], o["resource"]))
 
 
+def profile(durations: dict, starts: dict, demands: dict, capacity, background: dict | None = None,
+            end: float | None = None, step: float = 24) -> dict:
+    """A resource histogram: per resource, per `step` working hours from the start, the peak use by this schedule
+    (activities at `starts`), the peak use by other planned work and the least capacity in that step."""
+    span = int(-(-(end if end is not None else max([starts[k] + durations[k] for k in starts] or [0])) // 1))
+    out = {}
+    for r in sorted({r for d in demands.values() for r, q in (d or {}).items() if q}):
+        mine, other = [0.0] * span, [0.0] * span
+        for k, s in starts.items():
+            q = (demands.get(k) or {}).get(r) or 0
+            for h in range(max(0, int(s)), min(span, int(-(-(s + durations[k]) // 1)))):
+                mine[h] += q
+        for a, b, q in (background or {}).get(r, ()):
+            for h in range(max(0, int(a)), min(span, int(-(-b // 1)))):
+                other[h] += q
+        rows = []
+        for b in range(0, span, int(step)):
+            hs = range(b, min(span, b + int(step)))
+            peak = max(hs, key=lambda h: mine[h] + other[h])
+            cap = min(capacity(r, h) for h in hs)
+            rows.append({"from": b, "schedule": mine[peak], "other": other[peak], "capacity": None if cap == float("inf") else cap})
+        out[r] = rows
+    return out
+
+
 # ---- the plan's schedules ---------------------------------------------------------------------------------------
 
 def _resolve(conn, refs) -> list[str]:
@@ -461,6 +486,12 @@ def analyse(conn, code: str | None = None) -> dict:
     early = overloads(dur, cp["es"], demands, capacity, background)
     late = overloads(dur, lv["start"], demands, capacity, background)
     label = lambda i: by_id[i]["code"] or str(i)
+    span = max(lv["end"], cp["finish"])
+    step = p["hours_per_day"]
+
+    def histogram(starts):
+        return {r: [{"day": cal.at(x["from"]).date().isoformat(), **{k: x[k] for k in ("schedule", "other", "capacity")}}
+                    for x in rows] for r, rows in profile(dur, starts, demands, capacity, background, span, step).items()}
     rows = []
     for a in acts:
         i = a["id"]
@@ -500,6 +531,7 @@ def analyse(conn, code: str | None = None) -> dict:
         "overloads_levelled": over(late),  # left only where capacity is below one activity's own need
         "resources": [{"code": r["code"], "name": r["name"], "kind": r["kind"], "unit": r["unit"],
                        "capacity": r["capacity"]} for r in resources.values()],
+        "profiles": {"levelled": histogram(lv["start"]), "unlevelled": histogram(cp["es"])},
         "other_work": [{"id": o["id"], "title": o["title"], "resource": o["resource"], "quantity": o["quantity"],
                         "start": o["start_at"], "end": o["end_at"], "project": o["project"]} for o in other],
         "hours": "working hours on the project's calendar",
