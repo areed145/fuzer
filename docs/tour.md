@@ -116,7 +116,7 @@ changes, new tables, datasheet curves and held loads. Each answer is kept and ap
 **Workflows** (under Work) lists each BPMN workflow with its health, and opens Overview, Running, Model, Monitor and
 SLAs & routing. Task forms are edited here too.
 
-![The process list with health and task forms](assets/screens/processes.png){ loading=lazy }
+![The workflow list with health and task forms](assets/screens/processes.png){ loading=lazy }
 
 ## Sources, Jobs and Settings
 
