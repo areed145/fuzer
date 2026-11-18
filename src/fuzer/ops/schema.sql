@@ -488,6 +488,17 @@ create table if not exists plan_demand (
     quantity  double precision not null check (quantity > 0),
     primary key (item_id, resource)
 );
+-- A resource that counts the people on other resources (bed space counts every visiting crew: a job that needs four
+-- fitters needs four beds), and one whose people also carry routine duties (operators do their rounds and checks
+-- whatever else is planned). plan_demand_all is what each job asks of every resource, the counted ones included.
+alter table plan_resource add column if not exists counts text[] not null default '{}';
+alter table plan_resource add column if not exists routine text;                 -- 'rounds' | null
+create or replace view plan_demand_all as
+    select item_id, resource, sum(quantity) as quantity from (
+        select item_id, resource, quantity from plan_demand
+        union all
+        select d.item_id, r.code, d.quantity from plan_resource r join plan_demand d on d.resource = any(r.counts)
+    ) x group by item_id, resource;
 
 -- Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that
 -- raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's

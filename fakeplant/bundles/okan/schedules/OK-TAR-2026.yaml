@@ -14,10 +14,13 @@ calendar: {hours_per_day: 24, days_per_week: 7}
 resources:
   - {code: MECH, name: Mechanical fitters, kind: crew, capacity: 6, work_center: MECH}
   - {code: INST, name: Instrument technicians, kind: crew, capacity: 2, work_center: INST}
-  - {code: OPS, name: Operations isolation team, kind: crew, capacity: 3}
+  # the operators also do their rounds and checks every shift, so four are on to give the isolations three
+  - {code: OPS, name: Operations isolation team, kind: crew, capacity: 4, routine: rounds}
   - {code: SCAF, name: Scaffolders, kind: crew, capacity: 4}
   - {code: NDT, name: Inspection and NDT technicians, kind: crew, capacity: 2}
   - {code: CRANE, name: Platform crane with rigging crew, kind: crane, unit: crane, capacity: 1}
+  # every visiting crew member on a job needs a bed aboard while it runs; the core crew's beds are not in this count
+  - {code: BEDS, name: Beds for visiting crews, kind: beds, unit: beds, capacity: 14, counts: [MECH, INST, SCAF, NDT]}
 activities:
   # 1 Shut down and make safe
   - {code: A0010, wbs: "1.1", name: "Shut down and depressurise the GGCP (area 20)", hours: 12, refs: [OKAN-20], needs: {OPS: 3}}

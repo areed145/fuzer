@@ -816,10 +816,14 @@ export interface ResourceOverload {
 }
 export interface ResourceLoad {
   code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];
+  counts: string[]; routine: string | null; routine_load: RoutineLoad | null;
   days: { day: string; capacity: number; demand: number; by_source: Record<string, number> }[]; overloads: ResourceOverload[];
   capacity_windows: { id: number; start: string; end: string; capacity: number; reason: string | null }[];
 }
-export interface PlanResource { code: string; name: string; kind: string; unit: string | null; capacity: number; work_center?: string | null }
+/** The people a resource's routine duties hold whatever else is planned (operators on their rounds and checks). */
+export interface RoutineLoad { quantity: number; source: string; basis: string }
+export interface PlanResource { code: string; name: string; kind: string; unit: string | null; capacity: number; work_center?: string | null;
+  counts?: string[]; routine?: RoutineLoad | string | null }
 
 export interface PlanItem {
   id: number; kind: string; title: string; source: string | null; source_key: string | null; subjects: string[];
@@ -984,7 +988,7 @@ export const workApi = {
   capacityWindow: (code: string, w: { by: string; start: string; end: string; capacity: number; reason?: string }) =>
     request<unknown>("POST", `/plan/resources/${encodeURIComponent(code)}/capacity`, undefined, w),
   capacityWindowRemove: (id: number, by: string) => request<unknown>("DELETE", `/plan/resources/capacity/${id}`, { by }),
-  planResourceChange: (code: string, by: string, change: Partial<{ name: string; capacity: number; unit: string; work_center: string }>) =>
+  planResourceChange: (code: string, by: string, change: Partial<{ name: string; kind: string; capacity: number; unit: string; work_center: string; counts: string[]; routine: string }>) =>
     request<PlanResource>("PUT", `/plan/resources/${encodeURIComponent(code)}`, undefined, { by, ...change }),
   planResources: () => request<PlanResource[]>("GET", "/plan/resources"),
   turnaround: (revision?: string) => request<TurnaroundScope>("GET", "/turnarounds", { revision }),
