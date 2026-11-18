@@ -183,6 +183,16 @@ def test_a_resource_owner_sees_demand_by_source_against_capacity_and_the_move_th
     c.rollback()
 
 
+def test_the_resources_page_s_day_with_no_zone_loads(tar):
+    """The page sends `start=2026-04-06`, which arrives without a zone, and the default is the plant's wall clock: both
+    load, read as the plant's time, rather than failing on an aware-minus-naive subtraction."""
+    c, _ = tar
+    load = schedule.resource_load(c, "MECH", datetime(2026, 4, 6), 21)
+    assert len(load["resources"][0]["days"]) == 21
+    assert schedule.resource_load(c, "MECH", None, 7)["resources"][0]["days"]
+    c.rollback()
+
+
 def test_a_planner_holds_an_activity_to_start_no_earlier_and_lets_it_go(tar):
     c, _ = tar
     a = next(x for x in schedule.analyse(c, "OK-TAR-2026")["activities"] if x["code"] == "A0500")

@@ -9,7 +9,7 @@ theme:
   name: material
   logo: assets/brand/fuzer-mark-dark.svg
   favicon: assets/brand/favicon.svg
-  features: [navigation.sections, navigation.top, search.highlight, content.code.copy]
+  features: [navigation.sections, navigation.top, search.highlight, content.code.copy, content.tabs.link]
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -28,6 +28,9 @@ markdown_extensions:
   - tables
   - admonition
   - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.tabbed: {alternate_style: true}
   - toc: {permalink: true}
   - pymdownx.superfences:
       custom_fences:
@@ -45,10 +48,19 @@ nav:
       - tour.md
       - walkthrough.md
       - glossary.md
+  - Guides by role:
+      - guides/index.md
+      - guides/ioc-operator.md
+      - guides/field-operator.md
+      - guides/planner.md
+      - guides/data-steward.md
+      - guides/configurer.md
   - Extend:
       - extend.md
   - Design:
       - overview.md
+      - system.md
+      - work-routing.md
       - architecture.md
       - adapter-boundaries.md
       - ui-style.md
