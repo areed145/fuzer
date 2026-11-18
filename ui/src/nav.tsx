@@ -41,8 +41,6 @@ export interface NavGroup {
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
   { label: "Home", icon: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z", items: [{ label: "Home", section: "" }] },
-  // One entry: the tour starts the guided walkthrough, which keeps its #/investigate/okan URL (#556).
-  { label: "Demo", icon: "M6 4l14 8-14 8z", demo: true, items: [{ label: "Demo tour", section: "demo", also: ["investigate"] }] },
   {
     label: "Explore",
     icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z",

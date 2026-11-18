@@ -1098,7 +1098,8 @@ test("reader Settings and Sources do not request protected configuration or conn
   assert.equal(await nav.getByRole("link", { name: "Jobs", exact: true }).count(), 0);
   await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
-  await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
+  await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
+  assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
   await nav.getByRole("link", { name: "Investigate", exact: true }).click();
   await page.getByRole("navigation", { name: "Investigate pages" }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Investigate pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
@@ -1939,19 +1940,19 @@ test("an asset says what is known, what is missing and what each gap holds back;
   }
 });
 
-test("optional Demo preserves existing primary destinations and specialist routes", async () => {
+test("main menu has no Demo entry and keeps existing primary destinations and specialist routes", async () => {
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
-  await nav.getByRole("link", { name: "Demo", exact: true }).waitFor();
-  const expected = ["#/", "#/demo", "#/browse", "#/downtime", "#/exceptions", "#/sources", "#/jobs", "#/settings"];
+  await nav.getByRole("link", { name: "Explore", exact: true }).waitFor();
+  const expected = ["#/", "#/browse", "#/downtime", "#/exceptions", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
-  await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
-  await page.goto(`${url}/#/investigate/okan`);
-  await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
-  // Demo is one entry (#556): the tour starts the walkthrough, which keeps its URL.
+  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
+  // Demo left the menu; its page still opens from a direct link.
+  await page.goto(`${url}/#/demo`);
+  await page.getByRole("heading", { level: 1, name: "Demo", exact: true }).waitFor();
+  assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
   assert.equal(await page.getByRole("navigation", { name: "Demo pages", exact: true }).count(), 0);
   await nav.getByRole("link", { name: "Investigate", exact: true }).click();
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
@@ -1997,7 +1998,6 @@ test("primary destination navigation keeps page headings and active context alig
   await nav.locator("a").first().waitFor();
   const destinations = [
     { label: "Home", href: "#/", heading: "Home" },
-    { label: "Demo", href: "#/demo", heading: "Demo" },
     { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
     { label: "Investigate", href: "#/downtime", heading: "Downtime", area: "Investigate pages", current: "Downtime" },
     { label: "Work", href: "#/exceptions", heading: "All work", area: "Work pages", current: "All work" },
@@ -2068,8 +2068,7 @@ test("approved reader completes the keyless journey with trusted identity and no
   page.on("request", (request) => {
     if (/^\/(jobs|sources|settings)(\/|$)/.test(new URL(request.url()).pathname)) administrative.push(request.url());
   });
-  await page.goto(url);
-  await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Demo", exact: true }).click();
+  await page.goto(`${url}/#/demo`);
   await page.getByRole("link", { name: "Next: Trace an issue", exact: true }).click();
   await page.getByRole("link", { name: "Start guided investigation", exact: true }).click();
   await page.getByRole("link", { name: "Next: Meet the asset", exact: true }).click();
@@ -2221,7 +2220,7 @@ test("Okan journey connects Demo, asset, source evidence and a cited finding wit
   page.on("request", (request) => { if (request.url().includes("/assistant/") && request.method() !== "GET") paid.push(request.url()); });
   await page.goto(url);
   assert.equal(await page.getByRole("link", { name: "Start guided investigation", exact: true }).count(), 0);
-  await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Demo", exact: true }).click();
+  await page.goto(`${url}/#/demo`);
   await page.getByRole("link", { name: "Next: Trace an issue", exact: true }).click();
   await page.getByRole("link", { name: "Start guided investigation", exact: true }).click();
   await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
