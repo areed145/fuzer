@@ -236,3 +236,24 @@ def test_operator_rounds_and_checks_hold_operators_whatever_else_is_planned(tar)
     schedule.set_resource(c, "OPS", "tests", capacity=3, routine="")
     assert not schedule.resource_load(c, "OPS", datetime(2026, 4, 6, tzinfo=UTC), 21)["resources"][0]["overloads"]
     c.rollback()
+
+
+def test_seats_carry_each_crew_out_for_its_first_job_and_back_after_its_last(tar):
+    c, _ = tar
+    out = schedule.analyse(c, "OK-TAR-2026")
+    assert all("SEATS" not in a["needs"] for a in out["activities"]), "seats follow crew changes, not each job"
+    a200 = next(a for a in out["activities"] if a["code"] == "A0200")
+    assert a200["needs"]["VESSEL"] == 1
+    start = datetime(2026, 4, 1, tzinfo=UTC)
+    seats = schedule.resource_load(c, "SEATS", start, 30)["resources"][0]
+    busy = {d["day"]: d["demand"] for d in seats["days"] if d["demand"]}
+    scaf = [a for a in out["activities"] if "SCAF" in a["needs"]]
+    first, last = min(a["start"] for a in scaf).date().isoformat(), max(a["finish"] for a in scaf).date().isoformat()
+    assert busy[first] >= 4 and busy[last] >= 4  # four scaffolders out, four back
+    assert sum(busy.values()) == 2 * (6 + 2 + 4 + 2)  # every crew at its peak size, out and back
+    assert seats["sources"] == ["OK-TAR-2026"] and not seats["overloads"]
+    # five seats a day: a day the fitters (6) fly is over, and the owner sees who is on it
+    schedule.set_resource(c, "SEATS", "tests", capacity=5)
+    [run, *_] = schedule.resource_load(c, "SEATS", start, 30)["resources"][0]["overloads"]
+    assert run["peak"] > 5 and any("flies" in j["title"] for j in run["jobs"]) and run["moves"] == []
+    c.rollback()

@@ -498,6 +498,7 @@ create or replace view plan_demand_all as
         select item_id, resource, quantity from plan_demand
         union all
         select d.item_id, r.code, d.quantity from plan_resource r join plan_demand d on d.resource = any(r.counts)
+        where r.kind <> 'seats'   -- seats carry crew changes (a crew's first and last day), not the jobs themselves
     ) x group by item_id, resource;
 
 -- Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that
