@@ -72,3 +72,6 @@ arrive:
   report_due: {obligation: {name: flaring_return, template: flare_emissions_monthly, regulator: the regulator}, about: report}
   # The agentic watch in live mode proposes what no rule raised, raised for a person to triage (P3.11d)
   watch_finding: {watch: live, since: "today-13d 00:00", until: "today-12d 00:00"}  # a day with a drift the watch is shown
+  # The inspection pack's own work (P3.12): D1-V-4001's wall loss leaves it under five years to retirement
+  inspection_due: {detector: inspection_findings}
+  ili_anomaly: {not_here: "no in-line inspection export: its lines are surveyed by thickness readings, not pig runs"}
