@@ -35,6 +35,7 @@ EXCLUDED = {
     ("lesson_history", "by_user"): "the lesson's own edit history; the lesson's decision is in the record",
     ("work_draft", "by_user"): "an account-private draft until confirmed; confirmed_by is in the record",
     ("lesson", "review_by"): "a review-due date, not an actor",
+    ("plan_project", "finish_by"): "the date a schedule's window ends, not an actor",
     ("operating_model_deviation", "review_by"): "a review-due date, not an actor",
     ("learned_rule", "taught_by"): "the aliases a rule was learned from, not an actor",
     ("work_token", "claimed_by"): "a claim is a work event (kind claimed), which is in the record",

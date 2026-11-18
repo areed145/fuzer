@@ -8256,3 +8256,19 @@ test("a case opens on its decision: what it waits on, the next action, and a mis
   const [card, timeline] = await Promise.all([next.boundingBox(), history.boundingBox()]);
   assert.ok(card.y < timeline.y, "the decision sits above the history");
 });
+
+test("Ask's Gantt from a schedule on the plan draws at phone, iPad and desktop widths (P5.18)", async () => {
+  const gantt = JSON.parse(readFileSync(new URL("./fixtures/gantt-figure.json", import.meta.url)));
+  await page.route("**/figures/f_9a7e", (route) => route.fulfill({ json: gantt }));
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await askFor("The critical path runs through the compressor overhaul.\n\n[[figure:f_9a7e]]");
+    const plot = page.locator(".figure-plot .main-svg").first();
+    await plot.waitFor();
+    // a phone names the bars by code, leaving the width to the bars; wider screens add the name
+    await page.locator(".figure-plot").last().getByText(w < 520 ? "A0100" : "A0100 Decouple", { exact: w < 520 }).first().waitFor();
+    const box = await page.locator(".figure-plot").last().boundingBox();
+    assert.ok(box.width <= w, `the Gantt fits a ${w} px screen`);
+    if (process.env.GANTT_SHOTS) await page.locator(".figure").last().screenshot({ path: `${process.env.GANTT_SHOTS}/gantt-${w}.png` });
+  }
+});

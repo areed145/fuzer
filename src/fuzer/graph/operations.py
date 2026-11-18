@@ -574,7 +574,8 @@ def turnaround_scope(conn, revision: str | None = None, months_ahead: int = 18, 
             "shutdown_plans_not_in_scope": [p for p in shutdown_plans if p["tag_id"] not in in_scope],
             "shutdown_plans_in_scope": [p for p in shutdown_plans if p["tag_id"] in in_scope],
             "bad_actors_not_in_scope": actors, "spares_out_of_stock": spares,
-            "schedule": schedule_progress(conn, revision, today) if revision else None}
+            # a planning system's progress export, only when one is loaded (no key at all otherwise, #1170)
+            **({"schedule": progress} if revision and (progress := schedule_progress(conn, revision, today)) else {})}
 
 
 # --- gas lift --------------------------------------------------------------------------------------

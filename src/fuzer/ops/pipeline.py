@@ -329,10 +329,28 @@ def follow_register(conn, pack: Pack) -> dict:
 
     planned = plan.sync_work_orders(conn)
     planned["maintenance_plans"] = plan.sync_maintenance_plans(conn)
+    planned["schedules"] = _seed_schedules(conn)
     notified = intake.sync_notifications(conn)
     board.refresh(conn, pack)  # last, so the exceptions just raised are on it
     return {"plan": planned, "notifications": notified}
 
+
+
+def _seed_schedules(conn) -> list[dict] | dict:
+    """The project's bundle schedule templates not on its plan yet (P5.18): after SAP, so each activity finds the
+    turnaround order it executes. A template that can't be imported is reported, not raised: the register stands."""
+    from ..core import db, projects
+    from ..core.plan import PlanError
+    from . import schedule
+
+    name = db.scope().project or projects.active(conn)
+    if not name:
+        return []
+    try:
+        with conn.transaction():
+            return schedule.seed(conn, name)
+    except (PlanError, projects.ProjectError) as e:
+        return {"error": str(e)}
 
 
 def first_scan(conn, pack: Pack, days: int = 7) -> dict | None:

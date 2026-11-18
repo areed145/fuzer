@@ -17,6 +17,8 @@ is tagged with a revision (e.g. OK-TAR-2026).
    `schedule.curve` is its S-curve: percent planned done by week (baseline and today's dates), percent
    earned today, `variance` in points and `slip_days` of the forecast finish; rows it couldn't use are in
    `left_out` with why. Say those were left out rather than treating the curve as complete.
+   For the critical path, the levelled finish or a Gantt, use the integrated planning tools (`critical_path`,
+   `plot_gantt`): the turnaround's schedule on the plan, which planners maintain.
 2. **Scope gaps** are the main finding: shutdown-only inspections that would otherwise wait another
    cycle, and bad actors whose permanent fix needs the unit down (check `maintenance_history` for
    repeated temporary fixes such as cleaning a fouled exchanger every year).
