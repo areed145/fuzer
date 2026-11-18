@@ -36,6 +36,8 @@ export function ResourcesPage({ query, person }: { query: URLSearchParams; perso
         {!load.data.resources.length && <Empty>No shared resources yet.</Empty>}
         {load.data.resources.map((r) => <ResourceCard key={r.code} r={r} person={person} onChange={load.reload} />)}
       </>}
+      {person && !pick && <AddResource person={person} known={(all.data ?? []).filter((r) => !r.counts?.length).map((r) => r.code)}
+        onChange={() => { all.reload(); load.reload(); }} />}
     </section>
   );
 }
@@ -57,6 +59,8 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
         {over > 0 ? <Badge tone="danger">over capacity on {over} {over === 1 ? "day" : "days"}</Badge> : <Badge tone="ok">within capacity</Badge>}
         {r.sources.map((s) => <span key={s} className="load-legend small"><span className={`load-swatch ${color(s)}`} />{s}</span>)}
       </div>
+      {r.counts.length > 0 && <p className="small">Counts everyone working on {r.counts.join(", ")}.</p>}
+      {r.routine_load && <p className="small">{r.routine_load.source} hold {num(r.routine_load.quantity)} the whole time: {r.routine_load.basis}.</p>}
       <div className="load-cols" role="img" aria-label={`${r.name}: ${over ? `over capacity on ${over} days` : "within capacity"}`}>
         {r.days.map((d) => <span role="button" tabIndex={0} key={d.day} aria-pressed={day === d.day} aria-label={`${dayStamp(d.day)}: ${num(d.demand)} of ${num(d.capacity)}`}
           className={`load-col${d.demand > d.capacity + 1e-6 ? " over" : ""}${day === d.day ? " on" : ""}`} onClick={() => setDay(day === d.day ? null : d.day)}
@@ -130,9 +134,52 @@ function Capacity({ r, person, onChange }: { r: ResourceLoad; person: string | n
           <Button disabled={!!busy || !start || !end || qty === "" || new Date(end).getTime() - new Date(start).getTime() < DAY / 24}
             onClick={add}>Set for a while</Button>
         </div>
+        {r.kind === "crew" && <div className="row">
+          <Field label="Routine duties" width="md"><Select value={r.routine ?? ""} disabled={!!busy}
+            onChange={(e) => run("Saving", () => api.planResourceChange(r.code, person, { routine: e.target.value }), onChange)}>
+            <option value="">None</option><option value="rounds">Operator rounds and checks</option>
+          </Select></Field>
+        </div>}
         <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Done</Button>
       </>}
       {error && <p role="alert" className="error">{error}</p>}
     </>
+  );
+}
+
+const KINDS: [string, string, string][] = [["crew", "Crew", "people"], ["beds", "Bed space", "beds"], ["seats", "Helicopter or boat seats", "seats"],
+  ["vessel", "Vessel", "vessels"], ["crane", "Crane", "cranes"], ["deck", "Deck space", "sq ft"], ["capacity", "Production capacity", "BOE/d"], ["other", "Other", "units"]];
+
+/** A new shared resource to plan against: a crew, bed space, seats, a vessel, a crane, deck space or production capacity. */
+function AddResource({ person, known, onChange }: { person: string; known: string[]; onChange: () => void }) {
+  const { busy, error, run } = useAct();
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState("crew");
+  const [cap, setCap] = useState("");
+  const [counts, setCounts] = useState("");
+  const unit = KINDS.find((k) => k[0] === kind)?.[2] ?? "units";
+  const list = counts.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
+  const unknown = list.filter((c) => !known.includes(c));
+  const add = () => run("Adding", () => api.planResourceChange(code.trim().toUpperCase(), person, { name: name.trim(), kind, unit, capacity: Number(cap), counts: list }),
+    () => { setCode(""); setName(""); setCap(""); setCounts(""); setOpen(false); onChange(); });
+  if (!open) return <Button variant="ghost" onClick={() => setOpen(true)}>Add a resource</Button>;
+  return (
+    <Card title="Add a resource" actions={<Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>}>
+      <div className="row">
+        <Field label="Kind" width="md"><Select value={kind} onChange={(e) => setKind(e.target.value)}>
+          {KINDS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        </Select></Field>
+        <Field label="Code" width="xs"><Input value={code} onChange={(e) => setCode(e.target.value)} /></Field>
+        <Field label="Name" width="lg"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label={`Capacity (${unit})`} width="sm"><Input type="number" min="0" step="any" value={cap} onChange={(e) => setCap(e.target.value)} /></Field>
+        {(kind === "beds" || kind === "seats") && <Field label="Counts the people on" width="md">
+          <Input value={counts} placeholder={known.slice(0, 3).join(", ")} onChange={(e) => setCounts(e.target.value)} /></Field>}
+        <Button disabled={!!busy || !code.trim() || !name.trim() || cap === "" || unknown.length > 0} onClick={add}>Add</Button>
+      </div>
+      {unknown.length > 0 && <p className="small error">No resource {unknown.join(", ")}.</p>}
+      {error && <p role="alert" className="error">{error}</p>}
+    </Card>
   );
 }

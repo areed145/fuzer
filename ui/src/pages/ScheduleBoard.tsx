@@ -164,7 +164,9 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
     if (mode !== "resources" || !body.current || !a) return undefined;
     const y = clientY - body.current.getBoundingClientRect().top;
     const r = rows.find((q) => y >= q.top && y < q.top + q.height);
-    return r && r.key !== from && !a.needs[r.key] ? r : undefined;
+    // a row that counts other resources' people (bed space) follows them: work isn't handed to it or taken off it
+    const counted = (key: string) => !!s.resources.find((q) => q.code === key)?.counts?.length;
+    return r && r.key !== from && !a.needs[r.key] && !counted(r.key) && !counted(from) ? r : undefined;
   };
   const move = (e: RPointerEvent<HTMLElement>) => {
     const p = press.current;

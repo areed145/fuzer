@@ -332,7 +332,8 @@ def import_template(conn, doc: dict, by: str, replace: bool = False) -> dict:
          cal.get("days_per_week", 7), doc.get("notes"), by, by))
     for r in doc.get("resources") or []:
         set_resource(conn, r["code"], by, name=r.get("name"), kind=r.get("kind", "crew"), unit=r.get("unit"),
-                     capacity=r.get("capacity"), work_center=r.get("work_center"), keep=True)
+                     capacity=r.get("capacity"), work_center=r.get("work_center"), keep=True,
+                     counts=r.get("counts"), routine=r.get("routine"))
     calendar = Calendar(start, cal.get("hours_per_day", 24), cal.get("days_per_week", 7))
     ids, summaries = {}, {}
     for a in doc.get("activities") or []:
@@ -463,7 +464,7 @@ def analyse(conn, code: str | None = None) -> dict:
     links = [(r["pred"], r["succ"], r["type"], r["lag_hours"]) for r in conn.execute(
         "select * from plan_link where pred = any(%(ids)s) and succ = any(%(ids)s)", {"ids": list(by_id)})]
     demands = defaultdict(dict)
-    for r in conn.execute("select * from plan_demand where item_id = any(%s)", (list(by_id),)):
+    for r in conn.execute("select * from plan_demand_all where item_id = any(%s)", (list(by_id),)):
         demands[r["item_id"]][r["resource"]] = r["quantity"]
     used = {r for d in demands.values() for r in d}
     capacity, resources = _capacity_fn(conn, used, cal)
@@ -479,13 +480,16 @@ def analyse(conn, code: str | None = None) -> dict:
     other = conn.execute(
         """
         select i.id, i.title, i.start_at, i.end_at, d.resource, d.quantity, i.project
-        from plan_demand d join plan_item i on i.id = d.item_id
+        from plan_demand_all d join plan_item i on i.id = d.item_id
         where d.resource = any(%s) and i.status = any(%s) and not (i.id = any(%s))
           and i.start_at < %s and i.end_at > %s and coalesce(i.project, '') <> %s
         """, (list(used), list(plan.ACTIVE), list(by_id), horizon_end, p["start_at"], p["code"])).fetchall()
     background = defaultdict(list)
     for o in other:
         background[o["resource"]].append((cal.hours(o["start_at"]), cal.hours(o["end_at"]), o["quantity"]))
+    routine = routine_load(conn, resources.values())
+    for r, x in routine.items():  # rounds and checks hold their people the whole way through
+        background[r].append((0.0, cal.hours(horizon_end), x["quantity"]))
     lv = level(dur, links, demands, capacity, background, not_before)
     early = overloads(dur, cp["es"], demands, capacity, background)
     late = overloads(dur, lv["start"], demands, capacity, background)
@@ -534,7 +538,8 @@ def analyse(conn, code: str | None = None) -> dict:
         "overloads_if_unlevelled": over(early),
         "overloads_levelled": over(late),  # left only where capacity is below one activity's own need
         "resources": [{"code": r["code"], "name": r["name"], "kind": r["kind"], "unit": r["unit"],
-                       "capacity": r["capacity"]} for r in resources.values()],
+                       "capacity": r["capacity"], "counts": r["counts"], "routine": routine.get(r["code"])}
+                      for r in resources.values()],
         "profiles": {"levelled": histogram(lv["start"]), "unlevelled": histogram(cp["es"])},
         "other_work": [{"id": o["id"], "title": o["title"], "resource": o["resource"], "quantity": o["quantity"],
                         "start": o["start_at"], "end": o["end_at"], "project": o["project"]} for o in other],
@@ -673,7 +678,8 @@ def set_demand(conn, item_id: int, resource: str, quantity: float | None, by: st
 
 
 def set_resource(conn, code: str, by: str, name: str | None = None, kind: str | None = None, unit: str | None = None,
-                 capacity: float | None = None, work_center: str | None = None, keep: bool = False) -> dict:
+                 capacity: float | None = None, work_center: str | None = None, keep: bool = False,
+                 counts: list[str] | None = None, routine: str | None = None) -> dict:
     """Add a shared resource or change what it has. `keep`: an existing one is left as a planner set it."""
     row = conn.execute("select * from plan_resource where code = %s", (code,)).fetchone()
     if row and keep:
@@ -684,18 +690,52 @@ def set_resource(conn, code: str, by: str, name: str | None = None, kind: str | 
     cap = capacity if capacity is not None else (row["capacity"] if row else None)
     if cap is None or cap < 0:
         raise PlanError("a resource needs a capacity of 0 or more")
+    # counts: the resources whose people it also carries; routine: "rounds", or "" for none
+    counts = [c.strip() for c in counts if c.strip()] if counts is not None else (row["counts"] if row else [])
+    known = {r["code"]: r for r in conn.execute("select code, counts from plan_resource where code = any(%s)", (counts,))}
+    for c in counts:
+        if c == code or c not in known or known[c]["counts"]:
+            raise PlanError(f"{code} can count the people on another resource that counts none itself; {c} isn't one")
+    routine = (routine or None) if routine is not None else (row["routine"] if row else None)
+    if routine and routine not in ROUTINES:
+        raise PlanError(f"routine duties are one of {', '.join(ROUTINES)}")
     return conn.execute(
         """
-        insert into plan_resource (code, name, kind, unit, capacity, work_center, created_by, updated_by)
-        values (%(code)s, %(name)s, %(kind)s, %(unit)s, %(cap)s, %(wc)s, %(by)s, %(by)s)
+        insert into plan_resource (code, name, kind, unit, capacity, work_center, counts, routine, created_by, updated_by)
+        values (%(code)s, %(name)s, %(kind)s, %(unit)s, %(cap)s, %(wc)s, %(counts)s, %(routine)s, %(by)s, %(by)s)
         on conflict (code) do update set name = excluded.name, kind = excluded.kind, unit = excluded.unit,
-            capacity = excluded.capacity, work_center = excluded.work_center, updated_by = excluded.updated_by,
+            capacity = excluded.capacity, work_center = excluded.work_center, counts = excluded.counts,
+            routine = excluded.routine, updated_by = excluded.updated_by,
             updated_at = now()
         returning *
         """, {"code": code, "name": name or (row["name"] if row else code), "kind": kind,
               "unit": unit or (row["unit"] if row else "people"), "cap": cap,
-              "wc": work_center if work_center is not None else (row["work_center"] if row else None), "by": by}).fetchone()
+              "wc": work_center if work_center is not None else (row["work_center"] if row else None),
+              "counts": counts, "routine": routine, "by": by}).fetchone()
 
+
+
+ROUND_CHECK_MINUTES = 4  # walking to a point, reading or checking it and keying it in
+ROUTINES = ("rounds",)
+
+
+def routine_load(conn, resources) -> dict[str, dict]:
+    """The people each resource's routine duties hold, whatever else is planned. `rounds`: every round point is taken
+    once a shift (ops/rounds.py), at ROUND_CHECK_MINUTES each, spread over the shift."""
+    todo = [r for r in resources if r.get("routine") == "rounds"]
+    if not todo:
+        return {}
+    from . import rounds
+    from .handover import shift_times
+
+    checks = len(rounds.points(conn))
+    if not checks:
+        return {}
+    shift_hours = 24 / max(1, len(shift_times(conn)))
+    people = round(checks * ROUND_CHECK_MINUTES / 60 / shift_hours, 2)
+    return {r["code"]: {"quantity": people, "source": "Rounds and checks",
+                        "basis": f"{checks} round checks a shift at {ROUND_CHECK_MINUTES} minutes each, over a {shift_hours:g}-hour shift"}
+            for r in todo} if people > 0 else {}
 
 
 # ---- a resource owner's view ------------------------------------------------------------------------------------
@@ -722,7 +762,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
         """
         select i.id, i.title, i.kind, i.project, i.code, i.source, i.source_key, i.start_at, i.end_at, i.status,
                d.resource, d.quantity
-        from plan_demand d join plan_item i on i.id = d.item_id
+        from plan_demand_all d join plan_item i on i.id = d.item_id
         where d.resource = any(%s) and i.status = any(%s) and i.start_at < %s and i.end_at > %s and d.quantity > 0
         order by i.start_at, i.id
         """, (codes, list(plan.ACTIVE), end, start)).fetchall()
@@ -740,6 +780,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
                 floats[a["id"]] = a["float_hours"]
         except PlanError:
             pass
+    routine = routine_load(conn, res)
     out = []
     for r in res:
         code = r["code"]
@@ -754,6 +795,9 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
             for h in range(max(0, int(h_of(x["start_at"]))), min(hours, int(-(-h_of(x["end_at"]) // 1)))):
                 use[h][_source(x)] += x["quantity"]
                 jobs[h].append(x)
+        if code in routine:
+            for u in use:
+                u[routine[code]["source"]] += routine[code]["quantity"]
         total = [sum(u.values()) for u in use]
         sources = sorted({s for u in use for s in u})
         days_out = []
@@ -793,7 +837,8 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
             else:
                 h += 1
         out.append({"code": code, "name": r["name"], "kind": r["kind"], "unit": r["unit"], "capacity": r["capacity"],
-                    "work_center": r["work_center"], "sources": sources, "days": days_out, "overloads": runs,
+                    "work_center": r["work_center"], "counts": r["counts"], "routine": r["routine"],
+                    "routine_load": routine.get(code), "sources": sources, "days": days_out, "overloads": runs,
                     "capacity_windows": [{"id": w["id"], "start": w["start_at"], "end": w["end_at"],
                                           "capacity": w["capacity"], "reason": w["reason"]} for w in windows[code]]})
     return {"start": start, "end": end, "days": days, "resources": out,

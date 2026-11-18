@@ -193,3 +193,46 @@ def test_a_planner_holds_an_activity_to_start_no_earlier_and_lets_it_go(tar):
     schedule.change_activity(c, a["id"], "tests", not_before=None)
     assert next(x for x in schedule.analyse(c, "OK-TAR-2026")["activities"] if x["code"] == "A0500")["start"] == a["start"]
     c.rollback()
+
+
+def test_bed_space_counts_the_visiting_crews_and_holds_work_when_beds_run_short(tar):
+    c, _ = tar
+    out = schedule.analyse(c, "OK-TAR-2026")
+    beds = next(r for r in out["resources"] if r["code"] == "BEDS")
+    assert beds["counts"] == ["MECH", "INST", "SCAF", "NDT"]
+    a100 = next(a for a in out["activities"] if a["code"] == "A0100")
+    assert a100["needs"] == {"MECH": 4, "CRANE": 1, "BEDS": 4}  # four fitters, four beds; the crane sleeps nowhere
+    a10 = next(a for a in out["activities"] if a["code"] == "A0010")
+    assert "BEDS" not in a10["needs"]  # the operators are core crew
+    days = schedule.resource_load(c, "BEDS", datetime(2026, 4, 6, tzinfo=UTC), 21)["resources"][0]["days"]
+    assert 0 < max(d["demand"] for d in days) <= 14
+    # eight beds lost to another campaign for the whole window: work waits for beds and the turnaround runs longer
+    schedule.set_capacity_window(c, "BEDS", datetime(2026, 4, 1, tzinfo=UTC), datetime(2026, 6, 1, tzinfo=UTC), 6, "tests", "drilling crew aboard")
+    short = schedule.analyse(c, "OK-TAR-2026")
+    assert short["levelled_finish"] > out["levelled_finish"]
+    assert any(a["held_back_by"] and a["held_back_by"]["resource"] == "BEDS" for a in short["activities"])
+    with pytest.raises(PlanError, match="counts none itself"):
+        schedule.set_resource(c, "SEATS", "tests", kind="seats", capacity=12, counts=["BEDS"])
+    c.rollback()
+
+
+def test_operator_rounds_and_checks_hold_operators_whatever_else_is_planned(tar):
+    c, _ = tar
+    from fuzer.ops import rounds
+
+    checks = len(rounds.points(c))
+    assert checks, "Okan has operator rounds"
+    out = schedule.analyse(c, "OK-TAR-2026")
+    ops = next(r for r in out["resources"] if r["code"] == "OPS")
+    assert ops["routine"]["source"] == "Rounds and checks" and f"{checks} round checks a shift" in ops["routine"]["basis"]
+    assert 0 < ops["routine"]["quantity"] <= 1
+    load = schedule.resource_load(c, "OPS", datetime(2026, 4, 6, tzinfo=UTC), 21)["resources"][0]
+    assert "Rounds and checks" in load["sources"]
+    assert all(d["by_source"]["Rounds and checks"] == ops["routine"]["quantity"] for d in load["days"])  # every day, busy or not
+    assert not load["overloads"], "four operators cover three on isolations and the rounds"
+    # with only three operators the isolations no longer fit beside the rounds
+    schedule.set_resource(c, "OPS", "tests", capacity=3)
+    assert schedule.resource_load(c, "OPS", datetime(2026, 4, 6, tzinfo=UTC), 21)["resources"][0]["overloads"]
+    schedule.set_resource(c, "OPS", "tests", capacity=3, routine="")
+    assert not schedule.resource_load(c, "OPS", datetime(2026, 4, 6, tzinfo=UTC), 21)["resources"][0]["overloads"]
+    c.rollback()

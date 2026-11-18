@@ -1364,6 +1364,8 @@ class PlanResourceChange(BaseModel):
     unit: str | None = None
     capacity: float | None = None
     work_center: str | None = None
+    counts: list[str] | None = None   # the resources whose people it also carries (bed space counts the crews)
+    routine: str | None = None        # "rounds": its people also do the operator rounds; "" for none
 
 
 @router.get("/plan/schedules")
@@ -1439,7 +1441,7 @@ def plan_resources(conn=Depends(get_conn)):
 def plan_resource_change(code: str, r: PlanResourceChange, conn=Depends(get_conn)):
     from ..ops import schedule
     return _plan_call(conn, schedule.set_resource, code, r.by, name=r.name, kind=r.kind, unit=r.unit,
-                      capacity=r.capacity, work_center=r.work_center)
+                      capacity=r.capacity, work_center=r.work_center, counts=r.counts, routine=r.routine)
 
 
 class CapacityWindow(BaseModel):

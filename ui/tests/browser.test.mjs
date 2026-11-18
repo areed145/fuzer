@@ -8381,11 +8381,14 @@ test("A planner works a schedule on an interactive Gantt board: drags an activit
 test("A resource owner sees demand against capacity, the overload and its cheapest move, and sets capacity for a while at phone, iPad and desktop widths (P5.18)", async () => {
   const load = JSON.parse(readFileSync(new URL("./fixtures/resource-load-okan.json", import.meta.url)));
   const posted = [];
+  load.resources.find((r) => r.code === "OPS").routine_load = { quantity: 0.4, source: "Rounds and checks", basis: "64 round checks a shift at 4 minutes each, over a 12-hour shift" };
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
   await page.route("**/plan/resources", (route) => route.fulfill({ json: load.resources.map(({ code, name, kind, unit, capacity }) => ({ code, name, kind, unit, capacity })) }));
   await page.route("**/plan/resources/load?*", (route) => route.fulfill({ json: load }));
   await page.route("**/plan/resources/MECH/capacity", (route) => { posted.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  const added = [];
+  await page.route("**/plan/resources/BEDS", (route) => { added.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
   await page.goto(`${url}/#/plan`);
   await page.getByRole("link", { name: "Resources" }).click();
   await page.getByRole("heading", { name: "Resources", level: 1 }).waitFor();
@@ -8405,6 +8408,21 @@ test("A resource owner sees demand against capacity, the overload and its cheape
   await expectReports(posted, 1);
   assert.equal(posted[0].capacity, 5);
   assert.equal(posted[0].reason, "training");
+  // The operators' rounds are named as load on their card, with what the number rests on.
+  await page.locator(".load-card", { hasText: "Operations isolation team" }).getByText("Rounds and checks hold 0.4 the whole time: 64 round checks a shift at 4 minutes each, over a 12-hour shift.").waitFor();
+  // The owner adds bed space that counts the visiting crews.
+  await page.getByRole("button", { name: "Add a resource" }).click();
+  const form = page.locator(".ui-card", { hasText: "Add a resource" });
+  await form.getByLabel("Kind").selectOption("beds");
+  await form.getByLabel("Code").fill("beds");
+  await form.getByLabel("Name").fill("Beds for visiting crews");
+  await form.getByLabel("Capacity (beds)").fill("14");
+  await form.getByLabel("Counts the people on").fill("mech, welders");
+  await form.getByText("No resource WELDERS.").waitFor();
+  await form.getByLabel("Counts the people on").fill("mech, scaf");
+  await form.getByRole("button", { name: "Add", exact: true }).click();
+  await expectReports(added, 1);
+  assert.deepEqual([added[0].kind, added[0].unit, added[0].capacity, added[0].counts], ["beds", "beds", 14, ["MECH", "SCAF"]]);
   for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
     await page.setViewportSize({ width: w, height: h });
     await mech.locator(".load-col").first().waitFor();
