@@ -89,10 +89,15 @@ async def assistant_ask(q: Question):
 @router.get("/assistant/agents")
 def assistant_agents():
     """The specialists, what they cover and what they can't: a static catalog that needs no model or key. With it,
-    whether an agents provider and key reference are configured (#404): presence only, no provider is called."""
+    whether an agents provider and key reference are configured (#404): presence only, no provider is called.
+    A spent monthly budget is reported apart from a missing key, so the page doesn't blame the key for it."""
     from ..agents.capabilities import public_catalog
     from ..core import llm
-    return public_catalog() | {"provider": llm.provider("agents"), "provider_configured": llm.configured("agents")}
+    from ..core import usage as metering
+    cap = metering.budget()
+    return public_catalog() | {"provider": llm.provider("agents"), "provider_configured": llm.has_credentials("agents"),
+                               "budget_reached": metering.over_budget(),
+                               "budget_usd_month": cap or None, "month_spend_usd": round(metering.month_spend(), 2)}
 
 
 @router.get("/assistant/context")
@@ -193,12 +198,13 @@ class Remember(BaseModel):
 def assistant_remember(answer_id: str, r: Remember, conn=Depends(get_conn)):
     """An engineer marks a statement in an answer "remember this": Claude turns it into dated facts."""
     from ..agents import memory
-    from ..core import llm
+    from ..core import llm, usage
     if not r.statement.strip():
         raise HTTPException(400, "empty statement")
-    if not llm.configured("agents") and memory._client is memory._DEFAULT_CLIENT:
+    if not llm.configured("agents", person=True) and memory._client is memory._DEFAULT_CLIENT:
         raise HTTPException(503, "Configure the agents provider API key to let the assistant remember.")
-    out = memory.learn(conn, deps.pack(), answer_id, r.statement.strip(), r.by)
+    with usage.person():  # a person asked for it and is waiting: the monthly cap is for automated use
+        out = memory.learn(conn, deps.pack(), answer_id, r.statement.strip(), r.by)
     if out.get("error") == "unknown answer":
         raise HTTPException(404, "unknown answer")
     return out | {"items": [memory.get(conn, i) for i in out.get("facts", [])]}

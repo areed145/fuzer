@@ -223,11 +223,15 @@ def sync_work_orders(conn, by: str = "sap") -> dict:
         """
         select e.fuzer_id, jsonb_object_agg(g.field, g.value) as f,
                (select array_agg(distinct x.dst) from edge x where x.src = e.fuzer_id and x.rel = 'concerns') as concerns,
-               (select min(k.key) from entity_key k where k.fuzer_id = e.fuzer_id and k.kind = 'work_order') as number
+               (select min(k.key) from entity_key k where k.fuzer_id = e.fuzer_id and k.kind = 'work_order') as number,
+               (select min(l.label) from edge x join entity_label l on l.fuzer_id = x.dst
+                where x.src = e.fuzer_id and x.rel = 'done_by') as work_center
         from entity e join golden g on g.fuzer_id = e.fuzer_id
         where e.kind = 'work_order' and e.retired_at is null
         group by e.fuzer_id
         """).fetchall()
+    crews = {r["work_center"]: r["code"] for r in conn.execute(
+        "select code, work_center from plan_resource where kind = 'crew' and work_center is not null")}
     added = updated = closed = skipped = 0
     for r in rows:
         f = {k: v for k, v in r["f"].items() if v not in (None, "")}
@@ -260,6 +264,13 @@ def sync_work_orders(conn, by: str = "sap") -> dict:
                       notes=f"SAP order {key}" + (f", revision {f['revision']}" if turnaround else ""))
         added += row["created"]
         updated += not row["created"]
+        # The crew it takes counts against the same pool a schedule levels against (P5.18), unless the order is a
+        # schedule's summary: its operations carry the need then, and counting both would count it twice.
+        crew = crews.get(r["work_center"])
+        if crew and isinstance(f.get("people"), (int, float)) and f["people"] > 0 and not row.get("project"):
+            conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, %s, %s) "
+                         "on conflict (item_id, resource) do update set quantity = excluded.quantity",
+                         (row["id"], crew, f["people"]))
     return {"orders": len(rows), "added": added, "updated": updated, "closed": closed, "skipped": skipped}
 
 

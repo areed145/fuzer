@@ -71,3 +71,10 @@ arrive:
   report_due: {obligation: {name: flaring_return, template: flare_emissions_monthly, regulator: the regulator}, about: report}
   # The agentic watch in live mode proposes what no rule raised, raised for a person to triage (P3.11d)
   watch_finding: {watch: live, since: "today-31d 00:00", until: "today-30d 00:00"}  # a day with a stretch the watch is shown
+  # The inspection pack's own work (P3.12): the mainline's corrosion at the Battle Creek crossing, over the screen
+  # within five years at its growth between the two pig runs
+  inspection_due: {not_here: "every line's wall supports its next inspection, and no inspection plan is overdue"}
+  ili_anomaly: {detector: ili_anomalies}
+  parts_not_ready: {not_here: "no SAP reservations export: no open order reserves a part"}
+  # The permit to work system's own work (P3.14): the standby generator's load test: lapsed nine days ago, its breaker still racked out
+  permit_lapsed: {detector: permit_lapsed}

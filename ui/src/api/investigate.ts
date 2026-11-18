@@ -311,6 +311,10 @@ export interface AssistantCatalog {
   /** The agents provider and whether its key reference is configured (#404); nothing is tested. */
   provider?: string | null;
   provider_configured?: boolean;
+  /** The month's model spend has reached llm.budget_usd_month, so AI calls are refused until it is raised. */
+  budget_reached?: boolean;
+  budget_usd_month?: number | null;
+  month_spend_usd?: number;
 }
 
 export interface AssistantJob {

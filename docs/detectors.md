@@ -36,6 +36,10 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`watch`](#watch) What looks unusual in a process area that no detector raised (agentic) | Agentic | Once a day | `watch_finding` | Any asset with the inputs |
 | [`repeat_leaks`](#repeat_leaks) A leak repair that does not hold: leaking in consecutive LDAR surveys | Rule | Once a day | `repeat_leak` | Any asset with the inputs |
 | [`gas_balance_gaps`](#gas_balance_gaps) The daily gas balance staying open for days: a meter likely off | Rule | Once a day | `gas_balance_gap` | Any asset with the inputs |
+| [`inspection_findings`](#inspection_findings) A line or vessel running out of wall, or overdue for inspection | Rule | Once a day | `inspection_due` | Any asset with the inputs |
+| [`ili_anomalies`](#ili_anomalies) A pig run anomaly that crosses the strength or depth screen | Rule | Once a day | `ili_anomaly` | Any asset with the inputs |
+| [`parts_not_ready`](#parts_not_ready) A planned job whose reserved parts won't be there on the day | Rule | Once a day | `parts_not_ready` | Any asset with the inputs |
+| [`permit_lapsed`](#permit_lapsed) A permit lapsed with plant still isolated under it | Rule | Every hour | `permit_lapsed` | Any asset with the inputs |
 | [`promoted_rules`](#promoted_rules) A rule drafted from confirmed watch findings and published by a person | Rule | Every 6 hours | `upset` | Any asset with the inputs |
 
 ## excursions
@@ -390,6 +394,46 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `gas_balance_gap`
 - **Needs:** fuel gas on the daily report
 - **Scored by:** `tests/ops/test_emissions.py::test_a_gas_balance_open_for_days_is_work_until_it_closes`, on the fake plant
+
+## inspection_findings
+
+**A line or vessel running out of wall, or overdue for inspection.** Each item with wall thickness readings that reaches retirement within five years, is overdue for the inspection its wall loss supports, or whose condition inspection plan is overdue or too late for its wall, raised as `inspection_due` for the engineer (keyed by the item); open ones with no reason left are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `inspection_due`
+- **Needs:** wall thickness readings
+- **Scored by:** `tests/ops/test_integrity_work.py::test_an_item_running_out_of_wall_or_overdue_is_work_until_it_is_not`, on the fake plant
+
+## ili_anomalies
+
+**A pig run anomaly that crosses the strength or depth screen.** Each metal loss anomaly of a line's latest in-line inspection run that crosses the modified B31G screen now or within the horizon at its growth rate, raised as `ili_anomaly` for the engineer (keyed by line and feature); open ones a later run no longer flags are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `ili_anomaly`
+- **Needs:** in-line inspection features
+- **Scored by:** `tests/evals/test_ili_harrier.py::test_an_ili_anomaly_over_the_screen_is_work`, on the fake plant
+
+## parts_not_ready
+
+**A planned job whose reserved parts won't be there on the day.** Each open work order with a reserved part on order too late, or short with nothing on order and no time left to get it, raised as `parts_not_ready` for the maintenance planner (keyed by the order); open ones now covered are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `parts_not_ready`
+- **Needs:** SAP reservations
+- **Scored by:** `tests/ops/test_parts_work.py::test_a_job_whose_parts_wont_arrive_is_work_until_covered`, on the fake plant
+
+## permit_lapsed
+
+**A permit lapsed with plant still isolated under it.** Each permit past its valid-to time and not closed, with isolations still applied or verified, raised as `permit_lapsed` for the ops lead (keyed by the permit); open ones closed, back in date or with nothing isolated are cleared.
+
+- **Kind:** Rule
+- **Runs:** Every hour
+- **Raises:** `permit_lapsed`
+- **Needs:** permits to work with their isolations
+- **Scored by:** `tests/ops/test_permit_work.py::test_a_lapsed_permit_with_plant_isolated_is_work_until_closed`, on the fake plant
 
 ## promoted_rules
 

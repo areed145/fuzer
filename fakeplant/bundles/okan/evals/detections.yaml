@@ -127,6 +127,48 @@ detectors:
     events:
       - {key: "gas balance · 2025-09-15", from: "2025-09-17", to: "2025-10-09"}  # the GGCP fuel gas meter reading zero
 
+  inspection_findings:  # the inspection pack's detector, read at the end of the history
+    since: "2025-12-30"
+    until: "2025-12-31"
+    at: ["2025-12-30"]
+    events:
+      - {key: "OK-PL-005", from: "2025-12-30", to: "2025-12-31"}  # under five years of wall left
+      - {key: "20-V-2001", from: "2025-12-30", to: "2025-12-31"}  # its inspection plan overdue
+      - {key: "20-V-2002", from: "2025-12-30", to: "2025-12-31"}  # its inspection plan overdue
+      - {key: "30-V-2001", from: "2025-12-30", to: "2025-12-31"}  # its inspection plan overdue
+      - {key: "40-V-2001", from: "2025-12-30", to: "2025-12-31"}  # its inspection plan overdue
+
+  ili_anomalies: {not_here: "no in-line inspection export"}
+
+  parts_not_ready:  # the reservations are dated from the day they are read, so is the run
+    since: "today"
+    until: "today+1d"
+    at: ["today"]
+    events:  # 50000277's order lands five days late; the rest are short with nothing on order and no time to get it
+      - {key: "50000274", from: "today", to: "today"}
+      - {key: "50000277", from: "today", to: "today"}
+      - {key: "50000278", from: "today", to: "today"}
+      - {key: "50000280", from: "today", to: "today"}
+      - {key: "50000281", from: "today", to: "today"}
+      - {key: "50000287", from: "today", to: "today"}
+      - {key: "50000290", from: "today", to: "today"}
+      - {key: "50000291", from: "today", to: "today"}
+      - {key: "50000299", from: "today", to: "today"}
+
+  permit_lapsed:  # permits are dated from the day they are read, so is the run
+    since: "today"
+    until: "today+1d"
+    at: ["today"]
+    events:  # every fourth permit lapsed two days ago, not closed, its isolations still applied
+      - {key: "PTW-30003", from: "today", to: "today"}
+      - {key: "PTW-30007", from: "today", to: "today"}
+      - {key: "PTW-30011", from: "today", to: "today"}
+      - {key: "PTW-30015", from: "today", to: "today"}
+      - {key: "PTW-30019", from: "today", to: "today"}
+      - {key: "PTW-30023", from: "today", to: "today"}
+      - {key: "PTW-30027", from: "today", to: "today"}
+      - {key: "PTW-30031", from: "today", to: "today"}
+
   # The entries below land the next delivery in Okan's history first; what they land stays, so they come last.
   source_health:
     deliver: {path: deliveries/thin-delivery, datasets: [moc_register]}

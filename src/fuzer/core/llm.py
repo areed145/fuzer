@@ -51,15 +51,21 @@ def _config(scope: str) -> tuple[str, str, str | None]:
     return selected, endpoint, key
 
 
-def configured(scope: str = "llm") -> bool:
-    """A provider is set up and the month's model budget isn't spent (core/usage.py): each feature asks this before
-    calling, so a spent budget turns them off the way a missing key does."""
+def has_credentials(scope: str = "llm") -> bool:
+    """A provider is chosen and its key reference resolves (or needs none). Presence only: nothing is called."""
     selected, _, key = _config(scope)
-    if not (selected == "ollama" or bool(key)):
+    return selected == "ollama" or bool(key)
+
+
+def configured(scope: str = "llm", *, person: bool = False) -> bool:
+    """A provider is set up and the month's model budget isn't spent (core/usage.py): each automated feature asks this
+    before calling, so a spent budget turns them off the way a missing key does. A feature that answers a person
+    (`person=True`, or inside usage.person()) only needs the key: the budget caps automated use, not people."""
+    if not has_credentials(scope):
         return False
     from . import usage as metering
 
-    return not metering.over_budget()
+    return person or metering.asked_by_person() or not metering.over_budget()
 
 
 def _resource(obj, path: str):

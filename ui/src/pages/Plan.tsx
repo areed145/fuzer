@@ -4,9 +4,11 @@
 import { acronyms, dayStamp } from "../wording";
 import { type CSSProperties, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
+import { Badge, Button, ButtonLink, Card, Input, PageHeader, Select, Empty } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
+import { SchedulePage } from "./Schedule";
+import { ResourcesPage } from "./Resources";
 import { usePerson } from "../work";
 import { useAct } from "./workflows/shared";
 import { useEntityNames } from "../useEntityNames";
@@ -19,6 +21,15 @@ const short = (at: string) => dayStamp(at);
 
 export function PlanPage({ query }: { query: URLSearchParams }) {
   const [person] = usePerson();
+  // `?schedule=OK-TAR-2026` opens that schedule's activities, logic and resources (P5.18).
+  const schedule = query.get("schedule");
+  // `?resources=1` is the resource owners' view: demand from every source against each resource's capacity.
+  if (query.has("resources")) return <ResourcesPage query={query} person={person} />;
+  return schedule ? <SchedulePage code={schedule} person={person} view={query.get("view")} /> : <PlanTimeline query={query} person={person} />;
+}
+
+function PlanTimeline({ query, person }: { query: URLSearchParams; person: string | null }) {
+  const schedules = useAsync(() => api.schedules(), []);
   // `?revision=TA26` opens that turnaround beside the timeline; `?revision=` opens the next one.
   const revision = query.has("revision") ? query.get("revision") ?? "" : null;
   const scope = useAsync(() => api.turnaround(revision || undefined), [revision]);
@@ -67,7 +78,8 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
   return (
     <section>
       <PageHeader subtitle="Planned activity from every source on one timeline."
-        actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
+        actions={<><ButtonLink href="#/plan?resources=1">Resources</ButtonLink>
+          <Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button></>}>
         Plan</PageHeader>
       <div className="row">
         <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
@@ -77,6 +89,11 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
         {!!scope.data?.revisions?.length && <label className="small">Turnaround <Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
           <option value="">None shown</option>
           {scope.data.revisions.map((r) => <option key={r} value={r}>{r}</option>)}
+        </Select></label>}
+        {!!schedules.data?.length && <label className="small">Schedule <Select aria-label="Open a schedule" value=""
+          onChange={(e) => { if (e.target.value) location.hash = `#/plan?schedule=${encodeURIComponent(e.target.value)}`; }}>
+          <option value="">Open…</option>
+          {schedules.data.map((x) => <option key={x.code} value={x.code}>{x.code} · {x.activities} activities</option>)}
         </Select></label>}
         <Badge>{plan.data.length} items</Badge>
         {clashes > 0 && <Badge tone="danger">{clashes} with a clash</Badge>}

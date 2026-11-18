@@ -557,7 +557,53 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
     cache: dict = {}
     keyed: dict[tuple, dict] = {}
     seen_alarm: dict[tuple, list] = {}
-    for d in sorted(found, key=lambda d: (d["start"], FIRST.get(d["detector"], 9))):
+    # Detections that start in the same minute are taken together: each joins an open upset through what came before
+    # it, never through another one of the same minute, and the rest group among themselves. A greedy pass in the
+    # order the database returned them chained same-minute detections differently from run to run.
+    def near(d, x):
+        return _near(adj, d.get("unit_id"), x.get("unit_id"), cache, hops) or d["point"] == x["point"]
+
+    batch: list[dict] = []
+
+    def settle(batch):
+        nonlocal open_
+        if not batch:
+            return
+        t = batch[0]["start"]
+        open_ = [g for g in open_ if t - g["last"] <= gap]
+        before = [(g, list(g["detections"])) for g in open_]
+        joins, alone = [], []
+        for d in batch:
+            # a group with something new near it first, so standing alarms don't split one upset in two (#1148)
+            home = next((g for g, xs in before if any(not x.get("standing") and near(d, x) for x in xs)), None) \
+                or next((g for g, xs in before if any(near(d, x) for x in xs)), None)
+            (joins.append((home, d)) if home is not None else alone.append(d))
+        for home, d in joins:
+            home["detections"].append(d)
+            home["last"] = max(home["last"], d["start"])
+        # the rest: one upset per set of detections connected to each other
+        parent = list(range(len(alone)))
+
+        def root(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+        for i in range(len(alone)):
+            for j in range(i):
+                if near(alone[i], alone[j]):
+                    parent[root(i)] = root(j)
+        made: dict[int, dict] = {}
+        for i, d in enumerate(alone):
+            g = made.get(root(i))
+            if g is None:
+                g = made[root(i)] = {"kind": "process", "detections": [], "last": d["start"]}
+                groups.append(g)
+                open_.append(g)
+            g["detections"].append(d)
+
+    order = lambda d: (d["start"], FIRST.get(d["detector"], 9), d.get("point") or "", str(d.get("key") or ""))
+    for d in sorted(found, key=order):
         if standing_before is not None and d["start"] <= standing_before:
             d["standing"] = True  # already on when scanning began (#142)
         if d["detector"] == "excursions":  # the same alarm again and again: a bad actor, not an upset (#1148)
@@ -575,19 +621,11 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
                 groups.append(g)
             g["detections"].append(d)
             continue
-        open_ = [g for g in open_ if d["start"] - g["last"] <= gap]
-        def near(g, fresh_only, d=d):
-            return any((not fresh_only or not x.get("standing"))
-                       and (_near(adj, d.get("unit_id"), x.get("unit_id"), cache, hops) or d["point"] == x["point"])
-                       for x in g["detections"])
-        # a group with something new near it first, so standing alarms don't split one upset in two (#1148)
-        home = next((g for g in open_ if near(g, True)), None) or next((g for g in open_ if near(g, False)), None)
-        if home is None:
-            home = {"kind": "process", "detections": [], "last": d["start"]}
-            groups.append(home)
-            open_.append(home)
-        home["detections"].append(d)
-        home["last"] = max(home["last"], d["start"])
+        if batch and batch[0]["start"] != d["start"]:
+            settle(batch)
+            batch = []
+        batch.append(d)
+    settle(batch)
     next_to: dict = {}  # _near caches reach per unit for one hop count, so one hop keeps its own
     groups = [part for g in groups for part in _unchain_standing(g, adj, next_to)]
     out = []

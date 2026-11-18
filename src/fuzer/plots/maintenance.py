@@ -492,3 +492,68 @@ def vibration_spectrum(conn, tag: str, point: str | None = None) -> Figure:
         "bearing": p["bearing"], "frequencies": p["frequencies"], "markers": markers,
         "indications": [{k: i.get(k) for k in ("fault", "reads", "hz", "amplitude", "harmonics", "since")}
                         for i in p["indications"]], "note": out["note"]}, [p["spectrum"]])
+
+
+def gantt(conn, project: str | None = None, levelled: bool = True) -> Figure:
+    """A schedule on the integrated plan as a Gantt (P5.18): one bar per activity at its levelled dates (or early
+    dates when `levelled` is false), the critical path in red, the turnaround window's end as a line."""
+    from datetime import timedelta
+
+    from ..core.plan import PlanError
+    from ..ops import schedule
+
+    try:
+        out = schedule.analyse(conn, project)
+    except PlanError as e:
+        raise ChartError(str(e)) from e
+    acts = out["activities"]
+    chain = set(out["critical_path"] if not levelled else [c["code"] for c in out["levelled_chain"]])
+    start_key, finish_key = ("start", "finish") if levelled else ("early_start", "early_finish")
+    # The axis names each bar short enough to leave a phone room for the bars; the hover gives the whole name.
+    names = [f"{a['code']} {a['name'] if len(a['name']) <= 20 else a['name'][:19].rstrip() + '…'}" for a in acts]
+    data = []
+    for crit, label in ((True, "critical path"), (False, "other work")):
+        rows = [(n, a) for n, a in zip(names, acts) if (a["code"] in chain) == crit]
+        if not rows:
+            continue
+        data.append({
+            "type": "bar", "orientation": "h", "name": label, "y": [n for n, _ in rows],
+            "base": [a[start_key].isoformat() for _, a in rows],
+            "x": [(a[finish_key] - a[start_key]).total_seconds() * 1000 for _, a in rows],
+            "customdata": [[a[start_key].strftime("%a %d %b %H:%M"), a[finish_key].strftime("%a %d %b %H:%M"),
+                            a["duration_hours"], a["float_hours"], ", ".join(f"{q:g} {r}" for r, q in a["needs"].items()),
+                            (f"waited {a['held_back_hours']:g} h for {a['held_back_by']['resource']}"
+                             if a["held_back_by"] else "")] for _, a in rows],
+            "text": [a["name"] for _, a in rows], "textposition": "none",
+            "hovertemplate": "%{text}<br>%{customdata[0]} to %{customdata[1]}<br>%{customdata[2]} h, float %{customdata[3]} h"
+                             "<br>%{customdata[4]}<br>%{customdata[5]}<extra></extra>",
+            "marker": {"color": "rgba(205,60,50,0.9)" if crit else "rgba(40,110,190,0.75)"}})
+    p = out["project"]
+    lay = layout(f"{p['code']} {'levelled' if levelled else 'early'} schedule", None, None, barmode="overlay")
+    # Dates along the top, where a tall chart is read from; the legend above them.
+    lay["xaxis"] = {"type": "date", "tickformat": "%d %b", "side": "top"}
+    lay["yaxis"] = {"autorange": "reversed", "automargin": True, "categoryorder": "array", "categoryarray": names,
+                    "tickfont": {"size": 11}}
+    lay["height"] = 140 + 22 * len(acts)
+    lay["legend"] = {"orientation": "h", "x": 0, "y": 1 - 38 / lay["height"], "yanchor": "top", "yref": "container"}
+    # On a phone the bars need the width: activity codes on the axis (the hover names them), the legend at the foot.
+    lay["meta"] = {"narrow": {
+        "yaxis": {"tickmode": "array", "tickvals": names, "ticktext": [a["code"] for a in acts]},
+        "xaxis": {"nticks": 5, "tickangle": 0},
+        "legend": {"orientation": "h", "x": 0, "y": 0, "yanchor": "bottom", "yref": "container"},
+        "margin": {"l": 10, "r": 12, "t": 70, "b": 44}}}
+    lay["margin"] = {"l": 10, "r": 16, "t": 90, "b": 30}
+    if p["finish_by"]:
+        end = p["finish_by"].isoformat()
+        lay["shapes"] = [{"type": "line", "x0": end, "x1": end, "yref": "paper", "y0": 0, "y1": 1,
+                          "line": {"dash": "dash", "width": 1.5, "color": "rgba(120,120,120,0.9)"}}]
+        lay["annotations"] = [{"x": end, "y": 0, "yref": "paper", "text": "window ends", "showarrow": False,
+                               "yanchor": "top", "xanchor": "right", "font": {"size": 11}}]
+    finish = out["levelled_finish"] if levelled else out["unconstrained_finish"]
+    return Figure("gantt", lay["title"]["text"], data, lay, {
+        "project": p["code"], "start": p["start_at"].isoformat(), "finish": finish.isoformat(),
+        "window_ends": p["finish_by"].isoformat() if p["finish_by"] else None,
+        "unconstrained_finish": out["unconstrained_finish"].isoformat(), "levelled_finish": out["levelled_finish"].isoformat(),
+        "critical_path": out["critical_path"], "levelled_chain": out["levelled_chain"],
+        "days": round((finish - p["start_at"]) / timedelta(days=1), 1),
+        "dates": "levelled against shared resources" if levelled else "early dates, logic only"}, [])

@@ -9,10 +9,13 @@ import { WorkDraftCard } from "./WorkDraft";
 import { TOKEN, TOKENS, display, idsIn, isId, linkCitations, type EntityNames } from "./entityRefs";
 import { entityHref } from "./lib";
 import { Table } from "./ui";
+import { DiagramNeedsReload } from "./DiagramNeedsReload";
 import { useEntityNames } from "./useEntityNames";
 
 // Mermaid is large, so it loads only when an answer holds a diagram.
-const MermaidDiagram = lazy(() => import("./MermaidDiagram").then((m) => ({ default: m.MermaidDiagram })));
+// If its file is gone (deployed again since the page opened), the diagram says to reload rather than breaking the page.
+const MermaidDiagram = lazy(() => import("./MermaidDiagram").then((m) => ({ default: m.MermaidDiagram }))
+  .catch(() => ({ default: DiagramNeedsReload })));
 
 // Agents sometimes write a diagram without its fence. The opening keyword and direction are specific
 // enough to spot, and a false match still shows its text as source.

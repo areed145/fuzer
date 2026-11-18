@@ -780,6 +780,47 @@ export interface AtRisk {
   }[];
 }
 
+/** A schedule on the integrated plan (P5.18): a turnaround, project or campaign with activities, links and resources. */
+export interface ScheduleSummary {
+  code: string; title: string; kind: string; start_at: string; finish_by: string | null; hours_per_day: number;
+  days_per_week: number; activities: number; first_start: string | null; last_finish: string | null;
+}
+export interface ScheduleLinkRef { code: string; type: "FS" | "SS" | "FF" | "SF"; lag_hours: number }
+export interface ScheduleRow {
+  id: number; code: string | null; wbs: string | null; name: string; status: string; duration_hours: number | null;
+  percent_complete: number | null; work_order: string | null; group?: string | null; not_before?: string | null; assets: string[]; area: string | null;
+  needs: Record<string, number>; predecessors: ScheduleLinkRef[];
+  early_start: string; early_finish: string; late_start: string; late_finish: string; float_hours: number; critical: boolean;
+  start: string; finish: string; held_back_hours: number; held_back_by: { resource: string; activities: string[] } | null;
+}
+export interface ScheduleOverload {
+  resource: string; name: string | null; from: string; to: string; need: number; capacity: number; unit: string | null;
+  activities: string[]; other_work: boolean;
+}
+export interface ScheduleDay { day: string; schedule: number; other: number; capacity: number | null }
+export interface ScheduleAnalysis {
+  project: { code: string; title: string; kind: string; start_at: string; finish_by: string | null; hours_per_day: number; days_per_week: number };
+  activities: ScheduleRow[]; critical_path: string[]; unconstrained_finish: string; levelled_finish: string;
+  levelled_days_longer: number; overruns_window_by_days: number; levelled_chain: { code: string; waited_for?: string }[];
+  overloads_if_unlevelled: ScheduleOverload[]; overloads_levelled: ScheduleOverload[];
+  resources: PlanResource[]; profiles: { levelled: Record<string, ScheduleDay[]>; unlevelled: Record<string, ScheduleDay[]> };
+  other_work: { id: number; title: string; resource: string; quantity: number; start: string; end: string; project: string | null }[];
+}
+export interface ResourceMove {
+  item_id: number; title: string; source: string; code: string | null; order: string | null; slip_hours: number;
+  float_hours: number | null; finish_later_days: number | null; new_start: string; new_end: string;
+}
+export interface ResourceOverload {
+  from: string; to: string; peak: number; capacity: number; over_by: number;
+  jobs: { item_id: number; title: string; source: string; code: string | null; quantity: number }[]; moves: ResourceMove[];
+}
+export interface ResourceLoad {
+  code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];
+  days: { day: string; capacity: number; demand: number; by_source: Record<string, number> }[]; overloads: ResourceOverload[];
+  capacity_windows: { id: number; start: string; end: string; capacity: number; reason: string | null }[];
+}
+export interface PlanResource { code: string; name: string; kind: string; unit: string | null; capacity: number; work_center?: string | null }
+
 export interface PlanItem {
   id: number; kind: string; title: string; source: string | null; source_key: string | null; subjects: string[];
   area_id: string | null; area_label: string | null; start_at: string; end_at: string; status: string;
@@ -924,6 +965,28 @@ export const workApi = {
     project?: string) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }, project),
   planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),
+  schedules: () => request<ScheduleSummary[]>("GET", "/plan/schedules"),
+  schedule: (code: string) => request<ScheduleAnalysis>("GET", `/plan/schedules/${encodeURIComponent(code)}`),
+  scheduleApply: (code: string, by: string) =>
+    request<{ project: string; finish: string; unconstrained_finish: string }>("POST", `/plan/schedules/${encodeURIComponent(code)}/apply`, undefined, { by }),
+  scheduleAdd: (code: string, a: { by: string; code: string; name: string; duration_hours: number; after?: string[] }) =>
+    request<unknown>("POST", `/plan/schedules/${encodeURIComponent(code)}/activities`, undefined, a),
+  scheduleChange: (id: number, by: string, change: Partial<{ name: string; duration_hours: number; percent_complete: number; status: string; not_before: string; clear_not_before: boolean }>) =>
+    request<unknown>("PATCH", `/plan/schedules/activities/${id}`, undefined, { by, ...change }),
+  scheduleRemove: (id: number, by: string) => request<unknown>("DELETE", `/plan/schedules/activities/${id}`, { by }),
+  scheduleDemand: (id: number, by: string, resource: string, quantity: number | null) =>
+    request<unknown>("PUT", `/plan/schedules/activities/${id}/demand`, undefined, { by, resource, quantity }),
+  scheduleLink: (by: string, pred: number, succ: number, type: ScheduleLinkRef["type"], lag_hours: number) =>
+    request<unknown>("POST", "/plan/schedules/links", undefined, { by, pred, succ, type, lag_hours }),
+  scheduleUnlink: (by: string, pred: number, succ: number) => request<unknown>("DELETE", "/plan/schedules/links", { by, pred, succ }),
+  resourceLoad: (f: { resource?: string; start?: string; days?: number } = {}) =>
+    request<{ start: string; end: string; days: number; resources: ResourceLoad[] }>("GET", "/plan/resources/load", f),
+  capacityWindow: (code: string, w: { by: string; start: string; end: string; capacity: number; reason?: string }) =>
+    request<unknown>("POST", `/plan/resources/${encodeURIComponent(code)}/capacity`, undefined, w),
+  capacityWindowRemove: (id: number, by: string) => request<unknown>("DELETE", `/plan/resources/capacity/${id}`, { by }),
+  planResourceChange: (code: string, by: string, change: Partial<{ name: string; capacity: number; unit: string; work_center: string }>) =>
+    request<PlanResource>("PUT", `/plan/resources/${encodeURIComponent(code)}`, undefined, { by, ...change }),
+  planResources: () => request<PlanResource[]>("GET", "/plan/resources"),
   turnaround: (revision?: string) => request<TurnaroundScope>("GET", "/turnarounds", { revision }),
   turnaroundBringIn: (itemId: number, by: string, revision: string | null) =>
     request<PlanItem>("POST", "/turnarounds/bring-in", undefined, { by, item_id: itemId, revision }),

@@ -412,6 +412,83 @@ create unique index if not exists plan_item_source on plan_item (source, source_
 create index if not exists plan_item_window on plan_item (start_at, end_at);
 create index if not exists plan_item_subjects on plan_item using gin (subjects);
 
+-- Schedules on the integrated plan (P5.18, ops/schedule.py): a turnaround, project or campaign whose activities are plan
+-- items with a duration, links between them and the shared resources they need, so a critical path and a levelled
+-- schedule sit on the same timeline as every other planned job. A planner maintains them; a template or an import
+-- seeds them.
+alter table plan_item add column if not exists project text;           -- the schedule it belongs to (OK-TAR-2026)
+alter table plan_item add column if not exists code text;              -- its activity id there (A0100)
+alter table plan_item add column if not exists wbs text;
+alter table plan_item add column if not exists parent_id bigint;       -- the summary item it rolls up into (an SAP order)
+alter table plan_item add column if not exists duration_hours double precision;  -- working hours it takes
+alter table plan_item add column if not exists percent_complete double precision;
+create unique index if not exists plan_item_code on plan_item (project, code) where project is not null and code is not null;
+
+create table if not exists plan_project (
+    code           text primary key,                -- a turnaround's revision, a project or campaign id
+    title          text not null,
+    kind           text not null default 'turnaround', -- turnaround | project | campaign
+    start_at       timestamptz not null,            -- when its first activity may start
+    finish_by      timestamptz,                     -- the window's end: a schedule past it overruns
+    hours_per_day  double precision not null default 24, -- its working calendar
+    days_per_week  integer not null default 7,
+    notes          text,
+    created_by     text not null,
+    updated_by     text not null,
+    created_at     timestamptz not null default now(),
+    updated_at     timestamptz not null default now(),
+    check (hours_per_day > 0 and hours_per_day <= 24 and days_per_week between 1 and 7)
+);
+
+-- Logic: the successor waits for its predecessor. FS finish-to-start, SS start-to-start, FF finish-to-finish,
+-- SF start-to-finish, each with a lag in working hours (negative for a lead).
+create table if not exists plan_link (
+    id         bigserial primary key,
+    pred       bigint not null references plan_item(id) on delete cascade,
+    succ       bigint not null references plan_item(id) on delete cascade,
+    type       text not null default 'FS',
+    lag_hours  double precision not null default 0,
+    created_by text not null,
+    created_at timestamptz not null default now(),
+    unique (pred, succ),
+    check (pred <> succ and type in ('FS', 'SS', 'FF', 'SF'))
+);
+
+-- Shared resources work is levelled against: crews by discipline, and the site's beds (POB), helicopter and vessel
+-- seats, cranes, deck space and production capacity. Capacity is the usual amount, with windows that change it.
+create table if not exists plan_resource (
+    code        text primary key,
+    name        text not null,
+    kind        text not null,                      -- crew | beds | seats | vessel | crane | deck | capacity | other
+    unit        text not null default 'people',
+    capacity    double precision not null check (capacity >= 0),
+    work_center text,                               -- the SAP work center whose orders use it (crews)
+    notes       text,
+    created_by  text not null,
+    updated_by  text not null,
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz not null default now()
+);
+create table if not exists plan_resource_capacity (
+    id        bigserial primary key,
+    resource  text not null references plan_resource(code) on delete cascade,
+    start_at  timestamptz not null,
+    end_at    timestamptz not null,
+    capacity  double precision not null check (capacity >= 0),
+    reason    text,
+    check (end_at > start_at)
+);
+-- a planner's constraint on a schedule activity: start no earlier than this (dragged on the Gantt)
+alter table plan_item add column if not exists not_before timestamptz;
+alter table plan_resource_capacity add column if not exists created_by text;
+alter table plan_resource_capacity add column if not exists created_at timestamptz not null default now();
+create table if not exists plan_demand (
+    item_id   bigint not null references plan_item(id) on delete cascade,
+    resource  text not null references plan_resource(code) on delete cascade,
+    quantity  double precision not null check (quantity > 0),
+    primary key (item_id, resource)
+);
+
 -- Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that
 -- raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's
 -- Inbox (or sent directly) and published as source.update for the system's adapter.

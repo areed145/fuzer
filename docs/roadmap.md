@@ -87,6 +87,19 @@ R.2 (#1017) stays in Phase R as the part that can be built today: the PI Web API
 recorded from a real server where one is public, or taken from the vendor's reference where none is, instead of only
 against Fuzer's own fake historian.
 
+## Work the registers bring (P3.12 #1179, P3.13 #1180, P3.14 #1181)
+
+Most of a field crew's day, and most of what an integrity engineer or a planner chases, comes from registers rather
+than from a historian. Fuzer already reads those registers for its analyses, but until now it raised no work from
+them. Three epics in the platform lane turn what those analyses already work out into routed work, each through a
+registered detector in its source pack.
+
+| Epic | Raises | For | Done when |
+|---|---|---|---|
+| P3.12 Inspection and corrosion findings | `inspection_due`: a line or vessel under five years of wall left, overdue for the inspection its wall loss supports, or past its inspection plan. `ili_anomaly`: a pig run anomaly over the B31G screen now or within five years | Engineer | Okan's OK-PL-005 and its four overdue vessels, Kestrel's D1-V-4001 and Harrier's Battle Creek crossing are each work once, and clear when a later survey or plan says so |
+| P3.13 Parts not ready for planned work | `parts_not_ready`: a work order whose reserved part is on order too late, or not on order with too little time left | Maintenance planner | Okan's planted late order and its part not on order are work on their orders, and clear once covered |
+| P3.14 Permit and isolation exceptions | `permit_lapsed`: a permit past its valid-to time, not closed, with isolations still applied | Ops lead | Each lapsed permit with plant still isolated is work, and clears when it is closed or reissued |
+
 ## Historian views (P5.12 #967, P5.13 #968, P5.15 #1012)
 
 An IOC engineer looking at a tripped compressor wants its suction and discharge pressures, temperatures, speed and
@@ -143,6 +156,17 @@ One epic in the work and UI lane makes a shift work offline and the phone easy t
 | Epic | Build | Done when |
 |---|---|---|
 | P5.17 Field work with poor signal, and a field mode | (a) the outbox in IndexedDB with photos as files, sent from any page; (b) signal and sync status in the shell; (c) the day's work kept: jobs, asset pages, documents, drawings and a recent trend, under a budget; (d) rounds offline; (e) close-outs, handover accept and plan updates queued, with what needs signal disabled; (f) a refused write is kept with its reason, never dropped, and the IOC sees made and arrived times; (g) field mode: 56 px targets, larger type, high contrast, actions in thumb reach; (h) tests on offline, throttled and dropped connections and an iPhone checklist. | A dispatched job, its asset, drawings and trend open offline, labelled with when they were kept. A round is taken offline. Reports, close-outs and readings made offline arrive once with their time, ten with four photos each without running out of room. Nothing the operator made is lost on return. Every page shows signal and sync state. Field mode passes 56 px targets and 7:1 contrast. |
+
+## Integrated planning (P5.18 #1170)
+
+Asked "what is the critical path of the next turnaround scope?", the Work Management specialist had scope (SAP orders
+with hours and people) but no schedule logic, and nothing modelled shared resources beyond crew size. A planner levels
+a turnaround or integrated activity plan against beds, seats, vessels, cranes, deck space, production capacity, permits
+and weather, not only crews. One epic in the work lane gives the plan logic, a critical path and a constraint model.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P5.18 Integrated planning: schedule logic, critical path and shared-resource constraints | (a) an open page survives a deploy: earlier builds' files stay served, and a missing file offers a reload; (b) turnaround operations with durations, predecessor links, the window and units down, loaded as a source; (c) forward and backward pass, float, critical chain and a crew-levelled schedule, with a specialist tool and a Gantt drawn by Fuzer; (d) an integrated planning skill for Work Management & Supply Chain; (e) a shared-resource register (POB beds, seats, vessels, cranes, deck space, production capacity, weather windows) with capacity over time and a constraint check; (f) a Gantt and resource view on Plan. | Ask names OK-TAR-2026's critical activities, unconstrained and levelled finish and the resource that drives it, citing records. The Gantt draws at 390 px, iPad and desktop. The constraint check flags POB, seat, crane and capacity overloads with the items that cause them. Kestrel and Harrier run with no code of their own. |
 
 ## How the work is tracked
 

@@ -1263,7 +1263,7 @@ def _plan_call(conn, fn, *args, **kwargs):
         out = fn(conn, *args, **kwargs)
     except PlanError as e:
         conn.rollback()
-        raise HTTPException(404 if re.match(r"no (plan item|exception) \d", str(e)) else 400, str(e)) from e
+        raise HTTPException(404 if re.match(r"no (plan item|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
 
@@ -1299,7 +1299,9 @@ def plan_propose(p: PlanPropose, conn=Depends(get_conn)):
 def plan_change(item_id: int, c: PlanChange, conn=Depends(get_conn)):
     """Reschedule an item, give it a crew, or move it on (scheduled, in progress, done, cancelled)."""
     from ..ops import plan
-    fields = {k: v for k, v in c.model_dump(exclude={"by"}).items() if v is not None}
+    fields = {k: v for k, v in c.model_dump(exclude={"by", "clear_not_before"}).items() if v is not None}
+    if c.clear_not_before:
+        fields["not_before"] = None
     return _plan_call(conn, plan.update, item_id, c.by, **fields)
 
 
@@ -1312,6 +1314,162 @@ def plan_sync(conn=Depends(get_conn)):
     def both(c):
         return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c)}
     return _plan_call(conn, both)
+
+
+class ScheduleApply(BaseModel):
+    by: str
+
+
+class ScheduleActivity(BaseModel):
+    by: str
+    code: str
+    name: str
+    duration_hours: float
+    wbs: str | None = None
+    refs: list[str] = []
+    after: list[str] = []
+
+
+class ScheduleActivityChange(BaseModel):
+    by: str
+    name: str | None = None
+    code: str | None = None
+    wbs: str | None = None
+    duration_hours: float | None = None
+    percent_complete: float | None = None
+    status: str | None = None
+    notes: str | None = None
+    not_before: datetime | None = None
+    clear_not_before: bool = False
+
+
+class ScheduleLink(BaseModel):
+    by: str
+    pred: int
+    succ: int
+    type: Literal["FS", "SS", "FF", "SF"] = "FS"
+    lag_hours: float = 0
+
+
+class ScheduleDemand(BaseModel):
+    by: str
+    resource: str
+    quantity: float | None = None
+
+
+class PlanResourceChange(BaseModel):
+    by: str
+    name: str | None = None
+    kind: str | None = None
+    unit: str | None = None
+    capacity: float | None = None
+    work_center: str | None = None
+
+
+@router.get("/plan/schedules")
+def schedules(conn=Depends(get_conn)):
+    """The schedules on the integrated plan (turnarounds, projects, campaigns) with their window and size."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.projects)
+
+
+@router.get("/plan/schedules/{code}")
+def schedule_analysis(code: str, conn=Depends(get_conn)):
+    """A schedule's activities with early and late dates, float and the critical path, its schedule levelled against
+    every shared resource (other planned work on them included), and the overloads if nothing were levelled."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.analyse, code)
+
+
+@router.post("/plan/schedules/{code}/apply")
+def schedule_apply(code: str, body: ScheduleApply, conn=Depends(get_conn)):
+    """Schedule: put the levelled dates on the plan."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.apply, code, body.by)
+
+
+@router.post("/plan/schedules/{code}/activities")
+def schedule_add(code: str, a: ScheduleActivity, conn=Depends(get_conn)):
+    from ..ops import schedule
+    return _plan_call(conn, schedule.add_activity, code, a.code, a.name, a.duration_hours, a.by, wbs=a.wbs,
+                      refs=a.refs, after=a.after)
+
+
+@router.patch("/plan/schedules/activities/{item_id}")
+def schedule_change(item_id: int, c: ScheduleActivityChange, conn=Depends(get_conn)):
+    from ..ops import schedule
+    fields = {k: v for k, v in c.model_dump(exclude={"by", "clear_not_before"}).items() if v is not None}
+    if c.clear_not_before:
+        fields["not_before"] = None
+    return _plan_call(conn, schedule.change_activity, item_id, c.by, **fields)
+
+
+@router.delete("/plan/schedules/activities/{item_id}")
+def schedule_remove(item_id: int, by: str = "", conn=Depends(get_conn)):
+    from ..ops import schedule
+    return _plan_call(conn, schedule.remove_activity, item_id, by)
+
+
+@router.put("/plan/schedules/activities/{item_id}/demand")
+def schedule_demand(item_id: int, d: ScheduleDemand, conn=Depends(get_conn)):
+    """What an activity needs of a resource while it runs; no quantity removes it."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.set_demand, item_id, d.resource, d.quantity, d.by)
+
+
+@router.post("/plan/schedules/links")
+def schedule_link(link: ScheduleLink, conn=Depends(get_conn)):
+    from ..ops import schedule
+    return _plan_call(conn, schedule.link, link.pred, link.succ, link.by, link.type, link.lag_hours)
+
+
+@router.delete("/plan/schedules/links")
+def schedule_unlink(pred: int, succ: int, by: str = "", conn=Depends(get_conn)):
+    from ..ops import schedule
+    return _plan_call(conn, schedule.unlink, pred, succ, by)
+
+
+@router.get("/plan/resources")
+def plan_resources(conn=Depends(get_conn)):
+    """The shared resources work is levelled against, with their usual capacity."""
+    return conn.execute("select * from plan_resource order by kind, code").fetchall()
+
+
+@router.put("/plan/resources/{code}")
+def plan_resource_change(code: str, r: PlanResourceChange, conn=Depends(get_conn)):
+    from ..ops import schedule
+    return _plan_call(conn, schedule.set_resource, code, r.by, name=r.name, kind=r.kind, unit=r.unit,
+                      capacity=r.capacity, work_center=r.work_center)
+
+
+class CapacityWindow(BaseModel):
+    by: str
+    start: datetime
+    end: datetime
+    capacity: float
+    reason: str | None = None
+
+
+@router.get("/plan/resources/load")
+def plan_resource_load(resource: str | None = None, start: datetime | None = None, days: int = Query(42, ge=1, le=180),
+                       conn=Depends(get_conn)):
+    """For resource owners: each shared resource's demand from every source on the plan, day by day, against its
+    capacity, with each overload, the jobs in it and the move that clears it at the least cost."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.resource_load, resource, start, days)
+
+
+@router.post("/plan/resources/{code}/capacity")
+def plan_capacity_window(code: str, w: CapacityWindow, conn=Depends(get_conn)):
+    """A different capacity for a while: leave, a crane's certification lapsing, a vessel in dock."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.set_capacity_window, code, w.start, w.end, w.capacity, w.by, w.reason)
+
+
+@router.delete("/plan/resources/capacity/{window_id}")
+def plan_capacity_window_remove(window_id: int, by: str = "", conn=Depends(get_conn)):
+    from ..ops import schedule
+    return _plan_call(conn, schedule.remove_capacity_window, window_id, by)
 
 
 @router.get("/turnarounds")

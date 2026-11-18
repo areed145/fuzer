@@ -1843,6 +1843,74 @@ The integrated plan (ops/plan.py): every planned activity from every source on o
 | `created_at` | timestamptz |  |
 | `updated_at` | timestamptz |  |
 
+### `plan_project`
+
+| Column | Type | Note |
+|---|---|---|
+| `code` | text | a turnaround's revision, a project or campaign id |
+| `title` | text |  |
+| `kind` | text | turnaround \| project \| campaign |
+| `start_at` | timestamptz | when its first activity may start |
+| `finish_by` | timestamptz, | the window's end: a schedule past it overruns |
+| `hours_per_day` | double precision | its working calendar |
+| `days_per_week` | integer |  |
+| `notes` | text |  |
+| `created_by` | text |  |
+| `updated_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
+### `plan_link`
+
+Logic: the successor waits for its predecessor. FS finish-to-start, SS start-to-start, FF finish-to-finish, SF start-to-finish, each with a lag in working hours (negative for a lead).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `pred` | bigint |  |
+| `succ` | bigint |  |
+| `type` | text |  |
+| `lag_hours` | double precision |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+
+### `plan_resource`
+
+Shared resources work is levelled against: crews by discipline, and the site's beds (POB), helicopter and vessel seats, cranes, deck space and production capacity. Capacity is the usual amount, with windows that change it.
+
+| Column | Type | Note |
+|---|---|---|
+| `code` | text |  |
+| `name` | text |  |
+| `kind` | text | crew \| beds \| seats \| vessel \| crane \| deck \| capacity \| other |
+| `unit` | text |  |
+| `capacity` | double precision |  |
+| `work_center` | text, | the SAP work center whose orders use it (crews) |
+| `notes` | text |  |
+| `created_by` | text |  |
+| `updated_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
+### `plan_resource_capacity`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `resource` | text |  |
+| `start_at` | timestamptz |  |
+| `end_at` | timestamptz |  |
+| `capacity` | double precision |  |
+| `reason` | text |  |
+
+### `plan_demand`
+
+| Column | Type | Note |
+|---|---|---|
+| `item_id` | bigint |  |
+| `resource` | text |  |
+| `quantity` | double precision |  |
+
 ### `source_closeout`
 
 Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's Inbox (or sent directly) and published as source.update for the system's adapter.

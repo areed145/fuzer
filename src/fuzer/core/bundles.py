@@ -14,6 +14,7 @@
       sample_crew: true       # a fictional demo only: a sample team works its queue on today's clock (ops/sample_crew)
     source_packs: [packs/measurement.yaml]   # optional: the source packs (sources/_catalog_packs) it brings
     roster: roster.yaml       # optional: the roster template, the human workflow roles it staffs and their seats
+    schedules: [schedules/OK-TAR-2026.yaml]  # optional: schedule templates seeded onto the integrated plan (P5.18)
     operating_model:          # optional: the operating model it follows (P8.1), and its named deviations from it
       name: standard
       version: 1
@@ -115,14 +116,16 @@ def read(path: Path) -> dict:
                 raise BundleError(f"{manifest}: its exports folder {m['project'][k]} is missing")
     source_packs, raw_packs = _source_packs(manifest, root, m.get("source_packs"))
     roster = _roster(manifest, root, m.get("roster"))
+    schedules = _schedules(manifest, root, m.get("schedules"))
     model = _operating_model(manifest, m.get("operating_model"))
     not_applicable = _not_applicable(manifest, m.get("packs_not_applicable"))
-    digest = hashlib.sha256(json.dumps({"manifest": m, "pack": raw_pack, "source_packs": raw_packs, "roster": roster},
+    digest = hashlib.sha256(json.dumps({"manifest": m, "pack": raw_pack, "source_packs": raw_packs, "roster": roster,
+                                        "schedules": schedules},
                                        sort_keys=True, default=str).encode())
     cfg = {**project, "pack": pack.name, "pack_config": raw_pack,
            "bundle": {"version": m["bundle"], "name": name, "digest": digest.hexdigest()[:16],
                       "description": m.get("description") or "", "source_packs": source_packs,
-                      "roster": roster, "operating_model": model,
+                      "roster": roster, "schedules": schedules, "operating_model": model,
                       "packs_not_applicable": not_applicable}}
     return {"name": name, "config": cfg, "pack": pack, "root": str(root)}
 
@@ -167,6 +170,30 @@ def _roster(manifest: Path, root: Path, rel) -> list[dict]:
                 or r.get("seats", 1) < 1:
             raise BundleError(f"{manifest}: roster template {rel}: each role needs a name and a whole number of seats")
         out.append({"role": r["role"], "seats": r.get("seats", 1)})
+    return out
+
+
+def _schedules(manifest: Path, root: Path, listed) -> list[dict]:
+    """Schedule templates (P5.18): a turnaround or project's activities, links and resource needs, seeded onto the
+    integrated plan once (ops/schedule.py). Checked for shape here; their logic is checked when they are imported."""
+    if listed is None:
+        return []
+    if not isinstance(listed, list):
+        raise BundleError(f"{manifest}: schedules must be a list of template files")
+    out = []
+    for rel in listed:
+        doc = _yaml(manifest, root / str(rel), "schedule template")
+        if not isinstance(doc, dict) or doc.get("schedule") != 1 or not doc.get("code") or not doc.get("start"):
+            raise BundleError(f"{manifest}: schedule template {rel} needs schedule: 1, a code and a start")
+        if not isinstance(doc.get("activities"), list) or not all(isinstance(a, dict) and a.get("code") and a.get("name")
+                                                                   for a in doc["activities"]):
+            raise BundleError(f"{manifest}: schedule template {rel}: each activity needs a code and a name")
+        fields = {"code", "wbs", "name", "hours", "refs", "order_of", "needs", "after", "notes"}
+        for a in doc["activities"]:
+            if extra := set(a) - fields:  # a comma in an unquoted name splits it into a stray key
+                raise BundleError(f"{manifest}: schedule template {rel}: {a['code']} has unknown fields "
+                                  f"{sorted(map(str, extra))} (quote a name that has a comma)")
+        out.append(json.loads(json.dumps(doc, default=str)))
     return out
 
 
