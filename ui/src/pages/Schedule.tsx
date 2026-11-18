@@ -1,39 +1,61 @@
-/** A schedule on the integrated plan (P5.18, #1176): a turnaround, project or campaign laid out like a planner's
- * scheduling tool. Activities with durations, logic and the resources they need; the critical path and float from
- * the logic alone; and dates levelled against every shared resource, other planned work on them included. A planner
- * edits an activity in place and the schedule recalculates; Schedule puts the levelled dates on the plan. */
-import { type CSSProperties, useMemo, useState } from "react";
-import { api, type ScheduleAnalysis, type ScheduleDay, type ScheduleLinkRef, type ScheduleRow } from "../api";
-import { Badge, Button, ButtonLink, Card, Empty, Field, Input, Notice, PageHeader, Select, Table } from "../ui";
+/** A schedule on the integrated plan (P5.18, #1176): a turnaround, project or campaign as an interactive Gantt board.
+ * Activities grouped by work order with their logic drawn (or the same work by resource), dragged to hold a start or
+ * stretched to change a duration; a click opens the activity's properties beside the board. Every change recalculates
+ * the critical path and the dates levelled against every shared resource; Schedule puts those dates on the plan. */
+import { useState } from "react";
+import { api, type ScheduleAnalysis, type ScheduleLinkRef, type ScheduleRow } from "../api";
+import { Badge, Button, ButtonLink, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs } from "../ui";
 import { Status, useAsync } from "../lib";
 import { acronyms, dayStamp, stamp } from "../wording";
 import { useAct } from "./workflows/shared";
+import { type BoardChange, type BoardRows, ScheduleBoard } from "./ScheduleBoard";
 
-type Dates = "levelled" | "early";
 const TYPES: ScheduleLinkRef["type"][] = ["FS", "SS", "FF", "SF"];
 const TYPE_WORD: Record<ScheduleLinkRef["type"], string> = { FS: "finish to start", SS: "start to start", FF: "finish to finish", SF: "start to finish" };
 const hours = (n: number | null | undefined) => (n == null ? "" : Number.isInteger(n) ? String(n) : n.toFixed(1));
-const link = (p: ScheduleLinkRef) => `${p.code}${p.type === "FS" ? "" : ` ${p.type}`}${p.lag_hours ? ` ${p.lag_hours > 0 ? "+" : ""}${hours(p.lag_hours)}h` : ""}`;
-const needs = (n: Record<string, number>) => Object.entries(n).map(([r, q]) => `${r} ${hours(q)}`).join(", ");
-/** "Apr 8 06:00": a grid date short enough to leave room for the bars. */
-const when = (at: string) => new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-const span = (a: ScheduleRow, dates: Dates) => (dates === "levelled" ? [a.start, a.finish] : [a.early_start, a.early_finish]);
+/** A date for a datetime-local field, in the reader's own time. */
+const local = (at: string | Date) => { const d = new Date(at); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 
-export function SchedulePage({ code, person }: { code: string; person: string | null }) {
+type Undo = { say: string; back: () => Promise<unknown> };
+
+export function SchedulePage({ code, person, view }: { code: string; person: string | null; view?: string | null }) {
   const data = useAsync(() => api.schedule(code), [code]);
   const list = useAsync(() => api.schedules(), []);
-  const [dates, setDates] = useState<Dates>("levelled");
-  const [open, setOpen] = useState<number | null>(null);
+  const rows: BoardRows = view === "resources" ? "resources" : "activities";
+  const [zoom, setZoom] = useState(() => (typeof innerWidth === "number" && innerWidth < 600 ? 2 : 1));  // a phone starts zoomed in
+  const [selected, setSelected] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [undo, setUndo] = useState<Undo[]>([]);
+  const [said, setSaid] = useState<string | null>(null);
   const { busy, error, run } = useAct();
-  const [applied, setApplied] = useState<string | null>(null);
   const s = data.data;
   if (!s) return <Status loading={data.loading} error={data.error} onRetry={data.reload} />;
   const p = s.project;
   const over = s.overruns_window_by_days > 0;
+  const here = (v: BoardRows) => `#/plan?schedule=${encodeURIComponent(p.code)}${v === "resources" ? "&view=resources" : ""}`;
+  const sel = selected != null ? s.activities.find((a) => a.id === selected) : undefined;
   const apply = () => person && run("Scheduling", () => api.scheduleApply(p.code, person), (r) => {
-    setApplied(`Levelled dates are on the plan. Finishes ${stamp(r.finish)}.`);
+    setSaid(`These dates are on the plan. Finishes ${stamp(r.finish)}.`);
     data.reload();
   });
+  // A change on the board: saved at once, the schedule recalculated, and kept so it can be undone.
+  const change = (c: BoardChange) => {
+    if (!person) return;
+    const a = s.activities.find((x) => x.id === c.id);
+    if (!a) return;
+    const [say, forth, back] = c.kind === "stretch"
+      ? [`${c.code} now takes ${hours(c.hours)} h.`, () => api.scheduleChange(c.id, person, { duration_hours: c.hours }),
+         () => api.scheduleChange(c.id, person, { duration_hours: a.duration_hours ?? 0 })] as const
+      : [c.earliest ? `${c.code} starts as early as its logic and crews allow.` : `${c.code} starts no earlier than ${stamp(c.start)}.`,
+         () => api.scheduleChange(c.id, person, c.earliest ? { clear_not_before: true } : { not_before: c.start.toISOString() }),
+         () => api.scheduleChange(c.id, person, a.not_before ? { not_before: a.not_before } : { clear_not_before: true })] as const;
+    run("Rescheduling", forth, () => { setUndo((u) => [...u.slice(-19), { say, back }]); setSaid(say); data.reload(); });
+  };
+  const undoLast = () => {
+    const last = undo[undo.length - 1];
+    if (last) run("Undoing", last.back, () => { setUndo((u) => u.slice(0, -1)); setSaid(`Undone: ${last.say}`); data.reload(); });
+  };
+  const panel = adding || !!sel;
   return (
     <section>
       <PageHeader subtitle={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${dayStamp(p.start_at)}${p.finish_by ? ` to ${dayStamp(p.finish_by)}` : ""}`}
@@ -43,85 +65,36 @@ export function SchedulePage({ code, person }: { code: string; person: string | 
           <Button variant="primary" disabled={!person || !!busy} title={person ? undefined : "Choose who you are to schedule"}
             onClick={apply}>Schedule</Button>
         </>}>{acronyms(p.title)}</PageHeader>
-      <div className="row">
+      <div className="row gb-bar">
+        <Tabs label="Rows" items={[{ key: "activities", label: "Activities", href: here("activities"), current: rows === "activities" },
+          { key: "resources", label: "Resources", href: here("resources"), current: rows === "resources" }]} />
         {(list.data?.length ?? 0) > 1 && <label className="small">Schedule <Select aria-label="Schedule" value={p.code}
           onChange={(e) => { location.hash = `#/plan?schedule=${encodeURIComponent(e.target.value)}`; }}>
           {list.data!.map((x) => <option key={x.code} value={x.code}>{x.code}</option>)}
         </Select></label>}
-        <label className="small">Dates <Select aria-label="Dates" value={dates} onChange={(e) => setDates(e.target.value as Dates)}>
-          <option value="levelled">Levelled to resources</option>
-          <option value="early">Early (logic only)</option>
+        <label className="small">Zoom <Select aria-label="Zoom" value={String(zoom)} onChange={(e) => setZoom(Number(e.target.value))}>
+          <option value="1">Fit</option><option value="2">2×</option><option value="4">4×</option>
         </Select></label>
+        {person && <Button size="sm" onClick={() => { setAdding(true); setSelected(null); }}>Add activity</Button>}
+        {undo.length > 0 && <Button size="sm" disabled={!!busy} onClick={undoLast}>Undo</Button>}
         <Badge tone={over ? "danger" : "ok"}>Finishes {stamp(s.levelled_finish)}</Badge>
-        <Badge>Logic alone {stamp(s.unconstrained_finish)}</Badge>
         <Badge tone="danger">{s.critical_path.length} critical</Badge>
-        {s.overloads_if_unlevelled.length > 0 && <Badge>{s.overloads_if_unlevelled.length} overloads levelled out</Badge>}
+        {s.overloads_levelled.length > 0 && <Badge tone="danger">{s.overloads_levelled.length} over capacity</Badge>}
       </div>
-      {over && <Notice tone="warn">Levelled, this runs {s.overruns_window_by_days} days past the window. The finish waits
+      {over && <Notice tone="warn">This runs {s.overruns_window_by_days} days past the window. The finish waits
         on {[...new Set(s.levelled_chain.map((c) => c.waited_for).filter(Boolean))].join(", ") || "the logic"}.</Notice>}
-      {busy && <p role="status">{busy}…</p>}
       {error && <p role="alert" className="error">{error}</p>}
-      {applied && !busy && <p role="status">{applied}</p>}
-      <Activities s={s} dates={dates} open={open} setOpen={setOpen} person={person} onChange={data.reload} />
-      {person && <AddActivity project={p.code} person={person} onChange={data.reload} />}
-      <Resources s={s} dates={dates} />
+      <p role="status" className="small gb-said">{busy ? `${busy}…` : said ?? (person ? "Drag an activity to move it, its right edge to change how long it takes." : "Choose who you are to change the schedule.")}</p>
+      <div className={panel ? "plan-layout with-panel" : "plan-layout"}>
+        <ScheduleBoard s={s} rows={rows} zoom={zoom} selected={selected} canEdit={!!person && !busy}
+          onSelect={(id) => { setSelected(id); if (id != null) setAdding(false); }} onChange={change} />
+        {panel && <aside className="plan-panel gb-panel">
+          {sel ? <Card title={`${sel.code ?? ""} ${acronyms(sel.name)}`.trim()} actions={<Button size="sm" variant="ghost" onClick={() => setSelected(null)}>Close</Button>}>
+            <Editor key={`${sel.id}-${sel.duration_hours}-${sel.not_before ?? ""}`} a={sel} s={s} person={person} onChange={data.reload} />
+          </Card> : person && <AddActivity project={p.code} person={person} onClose={() => setAdding(false)} onChange={data.reload} />}
+        </aside>}
+      </div>
     </section>
-  );
-}
-
-/** The activity grid with a bar per activity on one timeline, like a scheduling tool's Gantt view. */
-function Activities({ s, dates, open, setOpen, person, onChange }: {
-  s: ScheduleAnalysis; dates: Dates; open: number | null; setOpen: (id: number | null) => void; person: string | null; onChange: () => void;
-}) {
-  const { t0, t1, ticks } = useMemo(() => {
-    const all = s.activities.flatMap((a) => [a.start, a.finish, a.early_start, a.late_finish]).map((x) => new Date(x).getTime());
-    if (s.project.finish_by) all.push(new Date(s.project.finish_by).getTime());
-    const t0 = Math.min(...all), t1 = Math.max(...all, t0 + 3_600_000);
-    const day = 86_400_000, step = Math.max(1, Math.ceil((t1 - t0) / day / 6)) * day;
-    const first = Math.ceil(t0 / day) * day, ticks: number[] = [];
-    for (let t = first; t < t1; t += step) ticks.push(t);
-    return { t0, t1, ticks };
-  }, [s]);
-  const pct = (at: string | number) => ((new Date(at).getTime() - t0) / (t1 - t0)) * 100;
-  const bar = (from: string, to: string): CSSProperties => ({ left: `${pct(from)}%`, width: `${Math.max(0.6, pct(to) - pct(from))}%` });
-  const at = (t: string | number): CSSProperties => ({ left: `${pct(t)}%` });
-  const ends = s.project.finish_by;
-  return (
-    <Card title="Activities" className="sched-card">
-      <Table density="compact" className="sched-grid">
-        <thead><tr>
-          <th>Code</th><th>Activity</th><th>Hours</th><th className="sched-dates">Start</th><th className="sched-dates">Finish</th><th>Float (h)</th><th className="sched-more">Predecessors</th><th className="sched-more">Needs</th>
-          <th className="sched-axis-cell"><span className="sched-axis" aria-hidden="true">
-            {ticks.map((t) => <span key={t} className="sched-tick" style={at(t)}>{dayStamp(new Date(t).toISOString())}</span>)}
-          </span><span className="sr-only">Timeline</span></th>
-        </tr></thead>
-        <tbody>{s.activities.map((a) => {
-          const [from, to] = span(a, dates);
-          return [
-            <tr key={a.id} className={`${a.critical ? "sched-critical" : ""} status-${a.status}`}>
-              <td><Button variant="link" aria-expanded={open === a.id} onClick={() => setOpen(open === a.id ? null : a.id)}>{a.code ?? a.id}</Button></td>
-              <td>{acronyms(a.name)}{a.critical && <> <Badge tone="danger">critical</Badge></>}
-                {a.held_back_hours > 0 && <> <Badge tone="warn">waits {hours(a.held_back_hours)} h</Badge></>}</td>
-              <td>{hours(a.duration_hours)}</td>
-              <td className="sched-dates">{when(from)}</td>
-              <td className="sched-dates">{when(to)}</td>
-              <td>{hours(a.float_hours)}</td>
-              <td className="sched-more">{a.predecessors.map(link).join(", ")}</td>
-              <td className="sched-more">{needs(a.needs)}</td>
-              <td className="sched-track-cell" data-label=""><span className="sched-track" aria-hidden="true">
-                {ends && <span className="sched-window-end" style={at(ends)} />}
-                {dates === "early" && a.float_hours > 0 && <span className="sched-float" style={bar(a.early_finish, a.late_finish)} />}
-                <span className={`sched-bar${a.critical ? " critical" : ""}`} style={bar(from, to)} />
-              </span></td>
-            </tr>,
-            open === a.id && <tr key={`${a.id}-edit`} className="sched-edit-row"><td colSpan={9}>
-              <Editor a={a} s={s} person={person} onChange={onChange} />
-            </td></tr>,
-          ];
-        })}</tbody>
-      </Table>
-      {!s.activities.length && <Empty>No activities yet.</Empty>}
-    </Card>
   );
 }
 
@@ -136,10 +109,12 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
   const [res, setRes] = useState("");
   const [qty, setQty] = useState("1");
   const [removing, setRemoving] = useState(false);
+  const [nb, setNb] = useState(a.not_before ? local(a.not_before) : "");
   const byCode = new Map(s.activities.map((x) => [x.code, x.id]));
   const act = (label: string, fn: () => Promise<unknown>) => person && run(label, fn, onChange);
   return (
     <div className="sched-editor">
+      <p className="small">{stamp(a.start)} to {stamp(a.finish)}{a.critical ? " · critical" : ` · ${hours(a.float_hours)} h float`}</p>
       <p className="small">
         {a.work_order && <>Order {a.work_order} · </>}{a.assets.filter((x) => x !== a.work_order).join(", ") || "No asset"}
         {" · "}Early {stamp(a.early_start)} to {stamp(a.early_finish)}, late {stamp(a.late_start)} to {stamp(a.late_finish)}
@@ -153,6 +128,11 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
           <Field label="Done (%)" width="xs"><Input type="number" min="0" max="100" value={done} onChange={(e) => setDone(e.target.value)} /></Field>
           <Button disabled={!!busy || !name.trim() || dur === ""} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, {
             name: name.trim(), duration_hours: Number(dur), percent_complete: Number(done || 0) }))}>Save</Button>
+        </div>
+        <div className="row">
+          <Field label="Start no earlier than" width="md"><Input type="datetime-local" value={nb} onChange={(e) => setNb(e.target.value)} /></Field>
+          <Button disabled={!!busy || !nb} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { not_before: new Date(nb).toISOString() }))}>Hold</Button>
+          {a.not_before && <Button variant="ghost" disabled={!!busy} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { clear_not_before: true }))}>Release</Button>}
         </div>
         <h3>Predecessors</h3>
         {a.predecessors.length ? <ul className="plain">{a.predecessors.map((p) => <li key={p.code}>
@@ -200,7 +180,7 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
   );
 }
 
-function AddActivity({ project, person, onChange }: { project: string; person: string; onChange: () => void }) {
+function AddActivity({ project, person, onChange, onClose }: { project: string; person: string; onChange: () => void; onClose: () => void }) {
   const { busy, error, run } = useAct();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -209,7 +189,7 @@ function AddActivity({ project, person, onChange }: { project: string; person: s
   const add = () => run("Adding", () => api.scheduleAdd(project, { by: person, code: code.trim(), name: name.trim(), duration_hours: Number(dur),
     after: after.split(",").map((x) => x.trim()).filter(Boolean) }), () => { setCode(""); setName(""); setDur(""); setAfter(""); onChange(); });
   return (
-    <Card title="Add activity">
+    <Card title="Add activity" actions={<Button size="sm" variant="ghost" onClick={onClose}>Close</Button>}>
       <div className="row">
         <Field label="Code" width="xs"><Input value={code} onChange={(e) => setCode(e.target.value)} /></Field>
         <Field label="Activity" width="lg"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
@@ -218,41 +198,6 @@ function AddActivity({ project, person, onChange }: { project: string; person: s
         <Button disabled={!!busy || !code.trim() || !name.trim() || dur === ""} onClick={add}>Add</Button>
       </div>
       {error && <p role="alert" className="error">{error}</p>}
-    </Card>
-  );
-}
-
-/** A histogram per resource: each day's peak use (this schedule, then other planned work) against its capacity. */
-function Resources({ s, dates }: { s: ScheduleAnalysis; dates: Dates }) {
-  const profiles = s.profiles?.[dates === "levelled" ? "levelled" : "unlevelled"] ?? {};
-  const codes = Object.keys(profiles);
-  if (!codes.length) return null;
-  return (
-    <Card title="Resources" className="sched-resources">
-      <div className="sched-histograms">{codes.map((r) => {
-        const days = profiles[r];
-        const info = s.resources.find((x) => x.code === r);
-        const use = (d: ScheduleDay) => d.schedule + d.other;
-        const top = Math.max(1, ...days.map(use), ...days.map((d) => d.capacity ?? 0));
-        const worst = days.reduce((m, d) => (use(d) - (d.capacity ?? Infinity) > use(m) - (m.capacity ?? Infinity) ? d : m), days[0]);
-        const overDays = days.filter((d) => d.capacity != null && use(d) > d.capacity + 1e-6).length;
-        const along = (n: number) => `${(n * 100) / top}%`;  // a bar's height on the chart's scale
-        const h = (n: number): CSSProperties => ({ height: along(n) });
-        const cap = (d: ScheduleDay): CSSProperties => ({ bottom: along(d.capacity ?? 0) });
-        return <figure key={r} className="sched-histogram">
-          <figcaption><strong>{info?.name ?? r}</strong> <span className="small">{r} · capacity {hours(info?.capacity)}{info?.unit ? ` ${info.unit}` : ""}</span>
-            {overDays > 0 && <> <Badge tone="danger">over on {overDays} {overDays === 1 ? "day" : "days"}</Badge></>}</figcaption>
-          <div className="sched-cols" role="img" aria-label={`${info?.name ?? r}: peak ${hours(use(worst))} against ${hours(worst.capacity)} on ${dayStamp(worst.day)}`}>
-            {days.map((d) => <span key={d.day} className={`sched-col${d.capacity != null && use(d) > d.capacity + 1e-6 ? " over" : ""}`}
-              title={`${dayStamp(d.day)}: ${hours(d.schedule)} this schedule${d.other ? `, ${hours(d.other)} other work` : ""}, capacity ${hours(d.capacity)}`}>
-              {d.other > 0 && <span className="sched-col-other" style={h(d.other)} />}
-              <span className="sched-col-mine" style={h(d.schedule)} />
-              {d.capacity != null && <span className="sched-cap" style={cap(d)} />}
-            </span>)}
-          </div>
-          <div className="sched-cols-axis small"><span>{dayStamp(days[0].day)}</span><span>{dayStamp(days[days.length - 1].day)}</span></div>
-        </figure>;
-      })}</div>
     </Card>
   );
 }

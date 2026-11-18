@@ -1299,7 +1299,9 @@ def plan_propose(p: PlanPropose, conn=Depends(get_conn)):
 def plan_change(item_id: int, c: PlanChange, conn=Depends(get_conn)):
     """Reschedule an item, give it a crew, or move it on (scheduled, in progress, done, cancelled)."""
     from ..ops import plan
-    fields = {k: v for k, v in c.model_dump(exclude={"by"}).items() if v is not None}
+    fields = {k: v for k, v in c.model_dump(exclude={"by", "clear_not_before"}).items() if v is not None}
+    if c.clear_not_before:
+        fields["not_before"] = None
     return _plan_call(conn, plan.update, item_id, c.by, **fields)
 
 
@@ -1337,6 +1339,8 @@ class ScheduleActivityChange(BaseModel):
     percent_complete: float | None = None
     status: str | None = None
     notes: str | None = None
+    not_before: datetime | None = None
+    clear_not_before: bool = False
 
 
 class ScheduleLink(BaseModel):
@@ -1394,7 +1398,9 @@ def schedule_add(code: str, a: ScheduleActivity, conn=Depends(get_conn)):
 @router.patch("/plan/schedules/activities/{item_id}")
 def schedule_change(item_id: int, c: ScheduleActivityChange, conn=Depends(get_conn)):
     from ..ops import schedule
-    fields = {k: v for k, v in c.model_dump(exclude={"by"}).items() if v is not None}
+    fields = {k: v for k, v in c.model_dump(exclude={"by", "clear_not_before"}).items() if v is not None}
+    if c.clear_not_before:
+        fields["not_before"] = None
     return _plan_call(conn, schedule.change_activity, item_id, c.by, **fields)
 
 

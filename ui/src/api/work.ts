@@ -788,7 +788,7 @@ export interface ScheduleSummary {
 export interface ScheduleLinkRef { code: string; type: "FS" | "SS" | "FF" | "SF"; lag_hours: number }
 export interface ScheduleRow {
   id: number; code: string | null; wbs: string | null; name: string; status: string; duration_hours: number | null;
-  percent_complete: number | null; work_order: string | null; assets: string[]; area: string | null;
+  percent_complete: number | null; work_order: string | null; group?: string | null; not_before?: string | null; assets: string[]; area: string | null;
   needs: Record<string, number>; predecessors: ScheduleLinkRef[];
   early_start: string; early_finish: string; late_start: string; late_finish: string; float_hours: number; critical: boolean;
   start: string; finish: string; held_back_hours: number; held_back_by: { resource: string; activities: string[] } | null;
@@ -971,7 +971,7 @@ export const workApi = {
     request<{ project: string; finish: string; unconstrained_finish: string }>("POST", `/plan/schedules/${encodeURIComponent(code)}/apply`, undefined, { by }),
   scheduleAdd: (code: string, a: { by: string; code: string; name: string; duration_hours: number; after?: string[] }) =>
     request<unknown>("POST", `/plan/schedules/${encodeURIComponent(code)}/activities`, undefined, a),
-  scheduleChange: (id: number, by: string, change: Partial<{ name: string; duration_hours: number; percent_complete: number; status: string }>) =>
+  scheduleChange: (id: number, by: string, change: Partial<{ name: string; duration_hours: number; percent_complete: number; status: string; not_before: string; clear_not_before: boolean }>) =>
     request<unknown>("PATCH", `/plan/schedules/activities/${id}`, undefined, { by, ...change }),
   scheduleRemove: (id: number, by: string) => request<unknown>("DELETE", `/plan/schedules/activities/${id}`, { by }),
   scheduleDemand: (id: number, by: string, resource: string, quantity: number | null) =>
