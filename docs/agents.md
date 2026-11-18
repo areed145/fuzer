@@ -169,7 +169,15 @@ detection covers is set aside. On Okan this shows OK-NWP-G3's gas rate falling a
 August 2025, while the other gas wells hold. Where measurement roles are known, the watch's drifts are judged as the
 slow-drift detector judges them (below): only the points it reads, set against their role on their class of equipment,
 with stopped or shut-in days left out and a point coming back to normal not taken for one. A well's pressure easing as
-the field depletes, or a temperature following the season, moves the peers too and isn't shown.
+the field depletes, or a temperature following the season, moves the peers too and isn't shown. On a well only the rate
+is shown, by 10% beyond its peers: its pressures wander with the reservoir, each its own way, and its lift gas is set by
+hand.
+
+**Equipment health checks.** The watch is also shown the area's equipment checked against its own OEM curves
+(`analysis/calcs.py`: a pump's head at its flow, a turbine's heat rate at its load, a choke's flow coefficient, a stage's
+efficiency, a cooler's approach, two meters on one stream), where the check came out flagged. No rule raises these, so
+a flagged check is evidence only the watch weighs. On Okan this shows 20-GT-2000B's heat rate creeping and OK-J12-02's
+choke wearing, neither of which any detector raises.
 
 **The slow-drift detector (P3.11a).** `ops/drift.py` (`peer_drifts`) does the same comparison as a statistical
 detector over months: each point's daily level against where it sat in the first third of `drift.lookback_days`, set
@@ -196,7 +204,8 @@ Detection page shows.
 `evals/watch_eval.py` (P3.3b) scores it in shadow on a fake plant's history. The SRE scan runs over the period first,
 so the watch sees what the rules found, then the watch reads it a day at a time. Each injected upset is caught if a
 detection or an exception landed on one of its units within it, and uncaught otherwise. A proposal matches an upset
-when what it names or cites is on one of the upset's units and its time overlaps. The scores per bundle are the share
+when what it names or cites is on one of the upset's units and its time overlaps; a subject naming several points
+("A and B", "A / B") is read as each, and a tag as the points on it. The scores per bundle are the share
 of proposals matching an uncaught upset (the bar is half), precision (matching any upset), recall over the uncaught
 upsets and the share fully cited. They are kept in `ops_eval` as `shadow:watch` and shown on the Detection page. CI
 tests the wiring with a scripted model; a live score needs a provider key and is run by hand. Each bundle declares

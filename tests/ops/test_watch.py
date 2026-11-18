@@ -139,7 +139,6 @@ def test_live_the_watch_raises_each_proposal_for_triage_its_budget_stops_it_and_
     settings.set(conn, "watch.max_areas", 2, by="test")
     settings.set(conn, "watch.max_usd", 5.0, by="test")
     settings.set(conn, "watch.daily_usd", 0.05, by="test")
-    conn.execute("delete from watch_spend")  # what the other tests spent today on the shared asset
     assert settings.get(conn, "watch.live") is False  # off by default
     try:
         settings.set(conn, "watch.live", True, by="test")
