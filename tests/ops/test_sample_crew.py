@@ -118,7 +118,7 @@ def test_some_reports_back_from_the_field_wait_for_the_ops_lead_to_close_out(cre
     raised = [raise_exception(crewed, FIELD_TYPE, f"crew-back-{i}", f"Crew test back {i}", "detector:test")
               for i in range(6)]
     crewed.commit()
-    _run_for(crewed, 12)
+    _run_for(crewed, 24)  # a whole day: how fast the field gets to a job depends on where in the shift the clock starts
     items = [r["item_id"] for r in exceptions.listing(crewed, state=None, type=FIELD_TYPE, limit=100)
              if r["id"] in {x["id"] for x in raised} and r["item_id"]]
     left = crewed.execute(
