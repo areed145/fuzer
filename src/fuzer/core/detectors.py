@@ -44,7 +44,7 @@ MODULES = ("fuzer.ops.sre", "fuzer.ops.drift", "fuzer.analysis.limits", "fuzer.a
            "fuzer.analysis.records", "fuzer.sources.alerts", "fuzer.ops.opportunities", "fuzer.ops.safeguards",
            "fuzer.analysis.loops", "fuzer.analysis.well_tests",
            "fuzer.analysis.gas_lift", "fuzer.analysis.quality", "fuzer.analysis.flare", "fuzer.analysis.alarm_performance",
-           "fuzer.workflow.conformance", "fuzer.ops.watch", "fuzer.ops.emissions", "fuzer.ops.promote")
+           "fuzer.workflow.conformance", "fuzer.ops.watch", "fuzer.ops.emissions", "fuzer.ops.integrity", "fuzer.ops.promote")
 
 POINTS = "select 1 from edge where rel = 'has_timeseries' limit 1"  # the need most detectors share
 

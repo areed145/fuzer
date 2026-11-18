@@ -5,3 +5,4 @@ fuzer_source_pack: 1
 system: {name: inspection}
 datasets: [inspection_readings, ili_features]
 optional: [ili_features]
+detectors: [inspection_findings, ili_anomalies]

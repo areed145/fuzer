@@ -34,3 +34,17 @@ def test_b31g_failure_pressure_matches_the_hand_calculation():
     # 49 % deep, 5.16 in long on 24 x 0.626 in X65: z = 1.772, M = 1.453, flow stress 75 ksi
     assert round(ili.failure_pressure(49, 5.16, 0.626, 24.0, 65000)) == 3203
     assert ili.smys("API 5L X65") == 65000 and ili.smys("Grade B") == 35000 and ili.smys("") is None
+
+
+def test_an_ili_anomaly_over_the_screen_is_work(harrier_db):
+    """P3.12b (#1179): the crossing at Battle Creek is work for the engineer, once, with its line and feature as
+    subjects; the anomaly with no grade, which has no strength to screen, raises nothing."""
+    from fuzer.ops import integrity
+
+    conn = harrier_db
+    out = integrity.watch_ili(conn)
+    assert [(r["anomaly"], r["screen"], r["new"]) for r in out["raised"]] == [
+        ("HR-PL-001 ILI-26-0029", "exceeds_within_5_years", True)], out
+    x = conn.execute("select * from exception_record where type = 'ili_anomaly'").fetchone()
+    assert x["state"] == "open" and x["item_id"] and len(x["subjects"]) == 2 and "within 5 years" in x["title"], x
+    assert integrity.watch_ili(conn)["raised"][0]["new"] is False  # the same work, not a second case

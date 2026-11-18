@@ -87,6 +87,19 @@ R.2 (#1017) stays in Phase R as the part that can be built today: the PI Web API
 recorded from a real server where one is public, or taken from the vendor's reference where none is, instead of only
 against Fuzer's own fake historian.
 
+## Work the registers bring (P3.12 #1179, P3.13 #1180, P3.14 #1181)
+
+Most of a field crew's day, and most of what an integrity engineer or a planner chases, comes from registers rather
+than from a historian. Fuzer already reads those registers for its analyses, but until now it raised no work from
+them. Three epics in the platform lane turn what those analyses already work out into routed work, each through a
+registered detector in its source pack.
+
+| Epic | Raises | For | Done when |
+|---|---|---|---|
+| P3.12 Inspection and corrosion findings | `inspection_due`: a line or vessel under five years of wall left, overdue for the inspection its wall loss supports, or past its inspection plan. `ili_anomaly`: a pig run anomaly over the B31G screen now or within five years | Engineer | Okan's OK-PL-005 and its four overdue vessels, Kestrel's D1-V-4001 and Harrier's Battle Creek crossing are each work once, and clear when a later survey or plan says so |
+| P3.13 Parts not ready for planned work | `parts_not_ready`: a work order whose reserved part is on order too late, or not on order with too little time left | Maintenance planner | Okan's planted late order and its part not on order are work on their orders, and clear once covered |
+| P3.14 Permit and isolation exceptions | `permit_lapsed`: a permit past its valid-to time, not closed, with isolations still applied | Ops lead | Each lapsed permit with plant still isolated is work, and clears when it is closed or reissued |
+
 ## Historian views (P5.12 #967, P5.13 #968, P5.15 #1012)
 
 An IOC engineer looking at a tripped compressor wants its suction and discharge pressures, temperatures, speed and

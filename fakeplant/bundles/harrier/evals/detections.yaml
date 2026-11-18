@@ -48,6 +48,13 @@ detectors:
     events:
       - {key: "BYP-HR-017", from: "today-30d", to: "today"}  # crude tank A's HH level shutdown, still bypassed
 
+  ili_anomalies:
+    since: "today"
+    until: "today+1d"
+    at: ["today"]
+    events:
+      - {key: "HR-PL-001 ILI-26-0029", from: "today", to: "today"}  # the Battle Creek crossing, over the screen in 5 years
+
   # The entries below land the next delivery in Harrier's history first; what they land stays, so they come last.
   quality_drift:
     deliver: {path: deliveries/wet-crude, datasets: [lims_results], incremental: true, rebuild: true}
@@ -78,3 +85,4 @@ detectors:
   flare_events: {not_here: "no flare flow is metered and no daily report states a flare volume"}
   repeat_leaks: {not_here: "no LDAR survey export"}
   gas_balance_gaps: {not_here: "its daily report carries no fuel gas"}
+  inspection_findings: {not_here: "every line's wall supports its next inspection, and no plan is overdue"}
