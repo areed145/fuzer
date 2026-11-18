@@ -129,12 +129,29 @@ def _stored(conn, since: datetime, until: datetime) -> tuple[list[dict], list[di
     return found, raised
 
 
+SPLIT = re.compile(r"\s*(?:/|,|;|\(|\)|\band\b)\s*")  # a subject naming two things: "A1-FT-1010 / D1-FT-4002"
+
+
+def _named(p: dict) -> list[str]:
+    """What a proposal names and cites: each thing its subject names, and its evidence, a check by its equipment."""
+    out = [x for x in SPLIT.split(str(p.get("subject") or "")) if x]
+    return out + [x.rsplit(":", 1)[-1] if x.startswith("check:") else x for x in map(str, p.get("evidence") or [])]
+
+
 def resolve(conn, proposals: list[dict]) -> list[dict]:
-    """Each proposal with `names`: what it names and cites, ids turned into the names the model uses."""
-    ids = {str(x) for p in proposals for x in [p.get("subject"), *(p.get("evidence") or [])] if x}
+    """Each proposal with `names`: what it names and cites, ids turned into the names the model uses, and a tag named
+    by its label carrying its historian points' names too (the model names a meter by its point)."""
+    ids = {x for p in proposals for x in _named(p)}
     lab = _labels(conn, ids)
-    return [{**p, "names": {lab.get(x, x) for x in ids_ if x}}
-            for p in proposals for ids_ in [[str(p.get("subject") or ""), *map(str, p.get("evidence") or [])]]]
+    shown = ids | set(lab.values())
+    pts: dict[str, set[str]] = {}
+    for r in conn.execute(
+            """select l.label, pl.label as point from entity_label l
+               join edge e on e.src = l.fuzer_id and e.rel = 'has_timeseries'
+               join entity_label pl on pl.fuzer_id = e.dst where l.label = any(%s)""", (list(shown),)):
+        pts.setdefault(r["label"], set()).add(r["point"])
+    return [{**p, "names": {n for x in _named(p) for y in [lab.get(x, x)] for n in {y, *pts.get(y, ())}}}
+            for p in proposals]
 
 
 def run(conn, pack, bundle: str, since: str, until: str, data_dir, ask=None, src=None,

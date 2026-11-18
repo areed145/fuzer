@@ -25,6 +25,7 @@ cite only those ids (or the point names given).
 | `area`, `since`, `until` | the area and window, as above |
 | `unexplained_stretches` | stretches the area's own multivariate model of the week before can't explain: `start`, `end`, `peak_spe`, and the three `points` (`id`, `name`) contributing most |
 | `drifts` | points that moved on their own over the 90 days before: `id`, `name`, `baseline_from` (the day its baseline was read, not when it began), `baseline`, `now`, `change` (a share of the baseline), `peers_change`, `peers`, `stepwise` (held flat between a few moves: set by hand), `choke_moved` (its equipment's choke or valve was moved over the months; only where measurement roles are known), and `logged` (the last operator log entries on its equipment) |
+| `checks` | the area's equipment checked against its own OEM curves, where the check came out flagged and no rule raises it: `id` (`check:<name>:<tag>`), `equipment`, `check` (`pump_curve`, `heat_rate`, `choke`, `compressor_performance`, `cooler_fouling`, `valve_health`, `regenerator`, `meter_agreement`), `flag`, `value`, `expected`, `deviation_pct`, `basis` |
 | `detections` | detections already made on the area's points in the window: `id` (`detection:N`), `point_id`, `point`, `detector`, `what`, `start`, `end`, and for a slow drift the drift detector raised, `drift` with its baseline, level now and peers |
 | `open_exceptions` | open exceptions on the area's plant: `id` (`exception:N`), `type`, `title` |
 | `alarms` | alarms that sounded: `id` (the point), `point`, `alarm`, `limit`, `peak`, `start`, `end` |
@@ -34,7 +35,7 @@ cite only those ids (or the point names given).
 Drifts are judged as the drift detector judges them where measurement roles are known: positions, speeds, the weather
 and wellhead temperatures are left out, each point is set against its role on its class of equipment, stopped or
 shut-in stretches are ignored, and a point coming back to normal is not a drift. A field declining or a season warming
-moves the peers too, so it isn't shown. A drift is shown from 3% of its level beyond its peers' move, or 10% on a well, whose pressures wander a few percent each on their own. At most 15 of each kind are given.
+moves the peers too, so it isn't shown. A drift is shown from 3% of its level beyond its peers' move, or on a well only its rate, by 10%: a well's pressures wander with the reservoir, each its own way, and its lift gas is set by hand. At most 15 of each kind are given.
 
 ## The answer (output)
 

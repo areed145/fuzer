@@ -9,6 +9,8 @@ what it ruled out.
   - the points that have drifted on their own over the months before (`clusters.drifts`, `DRIFT_DAYS`): against
     where they sat at the start and against their peers measuring the same thing, so a choke plugging or a pump losing
     head over weeks shows though the week's model has learned it as normal (P3.3c).
+  - the checks against the equipment's own OEM curves that no rule raises, where one is flagged (`CHECKS`): a pump
+    losing head, a turbine's heat rate rising, a choke eroding.
   - the detections already made on its points, and the open exceptions on its plant, so it can leave those alone. A
     slow drift the drift detector raised (`peer_drifts`, P3.11a) carries its baseline, its level now and how far its
     peers moved, so the watch explains the drift and what it reaches instead of having to find it.
@@ -42,8 +44,15 @@ SPE_MINUTES = 30
 TRAIN_DAYS = 7
 DRIFT_DAYS = 90  # how far back a drift is measured from
 DRIFT_MIN_CHANGE = 0.03  # a drift shown: 3% of its level, below the detector's bar, as the watch reads below it
-WELL_MIN_CHANGE = 0.1  # but a well's: each well's pressure wanders its own way by a few percent as the reservoir does
+WELL_MIN_CHANGE = 0.1  # but a well's rate: each well wanders its own way by a few percent as the reservoir does
+WELL_SET = {"gas_lift_rate"}  # a well's lift gas is set by hand
 DRIFT_FIELDS = ("baseline", "now", "change", "peers_change", "peers", "role", "baseline_from")  # shown of a drift
+# Calculations against the equipment's own OEM curves that no rule raises: a pump's head at its flow, a turbine's heat
+# rate at its load and ambient, a choke's effective Cv, a stage's efficiency, a cooler's approach, a reciprocating
+# compressor's valves, a glycol reboiler, two meters on one stream. A flag on one is a
+# slow loss the points alone hide, so the watch is shown each one flagged.
+CHECKS = ("pump_curve", "heat_rate", "choke", "compressor_performance", "cooler_fouling", "valve_health", "regenerator",
+          "meter_agreement")
 MAX_EACH = 15  # of each kind of evidence, so one noisy area doesn't fill the question
 MAX_TOKENS = 2000
 OFF = "No model provider is configured, so the agentic watch is off. Nothing else changes."
@@ -100,30 +109,66 @@ def evidence(conn, area: dict, since: datetime, until: datetime, src=None) -> di
         """
         select d.id, d.point_id, coalesce(l.label, d.point_id) as point, d.detector, d.key, d.start, d."end", d.evidence
         from detection d left join entity_label l on l.fuzer_id = d.point_id
-        where d.point_id = any(%s) and d.start < %s and coalesce(d."end", d.start) >= %s order by d.start, d.id limit %s
+        where d.point_id = any(%s) and d.start < %s and coalesce(d."end", d.start) >= %s order by d.start, point, d.detector, d.key, d.id limit %s
         """, (points, until, since, MAX_EACH))]
     drifts = [{"id": d["point_id"], "name": d["point"], "baseline_from": d["since"], "baseline": d["baseline"], "now": d["now"],
                "change": d["change"], "peers_change": d["peers_change"], "peers": d["peers"], "stepwise": d["stepwise"],
                **({"choke_moved": d["choke_moved"]} if "choke_moved" in d else {})}
-              for d in _drifts(conn, area["id"], since, until, src)][:MAX_EACH]
+              for d in sorted(_drifts(conn, area["id"], since, until, src),  # ties by name, so a prompt is the same
+                              key=lambda d: (-round(abs(d["change"] - d["peers_change"]), 3), d["point"]))][:MAX_EACH]
     if drifts:  # what the operators wrote about each drifting point's equipment over the drift: a choke they moved
         owner = {r["dst"]: r["src"] for r in conn.execute(
             "select src, dst from edge where dst = any(%s) and rel = 'has_timeseries'", ([d["id"] for d in drifts],))}
         for d in drifts:
             d["logged"] = [{"id": e["id"], "at": e["at"], "text": e["text"]} for e in around.log(
                 conn, {owner.get(d["id"], d["id"])}, since - timedelta(days=DRIFT_DAYS), until)][-3:]
+    checks = _checks(conn, tags, until)
     open_x = [{"id": f"exception:{x['id']}", "type": x["type"], "title": x["title"]} for x in conn.execute(
         "select id, type, title from exception_record where state = 'open' and subjects && %s order by id limit %s",
         (list(tags | set(points)), MAX_EACH))]
     alarms = [{"id": a["point_id"], "point": a["point"], "alarm": a["type"], "limit": a["limit"], "peak": a["peak"],
-               "start": a["start"], "end": a["end"]} for a in around.alarms(conn, tags, since, until, src)][:MAX_EACH]
+               "start": a["start"], "end": a["end"]}
+              for a in sorted(around.alarms(conn, tags, since, until, src),
+                              key=lambda a: (str(a["start"]), a["point"], a["type"]))][:MAX_EACH]
     log = [{"id": e["id"], "at": e["at"], "text": e["text"]} for e in around.log(conn, tags, since, until)][:MAX_EACH]
     notes = [{"id": n["id"], "notification": n["label"], "created": n["f"].get("created"),
               "text": n["f"].get("description") or n["f"].get("short_text")}
              for n in records._rows(conn, "notification", "created", since.date().isoformat(), _iso(until), "concerns")
              if tags & set(n["subjects"])][:MAX_EACH]
     return {"area": area["label"], "since": _iso(since), "until": _iso(until), "unexplained_stretches": spe,
-            "drifts": drifts, "detections": dets, "open_exceptions": open_x, "alarms": alarms, "log": log, "notifications": notes}
+            "drifts": drifts, "checks": checks, "detections": dets, "open_exceptions": open_x, "alarms": alarms, "log": log, "notifications": notes}
+
+
+def _checks(conn, tags: set[str], until: datetime) -> list[dict]:
+    """Each of the area's equipment `CHECKS` flags as of `until`, worked out as the engineer's calc tool works it out;
+    a check that doesn't apply to a tag, or can't answer from its data, is passed over."""
+    from ..analysis import calcs
+
+    out = []
+    for check in CHECKS:
+        for tag in sorted(tags):
+            try:
+                r = calcs.run(conn, check, tag, until=_iso(until))
+            except calcs.CalcError:
+                continue
+            if r.get("flag"):
+                out.append({"id": f"check:{check}:{tag}", "equipment": r["of"]["label"], "check": check,
+                            "flag": r["flag"], "value": r.get("value"), "expected": r.get("expected"),
+                            "deviation_pct": r.get("deviation_pct"), "basis": r.get("basis")})
+    return sorted(out, key=lambda c: (CHECKS.index(c["check"]), c["equipment"]))[:MAX_EACH]
+
+
+def _shown(d: dict, role: str, cls: str | None) -> bool:
+    """Whether a drift is worth the watch's question: 3% beyond its peers' move, or on a well only its rate, by 10%. A
+    well's pressures wander with the reservoir, each its own way, and its rate at the same choke says first what a
+    plugging choke or a loading well does."""
+    from ..core import roles
+
+    own = abs(d["change"] - d["peers_change"])
+    if cls != "well":
+        return own >= DRIFT_MIN_CHANGE
+    r = roles.ROLES.get(role)
+    return r is not None and r.quantity == "flow" and role not in WELL_SET and own >= WELL_MIN_CHANGE
 
 
 def _drifts(conn, area: str, since: datetime, until: datetime, src) -> list[dict]:
@@ -145,8 +190,7 @@ def _drifts(conn, area: str, since: datetime, until: datetime, src) -> list[dict
                            min_change=DRIFT_MIN_CHANGE if judge else 0.1, **judge)
     if not judge:
         return found
-    found = [d for d in found if d["point_id"] in peers and abs(d["change"] - d["peers_change"])
-             >= (WELL_MIN_CHANGE if peers[d["point_id"]][1] == "well" else DRIFT_MIN_CHANGE)]
+    found = [d for d in found if d["point_id"] in peers and _shown(d, *peers[d["point_id"]])]
     pos = sorted({i for d in found for i in hand.get(asset.get(d["point_id"]), [])})
     if pos:  # on equipment whose choke or valve the operators moved over the months: perhaps set by hand
         from ..analysis import studies
@@ -171,6 +215,7 @@ def _ids(ev: dict) -> set[str]:
     for s in ev["unexplained_stretches"]:
         out |= {p["id"] for p in s["points"]} | {p["name"] for p in s["points"]}
     out |= {d["id"] for d in ev.get("drifts", [])} | {d["name"] for d in ev.get("drifts", [])}
+    out |= {c["id"] for c in ev.get("checks", [])} | {c["equipment"] for c in ev.get("checks", [])}
     out |= {str(e["id"]) for d in ev.get("drifts", []) for e in d.get("logged", [])}
     out |= {d["point"] for d in ev["detections"]} | {a["point"] for a in ev["alarms"]}
     return out
@@ -244,14 +289,15 @@ def _undetected(conn, ev: dict) -> list[dict]:
 
 def propose(conn, area: dict, since: datetime, until: datetime, ask, src=None) -> tuple[list[dict], float]:
     """The model's proposals for one area and window that no detection covers, and what asking cost. The model is
-    asked only when a stretch the area's model can't explain, or a drift not set by hand (`stepwise`), is left once those a detection covers are
+    asked only when a stretch the area's model can't explain, a drift not set by hand (`stepwise`) or a flagged check
+    is left once those a detection covers are
     set aside: the rest of the evidence is read beside one, never alone."""
     ev = evidence(conn, area, since, until, src)
     covered = _explained(conn, ev)
     ev["unexplained_stretches"] = [s for s in ev["unexplained_stretches"] if s not in covered]
     ev["drifts"] = _undetected(conn, ev)
-    if not ev["unexplained_stretches"] and all(d["stepwise"] for d in ev["drifts"]):
-        return [], 0.0  # nothing unexplained or drifting, or a detection covers it: no question asked
+    if not ev["unexplained_stretches"] and not ev["checks"] and all(d["stepwise"] for d in ev["drifts"]):
+        return [], 0.0  # nothing unexplained, drifting or flagged, or a detection covers it: no question asked
     r = ask(PROMPT.format(area=ev["area"], since=ev["since"], until=ev["until"], evidence=json.dumps(ev, indent=1)))
     usd = float((r.get("usage") or {}).get("cost_usd") or 0.0)
     shown, out = _ids(ev), []
