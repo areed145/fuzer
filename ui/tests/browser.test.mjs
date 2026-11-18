@@ -1098,7 +1098,8 @@ test("reader Settings and Sources do not request protected configuration or conn
   assert.equal(await nav.getByRole("link", { name: "Jobs", exact: true }).count(), 0);
   await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
-  await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
+  await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
+  assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
   await nav.getByRole("link", { name: "Investigate", exact: true }).click();
   await page.getByRole("navigation", { name: "Investigate pages" }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Investigate pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
