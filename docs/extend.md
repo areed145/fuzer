@@ -530,7 +530,7 @@ flowchart LR
 
 ### 1. Draw it
 
-Open **Work → Processes**, enter a key and name under **New process** and **Create draft**. On the
+Open **Work → Workflows**, enter a key and name under **New workflow** and **Create draft**. On the
 **Model** tab, drag components onto the canvas, connect them and select a step to set its parameters
 (role, SLA, escalation, form, agent and instructions). The **Workflow drafting agent** can propose a first
 draft from a description, which you review on the canvas before saving. **Check** lists anything that
@@ -596,7 +596,7 @@ information open on the canvas too; save from the modeler to keep a layout.
 ### 3. Add the task form
 
 A user task's form is a [form-js](https://bpmn.io/toolkit/form-js/) schema whose `id` is the key the task
-names. Built-in forms sit beside the BPMN as `<key>.form`; others are made under **Processes → Task forms**.
+names. Built-in forms sit beside the BPMN as `<key>.form`; others are made under **Workflows → Task forms**.
 The values a person submits become process data, so the gateway can read `handover_decision`:
 
 ```json

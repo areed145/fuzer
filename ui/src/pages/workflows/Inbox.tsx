@@ -14,6 +14,7 @@ import { ComingUp, FieldJobCard, Outbox, RoundsThisShift } from "../Field";
 import { fieldJobs } from "../../fieldOffline";
 import { cap, person as personName } from "../../wording";
 import { FieldModeOffer } from "../../theme";
+import { waitingToDispatch } from "../Exceptions";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
  * A field job's card carries its case's step, so that case is not counted twice. */
@@ -74,7 +75,7 @@ export function InboxPage() {
   const queue = d.queue.filter((r) => !onCard.has(r.item_id) && !r.escalated_at && keep(r)).sort(byUrgency);
   const counts = myWorkCounts(d, jobs);
   const undispatched = d.roles.includes("ops_lead")
-    ? (exceptions.data ?? []).filter((r) => !r.item_id && !r.planned && r.state === "open").length : 0;
+    ? (exceptions.data ?? []).filter(waitingToDispatch).length : 0;
   const reviews = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const types = [...new Set(all.map((r) => r.type))].sort();
   const pickedRows = all.filter((r) => r.task_id && picked.has(r.task_id));

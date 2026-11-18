@@ -7,11 +7,11 @@ import "../styles/work-board.css";
 import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
 import { Badge, Button, ButtonLink, Empty, Field, Select } from "../ui";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
 import { holder, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
-import { DispatchControls, age, backFromField, money, namedSubjects, waitingToDispatch, withTheField, type Person } from "./Exceptions";
+import { DispatchControls, age, backFromField, money, namedSubjects, plannedLater, waitingToDispatch, withTheField, type Person } from "./Exceptions";
 
 type StageKey = "dispatch" | "desk" | "plan" | "field" | "back" | "closed";
 
@@ -31,7 +31,7 @@ export function stageOf(r: ExceptionRow, operators: Set<string>): StageKey {
   if (waitingToDispatch(r)) return "dispatch";
   if (backFromField(r)) return "back";
   if (withTheField(r, operators)) return "field";
-  if (!r.item_id && r.planned) return "plan";
+  if (!r.item_id && plannedLater(r)) return "plan";
   return "desk";
 }
 
@@ -163,7 +163,7 @@ function WorkCard({ r, stage, lane, now, person, people, queues, kind, onChange 
         reports > 1 ? `${reports} reports` : null].filter(Boolean).join(" · ")}</div>
       {said && stage !== "dispatch" && stage !== "closed" && <div className="small">
         <Badge tone={couldNot ? "warn" : "ok"} title={said.note ?? undefined}>{FIELD_SAID[said.status] ?? said.status}</Badge></div>}
-      {stage === "plan" && r.planned && <a className="small" href={href("/plan")}>planned {dayStamp(r.planned.start_at)}</a>}
+      {stage === "plan" && r.planned && <a className="small" href={planItemHref(r.planned)}>planned {dayStamp(r.planned.start_at)}</a>}
       <div className="work-card-meta small">
         <span className="muted">{who ?? (stage === "closed" ? r.state : "")}</span>
         <span>{[since, r.value_usd && stage !== "closed" ? money(r.value_usd) : null].filter(Boolean).join(" · ")}</span>

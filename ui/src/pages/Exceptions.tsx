@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, type ExceptionRow, type Readiness } from "../api";
 import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty } from "../ui";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
 import { holder, reportedBy, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display, type EntityNames } from "../entityRefs";
@@ -155,8 +155,16 @@ export const backFromField = (r: ExceptionRow) => {
   return !!last && (last.status === "done" || last.status === "could_not_do") && r.assignee !== last.by;
 };
 
-/** Open, raised and not yet given to anyone or put on the plan: the IOC's to dispatch. */
-export const waitingToDispatch = (r: ExceptionRow) => r.state === "open" && !r.item_id && !r.planned;
+/** Planned for a later day: it waits on Plan until its day comes. */
+export const plannedLater = (r: ExceptionRow) => {
+  if (!r.planned) return false;
+  const tonight = new Date(); tonight.setHours(23, 59, 59, 999);
+  return new Date(r.planned.start_at) > tonight;
+};
+
+/** Open, raised and not yet given to anyone, nor planned for a later day: the IOC's to dispatch. Planned work comes
+ * back here on the day it was planned for. */
+export const waitingToDispatch = (r: ExceptionRow) => r.state === "open" && !r.item_id && !plannedLater(r);
 
 /** Open, its case held by a field operator (a person with the operator role, or the operator queue) or the field said
  * they are on site, and not yet back from the field. */
@@ -261,7 +269,7 @@ function Row({ r, person, people, queues, onChange }: {
         <span className="muted">{event ? ` · happened ${day(event)}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</span>
       </div>
       <div className="work-row-with small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
-        : r.planned ? <a href={href("/plan")}>planned {dayStamp(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
+        : r.planned ? <a href={planItemHref(r.planned)}>planned {dayStamp(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
         : <span className="muted">not dispatched</span>}
         {fieldSaid && <div title={fieldSaid.note ?? undefined}>
           <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>

@@ -13,7 +13,7 @@ import { ATTENTION_TONE } from "../../kinds";
 export const GENERIC_STEP = /^(work the case|do the task)$/i;
 export const taskHref = (id: number) => href(`/inbox/task/${id}`);
 export const caseHref = (id: number) => href(`/cases/${id}`);
-export const processHref = (key: string, tab?: string) => href(`/processes/${key}`, tab ? { tab } : undefined);
+export const processHref = (key: string, tab?: string) => href(`/workflows/${key}`, tab ? { tab } : undefined);
 
 const IDLE_MINUTES = 10;
 

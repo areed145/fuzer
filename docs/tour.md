@@ -14,7 +14,9 @@ in local mode, **You are** records who makes decisions (attribution, not sign-in
 flowchart LR
   home["Home"] --> explore["Explore<br><small>Browse, Map, Network, Ontology</small>"]
   home --> investigate["Investigate<br><small>Downtime, Ask, Incidents,<br>Daily reports, Lessons, Studies</small>"]
-  home --> work["Work<br><small>All work, My work,<br>Data review, Processes</small>"]
+  home --> work["Work<br><small>All work, My work,<br>Workflows, Master data</small>"]
+  home --> plan["Plan<br><small>Plan, Schedules, Resources</small>"]
+  work <-.->|plan for a day / planned bar| plan
   home --> sources["Sources<br><small>Datasets, Systems & connections, Rules</small>"]
   home --> jobs["Jobs"]
   home --> settings["Settings<br><small>Application settings, Users</small>"]
@@ -111,7 +113,7 @@ changes, new tables, datasheet curves and held loads. Each answer is kept and ap
 
 ![Possible matches in Data review](assets/screens/data-review.png){ loading=lazy }
 
-**Processes** lists each BPMN process with its health, and opens Overview, Running, Model, Monitor and
+**Workflows** (under Work) lists each BPMN workflow with its health, and opens Overview, Running, Model, Monitor and
 SLAs & routing. Task forms are edited here too.
 
 ![The process list with health and task forms](assets/screens/processes.png){ loading=lazy }
