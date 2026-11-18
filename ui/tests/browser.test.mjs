@@ -3342,7 +3342,7 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
     exc(1, { title: "3rd stage compressor tripped", value_usd: 120000, raised_count: 2 }),
     exc(2, { title: "Separator level high", type: "iow_breach", source: "historian", first_seen: ago(15) }),
     exc(3, { title: "Low output from export pump", item_id: 31, assignee: "riley", value_usd: 31000 }),
-    exc(4, { title: "PSV recertification overdue", planned: { id: 1, start_at: "2026-11-17T07:00:00Z", end_at: "2026-11-17T12:00:00Z", crew: "crew B" } }),
+    exc(4, { title: "PSV recertification overdue", planned: { id: 1, start_at: new Date(Date.now() + 3 * 86_400_000).toISOString(), end_at: new Date(Date.now() + 3.2 * 86_400_000).toISOString(), crew: "crew B" } }),
     exc(5, { title: "Seal leak at export pump B", item_id: 32, assignee: "sam",
       evidence: { field: [{ at: ago(185), by: "sam", status: "on_site", note: null }] } }),
     exc(6, { title: "Drain valve weeping", type: "round_finding", source: "rounds", item_id: 33, role: "operator" }),
@@ -6085,7 +6085,7 @@ test("the task form editor previews, survives a failed save, and recovers a miss
   await page.goto(`${url}/#/processes/forms/gone`);
   const missing = page.getByRole("alert").filter({ hasText: "There is no form “gone”." });
   await missing.waitFor();
-  assert.equal(await missing.getByRole("link", { name: "Create it" }).getAttribute("href"), "#/processes/forms/new?key=gone");
+  assert.equal(await missing.getByRole("link", { name: "Create it" }).getAttribute("href"), "#/workflows/forms/new?key=gone");
   await missing.getByRole("link", { name: "Create it" }).click();
   const key = page.getByLabel("Form key");
   assert.equal(await key.inputValue(), "gone");
@@ -8312,8 +8312,10 @@ test("A planner works a schedule on an interactive Gantt board: drags an activit
     const [tx, ty] = await centre(to);
     await page.mouse.move(tx, ty, { steps: 6 });
   };
+  // A planner reaches a schedule from Plan's Schedules page.
   await page.goto(`${url}/#/plan`);
-  await page.getByLabel("Open a schedule").selectOption("OK-TAR-2026");
+  await page.getByRole("navigation", { name: "Plan pages", exact: true }).getByRole("link", { name: "Schedules", exact: true }).click();
+  await page.getByRole("link", { name: /Okan 2026 turnaround/ }).click();
   await page.getByRole("heading", { name: /Okan 2026 turnaround/ }).waitFor();
   await page.getByText("8 critical").waitFor();
   // Activities grouped by work order, the logic drawn between them.
