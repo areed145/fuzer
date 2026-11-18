@@ -751,6 +751,37 @@ def _crew_changes(conn, res, start: datetime, end: datetime) -> dict[str, list[d
     return {r["code"]: [m | {"resource": r["code"]} for m in moves if m["crew"] in r["counts"]] for r in seats}
 
 
+def _offline(conn, res, start: datetime, end: datetime) -> list[dict]:
+    """Production capacity's demand, worked out from the plan: each active job that needs a unit down, with the wells
+    behind that unit on the flow network at their latest test rate in BOE/d (ops/at_risk.py's reads). One row per
+    job; `wells` is {well: BOE/d}, so a well two overlapping jobs take down is counted once."""
+    if not any(r["kind"] == "capacity" for r in res):
+        return []
+    from ..core.units import boe
+    from . import at_risk
+
+    rows = conn.execute(
+        """
+        select id, title, kind, project, code, source, source_key, start_at, end_at, status, subjects from plan_item
+        where status = any(%s) and (needs_shutdown or kind = any(%s)) and start_at < %s and end_at > %s
+        order by start_at, id
+        """, (list(plan.ACTIVE), list(plan.SHUTDOWNS), end, start)).fetchall()
+    feeds, nodes = at_risk._flow(conn)
+    kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute(
+        "select fuzer_id, kind from entity where fuzer_id = any(%s)", (list(nodes),))} if nodes else {}
+    behind = {r["id"]: sorted(n for n in at_risk._upstream(at_risk._units(conn, list(r["subjects"] or []), nodes), feeds)
+                              if kinds.get(n) == "well") for r in rows}
+    rates = at_risk._rates(conn, sorted({w for ws in behind.values() for w in ws}))
+    made = {w: boe(sum(q[k]["value"] or 0 for k in ("oil_rate", "condensate_rate") if k in q),
+                   (q.get("gas_rate") or {}).get("value")) for w, q in rates.items()}
+    out = []
+    for r in rows:
+        wells = {w: made[w] for w in behind[r["id"]] if made.get(w)}
+        if wells:
+            out.append({**{k: r[k] for k in r if k != "subjects"}, "wells": wells, "quantity": round(sum(wells.values()), 1)})
+    return out
+
+
 ROUND_CHECK_MINUTES = 4  # walking to a point, reading or checking it and keying it in
 ROUTINES = ("rounds",)
 
@@ -818,6 +849,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
             pass
     routine = routine_load(conn, res)
     trips = _crew_changes(conn, res, start, end)
+    offline = _offline(conn, res, start, end)
     out = []
     for r in res:
         code = r["code"]
@@ -832,6 +864,15 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
             for h in range(max(0, int(h_of(x["start_at"]))), min(hours, int(-(-h_of(x["end_at"]) // 1)))):
                 use[h][_source(x)] += x["quantity"]
                 jobs[h].append(x)
+        if r["kind"] == "capacity":  # what each shutdown job takes offline, a well counted once an hour
+            down: list[set] = [set() for _ in range(hours)]
+            for x in offline:
+                for h in range(max(0, int(h_of(x["start_at"]))), min(hours, int(-(-h_of(x["end_at"]) // 1)))):
+                    new = {w: q for w, q in x["wells"].items() if w not in down[h]}
+                    if new:
+                        down[h] |= set(new)
+                        use[h][_source(x)] += sum(new.values())
+                        jobs[h].append(x)
         if code in routine:
             for u in use:
                 u[routine[code]["source"]] += routine[code]["quantity"]

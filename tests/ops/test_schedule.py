@@ -257,3 +257,27 @@ def test_seats_carry_each_crew_out_for_its_first_job_and_back_after_its_last(tar
     [run, *_] = schedule.resource_load(c, "SEATS", start, 30)["resources"][0]["overloads"]
     assert run["peak"] > 5 and any("flies" in j["title"] for j in run["jobs"]) and run["moves"] == []
     c.rollback()
+
+
+def test_production_capacity_counts_what_each_shutdown_job_takes_offline_a_well_once(tar):
+    c, _ = tar
+    from fuzer.ops import at_risk
+
+    schedule.set_resource(c, "PROD", "tests", name="Production offline at once", kind="capacity", unit="BOE/d", capacity=1e9)
+    start = datetime(2026, 4, 1, tzinfo=UTC)
+    prod = schedule.resource_load(c, "PROD", start, 30)["resources"][0]
+    peak = max(d["demand"] for d in prod["days"])
+    assert peak > 0 and "OK-TAR-2026" in prod["sources"] and not prod["overloads"]
+    # never more than every tested well on the flow network makes: overlapping jobs don't count a well twice
+    _, nodes = at_risk._flow(c)
+    wells = [r["fuzer_id"] for r in c.execute("select fuzer_id from entity where kind = 'well' and fuzer_id = any(%s)", (list(nodes),))]
+    from fuzer.core.units import boe
+    field = sum(boe(sum(q[k]["value"] for k in ("oil_rate", "condensate_rate") if k in q), (q.get("gas_rate") or {}).get("value"))
+                for q in at_risk._rates(c, wells).values())
+    assert peak <= field + 1
+    assert all(d["demand"] == 0 for d in prod["days"] if d["day"] < "2026-04-06"), "nothing is down before the turnaround"
+    # a cap below what the turnaround takes down: the owner sees the run over it and the jobs behind it
+    schedule.set_resource(c, "PROD", "tests", capacity=peak / 2)
+    [run, *_] = schedule.resource_load(c, "PROD", start, 30)["resources"][0]["overloads"]
+    assert run["peak"] == peak and run["jobs"] and all(j["quantity"] > 0 for j in run["jobs"])
+    c.rollback()
