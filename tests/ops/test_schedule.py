@@ -1,0 +1,160 @@
+"""Schedules on the integrated plan (P5.18, ops/schedule.py): critical path, levelling and the planner's edits."""
+
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import pytest
+import yaml
+
+from fuzer.core.plan import PlanError
+from fuzer.ops import plan, schedule
+
+ROOT = Path(__file__).resolve().parents[2]
+TEMPLATE = ROOT / "fakeplant" / "bundles" / "okan" / "schedules" / "OK-TAR-2026.yaml"
+
+
+# ---- the pure engine --------------------------------------------------------------------------------------------
+
+def test_the_critical_path_is_the_longest_chain_and_the_rest_has_float():
+    d = {"shut": 10, "pump": 20, "valve": 5, "start": 4}
+    links = [("shut", "pump", "FS", 0), ("shut", "valve", "FS", 0), ("pump", "start", "FS", 0), ("valve", "start", "FS", 0)]
+    cp = schedule.critical_path(d, links)
+    assert cp["finish"] == 34
+    assert cp["chain"] == ["shut", "pump", "start"]
+    assert cp["float"]["valve"] == 15 and cp["float"]["pump"] == 0
+
+
+def test_start_to_start_and_finish_to_finish_links_with_lags():
+    cp = schedule.critical_path({"a": 10, "b": 4, "c": 6}, [("a", "b", "SS", 2), ("a", "c", "FF", 3)])
+    assert (cp["es"]["b"], cp["ef"]["c"]) == (2, 13)  # b starts 2 h after a starts; c finishes 3 h after a finishes
+
+
+def test_a_loop_is_refused_naming_it():
+    with pytest.raises(PlanError, match="loops back"):
+        schedule.critical_path({"a": 1, "b": 1}, [("a", "b", "FS", 0), ("b", "a", "FS", 0)])
+
+
+def test_levelling_moves_work_until_the_crew_has_room_and_says_who_held_it():
+    d = {"overhaul": 40, "retube": 30, "pump": 10}
+    need = {"overhaul": {"MECH": 4}, "retube": {"MECH": 3}, "pump": {"MECH": 2}}
+    lv = schedule.level(d, [], need, lambda r, h: 6)
+    # 4 + 3 > 6: the second job waits for the first, and the pump (2) fits beside whichever is running
+    assert lv["end"] == 70
+    held = [k for k, w in lv["waited"].items() if w]
+    assert held == ["retube"] and lv["why"]["retube"] == {"resource": "MECH", "held_by": ["overhaul"]}
+    assert lv["chain"][-1] == {"activity": "retube", "waited_for": "MECH"}
+
+
+def test_other_planned_work_on_the_crew_counts_against_it():
+    lv = schedule.level({"job": 10}, [], {"job": {"MECH": 4}}, lambda r, h: 6, background={"MECH": [(0, 24, 3)]})
+    assert lv["start"]["job"] == 24
+
+
+def test_overloads_name_the_resource_the_need_and_the_jobs():
+    d = {"a": 10, "b": 10}
+    over = schedule.overloads(d, {"a": 0, "b": 5}, {"a": {"MECH": 4}, "b": {"MECH": 4}}, lambda r, h: 6)
+    assert over == [{"resource": "MECH", "from": 5, "to": 10, "peak": 8, "capacity": 6, "activities": ["a", "b"],
+                     "other_work": False}]
+
+
+def test_a_day_shift_calendar_turns_working_hours_into_dates():
+    cal = schedule.Calendar(datetime(2027, 2, 22, 6), hours_per_day=12, days_per_week=5)
+    assert cal.at(12) == datetime(2027, 2, 22, 18)
+    assert cal.at(13) == datetime(2027, 2, 23, 7)
+    assert cal.at(60) == datetime(2027, 2, 26, 18)  # Friday's close
+    assert cal.at(61) == datetime(2027, 3, 1, 7)  # the weekend skipped
+    assert cal.hours(datetime(2027, 3, 1, 7)) == 61
+
+
+# ---- Okan's 2026 turnaround on the plan ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def tar(okan_db):
+    c = okan_db.conn
+    plan.sync_work_orders(c)
+    out = schedule.import_template(c, yaml.safe_load(TEMPLATE.read_text()), "tests")
+    c.commit()
+    return c, out
+
+
+def test_the_template_lands_on_the_plan_under_the_sap_orders(tar):
+    c, out = tar
+    assert out["status"] == "imported" and out["activities"] == 25 and out["orders"] == 5
+    again = schedule.import_template(c, yaml.safe_load(TEMPLATE.read_text()), "tests")
+    assert again["status"] == "kept"
+    rows = c.execute("select o.source_key as order_no, count(*) as ops from plan_item a join plan_item o on o.id = a.parent_id "
+                     "where a.project = 'OK-TAR-2026' group by o.source_key order by 1").fetchall()
+    assert [r["ops"] for r in rows] == [4, 3, 4, 3, 1]
+    c.commit()
+
+
+def test_the_critical_path_runs_through_the_compressor_overhaul_and_the_crew_sets_the_levelled_finish(tar):
+    c, _ = tar
+    out = schedule.analyse(c, "OK-TAR-2026")
+    cp = out["critical_path"]
+    assert cp[0] == "A0010" and cp[-1] == "A0900"
+    assert {"A0100", "A0110", "A0130"} <= set(cp), cp
+    assert out["levelled_finish"] >= out["unconstrained_finish"]
+    mech = [o for o in out["overloads_if_unlevelled"] if o["resource"] == "MECH"]
+    assert mech and mech[0]["need"] > 6 and mech[0]["capacity"] == 6
+    assert any(a["held_back_by"] and a["held_back_by"]["resource"] == "MECH" for a in out["activities"])
+    assert not [o for o in out["overloads_levelled"] if not o["other_work"]], "levelling leaves no overload of its own"
+    c.commit()
+
+
+def test_a_planner_shortens_an_activity_and_the_schedule_follows(tar):
+    c, _ = tar
+    before = schedule.analyse(c, "OK-TAR-2026")
+    a0110 = next(a for a in before["activities"] if a["code"] == "A0110")
+    schedule.change_activity(c, a0110["id"], "tests", duration_hours=24)
+    after = schedule.analyse(c, "OK-TAR-2026")
+    assert after["unconstrained_finish"] < before["unconstrained_finish"]
+    schedule.change_activity(c, a0110["id"], "tests", duration_hours=48)
+    c.commit()
+
+
+def test_a_link_that_would_loop_is_refused(tar):
+    c, _ = tar
+    ids = {r["code"]: r["id"] for r in c.execute("select code, id from plan_item where project = 'OK-TAR-2026' and code is not null")}
+    with pytest.raises(PlanError, match="loop"):
+        schedule.link(c, ids["A0900"], ids["A0010"], "tests")
+    c.rollback()
+
+
+def test_apply_puts_the_levelled_dates_on_the_integrated_plan(tar):
+    c, _ = tar
+    out = schedule.apply(c, "OK-TAR-2026", "tests")
+    c.commit()
+    items = plan.items(c, out["finish"] - timedelta(days=40), out["finish"] + timedelta(days=1))
+    restart = next(i for i in items if i.get("code") == "A0900")
+    assert restart["end_at"] == out["finish"]
+    summary = next(i for i in items if i["source"] == "sap" and i.get("project") == "OK-TAR-2026")
+    assert summary["start_at"] <= summary["end_at"]
+
+
+
+def test_the_specialist_reads_the_critical_path_and_draws_a_gantt(tar):
+    from fuzer.agents.capabilities import maintenance as tools
+    from fuzer.plots import maintenance as charts
+
+    c, _ = tar
+    out = tools.critical_path("OK-TAR-2026")
+    assert out["critical_path"][0] == "A0010" and out["levelled_finish"] >= out["unconstrained_finish"]
+    assert "error" in tools.critical_path("NO-SUCH-TAR")
+    fig = charts.gantt(c, "OK-TAR-2026")
+    assert fig.kind == "gantt" and {t["name"] for t in fig.data} == {"critical path", "other work"}
+    bars = sum(len(t["y"]) for t in fig.data)
+    assert bars == 25 and fig.layout["xaxis"]["type"] == "date"
+    drawn = tools.plot_gantt("OK-TAR-2026")
+    assert "error" not in drawn, drawn
+    c.commit()
+
+
+
+
+
+def test_a_resource_histogram_shows_each_day_s_peak_against_capacity():
+    from fuzer.ops.schedule import profile
+    out = profile({"a": 30, "b": 10}, {"a": 0, "b": 10}, {"a": {"MECH": 4}, "b": {"MECH": 3}},
+                  lambda r, h: 6, {"MECH": [(24, 48, 2)]}, end=48)
+    assert [(d["schedule"], d["other"], d["capacity"]) for d in out["MECH"]] == [(7, 0, 6), (4, 2, 6)]

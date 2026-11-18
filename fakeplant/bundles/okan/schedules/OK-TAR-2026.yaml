@@ -1,0 +1,52 @@
+# The 2026 turnaround's schedule as a planner would first lay it out (P5.18): one activity per step, the logic between
+# them and the crews and lifts each needs. Seeded onto the integrated plan once; planners maintain it on Plan after.
+# Dates are as the exports were written (2025-12-31 is their today) and roll forward with them. Hours are working
+# hours on a 24-hour, 7-day turnaround calendar (two 12-hour shifts). The five SAP orders on revision OK-TAR-2026
+# are split into their operations: `order_of` names the tag whose turnaround order an activity executes.
+# Links: `after: [A0030]` is finish-to-start; "A0050 SS+12" is start-to-start with a 12-hour lag.
+schedule: 1
+code: OK-TAR-2026
+title: Okan 2026 turnaround (GGCP and production platform)
+kind: turnaround
+start: 2026-04-06T06:00:00
+finish_by: 2026-04-20T06:00:00
+calendar: {hours_per_day: 24, days_per_week: 7}
+resources:
+  - {code: MECH, name: Mechanical fitters, kind: crew, capacity: 6, work_center: MECH}
+  - {code: INST, name: Instrument technicians, kind: crew, capacity: 2, work_center: INST}
+  - {code: OPS, name: Operations isolation team, kind: crew, capacity: 3}
+  - {code: SCAF, name: Scaffolders, kind: crew, capacity: 4}
+  - {code: NDT, name: Inspection and NDT technicians, kind: crew, capacity: 2}
+  - {code: CRANE, name: Platform crane with rigging crew, kind: crane, unit: crane, capacity: 1}
+activities:
+  # 1 Shut down and make safe
+  - {code: A0010, wbs: "1.1", name: "Shut down and depressurise the GGCP (area 20)", hours: 12, refs: [OKAN-20], needs: {OPS: 3}}
+  - {code: A0020, wbs: "1.2", name: "Shut down and depressurise the production platform (area 10)", hours: 8, refs: [OKAN-10], needs: {OPS: 3}, after: [A0010 SS+6]}
+  - {code: A0030, wbs: "1.3", name: "Isolate, drain and purge area 20", hours: 36, refs: [OKAN-20], needs: {OPS: 3}, after: [A0010]}
+  - {code: A0040, wbs: "1.4", name: "Isolate, drain and purge area 10", hours: 24, refs: [OKAN-10], needs: {OPS: 3}, after: [A0020]}
+  - {code: A0050, wbs: "1.5", name: "Scaffold 20-K-2200B and 20-E-2350A", hours: 24, refs: [20-K-2200B, 20-E-2350A], needs: {SCAF: 4}, after: [A0030 SS+12]}
+  - {code: A0060, wbs: "1.6", name: "Scaffold 20-V-2001 manways", hours: 16, refs: [20-V-2001], needs: {SCAF: 4}, after: [A0030 SS+12]}
+  # 2 Train B 2nd stage compressor overhaul
+  - {code: A0100, wbs: "2.1", name: "Decouple and open the 20-K-2200B casing", hours: 36, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4, CRANE: 1}, after: [A0030, A0050]}
+  - {code: A0110, wbs: "2.2", name: "Replace 20-K-2200B bearings and dry gas seals", hours: 48, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4}, after: [A0100]}
+  - {code: A0120, wbs: "2.3", name: "Inspect the 20-K-2200B impeller", hours: 24, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {NDT: 2}, after: [A0100]}
+  - {code: A0130, wbs: "2.4", name: "Box up, align and couple 20-K-2200B", hours: 36, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4, CRANE: 1}, after: [A0110, A0120]}
+  # 3 Train A 3rd stage after-cooler retube
+  - {code: A0200, wbs: "3.1", name: "Pull the 20-E-2350A tube bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1}, after: [A0030, A0050]}
+  - {code: A0210, wbs: "3.2", name: "Retube the 20-E-2350A bundle", hours: 48, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3}, after: [A0200]}
+  - {code: A0220, wbs: "3.3", name: "Refit and hydrotest the 20-E-2350A bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1}, after: [A0210]}
+  # 4 GGCP inlet separator
+  - {code: A0300, wbs: "4.1", name: "Open and ventilate 20-V-2001", hours: 12, refs: [20-V-2001], order_of: 20-V-2001, needs: {MECH: 2}, after: [A0030, A0060]}
+  - {code: A0310, wbs: "4.2", name: "Internal inspection of 20-V-2001 (confined space entry)", hours: 24, refs: [20-V-2001], order_of: 20-V-2001, needs: {NDT: 2}, after: [A0300]}
+  - {code: A0320, wbs: "4.3", name: "Replace the 20-V-2001 level bridle and LT-2001", hours: 16, refs: [20-V-2001], order_of: 20-V-2001, needs: {INST: 2, MECH: 2}, after: [A0310]}
+  - {code: A0330, wbs: "4.4", name: "Box up 20-V-2001", hours: 12, refs: [20-V-2001], order_of: 20-V-2001, needs: {MECH: 2}, after: [A0320]}
+  # 5 Production platform
+  - {code: A0400, wbs: "5.1", name: "Open 10-V-2001", hours: 12, refs: [10-V-2001], order_of: 10-V-2001, needs: {MECH: 2}, after: [A0040]}
+  - {code: A0410, wbs: "5.2", name: "Statutory internal inspection of 10-V-2001", hours: 24, refs: [10-V-2001], order_of: 10-V-2001, needs: {NDT: 2}, after: [A0400]}
+  - {code: A0420, wbs: "5.3", name: "Box up 10-V-2001", hours: 12, refs: [10-V-2001], order_of: 10-V-2001, needs: {MECH: 2}, after: [A0410]}
+  - {code: A0500, wbs: "5.4", name: "Replace the 10-P-1001B rotating element and seal plan 53B", hours: 24, refs: [10-P-1001B], order_of: 10-P-1001B, needs: {MECH: 2, CRANE: 1}, after: [A0040]}
+  # 6 Hand back
+  - {code: A0800, wbs: "6.1", name: "Strike scaffolding in area 20", hours: 16, refs: [OKAN-20], needs: {SCAF: 4}, after: [A0130, A0220, A0330]}
+  - {code: A0810, wbs: "6.2", name: "De-isolate and leak test area 20", hours: 24, refs: [OKAN-20], needs: {OPS: 3}, after: [A0800]}
+  - {code: A0820, wbs: "6.3", name: "De-isolate and leak test area 10", hours: 16, refs: [OKAN-10], needs: {OPS: 3}, after: [A0420, A0500]}
+  - {code: A0900, wbs: "6.4", name: "Restart and hand back to operations", hours: 12, refs: [OKAN-10, OKAN-20], needs: {OPS: 3}, after: [A0810, A0820]}

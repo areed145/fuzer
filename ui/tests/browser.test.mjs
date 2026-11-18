@@ -2741,6 +2741,23 @@ test("A diagram Mermaid can't draw shows its source, and diagram text can't run 
   assert.equal(await page.locator('.md-diagram svg img[onerror], .md-diagram svg script, .md-diagram svg a[href^="javascript"]').count(), 0);
 });
 
+const GANTT = ["```mermaid", "gantt", "    title OK-TAR-2026 scoped work", "    dateFormat YYYY-MM-DD", "    section MECH crew",
+  "    50000306 20-K-2200B overhaul :crit, t306, 2027-02-22, 5d", "    50000307 20-E-2350A retube :t307, 2027-02-22, 4d", "```"].join("\n");
+
+test("Ask draws a Mermaid Gantt", async () => {
+  await askFor(GANTT);
+  await page.locator(".md-diagram svg").getByText("20-K-2200B overhaul", { exact: false }).first().waitFor();
+});
+
+test("A diagram whose drawing code went with an earlier deploy offers a reload, not a dead diagram (P5.18a)", async () => {
+  await page.route("**/assets/ganttDiagram-*", (route) => route.fulfill({ status: 404, body: "Not Found" }));
+  await askFor(GANTT);
+  await page.getByText("Fuzer was updated since this page opened", { exact: false }).waitFor();
+  await page.locator(".md-diagram").getByRole("button", { name: "Reload" }).waitFor();
+  await page.locator(".md-diagram pre").getByText("20-K-2200B overhaul", { exact: false }).waitFor();
+  assert.equal(await page.getByText("could not be drawn", { exact: false }).count(), 0, "It isn't blamed on the diagram");
+});
+
 test("Citations read as linked names, and raw ids never reach the page", async () => {
   const well = "fz-well-2526585e8224", term = "fz-allocation_node-b708d0477249", day = "fz-daily_report-82c067e8e550", unknown = "fz-tag-000000000000";
   await page.route("**/entities/names*", (route) => route.fulfill({ json: {
@@ -8237,4 +8254,65 @@ test("a case opens on its decision: what it waits on, the next action, and a mis
   await page.getByText("priority, $4k at stake", { exact: false }).waitFor();
   const [card, timeline] = await Promise.all([next.boundingBox(), history.boundingBox()]);
   assert.ok(card.y < timeline.y, "the decision sits above the history");
+});
+
+test("Ask's Gantt from a schedule on the plan draws at phone, iPad and desktop widths (P5.18)", async () => {
+  const gantt = JSON.parse(readFileSync(new URL("./fixtures/gantt-figure.json", import.meta.url)));
+  await page.route("**/figures/f_9a7e", (route) => route.fulfill({ json: gantt }));
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await askFor("The critical path runs through the compressor overhaul.\n\n[[figure:f_9a7e]]");
+    const plot = page.locator(".figure-plot .main-svg").first();
+    await plot.waitFor();
+    // a phone names the bars by code, leaving the width to the bars; wider screens add the name
+    await page.locator(".figure-plot").last().getByText(w < 520 ? "A0100" : "A0100 Decouple", { exact: w < 520 }).first().waitFor();
+    const box = await page.locator(".figure-plot").last().boundingBox();
+    assert.ok(box.width <= w, `the Gantt fits a ${w} px screen`);
+    if (process.env.GANTT_SHOTS) await page.locator(".figure").last().screenshot({ path: `${process.env.GANTT_SHOTS}/gantt-${w}.png` });
+  }
+});
+
+test("A planner opens a schedule on Plan, reads its critical path and resources, and edits an activity at phone, iPad and desktop widths (P5.18)", async () => {
+  const okan = JSON.parse(readFileSync(new URL("./fixtures/schedule-okan.json", import.meta.url)));
+  const changes = [];
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/schedules", (route) => route.fulfill({ json: okan.list }));
+  await page.route("**/plan/schedules/OK-TAR-2026", (route) => route.fulfill({ json: okan.analysis }));
+  await page.route("**/plan/schedules/OK-TAR-2026/apply", (route) => {
+    changes.push(["apply", route.request().postDataJSON()]);
+    return route.fulfill({ json: { project: "OK-TAR-2026", finish: okan.analysis.levelled_finish, unconstrained_finish: okan.analysis.unconstrained_finish } });
+  });
+  await page.route("**/plan/schedules/activities/*", (route) => {
+    changes.push([route.request().method(), route.request().postDataJSON()]);
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${url}/#/plan`);
+  await page.getByLabel("Open a schedule").selectOption("OK-TAR-2026");
+  await page.getByRole("heading", { name: /Okan 2026 turnaround/ }).waitFor();
+  await page.getByText("8 critical").waitFor();
+  await page.getByText(/^Finishes /).waitFor();
+  await page.getByRole("heading", { name: "Resources" }).waitFor();
+  // Early dates show where the crew would be over capacity if nothing were levelled.
+  await page.getByLabel("Dates").selectOption("early");
+  await page.getByText(/over on \d+ days?/).first().waitFor();
+  await page.getByLabel("Dates").selectOption("levelled");
+  // A planner opens an activity, shortens it and adds a need.
+  await page.getByRole("button", { name: "A0100", exact: true }).click();
+  await page.getByLabel("Hours", { exact: true }).first().fill("30");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expectReports(changes, 1);
+  assert.equal(changes[0][0], "PATCH");
+  assert.equal(changes[0][1].duration_hours, 30);
+  await page.getByRole("button", { name: "Schedule", exact: true }).click();
+  await page.getByText(/Levelled dates are on the plan/).waitFor();
+  assert.equal(changes.at(-1)[0], "apply");
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.locator(".sched-bar").first().waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `fits ${w} px`);
+    const bar = await page.locator(".sched-bar").nth(3).boundingBox();
+    assert.ok(bar && bar.width > 0, `the bars draw at ${w} px`);
+    if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/schedule-${w}.png`, fullPage: true });
+  }
 });

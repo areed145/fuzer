@@ -13,6 +13,15 @@ import { PLOTLY_CONFIG, fullscreenLayout, roomIn } from "./plotlyConfig";
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 /** The figure's layout with the page's colours, fonts and chart palette. */
+/** A figure's layout for the room it has: under 520 px, its `meta.narrow` overrides (an axis or the legend
+ *  rearranged for a phone) are laid over it, one level deep. */
+export function forWidth(layout: Record<string, any>, width: number): Record<string, any> {
+  const narrow = layout.meta?.narrow;
+  if (!narrow || width >= 520) return layout;
+  return { ...layout, ...Object.fromEntries(Object.entries(narrow as Record<string, any>).map(([k, v]) =>
+    [k, v && typeof v === "object" && !Array.isArray(v) ? { ...(layout[k] ?? {}), ...v } : v])) };
+}
+
 export function themed(layout: Record<string, any>): Record<string, any> {
   const text = css("--text");
   const grid = css("--line");
@@ -50,7 +59,7 @@ export function FigureView({ id }: { id: string }) {
     let gone = false;
     import("plotly.js-cartesian-dist-min").then(({ default: Plotly }) => {
       if (gone) return;
-      const layout = themed(fullscreenLayout(d.spec.layout, full.on, roomIn(full.ref.current)));
+      const layout = themed(fullscreenLayout(forWidth(d.spec.layout, node.clientWidth), full.on, roomIn(full.ref.current)));
       Plotly.react(node, d.spec.data, layout, PLOTLY_CONFIG).then(() => {
         node.on?.("plotly_click", (e: any) => {
           const p = e.points?.[0];

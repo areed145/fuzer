@@ -15,4 +15,5 @@ project:
   fakeplant: {asset: okan, seed: 11}
 source_packs: [packs/healthwatch.yaml]
 roster: roster.yaml
+schedules: [schedules/OK-TAR-2026.yaml]  # the 2026 turnaround as its planner first laid it out (P5.18)
 operating_model: {name: standard, version: 1}

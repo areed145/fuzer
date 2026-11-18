@@ -361,3 +361,29 @@ def plot_crew_load(as_of: str | None = None, weeks: int = 26) -> dict[str, Any]:
     from ...plots import general
     return _chart(general.crew_load, {"as_of": as_of, "weeks": max(1, min(weeks, 52))})
 
+
+
+@capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", kind="calc")
+def critical_path(project: str | None = None) -> dict[str, Any]:
+    """A schedule on the integrated plan (P5.18; a turnaround's revision such as OK-TAR-2026, a project or a campaign;
+    default: the next one): each activity's duration, early and late dates and total float in working hours, the
+    critical path (logic only), the schedule levelled against every shared resource (crews, cranes and the rest, other
+    planned work on them counted) with who held each activity back, the unconstrained and levelled finish against the
+    window, the levelled chain that sets the finish, and where demand would exceed capacity if nothing were levelled.
+    Planners maintain these activities, links and resource needs on Plan; this reads them, it changes nothing."""
+    from ...core.plan import PlanError
+    from ...ops import schedule
+    with db.connect() as conn:
+        try:
+            out = schedule.analyse(conn, project)
+        except PlanError as e:
+            return {"error": str(e), "schedules": _plain(schedule.projects(conn))}
+        return _plain(out)
+
+
+@capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", kind="plot")
+def plot_gantt(project: str | None = None, levelled: bool = True) -> dict[str, Any]:
+    """Chart a schedule on the integrated plan as a Gantt: a bar per activity at its levelled dates (early dates with
+    levelled false), the critical path in red and the window's end marked. Use this instead of writing a diagram."""
+    from ...plots import maintenance
+    return _chart(maintenance.gantt, {"project": project, "levelled": levelled})

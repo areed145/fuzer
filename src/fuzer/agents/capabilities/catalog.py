@@ -363,6 +363,14 @@ SKILL_CATALOG = (
         "Turnaround scope, what is missing from it and out-of-stock spares for scoped units.",
         _APPROVE),
     SkillDefinition(
+        f"{_WORK}/integrated-planning", (_WORK,),
+        (WORK_PLANNER, WORK_SCHEDULER, LOGISTICS_COORDINATOR),
+        "Schedules on the integrated plan: activities, durations, links and the shared resources they need, beside "
+        "other planned work on the same resources.",
+        "The critical path, the schedule levelled against crews and other shared resources, what drives the finish "
+        "against the window, the overloads and a Gantt.",
+        "Weather, permits and logistics count only where the plan holds them as resources. " + _APPROVE),
+    SkillDefinition(
         f"{_WORK}/job-readiness", (_WORK,),
         (WORK_PLANNER, WORK_SCHEDULER, SUPPLY_CHAIN_SPECIALIST, LOGISTICS_COORDINATOR),
         "Work orders, their dates and turnaround revision, BOM spares with stock on hand, reservations, open purchase "
@@ -429,7 +437,8 @@ UNAVAILABLE = (
      "OEM pump curves for those models and compressor maps for those machines (a datasheet Claude reads counts)."),
     (_WORK, "Crew skills, contractors and leave in the schedule",
      "A planning system with skills, contractor and leave rosters; crews' backlog in crew-weeks and conflicts by "
-     "crew size and calendar are read (crew_load)."),
+     "crew size and calendar are read (crew_load), and schedules on the plan are levelled by crew size "
+     "(critical_path)."),
     (_WORK, "Vendor performance, transport and site-access constraints",
      "Logistics and vendor sources; reservations, open purchase orders and planned delivery times are read "
      "(material_readiness)."),

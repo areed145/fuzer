@@ -241,6 +241,22 @@ def _read_projects(added: list[str]) -> None:
                   "Inspect recorded readings before a deliberate retry.", flush=True)
 
 
+def keep_assets(disk: Path) -> None:
+    """Keep this build's files beside earlier builds' on the persistent disk, so a page opened before this deploy can
+    still load the files it names (P5.18a). The API serves from the kept folder when the build lacks a name."""
+    from ..core import kept_assets
+    from ..resources import UI_DIST
+
+    if not (UI_DIST / "assets").is_dir():
+        return
+    kept = Path(os.environ.setdefault(kept_assets.ENV, str(disk / "ui-assets")))
+    try:
+        print(f"Built files kept for open pages: {kept_assets.keep(UI_DIST / 'assets', kept)}", flush=True)
+    except OSError as e:  # a full or read-only disk: pages opened before this deploy may need a reload, nothing worse
+        os.environ.pop(kept_assets.ENV, None)
+        print(f"Built files not kept for open pages ({e}); a page opened before this deploy may need a reload", flush=True)
+
+
 def main(argv: list[str] | None = None) -> None:
     import argparse
 
@@ -257,6 +273,7 @@ def main(argv: list[str] | None = None) -> None:
     home.mkdir(parents=True, exist_ok=True)
     os.environ["DAGSTER_HOME"] = str(home.resolve())
     configure_dagster(home, url)
+    keep_assets(home.parent)
     if args.role != "web":  # the runs died with the machine that ran them, which is the worker's
         end_orphaned_runs()
     with db.connect(autocommit=True) as lock:
