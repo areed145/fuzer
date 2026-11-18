@@ -155,8 +155,16 @@ export const backFromField = (r: ExceptionRow) => {
   return !!last && (last.status === "done" || last.status === "could_not_do") && r.assignee !== last.by;
 };
 
-/** Open, raised and not yet given to anyone or put on the plan: the IOC's to dispatch. */
-export const waitingToDispatch = (r: ExceptionRow) => r.state === "open" && !r.item_id && !r.planned;
+/** Planned for a later day: it waits on Plan until its day comes. */
+export const plannedLater = (r: ExceptionRow) => {
+  if (!r.planned) return false;
+  const tonight = new Date(); tonight.setHours(23, 59, 59, 999);
+  return new Date(r.planned.start_at) > tonight;
+};
+
+/** Open, raised and not yet given to anyone, nor planned for a later day: the IOC's to dispatch. Planned work comes
+ * back here on the day it was planned for. */
+export const waitingToDispatch = (r: ExceptionRow) => r.state === "open" && !r.item_id && !plannedLater(r);
 
 /** Open, its case held by a field operator (a person with the operator role, or the operator queue) or the field said
  * they are on site, and not yet back from the field. */

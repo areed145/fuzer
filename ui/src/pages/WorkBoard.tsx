@@ -11,7 +11,7 @@ import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
 import { holder, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
-import { DispatchControls, age, backFromField, money, namedSubjects, waitingToDispatch, withTheField, type Person } from "./Exceptions";
+import { DispatchControls, age, backFromField, money, namedSubjects, plannedLater, waitingToDispatch, withTheField, type Person } from "./Exceptions";
 
 type StageKey = "dispatch" | "desk" | "plan" | "field" | "back" | "closed";
 
@@ -31,7 +31,7 @@ export function stageOf(r: ExceptionRow, operators: Set<string>): StageKey {
   if (waitingToDispatch(r)) return "dispatch";
   if (backFromField(r)) return "back";
   if (withTheField(r, operators)) return "field";
-  if (!r.item_id && r.planned) return "plan";
+  if (!r.item_id && plannedLater(r)) return "plan";
   return "desk";
 }
 
