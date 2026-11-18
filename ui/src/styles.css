@@ -376,6 +376,23 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
   .phone-stack:has(thead) td.sched-track-cell::before { display: none; }
   .sched-edit-row td { flex-basis: 100%; }
 }
+/* Resources (P5.18): a resource's daily demand stacked by source against its capacity line. */
+.load-legend { display: inline-flex; align-items: center; gap: 4px; }
+.load-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.load-src-0 { background: var(--chart-1); } .load-src-1 { background: var(--chart-2); } .load-src-2 { background: var(--chart-3); }
+.load-src-3 { background: var(--chart-4); } .load-src-4 { background: var(--chart-5); } .load-src-5 { background: var(--chart-6); }
+.load-cols { display: flex; align-items: stretch; gap: 2px; height: 7rem; overflow: hidden; min-width: 0; border-bottom: 1px solid var(--line); margin-top: 0.5rem; }
+.load-col { position: relative; flex: 1 1 0; display: flex; flex-direction: column-reverse; cursor: pointer; min-width: 0; }
+.load-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.load-col.on { background: color-mix(in srgb, var(--muted) 14%, transparent); }
+.load-part { display: block; }
+.load-col.over .load-part { box-shadow: inset 0 2px 0 var(--danger); }
+.load-cap { position: absolute; left: -1px; right: -1px; height: 0; border-top: 2px solid var(--text); opacity: 0.75; }
+.load-col.over .load-cap { border-top-color: var(--danger); opacity: 1; }
+.load-axis { display: flex; justify-content: space-between; color: var(--muted); }
+.load-card h3 { margin: 0.9rem 0 0.3rem; font-size: 0.95rem; }
+.load-overloads > li { padding: 0.4rem 0; border-top: 1px solid var(--line); }
+.load-card .row { align-items: end; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 

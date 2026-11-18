@@ -806,6 +806,19 @@ export interface ScheduleAnalysis {
   resources: PlanResource[]; profiles: { levelled: Record<string, ScheduleDay[]>; unlevelled: Record<string, ScheduleDay[]> };
   other_work: { id: number; title: string; resource: string; quantity: number; start: string; end: string; project: string | null }[];
 }
+export interface ResourceMove {
+  item_id: number; title: string; source: string; code: string | null; order: string | null; slip_hours: number;
+  float_hours: number | null; finish_later_days: number | null; new_start: string; new_end: string;
+}
+export interface ResourceOverload {
+  from: string; to: string; peak: number; capacity: number; over_by: number;
+  jobs: { item_id: number; title: string; source: string; code: string | null; quantity: number }[]; moves: ResourceMove[];
+}
+export interface ResourceLoad {
+  code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];
+  days: { day: string; capacity: number; demand: number; by_source: Record<string, number> }[]; overloads: ResourceOverload[];
+  capacity_windows: { id: number; start: string; end: string; capacity: number; reason: string | null }[];
+}
 export interface PlanResource { code: string; name: string; kind: string; unit: string | null; capacity: number; work_center?: string | null }
 
 export interface PlanItem {
@@ -966,6 +979,13 @@ export const workApi = {
   scheduleLink: (by: string, pred: number, succ: number, type: ScheduleLinkRef["type"], lag_hours: number) =>
     request<unknown>("POST", "/plan/schedules/links", undefined, { by, pred, succ, type, lag_hours }),
   scheduleUnlink: (by: string, pred: number, succ: number) => request<unknown>("DELETE", "/plan/schedules/links", { by, pred, succ }),
+  resourceLoad: (f: { resource?: string; start?: string; days?: number } = {}) =>
+    request<{ start: string; end: string; days: number; resources: ResourceLoad[] }>("GET", "/plan/resources/load", f),
+  capacityWindow: (code: string, w: { by: string; start: string; end: string; capacity: number; reason?: string }) =>
+    request<unknown>("POST", `/plan/resources/${encodeURIComponent(code)}/capacity`, undefined, w),
+  capacityWindowRemove: (id: number, by: string) => request<unknown>("DELETE", `/plan/resources/capacity/${id}`, { by }),
+  planResourceChange: (code: string, by: string, change: Partial<{ name: string; capacity: number; unit: string; work_center: string }>) =>
+    request<PlanResource>("PUT", `/plan/resources/${encodeURIComponent(code)}`, undefined, { by, ...change }),
   planResources: () => request<PlanResource[]>("GET", "/plan/resources"),
   turnaround: (revision?: string) => request<TurnaroundScope>("GET", "/turnarounds", { revision }),
   turnaroundBringIn: (itemId: number, by: string, revision: string | null) =>

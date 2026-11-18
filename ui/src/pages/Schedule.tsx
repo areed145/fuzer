@@ -39,6 +39,7 @@ export function SchedulePage({ code, person }: { code: string; person: string | 
       <PageHeader subtitle={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${dayStamp(p.start_at)}${p.finish_by ? ` to ${dayStamp(p.finish_by)}` : ""}`}
         actions={<>
           <ButtonLink href="#/plan">Plan</ButtonLink>
+          <ButtonLink href="#/plan?resources=1">Resources</ButtonLink>
           <Button variant="primary" disabled={!person || !!busy} title={person ? undefined : "Choose who you are to schedule"}
             onClick={apply}>Schedule</Button>
         </>}>{acronyms(p.title)}</PageHeader>

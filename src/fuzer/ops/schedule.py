@@ -22,7 +22,7 @@ and `level` take plain data, so the logic is tested without a database.
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from ..core import events
+from ..core import clock, events
 from ..core.plan import STATUSES, PlanError
 from . import plan
 
@@ -691,3 +691,128 @@ def set_resource(conn, code: str, by: str, name: str | None = None, kind: str | 
               "unit": unit or (row["unit"] if row else "people"), "cap": cap,
               "wc": work_center if work_center is not None else (row["work_center"] if row else None), "by": by}).fetchone()
 
+
+
+# ---- a resource owner's view ------------------------------------------------------------------------------------
+
+def _source(row) -> str:
+    """Where a piece of demand comes from, as the owner reads it: a schedule's code, or the kind of planned work."""
+    return row["project"] or {"maintenance": "SAP orders"}.get(row["kind"], row["kind"].replace("_", " "))
+
+
+def resource_load(conn, resource: str | None = None, start: datetime | None = None, days: int = 42) -> dict:
+    """What every source on the plan asks of each shared resource, day by day, against its capacity: per resource
+    and day the peak hour's demand split by source (each schedule, SAP orders on the work center, campaigns, other
+    work) and the least capacity that day, then each run of hours over capacity with the jobs in it and the move
+    that clears it at the least cost (the job with the most float, or work with no schedule logic behind it,
+    slipped to the end of the run). `resource` narrows it to one; times are wall-clock hours."""
+    start = (start or clock.now()).replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=days)
+    res = conn.execute("select * from plan_resource" + (" where code = %s" if resource else "") + " order by kind, code",
+                       (resource,) if resource else ()).fetchall()
+    if resource and not res:
+        raise PlanError(f"no resource {resource}")
+    codes = [r["code"] for r in res]
+    rows = conn.execute(
+        """
+        select i.id, i.title, i.kind, i.project, i.code, i.source, i.source_key, i.start_at, i.end_at, i.status,
+               d.resource, d.quantity
+        from plan_demand d join plan_item i on i.id = d.item_id
+        where d.resource = any(%s) and i.status = any(%s) and i.start_at < %s and i.end_at > %s and d.quantity > 0
+        order by i.start_at, i.id
+        """, (codes, list(plan.ACTIVE), end, start)).fetchall()
+    windows = defaultdict(list)
+    for w in conn.execute("select * from plan_resource_capacity where resource = any(%s) and start_at < %s and end_at > %s "
+                          "order by start_at", (codes, end, start)):
+        windows[w["resource"]].append(w)
+    hours = days * 24
+    h_of = lambda t: (t - start).total_seconds() / 3600
+    # float per schedule activity, from each schedule's own analysis, so a move can say what it costs
+    floats: dict[int, float] = {}
+    for p in {r["project"] for r in rows if r["project"] and r["source"] == "schedule"}:
+        try:
+            for a in analyse(conn, p)["activities"]:
+                floats[a["id"]] = a["float_hours"]
+        except PlanError:
+            pass
+    out = []
+    for r in res:
+        code = r["code"]
+        cap = [float(r["capacity"])] * hours
+        for w in windows[code]:
+            for h in range(max(0, int(h_of(w["start_at"]))), min(hours, int(-(-h_of(w["end_at"]) // 1)))):
+                cap[h] = float(w["capacity"])
+        use: list[dict[str, float]] = [defaultdict(float) for _ in range(hours)]
+        jobs: list[list] = [[] for _ in range(hours)]
+        mine = [x for x in rows if x["resource"] == code]
+        for x in mine:
+            for h in range(max(0, int(h_of(x["start_at"]))), min(hours, int(-(-h_of(x["end_at"]) // 1)))):
+                use[h][_source(x)] += x["quantity"]
+                jobs[h].append(x)
+        total = [sum(u.values()) for u in use]
+        sources = sorted({s for u in use for s in u})
+        days_out = []
+        for d in range(days):
+            hs = range(d * 24, d * 24 + 24)
+            peak = max(hs, key=lambda h: (total[h] - cap[h], total[h]))
+            days_out.append({"day": (start + timedelta(days=d)).date().isoformat(), "capacity": min(cap[h] for h in hs),
+                             "demand": round(total[peak], 2), "by_source": {s: round(v, 2) for s, v in use[peak].items()}})
+        runs, h = [], 0
+        while h < hours:
+            if total[h] > cap[h] + EPS:
+                a = h
+                while h < hours and total[h] > cap[h] + EPS:
+                    h += 1
+                in_run = {x["id"]: x for hh in range(a, h) for x in jobs[hh]}
+                over = max(total[hh] - cap[hh] for hh in range(a, h))
+                moves = []
+                for x in in_run.values():
+                    if x["status"] == "in_progress" or x["quantity"] + EPS < over:
+                        continue  # started work stays; moving a job too small to clear the run doesn't clear it
+                    shift = h_of(start + timedelta(hours=h)) - h_of(x["start_at"])
+                    fl = floats.get(x["id"])
+                    late = max(0.0, shift - fl) if fl is not None else None
+                    moves.append({"item_id": x["id"], "title": x["title"], "source": _source(x), "code": x["code"],
+                                  "order": x["source_key"] if x["source"] != "schedule" else None,
+                                  "slip_hours": round(shift, 1), "float_hours": fl,
+                                  "finish_later_days": round(late / 24, 1) if late is not None else None,
+                                  "new_start": start + timedelta(hours=h),
+                                  "new_end": x["end_at"] + timedelta(hours=shift)})
+                moves.sort(key=lambda m: (m["finish_later_days"] if m["finish_later_days"] is not None else 0.5,
+                                          m["slip_hours"], m["item_id"]))
+                runs.append({"from": start + timedelta(hours=a), "to": start + timedelta(hours=h),
+                             "peak": round(max(total[a:h]), 2), "capacity": min(cap[a:h]), "over_by": round(over, 2),
+                             "jobs": [{"item_id": x["id"], "title": x["title"], "source": _source(x), "code": x["code"],
+                                       "quantity": x["quantity"]} for x in in_run.values()],
+                             "moves": moves[:3]})
+            else:
+                h += 1
+        out.append({"code": code, "name": r["name"], "kind": r["kind"], "unit": r["unit"], "capacity": r["capacity"],
+                    "work_center": r["work_center"], "sources": sources, "days": days_out, "overloads": runs,
+                    "capacity_windows": [{"id": w["id"], "start": w["start_at"], "end": w["end_at"],
+                                          "capacity": w["capacity"], "reason": w["reason"]} for w in windows[code]]})
+    return {"start": start, "end": end, "days": days, "resources": out,
+            "basis": "every active planned job's resource needs, at its planned dates, against each resource's capacity"}
+
+
+def set_capacity_window(conn, resource: str, start: datetime, end: datetime, capacity: float, by: str,
+                        reason: str | None = None) -> dict:
+    """A resource has a different capacity for a while (leave, a crane's certification, a vessel in dock)."""
+    if not conn.execute("select 1 from plan_resource where code = %s", (resource,)).fetchone():
+        raise PlanError(f"no resource {resource}")
+    if end <= start or capacity < 0:
+        raise PlanError("a capacity window needs an end after its start and a capacity of 0 or more")
+    row = conn.execute("insert into plan_resource_capacity (resource, start_at, end_at, capacity, reason, created_by) "
+                       "values (%s, %s, %s, %s, %s, %s) returning *", (resource, start, end, capacity, reason, by)).fetchone()
+    events.publish(conn, "plan.changed", f"plan_resource:{resource}", {"resource": resource, "change": "capacity window",
+                                                                      "by": by})
+    return row
+
+
+def remove_capacity_window(conn, window_id: int, by: str) -> dict:
+    row = conn.execute("delete from plan_resource_capacity where id = %s returning resource", (window_id,)).fetchone()
+    if not row:
+        raise PlanError(f"no resource capacity window {window_id}")
+    events.publish(conn, "plan.changed", f"plan_resource:{row['resource']}", {"resource": row["resource"],
+                                                                              "change": "capacity window removed", "by": by})
+    return {"removed": window_id}

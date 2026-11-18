@@ -1,6 +1,6 @@
 """Schedules on the integrated plan (P5.18, ops/schedule.py): critical path, levelling and the planner's edits."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -158,3 +158,26 @@ def test_a_resource_histogram_shows_each_day_s_peak_against_capacity():
     out = profile({"a": 30, "b": 10}, {"a": 0, "b": 10}, {"a": {"MECH": 4}, "b": {"MECH": 3}},
                   lambda r, h: 6, {"MECH": [(24, 48, 2)]}, end=48)
     assert [(d["schedule"], d["other"], d["capacity"]) for d in out["MECH"]] == [(7, 0, 6), (4, 2, 6)]
+
+
+def test_a_resource_owner_sees_demand_by_source_against_capacity_and_the_move_that_clears_an_overload(tar):
+    c, _ = tar
+    start = datetime(2026, 4, 6, tzinfo=UTC)
+    load = schedule.resource_load(c, "MECH", start, 21)
+    [mech] = load["resources"]
+    assert len(mech["days"]) == 21 and "OK-TAR-2026" in mech["sources"]
+    busy = [d for d in mech["days"] if d["demand"]]
+    assert busy and all(round(sum(d["by_source"].values()), 2) == d["demand"] for d in busy)
+    assert not [o for o in mech["overloads"] if o["from"] < datetime(2026, 4, 20, tzinfo=UTC)], "levelled: no overload"
+    # two fitters off for three days: the owner sees the overload, the jobs in it and the cheapest move
+    w = schedule.set_capacity_window(c, "MECH", datetime(2026, 4, 9, tzinfo=UTC), datetime(2026, 4, 12, tzinfo=UTC), 4,
+                                     "tests", "leave")
+    mech = schedule.resource_load(c, "MECH", start, 21)["resources"][0]
+    [run, *_] = mech["overloads"]
+    assert run["capacity"] == 4 and run["peak"] > 4 and run["jobs"] and run["moves"]
+    best = run["moves"][0]
+    assert best["slip_hours"] > 0 and best["new_start"] == run["to"]
+    assert mech["capacity_windows"][0]["reason"] == "leave"
+    assert any(d["capacity"] == 4 for d in mech["days"])
+    schedule.remove_capacity_window(c, w["id"], "tests")
+    c.rollback()

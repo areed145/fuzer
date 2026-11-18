@@ -4,10 +4,11 @@
 import { acronyms, dayStamp } from "../wording";
 import { type CSSProperties, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
+import { Badge, Button, ButtonLink, Card, Input, PageHeader, Select, Empty } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
+import { ResourcesPage } from "./Resources";
 import { usePerson } from "../work";
 import { useAct } from "./workflows/shared";
 import { useEntityNames } from "../useEntityNames";
@@ -22,6 +23,8 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
   const [person] = usePerson();
   // `?schedule=OK-TAR-2026` opens that schedule's activities, logic and resources (P5.18).
   const schedule = query.get("schedule");
+  // `?resources=1` is the resource owners' view: demand from every source against each resource's capacity.
+  if (query.has("resources")) return <ResourcesPage query={query} person={person} />;
   return schedule ? <SchedulePage code={schedule} person={person} /> : <PlanTimeline query={query} person={person} />;
 }
 
@@ -75,7 +78,8 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
   return (
     <section>
       <PageHeader subtitle="Planned activity from every source on one timeline."
-        actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
+        actions={<><ButtonLink href="#/plan?resources=1">Resources</ButtonLink>
+          <Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button></>}>
         Plan</PageHeader>
       <div className="row">
         <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>

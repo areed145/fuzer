@@ -478,6 +478,8 @@ create table if not exists plan_resource_capacity (
     reason    text,
     check (end_at > start_at)
 );
+alter table plan_resource_capacity add column if not exists created_by text;
+alter table plan_resource_capacity add column if not exists created_at timestamptz not null default now();
 create table if not exists plan_demand (
     item_id   bigint not null references plan_item(id) on delete cascade,
     resource  text not null references plan_resource(code) on delete cascade,
