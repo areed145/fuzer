@@ -1,5 +1,6 @@
 /** The schedule as an interactive Gantt board (P5.18): one row per shared resource (or per activity), each activity a
- * puck on the timeline. Drag a puck to hold its start, drag its right edge to change its duration, click it for its
+ * puck on the timeline. Drag a puck to hold its start, drag its right edge to change its duration, drag it onto another
+ * resource's row to hand the work over, drag the dot after a selected puck onto another to link them, click it for its
  * properties. Every change recalculates the schedule, so the pucks land where the logic and the crews allow. The
  * selected activity shows its logic as arrows; a resource's row carries a strip of its daily load against capacity. */
 import { type CSSProperties, type PointerEvent as RPointerEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -9,8 +10,10 @@ import { acronyms, dayStamp, stamp } from "../wording";
 const HOUR = 3_600_000, DAY = 24 * HOUR;
 const PUCK = 24, GAP = 4, PAD = 5, STRIP = 6, HEAD = 28;
 
+type Grab = "move" | "stretch" | "link";
 export type BoardRows = "resources" | "activities";
-export type BoardChange = { id: number; code: string } & ({ kind: "move"; start: Date; earliest: boolean } | { kind: "stretch"; hours: number });
+export type BoardChange = { id: number; code: string } & ({ kind: "move"; start: Date; earliest: boolean } | { kind: "stretch"; hours: number }
+  | { kind: "reassign"; from: string | null; to: string | null; quantity: number } | { kind: "link"; to: number; toCode: string });
 
 interface Puck { key: string; a?: ScheduleRow; title: string; start: number; end: number; lane: number; qty?: number; other?: boolean }
 interface Row { key: string; label: string; sub?: string; over?: boolean; group?: boolean; pucks: Puck[]; lanes: number; top: number; height: number;
@@ -53,8 +56,9 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
   const [ref, width] = useWidth();
   // an activity row is named beside its bar, so its label column only needs the code
   const labelW = mode === "activities" ? (width && width < 560 ? 64 : 84) : width && width < 560 ? 96 : 200;
-  const [drag, setDrag] = useState<{ id: number; kind: "move" | "stretch"; dx: number } | null>(null);
-  const press = useRef<{ id: number; kind: "move" | "stretch"; x: number; moved: boolean } | null>(null);
+  const [drag, setDrag] = useState<{ id: number; kind: Grab; dx: number; dy: number; row?: string } | null>(null);
+  const press = useRef<{ id: number; kind: Grab; x: number; y: number; row: string; moved: boolean } | null>(null);
+  const body = useRef<HTMLDivElement>(null);
 
   const { t0, t1 } = useMemo(() => {
     const all = s.activities.flatMap((a) => [ms(a.start), ms(a.finish), ms(a.late_finish)]);
@@ -149,25 +153,45 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
   }, [t0, t1, pxPerMs]);
 
   const editable = (a?: ScheduleRow) => canEdit && !!a && a.status !== "done" && a.status !== "in_progress";
-  const down = (e: RPointerEvent<HTMLElement>, a: ScheduleRow, kind: "move" | "stretch") => {
-    if (!editable(a) || e.button > 0) return;
+  const down = (e: RPointerEvent<HTMLElement>, a: ScheduleRow, kind: Grab, row: string) => {
+    if (!(kind === "link" ? canEdit : editable(a)) || e.button > 0) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    press.current = { id: a.id, kind, x: e.clientX, moved: false };
+    press.current = { id: a.id, kind, x: e.clientX, y: e.clientY, row, moved: false };
+  };
+  /** The resource row under the pointer, when the work is dragged off its own row onto one that does not already carry it. */
+  const rowUnder = (clientY: number, from: string, a?: ScheduleRow) => {
+    if (mode !== "resources" || !body.current || !a) return undefined;
+    const y = clientY - body.current.getBoundingClientRect().top;
+    const r = rows.find((q) => y >= q.top && y < q.top + q.height);
+    return r && r.key !== from && !a.needs[r.key] ? r : undefined;
   };
   const move = (e: RPointerEvent<HTMLElement>) => {
     const p = press.current;
     if (!p) return;
-    const dx = e.clientX - p.x;
-    if (!p.moved && Math.abs(dx) < 5) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (!p.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
     p.moved = true;
-    setDrag({ id: p.id, kind: p.kind, dx });
+    setDrag({ id: p.id, kind: p.kind, dx, dy, row: p.kind === "move" ? rowUnder(e.clientY, p.row, s.activities.find((a) => a.id === p.id))?.key : undefined });
   };
   const up = (e: RPointerEvent<HTMLElement>, a: ScheduleRow) => {
     const p = press.current;
     press.current = null;
     setDrag(null);
-    if (!p || !p.moved) { if (!p || p.kind === "move") onSelect(selected === a.id ? null : a.id); return; }
+    if (!p || !p.moved) { if (!p || p.kind !== "link") onSelect(selected === a.id ? null : a.id); return; }
+    const who = { id: a.id, code: a.code ?? "" };
+    if (p.kind === "link") {
+      // dropped on another activity: that one now follows this one, finish to start
+      const hit = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>("[data-act]");
+      const to = s.activities.find((q) => q.id === Number(hit?.dataset.act));
+      if (to && to.id !== a.id && !to.predecessors.some((q) => q.code === a.code)) onChange({ ...who, kind: "link", to: to.id, toCode: to.code ?? "" });
+      return;
+    }
+    const onto = p.kind === "move" ? rowUnder(e.clientY, p.row, a) : undefined;
+    if (onto) {
+      onChange({ ...who, kind: "reassign", from: p.row === "none" ? null : p.row, to: onto.key === "none" ? null : onto.key, quantity: a.needs[p.row] ?? 1 });
+      return;
+    }
     const hours = Math.round((e.clientX - p.x) / pxPerMs / HOUR);
     if (!hours) return;
     if (p.kind === "stretch") onChange({ id: a.id, code: a.code ?? "", kind: "stretch", hours: Math.max(1, (a.duration_hours ?? 0) + hours) });
@@ -180,7 +204,9 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
 
   const dragged = drag ? s.activities.find((a) => a.id === drag.id) : undefined;
   const dragHours = drag ? Math.round(drag.dx / pxPerMs / HOUR) : 0;
-  const hint = dragged && drag ? (drag.kind === "move" ? `${dragged.code} starts ${stamp(new Date(ms(dragged.start) + dragHours * HOUR))}`
+  const onto = drag?.row ? rows.find((r) => r.key === drag.row) : undefined;
+  const hint = dragged && drag ? (drag.kind === "link" ? `Drop on the activity that follows ${dragged.code}`
+    : onto ? (onto.key === "none" ? `${dragged.code} needs no shared resource` : `${dragged.code} goes to ${onto.label}`) : drag.kind === "move" ? `${dragged.code} starts ${stamp(new Date(ms(dragged.start) + dragHours * HOUR))}`
     : `${dragged.code} takes ${num(Math.max(1, (dragged.duration_hours ?? 0) + dragHours))} h`) : null;
   const vars = { "--gb-label": `${labelW}px`, "--gb-track": `${trackW}px`, "--gb-day": ticks.grid } as CSSProperties;
   const ends = s.project.finish_by ? x(ms(s.project.finish_by)) : null;
@@ -189,7 +215,7 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
   const svg: CSSProperties = { width: trackW, height };
 
   return (
-    <div className="gb" ref={ref} style={vars}>
+    <div className="gb" ref={ref} style={vars} data-rows={mode}>
       <div className="gb-scroll" onClick={() => onSelect(null)}>
         <div className="gb-inner">
           <div className="gb-row gb-head" aria-hidden="true">
@@ -198,14 +224,14 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
               {ticks.at.map((t) => <span key={t} className="gb-tick" style={line(x(t))}>{dayStamp(new Date(t).toISOString())}</span>)}
             </div>
           </div>
-          <div className="gb-body">
+          <div className="gb-body" ref={body}>
             {rows.map((r) => {
               const rowStyle: CSSProperties = { height: r.height };
               if (r.group) return <div key={r.key} className="gb-row gb-group" style={rowStyle}>
                 <div className="gb-label"><strong>{r.label}</strong></div>
-                <div className="gb-track">{r.float && <span className="gb-summary" style={box(x(r.float[0]), Math.max(4, x(r.float[1]) - x(r.float[0])))} />}</div>
+                <div className="gb-track">{r.float && <span className="gb-rollup" style={box(x(r.float[0]), Math.max(4, x(r.float[1]) - x(r.float[0])))} />}</div>
               </div>;
-              return <div key={r.key} className="gb-row" style={rowStyle}>
+              return <div key={r.key} className={`gb-row${drag?.row === r.key ? " gb-drop" : ""}`} style={rowStyle}>
                 <div className="gb-label">
                   <strong>{r.label}</strong>
                   {r.sub && <span className={`small${r.over ? " error" : ""}`}>{r.sub}</span>}
@@ -216,7 +242,7 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
                     const mine = drag && p.a && drag.id === p.a.id ? drag : null;
                     const left = x(p.start) + (mine?.kind === "move" ? mine.dx : 0);
                     const w = Math.max(6, x(p.end) - x(p.start) + (mine?.kind === "stretch" ? mine.dx : 0));
-                    const style: CSSProperties = { left, width: w, top: PAD + p.lane * (PUCK + GAP) };
+                    const style: CSSProperties = { left, width: w, top: PAD + p.lane * (PUCK + GAP) + (mine?.kind === "move" && mode === "resources" ? mine.dy : 0) };
                     const a = p.a;
                     if (!a) return <span key={p.key} className="gb-puck other" style={style} title={`${p.title} (other planned work, ${num(p.qty ?? 0)})`}>
                       <span className="gb-puck-text">{p.title}</span></span>;
@@ -224,20 +250,24 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
                     // an activity row names its bar beside it, like a planner's layout; a resource row names what fits inside
                     const inside = mode === "activities" ? "" : w >= 120 ? p.title : w >= 48 ? code : "";
                     const cls = `gb-puck${w < 34 ? " narrow" : ""}${a.critical ? " critical" : ""}${a.held_back_hours > 0 ? " held" : ""}${selected === a.id ? " on" : ""}`
-                      + `${a.status === "done" ? " done" : ""}${mine ? " dragging" : ""}${editable(a) ? " can-move" : ""}`;
-                    const beside: CSSProperties = { left: left + w + 6, top: PAD + p.lane * (PUCK + GAP) };
-                    return <span key={p.key} className="gb-cell"><span role="button" tabIndex={0} className={cls} style={style} aria-pressed={selected === a.id}
+                      + `${a.status === "done" ? " done" : ""}${mine && mine.kind !== "link" ? " dragging" : ""}${editable(a) ? " can-move" : ""}`;
+                    const linkable = canEdit && selected === a.id && at.get(a.id)?.y === r.top + PAD + p.lane * (PUCK + GAP) + PUCK / 2;
+                    const dot: CSSProperties = { left: left + w + 3, top: PAD + p.lane * (PUCK + GAP) + 5 };
+                    const beside: CSSProperties = { left: left + w + (linkable ? 22 : 6), top: PAD + p.lane * (PUCK + GAP) };
+                    return <span key={p.key} className="gb-cell"><span role="button" tabIndex={0} className={cls} style={style} data-act={a.id} aria-pressed={selected === a.id}
                       aria-label={`${p.title}, ${stamp(a.start)} to ${stamp(a.finish)}${a.critical ? ", critical" : ""}`}
                       title={`${p.title}\n${stamp(a.start)} to ${stamp(a.finish)}${p.qty ? `\nNeeds ${num(p.qty)}` : ""}`}
                       onClick={(e) => e.stopPropagation()}
-                      onPointerDown={(e) => (editable(a) ? down(e, a, "move") : undefined)} onPointerMove={move}
+                      onPointerDown={(e) => (editable(a) ? down(e, a, "move", r.key) : undefined)} onPointerMove={move}
                       onPointerUp={(e) => (press.current ? up(e, a) : onSelect(selected === a.id ? null : a.id))}
                       onPointerCancel={() => { press.current = null; setDrag(null); }}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(selected === a.id ? null : a.id); } }}>
                       {a.not_before && <span className="gb-pin" aria-hidden="true" />}
                       {inside && <span className="gb-puck-text">{inside}</span>}
-                      {editable(a) && <span className="gb-grip" aria-hidden="true" onPointerDown={(e) => down(e, a, "stretch")} />}
-                    </span>{mode === "activities" && <span className="gb-beside" aria-hidden="true" style={beside}>{acronyms(a.name)}</span>}</span>;
+                      {editable(a) && <span className="gb-grip" aria-hidden="true" onPointerDown={(e) => down(e, a, "stretch", r.key)} />}
+                    </span>{linkable && <span className="gb-link" style={dot} title={`Drag onto the activity that follows ${code}`} aria-hidden="true"
+                      onClick={(e) => e.stopPropagation()} onPointerDown={(e) => down(e, a, "link", r.key)} onPointerMove={move}
+                      onPointerUp={(e) => up(e, a)} onPointerCancel={() => { press.current = null; setDrag(null); }} />}{mode === "activities" && <span className="gb-beside" aria-hidden="true" style={beside}>{acronyms(a.name)}</span>}</span>;
                   })}
                   {r.strip && <span className="gb-strip" aria-hidden="true">
                     {r.strip.map((d) => <span key={d.at} className={`gb-load ${d.level}`} style={box(x(d.at), DAY * pxPerMs)} />)}
@@ -250,6 +280,8 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
               {now != null && <span className="gb-now" style={line(now)} />}
               <svg className="gb-arrows" style={svg}>
                 {arrows.map((l) => <g key={l.key} className={l.on ? "on" : undefined}><path d={l.d} /><polygon points={l.tip} /></g>)}
+                {drag?.kind === "link" && at.get(drag.id) && <line className="gb-linking" x1={at.get(drag.id)!.x2 + 8} y1={at.get(drag.id)!.y}
+                  x2={at.get(drag.id)!.x2 + 8 + drag.dx} y2={at.get(drag.id)!.y + drag.dy} />}
               </svg>
             </div>
           </div>

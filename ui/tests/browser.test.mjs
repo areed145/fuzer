@@ -8288,6 +8288,16 @@ test("A planner works a schedule on an interactive Gantt board: drags an activit
     changes.push([route.request().method(), route.request().postDataJSON()]);
     return route.fulfill({ json: {} });
   });
+  const links = [], needs = [];
+  await page.route("**/plan/schedules/links", (route) => { links.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  await page.route("**/plan/schedules/activities/*/demand", (route) => { needs.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  const centre = async (loc) => { const b = await loc.boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+  const dragTo = async (from, to) => {
+    await page.mouse.move(...(await centre(from)));
+    await page.mouse.down();
+    const [tx, ty] = await centre(to);
+    await page.mouse.move(tx, ty, { steps: 6 });
+  };
   await page.goto(`${url}/#/plan`);
   await page.getByLabel("Open a schedule").selectOption("OK-TAR-2026");
   await page.getByRole("heading", { name: /Okan 2026 turnaround/ }).waitFor();
@@ -8322,6 +8332,16 @@ test("A planner works a schedule on an interactive Gantt board: drags an activit
   await expectReports(changes, 3);
   assert.equal(changes[2][1].duration_hours, 30);
   await page.getByRole("button", { name: "Close" }).click();
+  // Select an activity and drag the dot after it onto another: that one now follows it.
+  await page.getByRole("button", { name: /^A0020 / }).click();
+  await dragTo(page.locator(".gb-link"), page.getByRole("button", { name: /^A0050 / }));
+  await page.getByText("Drop on the activity that follows A0020").waitFor();
+  await page.mouse.up();
+  await expectReports(links, 1);
+  const idOf = (code) => okan.analysis.activities.find((a) => a.code === code).id;
+  assert.deepEqual([links[0].pred, links[0].succ, links[0].type], [idOf("A0020"), idOf("A0050"), "FS"]);
+  await page.getByText("A0050 now follows A0020.").waitFor();
+  await page.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Schedule", exact: true }).click();
   await page.getByText(/These dates are on the plan/).waitFor();
   assert.equal(changes.at(-1)[0], "apply");
@@ -8331,6 +8351,19 @@ test("A planner works a schedule on an interactive Gantt board: drags an activit
   await mech.getByText("6 of 6 people").waitFor();
   assert.ok(await mech.locator(".gb-puck").count() >= 8);
   assert.ok(await mech.locator(".gb-load.full").count() > 0);
+  // Drag work onto another resource's row: that resource carries it instead.
+  const scaf = page.locator(".gb-row", { hasText: "Scaffold" }).getByRole("button", { name: /^A0050 / });
+  await scaf.scrollIntoViewIfNeeded();
+  const [sx] = await centre(scaf);
+  const ndt = page.locator(".gb-row", { has: page.locator(".gb-label", { hasText: "NDT" }) });
+  await page.mouse.move(...(await centre(scaf)));
+  await page.mouse.down();
+  await page.mouse.move(sx, (await centre(ndt))[1], { steps: 6 });
+  await page.getByText(/A0050 goes to /).waitFor();
+  if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/board-reassign-1280.png`, fullPage: true });
+  await page.mouse.up();
+  await expectReports(needs, 2);
+  assert.deepEqual(needs.map((n) => [n.resource, n.quantity]), [["SCAF", null], ["NDT", 4]]);
   for (const view of ["resources", "activities"]) {
     await page.goto(`${url}/#/plan?schedule=OK-TAR-2026${view === "resources" ? "&view=resources" : ""}`);
     for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
