@@ -1263,7 +1263,7 @@ def _plan_call(conn, fn, *args, **kwargs):
         out = fn(conn, *args, **kwargs)
     except PlanError as e:
         conn.rollback()
-        raise HTTPException(404 if re.match(r"no (plan item|exception|schedule activity) \d|no schedule |no resource ", str(e)) else 400, str(e)) from e
+        raise HTTPException(404 if re.match(r"no (plan item|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
 
@@ -1434,6 +1434,36 @@ def plan_resource_change(code: str, r: PlanResourceChange, conn=Depends(get_conn
     from ..ops import schedule
     return _plan_call(conn, schedule.set_resource, code, r.by, name=r.name, kind=r.kind, unit=r.unit,
                       capacity=r.capacity, work_center=r.work_center)
+
+
+class CapacityWindow(BaseModel):
+    by: str
+    start: datetime
+    end: datetime
+    capacity: float
+    reason: str | None = None
+
+
+@router.get("/plan/resources/load")
+def plan_resource_load(resource: str | None = None, start: datetime | None = None, days: int = Query(42, ge=1, le=180),
+                       conn=Depends(get_conn)):
+    """For resource owners: each shared resource's demand from every source on the plan, day by day, against its
+    capacity, with each overload, the jobs in it and the move that clears it at the least cost."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.resource_load, resource, start, days)
+
+
+@router.post("/plan/resources/{code}/capacity")
+def plan_capacity_window(code: str, w: CapacityWindow, conn=Depends(get_conn)):
+    """A different capacity for a while: leave, a crane's certification lapsing, a vessel in dock."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.set_capacity_window, code, w.start, w.end, w.capacity, w.by, w.reason)
+
+
+@router.delete("/plan/resources/capacity/{window_id}")
+def plan_capacity_window_remove(window_id: int, by: str = "", conn=Depends(get_conn)):
+    from ..ops import schedule
+    return _plan_call(conn, schedule.remove_capacity_window, window_id, by)
 
 
 @router.get("/turnarounds")

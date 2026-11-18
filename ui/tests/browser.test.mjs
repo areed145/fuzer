@@ -8316,3 +8316,40 @@ test("A planner opens a schedule on Plan, reads its critical path and resources,
     if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/schedule-${w}.png`, fullPage: true });
   }
 });
+
+test("A resource owner sees demand against capacity, the overload and its cheapest move, and sets capacity for a while at phone, iPad and desktop widths (P5.18)", async () => {
+  const load = JSON.parse(readFileSync(new URL("./fixtures/resource-load-okan.json", import.meta.url)));
+  const posted = [];
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/resources", (route) => route.fulfill({ json: load.resources.map(({ code, name, kind, unit, capacity }) => ({ code, name, kind, unit, capacity })) }));
+  await page.route("**/plan/resources/load?*", (route) => route.fulfill({ json: load }));
+  await page.route("**/plan/resources/MECH/capacity", (route) => { posted.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  await page.goto(`${url}/#/plan`);
+  await page.getByRole("link", { name: "Resources" }).click();
+  await page.getByRole("heading", { name: "Resources", level: 1 }).waitFor();
+  const mech = page.locator(".load-card", { hasText: "Mechanical fitters" });
+  await mech.getByText(/over capacity on \d+ days?/).waitFor();
+  await mech.getByText(/needs 6 against 4/).first().waitFor();
+  await mech.getByText(/Slip .* h to /).first().waitFor();
+  await mech.getByText("Two fitters on leave", { exact: false }).waitFor();
+  await mech.getByRole("button", { name: /Apr 9: 6 of 4/ }).click();
+  await mech.getByText(/OK-TAR-2026 6/).waitFor();
+  await mech.getByRole("button", { name: "Change capacity" }).click();
+  await mech.getByLabel("From", { exact: true }).fill("2026-04-14T06:00");
+  await mech.getByLabel("To", { exact: true }).fill("2026-04-15T06:00");
+  await mech.getByLabel("Capacity", { exact: true }).fill("5");
+  await mech.getByLabel("Reason").fill("training");
+  await mech.getByRole("button", { name: "Set for a while" }).click();
+  await expectReports(posted, 1);
+  assert.equal(posted[0].capacity, 5);
+  assert.equal(posted[0].reason, "training");
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await mech.locator(".load-col").first().waitFor();
+    const drawn = await mech.locator(".load-part").evaluateAll((ps) => ps.filter((p) => { const r = p.getBoundingClientRect(); return r.width > 2 && r.height > 2; }).length);
+    assert.ok(drawn > 5, `the columns draw at ${w} px`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `fits ${w} px`);
+    if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/resources-${w}.png`, fullPage: true });
+  }
+});

@@ -43,7 +43,9 @@ Lessons and Studies. Work contains four entries: All work, My work, Plan and Mas
 reached from My work, which shows a banner from shift change until the incoming lead acknowledges it; `#/handover`
 still opens it. Turnaround is a window on Plan: `#/plan?revision=…` shades the revision's window on the timeline and
 opens its scope beside it, and `#/turnaround?revision=…` redirects there. A schedule is another view of Plan:
-`#/plan?schedule=…` opens its activities, logic, critical path and resource histograms for editing (P5.18). Data review is the Questions tab of Master data
+`#/plan?schedule=…` opens its activities, logic, critical path and resource histograms for editing (P5.18), and `#/plan?resources=1` (optionally `&resource=CODE`) is the resource owners' view:
+each shared resource's demand from every source against its capacity, its overloads with the move that clears each,
+and its capacity windows. Data review is the Questions tab of Master data
 (P2.3, #505): `#/review?kind=…` redirects to `#/masterdata?tab=questions&kind=…`, and each question is also a case in
 the data steward's queue that links to it. Processes sits beside Routing
 under Settings, keeping its `#/processes` URLs.
