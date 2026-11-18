@@ -5,3 +5,4 @@ fuzer_source_pack: 1
 system: {name: ptw}
 datasets: [ptw_permits, ptw_isolations]
 optional: [ptw_permits, ptw_isolations]
+detectors: [permit_lapsed]

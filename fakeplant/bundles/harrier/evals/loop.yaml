@@ -75,3 +75,6 @@ arrive:
   # within five years at its growth between the two pig runs
   inspection_due: {not_here: "every line's wall supports its next inspection, and no inspection plan is overdue"}
   ili_anomaly: {detector: ili_anomalies}
+  parts_not_ready: {not_here: "no SAP reservations export: no open order reserves a part"}
+  # The permit to work system's own work (P3.14): the standby generator's load test: lapsed nine days ago, its breaker still racked out
+  permit_lapsed: {detector: permit_lapsed}

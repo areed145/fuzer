@@ -103,3 +103,8 @@ arrive:
   # vessels' inspection plans are past their next date
   inspection_due: {detector: inspection_findings}
   ili_anomaly: {not_here: "no in-line inspection export: its lines are surveyed by thickness readings, not pig runs"}
+  # The materials records' own work (P3.13): a part on order five days after its job needs it, and parts short with
+  # nothing on order and no time to get them
+  parts_not_ready: {detector: parts_not_ready}
+  # The permit to work system's own work (P3.14): every fourth permit lapsed two days ago, not closed, its isolations still applied
+  permit_lapsed: {detector: permit_lapsed}

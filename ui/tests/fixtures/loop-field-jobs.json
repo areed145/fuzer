@@ -724,6 +724,232 @@
   "value_usd": null,
   "warnings": []
  },
+ "permit_lapsed": {
+  "ask": "Loop eval: check it on site",
+  "assets": [
+   {
+    "fuzer_id": "fz-tag-4a078739ac4b",
+    "kind": "tag",
+    "label": "83-HCV-1004",
+    "lat": 5.416941,
+    "lon": 5.001665
+   },
+   {
+    "fuzer_id": "fz-permit-3fcbdd655844",
+    "kind": "permit",
+    "label": "PTW-30031",
+    "lat": null,
+    "lon": null
+   }
+  ],
+  "assignee": "loop-field",
+  "case_state": "open",
+  "checklist": [],
+  "closed_at": null,
+  "due": "2026-11-18T08:47:46.654628+00:00",
+  "evidence": {
+   "finding": {
+    "detector": "permits.permit_lapsed",
+    "items": [
+     {
+      "kind": "text",
+      "label": "Permit",
+      "value": "PTW-30031 (cold work)"
+     },
+     {
+      "kind": "text",
+      "label": "Location",
+      "value": "83-HCV-1004"
+     },
+     {
+      "kind": "text",
+      "label": "Work",
+      "value": "Maintenance on production choke"
+     },
+     {
+      "kind": "text",
+      "label": "Issued to",
+      "value": "Mechanical maintenance crew"
+     },
+     {
+      "kind": "text",
+      "label": "State",
+      "value": "expired"
+     },
+     {
+      "kind": "time",
+      "label": "Valid to",
+      "value": "2026-11-16 18:00"
+     },
+     {
+      "kind": "text",
+      "label": "Isolation ISO-30031-1",
+      "value": "83-HCV1004 inlet valve: closed and locked (applied)"
+     },
+     {
+      "kind": "text",
+      "label": "Isolation ISO-30031-2",
+      "value": "83-HCV1004 outlet valve: closed and locked (applied)"
+     },
+     {
+      "kind": "text",
+      "label": "Isolation ISO-30031-3",
+      "value": "83-HCV1004 casing: drained and vented (applied)"
+     }
+    ],
+    "method": "Permit to work register: permits past their valid-to time and not closed, read with the state of each isolation they hold",
+    "origin": "deterministic",
+    "start": "2026-11-16 18:00",
+    "v": 1
+   },
+   "isolations": [
+    "ISO-30031-1",
+    "ISO-30031-2",
+    "ISO-30031-3"
+   ],
+   "permit": "PTW-30031",
+   "state": "expired"
+  },
+  "field": [],
+  "finding": {
+   "checks": [],
+   "confidence": null,
+   "detector": "permits.permit_lapsed",
+   "end": null,
+   "items": [
+    {
+     "kind": "text",
+     "label": "Permit",
+     "value": "PTW-30031 (cold work)"
+    },
+    {
+     "kind": "text",
+     "label": "Location",
+     "value": "83-HCV-1004"
+    },
+    {
+     "kind": "text",
+     "label": "Work",
+     "value": "Maintenance on production choke"
+    },
+    {
+     "kind": "text",
+     "label": "Issued to",
+     "value": "Mechanical maintenance crew"
+    },
+    {
+     "kind": "text",
+     "label": "State",
+     "value": "expired"
+    },
+    {
+     "kind": "time",
+     "label": "Valid to",
+     "value": "2026-11-16 18:00"
+    },
+    {
+     "kind": "text",
+     "label": "Isolation ISO-30031-1",
+     "value": "83-HCV1004 inlet valve: closed and locked (applied)"
+    },
+    {
+     "kind": "text",
+     "label": "Isolation ISO-30031-2",
+     "value": "83-HCV1004 outlet valve: closed and locked (applied)"
+    },
+    {
+     "kind": "text",
+     "label": "Isolation ISO-30031-3",
+     "value": "83-HCV1004 casing: drained and vented (applied)"
+    }
+   ],
+   "method": "Permit to work register: permits past their valid-to time and not closed, read with the state of each isolation they hold",
+   "origin": "deterministic",
+   "origin_label": "Rule",
+   "standard": null,
+   "start": "2026-11-16 18:00",
+   "subjects": [
+    "fz-tag-4a078739ac4b",
+    "fz-permit-3fcbdd655844"
+   ],
+   "value_usd": null
+  },
+  "first_seen": "2026-11-18T00:47:46.634159+00:00",
+  "handover": null,
+  "history": [],
+  "id": 127,
+  "item_id": 127,
+  "joined_to": null,
+  "key": "PTW-30031",
+  "label": "Permit lapsed with plant still isolated",
+  "last_seen": "2026-11-18T00:47:46.634159+00:00",
+  "own_step": true,
+  "permit": {
+   "blocked": false,
+   "blocker": null,
+   "needed": false,
+   "permit": {
+    "isolations": [
+     {
+      "isolation": "ISO-30031-1",
+      "method": "closed and locked",
+      "point": "83-HCV1004 inlet valve",
+      "state": "applied"
+     },
+     {
+      "isolation": "ISO-30031-2",
+      "method": "closed and locked",
+      "point": "83-HCV1004 outlet valve",
+      "state": "applied"
+     },
+     {
+      "isolation": "ISO-30031-3",
+      "method": "drained and vented",
+      "point": "83-HCV1004 casing",
+      "state": "applied"
+     }
+    ],
+    "label": "PTW-30031",
+    "location_label": "83-HCV-1004",
+    "state": "expired",
+    "type": "cold work",
+    "valid": false,
+    "valid_from": "2026-11-09 06:00",
+    "valid_to": "2026-11-16 18:00",
+    "why_not": "expired",
+    "work": "Maintenance on production choke"
+   }
+  },
+  "priority": 0.75,
+  "queued": false,
+  "raised_count": 1,
+  "reports": 1,
+  "role": "operator",
+  "sent": {
+   "at": "2026-11-18T00:47:46.654628+00:00",
+   "by": "loop-ioc",
+   "reason": "Loop eval: check it on site"
+  },
+  "shelved_by": null,
+  "shelved_reason": null,
+  "shelved_until": null,
+  "source": "ptw",
+  "sources": [],
+  "state": "open",
+  "subjects": [
+   "fz-tag-4a078739ac4b",
+   "fz-permit-3fcbdd655844"
+  ],
+  "task_id": 274,
+  "task_name": "Field check",
+  "task_role": "operator",
+  "title": "PTW-30031 on 83-HCV-1004: lapsed 2026-11-16 18:00 with 3 isolations still in place",
+  "type": "permit_lapsed",
+  "unmatched": [],
+  "updated_at": "2026-11-18T00:47:46.634159+00:00",
+  "value_usd": null,
+  "warnings": []
+ },
  "round_finding": {
   "ask": null,
   "assets": [

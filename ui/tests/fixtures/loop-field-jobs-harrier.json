@@ -637,6 +637,198 @@
   "value_usd": null,
   "warnings": []
  },
+ "permit_lapsed": {
+  "ask": "Loop eval: check it on site",
+  "assets": [
+   {
+    "fuzer_id": "fz-tag-1a2d135fe199",
+    "kind": "tag",
+    "label": "H1-G-8004",
+    "lat": 47.309,
+    "lon": -110.953
+   },
+   {
+    "fuzer_id": "fz-permit-5626d36d0171",
+    "kind": "permit",
+    "label": "PTW-31105",
+    "lat": null,
+    "lon": null
+   }
+  ],
+  "assignee": "loop-field",
+  "case_state": "open",
+  "checklist": [],
+  "closed_at": null,
+  "due": "2026-11-18T08:46:34.297470+00:00",
+  "evidence": {
+   "finding": {
+    "detector": "permits.permit_lapsed",
+    "items": [
+     {
+      "kind": "text",
+      "label": "Permit",
+      "value": "PTW-31105 (electrical)"
+     },
+     {
+      "kind": "text",
+      "label": "Location",
+      "value": "H1-G-8004"
+     },
+     {
+      "kind": "text",
+      "label": "Work",
+      "value": "Standby generator load test"
+     },
+     {
+      "kind": "text",
+      "label": "Issued to",
+      "value": "Electrical technicians"
+     },
+     {
+      "kind": "text",
+      "label": "State",
+      "value": "expired"
+     },
+     {
+      "kind": "time",
+      "label": "Valid to",
+      "value": "2026-11-08 18:00"
+     },
+     {
+      "kind": "text",
+      "label": "Isolation ISO-31105-1",
+      "value": "H1-G-8004 breaker: racked out and locked (applied)"
+     }
+    ],
+    "method": "Permit to work register: permits past their valid-to time and not closed, read with the state of each isolation they hold",
+    "origin": "deterministic",
+    "start": "2026-11-08 18:00",
+    "v": 1
+   },
+   "isolations": [
+    "ISO-31105-1"
+   ],
+   "permit": "PTW-31105",
+   "state": "expired"
+  },
+  "field": [],
+  "finding": {
+   "checks": [],
+   "confidence": null,
+   "detector": "permits.permit_lapsed",
+   "end": null,
+   "items": [
+    {
+     "kind": "text",
+     "label": "Permit",
+     "value": "PTW-31105 (electrical)"
+    },
+    {
+     "kind": "text",
+     "label": "Location",
+     "value": "H1-G-8004"
+    },
+    {
+     "kind": "text",
+     "label": "Work",
+     "value": "Standby generator load test"
+    },
+    {
+     "kind": "text",
+     "label": "Issued to",
+     "value": "Electrical technicians"
+    },
+    {
+     "kind": "text",
+     "label": "State",
+     "value": "expired"
+    },
+    {
+     "kind": "time",
+     "label": "Valid to",
+     "value": "2026-11-08 18:00"
+    },
+    {
+     "kind": "text",
+     "label": "Isolation ISO-31105-1",
+     "value": "H1-G-8004 breaker: racked out and locked (applied)"
+    }
+   ],
+   "method": "Permit to work register: permits past their valid-to time and not closed, read with the state of each isolation they hold",
+   "origin": "deterministic",
+   "origin_label": "Rule",
+   "standard": null,
+   "start": "2026-11-08 18:00",
+   "subjects": [
+    "fz-tag-1a2d135fe199",
+    "fz-permit-5626d36d0171"
+   ],
+   "value_usd": null
+  },
+  "first_seen": "2026-11-18T00:46:34.285542+00:00",
+  "handover": null,
+  "history": [],
+  "id": 34,
+  "item_id": 34,
+  "joined_to": null,
+  "key": "PTW-31105",
+  "label": "Permit lapsed with plant still isolated",
+  "last_seen": "2026-11-18T00:46:34.285542+00:00",
+  "own_step": true,
+  "permit": {
+   "blocked": false,
+   "blocker": null,
+   "needed": false,
+   "permit": {
+    "isolations": [
+     {
+      "isolation": "ISO-31105-1",
+      "method": "racked out and locked",
+      "point": "H1-G-8004 breaker",
+      "state": "applied"
+     }
+    ],
+    "label": "PTW-31105",
+    "location_label": "H1-G-8004",
+    "state": "expired",
+    "type": "electrical",
+    "valid": false,
+    "valid_from": "2026-11-07 06:00",
+    "valid_to": "2026-11-08 18:00",
+    "why_not": "expired",
+    "work": "Standby generator load test"
+   }
+  },
+  "priority": 0.75,
+  "queued": false,
+  "raised_count": 1,
+  "reports": 1,
+  "role": "operator",
+  "sent": {
+   "at": "2026-11-18T00:46:34.297470+00:00",
+   "by": "loop-ioc",
+   "reason": "Loop eval: check it on site"
+  },
+  "shelved_by": null,
+  "shelved_reason": null,
+  "shelved_until": null,
+  "source": "ptw",
+  "sources": [],
+  "state": "open",
+  "subjects": [
+   "fz-tag-1a2d135fe199",
+   "fz-permit-5626d36d0171"
+  ],
+  "task_id": 92,
+  "task_name": "Field check",
+  "task_role": "operator",
+  "title": "PTW-31105 on H1-G-8004: lapsed 2026-11-08 18:00 with 1 isolation still in place",
+  "type": "permit_lapsed",
+  "unmatched": [],
+  "updated_at": "2026-11-18T00:46:34.285542+00:00",
+  "value_usd": null,
+  "warnings": []
+ },
  "round_finding": {
   "ask": "Loop eval: check it on site",
   "assets": [
