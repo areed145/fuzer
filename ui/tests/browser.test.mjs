@@ -3770,7 +3770,7 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.waitForURL(/#\/handover\?id=7$/);
   await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
   // Citations read as words and link to what they cite; no raw `case:` or register ids (#1072)
-  assert.equal(await page.getByRole("link", { name: "case 113", exact: true }).getAttribute("href"), "#/cases/113");
+  assert.equal(await page.getByRole("link", { name: "open the case", exact: true }).first().getAttribute("href"), "#/cases/113");
   assert.equal(await page.getByRole("link", { name: "the permit", exact: true }).getAttribute("href"), "#/e/fz-permit-65501ac23ccf");
   assert.doesNotMatch(await page.locator("main").innerText(), /\[case:|\[entity:|fz-[a-z_]+-[0-9a-f]{6,}|role:|alarm:/);
   acked = true;
@@ -5861,13 +5861,17 @@ test("a job in progress is handed over at shift change and the incoming operator
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
   await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [base], coming_up: [] } }));
   await page.route("**/exceptions/31/handover", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: base }); });
+  // who can take it comes from the roster, in the job's role (an operator by default), not free text
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] },
+    { name: "gina", roles: ["operator"] }, { name: "ann", roles: ["ops_lead"] }] }));
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(`${url}/#/inbox`);
   const card = page.locator(".field-job", { hasText: "valve change" });
   await card.getByRole("button", { name: "Hand over at shift change" }).click();
   const go = card.getByRole("button", { name: "Hand over", exact: true });
   assert.equal(await go.isDisabled(), true);
-  await card.getByLabel("Hand over to").fill("gina");
+  assert.deepEqual(await card.getByLabel("Hand over to").locator("option").allTextContents(), ["who takes it", "gina"]);
+  await card.getByLabel("Hand over to").selectOption("gina");
   await card.getByLabel("What was done").fill("isolated and blown down");
   await card.getByLabel("What is left").fill("fit the new discharge valve");
   await card.getByLabel("Unsafe to leave").fill("cylinder 3 cover is off");

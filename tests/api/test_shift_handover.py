@@ -127,6 +127,18 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
                                    "data->>'reason' like 'Superseded%%'", (unread["item_id"],)).fetchone()
                 assert why and "handover, which says what holds now" in why["r"]
                 assert ok(client.get(f"/handovers/{unread['id']}"))["state"] != "acknowledged"  # its record stays
+
+                # the outgoing lead writes the handover of the shift still running: it has no case until the shift
+                # change, which brings that same handover up to date, keeps the notes and opens it for the incoming lead
+                mid = later + timedelta(hours=30)
+                running = handover.draft(conn, "lead-out", mid, force=True, current=True)
+                assert running["shift_start"] <= mid < running["shift_end"] and running["item_id"] is None
+                assert handover.draft(conn, "lead-out", mid, force=True) is None, "an ended shift isn't redrafted"
+                handover.add_notes(conn, running["id"], "lead-out", "Compressor B on recycle overnight")
+                opened = handover.at_shift_change(conn, running["shift_end"] + timedelta(minutes=1))
+                assert opened["id"] == running["id"] and opened["item_id"] is not None
+                assert opened["notes"] == "Compressor B on recycle overnight"
+                conn.rollback()
     finally:
         _fresh_caches()
         with _admin() as a:

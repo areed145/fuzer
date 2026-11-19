@@ -402,7 +402,8 @@ def health(conn, name: str | None = None) -> list[dict]:
         age = (now - d["loaded_at"]).total_seconds() / 3600 if d["loaded_at"] else None
         stale = bool(hours) and d["status"] == "active" and (age is None or age > float(hours))
         s = stats.get(d["source"]) or {}
-        problems = [p for p, on in (("stale", stale), ("held", (("schema", n) in held) or (("check", n) in held)),
+        problems = [p for p, on in (("stale", stale), ("held", (("schema", n) in held) or (("check", n) in held)
+                                             or (bool(runs) and runs[0]["status"] == "held")),
                                     ("failed", bool(runs) and runs[0]["status"] == "failed"),
                                     ("checks failing", bool(failing)),
                                     ("profile drift", any(x["change"] in SIGNIFICANT for x in (prof or {}).get("drift") or [])))

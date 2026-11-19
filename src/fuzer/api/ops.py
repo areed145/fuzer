@@ -273,6 +273,16 @@ def opportunity_list(status: str | None = "open", limit: int = 100, conn=Depends
     return opportunities.listing(conn, status, min(limit, 500))
 
 
+@router.get("/opportunities/{key:path}")
+def opportunity_get(key: str, conn=Depends(get_conn)):
+    """One opportunity with its working: its value and how it is made, its moves, and the tests behind it."""
+    from ..ops import opportunities
+    try:
+        return opportunities.get(conn, key, deps.pack())
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
+
+
 class OpportunityDecision(BaseModel):
     decision: Literal["accepted", "rejected", "project"]
     by: str = "anonymous"
@@ -1188,9 +1198,10 @@ def handover_get(handover_id: int, conn=Depends(get_conn)):
 
 @router.post("/handovers/draft")
 def handover_draft(d: HandoverDraft, conn=Depends(get_conn)):
-    """Draft the handover for the shift change just passed now (or refresh it from live work while unacknowledged)."""
+    """Draft the handover for the shift in progress (or bring it up to date), so the outgoing lead writes it before
+    they go. At the shift change it opens for the incoming lead; a handover whose shift ended is not redrafted."""
     from ..ops import handover
-    out = _exception_call(conn, handover.draft, d.by, force=d.refresh)
+    out = _exception_call(conn, handover.draft, d.by, force=d.refresh, current=True)
     if out is None:
         rows = handover.listing(conn, 1)
         return handover.get(conn, rows[0]["id"]) if rows else None

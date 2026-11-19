@@ -215,7 +215,7 @@ def test_no_dagster_yet():
 
 def test_health_route(instance):
     h = client_for(WithHeartbeat(instance)).get("/jobs/health").json()
-    assert h["level"] == "red" and h["summary"].startswith("1 failed run in 24 h")
+    assert h["level"] == "red" and h["summary"].startswith("1 job failing (1 failed run in 24 h)")
 
 
 def test_health_names_a_failing_sensor(instance, monkeypatch):
@@ -244,7 +244,7 @@ def test_a_run_that_failed_but_whose_job_ran_cleanly_since_is_not_red(instance, 
     latest["day_close"] = "SUCCESS"
     h = jobs.health(WithHeartbeat(instance), DEFS, check_rows=[])
     assert (h["level"], h["failed_runs_24h"], h["recovered_runs_24h"]) == ("amber", 0, 3)
-    assert h["summary"] == "3 runs failed in 24 h and ran cleanly since"
+    assert h["summary"] == "3 earlier failures since recovered"
 
 
 def test_people_who_ask_together_share_one_reading(monkeypatch):

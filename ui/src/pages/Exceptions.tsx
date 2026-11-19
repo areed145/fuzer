@@ -37,13 +37,15 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
   const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
-  const words = filters.q?.toLowerCase();
+  // A tag matches however it is written: 77-HCV-1003, 77-HCV1003 and 77hcv1003 are the same tag.
+  const flat = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const words = filters.q ? flat(filters.q) : "";
   const shown = (view === "dispatch" ? rows.data.filter(waitingToDispatch)
     : view === "back" ? rows.data.filter(backFromField)
     : view === "field" ? rows.data.filter((r) => withTheField(r, operators))
     : rows.data)
     .filter((r) => !filters.who || r.assignee === filters.who || (!!r.role && `role:${r.role}` === filters.who))
-    .filter((r) => !words || r.title.toLowerCase().includes(words));
+    .filter((r) => !words || flat(`${r.title} ${r.key}`).includes(words));
   return (
     <>
       <div className="row work-state">
@@ -176,7 +178,7 @@ export const withTheField = (r: ExceptionRow, operators: Set<string>) => {
 
 const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "Field: done", could_not_do: "Field: could not do", note: "Field note" };
 
-export type Person = { name: string; roles: string[]; away_until?: string | null; display_name?: string | null };
+export type Person = { name: string; roles: string[]; away_until?: string | null; display_name?: string | null; holding?: number };
 
 /** The same event as other systems reported it, worked on this one case (#464): each source, and a way to split one out
  * when it turns out to be a different event. */
@@ -329,7 +331,7 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
         <option value="">choose a person or queue</option>
         {people.length > 0 && <optgroup label="People">{people.map((p) => <option key={p.name} value={p.name}>
           {p.display_name || p.name}{p.roles.length ? ` (${p.roles.join(", ").replace(/_/g, " ")})` : ""}
-          {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ""}</option>)}</optgroup>}
+          {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ` · holds ${p.holding ?? 0}`}</option>)}</optgroup>}
         <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{queue(q)}</option>)}</optgroup>
       </Select></Field>
       {to.trim() && <Field label="What to do" width="lg"><Input placeholder="what to check or do (they see this)"
@@ -344,7 +346,7 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
           : blocked && !why.trim() ? "Not ready: say why it should go anyway" : undefined}
         onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
           blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onDone(); })}>
-        {r.item_id ? "Hand over" : "Send"}</Button>
+        Send</Button>
     </div>
     {error && <p role="alert" className="error">{error}</p>}
   </div>;

@@ -435,12 +435,23 @@ def roles_of(conn, name: str) -> list[str]:
 
 def people(conn) -> list[dict]:
     """This project's roster, and the overarching people who cover it (`covers`: the projects they cover, [] for
-    every one; None for someone only on this project's roster). A person on both has both sets of roles."""
+    every one; None for someone only on this project's roster). A person on both has both sets of roles. `holding`:
+    how many open cases and waiting steps each holds now."""
     rows = conn.execute("select p.name, p.roles, p.away_until, p.delegate, p.note, coalesce(a.owner, false) as owner, "
                         "a.display_name, a.enabled as account_enabled "
                         "from work_person p left join access_account a on p.name = 'user:' || a.id order by p.name").fetchall()
     cover = {c["name"]: c for c in _covers(conn)}
+    # What each person holds now (open cases and waiting steps), so whoever dispatches sees who is already busy.
+    holding = {r["who"]: r["n"] for r in conn.execute(
+        """
+        select who, count(distinct item_id)::int as n from (
+            select assignee as who, id as item_id from work_item where state = 'open' and assignee is not null
+            union all
+            select t.assignee, t.item_id from work_token t join work_item i on i.id = t.item_id
+            where t.state = 'waiting' and t.assignee is not null and i.state = 'open') x group by who
+        """)}
     for row in rows:
+        row["holding"] = holding.get(row["name"], 0)
         row["assigned_roles"] = list(row["roles"])
         c = cover.pop(row["name"], None)
         row["covers"], row["cover_roles"] = (c["projects"], c["roles"]) if c else (None, [])
@@ -449,6 +460,7 @@ def people(conn) -> list[dict]:
         account = conn.execute("select owner, display_name, enabled from access_account where 'user:' || id = %s",
                                (name,)).fetchone()
         rows.append({"name": name, "roles": roles_of(conn, name), "assigned_roles": [], "away_until": None,
+                     "holding": holding.get(name, 0),
                      "delegate": None, "note": None, "owner": bool(account and account["owner"]),
                      "display_name": account and account["display_name"],
                      "account_enabled": account and account["enabled"], "covers": c["projects"],

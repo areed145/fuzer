@@ -76,8 +76,10 @@ export function HomePage({ query, stats }: {
     grid: <div className="home-grid">
       {seat !== "operator" && <YourShift />}
       {seat !== "dispatcher" && roles.includes("ops_lead") && <AllWorkCard />}
-      {steward && <MasterDataCard stats={stats} />}
-      {!noRecords && <LatestReportCard />}
+      {/* A field operator's Home is their shift: the register and the daily report are other seats' work, even when
+          the account could open them (acting as operator on an admin account). */}
+      {(seat === "operator" ? roles.includes("data_steward") : steward) && <MasterDataCard stats={stats} />}
+      {!noRecords && seat !== "operator" && <LatestReportCard />}
       {!noRecords && <IncidentsCard />}
       {configure && <HealthCard />}
     </div>,

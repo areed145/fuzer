@@ -248,10 +248,12 @@ def health(instance, defs, check_rows: list | None = None) -> dict:
                       if tick is not None and _enum(tick.status) == "FAILURE")
     level = "red" if (failed or triggers) else "amber" if (failing or not sched or recovered) else "green"
     parts = []
-    if failed:
-        parts.append(f"{failed} failed run{'s' * (failed != 1)} in 24 h")
+    down = sorted({rec.dagster_run.job_name for rec in runs if latest[rec.dagster_run.job_name] != "SUCCESS"})
+    if failed:  # said by job, what someone fixes, with the runs behind it
+        parts.append(f"{len(down)} job{'s' * (len(down) != 1)} failing ({failed} failed run{'s' * (failed != 1)} "
+                     "in 24 h)")
     if recovered:
-        parts.append(f"{recovered} run{'s' * (recovered != 1)} failed in 24 h and ran cleanly since")
+        parts.append(f"{recovered} earlier failure{'s' * (recovered != 1)} since recovered")
     if triggers:
         parts.append(f"{', '.join(triggers)} failing, so the jobs {'it starts' if len(triggers) == 1 else 'they start'}"
                      " are not running")

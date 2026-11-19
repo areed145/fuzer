@@ -154,6 +154,18 @@ def test_maintenance_plans_put_their_next_due_task_on_the_plan_and_roll_forward(
     out = plan.sync_maintenance_plans(conn)
     assert out["added"] == 1 and out["rolled_forward"] == 1
     assert conn.execute("select status from plan_item where id = %s", (psv["id"],)).fetchone()["status"] == "done"
+
+    # A load and a sync either side of midnight write the same due date a day apart: one item, open, not three closed
+    nxt = conn.execute("select id from plan_item where source_key = 'MP-7:2027-11-18'").fetchone()["id"]
+    conn.execute("update golden set value = '\"2027-11-19\"' where fuzer_id = 'fz-mp-1' and field = 'next_due'")
+    out = plan.sync_maintenance_plans(conn)
+    assert out["added"] == 0 and out["rolled_forward"] == 0
+    conn.execute("update plan_item set status = 'done' where id = %s", (nxt,))  # an earlier sync closed it as rolled
+    propose(conn, "inspection", "PSV-101 statutory test", "sap", "2027-11-17", "2027-11-18", source="sap_plan",
+            source_key="MP-7:2027-11-17")  # and wrote a copy a day off
+    plan.sync_maintenance_plans(conn)
+    rows = conn.execute("select id, status from plan_item where source = 'sap_plan' and start_at > '2027-01-01'").fetchall()
+    assert [(r["id"], r["status"]) for r in rows] == [(nxt, "proposed")]
     conn.rollback()
 
 

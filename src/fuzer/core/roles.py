@@ -153,6 +153,26 @@ def quantity_of_letters(letters: str | None) -> str | None:
 _ISA = re.compile(r"(?<![A-Z])([A-Z]{2,4})[-_.]?\d{3,5}")
 
 
+def equipment_class(tag: str) -> str:
+    """The kind of equipment a tag names, from its letters (20-K-2200B, 70-HCV-1006, 20-ZT-2100A): what a round, a
+    field report or a crew's note can plausibly say about it."""
+    m = re.match(r"[-\s]*([A-Za-z]+)", tag.split("-", 1)[-1] if re.match(r"\d", tag) else tag)
+    letters = m.group(1).upper() if m else ""
+    if letters in ("P", "K", "C", "GT", "M", "B", "FAN", "CP", "PM"):
+        return "rotating"
+    if letters == "HCV":
+        return "choke"
+    if letters.endswith("V") and len(letters) > 1 and letters != "PSV":
+        return "valve"
+    if letters in ("E", "HX", "EA"):
+        return "exchanger"
+    if letters in ("V", "D", "T", "TK"):
+        return "vessel"
+    if letters.endswith(("T", "I", "G", "S", "E")) and len(letters) > 1:
+        return "instrument"
+    return "other"
+
+
 def letters_in(name: str | None, grammar=None) -> str | None:
     """The instrument letters in a point or tag name: the pack's tag grammar first, else ISA-style (PT-1001)."""
     if not name:

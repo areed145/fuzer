@@ -182,12 +182,12 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   }).catch(() => undefined);
   const notReady = a.error?.startsWith("Not ready to dispatch") ?? false;
   return (
-    <Disclosure className="small" label={<>Send to the field</>}>
+    <Disclosure className="small" label={<>Send to the field…</>}>
       <div className="row wrap">
         <Field label="Send to" width="md"><Select value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="">choose a field operator</option>
           {field.map((p) => <option key={p.name} value={p.name}>{p.display_name || p.name}
-            {p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ""}</option>)}
+            {p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ` · holds ${p.holding ?? 0}`}</option>)}
           <option value="role:operator">{queue("operator")}, whoever is free</option>
         </Select></Field>
         <Field label="What to check or do (they see this)" width="lg">
@@ -197,7 +197,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
         <Input value={why} onChange={(e) => { setWhy(e.target.value); setBlocked([a.error ?? ""]); }} /></Field>}
       <Button variant="primary" disabled={!to || !ask.trim() || !!a.busy || ((notReady || !!blocked) && !why.trim())}
         title={!ask.trim() ? "Say what to check or do first: they see it on their job" : undefined}
-        onClick={send}>Send to the field</Button>
+        onClick={send}>Send</Button>
       {a.error && <p role="alert" className="error small">{a.error}</p>}
     </Disclosure>
   );
