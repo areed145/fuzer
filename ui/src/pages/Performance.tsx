@@ -38,7 +38,7 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
     : <span className="muted">0</span>;
   return (
     <section>
-      <PageHeader subtitle="Is each queue keeping up this week, against the last four?" actions={<a href={href("/exceptions")}>All work</a>}>
+      <PageHeader actions={<a href={href("/exceptions")}>All work</a>}>
         Work performance</PageHeader>
       <Tabs label="Measure by" items={[
         { key: "queue", label: "By queue", href: href("/performance"), current: by === "queue" },

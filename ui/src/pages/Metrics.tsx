@@ -53,7 +53,7 @@ function MetricList() {
   for (const m of list.data ?? []) groups.set(m.group, [...(groups.get(m.group) ?? []), m]);
   return (
     <section>
-      <PageHeader subtitle="Each measure defined once; the same number on every page, the daily report and for agents."
+      <PageHeader
         actions={<a href={href("/scorecard")}>How the plant is running</a>} help="metrics">Metrics</PageHeader>
       <Status loading={list.loading && !list.data} error={list.error} onRetry={list.reload} />
       {list.data && !list.data.length && <Empty>No metrics are registered.</Empty>}
@@ -99,7 +99,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
   const m = v.data;
   return (
     <section>
-      <PageHeader subtitle={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">
+      <PageHeader detail={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">
         {m?.label ?? metricKey}</PageHeader>
       <Status loading={v.loading && !m} error={v.error} onRetry={v.reload} />
       {m && <>

@@ -12,7 +12,7 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
     <section>
       <div className="row spread">
         <div>
-          <PageHeader subtitle="Lessons drafted from incidents and the work that closed them.">Lessons learned</PageHeader>
+          <PageHeader>Lessons learned</PageHeader>
         </div>
         <div className="tabs">
           {["suggested", "approved", "rejected"].map((s) => (

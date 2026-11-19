@@ -15,7 +15,7 @@ export function UsersPage({ query }: { query: URLSearchParams }) {
     <a href={href("/")}>Return home</a></section>;
   const workflow = query.get("view") === "workflow" || !owner;
   return <section>
-    <PageHeader subtitle="Accounts, application access and workflow assignments." help="identity">Users</PageHeader>
+    <PageHeader help="identity">Users</PageHeader>
     <nav className="tabs users-tabs" aria-label="Users views">
       {owner && <a href={href("/users")} className={!workflow ? "on" : ""} aria-current={!workflow ? "page" : undefined}>Accounts &amp; access</a>}
       <a href={href("/users", { view: "workflow" })} className={workflow ? "on" : ""} aria-current={workflow ? "page" : undefined}>Workflow assignments &amp; routing</a>
@@ -64,7 +64,6 @@ function Administration({ query }: { query: URLSearchParams }) {
       <Card title="Owner recovery">
         <p>{enabledOwners} enabled {enabledOwners === 1 ? "owner" : "owners"}. Keep at least one enabled owner.
           {enabledOwners < 2 && " Ask a second trusted account holder to sign in, then review owner access for recovery."}</p>
-        <p className="small">Owner status grants every application capability and all human workflow roles.</p>
       </Card>
       {project && <AuditRecord project={project} />}
       {project && <RestrictedDocuments key={JSON.stringify(documents.data?.restricted ?? {})} project={project}

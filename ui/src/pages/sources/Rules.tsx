@@ -77,9 +77,6 @@ function MatchConfidence({ rows, reload }: { rows: MatchCalibration[]; reload: (
   return (
     <UICard className="match-confidence">
       <h2>Match confidence</h2>
-      <p className="small">A match at or above straight-through merges on its own; between review and straight-through
-        a person decides; below review it is left apart. Each is measured against what stewards decided and the
-        answer key, aiming at {pct(rows[0]?.target ?? 0.99)} correct.</p>
       {!rows.length ? <Empty className="small">Not measured yet. Measure after a rebuild.</Empty> : (
         <Table variant="list" density="compact">
           <thead><tr><th>Source</th><th>Straight-through</th><th>Measured there</th><th>Review from</th></tr></thead>

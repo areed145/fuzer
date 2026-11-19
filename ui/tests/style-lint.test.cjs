@@ -25,12 +25,12 @@ const RULES = {
     hint: "No carets. Guidance goes in the docs (PageHeader help=); long data goes in Disclosure; everything else is shown.",
   },
   "muted-paragraph": {
-    pattern: /<p className="muted[^"]*"/g,
+    pattern: /<p className="[^"]*\bmuted\b[^"]*"/g,
     hint: "A grey paragraph is usually an explanation the page doesn't need. Cut it, or move it to the docs and link with PageHeader help=.",
   },
-  "long-subtitle": {
-    pattern: /subtitle=(?:"[^"]{91,}"|\{"[^"]{91,}"\})/g,
-    hint: "A page subtitle is one line of at most 90 characters with no links. Put the rest in the docs.",
+  "page-tagline": {
+    pattern: /\b(?:subtitle|detail)=(?:"|\{"|\{`[^$`]*`\})/g,
+    hint: "A page title needs no tagline. PageHeader's detail is for a fact about the record shown (its description, dates, version), never fixed text about the page.",
   },
   "disclaimer": {
     pattern: /\b(?:not a sign-in|does not (?:mean|grant|change|verify|prove)|not (?:a )?live (?:plant|operating)|not an? (?:snapshot|guarantee)|never (?:generates|calls))\b/gi,

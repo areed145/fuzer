@@ -37,7 +37,7 @@ export function JobsPage() {
   const o = useAsync(() => api.jobs(), []);
   return (
     <section className="jobs">
-      <PageHeader subtitle="Scheduled loads, rebuilds and scans." actions={o.data && <DagsterLink d={o.data.dagster} />}>Jobs</PageHeader>
+      <PageHeader actions={o.data && <DagsterLink d={o.data.dagster} />}>Jobs</PageHeader>
       <Status loading={o.loading && !o.data} error={o.error} onRetry={o.reload} />
       {o.data && !o.data.available && (
         <UICard className="">

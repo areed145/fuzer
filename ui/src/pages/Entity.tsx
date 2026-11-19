@@ -161,7 +161,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
       {kept && <Notice tone="warn">No signal: kept on this phone {when(kept)}. Parts not kept say so.</Notice>}
       <header className="entity-head">
         <div>
-          <PageHeader className="mono" subtitle={description}>{e.label ?? fid}</PageHeader>
+          <PageHeader className="mono" detail={description}>{e.label ?? fid}</PageHeader>
           <div className="row">
             {/* The kind links to where it is defined, for those who can see the ontology. */}
             {configure

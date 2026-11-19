@@ -6063,7 +6063,7 @@ test("the task form editor previews, survives a failed save, and recovers a miss
   await page.route("**/work/forms?*", (route) => { saves.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, json: { detail: "Database restarting" } }); });
   await page.goto(`${url}/#/processes/forms/lesson-review`);
-  await page.getByText("v2. Saving makes a new version", { exact: false }).waitFor();
+  await page.getByText("v2", { exact: true }).waitFor();
   await page.locator(".form-editor .fjs-editor-container").waitFor();
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   const preview = page.locator(".form-preview");

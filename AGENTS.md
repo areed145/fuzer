@@ -15,6 +15,9 @@ that is not listed.
   and move the first use onto it in the same change.
 - One value, one source. A page shows what the API returned; it does not add up, count, round or re-date a list.
   Two pages that show the same figure read the same field or the same accessor.
+- No decoration text. Don't write a tagline under a title, a sentence that explains a card, a caption that restates
+  what is on screen, or a reassurance. Write a label, the data, and the one line a person needs at the point they
+  act. `PageHeader` takes no fixed subtitle; grey paragraphs are counted and the count only goes down.
 - The kit (`ui/src/ui`) is used, not edited around: no restyling `.ui-*` classes from a page stylesheet, no raw
   `<button>`, `<table>`, `<textarea>` or browser dialogs. `ui/tests/style-lint.test.cjs` counts each of these and
   the counts only go down; never raise a number in `style-baseline.json`.

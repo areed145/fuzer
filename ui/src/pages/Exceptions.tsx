@@ -111,7 +111,6 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
   }), () => { setF({ name: "", label: "", role: "", field: true }); kinds.reload(); });
   return (
     <Card title="Exception types">
-      <p className="small">Another system raises a type with <code>POST /exceptions</code> and clears it with <code>POST /exceptions/clear</code>.</p>
       {refs.data && refs.data.length > 0 && <div className="small">
         <strong>Refs Fuzer matches</strong> <span className="muted">(an exception's <code>refs</code>; one that matches nothing
           is kept as unmatched and the sender is told)</span>

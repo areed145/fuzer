@@ -100,10 +100,9 @@ export function ProcessesPage() {
 
   return (
     <section>
-      <PageHeader subtitle="How work moves between people and agents." help="workflow">Workflows</PageHeader>
-      <p className="small muted" id="who-edits">Anyone who says who they are can draft a change and check it.
-        Publishing it needs the workflow admin role{person ? (admin ? ", which you have" : ", which you don't have") : ""}.
-        Which queue each type of work goes to is set on <a href={href("/routing")}>Routing</a>, not here.</p>
+      <PageHeader help="workflow">Workflows</PageHeader>
+      <p className="small" id="who-edits">Publishing needs the workflow admin role{person ? (admin ? ", which you have" : ", which you don't have") : ""}.
+        Queues are set on <a href={href("/routing")}>Routing</a>.</p>
       <NeedName person={person} />
       <Status loading={defs.loading && !defs.data} error={defs.error} onRetry={defs.reload}
         empty={!defs.loading && !defs.error && !groups.length}>
@@ -143,7 +142,6 @@ export function ProcessesPage() {
 
       {person && (
         <UICard title="New workflow">
-          <p className="small muted">A new workflow starts as a draft. Nothing runs on it until it is checked and published.</p>
           <div className="actions">
             <Field label="Key" hint="lower case, e.g. lesson_review">
               <Input value={key} aria-invalid={!!keyProblem} aria-describedby={keyProblem ? "new-key-problem" : undefined}
@@ -198,7 +196,7 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
 
   return (
     <section>
-      <PageHeader subtitle={chosen && <WhereYouAre chosen={chosen} published={published} draft={draft} />}
+      <PageHeader detail={chosen && <WhereYouAre chosen={chosen} published={published} draft={draft} />}
         actions={<a href={href("/workflows")}>All workflows</a>}>
         {title} <span className="mono small muted">{processKey}</span></PageHeader>
       <Tabs label="Workflow views" items={PROCESS_TABS.map(([k, label]) => ({
@@ -422,8 +420,6 @@ function ModelTab({ def, defs, draft, reload }: {
       <NeedName person={person} />
       {editable && <UICard className="workflow-agent">
         <h3>Workflow drafting agent</h3>
-        <p className="small muted">Describe the workflow to draft. Review the proposal before replacing the canvas;
-          nothing is saved or run automatically. BPMN is maintained behind the canvas; import and download remain available.</p>
         <label className="prop">
           <span>Workflow description</span>
           <Textarea rows={3} maxLength={12000} value={description} onChange={(e) => setDescription(e.target.value)}
@@ -700,8 +696,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
   return (
     <section>
       <PageHeader actions={<a href={href("/workflows")}>All workflows and forms</a>}
-        subtitle={isNew ? "A form is what a person fills in on a workflow step. Name it, add fields, then create it."
-          : version != null ? `v${version}. Saving makes a new version; earlier versions stay with the steps that used them.` : undefined}>
+        detail={!isNew && version != null ? `v${version}` : undefined}>
         {isNew ? "New form" : <>Form <span className="mono">{formKey}</span></>}</PageHeader>
       <NeedName person={person} />
       {isNew && (
@@ -727,7 +722,6 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
         </div>
         {msg && <div className={`status small ${msg.error ? "error" : "ok"}`} role={msg.error ? "alert" : "status"}>{msg.text}</div>}
         {preview && <UICard title="Preview" className="form-preview">
-          <p className="small muted">How a person sees it on their step. Nothing you enter here is kept.</p>
           <Suspense fallback={<div className="status">Loading preview…</div>}>
             <TaskForm schema={preview} data={{}} onSubmit={() => undefined} />
           </Suspense>
@@ -768,8 +762,6 @@ function OverviewTab({ processKey, defs, published }: { processKey: string; defs
   return (
     <>
       <Table variant="keyValue"><tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></Table>
-      <p className="small muted">Where work piles up: <a href={href(`/workflows/${processKey}`, { tab: "monitor" })}>Monitor</a>. Who does each step
-        and when it escalates: <a href={href(`/workflows/${processKey}`, { tab: "routing" })}>SLAs &amp; routing</a>.</p>
     </>
   );
 }
@@ -822,8 +814,7 @@ function RoutingTab({ def }: { def: WorkDefinition }) {
   if (!r.data) return <Status loading={r.loading} error={r.error} onRetry={r.reload} />;
   return (
     <>
-      <p className="small muted">Version {def.version}. A step's own SLA and escalation win; where it sets none, its role's defaults apply
-        (edit them under <a href={href("/users", { view: "workflow" })}>Users</a>). Change a step's own settings in the Model tab.</p>
+      <p className="small">Version {def.version}</p>
       <Table variant="list">
         <thead><tr><th>Step</th><th>Done by</th><th>Assigned</th><th>SLA</th><th>When it passes, goes to</th><th>Form</th></tr></thead>
         <tbody>

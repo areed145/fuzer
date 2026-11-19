@@ -113,8 +113,6 @@ function WorkflowPalette({ modeler }: { modeler: Modeler }) {
   };
   return (
     <div className="workflow-palette" aria-label="Workflow components">
-      <p className="small muted">Drag a step onto the canvas, or click to add it. Select a step to configure it;
-        use its connect handle to draw a connection.</p>
       <div className="actions">
         {workflowComponents.map((c) => <Button key={c.id} onMouseDown={(e) => e.button === 0 && add(c.id, e)}
           onClick={() => add(c.id)} title={`Add ${c.name}`}>
@@ -308,9 +306,6 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
           onChange={(v) => ed.set(el, { calledElement: v })} hint="It runs as a child workflow; this step waits until it ends." />
       )}
       {is(bo, "bpmn:ExclusiveGateway") && <GatewayProps ed={ed} el={el} />}
-      {is(bo, "bpmn:ParallelGateway") && (
-        <p className="small">Several flows out: every branch runs. Several flows in: waits for all of them.</p>
-      )}
       {is(bo, "bpmn:SequenceFlow") && <FlowProps ed={ed} el={el} />}
       {is(bo, "bpmn:BoundaryEvent") && (
         <Check label="Interrupting" checked={bo.cancelActivity !== false} onChange={(v) => ed.set(el, { cancelActivity: v })}
@@ -319,7 +314,6 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
       )}
       {def && is(def, "bpmn:TimerEventDefinition") && <TimerProps ed={ed} el={el} def={def} />}
       {def && is(def, "bpmn:MessageEventDefinition") && <MessageProps ed={ed} el={el} def={def} />}
-      {is(bo, "bpmn:StartEvent") && <p className="small">A workflow has exactly one start event; the start data is what the workflow is started with.</p>}
     </>
   );
 }

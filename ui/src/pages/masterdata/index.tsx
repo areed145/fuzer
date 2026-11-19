@@ -30,7 +30,7 @@ export function MasterDataPage({ query }: { query: URLSearchParams }) {
   const questions = openReviews(stats.data);
   return (
     <section>
-      <PageHeader subtitle="Keeping the register matching the work.">Master data</PageHeader>
+      <PageHeader>Master data</PageHeader>
       <div className="tabs" role="tablist">
         {TABS.map(([k, label]) => <a key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}
           href={href("/masterdata", { tab: k })}>{label}{k === "questions" && questions ? ` (${questions})` : ""}</a>)}
@@ -51,8 +51,6 @@ function Unmatched() {
   if (!rows.data.length) return <Empty>Every open exception matched the register.</Empty>;
   return (
     <Card title="Refs on open exceptions that matched nothing">
-      <p className="small muted">Matching one here matches every open exception that carries it, and remembering it makes the
-        next one match on its own.</p>
       <Table density="compact">
         <thead><tr><th>Ref</th><th>Open exceptions</th><th>From</th><th /></tr></thead>
         <tbody>{rows.data.map((u) => (
@@ -84,7 +82,6 @@ function Unresolved() {
     <>
     <LearnedRules onChange={rows.reload} />
     <Card title="Link values that named nothing (last rebuild)">
-      <p className="small muted">Make one an alias of the entity it means and the next rebuild links those records to it.</p>
       <Table density="compact">
         <thead><tr><th>Value</th><th>Source</th><th>Link</th><th>Rows</th><th /></tr></thead>
         <tbody>{rows.data.map((u) => (

@@ -33,9 +33,6 @@ export function ProposalsTab() {
   const confident = (rows.data?.proposals ?? []).filter((p) => p.answer && p.answer.choice !== "none" && p.answer.confidence >= at);
   return (
     <Card title="Claude's proposals">
-      <p className="small muted">Claude picks from options built from the register; it can say it isn't sure but can't invent
-        an asset or a value. Nothing changes until you accept. Accepting does what you would by hand: an alias, a pinned
-        match, a chosen value or a spelling fix, each reversible from Decisions.</p>
       <div className="row">
         <Select aria-label="Show" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="open">Open</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option>

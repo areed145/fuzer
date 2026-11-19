@@ -25,7 +25,7 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
     return (
       <section>
         <p className="small"><a href={href("/sources")}>Sources</a> › Add a source</p>
-        <PageHeader subtitle="Five steps. Nothing loads until the last one.">Add a source</PageHeader>
+        <PageHeader>Add a source</PageHeader>
         <AddWizard system={query.get("system")} connection={query.get("connection")} table={query.get("table")} />
       </section>
     );

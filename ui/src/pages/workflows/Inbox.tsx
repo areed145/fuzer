@@ -85,7 +85,7 @@ export function InboxPage() {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
-      <PageHeader subtitle="Everything waiting on you." help="workflow"
+      <PageHeader help="workflow"
         actions={lead ? <><ButtonLink href={href("/handover")}>Shift handover</ButtonLink>
           <ButtonLink href={href("/teams")}>Team workload</ButtonLink></> : undefined}>
         My work</PageHeader>

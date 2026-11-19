@@ -64,7 +64,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
   const panel = adding || !!sel;
   return (
     <section>
-      <PageHeader subtitle={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${dayStamp(p.start_at)}${p.finish_by ? ` to ${dayStamp(p.finish_by)}` : ""}`}
+      <PageHeader detail={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${dayStamp(p.start_at)}${p.finish_by ? ` to ${dayStamp(p.finish_by)}` : ""}`}
         actions={<>
           <Button variant="primary" disabled={!person || !!busy} title={person ? undefined : "Choose who you are to schedule"}
             onClick={apply}>Schedule</Button>

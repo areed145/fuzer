@@ -242,7 +242,6 @@ function LikeQuestions({ kind, name, onDone }: { kind: ReviewKind; name: string;
   };
   return (
     <UICard className="like-questions" title="Like questions">
-      <p className="small">One answer for questions that share it. Each is kept as if answered alone.</p>
       <Table variant="list" density="compact">
         <tbody>{groups.data.map((g) => (
           <tr key={g.key}>

@@ -45,7 +45,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
   const d = data.data;
   return (
     <section className="plant-scorecard">
-      <PageHeader subtitle="Production, maintenance and reliability, this period against the one before."
+      <PageHeader
         actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">How the plant is running</PageHeader>
       <Tabs label="Period" items={PERIODS.map((n) => ({
         key: String(n), label: `${n} days`, current: n === days,

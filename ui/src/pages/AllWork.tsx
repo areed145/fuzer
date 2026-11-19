@@ -75,7 +75,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   }, [list]);
   return (
     <section>
-      <PageHeader className="all-work-header" subtitle="Everything that came in, from every source, one row per event." help="workflow"
+      <PageHeader className="all-work-header" help="workflow"
         actions={<a href={href("/performance")}>How the work is running</a>}>
         All work</PageHeader>
       <nav ref={tabs} className="tabs work-lists" aria-label="All work views">

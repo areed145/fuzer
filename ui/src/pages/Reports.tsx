@@ -41,7 +41,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
   const waiting = days.data?.filter((d) => d.status === "awaiting review").length ?? 0;
   return (
     <section>
-      <PageHeader subtitle="What happened each production day.">Daily reports</PageHeader>
+      <PageHeader>Daily reports</PageHeader>
       <Status loading={days.loading && !days.data} error={days.error} empty={days.data?.length === 0}>
         No reports yet: `fuzer report` closes a day.
       </Status>
@@ -62,8 +62,6 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
       )}
       {day && <Report key={day} day={day} onChange={days.reload} />}
       <h2>Regulatory reports</h2>
-      <p className="small muted">Drafted from their records for a period, each figure drilling to them; a figure on
-        estimated or missing data is marked for the reviewer.</p>
       <Status loading={regulatory.loading && !regulatory.data} error={regulatory.error} />
       {regulatory.data && <RegulatoryList data={regulatory.data} selected={report} onChange={regulatory.reload} />}
       <ObligationsDue />
@@ -170,8 +168,6 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
         <p className="small">{step.assignee} has this review. <a href={href(`/inbox/task/${step.id}`)}>Open the task</a> to hand it on.</p>
       ) : (
         <>
-          <p className="small muted">Read it below, check the checks, then publish it or send it back to the reporter agent
-            with what to change{!step.assignee && step.role ? ` (it is in the ${step.role.replace("role:", "")} queue; reviewing claims it)` : ""}.</p>
           {revising ? (
             <div className="task-form">
               <Textarea rows={3} placeholder="What to change, e.g. lead with the train C trip" value={comments}

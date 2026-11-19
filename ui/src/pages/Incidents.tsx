@@ -20,7 +20,7 @@ export function IncidentsPage() {
   const ready = (list.data || list.error) && (repeats.data !== undefined || repeats.error);
   return (
     <section>
-      <PageHeader subtitle="Events, downtime and notifications grouped per asset.">Incidents</PageHeader>
+      <PageHeader>Incidents</PageHeader>
       {/* Repeats lead: whether problems come back is what a manager reads this page for (#1078). */}
       {ready && <IncidentRepeats data={repeats} />}
       <Status loading={!ready} error={list.error} empty={list.data?.total === 0}>

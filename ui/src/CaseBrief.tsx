@@ -37,7 +37,6 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
         <Notice tone="info">
           <strong>Proposed: {p.disposition}</strong> <span className="small">({pct(p.confidence)})</span>
           {p.why && <p className="small">{p.why}</p>}
-          <p className="small muted">A proposal for you to decide on. The specialist takes no action.</p>
         </Notice>
       )}
       {gaps.length > 0 && (

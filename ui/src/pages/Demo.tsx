@@ -24,7 +24,7 @@ export function DemoPage({ query, stats }: {
   const catalog = useAsync(() => step.key === "agents" ? api.assistantCatalog() : Promise.resolve(undefined), [step.key]);
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, [step.key]);
   return <section className="investigation">
-    <PageHeader subtitle="A guided tour of the Okan scenario.">Demo</PageHeader>
+    <PageHeader>Demo</PageHeader>
     <div className="investigation-context">
       <Badge>Synthetic data</Badge>
     </div>

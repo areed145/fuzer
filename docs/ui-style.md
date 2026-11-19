@@ -16,10 +16,9 @@ look like a calm operations tool: a title, the work, and the one or two actions 
 These rules come first; the sections below say how the components carry them out. It must read as a
 plain, conventional enterprise application for any asset type.
 
-1. **Say it once, where it's needed.** A page has a title and at most one subtitle line (90 characters,
-   no links). How a page works belongs in the docs: pass `help="workflow"` to `PageHeader` for a Help
-   link, rather than writing paragraphs on the page. Cross-links to related pages go in the navigation,
-   not in sentences.
+1. **A title needs no tagline.** A page has a title and nothing under it that says what the page is for. `PageHeader`'s
+   `detail` is for a fact about the record shown (its description, its dates, its version). How a page works belongs
+   in the docs: pass `help="workflow"` for a Help link. Cut any sentence that restates what the screen already shows.
 2. **No standing disclaimers.** State a limit where the user acts on it: the confirm step, a disabled
    button's reason, an empty state. Data provenance (synthetic, historical) is one `Badge` in the page
    header or chart title, not a sentence per card. Error text says what failed and what to do next in
@@ -52,7 +51,7 @@ plain, conventional enterprise application for any asset type.
    and work lists as rows of title, asset and state rather than wide tables.
 
 `npm --prefix ui test` runs `ui/tests/style-lint.test.cjs`, which counts help disclosures, grey
-paragraphs, long subtitles, carets, standing disclaimers, literal colours, inline styles and raw buttons and
+paragraphs, page taglines, carets, standing disclaimers, literal colours, inline styles and raw buttons and
 tables in `ui/src`. Counts may only go down: when you remove clutter, lower the number in
 `ui/tests/style-baseline.json`; when the test fails, follow its hint rather than raising the number.
 
@@ -74,7 +73,7 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 
 ## Components
 
-- `PageHeader` is the page title, an optional one-line subtitle, actions and an optional `help` docs link. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
+- `PageHeader` is the page title, an optional `detail` (a fact about the record, never fixed text), actions and an optional `help` docs link. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
 - `Button` uses `primary` for the main action, `secondary` for ordinary actions, `ghost` for low emphasis, `link` for inline actions, and `danger` for destructive actions. Use `sm` for compact table actions and `md` elsewhere. Use `ButtonLink` for navigation styled as a button and `ButtonLabel` for labels that open hidden file inputs.
 - `Card` (also exported as `Section`) groups related content. Supply `title` and `actions` when the group needs a heading or controls.
 - `Table` provides the shared scroll container and table base. Use it for data tables and choose a compact density for dense lists; use specialized classes only for domain-specific layout.

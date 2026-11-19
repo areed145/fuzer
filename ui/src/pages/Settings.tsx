@@ -53,7 +53,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
   const readiness = !configuration && !detection && !onboarding && !standards && !aiUsage;
   return (
     <section>
-      <PageHeader subtitle="Preferences and configuration.">Application settings</PageHeader>
+      <PageHeader>Application settings</PageHeader>
       <nav className="area-navigation" aria-label="Settings sections">
         <a href={href("/settings", { project })} aria-current={readiness ? "page" : undefined}>Readiness</a>
         <a href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>

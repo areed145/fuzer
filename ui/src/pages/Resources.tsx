@@ -19,7 +19,7 @@ export function ResourcesPage({ query, person }: { query: URLSearchParams; perso
   const go = (code: string) => { location.hash = `#/plan?resources=1${code ? `&resource=${encodeURIComponent(code)}` : ""}`; };
   return (
     <section>
-      <PageHeader subtitle="Demand on each shared resource from every source on the plan, against its capacity.">Resources</PageHeader>
+      <PageHeader>Resources</PageHeader>
       <div className="row">
         <label className="small">Resource <Select aria-label="Resource" value={pick} onChange={(e) => go(e.target.value)}>
           <option value="">All</option>

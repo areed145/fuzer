@@ -5,7 +5,7 @@ import { confirmDialog } from "../../ui";
 import { percent } from "../../format";
 import { api, type SpellingGroup } from "../../api";
 import { Button, Card, Select, Table, Empty } from "../../ui";
-import { Status, entityHref, fieldLabel, fmt, href, useAsync, useAction } from "../../lib";
+import { Status, entityHref, fieldLabel, fmt, useAsync, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
 
@@ -21,8 +21,6 @@ function Spellings() {
   const rows = useAsync(() => api.spellingGroups(), []);
   return (
     <Card title="One value, written several ways">
-      <p className="small muted">Case, spacing, punctuation or a company suffix apart. Pick the spelling to keep; it is set on
-        the others as a reviewer's choice, so it holds on every rebuild, and it can be reversed from Decisions.</p>
       <Status loading={rows.loading && !rows.data} error={rows.error} />
       {rows.data && !rows.data.length && <Empty>No field has a value written more than one way.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">
@@ -63,8 +61,6 @@ function Completeness() {
   const rows = useAsync(() => api.completenessGaps(), []);
   return (
     <Card title="Fields most of a kind have, and some lack">
-      <p className="small muted">Fix these in the source system (or set the value on the entity); the next load and rebuild
-        bring it in.</p>
       <Status loading={rows.loading && !rows.data} error={rows.error} />
       {rows.data && !rows.data.length && <Empty>No field is missing from a few of a kind that most of it carry.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">
@@ -87,7 +83,6 @@ function Conflicts() {
   const rows = useAsync(() => api.conflictGaps(), []);
   return (
     <Card title="Sources that disagree">
-      <p className="small muted">The field rule asks a person to pick. Decide them on the <a href={href("/masterdata", { tab: "questions", kind: "conflict" })}>Questions</a> tab.</p>
       <Status loading={rows.loading && !rows.data} error={rows.error} />
       {rows.data && !rows.data.length && <Empty>No open conflicts.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">

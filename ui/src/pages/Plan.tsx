@@ -88,7 +88,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
   const changed = () => { plan.reload(); scope.reload(); };
   return (
     <section>
-      <PageHeader subtitle="Planned activity from every source on one timeline."
+      <PageHeader
         actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
         Plan</PageHeader>
       <div className="row">

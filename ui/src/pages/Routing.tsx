@@ -20,7 +20,7 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
   const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   const byRole = new Map((roles.data ?? []).map((r) => [r.name, r]));
   return <section>
-    <PageHeader subtitle="What happens to each type of work when it arrives.">Routing</PageHeader>
+    <PageHeader>Routing</PageHeader>
     {!routes.data ? <Status loading={routes.loading} error={routes.error} />
       : rows.length === 0 ? <EmptyState title="No types of work yet">Source packs and modules declare them.</EmptyState>
       : <Table variant="list" className="routing-table phone-rows">
