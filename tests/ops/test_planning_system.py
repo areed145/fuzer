@@ -1,12 +1,35 @@
 """The planning system's export in the Okan data (P5.18): its built-in source loads with the rest, so its projects
 are schedules on the integrated plan after any register build, with no source to add first."""
 
+import shutil
+import tempfile
+from pathlib import Path
+
+import pytest
+from fakeplant.common import _write_csv
+
+from fakeplant import schedules
 from fuzer.core.pack import load_pack
 from fuzer.ops import pipeline, schedule
+from fuzer.sources import ingest
 
 
-def test_okan_s_planning_system_schedules_are_on_the_plan(okan_db):
+@pytest.fixture(scope="module")
+def planned(okan_db):
+    """Okan with its planning system's export beside the rest, as `fakeplant generate` writes it (the plant the
+    tests share has none, for the add-a-source walk), loaded through the built-in P6 source and rebuilt."""
+    data = Path(tempfile.mkdtemp(prefix="fzp6"))
+    shutil.copytree(okan_db.data, data, dirs_exist_ok=True)
+    _write_csv(data / "p6_activities.csv", schedules.export(data))
     conn = okan_db.conn
+    assert ingest.ingest(conn, data, exports=["p6_activities"])["loaded"] == ["p6_activities"]
+    pipeline.rebuild(conn, load_pack("okan"))
+    conn.commit()
+    return okan_db
+
+
+def test_okan_s_planning_system_schedules_are_on_the_plan(planned):
+    conn = planned.conn
     kinds = conn.execute("select count(*) as n from entity where kind = 'activity' and retired_at is null").fetchone()
     assert kinds["n"] >= 20
     out = pipeline.follow_register(conn, load_pack("okan"))["plan"]["planning_system"]
@@ -19,3 +42,23 @@ def test_okan_s_planning_system_schedules_are_on_the_plan(okan_db):
     tar = conn.execute("select count(*) as n from plan_item where project = 'OK-TAR-2026' and source = 'schedule' "
                        "and parent_id is not null").fetchone()
     assert tar["n"] >= 5
+    conn.commit()
+
+
+def test_the_bundle_s_turnaround_template_takes_over_from_the_export(planned):
+    """On a fresh database the export reached the plan before the project's bundle was stored, so the turnaround
+    was the export's: no logic, no crews. The planners' template takes the code over when it is seeded."""
+    import yaml
+
+    from fuzer.resources import BUNDLES
+
+    conn = planned.conn
+    pipeline.follow_register(conn, load_pack("okan"))
+    assert conn.execute("select created_by from plan_project where code = 'OK-TAR-2026'").fetchone()["created_by"] == "p6"
+    doc = yaml.safe_load((BUNDLES / "okan" / "schedules" / "OK-TAR-2026.yaml").read_text())
+    schedule.import_template(conn, doc, "system")
+    assert conn.execute("select created_by from plan_project where code = 'OK-TAR-2026'").fetchone()["created_by"] == "system"
+    board = schedule.analyse(conn, "OK-TAR-2026")
+    assert len(board["activities"]) >= 20 and any(r["code"] == "BEDS" for r in board["resources"])
+    assert "OK-TAR-2026" in schedule.sync_activities(conn)["kept"]  # and the export leaves it to the planners after
+    conn.commit()

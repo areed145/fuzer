@@ -305,6 +305,9 @@ def _parse_after(entry: str) -> tuple[str, str, float]:
     return code, kind, lag
 
 
+P6 = "p6"  # who keeps a schedule that a planning system's export put on the plan
+
+
 def import_template(conn, doc: dict, by: str, replace: bool = False) -> dict:
     """Put a schedule template on the plan: the project, its resources, an activity per step (matched to the assets
     it names, and to the revision's SAP order on its tag), the links and the resource needs, then schedule it.
@@ -314,8 +317,10 @@ def import_template(conn, doc: dict, by: str, replace: bool = False) -> dict:
     code = str(doc.get("code") or "").strip()
     if not code:
         raise PlanError("a schedule needs a code")
-    if conn.execute("select 1 from plan_project where code = %s", (code,)).fetchone():
-        if not replace:
+    if have := conn.execute("select created_by from plan_project where code = %s", (code,)).fetchone():
+        # one the planning system's export put there gives way: the template is the planners' own schedule, with
+        # the logic and resource needs the export doesn't carry, and the export's progress still follows it
+        if not replace and have["created_by"] != P6:
             return {"project": code, "status": "kept"}
         remove_project(conn, code, by)
     kind = doc.get("kind") or "turnaround"
@@ -402,9 +407,6 @@ def seed(conn, project: str, by: str = "system") -> list[dict]:
 
     cfg = registry.config(conn, project)
     return [import_template(conn, doc, by) for doc in (cfg.get("bundle") or {}).get("schedules") or []]
-
-
-P6 = "p6"  # who keeps a schedule that a planning system's export put on the plan
 
 
 def sync_activities(conn, by: str = P6) -> dict:

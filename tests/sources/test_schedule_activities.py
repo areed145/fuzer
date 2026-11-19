@@ -56,10 +56,6 @@ def plant(okan_db):
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
-    # this site's schedules are only in the table its planner loads here, not in the built-in P6 export Okan carries
-    (data / "p6_activities.csv").unlink()
-    okan_db.conn.execute("delete from source_record where source = 'p6' and record_type = 'activity'")
-    okan_db.conn.commit()
     mp = pytest.MonkeyPatch()
     mp.setenv("FUZER_DATA_DIR", str(data))
     from fuzer import api
@@ -75,7 +71,7 @@ def test_activities_join_the_graph(plant):
     assert form["warnings"] == []
     r = client.post("/sources/project_schedules/load", json={"yaml": ACTIVITIES, "by": "ana"})
     assert r.status_code == 200, r.text
-    assert r.json()["loaded"] == ["project_schedules"]
+    assert r.json()["loaded"] == ["project_schedules"], r.json()
     pipeline.rebuild(conn, load_pack("okan"))
 
     kinds = {r["kind"]: r["n"] for r in conn.execute(
@@ -135,6 +131,7 @@ def test_the_planning_system_s_schedules_land_on_the_integrated_plan(plant):
     ingest.ingest(conn, os.environ["FUZER_DATA_DIR"], exports=["project_schedules"], full=True)
     pipeline.rebuild(conn, load_pack("okan"))
     conn.execute("update source_dataset set fingerprint = null where name = 'project_schedules'")
+    conn.commit()  # kept past this test's rollback: a later load here reads the table again
     plan.sync_work_orders(conn)
     template = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "okan" / "schedules" / "OK-TAR-2026.yaml"
     import yaml
