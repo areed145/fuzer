@@ -148,6 +148,22 @@ def rows(okan: Path, version: int = 0, seed: int = 11) -> tuple[list[dict], dict
     return out, truth
 
 
+def export(okan: Path) -> list[dict]:
+    """The planning system's own export for the Okan data folder (`p6_activities.csv`, read by Fuzer's built-in P6
+    mapping): the same projects and activities as the lake table, as a planner keeps them, so without the mess the
+    lake table plants for the add-a-source walk. One row per activity in WBS order, ISO dates, progress to 100."""
+    seen: dict[str, dict] = {}
+    for r in sorted(rows(okan)[0], key=lambda r: (r["project_id"], r["parent_id"] or "", r["activity_id"], r["updated_at"])):
+        seen.setdefault(r["activity_id"], r)
+    out = []
+    for r in seen.values():
+        day = {k: datetime.strptime(r[k], "%d/%m/%Y").date().isoformat() if r[k] else ""
+               for k in ("start", "finish", "baseline_start", "baseline_finish", "actual_start", "actual_finish")}
+        out.append({**{k: "" if v is None else v for k, v in r.items()}, **day,
+                    "percent_complete": min(r["percent_complete"], 100), "updated_at": r["updated_at"].isoformat()})
+    return out
+
+
 def write(okan: Path, out_dir: Path, update: bool = False, fixed: bool = False) -> dict:
     """Write the Delta table (version 0, or version 1 over it with --update) and its answer key. `fixed` drops the
     copied row (the planner's fix after the first load is held on the duplicate key), as a new table version."""

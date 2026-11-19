@@ -73,7 +73,10 @@ cached per record.
 A schedule export (Primavera P6, MS Project) lands as `activity` entities: a project is a top-level activity
 and the rest are `part_of` their parent. Each activity is `located_at` the tag, area, facility or well it is
 planned on (the location column, read as a FLOC) and `executes` its SAP work order when it names one. The
-mapping is written from the Sources page; `tests/sources/test_schedule_activities.py` has a complete one.
+built-in `p6` source reads `p6_activities.csv` this way (`mappings/p6_activity.yaml`; the Okan data carries one),
+and a schedule kept elsewhere is mapped from the Sources page (`tests/sources/test_schedule_activities.py` has a
+complete mapping). After each register build, and at every deploy, each project with activities under it becomes a
+schedule on Plan (`ops/schedule.py: sync_activities`).
 
 ## Incidents
 Logged events (`involves`), downtime (`caused_by`) and notifications (`concerns`)

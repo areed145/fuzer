@@ -125,13 +125,16 @@ def test_a_built_register_takes_new_mappings_and_changed_exports(tmp_path, monke
     monkeypatch.setattr(demo_seed.catalog, "seed", lambda conn: seeded)
     monkeypatch.setattr(demo_seed.ingest, "ingest", lambda conn, folder: stats)
     monkeypatch.setattr(demo_seed.pipeline, "rebuild", lambda conn, pack: calls.append(pack) or {"entities": 5})
+    followed = []  # the plan and the work board follow the register at every deploy, changed data or not
+    monkeypatch.setattr(demo_seed.pipeline, "follow_register",
+                        lambda conn, pack: followed.append(pack) or {"plan": {}, "notifications": {}})
     _exports(tmp_path)
     with db.connect() as conn:
         db.reset(conn)
         db.init_schema(conn)
         _built(conn)
         demo_seed.seed(conn, _bundle(tmp_path))
-    assert len(calls) == rebuilds
+    assert len(calls) == rebuilds and len(followed) == 1
     assert ("Data refreshed" if rebuilds else "Data unchanged") in capsys.readouterr().out
 
 

@@ -1,0 +1,27 @@
+# Project schedules from the planning system (Primavera P6): projects and their activities, one row each. Activities
+# join the graph (part of their parent, located at the tag, area, facility or well they are planned on, executing
+# their SAP work order), and each project's activities land on the integrated plan as a schedule (ops/schedule.py).
+source: p6
+record_type: activity
+shape: hierarchy
+dataset: p6_activities
+key: activity_id
+entity:
+  kind: activity
+  key: activity_id
+  fields:
+    - [description, name]
+    - wbs
+    - start
+    - finish
+    - baseline_start
+    - baseline_finish
+    - actual_start
+    - actual_finish
+    - [percent_complete, {from: percent_complete, as: number}]
+    - owner
+    - status
+links:
+  - {rel: part_of, when: parent_id, to: {kind: activity, from: parent_id}}
+  - {rel: located_at, when: location, to: {from: location, as: floc}}
+  - {rel: executes, when: work_order, to: {ref: 'sap:work_order', from: work_order}}
