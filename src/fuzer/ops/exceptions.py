@@ -789,8 +789,8 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
                 else:
                     sender = None if _sent_to(conn, row["item_id"], by) else _sent(conn, row["item_id"], by)
                 human = bool(sender and sender["by"] and sender["by"] != by and not gates.machine(sender["by"]))
-                if human:
-                    work.dispatch(conn, row["item_id"], by, sender["by"], back)
+                if human:  # back to the IOC person who sent it: never a fresh field check for them
+                    work.return_to(conn, row["item_id"], by, sender["by"], back)
                 elif status == "done" and not has_process:
                     # nobody sent it (raised straight into the field's queue): the field's Done closes it
                     work.close_case(conn, row["item_id"], "done", by, reason=note or "done in the field")

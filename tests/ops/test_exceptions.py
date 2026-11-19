@@ -471,6 +471,36 @@ def test_a_queue_case_started_before_the_field_check_moves_onto_it_when_sent_out
     conn.commit()
 
 
+@pytest.mark.parametrize("said", ["done", "could_not_do"])
+def test_a_report_on_a_case_handed_to_the_queue_goes_back_to_the_ioc_not_out_again(conn, types, said):
+    """A case the IOC handed straight to the operators' queue (no field check of its own, as cases did before #1145)
+    and an operator took: their report hands the IOC's step back to the IOC person who sent it, and is Back from the
+    field. It must not move the case onto the field check and send that person out to the field."""
+    from pathlib import Path
+
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import assignment, definitions, engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    old = (Path(__file__).parent / "queue_item_before_field_check.bpmn").read_text()
+    engine.publish(conn, engine.import_bpmn(conn, old, "system")[0]["id"], "system")
+    types(f"hiss_{said}", role="role:ops_lead", audience=("ioc", "field"))
+    e = raise_exception(conn, f"hiss_{said}", f"V-{said}", f"Hissing at V-{said}", "crew", refs=["tag:P-101"])
+    current = (definitions.DEFINITIONS_DIR / "queue_item.bpmn").read_text()
+    engine.publish(conn, engine.import_bpmn(conn, current, "system")[0]["id"], "system")
+    step = lambda: conn.execute("select id, element, assignee from work_token where item_id = %s and kind = 'user' "
+                                "and state = 'waiting'", (e["item_id"],)).fetchall()
+    [s] = step()
+    assignment.hand_off(conn, s["id"], "ivy", "role:operator", "Go and have a look, report what you find")
+    assignment.hand_off(conn, s["id"], "olly", "olly", "taken from the queue")
+    ex.report(conn, e["id"], "olly", said, note="Valve is isolated; nothing to hear")
+    assert [(r["element"], r["assignee"]) for r in step()] == [("work", "ivy")]
+    listed = [r for r in ex.listing(conn) if r["id"] == e["id"]]
+    assert listed and listed[0]["back_from_field"] is True
+    conn.commit()
+
+
 def test_another_system_raises_and_clears_a_type_defined_as_data(conn, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

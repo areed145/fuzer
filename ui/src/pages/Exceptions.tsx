@@ -36,13 +36,15 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
   const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
-  const words = filters.q?.toLowerCase();
+  // A tag matches however it is written: 77-HCV-1003, 77-HCV1003 and 77hcv1003 are the same tag.
+  const flat = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const words = filters.q ? flat(filters.q) : "";
   const shown = (view === "dispatch" ? rows.data.filter(waitingToDispatch)
     : view === "back" ? rows.data.filter(backFromField)
     : view === "field" ? rows.data.filter((r) => withTheField(r, operators))
     : rows.data)
     .filter((r) => !filters.who || r.assignee === filters.who || (!!r.role && `role:${r.role}` === filters.who))
-    .filter((r) => !words || r.title.toLowerCase().includes(words));
+    .filter((r) => !words || flat(`${r.title} ${r.key}`).includes(words));
   return (
     <>
       <div className="row work-state">

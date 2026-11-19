@@ -22,7 +22,9 @@ export function myWorkCounts(d: WorkInbox, jobs: Pick<FieldJob, "item_id" | "que
   const onCard = new Set(jobs.map((j) => j.item_id).filter((id): id is number => id != null));
   const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
   return {
-    sent: jobs.filter((j) => !j.queued).length, mine: d.mine.length, queue: d.queue.length,
+    // The server's totals, not the listed rows: the lists stop at a page, the counts don't.
+    sent: jobs.filter((j) => !j.queued).length, mine: d.counts?.mine.total ?? d.mine.length,
+    queue: d.counts?.queue.total ?? d.queue.length,
     overdue: all.filter((r) => r.overdue).length, escalated: all.filter((r) => r.escalated_at).length,
     top: [...all].sort(byUrgency).slice(0, 3),
   };

@@ -1,4 +1,5 @@
 import { request, requestText } from "./transport";
+
 import type { SourceValue } from "./explore";
 
 export interface MatchSide {
@@ -891,6 +892,9 @@ export interface FieldPermit {
     isolations: { isolation: string; point: string | null; method: string | null; state: string | null }[] } | null;
 }
 
+/** The most rows the server lists of exceptions in one request (`/exceptions` caps `limit` at 1000). */
+export const EXCEPTIONS_LIMIT = 1000;
+
 export const workApi = {
   board: (f: BoardFilter, page = 1) =>
     request<BoardPage>("GET", "/board", { ...f, page, per_page: 50, facets: "true" }),
@@ -917,8 +921,10 @@ export const workApi = {
     request<NotifyPreference>("PUT", `/work/people/${encodeURIComponent(person)}/notify`, undefined, { ...p, by }),
   markNotificationsRead: (person: string, ids?: number[]) =>
     request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
+  // Every open row, not the server's default page of 200: All work's counts and search read this list, so
+  // a cap here showed "200 open" and hid the rest. EXCEPTIONS_LIMIT is the server's own ceiling.
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string; closed_since?: string; at?: string } = {}) =>
-    request<ExceptionRow[]>("GET", "/exceptions", f),
+    request<ExceptionRow[]>("GET", "/exceptions", { limit: String(EXCEPTIONS_LIMIT), ...f }),
   attention: () => request<Attention>("GET", "/attention"),
   exceptionsSuppressed: () => request<SuppressedView>("GET", "/exceptions/suppressed"),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),

@@ -302,6 +302,9 @@ _ITEMS = """
     order by i.priority desc nulls last, i.due nulls last, i.id limit %(limit)s
 """
 
+ALL_ROWS = 100_000  # counting every open row; lists still stop at their own limit
+
+
 def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200, now: datetime | None = None) -> dict:
     """A person's open tasks ('mine': claimed by or assigned to them, or to someone away whom they cover) and their
     roles' queue (unclaimed)."""
@@ -310,22 +313,27 @@ def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200,
     now = now or utcnow()
     roles = roles if roles is not None else roles_of(conn, person)
     covering = roles_.covered_by(conn, person, now)
-    args = {"person": person, "people": [person, *covering], "roles": roles, "now": now, "limit": limit,
+    # Counted over every open row, listed up to `limit`: a count taken from the listed page read "200
+    # unclaimed" when the queue held more.
+    args = {"person": person, "people": [person, *covering], "roles": roles, "now": now, "limit": ALL_ROWS,
             "kinds": ["user", "fix"]}
-    mine = conn.execute(_TASKS.format(who="t.assignee = any(%(people)s)"), args).fetchall() + \
-        conn.execute(_ITEMS.format(who="i.assignee = any(%(people)s)"), args).fetchall()
+    parts = {"mine": (conn.execute(_TASKS.format(who="t.assignee = any(%(people)s)"), args).fetchall(),
+                      conn.execute(_ITEMS.format(who="i.assignee = any(%(people)s)"), args).fetchall()),
+             "queue": (conn.execute(_TASKS.format(who="t.assignee is null and t.role = any(%(roles)s)"), args).fetchall(),
+                       conn.execute(_ITEMS.format(who="i.assignee is null and i.role = any(%(roles)s)"), args).fetchall())}
+    mine, queue = (parts["mine"][0] + parts["mine"][1]), (parts["queue"][0] + parts["queue"][1])
     for r in mine:
         r["covering_for"] = r["assignee"] if r["assignee"] != person else None
-    queue = conn.execute(_TASKS.format(who="t.assignee is null and t.role = any(%(roles)s)"), args).fetchall() + \
-        conn.execute(_ITEMS.format(who="i.assignee is null and i.role = any(%(roles)s)"), args).fetchall()
     soon = now + DUE_SOON
-    _bulk_labels(conn, mine + queue)
 
     def counts(rows):
         return {"total": len(rows), "overdue": sum(bool(r["overdue"]) for r in rows),
                 "due_soon": sum(1 for r in rows if r["due_at"] and now <= r["due_at"] < soon)}
+    totals = {"mine": counts(mine), "queue": counts(queue)}
+    mine, queue = (parts[k][0][:limit] + parts[k][1][:limit] for k in ("mine", "queue"))
+    _bulk_labels(conn, mine + queue)
     return {"person": person, "roles": roles, "covering": covering, "mine": mine, "queue": queue,
-            "counts": {"mine": counts(mine), "queue": counts(queue)}}
+            "counts": totals}
 
 def _bulk_labels(conn, rows: list[dict]) -> None:
     """Each person step's bulk actions (labels from its form), so the inbox knows which rows can be ticked."""
