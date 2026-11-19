@@ -93,6 +93,7 @@ flowchart LR
   src_maximo[/"maximo"/]
   src_moc[/"moc"/]
   src_oplog[/"oplog"/]
+  src_p6[/"p6"/]
   src_pi[/"pi"/]
   src_pi_af[/"pi_af"/]
   src_pid[/"pid"/]
@@ -103,6 +104,7 @@ flowchart LR
   src_sap[/"sap"/]
   src_teams[/"teams"/]
   kind_accounting_volume(["accounting_volume"])
+  kind_activity(["activity"])
   kind_bypass(["bypass"])
   kind_change(["change"])
   kind_completion_component(["completion_component"])
@@ -162,6 +164,7 @@ flowchart LR
   src_maximo --> kind_equipment
   src_moc --> kind_change
   src_oplog --> kind_log_entry
+  src_p6 --> kind_activity
   src_pi --> kind_timeseries
   src_pi_af --> kind_plant_hierarchy__facility__area__tag__well
   src_pid --> kind_document

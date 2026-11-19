@@ -64,7 +64,14 @@ def refresh(conn, folder: Path, pack=None) -> None:
             print(f"Data refreshed: {changed} records changed, {built['entities']} entities, "
                   f"{notified.get('raised', 0)} notifications raised.", flush=True)
         else:
-            print("Data unchanged.", flush=True)
+            # the plan and the work board still follow the register: a deploy can bring a new way of reading the
+            # same records (the planning system's schedules on Plan, P5.18), and nothing else would apply it until
+            # the data next changed
+            pack = pack or current_pack(conn)
+            planned = pipeline.follow_register(conn, pack)["plan"]
+            conn.commit()
+            print(f"Data unchanged; the plan follows the register: {planned.get('added', 0)} orders added, "
+                  f"{(planned.get('planning_system') or {}).get('activities', 0)} planning-system activities.", flush=True)
     except Exception as e:
         conn.rollback()
         print(f"Data refresh failed; running on the loaded register. Inspect Sources before retrying: {e}", flush=True)
