@@ -30,11 +30,9 @@ FUZER_AUTH_MODE=local uv run fuzer up    # trusted local development; open http:
 Local mode is attribution-only and loopback-only; do not expose it through a proxy or tunnel.
 For a shared deployment, use the default Microsoft sign-in mode and follow
 [Microsoft registration and owner setup](deployment.md#microsoft-sign-in-and-first-owner).
-An approved signed-in visitor can follow **Demo -> Trace an issue -> Start guided investigation** with no AI key.
-Demo also introduces registered agents and loaded workflows. Paid questions and shared task actions
-require deliberate confirmation and existing permissions. Administrators can hide or enable the
-tab application-wide in **Settings -> Configure Demo** (`demo.enabled`, globally enabled by default).
-Personal Microsoft accounts and work/school accounts are supported.
+Personal Microsoft accounts and work/school accounts are supported. An approved signed-in visitor can follow the
+guided Okan investigation at `#/investigate/okan` with no AI key; it is no longer in the menu. Paid questions and
+shared task actions require deliberate confirmation and existing permissions.
 
 The first run takes a while. It builds the fake Okan field, loads every source, and has Claude read the operator
 logs, P&ID drawings and document sections (this costs money). Then it builds the register and the web UI and starts
@@ -42,7 +40,7 @@ the server, with the scheduled jobs (Dagster, http://127.0.0.1:3000: SRE scans, 
 Later starts reload or re-read only what changed. `uv run fuzer up --fresh` starts over with a clean
 database and keeps Claude's readings.
 
-The web UI's **Jobs** page (under Admin) shows each scheduled job's schedule or sensor, whether it's on, its recent
+The web UI's **Jobs** page shows each scheduled job's schedule or sensor, whether it's on, its recent
 runs with their errors, the data checks on the register and what Claude reading has cost, read from Dagster's
 state in `.dagster` (or `$DAGSTER_HOME`). The dot at the foot of the sidebar turns amber or red when a check flags,
 a run failed in the last day or the scheduler isn't running. Set `FUZER_DAGSTER_URL` if the Dagster UI isn't on
@@ -51,12 +49,12 @@ port 3000.
 ![Home on the Okan demo](assets/screens/home.png){ loading=lazy }
 *Home after the first `fuzer up`. [A tour of the app](tour.md) shows the other pages.*
 
-Without provider credentials, `fuzer up` reports what it did not read and carries on; the register, the
-work board, the guided investigation and the workflows all work. The agent worker isn't started either, so
+Without provider credentials, `fuzer up` reports what it did not read and carries on; the register, All work,
+the plan, the guided investigation and the workflows all work. The agent worker isn't started either, so
 the daily report stays a template draft until a provider is configured.
 
 On a database that has never been scanned, `fuzer up` learns normal ranges, checks limits and scans the last 7
-days of process data in the background (a few minutes, no model calls), so upsets reach the IOC's Inbox soon
+days of process data in the background (a few minutes, no model calls), so upsets reach All work and the engineer queue soon
 after the UI opens; the 6-hourly SRE job carries on from there. `fuzer up` also stores the project it serves
 when the database holds none, so commands in another shell (`fuzer limits learn`, `fuzer report`) serve it
 without `FUZER_PROJECT`. Without Dagster (`--no-jobs`), run the rest of the scheduled loop by hand:
@@ -70,20 +68,26 @@ uv run fuzer board refresh
 
 Things to try:
 
-- **Home** introduces the starting actions and summarizes work, incidents and source/job health.
+- **Home** shows where attention is needed, on the field map and as a ranked list.
   If the register is empty, it links to the **Sources** setup wizard.
-- **Browse**: find `20-K-2300A` or the well `OK-J12-02` and follow the links.
-- **Data review**: resolve uncertain links, conflicting values and held source loads.
-- **Ask**: the operations assistant. Try "Why does lift gas keep running short?"
-- **Work board**, **Inbox** and **Daily reports**: what the scheduled loop finds and drafts.
-  Set your name under **You are** in the navigation before using your Inbox. This is decision
-  attribution, not authentication, **in explicit local mode only**. In Microsoft mode, the
-  server supplies your signed-in identity; an owner grants application access and human
-  workflow roles are assigned in Teams & routing.
+- **Work > All work**: within a few minutes of starting, the Okan demo's sample crew joins the roster and works
+  the queue on today's clock, so there is live work to dispatch, follow to the field and close out.
+  [Where work goes](work-map.md) shows the path each kind of work takes.
+- **Work > My work**: set your name with the account button at the top right first (try `riley`, the sample ops
+  lead, or `sam`, a field operator). This is decision attribution, not authentication, **in explicit local mode
+  only**. In Microsoft mode, the server supplies your signed-in identity; an owner grants application access, and
+  workflow roles are assigned under **Settings > Users**.
+- **Plan**: the timeline, then **Schedules** for the turnaround and the planning system's projects as Gantt boards,
+  and **Resources** for demand against capacity.
+- **Explore > Browse**: find `20-K-2300A` or the well `OK-J12-02` and follow the links.
+- **Work > Master data**: resolve uncertain links, conflicting values and held source loads.
+- **Investigate > Ask**: the operations assistant. Try "Why does lift gas keep running short?"
+- **Investigate > Daily reports**: what the scheduled loop drafts for each production day.
+- The [guides by role](guides/index.md) walk each role's jobs from start to finish.
 
 Choose **Settings -> Appearance** for System, Light or Dark mode. The choice is saved in your browser,
 not the facility database. System follows your device's appearance; charts, graphs and map layers
-follow the same choice. On small screens, open the menu to reach navigation and your identity.
+follow the same choice. On a phone, the bottom bar holds Home, My work, Explore and Investigate, and **Menu** opens the rest.
 **Field mode**, in the same place, makes buttons larger for gloves and raises contrast for sunlight on that device.
 
 The planted stories to find are listed in the [README](https://github.com/areed145/fuzer#okan-field-demo).
@@ -134,6 +138,7 @@ uv run fuzer --project okan eval --agents            # the assistant on the answ
 
 ## 5. Read on
 
+- [Where work goes](work-map.md) and [how work is routed](work-routing.md) for the path work takes.
 - [Overview](overview.md) and [architecture](architecture.md) for the big picture.
 - [From a well test to an answer](walkthrough.md) follows one record through the system.
 - The [glossary](glossary.md) explains the terms used here.

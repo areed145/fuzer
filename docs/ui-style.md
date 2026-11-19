@@ -230,9 +230,9 @@ hard-coded in React. The API enforces a read-only SQL transaction and requires n
 model calls. This boundary is limited to the journey, not an application-wide
 public-demo access policy.
 
-The optional Demo primary tab is enabled by default and controlled application-wide by the
-global `demo.enabled` registry setting in Settings. Home no longer embeds the Okan callout.
-The broader `#/demo?step=…` tour introduces evidence, registered agents and loaded workflows;
+Demo is not in the menu. The guided tour still opens at `#/demo` while the global `demo.enabled`
+registry setting is on, and Home no longer embeds the Okan callout.
+The `#/demo?step=…` tour introduces evidence, registered agents and loaded workflows;
 progress remains in URLs. Agent prompts open Ask for review and explicit paid-call confirmation,
 never automatic submission. Contextual case views are read-only; task entries confirm shared
 assignment/completion changes using `ConfirmAction` and report failures using `ActionStatus`.

@@ -7,8 +7,8 @@
 </div>
 
 Fuzer is one front door for the work of an integrated operations centre. Work arrives from many sources (SAP
-notifications, Fuzer's own detectors, inspection, parts and permit findings, field reports and rounds, an agentic
-watch, any system that can post one), is matched to the asset it concerns through Fuzer's register, and is routed to
+notifications and work orders, P6 schedules, Fuzer's own detectors, inspection, parts and permit findings, field
+reports and rounds, an agentic watch, any system that can post one), is matched to the asset it concerns through Fuzer's register, and is routed to
 the right person or workflow: triaged by the IOC, dispatched to the field, brought back and closed out, with the
 update drafted for the system it came from.
 
@@ -20,12 +20,13 @@ people, workflows and AI agents share.
 
 - **Use it**
 
-    [Guides by role](guides/index.md): the IOC operator, field operator, planner, data steward and configurer,
+    [Guides by role](guides/index.md): the IOC operator, field operator, engineer, planner, data steward and configurer,
     each doing their real jobs start to finish, on phone, iPad and desktop.
 
 - **Understand it**
 
-    [How work is routed](work-routing.md) and [the system at a glance](system.md), then the
+    [Where work goes](work-map.md): every source, and the page for each stage from creation to completion. Then
+    [how work is routed](work-routing.md), [the system at a glance](system.md) and the
     [architecture](architecture.md) generated from the code.
 
 - **Run it**
@@ -59,7 +60,7 @@ flowchart TB
 ## Reading order
 
 1. [Overview and principles](overview.md): what it is and the decisions it rests on. Then
-   [the system at a glance](system.md), [how work is routed](work-routing.md) and
+   [where work goes](work-map.md), [the system at a glance](system.md), [how work is routed](work-routing.md) and
    [architecture](architecture.md): the components, generated from the code, with diagrams.
 2. [Data model and ontology](data-model.md), [sources and ingestion](sources.md) and
    [identity and golden records](identity.md): how records become one graph.
@@ -68,5 +69,5 @@ flowchart TB
 5. [Evals and quality](evals.md) and [deployment and settings](deployment.md).
 6. [Extend Fuzer](extend.md): a new facility, source, skill or workflow.
 
-The reference pages ([tools](capabilities.md), [settings](settings.md), [command line](cli.md),
+The reference pages ([work types](work-types.md), [detectors](detectors.md), [tools](capabilities.md), [settings](settings.md), [command line](cli.md),
 [database schema](schema.md)) are generated from the code.

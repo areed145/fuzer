@@ -6,7 +6,7 @@ How the detectors, the ops loop and the assistant are scored.
 
 `fuzer eval --loop` (`src/fuzer/evals/loop.py`) drives every type of work in the routing table through the loop
 with the same operations the API calls: it **arrives** about a tagged asset, is **matched** to it, **routed** where
-the routing table says, seen in someone's Inbox or on the board (**triage**), **dispatched** to a field operator
+the routing table says, seen on someone's My work or on All work (**triage**), **dispatched** to a field operator
 with what to check, read on their job list with no raw ids and reported on site then done (**field**), every
 remaining decision taken until the case and the work **close**, and closed with a time and outcome a measure can
 **count**. A type the field never sees is worked at the desk instead. The report names the first step that failed

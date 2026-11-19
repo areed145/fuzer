@@ -6,19 +6,18 @@ flowchart LR
   rec -->|rebuild| well["Well OK-J12-02<br><small>stable Fuzer ID</small>"]
   rec --> m["Measurements<br><small>oil, water cut, GOR,<br>lift gas, WHP</small>"]
   m --> calc["Decline fit and<br>opportunity scan"]
-  calc --> board["Work board"]
+  calc --> board["All work:<br>Ranked by value"]
   calc --> report["Daily report"]
   m --> tool["well_performance,<br>calc(decline)"] --> ans["Cited answer on Ask"]
 ```
 
-For a guided, keyless introduction in the app, choose **Start guided investigation**
-in **Demo -> Trace an issue** after Okan has loaded and your signed-in account is approved,
-or open the compatible `#/investigate/okan`. Follow the March 2024
+For a guided, keyless introduction in the app, open `#/investigate/okan` after Okan has loaded and your
+signed-in account is approved (the guided tour is no longer in the menu; `#/demo` still opens it). Follow the March 2024
 train B issue through the asset, dated source evidence and a cited finding, including
 April maintenance follow-up. This historical synthetic-data journey makes no writes
 or AI calls; it does not establish a root cause or issue plant-operating instructions.
 If its records are absent, it reports that rather than generating a replacement story.
-Finish returns to Demo's registered agent showcase, then loaded workflow cases and your queue.
+Finish returns to the tour's registered agent showcase, then loaded workflow cases and your queue.
 Questions are prepared in Ask and require deliberate paid-call confirmation; shared task actions
 are confirmed on the existing task page, not executed by visiting the tour. Administrators can
 hide or enable onboarding application-wide with `demo.enabled` in Settings (enabled by default).

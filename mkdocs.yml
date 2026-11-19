@@ -46,12 +46,14 @@ nav:
   - Start here:
       - getting-started.md
       - tour.md
+      - work-map.md
       - walkthrough.md
       - glossary.md
   - Guides by role:
       - guides/index.md
       - guides/ioc-operator.md
       - guides/field-operator.md
+      - guides/engineer.md
       - guides/planner.md
       - guides/data-steward.md
       - guides/configurer.md
@@ -76,6 +78,7 @@ nav:
       - ot-security.md
       - roadmap.md
   - Reference:
+      - work-types.md
       - capabilities.md
       - methods.md
       - detectors.md

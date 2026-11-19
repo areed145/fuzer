@@ -32,7 +32,7 @@ flowchart TB
   ag --> jobs["Scheduled jobs<br><small>SRE, limits, day close</small>"]
   jobs -->|start| wf["Workflows<br><small>BPMN + forms</small>"]
   agents -->|agent steps| wf
-  wf --> people["Inbox and cases"]
+  wf --> people["My work and cases"]
   classDef ext fill:#e6f2ff,stroke:#0b66c3,color:#0b2540;
   class pack,data,map,ds,skills,tools,wf ext;
 ```
@@ -146,7 +146,7 @@ Fuzer ships no packs or project files of its own (P1.6): every facility, the dem
 
 1. Open **Home**: the sidebar names the facility and counts entities, links and source records.
 2. Open **Sources**: each dataset should show *No reported problems* and a record count.
-3. Open **Data review**: possible matches and conflicting values are the pack's matching and survivorship
+3. Open **Work > Master data**: possible matches and conflicting values are the pack's matching and survivorship
    rules at work. A long queue usually means a grammar or rule needs tuning, not that every item needs a
    person.
 4. Search for a tag on **Browse** and open it: **Source records** should list each system that describes it.
@@ -628,13 +628,13 @@ engine.start_or_correlate(conn, "equipment_handover", {"dataset": "contractor_eq
 
 Over HTTP, `POST /work/processes` with `{"process_key", "by", "data", "title", "correlate"}` does the same,
 and `POST /work/messages` delivers a message to the open case with a correlation key. People can open an
-ad hoc case from **Cases → New work item**.
+ad hoc case from **All work > In progress > New work item**.
 
 ### 5. Route and watch it
 
 Roles, their default SLAs, escalation chains and assignment rules (queue, round-robin, least loaded) are
-data on **Teams & routing**, so a new role is usable at once. The case appears on **Cases**, its waiting
-steps in each person's **Inbox**, and its health (cycle time, steps waiting and overdue, SLA misses) on the
+data under **Settings > Users**, so a new role is usable at once. The case appears on **All work > In progress**, its waiting
+steps in each person's **My work**, and its health (cycle time, steps waiting and overdue, SLA misses) on the
 process's **Monitor** tab.
 
 ![A running upset case with its process diagram and the step it is waiting on](assets/screens/case.png){ loading=lazy }

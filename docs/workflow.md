@@ -24,15 +24,16 @@ The Workflows section is where people do it and manage it:
 - **Workflows** (`#/workflows`, under Work): each workflow with its health (running, steps waiting and overdue, median and p90
   cycle time, share of person steps that missed their SLA); a process opens with Overview, Running (its cases),
   Model (draft, check, compare, publish), Monitor (where work piles up) and SLAs & routing.
-- **Teams & routing** (`#/teams`): roles, people and agents.
+- **Users > Workflow assignments & routing** (`#/teams`, under Settings): roles, people and agents.
 
-![Inbox: one unclaimed triage step in the engineer queue](assets/screens/inbox.png){ loading=lazy }
+![My work: what waits on you and in your roles' queues](assets/screens/my-work.png){ loading=lazy }
 
 ![An upset case: its process diagram with the step it waits on](assets/screens/case.png){ loading=lazy }
 
 The built-in processes are `upset` (triage, diagnosis by the Field Operations & Facilities agent, approval,
 a notification drafted by the Maintenance & Integrity agent, then a timed re-check), `iow_breach` and
-`daily_report`:
+`daily_report`, beside the standard `queue_item` and `task` and the `shift_handover` and `source_closeout`
+processes described below ([where work goes](work-map.md#3-it-starts-a-workflow) lists all seven):
 
 ```mermaid
 flowchart LR
@@ -80,8 +81,8 @@ the published version, and running cases stay on their original version.
 
 - A **role** is a person role or an agent role, with what it's for, a **default SLA** for person steps that set
   none, **escalate_to** (where an overdue step goes when the step names nowhere itself) and an **assignment**:
-  steps wait in the queue to be claimed, or go to members round-robin or to the least loaded. Roles are edited on
-  Teams & routing; the BPMN checks read them, so a new role can be used in a process straight away.
+  steps wait in the queue to be claimed, or go to members round-robin or to the least loaded. Roles are edited under
+  Settings > Users; the BPMN checks read them, so a new role can be used in a process straight away.
 - **Escalation**: when a person step's SLA passes (the `work_tick` job, every 5 minutes), it moves to the step's
   `escalateTo`, then along the role chain, each hop with the next role's own SLA, up to three hops. The reason
   (which SLA, who had it) is kept on the case.
@@ -92,7 +93,7 @@ the published version, and running cases stay on their original version.
 - **Field or overarching** (#497): most people are on one field's roster (`work_person`, per project). Specialists
   and monitoring desks whose work cuts across fields are **overarching** (`fuzer.work_person_cover`, shared by the
   instance): their roles count in every field they cover (all fields, or the ones named), on top of any roles a
-  field's own roster gives them. Their Inbox lists their work in the other fields too (`/work/inbox/fields`), only
+  field's own roster gives them. Their My work lists their work in the other fields too (`/work/inbox/fields`), only
   for fields the viewer may open: covering a field is routing, never an access grant. Set on Users, workflow
   assignments (`PUT /work/people/{name}/cover`).
 
@@ -103,7 +104,8 @@ API: `/work/inbox`, `/work/items` (cases) and `/work/items/{id}/set|reassign|tra
 ## Exceptions, dispatch and the field
 
 Work from every source arrives as an **exception** on **All work** (`#/exceptions`, #502): one per open condition, matched to the assets
-it concerns. Fuzer's detectors raise them (SRE upsets, IOW breaches, source problems), open SAP notifications with no
+it concerns. Fuzer's detectors raise them (SRE upsets, IOW breaches, source problems, and inspection, parts and permit findings
+from their records; [work types](work-types.md) lists every one), open SAP notifications with no
 work order are raised on each register refresh (`intake.sap_notifications`, on by default, for notifications from the
 last 60 days of data), and other systems raise their own through `POST /exceptions` once their type is defined on the
 page. A type with a process starts it; one with a queue starts the standard **queue item** process, one step in that
@@ -190,7 +192,7 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   report **On site**, **Done**, **Could not do** (with why) or a note; every report lands on the exception and the
   case history.
 - **Back to the IOC.** Done or Could not do hands the job back to whoever sent it, to that person or the queue they
-  sent it from (the engineer queue's Triage step goes back to that queue), so it reappears in the IOC's Inbox with the
+  sent it from (the engineer queue's Triage step goes back to that queue), so it reappears on the IOC's My work with the
   field's note as "Back from the field". The IOC closes a done job out, saying what it was, which closes it and its
   exception. Only a job nobody sent (raised straight into the field's queue and taken from there) is closed by Done.
 - **Field check, a step of its own.** The upset process has a **Field check** step in a Field operator lane. Triage
@@ -200,11 +202,11 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   the operator's list. The operator's Done or Could not do completes the Field check (`field_result`, `field_note`)
   and Triage comes back to whoever sent them. Any process can do the same with the **Field check** component in the
   modeler and `fuzer:dispatch` on the step that sends to it.
-- **Seeing it come back.** The task page shows a **From the field** box above the form, the Inbox says why a step
-  came back ("Back from the field: done: gauge reads 13 barg"), and Exceptions filters to **back from the field**.
+- **Seeing it come back.** The task page shows a **From the field** box above the form, My work says why a step
+  came back ("Back from the field: done: gauge reads 13 barg"), and All work has a **Back from the field** view.
   A field job card only offers to open a step in the operator's own roles.
 - **Picked, not typed.** Dispatch picks a person (shown with their roles) or a role's queue; a new exception type
-  picks its queue from the person roles on Teams & routing, and the API refuses a queue that isn't one. Equipment
+  picks its queue from the person roles under Settings > Users, and the API refuses a queue that isn't one. Equipment
   reads as the tag it is installed at and its description ("20-K-2100B 1st stage compressor") rather than its serial
   number. The exception types card lists the ref forms this register matches (`GET /exceptions/refs`), each with an
   example, and a raised exception whose refs matched nothing comes back with an `unmatched_note` saying so.
@@ -239,7 +241,7 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   notification's status, or a new notification for a follow-up): the next load and intake see SAP move, the hold
   ends, and a follow-up comes back to the IOC as a new notification. `tests/api/test_closeout_to_source.py` walks it
   on Kestrel.
-- **Shift handover** (#467, `ops/handover.py`, Work > Handover). At each shift change (`handover.shift_times`,
+- **Shift handover** (#467, `ops/handover.py`, opened from My work, `#/handover`). At each shift change (`handover.shift_times`,
   local times in the project's timezone, default `06:00,18:00`; empty turns it off) the work tick drafts a handover
   from live work over the shift that just ended: open work by priority, what came back from the field and waits on
   the IOC, steps escalated or overdue, what was dispatched and to whom, new exceptions, and records to check (downtime with no log entry or
@@ -396,7 +398,7 @@ report, who holds it, how long it has waited and its value. Its button is the ne
 the field could not do it. Work with the field has no button: only the field reports on site and done. On a phone
 one stage shows at a time, picked from the chips above it (`stage=field`).
 
-![The work board, ranked by value](assets/screens/board.png){ loading=lazy }
+![All work, Ranked by value](assets/screens/board.png){ loading=lazy }
 
 **All work, Ranked by value.** The board is a view of All work (`#/exceptions?list=ranked`; old `#/board` links
 redirect there, filters kept). It has five groupings: ranked (the default), by owner (the person or

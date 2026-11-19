@@ -4,6 +4,7 @@ Fuzer is one front door for operational work. A notification in SAP, an upset th
 finding, a permit that lapsed with plant still isolated, a reading a field operator logged on a round: each arrives
 from a different system, and each lands in the same place, matched to the asset it is about through the register,
 routed by one table, and worked to a close by people and agents. This page shows that path end to end.
+[Where work goes](work-map.md) is the companion for users: every source, and the page in the menu for each stage.
 
 ```mermaid
 flowchart TB
@@ -36,18 +37,19 @@ flowchart TB
 Every source raises the same thing: an **exception**, one per open condition, with the evidence it saw and
 references to what it is about (a tag, a serial number, an SAP equipment number, a well name, a PI point). A
 condition that is still open adds evidence to its exception rather than raising another, and one that clears drops
-off by itself. Today the register knows about 40 types of work, declared in code, as data or by a source pack:
+off by itself. Fuzer declares its types of work in code, and a deployment adds its own as data or in a source
+pack. [Work types](work-types.md) lists every one with its queue, generated from the code. By where they come from:
 
 | Where it comes from | Types of work (examples) |
 |---|---|
-| Maintenance systems | SAP notification with no work order, parts not ready for planned work |
+| Maintenance and materials systems | SAP notification with no work order, parts not ready for planned work |
 | Process data, by Fuzer's detectors | Process upset, IOW breach, compressor trip, machine health, gas lift heading, loop cycling, flare event, alarm flood, alarm bad actor |
 | Integrity and inspection | Inspection or wall loss finding, pig run anomaly over the screen, leak repair not holding |
 | Safety and permits | Permit lapsed with plant still isolated, bypass overdue, proof test overdue, safeguard demand to review, temporary MOC overdue |
-| The field | Round finding, a report from someone on site |
+| The field | Round finding; a field report, once a site defines the type (the demo's sample crew raises them) |
 | Regulatory | Regulatory report coming due, regulatory report to review |
 | Data quality | Source problem, source quality dropped, records that match nothing, links that name nothing, asset context missing |
-| Agents | Proposed by the watch, detector tuning to review, skill change to review |
+| Agents | Proposed by the watch (live mode only, off by default), detector tuning to review, skill change to review |
 
 Another system can raise its own type with `POST /exceptions` once the type is defined (on **All work** or in a
 source pack's `exception_types`). The [sources](sources.md) page covers how a source pack declares one.
@@ -145,6 +147,24 @@ stateDiagram-v2
   Closed --> [*]
 ```
 
+## 7. Planned work takes the plan, not the table
+
+Work with a date rather than a deadline does not pass through the routing table. SAP work orders, the next due date
+of each SAP maintenance and inspection plan, a planning system's schedules (Primavera P6) and turnaround scope are
+put on the integrated plan after every register build, each matched to the assets it touches, and the IOC adds to
+it with **Plan for a day**. The plan and the table meet in three places:
+
+```mermaid
+flowchart LR
+  ex["Routed work<br><small>All work</small>"] -->|"Plan for a day"| pl["Planned work<br><small>Plan</small>"]
+  pl -->|"a shutdown or planned job<br>holds back what it explains"| ex
+  pl -->|"parts not ready,<br>raised for the planner"| ex
+  pl -->|"clashes checked<br>at dispatch"| ex
+```
+
+[Where work goes](work-map.md#4-it-goes-on-the-plan) shows the pages; the [planner's guide](guides/planner.md)
+does the jobs.
+
 ## Where each part lives
 
 | Part | Code | Docs |
@@ -156,5 +176,7 @@ stateDiagram-v2
 | Workflows (BPMN) and queues | `fuzer.workflow` | [workflow](workflow.md#workflows) |
 | Field jobs and offline reports | `ui/src/pages/Field.tsx`, `ui/src/fieldOffline.ts` | [workflow](workflow.md#the-installed-app-on-a-phone) |
 | Close-out to the source | `fuzer.ops.closeout` | [workflow](workflow.md#exceptions-dispatch-and-the-field) |
+| The plan, schedules and resources | `fuzer.ops.plan`, `fuzer.ops.schedule`, `fuzer.ops.simops` | [planner's guide](guides/planner.md) |
+| Inspection, parts and permit work | `fuzer.ops.integrity`, `fuzer.ops.materials`, `fuzer.ops.permits` | [work types](work-types.md) |
 | Shift handover | `fuzer.ops.handover` | [IOC operator guide](guides/ioc-operator.md#hand-over-the-shift) |
 | The agentic watch | `fuzer.ops.watch` | [agents](agents.md#the-agentic-watch), and its portable [guidance README](https://github.com/areed145/fuzer/blob/main/src/fuzer/ops/watch_guidance/README.md) |

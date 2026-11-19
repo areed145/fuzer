@@ -2,7 +2,12 @@
 
 What Fuzer is, the decisions it rests on and how the parts fit.
 
-Fuzer pulls asset data
+Fuzer is one front door for the work of an integrated operations centre. Work arrives from many sources, is
+matched to the asset it concerns, and is routed to the person or workflow that does it: triaged by the IOC,
+dispatched to the field, brought back and closed out ([how work is routed](work-routing.md),
+[where work goes](work-map.md)).
+
+That only works on a register that agrees with itself. So underneath, Fuzer pulls asset data
 from many systems, works out which records describe the same real thing, links
 them into one graph, and serves that graph to apps, AI agents and engineers.
 
@@ -15,7 +20,8 @@ shows nothing is tied to a plant (Gate C).
 
 | Topic | Decision |
 |---|---|
-| Hosting | Azure, next to ADX. Login with Entra ID later. |
+| Hosting | One container image and one Postgres. The demo runs on Render; the design target is Azure, next to ADX. Sign-in is Microsoft (personal and work or school accounts). |
+| Work | One routing table for every type of work, whatever raised it. One event is one case. Planned work is one timeline. Nothing goes back to a source system without a named person's approval. |
 | Architecture | Postgres-first modular monolith. Seams left so we can add a lakehouse / graph DB later. |
 | Equipment master | SAP S/4 is the long-term master. JDE and Maximo are legacy sources matched against it. |
 | P&IDs | Mix of smart files, text PDFs and scanned images; each handled differently. |
@@ -24,8 +30,8 @@ shows nothing is tied to a plant (Gate C).
 | Source conflicts | Per-field priority rules, plus human review for fields we care about (manufacturer, model). |
 | History | Links have `valid_from` / `valid_to`, so "what was true on date X" works. |
 | AI | Claude, for messy text (operator logs, documents) and hard P&ID images, and the operations assistant. |
-| Access | Everyone signed in sees everything. |
-| Users | API for apps/dashboards, MCP server for AI agents, web UI for engineers. |
+| Access | An owner approves each account and grants application permissions per project. Who may use the app and who gets which work (workflow roles) are kept apart. |
+| Users | Web UI for the IOC, planners, stewards and engineers, installable on a phone for field operators; API for apps and dashboards; MCP server for AI agents. |
 | Languages | Python backend, TypeScript/React web UI. |
 
 ## Big picture

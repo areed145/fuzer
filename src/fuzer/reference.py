@@ -4,7 +4,7 @@ tests; what feeds which entity kinds; the scheduled jobs and the scan's path) an
 page is out of date.
 
     uv run python -m fuzer.reference      # writes docs/methods.md, settings.md, cli.md, schema.md,
-                                          # architecture.md, eval-results.md
+                                          # architecture.md, eval-results.md, work-types.md
 """
 
 import argparse
@@ -421,7 +421,124 @@ def metrics_md() -> str:
     return "\n".join(out) + "\n"
 
 
-PAGES = {"metrics.md": metrics_md, "detectors.md": detectors_md, "methods.md": methods_md, "settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
+def work_types_md() -> str:
+    """Every type of work declared in code: what finds it, where the routing table sends it, and how it behaves."""
+    import importlib
+
+    from .core import detectors, exceptions
+    from .workflow import roles as wf_roles
+
+    exceptions.load()
+    found: dict[str, list[str]] = {}
+    for d in detectors.registry().values():
+        for raised in d.raises:
+            found.setdefault(raised, []).append(d.name)
+    declared = {}
+    for module in exceptions.DECLARED_IN:
+        source = Path(importlib.import_module(module).__file__).read_text()
+        for name in re.findall(r'exception_type\(\s*"([a-z_]+)"', source):
+            declared[name] = module
+    types = sorted(exceptions.TYPES.values(), key=lambda t: t.label.lower())
+
+    def first_sentence(text: str) -> str:
+        return re.split(r"(?<=[.!?])\s", text.strip(), maxsplit=1)[0] if text else ""
+
+    def row(t) -> str:
+        by = ", ".join(f"[`{d}`](detectors.md#{d})" for d in found.get(t.name, [])) or "-"
+        module = declared.get(t.name)
+        where = f"[`{module.removeprefix('fuzer.')}`]({GITHUB}src/{module.replace('.', '/')}.py)" if module else "-"
+        notes = [
+            n
+            for n, on in (
+                ("the field can be sent", "field" in t.audience),
+                ("joins one event's case", t.joins),
+                ("held back by planned work", t.suppress),
+                ("stays open when the condition clears", not t.close_case_on_clear),
+            )
+            if on
+        ]
+        if t.due_hours:
+            notes.append(f"due by priority (`{t.due_hours}`)")
+        return (
+            f"| **{_cell(t.label)}** `{t.name}` | {_cell(first_sentence(t.description))} | {by} | {where} | "
+            f"{'; '.join(notes) or '-'} |"
+        )
+
+    head = ["| Type of work | What it is | Found by | Declared in | How it behaves |", "|---|---|---|---|---|"]
+    out = [
+        "# Work types",
+        "",
+        HEADER.format(what="the work type registry (`core/exceptions.py`) and the detector registry"),
+        f"The {len(types)} types of work declared in code, grouped by where the routing table sends each one when it "
+        "arrives. A deployment adds its own as data (All work > Exception types) or in a source pack's "
+        "`exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. "
+        "[Where work goes](work-map.md) draws the path each group takes through the pages.",
+        "",
+        "Every type is listed on **All work**, whichever group it is in. *The field can be sent* means a case of the "
+        "type can be dispatched to a field operator's **My work**; *joins one event's case* means it joins an open "
+        "case about the same asset instead of opening another; *held back by planned work* means a finding during "
+        "a shutdown or planned job on its asset is counted under that window and opens no case.",
+        "",
+    ]
+    waiting = [t for t in types if not t.process and not t.role]
+    out += [
+        "## Waits for the IOC",
+        "",
+        "No workflow and no queue: it waits on **All work > To dispatch** until the IOC dispatches it, plans it for "
+        "a day or shelves it.",
+        "",
+        *head,
+        *(row(t) for t in waiting),
+        "",
+    ]
+    flows = [t for t in types if t.process]
+    out += [
+        "## Starts its own workflow",
+        "",
+        "Starts a named BPMN workflow (or adds its evidence to the one already open). Its steps show on **My work** "
+        "for whoever holds each lane, and the workflow is drawn under **Work > Workflows**.",
+        "",
+        "| Type of work | What it is | Workflow | Found by | Declared in | How it behaves |",
+        "|---|---|---|---|---|---|",
+    ]
+    for t in flows:
+        cells = row(t).split(" | ")
+        out.append(" | ".join([*cells[:2], f"`{t.process}`", *cells[2:]]))
+    out.append("")
+    queues: dict[str, list] = {}
+    for t in types:
+        if t.role and not t.process:
+            queues.setdefault(t.role.removeprefix("role:"), []).append(t)
+    out += [
+        "## Goes to a role's queue",
+        "",
+        "Starts the standard one-step `queue_item` workflow in the role's queue on **My work**, with the role's SLA "
+        "and escalation. Whoever takes it can work it at the desk or send it to the field and get it back.",
+        "",
+    ]
+    for role in sorted(queues, key=lambda r: (-len(queues[r]), r)):
+        _kind, purpose, sla, escalates = wf_roles.BUILTIN.get(role, ("person", "", None, None))
+        m = re.fullmatch(r"P(?:(\d+)D)?(?:T(\d+)H)?", sla or "")
+        days, hours = (int(x) if x else 0 for x in m.groups()) if m else (0, 0)
+        long = " and ".join(f"{n} {unit}{'s' if n != 1 else ''}" for n, unit in ((days, "day"), (hours, "hour")) if n)
+        about = (
+            purpose
+            + (f". A step is due in {long}" if long else "")
+            + (f", then escalates to `{escalates}`" if escalates else "")
+        )
+        out += [
+            f"### {role.replace('_', ' ').capitalize().replace('Hse', 'HSE')} queue",
+            "",
+            f"`{role}`: {about}.",
+            "",
+            *head,
+            *(row(t) for t in queues[role]),
+            "",
+        ]
+    return "\n".join(out)
+
+
+PAGES = {"work-types.md": work_types_md, "metrics.md": metrics_md, "detectors.md": detectors_md, "methods.md": methods_md, "settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
          "eval-results.md": eval_results_md}
 
 

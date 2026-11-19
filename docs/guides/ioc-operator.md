@@ -57,6 +57,12 @@ along the top follow the work through its life:
 | **Closed** | What is finished |
 | **Board** | The open work by stage, one column per view |
 
+Not everything starts under **To dispatch**. Work a desk owns goes straight to that role's queue and shows under
+**All open** and **In progress**: an inspection or wall loss finding for the engineer, parts not ready for the
+planner, a permit lapsed with plant still isolated for the ops lead. You can still act on it from its row: **Hand
+to** gives it to a person or sends it to the field. [Where work goes](../work-map.md) shows which road each source
+takes.
+
 One filter bar (kind of work, who holds it, words in the title) is shared by every view and kept in the link, so you
 can switch views without losing it, or send a colleague the exact list you are looking at.
 
@@ -129,6 +135,14 @@ for what the lines do not say (plans, risks, asks), and **Save notes**. **Draft 
 from live work if the shift has moved on since it was drafted. The incoming lead acknowledges it.
 
 ## Good to know
+
+- **How the work is running**, at the top of All work, shows how fast work is triaged and closed, how each
+  detector's cases turned out, and rounds done and missed per shift.
+- A row with no asset means its reference matched nothing in the register. It can still be dispatched; the
+  [data steward](data-steward.md#match-a-reference-nothing-matched) can make the reference an alias so the next one
+  matches.
+- A job that clashes with another (the same asset at once, hot work beside a line break) is flagged at Dispatch
+  and is only sent with a reason.
 
 - One event, one case: when SAP, a detector and an IOW breach all report the same compressor, you see one row with
   three sources. [How work is routed](../work-routing.md#3-one-event-one-case) explains how.
