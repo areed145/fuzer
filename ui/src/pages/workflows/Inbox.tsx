@@ -67,10 +67,13 @@ export function InboxPage() {
     (!q || `${r.title} ${r.name ?? ""} ${r.type}`.toLowerCase().includes(q.toLowerCase()));
   const jobs = field.data?.jobs ?? [];
   const coming = field.data?.coming_up ?? [];
+  // Field work leads an operator's page; anyone else (an ops lead a field check escalated to) sends it out again from
+  // its row, so a job waiting in their queue is not offered to them as a field card with "Take it".
+  const fieldRole = d.roles.includes("operator");
   const sent = jobs.filter((j) => !j.queued && keep(j as unknown as WorkRow));
-  const waitingJobs = jobs.filter((j) => j.queued && keep(j as unknown as WorkRow));
+  const waitingJobs = fieldRole ? jobs.filter((j) => j.queued && keep(j as unknown as WorkRow)) : [];
   // A job's card carries its case's step, its instruction and the report buttons, so the same case isn't listed twice.
-  const onCard = new Set(jobs.map((j) => j.item_id).filter((id): id is number => id != null));
+  const onCard = new Set([...sent, ...waitingJobs].map((j) => j.item_id).filter((id): id is number => id != null));
   const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
   const escalated = all.filter((r) => r.escalated_at && keep(r)).sort(byUrgency);
   const mine = d.mine.filter((r) => !onCard.has(r.item_id) && !r.escalated_at && keep(r)).sort(byUrgency);
@@ -102,7 +105,7 @@ export function InboxPage() {
         <Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>}
       <FieldModeOffer />
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
-      {!offline && <NewForYou person={person} told={told} />}
+      {!offline && !fieldRole && <NewForYou person={person} told={told} />}
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
         <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
@@ -129,6 +132,7 @@ export function InboxPage() {
         <h2 id="sent-to-you">Your field jobs <span className="muted small">{sent.length} · sent to you or taken by you, most urgent first</span></h2>
         {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} onReported={setReported} />)}
       </section>}
+      {!offline && fieldRole && <NewForYou person={person} told={told} />}
       <Group title="Assigned to you" rows={mine} person={person} picked={picked} toggle={toggle} />
       <Group title="Unclaimed in your roles" rows={queue} person={person} picked={picked} toggle={toggle}
         hint="claim one to make it yours" />
@@ -149,11 +153,15 @@ function NewForYou({ person, told }: {
   person: string;
   told: { data?: Awaited<ReturnType<typeof api.notifications>> | null; reload: () => void };
 }) {
-  const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at);
+  // One line per case and kind of news, the latest: three escalations of one case read as one.
+  const seen = new Set<string>();
+  const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .filter((n) => { const k = `${n.item_id ?? n.id}:${n.kind}`; if (seen.has(k)) return false; seen.add(k); return true; });
   if (!unread.length) return null;
   const read = (ids?: number[]) => api.markNotificationsRead(person, ids).then(told.reload, told.reload);
   return (
-    <UICard className="new-for-you" title={`New for you (${told.data?.unread ?? unread.length})`}
+    <UICard className="new-for-you" title={`New for you (${unread.length})`}
       actions={<Button onClick={() => read()}>Mark all read</Button>}>
       <ul className="notification-list">
         {unread.slice(0, 8).map((n) => <NotificationLine key={n.id} n={n} onOpen={() => void read([n.id])} />)}

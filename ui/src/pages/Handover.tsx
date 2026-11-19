@@ -16,10 +16,10 @@ const citeHref = (c: string) => {
     : kind === "entity" ? entityHref(id) : undefined;
 };
 
-/** A citation as words (#1072): "case 11", "exception 52", "the permit"; never the raw `case:11`. */
+/** A citation as words (#1072): "open the case", "the permit"; never the raw `case:11` or a row number. */
 const citeLabel = (c: string) => {
   const [kind, id] = c.split(":");
-  return kind === "case" ? `case ${id}` : kind === "exception" ? `exception ${id}`
+  return kind === "case" ? "open the case" : kind === "exception" ? "in All work"
     : kind === "entity" ? `the ${id.split("-")[1]?.replace(/_/g, " ") || "record"}` : kind.replace(/_/g, " ");
 };
 
@@ -99,7 +99,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
           <ul className="small">
             {visible.map((l, i) => (
               <li key={i}>{l.text}{" "}
-                {l.cites.map((c, n) => <span key={c}>{n > 0 && " · "}<a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>
+                {l.cites.filter((c, _, all) => !(c.startsWith("exception:") && all.some((x) => x.startsWith("case:")))).map((c, n) => <span key={c}>{n > 0 && " · "}<a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>
             ))}
             {open && more > 0 && <li className="muted">and {more} more</li>}
           </ul>

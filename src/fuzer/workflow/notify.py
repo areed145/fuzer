@@ -96,7 +96,10 @@ def _recipients(conn, e: dict, title: str, now: datetime) -> list[tuple[str, str
         holder = conn.execute("select assignee, role from work_token where id = %s", (e["token_id"],)).fetchone()
         now_with = [holder["assignee"]] if holder and holder["assignee"] else (
             _role_people(conn, holder["role"], now) if holder and d.get("to", "").startswith("role:") else [])
-        out += [(p, "escalated", f"'{title}' was escalated to you. {why}") for p in now_with]
+        to_queue = not (holder and holder["assignee"])
+        queue = (holder["role"] or "").removeprefix("role:").replace("_", " ") if holder else ""
+        out += [(p, "escalated", f"'{title}' was escalated to the {queue} queue. {why}" if to_queue and queue
+                 else f"'{title}' was escalated to you. {why}") for p in now_with]
         if (p := _person(d.get("from"))) and p not in now_with:
             out.append((p, "escalated", f"'{title}' was escalated away from you. {why}"))
     return out
