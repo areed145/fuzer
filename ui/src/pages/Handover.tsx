@@ -3,10 +3,10 @@
  * is kept with who and when. Past handovers stay readable. */
 import { useState } from "react";
 import { api, type Handover } from "../api";
-import { Badge, Button, Card, PageHeader, Table, Empty } from "../ui";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Badge, Button, Card, PageHeader, Table, Empty, Textarea } from "../ui";
+import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson, when } from "../work";
-import { caseHref, useAct } from "./workflows/shared";
+import { caseHref } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { person as personName } from "../wording";
 
@@ -34,13 +34,13 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
   const list = useAsync(() => api.handovers(), []);
   const [person] = usePerson();
   const operate = usePermission("operate");
-  const a = useAct();
+  const a = useAction();
   const id = picked ? Number(picked) : list.data?.[0]?.id;
   const h = useAsync(() => (id ? api.handover(id) : Promise.resolve(null)), [id]);
   const reload = () => { list.reload(); h.reload(); };
   return (
     <section>
-      <PageHeader subtitle="What changed since the last shift." help="workflow">
+      <PageHeader help="workflow">
         Shift handover</PageHeader>
       {operate && <p className="small"><Button variant="secondary" disabled={!!a.busy} onClick={() =>
         a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the shift in progress, or brings it up to date">Draft the handover</Button>
@@ -68,7 +68,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
 
 function HandoverView({ h, person, canAct, reload }: { h: Handover; person: string; canAct: boolean; reload: () => void }) {
   const [notes, setNotes] = useState<string | null>(null);
-  const a = useAct();
+  const a = useAction();
   const [shown, setShown] = useState<Set<string>>(new Set());
   const acked = h.state === "acknowledged";
   // The outgoing lead's draft of the shift still running: it goes to the incoming lead at the shift change, so it
@@ -113,7 +113,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
       {h.notes && notes === null && <p>{h.notes} <span className="muted small">({personName(h.notes_by)}, {when(h.notes_at!)})</span></p>}
       {!acked && canAct && (
         <>
-          <textarea rows={3} className="handover-notes" aria-label="Outgoing notes" placeholder="What the lines don't say: plans, risks, asks"
+          <Textarea rows={3} className="handover-notes" aria-label="Outgoing notes" placeholder="What the lines don't say: plans, risks, asks"
             value={notes ?? h.notes ?? ""} onChange={(e) => setNotes(e.target.value)} />
           <div className="row">
             <Button variant="secondary" disabled={!!a.busy || !(notes ?? "").trim()} onClick={() =>

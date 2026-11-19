@@ -1,13 +1,14 @@
 /** Exceptions: everything the IOC should work, from every source, in one list. Each is one open condition matched
  * to the assets it is about; the ones no queue picked up wait here for someone to dispatch them. */
 import { useEffect, useState } from "react";
+import { money } from "../format";
 import { api, type ExceptionRow, type Readiness } from "../api";
 import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty } from "../ui";
-import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
+import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../lib";
 import { holder, reportedBy, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display, type EntityNames } from "../entityRefs";
-import { PriorityBadge, SampleTeam, useAct } from "./workflows/shared";
+import { PriorityBadge, SampleTeam } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
 import { person as personName, queue, say, dayStamp } from "../wording";
@@ -104,7 +105,7 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
   const kinds = useAsync(() => api.exceptionKinds(), []);
   const refs = useAsync(() => api.exceptionRefs(), []);
   const canConfigure = usePermission("configure");
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [f, setF] = useState({ name: "", label: "", role: "", field: true });
   if (!kinds.data) return <Status loading={kinds.loading} error={kinds.error} />;
   const save = () => run("Saving", () => api.defineExceptionKind(f.name.trim(), {
@@ -112,7 +113,6 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
   }), () => { setF({ name: "", label: "", role: "", field: true }); kinds.reload(); });
   return (
     <Card title="Exception types">
-      <p className="small">Another system raises a type with <code>POST /exceptions</code> and clears it with <code>POST /exceptions/clear</code>.</p>
       {refs.data && refs.data.length > 0 && <div className="small">
         <strong>Refs Fuzer matches</strong> <span className="muted">(an exception's <code>refs</code>; one that matches nothing
           is kept as unmatched and the sender is told)</span>
@@ -183,7 +183,7 @@ export type Person = { name: string; roles: string[]; away_until?: string | null
 /** The same event as other systems reported it, worked on this one case (#464): each source, and a way to split one out
  * when it turns out to be a different event. */
 function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | null; onChange: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const operate = usePermission("operate");
   const all = r.joined ?? [];
   return (
@@ -208,8 +208,6 @@ export function age(ms: number): string {
   if (h < 24) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
   return h % 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${Math.floor(h / 24)}d`;
 }
-
-export const money = (usd: number) => usd >= 1000 ? `$${Math.round(usd / 1000).toLocaleString()}k` : `$${Math.round(usd)}`;
 
 /** When the event itself happened, by its source (an SAP notification's created date, an alarm's start), when the
  * source said; first_seen is when Fuzer raised it, which after a bulk load is the load time (#1070). */
@@ -238,7 +236,7 @@ function Row({ r, person, people, queues, onChange }: {
   r: ExceptionRow; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
   const names = useEntityNames(r.subjects);
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [panel, setPanel] = useState<Panel>(null);
   const [planOn, setPlanOn] = useState("");
   const [shelveTo, setShelveTo] = useState("");
@@ -321,7 +319,7 @@ function Row({ r, person, people, queues, onChange }: {
 export function DispatchControls({ r, person, people, queues, onDone }: {
   r: ExceptionRow; person: string; people: Person[]; queues: string[]; onDone: () => void;
 }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [to, setTo] = useState("");
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");

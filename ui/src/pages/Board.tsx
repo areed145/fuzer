@@ -1,4 +1,6 @@
 import "../styles/board.css";
+import { promptDialog } from "../ui";
+import { money } from "../format";
 import { Button, Input, PageHeader, Table, Select , Badge as UIBadge} from "../ui";
 import { useEffect, useState } from "react";
 import { api, type BoardCard, type BoardFilter } from "../api";
@@ -30,8 +32,7 @@ type View = "ranked" | "owner" | "area" | "kind" | "new";
 const VIEWS: [View, string][] = [["ranked", "Ranked"], ["owner", "By owner"], ["area", "By area"], ["kind", "By type"],
   ["new", "New since my last visit"]];
 
-const money = (v: number | null) =>
-  v === null ? "not valued" : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}k` : `$${Math.round(v)}`;
+const valued = (v: number | null) => (v === null ? "not valued" : money(v));
 
 /** The Ranked by value view of All work (#502), formerly the Work board page. */
 export function BoardPage({ query, filters }: { query: URLSearchParams; filters?: { type?: string; who?: string; q?: string } }) {
@@ -60,8 +61,8 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
     setPage(1);
     setFilter((cur) => ({ ...cur, [k]: v || undefined }));
   };
-  const save = () => {
-    const name = window.prompt("Name this filter");
+  const save = async () => {
+    const name = (await promptDialog("Name this filter"));
     if (!name) return;
     const next = { ...saved, [name]: { ...filter, text: text || undefined } };
     setSaved(next);
@@ -145,7 +146,7 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         <UIBadge className="badge">{c.kind.replace("_", " ")}</UIBadge>
         {c.item_id ? <a href={href(`/cases/${c.item_id}`)}>{c.title}</a> : <span>{c.title}</span>}
         <span className="spacer" />
-        <strong title={c.reason ?? ""}>{money(c.effective_usd)}</strong>
+        <strong title={c.reason ?? ""}>{valued(c.effective_usd)}</strong>
         <Button variant="link" size="sm" onClick={() => setOpen(!open)}>{open ? "less" : "why"}</Button>
       </div>
       <div className="row small muted">
@@ -171,10 +172,10 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         <Table density="compact">
           <tbody>
             {Object.entries(parts).map(([k, p]) => (
-              <tr key={k}><td>{k}</td><td>{p.status === "unknown" ? "unknown" : money(p.value_usd)}</td></tr>
+              <tr key={k}><td>{k}</td><td>{p.status === "unknown" ? "unknown" : valued(p.value_usd)}</td></tr>
             ))}
             {c.breakdown.urgency && <tr><td>urgency</td><td>× {c.breakdown.urgency.factor}</td></tr>}
-            {c.breakdown.effort && <tr><td>effort</td><td>{money(c.breakdown.effort.value_usd)}</td></tr>}
+            {c.breakdown.effort && <tr><td>effort</td><td>{valued(c.breakdown.effort.value_usd)}</td></tr>}
           </tbody>
         </Table>
       )}
@@ -235,9 +236,9 @@ function PinForm({ card: c, reload }: { card: BoardCard; reload: () => void }) {
 
 function ProjectButton() {
   const add = async () => {
-    const title = window.prompt("Project title");
+    const title = (await promptDialog("Project title"));
     if (!title) return;
-    const benefit = window.prompt("Expected benefit over the horizon, USD (optional)");
+    const benefit = (await promptDialog("Expected benefit over the horizon, USD (optional)"));
     await api.boardProject({ title, by: loadPerson() || "anonymous", owner: loadPerson() || undefined,
       benefit_usd: benefit ? Number(benefit) : undefined });
     notifyChanged();

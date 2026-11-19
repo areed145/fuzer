@@ -2,6 +2,7 @@
  * versions, the tools called and the cost, read from the step's ledger in the case history, and the case's agent
  * spend against its cap. One card; the detail of a step sits behind a Disclosure. */
 import type { WorkItem } from "./api";
+import { money } from "./format";
 import { Actor, when } from "./work";
 import { Badge, Card, Disclosure, Table } from "./ui";
 
@@ -17,7 +18,6 @@ interface Ledger {
 
 export interface AgentStep { id: number; at: string; actor: string; step: string; answer?: string; ledger: Ledger }
 
-const usd = (x: number | undefined) => `$${(x ?? 0).toFixed(2)}`;
 
 /** Every agent step on the case that kept a ledger, from its history. */
 export function agentSteps(it: WorkItem): AgentStep[] {
@@ -35,10 +35,10 @@ export function AgentWork({ it }: { it: WorkItem }) {
   const over = !!spend?.cap_usd && spend.usd >= spend.cap_usd;
   return (
     <Card title="Agent work" actions={spend && <span className="small">
-      {usd(spend.usd)} {spend.cap_usd ? <>of {usd(spend.cap_usd)} cap</> : "spent"}{" "}
+      {money(spend.usd ?? 0)} {spend.cap_usd ? <>of {money(spend.cap_usd)} cap</> : "spent"}{" "}
       {over && <Badge tone="warn">cap reached</Badge>}</span>}>
       <Table density="compact">
-        <thead><tr><th>Step</th><th>Agents</th><th>Model</th><th>Tools</th><th>Cost (USD)</th><th>When</th></tr></thead>
+        <thead><tr><th>Step</th><th>Agents</th><th>Model</th><th>Tools</th><th>Cost</th><th>When</th></tr></thead>
         <tbody>
           {steps.map((s, i) => (
             <tr key={`${s.id}-${i}`}>
@@ -47,7 +47,7 @@ export function AgentWork({ it }: { it: WorkItem }) {
                 <span key={a} className="small"> {a}</span>)}</td>
               <td className="small">{(s.ledger.models ?? []).join(", ") || "none recorded"}</td>
               <td>{s.ledger.tools?.length ?? 0}</td>
-              <td>{usd(s.ledger.cost_usd)}</td>
+              <td>{money(s.ledger.cost_usd ?? 0)}</td>
               <td className="small">{when(s.at)}</td>
             </tr>
           ))}

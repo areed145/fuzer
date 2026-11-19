@@ -1,6 +1,7 @@
 /** How the work is running (P7.2b, #661): one compact view, reached from All work. Per queue, whether it is keeping
  * up this week against the last four, and the measures behind that; every number opens the cases behind it. */
 import { useState } from "react";
+import { money, percent } from "../format";
 import { api, type DetectorEarning, type FindingOrigin, type PerfCell, type PerfRow, type SkillEarning } from "../api";
 import { Badge, Button, Card, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, href, useAsync } from "../lib";
@@ -37,7 +38,7 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
     : <span className="muted">0</span>;
   return (
     <section>
-      <PageHeader subtitle="Is each queue keeping up this week, against the last four?" actions={<a href={href("/exceptions")}>All work</a>}>
+      <PageHeader actions={<a href={href("/exceptions")}>All work</a>}>
         Work performance</PageHeader>
       <Tabs label="Measure by" items={[
         { key: "queue", label: "By queue", href: href("/performance"), current: by === "queue" },
@@ -117,8 +118,7 @@ const EARNS: Record<DetectorEarning["verdict"], { text: string; tone?: "ok" | "w
 const ORIGIN: Record<FindingOrigin, string> = {
   deterministic: "Rule", agentic: "Agent", external: "Another system", unknown: "Not recorded",
 };
-const pct = (v: number | null) => (v === null ? "–" : `${Math.round(v * 100)}%`);
-const usd = (v: number | null) => (v === null ? "–" : v.toLocaleString(undefined, { maximumFractionDigits: 0 }));
+const pct = (v: number | null) => (v === null ? "–" : percent(v));
 
 /** Per detector (P7.4a, #955): what it raised, how that closed out, how fast it became a case, the value it confirmed
  * and how the confirmed cases were found; each one opens its cases, or the detector's tuning on Settings. */
@@ -135,7 +135,7 @@ function Detectors() {
       <Table density="compact" className="perf-table phone-rows">
         <thead><tr>
           <th>Detector</th><th>Verdict</th><th>Cases</th><th>Confirmed</th><th>False alarm</th><th>Hours to case</th>
-          <th>Value confirmed (USD)</th><th>Found by</th><th />
+          <th>Value confirmed</th><th>Found by</th><th />
         </tr></thead>
         <tbody>{d.detectors.map((r) => <tr key={r.detector}>
           <td><strong>{r.title}</strong><div className="small muted">{r.kind_label}</div></td>
@@ -147,7 +147,7 @@ function Detectors() {
           <td data-label="False alarm">{pct(r.false_alarm_rate)}
             {r.duplicate ? <span className="small muted"> +{r.duplicate} duplicate</span> : null}</td>
           <td data-label="Hours to case">{r.hours_to_case ?? "–"}</td>
-          <td data-label="Value confirmed (USD)">{usd(r.value_confirmed_usd)}
+          <td data-label="Value confirmed">{cost(r.value_confirmed_usd)}
             {r.real > r.valued && r.valued ? <span className="small muted"> on {r.valued} of {r.real}</span> : null}</td>
           <td data-label="Found by" className="small">{(Object.keys(ORIGIN) as FindingOrigin[])
             .filter((o) => r.by_origin[o]).map((o) => `${ORIGIN[o]} ${r.by_origin[o]}`).join(" · ") || "–"}</td>
@@ -172,7 +172,7 @@ const SKILL_VERDICT: Record<SkillEarning["verdict"], { text: string; tone?: "ok"
   too_few: { text: "Too few verdicts", tone: "muted" },
 };
 const spaced = (s: string) => s.replace(/-/g, " ");
-const money = (v: number | null) => (v === null ? "–" : `$${v.toFixed(2)}`);
+const cost = (v: number | null) => (v === null ? "–" : money(v));
 
 /** Per specialist skill (P7.4b, #955): the briefs it wrote and what they cost a case, how far the person who decided
  * followed them, how engineers rated the answers, and its edits; each opens its waiting change. */
@@ -197,7 +197,7 @@ function Skills() {
             {s.followed.partly} partly, {s.followed.no} not</div> : null}</td>
         <td data-label="Answers useful">{pct(s.useful_rate)}
           {s.rated.useful + s.rated.not_useful ? <span className="small muted"> of {s.rated.useful + s.rated.not_useful}</span> : null}</td>
-        <td data-label="Cost per case">{money(s.brief_cost_per_case)}</td>
+        <td data-label="Cost per case">{cost(s.brief_cost_per_case)}</td>
         <td data-label="Edits">{s.edits.live_version ? `v${s.edits.live_version} live` : s.edits.published ? `${s.edits.published} published` : "–"}
           {s.edits.live_since ? <div className="small muted">since {when(s.edits.live_since)}</div> : null}</td>
         <td>{s.edits.review_case
@@ -206,10 +206,10 @@ function Skills() {
     </Table> : <Empty>No brief or rated answer yet.</Empty>)}
     {d && d.specialists.length > 0 && <Card title="Agent spend per specialist">
       <Table density="compact" className="phone-rows">
-        <thead><tr><th>Specialist</th><th>Steps</th><th>Cases</th><th>Spend (USD)</th><th>Per case (USD)</th></tr></thead>
+        <thead><tr><th>Specialist</th><th>Steps</th><th>Cases</th><th>Spend</th><th>Per case</th></tr></thead>
         <tbody>{d.specialists.map((s) => <tr key={s.specialist}>
           <td>{spaced(s.specialist)}</td><td data-label="Steps">{s.steps}</td><td data-label="Cases">{s.cases}</td>
-          <td data-label="Spend (USD)">{s.cost_usd.toFixed(2)}</td><td data-label="Per case (USD)">{money(s.cost_per_case)}</td>
+          <td data-label="Spend">{money(s.cost_usd)}</td><td data-label="Per case">{cost(s.cost_per_case)}</td>
         </tr>)}</tbody>
       </Table>
     </Card>}

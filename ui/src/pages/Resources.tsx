@@ -4,9 +4,8 @@
 import { type CSSProperties, useState } from "react";
 import { api, type ResourceLoad, type ResourceMove, type ResourceOverload } from "../api";
 import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select } from "../ui";
-import { Status, useAsync } from "../lib";
+import { Status, useAsync, useAction } from "../lib";
 import { acronyms, dayStamp, stamp } from "../wording";
-import { useAct } from "./workflows/shared";
 
 const DAY = 86_400_000;
 const num = (n: number | null | undefined) => (n == null ? "" : Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -20,7 +19,7 @@ export function ResourcesPage({ query, person }: { query: URLSearchParams; perso
   const go = (code: string) => { location.hash = `#/plan?resources=1${code ? `&resource=${encodeURIComponent(code)}` : ""}`; };
   return (
     <section>
-      <PageHeader subtitle="Demand on each shared resource from every source on the plan, against its capacity.">Resources</PageHeader>
+      <PageHeader>Resources</PageHeader>
       <div className="row">
         <label className="small">Resource <Select aria-label="Resource" value={pick} onChange={(e) => go(e.target.value)}>
           <option value="">All</option>
@@ -83,7 +82,7 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
 }
 
 function Overload({ o, unit, person, onChange }: { o: ResourceOverload; unit: string | null; person: string | null; onChange: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const move = (m: ResourceMove) => person && run("Moving", () => api.planChange(m.item_id, person, { start: m.new_start, end: m.new_end }), onChange);
   return (
     <li>
@@ -104,7 +103,7 @@ function Overload({ o, unit, person, onChange }: { o: ResourceOverload; unit: st
 }
 
 function Capacity({ r, person, onChange }: { r: ResourceLoad; person: string | null; onChange: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [base, setBase] = useState(num(r.capacity));
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -153,7 +152,7 @@ const KINDS: [string, string, string][] = [["crew", "Crew", "people"], ["beds", 
 
 /** A new shared resource to plan against: a crew, bed space, seats, a vessel, a crane, deck space or production capacity. */
 function AddResource({ person, known, onChange }: { person: string; known: string[]; onChange: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");

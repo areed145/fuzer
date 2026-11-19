@@ -1,4 +1,5 @@
 import { stamp } from "../wording";
+import { count, money } from "../format";
 import "../styles/jobs.css";
 import { Button, ButtonLink, PageHeader, Table, Card as UICard , Badge as UIBadge, Disclosure } from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
@@ -36,7 +37,7 @@ export function JobsPage() {
   const o = useAsync(() => api.jobs(), []);
   return (
     <section className="jobs">
-      <PageHeader subtitle="Scheduled loads, rebuilds and scans." actions={o.data && <DagsterLink d={o.data.dagster} />}>Jobs</PageHeader>
+      <PageHeader actions={o.data && <DagsterLink d={o.data.dagster} />}>Jobs</PageHeader>
       <Status loading={o.loading && !o.data} error={o.error} onRetry={o.reload} />
       {o.data && !o.data.available && (
         <UICard className="">
@@ -277,7 +278,7 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
         <p className="small">
           The nightly <code>claude_reading</code> job is <OnOff on={c.schedule === "on"} />
           {c.schedule !== "on" && " (off by default because it costs money; turn it on in Dagster)"}.
-          {" "}Last 30 days: <strong>${c.usd_30d.toFixed(2)}</strong> across {c.runs.length} run{c.runs.length === 1 ? "" : "s"}.
+          {" "}Last 30 days: <strong>{money(c.usd_30d)}</strong> across {c.runs.length} run{c.runs.length === 1 ? "" : "s"}.
         </p>
         {Object.keys(c.limits).length > 0 && (
           <p className="small">
@@ -294,7 +295,7 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
                   <td><RunBadge status={r.status} /></td>
                   <td><code>{r.model || "—"}</code></td>
                   <td>{r.input_tokens.toLocaleString()} / {r.output_tokens.toLocaleString()}</td>
-                  <td>${r.usd.toFixed(2)}</td>
+                  <td>{money(r.usd)}</td>
                 </tr>
               ))}
             </tbody>
@@ -307,8 +308,8 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
 
 function limitText(key: string, v: number | boolean): string {
   if (key === "batch") return v ? "batch requests (half price)" : "no batching";
-  if (key === "max_sre_usd") return `$${v} per SRE run`;
-  return `up to ${Number(v).toLocaleString()} ${key.replace(/^max_/, "").replace(/_/g, " ")}`;
+  if (key === "max_sre_usd") return `${money(Number(v))} per SRE run`;
+  return `up to ${count(Number(v))} ${key.replace(/^max_/, "").replace(/_/g, " ")}`;
 }
 
 export function JobRunPage({ id }: { id: string }) {

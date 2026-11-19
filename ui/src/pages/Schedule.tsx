@@ -5,9 +5,8 @@
 import { useState } from "react";
 import { api, type ScheduleAnalysis, type ScheduleLinkRef, type ScheduleRow } from "../api";
 import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs } from "../ui";
-import { Status, useAsync } from "../lib";
+import { Status, useAsync, useAction } from "../lib";
 import { acronyms, dayStamp, stamp } from "../wording";
-import { useAct } from "./workflows/shared";
 import { type BoardChange, type BoardRows, ScheduleBoard } from "./ScheduleBoard";
 
 const TYPES: ScheduleLinkRef["type"][] = ["FS", "SS", "FF", "SF"];
@@ -27,7 +26,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
   const [adding, setAdding] = useState(false);
   const [undo, setUndo] = useState<Undo[]>([]);
   const [said, setSaid] = useState<string | null>(null);
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const s = data.data;
   if (!s) return <Status loading={data.loading} error={data.error} onRetry={data.reload} />;
   const p = s.project;
@@ -65,7 +64,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
   const panel = adding || !!sel;
   return (
     <section>
-      <PageHeader subtitle={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${dayStamp(p.start_at)}${p.finish_by ? ` to ${dayStamp(p.finish_by)}` : ""}`}
+      <PageHeader detail={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${dayStamp(p.start_at)}${p.finish_by ? ` to ${dayStamp(p.finish_by)}` : ""}`}
         actions={<>
           <Button variant="primary" disabled={!person || !!busy} title={person ? undefined : "Choose who you are to schedule"}
             onClick={apply}>Schedule</Button>
@@ -104,7 +103,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
 }
 
 function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysis; person: string | null; onChange: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [name, setName] = useState(a.name);
   const [dur, setDur] = useState(hours(a.duration_hours));
   const [done, setDone] = useState(hours(a.percent_complete ?? 0));
@@ -186,7 +185,7 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
 }
 
 function AddActivity({ project, person, onChange, onClose }: { project: string; person: string; onChange: () => void; onClose: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [dur, setDur] = useState("");

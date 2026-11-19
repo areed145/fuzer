@@ -23,7 +23,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
   );
   return (
     <section>
-      <PageHeader subtitle="Find assets and records and follow their links.">Browse</PageHeader>
+      <PageHeader>Browse</PageHeader>
       <Input
         className="search"
         autoFocus

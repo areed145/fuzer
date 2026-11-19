@@ -3,16 +3,15 @@
  * every like value after each rebuild; withdrawn, its answers are retired. */
 import { api, type LearnedProposal, type LearnedRule } from "../../api";
 import { Button, Card, ConfirmAction, Disclosure, Table } from "../../ui";
-import { entityHref, useAsync } from "../../lib";
+import { entityHref, useAsync, useAction } from "../../lib";
 import { usePerson } from "../../work";
-import { useAct } from "../workflows/shared";
 import { usePermission } from "../../Auth";
 
 export function LearnedRules({ onChange }: { onChange?: () => void }) {
   const data = useAsync(() => api.learnedRules(), []);
   const [person] = usePerson();
   const operate = usePermission("operate");
-  const a = useAct();
+  const a = useAction();
   const done = () => { data.reload(); onChange?.(); };
   const proposals = data.data?.proposals ?? [];
   const accepted = (data.data?.rules ?? []).filter((r) => r.status === "accepted");

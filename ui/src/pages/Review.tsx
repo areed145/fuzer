@@ -1,4 +1,6 @@
 import { documentHref, openDocument } from "../DocumentViewer";
+import { confirmDialog, Textarea } from "../ui";
+import { percent } from "../format";
 import "../styles/review.css";
 import "../styles/trends.css";
 import { useEffect, useState } from "react";
@@ -19,7 +21,7 @@ import {
   type SchemaPayload,
   type Stats,
 } from "../api";
-import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
+import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync, errorMessage } from "../lib";
 import { ActionStatus, Bar, Button, ButtonLink, Select, Table, Card as UICard, Input } from "../ui";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
@@ -230,17 +232,16 @@ function LikeQuestions({ kind, name, onDone }: { kind: ReviewKind; name: string;
   if (!groups.data?.length) return result ? <p role="status" className="small">{result}</p> : null;
   const answer = async (g: ReviewGroup, o: ReviewGroup["options"][number]) => {
     const forNew = !!standing[g.key];
-    if (!confirm(`${o.label} for all ${g.count} questions${forNew ? ", and for new ones like them" : ""}?`)) return;
+    if (!(await confirmDialog(`${o.label} for all ${g.count} questions${forNew ? ", and for new ones like them" : ""}?`))) return;
     setBusy(g.key); setError(undefined);
     try {
       const r = await api.decideGroup({ key: g.key, decision: o.decision, source: o.source, value: o.value, standing: forNew, by: name || "anonymous" });
       setResult(`Answered ${r.decided.length} of ${g.count}${r.skipped.length ? `; ${r.skipped.length} left for you (${r.skipped[0].why})` : ""}.`);
       groups.reload(); onDone();
-    } catch (e) { setError(String((e as Error).message ?? e)); } finally { setBusy(null); }
+    } catch (e) { setError(String(errorMessage(e) ?? e)); } finally { setBusy(null); }
   };
   return (
     <UICard className="like-questions" title="Like questions">
-      <p className="small">One answer for questions that share it. Each is kept as if answered alone.</p>
       <Table variant="list" density="compact">
         <tbody>{groups.data.map((g) => (
           <tr key={g.key}>
@@ -273,7 +274,7 @@ function useBusy(onDecide: OnDecide, consequence = "It may change accepted value
       await onDecide(pending);
       setPending(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -385,14 +386,14 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
                   {m?.by === "claude" && <span className="muted small"> (Claude)</span>}
                 </td>
                 <td className="muted small">{m?.why}</td>
-                <td className="small">{Math.round(c.filled * 100)}%</td>
+                <td className="small">{percent(c.filled)}</td>
                 <td className="small mono">{c.samples.slice(0, 3).join(" · ")}</td>
               </tr>
             );
           })}
         </tbody>
       </Table>
-      <textarea
+      <Textarea
         className="mono yaml"
         spellCheck={false}
         rows={Math.min(30, text.split("\n").length + 1)}
@@ -576,7 +577,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
           {Object.entries(r.ratings).map(([k, [a, b]]) => `${k.replaceAll("_", " ")} ${a}${b ? ` / ${b}` : ""}`).join(" · ")}
         </p>
       )}
-      {editing && <textarea className="mono small" rows={14} value={text} onChange={(e) => setText(e.target.value)} />}
+      {editing && <Textarea className="mono small" rows={14} value={text} onChange={(e) => setText(e.target.value)} />}
       <div className="actions">
         {editing ? (
           <Button variant="primary" disabled={busy} onClick={() => {
@@ -675,7 +676,7 @@ function RoleCard({ id, p, onDecide }: { id: number; p: RolePayload; onDecide: O
     <UICard className="review">
       <div className="row spread">
         <h3>{p.description ?? p.point} <span className="muted small">#{id}</span></h3>
-        <span className="muted small">{Math.round(p.confidence * 100)}% sure</span>
+        <span className="muted small">{percent(p.confidence)} sure</span>
       </div>
       <p className="small">
         <span className="mono">{p.point}</span>{p.uom ? ` in ${p.uom}` : ""}

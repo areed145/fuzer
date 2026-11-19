@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { Button, Card as UICard, Disclosure, Input, Table } from "../../ui";
 import { api } from "../../api";
-import { Status, entityHref, useAsync } from "../../lib";
+import { Status, entityHref, useAction, useAsync } from "../../lib";
 import { usePermission } from "../../Auth";
-import { useAct } from "./shared";
+import { count, money, quantity } from "../../format";
 
-const num = (v: number | null | undefined, digits = 1) =>
-  v == null ? "?" : v.toLocaleString(undefined, { maximumFractionDigits: digits });
+const q = (v: number | null | undefined, unit?: string | null) => (v == null ? "?" : quantity(v, unit));
 
 /** A proposal's working, on its case and its step: what it is worth and the sum that makes it (the value its scan
  * stored, the same one Home, the board and the daily report read), each move with its wells, the tests it rests on and
@@ -16,7 +15,7 @@ export function OpportunityPanel({ opportunityKey, person, readOnly, onDecided }
 }) {
   const view = useAsync(() => api.opportunity(opportunityKey), [opportunityKey]);
   const operate = usePermission("operate");
-  const a = useAct();
+  const a = useAction();
   const [why, setWhy] = useState("");
   const o = view.data;
   const w = o?.worth;
@@ -30,12 +29,12 @@ export function OpportunityPanel({ opportunityKey, person, readOnly, onDecided }
     <UICard title="The proposal">
       <Status loading={view.loading && !o} error={view.error} onRetry={view.reload} />
       {o && <>
-        {w ? <p>Worth <strong>${Math.round(w.usd).toLocaleString()}</strong>: {num(w.gain)} {w.gain_unit} more oil
-          for {num(w.days, 0)} days ({w.oil_bbl.toLocaleString()} bbl) at ${num(w.price_bbl, 2)} a barrel.</p>
+        {w ? <p>Worth <strong>{money(w.usd, w.currency || "USD")}</strong>: {q(w.gain, w.gain_unit)} more oil
+          for {q(w.days)} days ({quantity(w.oil_bbl, "bbl")}) at {money(w.price_bbl, w.currency || "USD")} a barrel.</p>
           : <p className="small">Not valued: the scan found no rate to gain.</p>}
         {typeof o.detail.basis === "string" && <p className="small">How: {o.detail.basis}.</p>}
         <p className="small">
-          {tests > 0 && <>Rests on {tests} record{tests === 1 ? "" : "s"}
+          {tests > 0 && <>Rests on {count(tests)} record{tests === 1 ? "" : "s"}
             {o.evidence.first && <>, tested {o.evidence.first}{o.evidence.last !== o.evidence.first ? ` to ${o.evidence.last}` : ""}</>}
             {ageDays != null && ageDays > 90 && <strong>: the newest is {Math.round(ageDays / 30)} months old</strong>}. </>}
           {typeof o.detail.confidence === "string" && <>Confidence {o.detail.confidence}. </>}
@@ -47,8 +46,8 @@ export function OpportunityPanel({ opportunityKey, person, readOnly, onDecided }
             <tbody>{o.moves.map((m, i) => <tr key={i}>
               <td>{m.from_id ? <a href={entityHref(m.from_id)}>{m.from}</a> : m.from}</td>
               <td>{m.to_id ? <a href={entityHref(m.to_id)}>{m.to}</a> : m.to}</td>
-              <td>{num(m.gas)} {m.gas_unit}</td>
-              <td>{num(m.gain)} {m.gain_unit}</td>
+              <td>{q(m.gas, m.gas_unit)}</td>
+              <td>{q(m.gain, m.gain_unit)}</td>
             </tr>)}</tbody>
           </Table>
         </Disclosure>}

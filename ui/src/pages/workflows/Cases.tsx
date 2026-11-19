@@ -1,4 +1,5 @@
-import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge, Disclosure } from "../../ui";
+import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea } from "../../ui";
+import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
@@ -6,9 +7,9 @@ import { cap, say } from "../../wording";
 import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
-import { Status, href, useAsync } from "../../lib";
+import { Status, href, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson, when } from "../../work";
-import { AgentIdle, AssignPicker, PriorityBadge, SendToField, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref, useAct } from "./shared";
+import { AgentIdle, AssignPicker, PriorityBadge, SendToField, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
@@ -32,17 +33,12 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
   const roles = useAsync(() => api.workRoles(), []);
   const [title, setTitle] = useState("");
   const [role, setRole] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAction();
   const [created, setCreated] = useState<number | null>(null);
   if (!operate) return null;
-  const create = async () => {
-    setBusy(true); setError(null); setCreated(null);
-    try {
-      const item = await api.createWorkItem(title.trim(), role, person);
-      setCreated(item.id); setTitle(""); onCreated();
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
+  const create = () => {
+    setCreated(null);
+    return run("create", () => api.createWorkItem(title.trim(), role, person), (item) => { setCreated(item.id); setTitle(""); onCreated(); });
   };
   return <Disclosure className="new-work-item" label={<>New work item</>}>
     <div className="row wrap">
@@ -51,7 +47,7 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
         <option value="">choose a queue</option>
         {(roles.data?.person ?? []).map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
       </Select>
-      <ConfirmAction label="Create work item" busy={busy} disabled={!title.trim() || !role}
+      <ConfirmAction label="Create work item" busy={!!busy} disabled={!title.trim() || !role}
         consequence={`This adds shared work to the ${role.replace(/_/g, " ")} queue, with you recorded as its creator.`} onConfirm={create} />
     </div>
     <ActionStatus busy={busy ? "Creating the work item…" : null} error={error}>
@@ -138,7 +134,7 @@ function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: 
 function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; onDone: () => void }) {
   const [to, setTo] = useState("");
   const [reason, setReason] = useState("");
-  const a = useAct();
+  const a = useAction();
   return (
     <UICard className="bulk-bar actions">
       <strong>{ids.length} selected</strong> give everything open on them to
@@ -261,7 +257,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
   exceptionId?: number | null;
 }) {
-  const takeOver = useAct();
+  const takeOver = useAction();
   const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
   const closed = !!it.closed_at;
   if (closed || (!open.length && demo)) return null;
@@ -307,7 +303,7 @@ export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; pe
   const [text, setText] = useState<string | null>(null);
   const [short, setShort] = useState<string | null>(null);
   const [back, setBack] = useState<string | null>(null);
-  const a = useAct();
+  const a = useAction();
   if (!c.data) return <Status loading={c.loading} error={c.error} />;
   const d = c.data;
   const system = d.system.toUpperCase();
@@ -332,7 +328,7 @@ export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; pe
           <Input width="lg" disabled={d.state !== "draft" || readOnly} value={short ?? d.draft.short_text ?? ""}
             onChange={(e) => setShort(e.target.value)} /></p>
       )}
-      <textarea rows={4} style={{ width: "100%" }} disabled={d.state !== "draft" || readOnly} aria-label="Update text"
+      <Textarea rows={4} width="full" disabled={d.state !== "draft" || readOnly} aria-label="Update text"
         value={text ?? d.draft.text} onChange={(e) => setText(e.target.value)} />
       {d.state === "draft" && !readOnly && (back === null ? (
         <div className="row">
@@ -359,7 +355,7 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   const [priority, setPriority] = useState(it.priority?.toString() ?? "");
   const [due, setDue] = useState("");
   const [reason, setReason] = useState("");
-  const a = useAct();
+  const a = useAction();
   return (
     <div className="case-actions">
       <Disclosure className="small" label={<>Give it to someone else</>}>
@@ -389,7 +385,7 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
 
 export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; person?: string; reload?: () => void; focus?: string }) {
   const xml = useAsync(() => api.workDefinitionXml(p.definition_id), [p.definition_id]);
-  const a = useAct();
+  const a = useAction();
   const marks = useMemo(() => ({
     done: p.path.map((s) => s.element),
     open: focus ? [focus] : p.open.filter((s) => s.state === "waiting" && s.kind !== "join").map((s) => s.element),
@@ -406,7 +402,7 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
           started {when(p.started_at)} by <Actor who={p.started_by} />
           {p.state === "running" && person && reload && (
             <> · <Button variant="link" disabled={!!a.busy}
-              onClick={() => confirm("Cancel this workflow? Its open steps are cancelled.") &&
+              onClick={async () => (await confirmDialog("Cancel this workflow? Its open steps are cancelled.")) &&
                 a.run("cancel", () => api.cancelProcess(p.id, person, "cancelled from the case page"), reload)}>cancel workflow</Button></>
           )}
         </span>
@@ -421,7 +417,7 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
 
 export function Timeline({ it, person, readOnly = false }: { it: WorkItem; person: string; readOnly?: boolean }) {
   const [text, setText] = useState("");
-  const a = useAct();
+  const a = useAction();
   return (
     <UICard className="">
       <h3>History</h3>

@@ -70,13 +70,64 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
     setState((s) => s.key === key ? { ...s, loading: true, error: undefined } : { key, loading: true });
     fn().then(
       (data) => live && setState({ key, data, loading: false }),
-      (e: Error) => live && setState({ key, error: e.message, loading: false }),
+      (e: unknown) => live && setState({ key, error: errorMessage(e), loading: false }),
     );
     return () => {
       live = false;
     };
   }, [...deps, tick]);
   return { ...state, ...(state.key === key ? {} : { data: undefined, error: undefined, loading: true }), reload };
+}
+
+/** What went wrong, as text to show. */
+export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/** The one way a button runs an async action: `busy` names the action in flight, `error` holds the failure, and a
+ * success tells every view to refresh. A failed action is never retried. */
+export function useAction() {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async <T,>(name: string, fn: () => Promise<T>, after?: (r: T) => void) => {
+    setBusy(name);
+    setError(null);
+    try {
+      const r = await fn();
+      after?.(r);
+      notifyChanged();
+      return r;
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return { busy, error, run };
+}
+
+/** An action that goes in the history with the person's reason: it won't run without one, and a success clears the
+ * reason and reports `after`. Settings, detector switches and thresholds use it. */
+export function useReasonedAction(saved: () => void) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState("");
+  const run = async (label: string, fn: (reason: string) => Promise<unknown>, after: string) => {
+    setError(null);
+    setDone("");
+    if (reason.trim().length < 3) return setError("Give a short reason: it goes in the history.");
+    setBusy(label);
+    try {
+      await fn(reason.trim());
+      setDone(after);
+      setReason("");
+      saved();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return { reason, setReason, busy, error, done, setDone, run };
 }
 
 export function useDebounced<T>(value: T, ms = 250): T {

@@ -89,7 +89,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
     <section>
       <div className="row spread">
         <div>
-          <PageHeader subtitle="How assets connect. Dashed lines have ended.">Network</PageHeader>
+          <PageHeader>Network</PageHeader>
         </div>
         <label className="asof">
           As of

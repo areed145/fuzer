@@ -1,15 +1,16 @@
 import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty } from "../../ui";
+import { openReviews } from "../../figures";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
  * escalated to you, jobs the IOC sent you (with the field report buttons), steps assigned to you (and to anyone you're
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
  * pages for "what is waiting on me"; `#/field` redirects here. */
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
-import { Status, href, useAsync, useRouteState } from "../../lib";
+import { Status, href, useAsync, useRouteState, useAction } from "../../lib";
 import { Due, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
-import { SampleTeam, StepBadges, byUrgency, caseHref, priorityLevel, taskHref, useAct } from "./shared";
+import { SampleTeam, StepBadges, byUrgency, caseHref, priorityLevel, taskHref } from "./shared";
 import { ComingUp, FieldJobCard, Outbox, RoundsThisShift } from "../Field";
 import { fieldJobs } from "../../fieldOffline";
 import { cap, person as personName } from "../../wording";
@@ -82,7 +83,7 @@ export function InboxPage() {
   const counts = myWorkCounts(d, jobs);
   const undispatched = d.roles.includes("ops_lead")
     ? (exceptions.data ?? []).filter(waitingToDispatch).length : 0;
-  const reviews = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
+  const reviews = openReviews(stats.data);
   const types = [...new Set(all.map((r) => r.type))].sort();
   const pickedRows = all.filter((r) => r.task_id && picked.has(r.task_id));
   const lead = d.roles.includes("ops_lead");
@@ -91,7 +92,7 @@ export function InboxPage() {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
-      <PageHeader subtitle="Everything waiting on you." help="workflow"
+      <PageHeader help="workflow"
         actions={lead ? <><ButtonLink href={href("/handover")}>Shift handover</ButtonLink>
           <ButtonLink href={href("/teams")}>Team workload</ButtonLink></> : undefined}>
         My work</PageHeader>
@@ -264,7 +265,7 @@ function Group({ title, rows, person, picked, toggle, hint }: {
 }
 
 function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked: Set<number>; toggle: (id: number) => void }) {
-  const a = useAct();
+  const a = useAction();
   const open = r.task_id ? taskHref(r.task_id) : caseHref(r.item_id);
   return (
     <tr>
@@ -295,7 +296,7 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
 
 function Bulk({ rows, person, onDone }: { rows: WorkRow[]; person: string; onDone: () => void }) {
   const [reason, setReason] = useState("");
-  const a = useAct();
+  const a = useAction();
   const shared = rows.map((r) => r.bulk).reduce((x, y) => x.filter((l) => y.includes(l)));
   const [msg, setMsg] = useState<string | null>(null);
   return (

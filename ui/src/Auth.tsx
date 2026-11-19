@@ -4,7 +4,7 @@ import type { AuthSession } from "./authState";
 import { setCsrf } from "./authState";
 import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
-import { useRoute } from "./lib";
+import { useRoute, errorMessage } from "./lib";
 import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader } from "./ui";
 import { forgetKept, outboxSession, unreachable } from "./fieldOffline";
 import "./styles/auth.css";
@@ -171,7 +171,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             {session.needs_owner && <form onSubmit={async (event) => {
               event.preventDefault(); setBusy(true); setActionError("");
               try { await api.bootstrapOwner(setupCode); setSetupCode(""); reload(); }
-              catch (failure) { setActionError(failure instanceof Error ? failure.message : String(failure)); }
+              catch (failure) { setActionError(errorMessage(failure)); }
               finally { setBusy(false); }
             }}>
               <h2>Deployment owner setup</h2>
@@ -207,7 +207,7 @@ export function SignOut() {
     <Button size="sm" disabled={busy} onClick={async () => {
       setBusy(true); setError("");
       try { await api.signOut(); await forgetKept(); location.reload(); }
-      catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); setBusy(false); }
+      catch (failure) { setError(errorMessage(failure)); setBusy(false); }
     }}>{busy ? "Signing out..." : "Sign out"}</Button>
     {error && <span role="alert">{error}</span>}
   </>;

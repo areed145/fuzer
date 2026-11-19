@@ -2,8 +2,8 @@ import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Sele
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
 import { api, type AddTableResult, type Catalog, type CatalogSystem, type SourceLoad, type TablePreview } from "../../api";
-import { Status, href, useAsync } from "../../lib";
-import { LOAD_HELP, Loaded, TestSteps, cell, reviewer, useAction } from "./common";
+import { Status, href, useAsync, useAction } from "../../lib";
+import { LOAD_HELP, Loaded, TestSteps, cell, reviewer } from "./common";
 import { MappingEditor } from "./MappingEditor";
 import { ConnectionForm, NewSystem } from "./Systems";
 

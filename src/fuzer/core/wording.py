@@ -6,6 +6,7 @@ failure code reads the same everywhere.
 - `unit(u)` / `units(text)`: unit symbols, `degC` "°C", `Sm3` "Sm³", `um` "µm".
 - `queue(role)`: a routing role as a queue name, `role:data_steward` "data steward queue".
 - `plural(n, word)`: "1 detection", "7 detections".
+- `money(v)`: an amount the one way it is shown, `5540400` "$5,540,400", `12.5` "$12.50"; never "k" or "M".
 - `failure_mode(code)`: an ISO 14224 failure-mode code as its word, `VIB` "Vibration".
 - `say(text)`: all of the above on text already written, for titles stored before this layer existed: it rewrites
   alarm keys, units and queue roles, and the old upset and incident title shapes.
@@ -105,6 +106,19 @@ def queue(role: str | None) -> str:
     'ops lead queue'."""
     name = str(role or "").removeprefix("role:").replace("_", " ").strip()
     return f"{name} queue" if name else "no queue"
+
+
+def money(value: float, currency: str = "USD") -> str:
+    """An amount the one way every page, report and stored reason shows it, matching `money` in ui/src/format.ts:
+    whole units from 100 up ("$5,540,400"), cents below ("$12.50", "<$0.01"), never "k" or "M". Another currency
+    follows the number ("5,520,150 NOK")."""
+    size, sign = abs(value), "-" if value < 0 else ""
+    if currency == "USD" and 0 < size < 0.01:
+        return f"{sign}<$0.01"
+    text = f"{size:,.0f}" if size >= 100 or size == 0 else f"{size:,.2f}"
+    if currency == "USD":
+        return f"{sign}${text}"
+    return f"{sign}{text} (currency unknown)" if currency == "unknown" else f"{sign}{text} {currency}"
 
 
 def plural(n: float, word: str, many: str | None = None) -> str:

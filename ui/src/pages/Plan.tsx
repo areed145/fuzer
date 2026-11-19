@@ -2,16 +2,16 @@
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { acronyms, dayStamp } from "../wording";
+import { money } from "../format";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
 import { ResourcesPage } from "./Resources";
 import { SchedulesPage } from "./Schedules";
 import { usePerson } from "../work";
-import { useAct } from "./workflows/shared";
 import { useEntityNames } from "../useEntityNames";
 import { commonName } from "../entityRefs";
 
@@ -42,7 +42,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
   const [weeks, setWeeks] = useState(8);
   const to = day(new Date(new Date(from).getTime() + weeks * 7 * DAY));
   const plan = useAsync(() => api.plan({ start: from, end: to }), [from, to]);
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [open, setOpen] = useState<number | null>(() => Number(query.get("item")) || null);
   const askedItem = Number(query.get("item")) || null, askedFrom = query.get("from");
   useEffect(() => {
@@ -88,7 +88,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
   const changed = () => { plan.reload(); scope.reload(); };
   return (
     <section>
-      <PageHeader subtitle="Planned activity from every source on one timeline."
+      <PageHeader
         actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
         Plan</PageHeader>
       <div className="row">
@@ -153,7 +153,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
 }
 
 function Detail({ item, person, onChange }: { item: PlanItem; person: string | null; onChange: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [start, setStart] = useState(item.start_at.slice(0, 10));
   const [end, setEnd] = useState(item.end_at.slice(0, 10));
   const [crew, setCrew] = useState(item.crew ?? "");
@@ -168,7 +168,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       <p className="small">{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</p>
       {item.exception_id != null && <p className="small"><a href={href("/exceptions", { list: "open", q: item.title })}>Open this work in All work</a></p>}
       <p className="small muted">{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
-        {item.deferment_usd != null ? ` · $${Math.round(item.deferment_usd).toLocaleString()} at risk` : ""}</p>
+        {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</p>
       {person ? <div className="row">
         <label className="small">Start <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
         <label className="small">End <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>

@@ -1,6 +1,7 @@
 /** Pick the asset a value meant (#476): search the register, pick one, and choose whether to remember it (an alias,
  * so the next record or exception with that value matches on its own). */
 import { useState } from "react";
+import { errorMessage } from "../../lib";
 import { api, type SearchHit } from "../../api";
 import { Button, Input, Empty } from "../../ui";
 
@@ -17,7 +18,7 @@ export function MatchRef({ value, onPick, busy, remember: rememberDefault = true
   const [error, setError] = useState<string | null>(null);
   const search = async () => {
     setError(null);
-    try { setHits((await api.search(q)).slice(0, 12)); } catch (e) { setError((e as Error).message); }
+    try { setHits((await api.search(q)).slice(0, 12)); } catch (e) { setError(errorMessage(e)); }
   };
   if (!open) return <Button size="sm" variant="link" onClick={() => { setOpen(true); void search(); }}
     title={`Pick the asset ${value} meant`}>{label}…</Button>;
