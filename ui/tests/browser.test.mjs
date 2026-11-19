@@ -8288,6 +8288,8 @@ test("Ask's Gantt from a schedule on the plan draws at phone, iPad and desktop w
 
 test("A planner works a schedule on an interactive Gantt board: drags an activity, edits it beside the board, undoes, and switches to resources, at phone, iPad and desktop widths (P5.18)", async () => {
   const okan = JSON.parse(readFileSync(new URL("./fixtures/schedule-okan.json", import.meta.url)));
+  okan.analysis.other_work.push({ id: 9001, title: "Replace seal on 10-P-1002A", resource: "MECH", quantity: 2, start: "2026-04-21T06:00:00+00:00",
+    end: "2026-04-22T06:00:00+00:00", project: null, order: "50000412", status: "proposed" });
   const changes = [];
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -8320,6 +8322,10 @@ test("A planner works a schedule on an interactive Gantt board: drags an activit
   await page.getByText("8 critical").waitFor();
   // Activities grouped by work order, the logic drawn between them.
   await page.locator(".gb-group", { hasText: "Overhaul train B 2nd stage compressor" }).waitFor();
+  // Scheduled work orders in the turnaround's span are listed under it, each on its own row.
+  await page.locator(".gb-group", { hasText: "Other planned work" }).waitFor();
+  await page.locator(".gb-row", { hasText: "50000412" }).getByText("Replace seal on 10-P-1002A").waitFor();
+  await page.locator(".gb-row", { hasText: "50000412" }).locator(".gb-puck.other.planned").waitFor();  // planned, not released: outlined
   assert.ok(await page.locator(".gb-arrows path").count() > 20, "the logic is drawn");
   const puck = page.getByRole("button", { name: /^A0500 / });
   await puck.scrollIntoViewIfNeeded();

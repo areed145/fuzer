@@ -330,6 +330,8 @@ def follow_register(conn, pack: Pack) -> dict:
     planned = plan.sync_work_orders(conn)
     planned["maintenance_plans"] = plan.sync_maintenance_plans(conn)
     planned["schedules"] = _seed_schedules(conn)
+    from . import schedule
+    planned["planning_system"] = schedule.sync_activities(conn)  # after the templates: planners' own schedules stay
     notified = intake.sync_notifications(conn)
     board.refresh(conn, pack)  # last, so the exceptions just raised are on it
     return {"plan": planned, "notifications": notified}

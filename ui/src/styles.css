@@ -370,6 +370,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .gb-puck.held { box-shadow: inset 3px 0 0 var(--warn); }
 .gb-puck.done { opacity: 0.55; }
 .gb-puck.other { background: color-mix(in srgb, var(--muted) 45%, var(--panel)); color: var(--text); cursor: default; }
+.gb-puck.other.planned { background: transparent; border: 1.5px dashed var(--muted); }
 .gb-puck.on { outline: 2px solid var(--text); outline-offset: 1px; z-index: 2; }
 .gb-puck:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .gb-puck.dragging { cursor: grabbing; opacity: 0.85; z-index: 4; box-shadow: 0 3px 10px rgb(0 0 0 / 0.25); }

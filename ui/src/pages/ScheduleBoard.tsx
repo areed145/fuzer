@@ -15,7 +15,7 @@ export type BoardRows = "resources" | "activities";
 export type BoardChange = { id: number; code: string } & ({ kind: "move"; start: Date; earliest: boolean } | { kind: "stretch"; hours: number }
   | { kind: "reassign"; from: string | null; to: string | null; quantity: number } | { kind: "link"; to: number; toCode: string });
 
-interface Puck { key: string; a?: ScheduleRow; title: string; start: number; end: number; lane: number; qty?: number; other?: boolean }
+interface Puck { key: string; a?: ScheduleRow; title: string; start: number; end: number; lane: number; qty?: number; other?: boolean; planned?: boolean }
 interface Row { key: string; label: string; sub?: string; over?: boolean; group?: boolean; pucks: Puck[]; lanes: number; top: number; height: number;
   strip?: { at: number; level: "none" | "ok" | "full" | "over" }[]; float?: [number, number] }
 
@@ -94,13 +94,21 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
                 float: a.float_hours > 0 ? [ms(a.finish), ms(a.late_finish)] : undefined }, [puck(a, `a${a.id}`)]);
         }
       }
+      // the other planned work in the schedule's span (SAP orders, campaigns, other schedules), one row each
+      const others = [...new Map(s.other_work.map((o) => [o.id, o])).values()].slice(0, 40);
+      if (others.length) {
+        add({ key: "g-other", label: "Other planned work", group: true }, []);
+        for (const o of others) {
+          add({ key: `o${o.id}`, label: o.order ?? o.project ?? "" }, [{ key: `o${o.id}`, title: acronyms(o.title), start: ms(o.start), end: ms(o.end), other: true, planned: o.status === "proposed" }]);
+        }
+      }
       return out;
     }
     const start = ms(s.project.start_at);
     for (const r of s.resources) {
       const mine = s.activities.filter((a) => a.needs[r.code]).map((a) => puck(a, `${r.code}-${a.id}`, a.needs[r.code]));
       const others = s.other_work.filter((o) => o.resource === r.code).map((o) => ({ key: `${r.code}-o${o.id}`, title: acronyms(o.title),
-        start: ms(o.start), end: ms(o.end), qty: o.quantity, other: true }));
+        start: ms(o.start), end: ms(o.end), qty: o.quantity ?? undefined, other: true, planned: o.status === "proposed" }));
       const days = s.profiles?.levelled?.[r.code] ?? [];
       const use = (d: (typeof days)[number]) => d.schedule + d.other;
       const peak = Math.max(0, ...days.map(use));
@@ -246,8 +254,11 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
                     const w = Math.max(6, x(p.end) - x(p.start) + (mine?.kind === "stretch" ? mine.dx : 0));
                     const style: CSSProperties = { left, width: w, top: PAD + p.lane * (PUCK + GAP) + (mine?.kind === "move" && mode === "resources" ? mine.dy : 0) };
                     const a = p.a;
-                    if (!a) return <span key={p.key} className="gb-puck other" style={style} title={`${p.title} (other planned work, ${num(p.qty ?? 0)})`}>
-                      <span className="gb-puck-text">{p.title}</span></span>;
+                    const off: CSSProperties = { left: left + w + 6, top: PAD + p.lane * (PUCK + GAP) };
+                    if (!a) return <span key={p.key} className="gb-cell"><span className={`gb-puck other${p.planned ? " planned" : ""}`} style={style}
+                      title={`${p.title} (${p.planned ? "planned, not released" : "scheduled"}${p.qty ? `, needs ${num(p.qty)}` : ""})`}>
+                      {mode !== "activities" && <span className="gb-puck-text">{p.title}</span>}</span>
+                      {mode === "activities" && <span className="gb-beside" aria-hidden="true" style={off}>{p.title}</span>}</span>;
                     const code = a.code ?? "";
                     // an activity row names its bar beside it, like a planner's layout; a resource row names what fits inside
                     const inside = mode === "activities" ? "" : w >= 120 ? p.title : w >= 48 ? code : "";
