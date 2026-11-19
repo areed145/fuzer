@@ -426,7 +426,7 @@ def work_types_md() -> str:
     import importlib
 
     from .core import detectors, exceptions
-    from .workflow import roles
+    from .workflow import roles as wf_roles
 
     exceptions.load()
     found: dict[str, list[str]] = {}
@@ -517,7 +517,7 @@ def work_types_md() -> str:
         "",
     ]
     for role in sorted(queues, key=lambda r: (-len(queues[r]), r)):
-        _kind, purpose, sla, escalates = roles.BUILTIN.get(role, ("person", "", None, None))
+        _kind, purpose, sla, escalates = wf_roles.BUILTIN.get(role, ("person", "", None, None))
         m = re.fullmatch(r"P(?:(\d+)D)?(?:T(\d+)H)?", sla or "")
         days, hours = (int(x) if x else 0 for x in m.groups()) if m else (0, 0)
         long = " and ".join(f"{n} {unit}{'s' if n != 1 else ''}" for n, unit in ((days, "day"), (hours, "hour")) if n)
