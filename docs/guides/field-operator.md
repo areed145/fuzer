@@ -83,6 +83,11 @@ job, or discard it. Nothing is sent twice.
 
 ## Good to know
 
+- Work reaches you three ways: the IOC dispatches it to you, a desk sends it to the field from a case, or a
+  workflow reaches a **Field check** step. All three look the same on My work, and all three go back to whoever
+  sent them.
+- You cannot close work the IOC sent you, and you do not need to: **Done** is the end of your part.
+
 - **Coming up** on My work lists planned work you are booked on; **Started** and **Done** update the plan.
 - **How you are told** at the foot of My work sets whether new jobs also reach you by email, Teams or Slack.
 - The full field behaviour, including checking an installed app on real iOS and Android devices, is in

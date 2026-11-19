@@ -77,6 +77,11 @@ an export whose columns changed. The dataset's records stay as they were until y
 
 ## Good to know
 
+- Most steward work closes by itself: answer the question and its case in your queue closes with it. You do not
+  need to find the case and close it too.
+- **Criticality not assessed** is usually the longest list on a new register. Rate the assets work is open on
+  first: their cases cannot be ranked by consequence until you do.
+
 - Your answers are pinned: they survive every rebuild and every change to the matching rules.
 - Corrections flow back: a value you correct can be drafted as an update to the source system
   ([sources: corrections flow back](../sources.md#corrections-flow-back-to-the-source)).

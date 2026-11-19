@@ -83,17 +83,23 @@ The Dagster daemon runs the loop that keeps the register and the work current. T
 schedule, recent runs and data checks.
 
 ```mermaid
-flowchart LR
+flowchart TB
   load["Load changed<br>source data"] --> rebuild["Rebuild the<br>register"]
   rebuild --> intake["Intake<br><small>SAP notifications</small>"]
-  rebuild --> scan["Scans<br><small>limits, upsets, trips,<br>machine health</small>"]
-  scan --> exc["Exceptions"]
+  rebuild --> plan["Plan sync<br><small>SAP orders, PM plans,<br>P6 schedules</small>"]
+  tiers["Detectors, by tier<br><small>5 minutes: trips<br>hourly: machine health<br>6 hours: upsets<br>daily: inspection, parts, permits,<br>alarms, wells, emissions</small>"] --> exc["Exceptions"]
   intake --> exc
+  watch["Agentic watch<br><small>daily, per area;<br>kept and scored unless live</small>"] -.-> exc
   exc --> route["Routing"]
-  tick["Work tick<br><small>SLAs, escalation,<br>shelving expiry,<br>shift handover</small>"] --> route
-  watch["Agentic watch<br><small>daily, per area</small>"] --> exc
+  plan --> pl[("The plan")]
+  pl -.->|"holds back what<br>planned work explains"| exc
+  tick["Work tick, every 5 minutes<br><small>SLAs, escalation, shelving expiry,<br>shift handover, rounds</small>"] --> route
   report["Daily report"] --> rep[("Reports")]
 ```
+
+Each detector runs in a tier matched to how fast its condition matters, and resumes from where its last good run
+ended, so a missed run catches up and a condition is raised once. [Detectors](detectors.md) lists every one with
+its tier; [work types](work-types.md) lists what each raises and where that goes.
 
 ## One register, many projects
 

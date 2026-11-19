@@ -59,7 +59,7 @@ Maximo, OEM and EDMS packs on both bundles.
 
 **The work a system brings** (#465, `sources/workflows.py`). A pack can also declare the exception types its
 system raises and the rules that turn its loaded records into exceptions, so onboarding a SCADA, LIMS or
-measurement system also puts its work in the right Inbox queue, without code:
+measurement system also puts its work in the right queue on My work, without code:
 
 ```yaml
 exception_types:
@@ -330,7 +330,7 @@ to), **Runs**,
 in the register yet, with **Rebuild now**. **Systems & connections** edits each system and its connections (shown in
 words: the project data folder, a path, a server) and lists what each connection holds, with an *add it* link per
 new table; a system added here gets no connection until it needs one. **Rules** edits ranks and rules. Held loads
-also show on the Data review page (**Held loads**), linked to their dataset.
+also show on Master data's Questions (**Held loads**), linked to their dataset.
 
 ![Step 4 of Add a source: a sample and the mapping suggested from its columns](assets/screens/add-source-mapping.png){ loading=lazy }
 *Adding a contractor equipment list. [Extend Fuzer](extend.md#add-a-data-source) walks through every step,
@@ -536,9 +536,9 @@ they never become the limit that counts, but the `drawing` check lists every poi
 differs from its drawing, or that the drawing rates and no source configures. Notes keep the registered
 tags they name. Rows naming a tag not in the register are findings.
 
-## Drawing disagreements in Data review
+## Drawing disagreements on Master data
 Each rebuild turns every place a drawing and another system disagree into a `pid_mismatch` review item, so the
-IOC triages them with the rest of the register's questions (Data review > Drawing disagreements): an alarm and trip
+IOC triages them with the rest of the register's questions (Master data > Questions > Drawing disagreements): an alarm and trip
 setting that differs from the configured alarm (`alarm`), a setting the drawing rates and no alarm source has
 (`alarm_unset`), and an instrument the drawing shows on another item than SAP does (`placement`). Each names the
 sheet, tag and both sides. The reviewer records which one needs changing: **the drawing is right** (the DCS, AF or
