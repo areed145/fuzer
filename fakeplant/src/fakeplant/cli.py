@@ -92,6 +92,12 @@ def make(out) -> dict:
 def generate(args) -> dict:
     out = Path(args.out)
     stats = okan.generate(out)
+    # the planning system's own export, read by Fuzer's built-in P6 source (P5.18). Written here, not by
+    # okan.generate: the plant the tests share has no planning system connected, which the add-a-source walk needs
+    from . import schedules
+    from .common import _write_csv
+
+    _write_csv(out / "p6_activities.csv", schedules.export(out))
     if args.format == "parquet":
         stats["parquet_tables"] = lake.to_parquet(out)
     else:

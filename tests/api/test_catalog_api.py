@@ -273,8 +273,8 @@ def test_a_table_folder_as_the_path_and_undoing_a_dataset(client, okan_data, tmp
     from fakeplant import schedules
 
     schedules.write(okan_data, tmp_path / "lake")
-    ok(client.post("/sources/systems", json={"name": "p6", "by": "ana"}))
-    c = ok(client.post("/sources/systems/p6/connections", json={
+    ok(client.post("/sources/systems", json={"name": "msproject", "by": "ana"}))
+    c = ok(client.post("/sources/systems/msproject/connections", json={
         "name": "table", "type": "folder", "config": {"path": str(tmp_path / "lake" / "project_schedules")}, "by": "ana"}))
     assert ok(client.get(f"/sources/connections/{c['id']}/tables"))["tables"] == [{"table": "project_schedules", "dataset": None}]
     assert ok(client.post(f"/sources/connections/{c['id']}/test"))["ok"]
@@ -289,9 +289,9 @@ def test_a_table_folder_as_the_path_and_undoing_a_dataset(client, okan_data, tmp
     assert gone["deleted"] == "p6_schedules"
     assert client.get("/sources/datasets/p6_schedules").status_code == 404
     with db.connect() as conn:
-        assert not conn.execute("select 1 from mapping_version where source = 'p6'").fetchone()
+        assert not conn.execute("select 1 from mapping_version where source = 'msproject'").fetchone()
     ok(client.delete(f"/sources/connections/{c['id']}", params={"by": "ana"}))
-    ok(client.delete("/sources/systems/p6", params={"by": "ana"}))
+    ok(client.delete("/sources/systems/msproject", params={"by": "ana"}))
     assert ok(client.get("/sources/audit", params={"object": "system"}))[0]["action"] == "delete"
 
 

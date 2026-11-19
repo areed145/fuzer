@@ -1690,9 +1690,6 @@ def generate(out, seed: int = 11) -> dict:
         json.dumps(ASSISTANT_QUESTIONS, indent=1).replace("{wet_line}", wet_line).replace("{j1202_choke}", tag_j1202))
     (out / "answer_keys" / "assistant_memory.json").write_text(json.dumps(MEMORY_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
-    from . import schedules  # the planning system's schedules name the SAP orders and wells above (P5.18)
-
-    _write_csv(out / "p6_activities.csv", schedules.export(out))
     # How the fake historian makes process values move together (fuzer.sources.process_model); not a source.
     # Typical levels of the satellite headers' flows, which the historian draws rather than models.
     model["levels"] = [["ST1 Lift Gas Header Flow", 720.0], ["ST2 Lift Gas Header Flow", 440.0]]
