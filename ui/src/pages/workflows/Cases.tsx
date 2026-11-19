@@ -1,6 +1,7 @@
 import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText } from "../../ui";
 import { when } from "../../format";
 import { confirmDialog } from "../../ui";
+import { OpportunityPanel } from "./OpportunityPanel";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { cap, say } from "../../wording";
@@ -157,6 +158,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   const evidenceReady = (around.data !== undefined || !!around.error) && (safeguards.data !== undefined || !!safeguards.error);
   const [person] = usePerson();
   const people = useAsync(() => api.workPeople(), []);
+  const canAsk = usePermission("ai");  // the assistant runs a paid model: no link for an account that can't ask
   const it = item.data;
   if (!it || item.error) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
@@ -208,7 +210,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
             {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <span className="muted">priority, {level.why}</span></span>}
             <span className="case-opened"><span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span></span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
-            {!demo && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
+            {!demo && canAsk && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
           </div>
           {(it.subjects.length > 0 || dataset) && (
             <p className="small">About{" "}
@@ -224,6 +226,8 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null} />
+      {typeof raised.opportunity === "string" && <OpportunityPanel opportunityKey={raised.opportunity} person={person}
+        readOnly={demo} onDecided={item.reload} />}
       {typeof raised.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
         <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}

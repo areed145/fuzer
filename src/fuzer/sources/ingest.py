@@ -230,13 +230,16 @@ def _records(name: str, c, d: dict, since=None):
 
 
 def _hold(conn, name: str, c, old_schema, new_schema, drift: dict) -> None:
-    """Open (or keep) a schema review item. A reviewer who rejected this exact schema is not asked again."""
+    """Open (or keep) a schema review item. A reviewer who rejected this exact schema is not asked again; one who
+    accepted it is, since holding again means the expected columns went back: left decided, the load held at
+    every run with nothing on Master data to answer."""
     conn.execute(
         """
         insert into review_item (kind, subject, payload) values ('schema', %s, %s)
         on conflict (kind, subject) do update
         set payload = excluded.payload,
-            status = case when review_item.payload->'new' = excluded.payload->'new' then review_item.status
+            status = case when review_item.payload->'new' = excluded.payload->'new'
+                               and review_item.decision->>'decision' = 'reject' then review_item.status
                           else 'open' end
         """,
         (name, Jsonb({"dataset": name, "connector": c.kind, "path": str(getattr(c, "path", "")),

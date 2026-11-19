@@ -24,6 +24,12 @@ function Value({ item }: { item: FindingItem }) {
 
 const WHO: Record<Finding["origin"], string> = { deterministic: "A rule", agentic: "An agent", external: "Another system" };
 
+/** Who reported an outside finding, where it names them (a field operator's report): "sam", not "Another system". */
+const reporter = (finding: Finding): string | null => {
+  const r = finding.origin === "external" ? finding.items.find((i) => i.label === "Reported by") : undefined;
+  return r ? String(r.value) : null;
+};
+
 /** What was found, as one sentence a person reads first (#1082): who found it, when, what, and what is at stake.
  * "A rule found this on Dec 30, 2025, 9:20 PM: Low alarm on OK-J08-03 (peak 156 psig) ..., still going. $4,026 at
  * stake." The labelled fields stay one tap away. */
@@ -33,7 +39,8 @@ export function findingSentence(finding: Finding, title: string): string {
   const what = say(title).replace(/[.?\s]+$/, "");
   const stake = finding.value_usd != null && finding.value_usd > 0 ? ` ${money(finding.value_usd)} at stake.` : "";
   const sure = finding.confidence != null ? ` ${percent(finding.confidence)} confident.` : "";
-  return `${WHO[finding.origin]} found this${at}: ${what}${going ? (going.value ? ", still going" : ", now over") : ""}.${stake}${sure}`;
+  const who = reporter(finding);
+  return `${who ? `${who} reported` : `${WHO[finding.origin]} found`} this${at}: ${what}${going ? (going.value ? ", still going" : ", now over") : ""}.${stake}${sure}`;
 }
 
 /** The one evidence component (P1.1): a finding reads the same on the case, the task and the phone. How it was
@@ -43,14 +50,14 @@ export function FindingEvidence({ finding, checks = true }: { finding: Finding; 
   return (
     <div className="finding">
       <dl className="kv small">
-        <div><dt>Found by</dt><dd>{ORIGIN[finding.origin]}</dd></div>
+        <div><dt>Found by</dt><dd>{reporter(finding) ?? ORIGIN[finding.origin]}</dd></div>
         {finding.method && <div><dt>Method</dt><dd>{finding.method}</dd></div>}
         {finding.standard && <div><dt>Standard</dt><dd>{finding.standard}</dd></div>}
         {finding.start && <div><dt>Window</dt><dd><time dateTime={finding.start}>{when(finding.start)}</time>
           {finding.end ? <> to <time dateTime={finding.end}>{when(finding.end)}</time></> : null}</dd></div>}
         {finding.confidence != null && <div><dt>Confidence</dt><dd>{percent(finding.confidence)}</dd></div>}
         {finding.value_usd != null && <div><dt>Value at stake</dt><dd>{money(finding.value_usd)}</dd></div>}
-        {finding.items.map((item) => <div key={item.label}><dt>{item.label}</dt><dd><Value item={item} /></dd></div>)}
+        {finding.items.filter((item) => !(item.label === "Reported by" && reporter(finding))).map((item) => <div key={item.label}><dt>{item.label}</dt><dd><Value item={item} /></dd></div>)}
       </dl>
       {checks && finding.checks.length > 0 && <>
         <h4 className="small">Checks before the work</h4>

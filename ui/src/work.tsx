@@ -101,7 +101,7 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">
       <p className="small"><strong>{d.question}</strong></p><Markdown text={String(d.answer ?? "")} /></div> };
     case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <p className="small">{d.reason}</p> };
-    case "migrated": return { text: <>moved the workflow to v{d.version}</> };
+    case "migrated": return { text: <>picked up the current version of its workflow</> };
     case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
     case "auto_assigned": return { text: <><strong>{step ?? e.element}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
     case "delegated": return { text: <><strong>{e.element ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <p className="small">{d.reason}</p> };

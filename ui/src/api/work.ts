@@ -1,4 +1,5 @@
 import { request, requestText } from "./transport";
+
 import type { SourceValue } from "./explore";
 
 export interface MatchSide {
@@ -854,7 +855,9 @@ export interface TurnaroundScope {
 /** A job a field operator was sent to: the exception with where to go, what was seen and what they reported. */
 export interface FieldJob extends ExceptionRow {
   label: string; due: string | null; task_id: number | null; task_name: string | null;
-  assets: { fuzer_id: string; label: string | null; kind: string | null; lat: number | null; lon: number | null }[];
+  assets: { fuzer_id: string; label: string | null; kind: string | null; lat: number | null; lon: number | null;
+    /** The located place it is on (a platform's name), and whether that stands in water: no road directions there. */
+    site?: string | null; offshore?: boolean }[];
   finding: Finding;
   history: { id: number; title: string; state: string; first_seen: string }[];
   field: { at: string; by: string; status: string; note: string | null; reading?: FieldReading; photos?: number[] }[];
@@ -891,6 +894,25 @@ export interface FieldPermit {
     isolations: { isolation: string; point: string | null; method: string | null; state: string | null }[] } | null;
 }
 
+/** One opportunity with its working (GET /opportunities/{key}): the value its scan stored, which the board, the case
+ * and the daily report all read, and how it is made. */
+export interface OpportunityMove {
+  from: string | null; from_id: string | null; to: string | null; to_id: string | null;
+  gas: number | null; gas_unit: string | null; gain: number | null; gain_unit: string | null;
+  from_marginal: number | null; to_marginal: number | null;
+}
+export interface OpportunityView {
+  key: string; kind: string; title: string; target: string | null; gain_bbld: number | null; value_usd: number | null;
+  status: string; item_id: number | null; reason: string | null; scanned_at: string; decided_by: string | null;
+  decided_at: string | null; detail: Record<string, unknown>;
+  worth: { usd: number; days: number; gain: number; gain_unit: string; oil_bbl: number; price_bbl: number; currency: string } | null;
+  moves: OpportunityMove[];
+  evidence: { records: string[]; first: string | null; last: string | null };
+}
+
+/** The most rows the server lists of exceptions in one request (`/exceptions` caps `limit` at 1000). */
+export const EXCEPTIONS_LIMIT = 1000;
+
 export const workApi = {
   board: (f: BoardFilter, page = 1) =>
     request<BoardPage>("GET", "/board", { ...f, page, per_page: 50, facets: "true" }),
@@ -900,7 +922,8 @@ export const workApi = {
   boardProject: (p: { title: string; by: string; owner?: string; due?: string; benefit_usd?: number; scope?: string }) =>
     request<unknown>("POST", "/board/projects", undefined, p),
   workNames: () => request<Record<string, string>>("GET", "/work/names"),
-  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null }[]>("GET", "/work/people"),
+  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null;
+    /** Open cases and waiting steps they hold now. */ holding?: number }[]>("GET", "/work/people"),
   /** The demo account picks the human roles it acts as in this project; none is every role. */
   actAs: (roles: string[]) => request<{ name: string; roles: string[]; picked: string[] }>("PUT", "/work/me/roles", undefined, { roles }),
   setWorkPerson: (name: string, roles: string[], by: string) =>
@@ -917,9 +940,15 @@ export const workApi = {
     request<NotifyPreference>("PUT", `/work/people/${encodeURIComponent(person)}/notify`, undefined, { ...p, by }),
   markNotificationsRead: (person: string, ids?: number[]) =>
     request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
+  // Every open row, not the server's default page of 200: All work's counts and search read this list, so
+  // a cap here showed "200 open" and hid the rest. EXCEPTIONS_LIMIT is the server's own ceiling.
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string; closed_since?: string; at?: string } = {}) =>
-    request<ExceptionRow[]>("GET", "/exceptions", f),
+    request<ExceptionRow[]>("GET", "/exceptions", { limit: String(EXCEPTIONS_LIMIT), ...f }),
   attention: () => request<Attention>("GET", "/attention"),
+  opportunity: (key: string) => request<OpportunityView>("GET", `/opportunities/${encodeURIComponent(key)}`),
+  decideOpportunity: (key: string, decision: "accepted" | "rejected" | "project", by: string, reason?: string) =>
+    request<unknown>("POST", `/opportunities/${encodeURIComponent(key)}/decision`, undefined,
+      { decision, by, reason: reason ?? null }),
   exceptionsSuppressed: () => request<SuppressedView>("GET", "/exceptions/suppressed"),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),
   handover: (id: number) => request<Handover>("GET", `/handovers/${id}`),

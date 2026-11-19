@@ -28,6 +28,10 @@ MIN_SHIFT = 0.10  # of the baseline median
 SCATTER = 4.0  # times the baseline's median absolute deviation
 STALE_DAYS = 120  # a series with no sample this long is no longer sampled, so not drifting
 ONE_OFF = ("wall_thickness", "leak_screening")  # inspection and LDAR readings on equipment, not lab samples
+# Readings that are not lab samples: well tests, and operator rounds (each point has its own limits and raises its
+# own round finding; read as a lab series, a round's bearing temperature showed as "64_hcv1001_bearing_temperature up
+# 358 %" the day its unit changed).
+NOT_LAB = ("well test", "Operator round")
 
 
 def _series(conn, until: datetime) -> dict[tuple, list[dict]]:
@@ -37,10 +41,10 @@ def _series(conn, until: datetime) -> dict[tuple, list[dict]]:
                m.unit, m.qualifier, m.method
         from measurement m join entity e on e.fuzer_id = m.fuzer_id and e.kind <> 'well' and e.retired_at is null
         left join lateral (select label from entity_label where fuzer_id = m.fuzer_id order by label limit 1) l on true
-        where m.at < %s and m.location is not null and coalesce(m.method, '') <> 'well test'
+        where m.at < %s and m.location is not null and coalesce(m.method, '') <> all(%s)
           and m.quantity <> all(%s)
         order by m.fuzer_id, m.location, m.quantity, m.at
-        """, (until, list(ONE_OFF))).fetchall()
+        """, (until, list(NOT_LAB), list(ONE_OFF))).fetchall()
     out: dict[tuple, list[dict]] = {}
     for r in rows:
         out.setdefault((r["subject"], r["location"], r["quantity"]), []).append(r)

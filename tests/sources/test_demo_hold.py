@@ -2,6 +2,7 @@
 case for the data steward, and loads again the moment the steward accepts the new columns."""
 
 from fastapi.testclient import TestClient
+from psycopg.types.json import Jsonb
 
 from fuzer.graph import data_work
 from fuzer.sources import demo_hold, ingest
@@ -35,3 +36,32 @@ def test_the_demo_holds_a_load_the_steward_fixes_by_accepting_its_columns(okan_d
     assert conn.execute("select state from exception_record where type = 'mapping_drift' and key like %s "
                         "order by id desc limit 1", (f"schema:{name}%",)).fetchone()["state"] != "open"
     conn.rollback()
+
+
+def test_a_held_load_after_an_accepted_one_asks_again(okan_db):
+    """The next deploy seeds the same rename once the steward accepted it: the load holds again, so the question must
+    open again, or Sources shows a held load that Master data has nothing to answer for."""
+    conn = okan_db.conn
+    name = demo_hold.seed(conn)
+    ingest.ingest(conn, okan_db.data)
+    item = conn.execute("select id, payload from review_item where kind = 'schema' and subject = %s",
+                        (name,)).fetchone()
+    # accepted, as the steward does on Master data: the new columns become the expected ones
+    conn.execute("update review_item set status = 'decided', decision = '{\"decision\": \"accept\"}' where id = %s",
+                 (item["id"],))
+    conn.execute("update source_dataset set schema = %s where name = %s", (Jsonb(item["payload"]["new"]), name))
+    assert demo_hold.seed(conn) == name
+    assert name in ingest.ingest(conn, okan_db.data)["held"]
+    assert conn.execute("select status from review_item where id = %s", (item["id"],)).fetchone()["status"] == "open"
+    conn.execute("update review_item set status = 'decided', decision = '{\"decision\": \"reject\"}' where id = %s",
+                 (item["id"],))
+    ingest.ingest(conn, okan_db.data, full=True)
+    assert conn.execute("select status from review_item where id = %s", (item["id"],)).fetchone()["status"] == "decided"
+    from fuzer.sources import quality
+
+    [h] = [r for r in quality.health(conn) if r["dataset"] == name]
+    assert "held" in h["problems"], "a held last run shows as held even with nothing open to answer"
+    # put the dataset back as it was (the loads above committed), so the module's other test seeds its own hold
+    conn.execute("delete from review_item where id = %s", (item["id"],))
+    conn.execute("update source_dataset set schema = %s where name = %s", (Jsonb(item["payload"]["new"]), name))
+    conn.commit()

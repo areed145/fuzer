@@ -318,6 +318,19 @@ def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = Non
     return hand_off(conn, nxt[0]["id"], by, to, reason)
 
 
+def return_item(conn, item_id: int, person: str, to: str, reason: str | None = None) -> dict:
+    """Give back what `person` holds on a case to `to` (whoever sent it to them): their open person step, else the
+    case. Unlike dispatching, it never sends the process to the field: a field report coming back must land with the
+    IOC, not start another field check for the person it returns to."""
+    from .assignment import hand_off
+
+    step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state in ('ready', 'waiting') "
+                        "and assignee = %s order by due_at nulls last, id limit 1", (item_id, person)).fetchone()
+    if step:
+        return hand_off(conn, step["id"], person, to, reason)
+    return assign_item(conn, item_id, person, to, reason)
+
+
 def report_field_step(conn, item_id: int, person: str, result: str, note: str | None, reason: str) -> dict | None:
     """Complete a field step (an open `operator` step `person` holds) with what they found (`field_result`,
     `field_note`), then hand the step the process comes back to (the IOC's decision) to whoever sent them, with

@@ -789,8 +789,8 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
                 else:
                     sender = None if _sent_to(conn, row["item_id"], by) else _sent(conn, row["item_id"], by)
                 human = bool(sender and sender["by"] and sender["by"] != by and not gates.machine(sender["by"]))
-                if human:
-                    work.dispatch(conn, row["item_id"], by, sender["by"], back)
+                if human:  # back to the IOC person who sent it: never a fresh field check for them
+                    work.return_to(conn, row["item_id"], by, sender["by"], back)
                 elif status == "done" and not has_process:
                     # nobody sent it (raised straight into the field's queue): the field's Done closes it
                     work.close_case(conn, row["item_id"], "done", by, reason=note or "done in the field")
@@ -846,7 +846,8 @@ def _asked(conn, item_id: int) -> dict | None:
 
 
 def _assets(conn, ids: list[str]) -> list[dict]:
-    """Each subject with its label, kind and a location: its own, else the nearest located thing it is part of.
+    """Each subject with its label, kind and a location: its own, else the nearest located thing it is part of, with
+    that place's name (`site`) and whether it stands in water (`offshore`: a road map has no directions to a jacket).
     Equipment reads as the tag it is installed at and its description ("20-K-2100B 1st stage compressor"), not its
     serial number, since that is what an operator finds on site."""
     if not ids:
@@ -859,7 +860,12 @@ def _assets(conn, ids: list[str]) -> list[dict]:
             select up.start, e.dst, up.depth + 1 from up join edge e on e.src = up.fuzer_id and e.rel = 'part_of'
             where up.depth < 3)
         select distinct on (s.id) s.id as fuzer_id, coalesce(t.label || coalesce(' ' || (d.value #>> '{}'), ''),
-               l.label) as label, en.kind, g.cy as lat, g.cx as lon
+               l.label) as label, en.kind, g.cy as lat, g.cx as lon,
+               (select gn.value #>> '{}' from golden gn where gn.fuzer_id = up.fuzer_id and gn.field = 'gis_name')
+                 as site,
+               coalesce((select (w.value #>> '{}')::float > 0 from golden w where w.fuzer_id = up.fuzer_id
+                         and w.field in ('water_depth_ft', 'water_depth_m') and jsonb_typeof(w.value) = 'number'
+                         limit 1), false) as offshore
         from unnest(%s::text[]) with ordinality s (id, n)
         left join entity_label l on l.fuzer_id = s.id
         left join entity en on en.fuzer_id = s.id

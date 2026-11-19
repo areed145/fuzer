@@ -15,10 +15,13 @@ export function ConfirmAction({ label, consequence, busy, disabled, onConfirm }:
   const [confirming, setConfirming] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
   const wasConfirming = useRef(false);
+  // On a view-only page (the shell's PageNote says so) a change the server would refuse isn't offered at all.
+  const viewOnly = useContext(PageNote) != null;
   useEffect(() => {
     if (!confirming && wasConfirming.current) opener.current?.focus();
     wasConfirming.current = confirming;
   }, [confirming]);
+  if (viewOnly) return null;
   return confirming ? <div className="notice" role="group" aria-label={`Confirm ${label}`}>
     <p>{consequence}</p>
     <Button type="button" variant="primary" disabled={busy || disabled} onClick={() => { setConfirming(false); onConfirm(); }}>Confirm {label}</Button>{" "}

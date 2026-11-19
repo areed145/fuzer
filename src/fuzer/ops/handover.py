@@ -56,14 +56,25 @@ def shift_times(conn) -> list[time]:
     return sorted(set(out))
 
 
-def boundaries(conn, now: datetime) -> tuple[datetime, datetime]:
-    """The shift that just ended: (its start, its end = the latest shift change at or before `now`)."""
+def _changes(conn, now: datetime) -> tuple[list[datetime], list[datetime]]:
+    """Shift changes around `now`: those at or before it, and those after it."""
     tz = _tz()
     local = now.astimezone(tz)
     times = shift_times(conn)
-    changes = sorted(datetime.combine(local.date() + timedelta(days=d), t, tz) for d in (-2, -1, 0) for t in times)
-    past = [c for c in changes if c <= local]
+    changes = sorted(datetime.combine(local.date() + timedelta(days=d), t, tz) for d in (-2, -1, 0, 1) for t in times)
+    return [c for c in changes if c <= local], [c for c in changes if c > local]
+
+
+def boundaries(conn, now: datetime) -> tuple[datetime, datetime]:
+    """The shift that just ended: (its start, its end = the latest shift change at or before `now`)."""
+    past, _ = _changes(conn, now)
     return past[-2].astimezone(UTC), past[-1].astimezone(UTC)
+
+
+def current_shift(conn, now: datetime) -> tuple[datetime, datetime]:
+    """The shift in progress: (the latest shift change at or before `now`, the next one)."""
+    past, ahead = _changes(conn, now)
+    return past[-1].astimezone(UTC), ahead[0].astimezone(UTC)
 
 
 def _line(text: str, *cites: str) -> dict:
@@ -134,7 +145,8 @@ def facts(conn, start: datetime, end: datetime) -> dict:
                t.escalated_at
         from work_token t join work_item i on i.id = t.item_id
         where t.kind = 'user' and ((t.escalated_at >= %(s)s and t.escalated_at < %(e)s)
-                                   or (t.state = 'waiting' and t.due_at < %(e)s))
+                                   or (t.state = 'waiting' and t.due_at >= %(s)s and t.due_at < %(e)s))
+        -- what went late this shift; work late for days is under Open work, not leading every handover
         order by coalesce(t.escalated_at, t.due_at)
         """, {"s": start, "e": end}).fetchall(),
         lambda r: _line(f"{r['step']} on {r['title']}, with {holder(r)}: "
@@ -231,25 +243,33 @@ def _permits(conn, end: datetime) -> list[dict]:
                    + ", ".join(f"{i['isolation']} {i['state'] or 'no state'}" for i in waiting) + ")" if waiting
                    else f"; {len(r['isolations'])} isolation{'s' if len(r['isolations']) > 1 else ''} in place"
                    if r["isolations"] else ""))
-        out.append({"id": r["id"], "text": text})
-    return out
+        out.append({"id": r["id"], "text": text, "waiting": bool(waiting)})
+    return sorted(out, key=lambda r: not r["waiting"])  # plant not yet isolated under a live permit leads
 
 
-def draft(conn, by: str, now: datetime | None = None, force: bool = False) -> dict | None:
+def draft(conn, by: str, now: datetime | None = None, force: bool = False, current: bool = False) -> dict | None:
     """The handover for the shift change just passed, drafted from live work, with its case on the ops lead queue.
-    None when it was already drafted (unless `force`, which refreshes the draft while nobody has acknowledged it)."""
+    None when it was already drafted (unless `force`, which refreshes the draft while nobody has acknowledged it).
+
+    `current` drafts the shift in progress instead, so the outgoing lead can write it before they go: its lines run
+    to now and it has no case yet. At the shift change the work tick brings that same handover up to date, keeping
+    the notes, and opens its case for the incoming lead. A handover whose shift has ended is never redrafted by hand:
+    it says what held at its shift change."""
     now = now or datetime.now(UTC)
-    start, end = boundaries(conn, now)
+    start, end = current_shift(conn, now) if current else boundaries(conn, now)
     have = conn.execute("select * from shift_handover where shift_end = %s", (end,)).fetchone()
-    if have and not (force and have["state"] != "acknowledged"):
+    if have and (have["state"] == "acknowledged" or (have["item_id"] and not force) or (have["item_id"] and not current)):
         return None
-    f = facts(conn, start, end)
+    f = facts(conn, start, min(end, now))
     if have:
-        return _ordered(conn.execute("update shift_handover set facts = %s, drafted_at = now() where id = %s returning *",
-                                 (Jsonb(f), have["id"])).fetchone())
-    row = dict(conn.execute(
-        "insert into shift_handover (shift_start, shift_end, facts, created_by) values (%s, %s, %s, %s) returning *",
-        (start, end, Jsonb(f), by)).fetchone())
+        row = dict(conn.execute("update shift_handover set facts = %s, drafted_at = now() where id = %s returning *",
+                                (Jsonb(f), have["id"])).fetchone())
+    else:
+        row = dict(conn.execute(
+            "insert into shift_handover (shift_start, shift_end, facts, created_by) values (%s, %s, %s, %s) returning *",
+            (start, end, Jsonb(f), by)).fetchone())
+    if current or row["item_id"]:
+        return _ordered(row)
     label = end.astimezone(_tz()).strftime("%b %-d, %-I:%M %p")
     n = {k: len(v) + f["more"].get(k, 0) for k, v in f["sections"].items()}
     from . import routing

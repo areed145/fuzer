@@ -22,6 +22,7 @@ evidence (the tests or records behind it) changes. Proposals only, never operati
 
 import hashlib
 import json
+import re
 from datetime import date
 
 from psycopg.types.json import Jsonb
@@ -269,3 +270,47 @@ def listing(conn, status: str | None = "open", limit: int = 50) -> list[dict]:
         "select key, kind, title, target, gain_bbld, value_usd, status, item_id, reason, detail from opportunity "
         "where %(s)s::text is null or status = %(s)s order by value_usd desc nulls last limit %(n)s",
         {"s": status, "n": limit})]
+
+
+def _unit_of(d: dict, stem: str) -> tuple[str | None, str | None]:
+    """The key in a stored move or detail holding `stem` and its unit: details are kept in the project's units, so a
+    gain is `gain_bbld` on one project and `gain_sm3d` on another."""
+    units = {"bbld": "bbl/d", "sm3d": "Sm3/d", "mscfd": "Mscf/d", "ksm3d": "kSm3/d"}
+    for k in d:
+        if k.startswith(stem) and (u := k.removeprefix(stem).lstrip("_")) in units:
+            return k, units[u]
+    return None, None
+
+
+def get(conn, key: str, pack=None) -> dict:
+    """One opportunity with its working, as every page shows it: the value its scan stored (the one the board, the
+    case and the daily report read) and how that value is made (rate x days x price), each move with its wells, and
+    the dates of the tests it rests on. Raises LookupError for an unknown key."""
+    from ..analysis import value
+    from ..core.jsonsafe import plain as _plain
+
+    o = conn.execute("select key, kind, title, target, gain_bbld, value_usd, status, item_id, reason, detail, scanned_at, "
+                     "decided_by, decided_at from opportunity where key = %s", (key,)).fetchone()
+    if o is None:
+        raise LookupError(f"no opportunity {key}")
+    d = o["detail"] or {}
+    cfg = value.config(pack) if pack is not None else value.DEFAULTS
+    days = float(cfg["horizon_days"])
+    gk, gu = _unit_of(d, "gain")
+    worth = None
+    if o["value_usd"] is not None and o["gain_bbld"]:
+        # the price the stored value implies, so the sum shown is the sum that made it
+        worth = {"usd": o["value_usd"], "days": days, "gain": d.get(gk) if gk else o["gain_bbld"],
+                 "gain_unit": gu or "bbl/d", "oil_bbl": round(o["gain_bbld"] * days),
+                 "price_bbl": round(o["value_usd"] / (o["gain_bbld"] * days), 2), "currency": cfg.get("currency", "USD")}
+    moves = []
+    for m in d.get("moves") or []:
+        qk, qu = _unit_of(m, "")
+        mk, mu = _unit_of(m, "gain")
+        moves.append({"from": m.get("from"), "from_id": m.get("from_id"), "to": m.get("to"), "to_id": m.get("to_id"),
+                      "gas": m.get(qk) if qk else None, "gas_unit": qu, "gain": m.get(mk) if mk else None,
+                      "gain_unit": mu, "from_marginal": m.get("from_marginal"), "to_marginal": m.get("to_marginal")})
+    dates = sorted(x for e in d.get("evidence") or [] if (x := (re.search(r"(\d{4}-\d{2}-\d{2})$", e) or [None])[0]))
+    return _plain({**dict(o), "worth": worth, "moves": moves,
+                   "evidence": {"records": d.get("evidence") or [], "first": dates[0] if dates else None,
+                                "last": dates[-1] if dates else None}})

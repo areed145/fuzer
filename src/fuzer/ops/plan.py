@@ -302,7 +302,7 @@ def sync_maintenance_plans(conn, by: str = "sap") -> dict:
         except (KeyError, PlanError):
             skipped += 1
             continue
-        key = f"{plan_key}:{due - written:%Y-%m-%d}"
+        key = _same_due(conn, plan_key, due - written, by)
         current.append(key)
         inspection = str(f.get("kind", "")).upper().startswith("INSP")
         row = propose(conn, "inspection" if inspection else "maintenance",
@@ -320,6 +320,43 @@ def sync_maintenance_plans(conn, by: str = "sap") -> dict:
             "and regexp_replace(source_key, ':[^:]*$', '') = any(%s)",
             (by, list(ACTIVE), current, [k.rsplit(":", 1)[0] for k in current])).rowcount
     return {"plans": len(rows), "added": added, "updated": updated, "rolled_forward": rolled, "skipped": skipped}
+
+
+DUE_SLACK = timedelta(days=3)  # a due date "as written" a few days off the one on record is the same due date
+
+
+def _same_due(conn, plan_key: str, written: datetime, by: str) -> str:
+    """The key of a plan's item for the due date `written`. A rolling facility's dates are rolled when they load and
+    keyed when the plan syncs, so a load and a sync either side of midnight write one due date a day apart: the item
+    already there within a few days is the same due date, under its own key. One the sync closed as rolled past is
+    open again; one more for the same date, made by the sync and never touched by a person, is a duplicate and goes
+    (else it is cancelled). Without this the plan showed one inspection two or three times, every copy closed, and
+    the production-at-risk card said no shutdown was planned above a shutdown bar."""
+    key = f"{plan_key}:{written:%Y-%m-%d}"
+    near = []
+    for r in conn.execute(
+            "select id, source_key, status, updated_by, moved_by from plan_item where source = 'sap_plan' "
+            "and regexp_replace(source_key, ':[^:]*$', '') = %s order by id", (plan_key,)).fetchall():
+        try:
+            day = datetime.fromisoformat(r["source_key"].rsplit(":", 1)[1]).replace(tzinfo=written.tzinfo)
+        except ValueError:
+            continue
+        if abs(day - written) <= DUE_SLACK:
+            near.append(r)
+    if not near:
+        return key
+    keep = next((r for r in near if r["source_key"] == key), None) or near[0]
+    if keep["status"] == "done" and keep["updated_by"] == by:
+        conn.execute("update plan_item set status = 'proposed', updated_at = now() where id = %s", (keep["id"],))
+    for r in near:
+        if r["id"] == keep["id"]:
+            continue
+        if r["updated_by"] == by and r["moved_by"] is None:
+            conn.execute("delete from plan_item where id = %s", (r["id"],))
+        elif r["status"] not in ("done", "cancelled"):
+            conn.execute("update plan_item set status = 'cancelled', updated_by = %s, updated_at = now() "
+                         "where id = %s", (by, r["id"]))
+    return keep["source_key"]
 
 
 def plan_exception(conn, exception_id: int, by: str, start, end, crew: str | None = None,
