@@ -51,7 +51,7 @@ export function Standards() {
   return <div>
     <h2>Standards</h2>
     <Button disabled={c.loading} onClick={() => { c.reload(); v.reload(); }}>Refresh</Button>
-    <Status loading={c.loading && !d} error={c.error} />
+    <Status of={c} />
     {d && <p className="small">Current standard: {d.current.model} v{d.current.version}. Work in practice over the
       last {d.days} days.</p>}
     {!person && <p className="small">Say who you are in the sidebar (bottom left) to propose, review or roll out.</p>}
@@ -89,7 +89,7 @@ export function Standards() {
       {d.left_out.join(", ")}.</p>}
 
     <Card title="Changes to the standard">
-      <Status loading={v.loading && !v.data} error={v.error} />
+      <Status of={v} />
       {v.data && <Table density="compact" className="phone-rows">
         <thead><tr><th>Version</th><th>State</th><th>What</th><th>Proposed by</th><th>Test run</th><th>Review</th><th>Next</th></tr></thead>
         <tbody>{v.data.versions.map((x) => <tr key={`${x.name}:${x.version}`}>

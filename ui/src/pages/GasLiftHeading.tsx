@@ -14,7 +14,7 @@ export function GasLiftHeading() {
   const found = d?.wells.filter((w) => w.verdict === "heading" || w.verdict === "unstable") ?? [];
   return (
     <Card className="gas-lift-heading" title="Gas lift heading">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && <>
         <div className="small gl-summary">
           Last {d.days} days: {d.summary.heading} of {d.summary.wells} gas lifted wells heading, {d.summary.unstable} unstable,

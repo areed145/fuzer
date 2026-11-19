@@ -1,4 +1,5 @@
 import { api, type Stats } from "../api";
+import { count } from "../format";
 import { KindBadge, Status, entityHref, fmt, href, useAsync, useDebounced } from "../lib";
 import { Button, Disclosure, PageHeader, Table, Input } from "../ui";
 
@@ -18,7 +19,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
   const rest = kinds.filter(([k]) => !FIRST_KINDS.includes(k));
   const chip = ([k, n]: [string, number]) => (
     <Button key={k} aria-pressed={kind === k} className={kind === k ? "chip on" : "chip"} onClick={() => go({ kind: k })}>
-      {k.replace(/_/g, " ")} <span className="muted">{n.toLocaleString()}</span>
+      {k.replace(/_/g, " ")} <span className="muted">{count(n)}</span>
     </Button>
   );
   return (
@@ -42,7 +43,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
         <div className="chips">{rest.map(chip)}</div>
       </Disclosure>}
 
-      <Status loading={hits.loading && !hits.data} error={hits.error} empty={hits.data?.length === 0}>
+      <Status of={hits} empty={hits.data?.length === 0}>
         No matches for “{q}”.
       </Status>
       {hits.data && hits.data.length > 0 && (

@@ -158,19 +158,6 @@ export function fieldLabel(key: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** Operational timestamps have offsets; never assign a timezone to source-local event dates. Shown to the minute
- * (#396) unless seconds matter, as in a job's log; the full recorded value is the element's `title` where shown. */
-export function timestamp(value: string | null | undefined, precision: "minutes" | "seconds" = "minutes"): string {
-  if (!value) return "Time unknown";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Time unknown";
-  // Unzoned: the source's own clock, shown as written (to the minute) and said to be plant time, never converted
-  if (!/(Z|[+-]\d{2}:\d{2})$/i.test(value)) {
-    return `${value.replace("T", " ").slice(0, precision === "seconds" ? 19 : 16)} plant time`;
-  }
-  return `${date.toISOString().slice(0, precision === "seconds" ? 19 : 16).replace("T", " ")} UTC`;
-}
-
 export function KindBadge({ kind, label }: { kind: string; label?: string }) {
   return <UIBadge className={`badge kind kind-${kind}`}>{label ?? kind.replace("_", " ")}</UIBadge>;
 }
@@ -188,7 +175,10 @@ export function Dates({ from, to }: { from: string | null; to: string | null }) 
   );
 }
 
-export function Status({ loading, error, empty, children, onRetry }: {
+/** The state of a read. Pass the `useAsync` result as `of`: loading shows only until the first data arrives, and a
+ * failed read always offers Try again. `empty` with children says the list has nothing in it. */
+export function Status({ of, loading = !!of && of.loading && of.data === undefined, error = of?.error, empty, children, onRetry = of?.reload }: {
+  of?: { loading: boolean; error?: string; data?: unknown; reload?: () => void };
   loading?: boolean;
   error?: string;
   empty?: boolean;

@@ -1,4 +1,5 @@
-import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select, Badge as UIBadge, Disclosure, Textarea } from "../ui";
+import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText } from "../ui";
+import { when } from "../format";
 import { confirmDialog } from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
 // published, compared with the published version), the process monitor (work waiting at each step,
@@ -9,7 +10,7 @@ import type Modeler from "bpmn-js/lib/Modeler";
 import { api, type ProcessStats, type WorkChange, type WorkCompare, type WorkDefinition, type WorkProblem } from "../api";
 import { caseHref, taskHref } from "./workflows/shared";
 import { Status, href, useAsync, useAction, errorMessage } from "../lib";
-import { Actor, Due, duration, holder, span, usePerson, when } from "../work";
+import { Actor, Due, duration, holder, span, usePerson } from "../work";
 import { blankProcess, focusElement } from "../bpmnSubset";
 
 const BpmnModeler = lazy(() => import("../BpmnModeler"));
@@ -104,7 +105,7 @@ export function ProcessesPage() {
       <p className="small" id="who-edits">Publishing needs the workflow admin role{person ? (admin ? ", which you have" : ", which you don't have") : ""}.
         Queues are set on <a href={href("/routing")}>Routing</a>.</p>
       <NeedName person={person} />
-      <Status loading={defs.loading && !defs.data} error={defs.error} onRetry={defs.reload}
+      <Status of={defs}
         empty={!defs.loading && !defs.error && !groups.length}>
         No processes yet. {person ? "Create one below, or import a .bpmn file." : "Say who you are to create one."}
       </Status>
@@ -158,12 +159,12 @@ export function ProcessesPage() {
           </div>
           {keyProblem && <p className="small error" id="new-key-problem" role="alert">{keyProblem}</p>}
           {busy && <p className="small" role="status">{busy}</p>}
-          {error && <p className="small error" role="alert">{error}</p>}
+          <ErrorText>{error}</ErrorText>
         </UICard>
       )}
 
       <UICard title="Task forms" actions={person ? <a className="small" href={href("/workflows/forms/new")}>New form</a> : undefined}>
-        <Status loading={forms.loading && !forms.data} error={forms.error} onRetry={forms.reload}
+        <Status of={forms}
           empty={!forms.loading && !forms.error && !forms.data?.length}>
           No forms yet. A person's step without a form asks only for a decision and a note.</Status>
         <ul className="plain">
@@ -201,7 +202,7 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
         {title} <span className="mono small muted">{processKey}</span></PageHeader>
       <Tabs label="Workflow views" items={PROCESS_TABS.map(([k, label]) => ({
         key: k, label, href: href(`/workflows/${processKey}`, { tab: k }), current: tab === k }))} />
-      <Status loading={defs.loading && !defs.data} error={defs.error} onRetry={defs.reload} empty={!defs.loading && !defs.error && !list.length}>
+      <Status of={defs} empty={!defs.loading && !defs.error && !list.length}>
         No workflow '{processKey}'. <a href={href("/workflows")}>Create one</a>.
       </Status>
       {chosen && tab === "overview" && <OverviewTab processKey={processKey} defs={list} published={published} />}
@@ -564,7 +565,7 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
         <span className="small muted">{running} running{drawn && version === undefined ? ` · drawn on v${drawn.version}` : ""}</span>
         <Button onClick={m.reload}>Refresh</Button>
       </div>
-      <Status loading={m.loading && !m.data} error={m.error} onRetry={m.reload} />
+      <Status of={m} />
       {xml && (
         <Suspense fallback={<div className="status">Loading diagram…</div>}>
           <BpmnView xml={xml} classes={classes} overlays={overlays} tall />
@@ -706,7 +707,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
           </Field>
         </div>
       )}
-      {keyProblem && <p className="small error" role="alert">{keyProblem}</p>}
+      <ErrorText>{keyProblem}</ErrorText>
       {loadError && (loadError.missing
         ? <div className="status error" role="alert">There is no form “{formKey}”.{" "}
             <a href={href("/workflows/forms/new", { key: formKey })}>Create it</a></div>
@@ -737,7 +738,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
             <Textarea className="mono" rows={5} value={bulk} aria-invalid={!!badBulk}
               onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
           </label>
-          {badBulk && <p className="small error" role="alert">{badBulk}</p>}
+          <ErrorText>{badBulk}</ErrorText>
         </Disclosure>
       </>}
     </section>
@@ -776,7 +777,7 @@ function RunningTab({ processKey }: { processKey: string }) {
       <div className="tabs small">
         {["running", "completed", "cancelled", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
       </div>
-      <Status loading={list.loading && !list.data} error={list.error} onRetry={list.reload} empty={!!list.data && !list.data.length}>None.</Status>
+      <Status of={list} empty={!!list.data && !list.data.length}>None.</Status>
       {list.data && list.data.length > 0 && (
         <Table variant="results">
           <thead><tr><th>Case</th><th>Waiting on</th><th>Age</th><th>Version</th><th>Started by</th><th /></tr></thead>
@@ -804,14 +805,14 @@ function RunningTab({ processKey }: { processKey: string }) {
           </tbody>
         </Table>
       )}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </>
   );
 }
 
 function RoutingTab({ def }: { def: WorkDefinition }) {
   const r = useAsync(() => api.workRouting(def.id), [def.id]);
-  if (!r.data) return <Status loading={r.loading} error={r.error} onRetry={r.reload} />;
+  if (!r.data) return <Status of={r} />;
   return (
     <>
       <p className="small">Version {def.version}</p>

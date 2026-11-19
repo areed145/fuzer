@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Form } from "@bpmn-io/form-js-viewer";
 import "@bpmn-io/form-js-viewer/dist/assets/form-js.css";
-import { Button } from "./ui";
+import { Button, ErrorText } from "./ui";
 
 export default function TaskForm({ schema, data, disabled, busy, onSubmit }: {
   schema: Record<string, unknown>;
@@ -44,7 +44,7 @@ export default function TaskForm({ schema, data, disabled, busy, onSubmit }: {
   return (
     <div className="task-form">
       <div ref={box} />
-      {error && <p className="error small">{error}</p>}
+      <ErrorText>{error}</ErrorText>
       <div className="actions">
         <Button variant="primary" disabled={disabled || busy} onClick={submit}>Complete</Button>
       </div>

@@ -12,7 +12,7 @@ export function CostOfUnreliability() {
   const d = data.data;
   return (
     <Card className="cost-unreliability" title="Cost of unreliability by unit">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && <>
         <div className="small">{d.since} to {d.until}. Lost oil at {d.price.oil_bbl} {d.price.currency} per bbl ({d.price.source}).</div>
         {d.units.length ? (

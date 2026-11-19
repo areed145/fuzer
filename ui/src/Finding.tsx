@@ -1,9 +1,9 @@
 import "./styles/finding.css";
-import { money, percent } from "./format";
+import { money, percent, when } from "./format";
 import type { CaseSource, Finding, FindingItem } from "./api";
 import { entityHref } from "./lib";
 import { Card, Disclosure } from "./ui";
-import { reportedBy, when } from "./work";
+import { reportedBy } from "./work";
 import { say, unit as wordUnit } from "./wording";
 
 const ORIGIN: Record<Finding["origin"], string> = { deterministic: "Rule", agentic: "Agent", external: "Another system" };

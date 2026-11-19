@@ -1,17 +1,17 @@
 /** Exceptions: everything the IOC should work, from every source, in one list. Each is one open condition matched
  * to the assets it is about; the ones no queue picked up wait here for someone to dispatch them. */
 import { useEffect, useState } from "react";
-import { money } from "../format";
+import { money, when, whenDay, count } from "../format";
 import { api, type ExceptionRow, type Readiness } from "../api";
-import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty } from "../ui";
+import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty, ErrorText } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../lib";
-import { holder, reportedBy, usePerson, when } from "../work";
+import { holder, reportedBy, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display, type EntityNames } from "../entityRefs";
 import { PriorityBadge, SampleTeam } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
-import { person as personName, queue, say, dayStamp } from "../wording";
+import { person as personName, queue, say } from "../wording";
 
 export type ExceptionView = "dispatch" | "field" | "back" | "open";
 
@@ -35,7 +35,7 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
   const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
-  if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
+  if (!rows.data) return <Status of={rows} />;
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
   const words = filters.q?.toLowerCase();
   const shown = (view === "dispatch" ? rows.data.filter(waitingToDispatch)
@@ -105,7 +105,7 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
   const canConfigure = usePermission("configure");
   const { busy, error, run } = useAction();
   const [f, setF] = useState({ name: "", label: "", role: "", field: true });
-  if (!kinds.data) return <Status loading={kinds.loading} error={kinds.error} />;
+  if (!kinds.data) return <Status of={kinds} />;
   const save = () => run("Saving", () => api.defineExceptionKind(f.name.trim(), {
     by: person ?? "", label: f.label.trim(), role: f.role.trim() || null, audience: f.field ? ["ioc", "field"] : ["ioc"],
   }), () => { setF({ name: "", label: "", role: "", field: true }); kinds.reload(); });
@@ -115,7 +115,7 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
         <strong>Refs Fuzer matches</strong> <span className="muted">(an exception's <code>refs</code>; one that matches nothing
           is kept as unmatched and the sender is told)</span>
         <ul className="plain">{refs.data.slice(0, 8).map((f) => <li key={f.form}>
-          <code>{f.example}</code> <span className="muted">{f.form} · {f.entities.toLocaleString()} entities</span></li>)}</ul>
+          <code>{f.example}</code> <span className="muted">{f.form} · {count(f.entities)} entities</span></li>)}</ul>
       </div>}
       <Table variant="results">
         <thead><tr><th>Type</th><th>Worked by</th><th>Seen by</th><th>Open</th><th>Defined</th><th /></tr></thead>
@@ -140,7 +140,7 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
         <label className="small"><Input type="checkbox" checked={f.field} onChange={(e) => setF({ ...f, field: e.target.checked })} /> field sees it</label>
         <Button disabled={!!busy || !f.name.trim() || !f.label.trim()} onClick={save}>Define type</Button>
       </div>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </Card>
   );
 }
@@ -193,7 +193,7 @@ function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | nul
           title="A different event: give it a case of its own"
           onClick={() => run("Splitting", () => api.splitException(j.id, person), onChange)}>Split out</Button></>}
       </li>)}</ul>
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }
@@ -214,7 +214,7 @@ export function happened(r: ExceptionRow): string | null {
   return typeof f?.start === "string" && f.start ? f.start : null;
 }
 
-const day = (at: string) => dayStamp(at.length === 10 ? `${at}T12:00:00` : at);
+const day = (at: string) => whenDay(at.length === 10 ? `${at}T12:00:00` : at);
 
 /** The subjects worth showing: those with a name. An equipment record with neither a name nor an installed tag would
  * show as its id, which says nothing; it is left out when another subject names the place (#1070). */
@@ -267,7 +267,7 @@ function Row({ r, person, people, queues, onChange }: {
         <span className="muted">{event ? ` · happened ${day(event)}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</span>
       </div>
       <div className="work-row-with small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
-        : r.planned ? <a href={planItemHref(r.planned)}>planned {dayStamp(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
+        : r.planned ? <a href={planItemHref(r.planned)}>planned {whenDay(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
         : <span className="muted">not dispatched</span>}
         {fieldSaid && <div title={fieldSaid.note ?? undefined}>
           <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>
@@ -346,7 +346,7 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
           blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onDone(); })}>
         {r.item_id ? "Hand over" : "Send"}</Button>
     </div>
-    {error && <p role="alert" className="error">{error}</p>}
+    <ErrorText>{error}</ErrorText>
   </div>;
 }
 
@@ -355,7 +355,7 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
   const check = useAsync(() => api.exceptionReadiness(id), [id]);
   const r = check.data && Array.isArray(check.data.blockers) ? check.data : null;
   useEffect(() => { onResult(r); }, [r]);  // eslint-disable-line react-hooks/exhaustive-deps
-  if (!r) return check.error ? <p className="small error">Readiness not checked: {check.error}</p> : null;
+  if (!r) return check.error ? <ErrorText>Readiness not checked: {check.error}</ErrorText> : null;
   const warned = r.warnings?.length ? <ul className="plain small ready-warnings" aria-label="Before you send it">
     {r.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul> : null;
   const confirm = r.checks.some((c) => c.confirm);  // needs a permit, none to check it against (#742)

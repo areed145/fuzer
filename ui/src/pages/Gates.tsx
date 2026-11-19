@@ -1,9 +1,9 @@
-import { Badge as UIBadge, Button, Card as UICard, Input, Table } from "../ui";
-import { percent } from "../format";
+import { Badge as UIBadge, Button, Card as UICard, Input, Table, ErrorText } from "../ui";
+import { percent, when } from "../format";
 import { useState } from "react";
 import { api, type GateDecision, type GatePolicy } from "../api";
 import { Status, useAsync } from "../lib";
-import { Actor, loadPerson, when } from "../work";
+import { Actor, loadPerson } from "../work";
 
 const pct = (x: number | null) => (x === null ? "always a person" : percent(x));
 
@@ -36,7 +36,7 @@ function GateLine({ d }: { d: GateDecision }) {
  * threshold by asset criticality. A-criticality assets always stop for a person. */
 export function HumanGates() {
   const policy = useAsync(() => api.gatePolicy(), []);
-  if (!policy.data) return <Status loading={policy.loading} error={policy.error} />;
+  if (!policy.data) return <Status of={policy} />;
   const p = policy.data;
   if (!Array.isArray(p.fixed) || !Array.isArray(p.confidence)) return null;  // an older server without gates
   return (
@@ -67,7 +67,7 @@ function GateRow({ c, saved }: { c: GatePolicy["confidence"][number]; saved: () 
       <td>{c.label}{c.updated_by && <div className="small">changed by {c.updated_by}{c.updated_at ? `, ${when(c.updated_at)}` : ""}</div>}</td>
       <td>{edit === null ? <b>{pct(c.default)}</b> : <Input aria-label={`Goes ahead at, for ${c.label}`} type="number" min={1}
         max={100} value={edit} placeholder="always a person" onChange={(e) => setEdit(e.target.value)} />}
-        {error && <div role="alert" className="error small">{error}</div>}</td>
+        <ErrorText>{error}</ErrorText></td>
       <td>{pct(c.by_criticality.A ?? null)}</td>
       <td className="small">{others.length ? others.map(([k, v]) => `${k}: ${pct(v)}`).join(", ") : "as the default"}</td>
       <td>{edit === null

@@ -1,4 +1,5 @@
-import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea } from "../../ui";
+import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText } from "../../ui";
+import { when } from "../../format";
 import { confirmDialog } from "../../ui";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
@@ -7,7 +8,7 @@ import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
 import { Status, href, useAsync, useAction } from "../../lib";
-import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson, when } from "../../work";
+import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson } from "../../work";
 import { AgentIdle, AssignPicker, PriorityBadge, SendToField, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
@@ -100,7 +101,7 @@ export function CasesPage({ query, fixedState, filters }: {
         {list.data && <span className="small muted">{list.data.total} cases · {list.data.overdue} overdue · {list.data.due_soon} due soon</span>}
       </div>
       {picked.size > 0 && <BulkReassign ids={[...picked]} person={person} onDone={() => setPicked(new Set())} />}
-      <Status loading={list.loading && !list.data} error={list.error} empty={!!list.data && rows.length === 0}>No cases match.</Status>
+      <Status of={list} empty={!!list.data && rows.length === 0}>No cases match.</Status>
       {rows.length > 0 && (
         <Table variant="results">
           <thead><tr><th /><th>Case</th><th>Kind</th><th>State / step</th><th>With</th><th>Due</th><th>Priority</th><th>Opened</th></tr></thead>
@@ -142,7 +143,7 @@ function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; 
       <Button variant="primary" disabled={!to || !!a.busy}
         onClick={() => a.run("go", async () => { for (const id of ids) await api.reassignCase(id, person, to, reason || undefined); }, onDone)}>
         Reassign</Button>
-      {a.error && <span className="error small">{a.error}</span>}
+      <ErrorText inline>{a.error}</ErrorText>
     </UICard>
   );
 }
@@ -159,7 +160,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   const it = item.data;
   if (!it || item.error) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
-    <Status loading={item.loading} error={item.error} onRetry={item.reload} />
+    <Status of={item} />
     <a href={href("/exceptions", { list: "progress" })}>Return to All work</a></section>;
   const closed = !!it.closed_at;
   const payload = (it as WorkItem & { payload?: Record<string, unknown> }).payload ?? {};
@@ -280,7 +281,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
         {next && !answered && <ButtonLink variant="primary" href={stepHref(next.id)} aria-label={`Open ${next.name ?? next.element}`}>Open the step</ButtonLink>}
         {fieldOnly && <ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink>}
       </div>
-      {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}
+      <ErrorText>{takeOver.error}</ErrorText>
       {/* the IOC sends it out through the case's workflow: not while the field already has it */}
       {!demo && !fieldOnly && exceptionId != null && !open.some((s) => s.role === "operator") && person &&
         <SendToField exceptionId={exceptionId} person={person} onDone={reload} />}
@@ -300,7 +301,7 @@ export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; pe
   const [short, setShort] = useState<string | null>(null);
   const [back, setBack] = useState<string | null>(null);
   const a = useAction();
-  if (!c.data) return <Status loading={c.loading} error={c.error} />;
+  if (!c.data) return <Status of={c} />;
   const d = c.data;
   const system = d.system.toUpperCase();
   const done = () => { c.reload(); reload(); };
@@ -341,7 +342,7 @@ export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; pe
           <Button variant="secondary" onClick={() => setBack(null)}>Cancel</Button>
         </div>
       ))}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </UICard>
   );
 }
@@ -373,7 +374,7 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
               ...(due ? { due: new Date(due).toISOString() } : {}), reason: reason || undefined }), () => { setDue(""); reload(); })}>Save</Button>
         </div>
       </Disclosure>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </div>
   );
 }
@@ -403,10 +404,10 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
           )}
         </span>
       </div>
-      <Status loading={xml.loading} error={xml.error} />
+      <Status of={xml} />
       {xml.data && <Suspense fallback={<div className="status">Loading diagram…</div>}><BpmnView xml={xml.data} marks={marks} /></Suspense>}
       <Disclosure className="small" label={<>Workflow data</>}><DataView data={p.data} /></Disclosure>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </UICard>
   );
 }
@@ -441,7 +442,7 @@ export function Timeline({ it, person, readOnly = false }: { it: WorkItem; perso
         <Input placeholder="Add a comment" value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && text && a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))} />
         <Button disabled={!text || !!a.busy} onClick={() => a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))}>Comment</Button>
-        {a.error && <span className="error small">{a.error}</span>}
+        <ErrorText inline>{a.error}</ErrorText>
       </div>}
     </UICard>
   );

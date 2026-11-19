@@ -1,9 +1,10 @@
 import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select , Badge as UIBadge, Disclosure } from "../../ui";
+import { when } from "../../format";
 /** Shared workflow administration in Users and contextual read-only team workload in Work. */
 import { useState } from "react";
 import { api, type WorkRoleRow, type WorkloadPerson } from "../../api";
 import { Status, href, useAsync, useAction } from "../../lib";
-import { duration, usePerson, when } from "../../work";
+import { duration, usePerson } from "../../work";
 import { caseHref, processHref } from "./shared";
 import { useAuth, usePermission } from "../../Auth";
 

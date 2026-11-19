@@ -1,10 +1,11 @@
 import { Bar, Button, PageHeader, Input, Table, Card as UICard } from "../ui";
+import { whenDay, count } from "../format";
 import { useState } from "react";
 import { api, type DowntimeMonth, type RankRow } from "../api";
 import { Status, entityHref, useAsync } from "../lib";
 import "../styles/downtime.css";
 
-const fmt = (n: number) => Math.round(n).toLocaleString();
+const fmt = (n: number) => count(Math.round(n));
 const SCOPES = [["unplanned", "Unplanned"], ["planned", "Planned"], ["all", "All"]] as const;
 type Scope = typeof SCOPES[number][0];
 const monthName = (m: string) => new Date(`${m}-01T00:00Z`).toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
@@ -36,10 +37,10 @@ export function DowntimePage() {
           Since
           <Input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
         </label>}>Downtime</PageHeader>
-      <Status loading={total.loading && !t} error={total.error} onRetry={total.reload} />
+      <Status of={total} />
       {t && (
         <div className="downtime-totals">
-          <p><b>{fmt(t.lost_oil_bbl)} bbl</b> oil lost over <b>{t.events.toLocaleString()}</b> events ({fmt(t.hours)} h)</p>
+          <p><b>{fmt(t.lost_oil_bbl)} bbl</b> oil lost over <b>{count(t.events)}</b> events ({fmt(t.hours)} h)</p>
           {t.planned && (
             <p className="small">
               <span className="dot planned" /> Planned <b>{fmt(plannedBbl)} bbl</b> in {plannedEvents} {plannedEvents === 1 ? "event" : "events"}
@@ -68,7 +69,7 @@ export function DowntimePage() {
             <tbody>
               {events.map((e) => (
                 <tr key={e.id}>
-                  <td><a href={entityHref(e.id)}>{e.start?.slice(0, 10) ?? "unknown"}</a></td>
+                  <td><a href={entityHref(e.id)}>{whenDay(e.start, "unknown")}</a></td>
                   <td>{e.duration_h ?? "–"}</td>
                   <td>{e.reason ?? "–"}<div className="muted small">{e.comment}</div></td>
                   <td>{[...e.caused_by, ...e.affects].slice(0, 2).map((x, i) => <span key={x.id}>{i > 0 && ", "}
@@ -80,7 +81,7 @@ export function DowntimePage() {
           </Table>
         </UICard>
       )}
-      <Status loading={checks.loading && !checks.data} error={checks.error} onRetry={checks.reload} />
+      <Status of={checks} />
       {checks.data && checks.data.length > 0 && (
         <UICard  as="section">
           <h2>
@@ -89,7 +90,7 @@ export function DowntimePage() {
           <ul className="timeline">
             {checks.data.map((c) => (
               <li key={c.fuzer_id}>
-                <span className="when">{c.start?.slice(0, 10)}</span>
+                <span className="when">{whenDay(c.start)}</span>
                 <div className="what">
                   <a href={entityHref(c.fuzer_id)}>{c.label}</a>
                   <span className="muted small">{c.issue}</span>

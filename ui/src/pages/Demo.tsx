@@ -1,7 +1,8 @@
 import "../styles/investigation.css";
+import { when } from "../format";
 import { useEffect, useRef } from "react";
 import { api, type Stats } from "../api";
-import { href, Status, timestamp, useAsync } from "../lib";
+import { href, Status, useAsync } from "../lib";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Disclosure } from "../ui";
@@ -66,7 +67,7 @@ export function DemoPage({ query, stats }: {
         {ai && <ButtonLink href={href("/ask", { demo: "agents", q: "Using the loaded historical Okan records, compare production losses, equipment reliability and work-order readiness. Cite evidence with dates and units, identify missing inputs, and propose questions for human review, not operating instructions." })}>
           Prepare a cross-domain question
         </ButtonLink>}
-        <Status loading={catalog.loading && !catalog.data} error={catalog.error} onRetry={catalog.reload} />
+        <Status of={catalog} />
         {catalog.data && !catalog.error && (catalog.data.agents.length ? catalog.data.agents.map((agent) => <Disclosure className="investigation-evidence" key={agent.id} label={<><strong>{agent.label}</strong> · {agent.description}</>}>
           <h3>Registered skills</h3><ul>{agent.skills.map((s) => <li key={s}>{s}</li>)}</ul>
           <h3>Limitations and human decisions</h3>
@@ -117,17 +118,17 @@ function Workflow() {
       cases, not a private sandbox and not necessarily part of the compressor scenario. No case is created by this tour.</p>
     <h3>1. Inspect a loaded case</h3>
     <p>Open its workflow diagram, waiting steps and timeline. Agent steps and human-only decisions remain distinct.</p>
-    <Status loading={cases.loading && !cases.data} error={cases.error} onRetry={cases.reload} />
+    <Status of={cases} />
     {cases.data && !cases.error && (cases.data.items.length ? <ul>{cases.data.items.map((c) => <li key={c.id}>
       <a href={href(`/cases/${c.id}`, { demo: "workflow" })}>{c.title}</a> · {c.state} · {c.process_key ?? "No process recorded"}
-      <span className="muted small"> · Opened: {timestamp(c.created_at)} (recorded workflow timestamp)</span>
+      <span className="muted small"> · Opened: {when(c.created_at, "Time unknown")} (recorded workflow timestamp)</span>
     </li>)}</ul> : <EmptyState title="No workflow cases loaded">
       The workflow demonstration is unavailable. Ask an administrator to inspect the existing Work and Jobs setup; nothing was seeded.
     </EmptyState>)}
     <h3>2. Review your next task</h3>
     <p>{operate ? "Claim, complete or hand off only a task you intend to change. Confirmed actions are audited and may advance the shared workflow."
       : "You have read-only access. Task changes require operate access and applicable workflow roles; Demo grants neither."}</p>
-    <Status loading={inbox.loading && !inbox.data} error={inbox.error} onRetry={inbox.reload} />
+    <Status of={inbox} />
     {!person && <p>Your account or local attribution is needed to show your queue. <a href={href("/inbox")}>Open Inbox</a>.</p>}
     {inbox.data && !inbox.error && (tasks.length ? <ul>{tasks.map((t) => <li key={t.task_id}>
       <a href={href(`/inbox/task/${t.task_id}`, { demo: "workflow" })}>{t.name ?? t.title}</a> · {t.kind} · {t.role ?? "No role recorded"}

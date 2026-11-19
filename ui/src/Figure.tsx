@@ -76,7 +76,7 @@ export function FigureView({ id }: { id: string }) {
 
   return (
     <UICard className="figure" as="figure">
-      <Status loading={f.loading && !d} error={f.error} />
+      <Status of={f} />
       {d && (
         <>
           <div ref={full.ref} className={`chart-frame${full.on ? " ui-fullscreen" : ""}`}>

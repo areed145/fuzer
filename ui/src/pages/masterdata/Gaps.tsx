@@ -1,7 +1,7 @@
 /** Register gaps (#476): fields most of a kind carry and some lack, one value written several ways, and open
  * conflicts between sources. Each says where it is fixed; spellings are fixed here, across every entity at once. */
 import { useState } from "react";
-import { confirmDialog } from "../../ui";
+import { confirmDialog, ErrorText } from "../../ui";
 import { percent } from "../../format";
 import { api, type SpellingGroup } from "../../api";
 import { Button, Card, Select, Table, Empty } from "../../ui";
@@ -21,7 +21,7 @@ function Spellings() {
   const rows = useAsync(() => api.spellingGroups(), []);
   return (
     <Card title="One value, written several ways">
-      <Status loading={rows.loading && !rows.data} error={rows.error} />
+      <Status of={rows} />
       {rows.data && !rows.data.length && <Empty>No field has a value written more than one way.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">
         <thead><tr><th>Field</th><th>Spellings (entities)</th><th /></tr></thead>
@@ -51,7 +51,7 @@ function SpellingRow({ g, done }: { g: SpellingGroup; done: () => void }) {
           void a.run("fix", () => api.setValues(g.field, keep, others.flatMap((s) => s.fuzer_ids), person,
             `one spelling for ${g.field}`), done);
         }}>Use it on {n}</Button>
-        {a.error && <span className="error small">{a.error}</span>}
+        <ErrorText inline>{a.error}</ErrorText>
       </div>}</td>
     </tr>
   );
@@ -61,7 +61,7 @@ function Completeness() {
   const rows = useAsync(() => api.completenessGaps(), []);
   return (
     <Card title="Fields most of a kind have, and some lack">
-      <Status loading={rows.loading && !rows.data} error={rows.error} />
+      <Status of={rows} />
       {rows.data && !rows.data.length && <Empty>No field is missing from a few of a kind that most of it carry.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">
         <thead><tr><th>Kind</th><th>Field</th><th>Have it</th><th>Lacking (first few)</th></tr></thead>
@@ -83,7 +83,7 @@ function Conflicts() {
   const rows = useAsync(() => api.conflictGaps(), []);
   return (
     <Card title="Sources that disagree">
-      <Status loading={rows.loading && !rows.data} error={rows.error} />
+      <Status of={rows} />
       {rows.data && !rows.data.length && <Empty>No open conflicts.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">
         <thead><tr><th>Entity</th><th>Field</th><th>Values</th></tr></thead>

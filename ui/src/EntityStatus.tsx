@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { whenDay } from "./format";
 import { entityHref, useAsync } from "./lib";
 import { Badge } from "./ui";
 
@@ -15,7 +16,7 @@ export function EntityStatus({ id, data }: { id: string; data?: Awaited<ReturnTy
   const own = useAsync(() => (data === undefined ? readStatus(id) : Promise.resolve(null)), [id, data === undefined]).data;
   const s = data === undefined ? own : data;
   if (!s || typeof s.open_work !== "number") return null;
-  const day = (t: string | null) => t?.slice(0, 10) ?? "an unknown date";
+  const day = (t: string | null) => whenDay(t, "an unknown date");
   const rates = (s.well_test?.values ?? []).filter((v) => RATES.includes(v.quantity))
     .sort((a, b) => RATES.indexOf(a.quantity) - RATES.indexOf(b.quantity));
   return <p className="entity-status small" role="status" aria-label="Status now">

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { href, notifyChanged, useAsync } from "./lib";
 import { usePerson } from "./work";
-import { Button, Input, Select } from "./ui";
+import { Button, Input, Select, ErrorText } from "./ui";
 import { getProject, switchProject, type AuthSession } from "./authState";
 import { SignOut, useAuth, usePermission } from "./Auth";
 
@@ -113,7 +113,7 @@ function ActingAs({ actor }: { actor: string }) {
         {(data.data?.roles ?? []).map((role) => <option key={role} value={role}>{spaced(role)}</option>)}
       </Select>
     </label>
-    {error && <p className="error" role="alert">{error}</p>}
+    <ErrorText>{error}</ErrorText>
   </>;
 }
 

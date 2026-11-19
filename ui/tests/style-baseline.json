@@ -12,5 +12,9 @@
   "kit-override": 106,
   "computed-total": 16,
   "raw-fetch": 1,
-  "raw-control": 7
+  "raw-control": 7,
+  "local-time-format": 25,
+  "local-count-format": 0,
+  "raw-error": 17,
+  "read-state": 2
 }

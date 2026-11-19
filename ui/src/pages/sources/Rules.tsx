@@ -1,5 +1,5 @@
-import { Button, Empty, Input, Table, Card as UICard } from "../../ui";
-import { percent } from "../../format";
+import { Button, Empty, Input, Table, Card as UICard, ErrorText } from "../../ui";
+import { percent, when } from "../../format";
 /** Survivorship and match rules (#225): the systems' rank (the default priority) and field / match rules. */
 import { useState } from "react";
 import { api, type MatchCalibration } from "../../api";
@@ -12,7 +12,7 @@ export function Rules() {
   const [field, setField] = useState("");
   const [prio, setPrio] = useState("review, sap");
   const [conflict, setConflict] = useState(false);
-  if (!r.data) return <Status loading={r.loading} error={r.error} />;
+  if (!r.data) return <Status of={r} />;
   return (
     <>
       <UICard className="">
@@ -60,7 +60,7 @@ export function Rules() {
             }, reviewer()), r.reload)}>Save</Button>
           <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("rematch", () => api.rematch())}>Rebuild</Button>
         </div>
-        {a.error && <p className="error small">{a.error}</p>}
+        <ErrorText>{a.error}</ErrorText>
       </UICard>
     </>
   );
@@ -95,7 +95,7 @@ function MatchConfidence({ rows, reload }: { rows: MatchCalibration[]; reload: (
           })}</tbody>
         </Table>
       )}
-      {rows.length > 0 && <p className="small">Measured {new Date(rows[0].measured_at).toISOString().slice(0, 16).replace("T", " ")} UTC
+      {rows.length > 0 && <p className="small">Measured {when(rows[0].measured_at)}
         on {rows.reduce((n, x) => n + x.pairs, 0)} labelled pairs ({rows[0].labels}); a record that fits two items always goes to a person.</p>}
       <div className="row">
         <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("measure", () => api.calibrate(reviewer()), reload)}>
@@ -104,7 +104,7 @@ function MatchConfidence({ rows, reload }: { rows: MatchCalibration[]; reload: (
           onClick={() => a.run("adopt", () => api.adoptCalibration(reviewer()), reload)}>
           Use the measured thresholds for {changes.map((x) => x.source).join(", ")} (from the next rebuild)</Button>}
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </UICard>
   );
 }

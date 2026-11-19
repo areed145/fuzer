@@ -3,10 +3,11 @@
  * stretched to change a duration; a click opens the activity's properties beside the board. Every change recalculates
  * the critical path and the dates levelled against every shared resource; Schedule puts those dates on the plan. */
 import { useState } from "react";
+import { when, whenDay } from "../format";
 import { api, type ScheduleAnalysis, type ScheduleLinkRef, type ScheduleRow } from "../api";
-import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs } from "../ui";
+import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs, ErrorText } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
-import { acronyms, dayStamp, stamp } from "../wording";
+import { acronyms } from "../wording";
 import { type BoardChange, type BoardRows, ScheduleBoard } from "./ScheduleBoard";
 
 const TYPES: ScheduleLinkRef["type"][] = ["FS", "SS", "FF", "SF"];
@@ -28,13 +29,13 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
   const [said, setSaid] = useState<string | null>(null);
   const { busy, error, run } = useAction();
   const s = data.data;
-  if (!s) return <Status loading={data.loading} error={data.error} onRetry={data.reload} />;
+  if (!s) return <Status of={data} />;
   const p = s.project;
   const over = s.overruns_window_by_days > 0;
   const here = (v: BoardRows) => `#/plan?schedule=${encodeURIComponent(p.code)}${v === "resources" ? "&view=resources" : ""}`;
   const sel = selected != null ? s.activities.find((a) => a.id === selected) : undefined;
   const apply = () => person && run("Scheduling", () => api.scheduleApply(p.code, person), (r) => {
-    setSaid(`These dates are on the plan. Finishes ${stamp(r.finish)}.`);
+    setSaid(`These dates are on the plan. Finishes ${when(r.finish)}.`);
     data.reload();
   });
   // A change on the board: saved at once, the schedule recalculated, and kept so it can be undone.
@@ -52,7 +53,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
       : c.kind === "stretch"
       ? [`${c.code} now takes ${hours(c.hours)} h.`, () => api.scheduleChange(c.id, person, { duration_hours: c.hours }),
          () => api.scheduleChange(c.id, person, { duration_hours: a.duration_hours ?? 0 })] as const
-      : [c.earliest ? `${c.code} starts as early as its logic and crews allow.` : `${c.code} starts no earlier than ${stamp(c.start)}.`,
+      : [c.earliest ? `${c.code} starts as early as its logic and crews allow.` : `${c.code} starts no earlier than ${when(c.start)}.`,
          () => api.scheduleChange(c.id, person, c.earliest ? { clear_not_before: true } : { not_before: c.start.toISOString() }),
          () => api.scheduleChange(c.id, person, a.not_before ? { not_before: a.not_before } : { clear_not_before: true })] as const;
     run("Rescheduling", forth, () => { setUndo((u) => [...u.slice(-19), { say, back }]); setSaid(say); data.reload(); });
@@ -64,7 +65,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
   const panel = adding || !!sel;
   return (
     <section>
-      <PageHeader detail={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${dayStamp(p.start_at)}${p.finish_by ? ` to ${dayStamp(p.finish_by)}` : ""}`}
+      <PageHeader detail={`${p.kind[0].toUpperCase()}${p.kind.slice(1)} · ${whenDay(p.start_at)}${p.finish_by ? ` to ${whenDay(p.finish_by)}` : ""}`}
         actions={<>
           <Button variant="primary" disabled={!person || !!busy} title={person ? undefined : "Choose who you are to schedule"}
             onClick={apply}>Schedule</Button>
@@ -81,13 +82,13 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
         </Select></label>
         {person && <Button size="sm" onClick={() => { setAdding(true); setSelected(null); }}>Add activity</Button>}
         {undo.length > 0 && <Button size="sm" disabled={!!busy} onClick={undoLast}>Undo</Button>}
-        <Badge tone={over ? "danger" : "ok"}>Finishes {stamp(s.levelled_finish)}</Badge>
+        <Badge tone={over ? "danger" : "ok"}>Finishes {when(s.levelled_finish)}</Badge>
         <Badge tone="danger">{s.critical_path.length} critical</Badge>
         {s.overloads_levelled.length > 0 && <Badge tone="danger">{s.overloads_levelled.length} over capacity</Badge>}
       </div>
       {over && <Notice tone="warn">This runs {s.overruns_window_by_days} days past the window. The finish waits
         on {[...new Set(s.levelled_chain.map((c) => c.waited_for).filter(Boolean))].join(", ") || "the logic"}.</Notice>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
       <p role="status" className="small gb-said">{busy ? `${busy}…` : said ?? (person ? rows === "resources" ? "Drag an activity to move it, or onto another row to hand it to that resource." : "Drag an activity to move it, its right edge to change how long it takes. Select one and drag its dot to link it." : "Choose who you are to change the schedule.")}</p>
       <div className={panel ? "plan-layout with-panel" : "plan-layout"}>
         <ScheduleBoard s={s} rows={rows} zoom={zoom} selected={selected} canEdit={!!person && !busy}
@@ -118,10 +119,10 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
   const act = (label: string, fn: () => Promise<unknown>) => person && run(label, fn, onChange);
   return (
     <div className="sched-editor">
-      <p className="small">{stamp(a.start)} to {stamp(a.finish)}{a.critical ? " · critical" : ` · ${hours(a.float_hours)} h float`}</p>
+      <p className="small">{when(a.start)} to {when(a.finish)}{a.critical ? " · critical" : ` · ${hours(a.float_hours)} h float`}</p>
       <p className="small">
         {a.work_order && <>Order {a.work_order} · </>}{a.assets.filter((x) => x !== a.work_order).join(", ") || "No asset"}
-        {" · "}Early {stamp(a.early_start)} to {stamp(a.early_finish)}, late {stamp(a.late_start)} to {stamp(a.late_finish)}
+        {" · "}Early {when(a.early_start)} to {when(a.early_finish)}, late {when(a.late_start)} to {when(a.late_finish)}
       </p>
       {a.held_back_by && <p className="small">Waits {hours(a.held_back_hours)} h for {a.held_back_by.resource}
         {a.held_back_by.activities.length ? `, in use by ${a.held_back_by.activities.join(", ")}` : ""}.</p>}
@@ -179,7 +180,7 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
         </div>
       </>}
       {busy && <p role="status">{busy}…</p>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }
@@ -201,7 +202,7 @@ function AddActivity({ project, person, onChange, onClose }: { project: string; 
         <Field label="After (codes)" width="sm"><Input value={after} placeholder="A0100, A0110 SS+4" onChange={(e) => setAfter(e.target.value)} /></Field>
         <Button disabled={!!busy || !code.trim() || !name.trim() || dur === ""} onClick={add}>Add</Button>
       </div>
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </Card>
   );
 }

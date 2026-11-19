@@ -1,4 +1,5 @@
-import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty, ErrorText } from "../../ui";
+import { count } from "../../format";
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
 import { api, type AddTableResult, type Catalog, type CatalogSystem, type SourceLoad, type TablePreview } from "../../api";
@@ -32,7 +33,7 @@ export function AddWizard({ system, connection, table }: { system: string | null
   const [mapping, setMapping] = useState<{ yaml: string; dataset: string } | null>(null);
   const [result, setResult] = useState<AddTableResult | null>(null);
   const [suggest, setSuggest] = useState<{ name: string; path: string } | null>(null);
-  if (!cat.data) return <Status loading={cat.loading} error={cat.error} />;
+  if (!cat.data) return <Status of={cat} />;
   const s = cat.data.systems.find((x) => x.name === sys);
   const c = s?.connections.find((x) => x.id === conn);
   return (
@@ -111,7 +112,7 @@ function PickConnection({ s, types, dataDir, onPick, suggest }: { s: CatalogSyst
       {adding ? (
         <ConnectionForm system={s.name} types={types} initial={suggest ?? undefined} onDone={(c) => onPick(Number(c.id))} />
       ) : <Button variant="secondary" onClick={() => setAdding(true)}>+ A new connection</Button>}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </>
   );
 }
@@ -122,11 +123,11 @@ function PickTable({ connection, folder, onPick, onOtherConnection }: {
 }) {
   const t = useAsync(() => api.connectionTables(connection), [connection]);
   const test = useAsync(() => api.testConnection(connection), [connection]);
-  if (!t.data) return <Status loading={t.loading} error={t.error} />;
+  if (!t.data) return <Status of={t} />;
   const fresh = t.data.tables.filter((x) => !x.dataset);
   return (
     <>
-      {test.data && !test.data.ok && <><p className="error small">The connection test failed:</p><TestSteps steps={test.data.steps} /></>}
+      {test.data && !test.data.ok && <><ErrorText>The connection test failed:</ErrorText><TestSteps steps={test.data.steps} /></>}
       {fresh.length === 0 && (
         // Not a dead end (#412): new tables elsewhere need a connection that points there.
         <div className="small">
@@ -164,7 +165,7 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
   const [dataset, setDataset] = useState("");
   const [rtype, setRtype] = useState("");
   const a = useAction();
-  if (!p.data) return <Status loading={p.loading} error={p.error} />;
+  if (!p.data) return <Status of={p} />;
   const d: TablePreview = p.data;
   const yaml = text ?? initial?.yaml ?? d.suggested.yaml;
   const cols = d.sample.length ? Object.keys(d.sample[0]) : (d.schema ?? []).map(([x]) => x);
@@ -205,7 +206,7 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
         <Button variant="primary" onClick={() => onDone({ yaml, dataset: datasetOf(yaml) })}>Continue</Button>
         {text !== null && <span className="muted small">edited</span>}
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </>
   );
 }
@@ -259,7 +260,7 @@ function AddResult({ r }: { r: AddTableResult }) {
       <h2>{held ? "Saved, but the first load is held" : "Added and loaded"}</h2>
       {!held && r.load && (
         <div>
-          <code>{r.dataset}</code>: {r.load.records.toLocaleString()} records ({r.load.inserted} new). They become entities on
+          <code>{r.dataset}</code>: {count(r.load.records)} records ({r.load.inserted} new). They become entities on
           the next rebuild.{" "}
           <ConfirmAction label="Rebuild now" busy={!!a.busy}
             consequence="Rebuild shared facility entities and links from the loaded records? This may take time and change connected evidence."

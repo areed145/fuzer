@@ -2,6 +2,7 @@
  * reservoir volume produced, and each injector's Hall plot slope against its own earlier one. A field with no
  * injection says so, never a ratio of zero. Screening only: the injection target stays with the engineers. */
 import { api } from "../api";
+import { count } from "../format";
 import { Badge, Card, Table } from "../ui";
 import { Status, useAsync } from "../lib";
 
@@ -17,7 +18,7 @@ export function WaterInjection() {
   const months = v?.months.filter((m) => m.status !== "no_injection") ?? [];
   return (
     <Card className="water-injection" title="Water injection">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && v && v.verdict === "no_injection" && <div className="small wi-none">{v.note}</div>}
       {d && v && v.verdict !== "no_injection" && <>
         <div className="small wi-summary">
@@ -45,8 +46,8 @@ export function WaterInjection() {
               <td>{m.month}</td>
               <td data-label="Ratio">{m.vrr ?? "unknown"}</td>
               <td data-label="Running">{m.cumulative_vrr ?? "unknown"}</td>
-              <td data-label="Injected">{m.injected_rb != null ? `${m.injected_rb.toLocaleString()} rb` : "unknown"}</td>
-              <td data-label="Produced">{m.voidage_rb != null ? `${m.voidage_rb.toLocaleString()} rb` : "unknown"}</td>
+              <td data-label="Injected">{m.injected_rb != null ? `${count(m.injected_rb)} rb` : "unknown"}</td>
+              <td data-label="Produced">{m.voidage_rb != null ? `${count(m.voidage_rb)} rb` : "unknown"}</td>
             </tr>
           ))}</tbody>
         </Table>

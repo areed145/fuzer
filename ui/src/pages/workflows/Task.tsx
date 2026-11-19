@@ -1,4 +1,5 @@
-import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea } from "../../ui";
+import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea, ErrorText } from "../../ui";
+import { when } from "../../format";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
 import { person as personName, say } from "../../wording";
@@ -9,7 +10,7 @@ import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
 import { CaseSafeguards } from "./Safeguards";
 import { Status, href, useAsync, useAction } from "../../lib";
-import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
+import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson } from "../../work";
 import { CloseoutPanel, ProcessDiagram, Timeline } from "./Cases";
 import { AssignPicker, GENERIC_STEP, SendToField, StepBadges, caseHref } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
@@ -34,7 +35,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
   const kept = useOutbox().waiting.some((w) => w.kind === "task_complete" && (w.payload as { task: number }).task === id);
   if (!v || view.error) return <section><PageHeader>Task</PageHeader>
     {demo && <DemoContext step="workflow" />}
-    <Status loading={view.loading} error={view.error} onRetry={view.reload} />
+    <Status of={view} />
     <a href={href("/inbox")}>Return to Inbox</a></section>;
   const t = v.task;
   const waiting = t.state === "waiting";
@@ -63,7 +64,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
         {t.escalated_at && <> · escalated {when(t.escalated_at)}</>}
       </p>
       <div className="row small"><StepBadges row={t} /></div>
-      {t.error && <p className="error small">{t.error}</p>}
+      <ErrorText>{t.error}</ErrorText>
       {done && !demo && <p className="notice small">{done} <a href={href("/inbox")}>Back to your inbox</a></p>}
       <div className="task-layout">
         <div>
@@ -131,12 +132,12 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
             }} />}
           {demo ? <ActionStatus busy={a.busy} error={a.error}>
             {done && <p>{done} <a href={href(`/cases/${v.item.id}`, { demo: "workflow" })}>Inspect recorded case</a></p>}
-          </ActionStatus> : a.error && <p className="error small">{a.error}</p>}
+          </ActionStatus> : a.error && <ErrorText>{a.error}</ErrorText>}
           <Evidence v={v} />
         </div>
         <div>
           {proc && <ProcessDiagram p={proc} focus={t.element} />}
-          <Status loading={item.loading && !item.data} error={item.error} onRetry={item.reload} />
+          <Status of={item} />
           {item.data && <Timeline it={item.data} person={person} readOnly={demo} />}
         </div>
       </div>
@@ -186,7 +187,7 @@ function FixForm({ busy, onRetry }: { busy: boolean; onRetry: (data: Record<stri
       <Textarea className="mono" rows={4} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="actions">
         <Button variant="primary" disabled={busy || !data} onClick={() => data && onRetry(data)}>Retry step</Button>
-        {!data && <span className="error small">Not valid JSON.</span>}
+        {!data && <ErrorText inline>Not valid JSON.</ErrorText>}
       </div>
     </div>
   );

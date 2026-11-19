@@ -1,5 +1,6 @@
 import "../styles/entity.css";
-import { Bar, Button, ButtonLink, Notice, PageHeader, Table, Tabs, Input,  Card as UICard, Badge as UIBadge} from "../ui";
+import { when, whenDay, count } from "../format";
+import { Bar, Button, ButtonLink, Notice, PageHeader, Table, Tabs, Input, Card as UICard, Badge as UIBadge, ErrorText } from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer, SheetThumb } from "../DrawingViewer";
@@ -42,9 +43,8 @@ import { kindColor, relColor } from "../kinds";
 import { nodeLabel } from "../entityRefs";
 import { usePermission } from "../Auth";
 import { keptAt } from "../fieldPack";
-import { when } from "../work";
 import { ASSET_KINDS, kindWord, person as personName } from "../wording";
-import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
+import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
 const EntityGraph = lazy(() => import("./EntityGraph").then((m) => ({ default: m.EntityGraph })));
@@ -132,7 +132,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
       your jobs are. <a href={href("/inbox")}>Back to My work</a></Notice>
   </section>;
   if (!ent.data) return <section><PageHeader>Asset and evidence</PageHeader>
-    <Status loading={ent.loading} error={ent.error} onRetry={ent.reload} />
+    <Status of={ent} />
     {ent.error && <p>The register record may be unavailable or the request may have failed.
       {" "}<a href={href("/browse")}>Return to Explore</a> to find a loaded record.</p>}
   </section>;
@@ -217,7 +217,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
                   Read full screen</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
-                <p className="error small">This revision is superseded; see "Superseded by" under Data.</p>
+                <ErrorText>This revision is superseded; see "Superseded by" under Data.</ErrorText>
               )}
               <DocumentPages id={fid} className="doc-preview" />
             </UICard>
@@ -319,7 +319,7 @@ function LinkedDrawings({ id, fallback = null }: { id: string; fallback?: ReactN
 /** Why a value says what it says (#225): the rule, and each record that states one with its mapping and load. */
 function Why({ id, field }: { id: string; field: string }) {
   const w = useAsync(() => api.why(id, field), [id, field]);
-  if (!w.data) return <Status loading={w.loading} error={w.error} onRetry={w.reload} />;
+  if (!w.data) return <Status of={w} />;
   return (
     <div className="small why">
       <div className="muted">
@@ -331,7 +331,7 @@ function Why({ id, field }: { id: string; field: string }) {
           <SourceBadge source={a.source} /> {fmt(a.value)} {a.wins && <UIBadge className="badge ok">chosen</UIBadge>}{" "}
           <code className="muted">{a.record}</code>
           {a.mapping_version && <span className="muted"> · mapping v{a.mapping_version.id}</span>}
-          {a.run && <span className="muted"> · ingestion run {a.run.id} ({a.run.dataset}, {timestamp(a.run.finished_at)})</span>}
+          {a.run && <span className="muted"> · ingestion run {a.run.id} ({a.run.dataset}, {when(a.run.finished_at, "Time unknown")})</span>}
         </div>
       ))}
     </div>
@@ -444,8 +444,8 @@ function Links({ edges, counts, asOf }: { edges: Edge[]; counts: Record<string, 
               {(() => {
                 const total = counts[`${items[0].direction}:${items[0].rel}`] ?? items.length;
                 return total > items.length
-                  ? `showing ${items.length} of ${total.toLocaleString()}`
-                  : items.length.toLocaleString();
+                  ? `showing ${items.length} of ${count(total)}`
+                  : count(items.length);
               })()}
             </span>
           </h3>
@@ -486,7 +486,7 @@ function LinkList({ items }: { items: Edge[] }) {
             ))}
           </ul>
           {shown.length < items.length && (
-            <Button variant="link" size="sm" onClick={() => setAll(true)}>Show all {items.length.toLocaleString()}</Button>
+            <Button variant="link" size="sm" onClick={() => setAll(true)}>Show all {count(items.length)}</Button>
           )}
     </>
   );
@@ -545,7 +545,7 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
           <ButtonLink variant="link" href={href("/3d", { at: id })}>See its area in 3D</ButtonLink>
         </span>
       </div>
-      <Status loading={flow.loading && !flow.data} error={flow.error} onRetry={flow.reload} empty={none}>
+      <Status of={flow} empty={none}>
         Nothing flows in or out{asOf ? " on this date" : ""}.
       </Status>
       {flow.data && !none && <>
@@ -579,7 +579,7 @@ function Events({ id }: { id: string }) {
       <ul className="timeline">
         {evs.data.map((ev) => (
           <li key={ev.id}>
-            <span className="when">{ev.timestamp?.slice(0, 10) ?? "—"}</span>
+            <span className="when">{whenDay(ev.timestamp, "—")}</span>
             <div className="what">
               <div className="row">
                 <UIBadge className="badge event-type">{(ev.type ?? "event").replace("_", " ")}</UIBadge>
@@ -617,7 +617,7 @@ function MaintenanceCard({ id }: { id: string }) {
   return (
     <UICard  as="section">
       <h2>
-        Maintenance <span className="muted small">{m.data.total.toLocaleString()} SAP notifications</span>
+        Maintenance <span className="muted small">{count(m.data.total)} SAP notifications</span>
       </h2>
       <div className="maintenance-split">
         <div>
@@ -669,21 +669,21 @@ function DowntimeCard({ id }: { id: string }) {
       <h2>
         Downtime{" "}
         <span className="muted small">
-          {Math.round(d.data.lost_oil_bbl).toLocaleString()} bbl oil lost over {d.data.events} events
+          {count(Math.round(d.data.lost_oil_bbl))} bbl oil lost over {d.data.events} events
         </span>
       </h2>
       <ul className="timeline">
         {d.data.recent.slice(0, 8).map((r) => (
           <li key={r.id}>
-            <span className="when">{r.start?.slice(0, 10)}</span>
+            <span className="when">{whenDay(r.start)}</span>
             <div className="what">
               <div className="row">
                 <UIBadge className="badge event-type">{r.reason ?? "downtime"}</UIBadge>
                 <a href={entityHref(r.id)}>{r.comment}</a>
               </div>
               <div className="muted small">
-                {r.duration_h} h · {Math.round(r.lost_oil_bbl ?? 0).toLocaleString()} bbl
-                {r.reason_check && <span className="error"> · {r.reason_check}</span>}
+                {r.duration_h} h · {count(Math.round(r.lost_oil_bbl ?? 0))} bbl
+                {r.reason_check && <ErrorText inline> · {r.reason_check}</ErrorText>}
               </div>
             </div>
           </li>
@@ -699,7 +699,7 @@ function IncidentsCard({ id }: { id: string }) {
   return (
     <UICard as="section">
       <h2>
-        Incidents <span className="muted small">{d.data.total.toLocaleString()}</span>
+        Incidents <span className="muted small">{count(d.data.total)}</span>
       </h2>
       <IncidentList items={d.data.items.slice(0, 8)} />
     </UICard>
@@ -717,7 +717,7 @@ function ConversationsCard({ id }: { id: string }) {
       <ul className="plain">{list.map((c) => <li key={c.id} className="conversation">
         <p><strong>{c.subject ?? c.problem ?? "Thread"}</strong>{" "}
           <UIBadge tone={c.state === "open" ? "warn" : "ok"}>{c.state === "open" ? "still open" : "fixed"}</UIBadge></p>
-        <p className="small">{[c.channel, c.started_at ? timestamp(c.started_at) : null, c.participants.join(", ")].filter(Boolean).join(" · ")}</p>
+        <p className="small">{[c.channel, c.started_at ? when(c.started_at, "Time unknown") : null, c.participants.join(", ")].filter(Boolean).join(" · ")}</p>
         {c.problem && <p className="small">Problem: {c.problem}</p>}
         {c.tried.length > 0 && <p className="small">Tried: {c.tried.join(" · ")}</p>}
         {c.fix && <p className="small">Fix: {c.fix}</p>}
@@ -788,7 +788,7 @@ const RULE_SAYS: Record<string, string> = { priority: "by system priority", revi
  * values, reviewer choices and fixes, merges and splits, and the work and write-backs that touched it. */
 function LineageCard({ id }: { id: string }) {
   const l = useAsync(() => api.lineage(id), [id]);
-  if (!l.data?.systems) return <Status loading={l.loading} error={l.error} onRetry={l.reload} />;
+  if (!l.data?.systems) return <Status of={l} />;
   const d = l.data;
   const rules = Object.entries(d.rules).map(([r, n]) => `${n} ${RULE_SAYS[r] ?? r}`).join(", ");
   return (
@@ -820,11 +820,11 @@ function LineageCard({ id }: { id: string }) {
         <ul className="small">
           {d.reviewed.map((r) => (
             <li key={`r-${r.field}`}><b>{fieldLabel(r.field)}</b>: {fmt(r.value)}{" "}
-              <span className="muted">chosen by {r.by ?? "a reviewer"}{r.at ? `, ${timestamp(r.at)}` : ""}</span></li>
+              <span className="muted">chosen by {r.by ?? "a reviewer"}{r.at ? `, ${when(r.at, "Time unknown")}` : ""}</span></li>
           ))}
           {d.fixes.map((f, i) => (
             <li key={`f-${i}`}><b>{fieldLabel(f.field)}</b>: {fmt(f.old_value)} → {fmt(f.new_value)}{" "}
-              <span className="muted">fixed by {personName(f.by)}, {timestamp(f.at)}{f.reason ? `: ${f.reason}` : ""}</span></li>
+              <span className="muted">fixed by {personName(f.by)}, {when(f.at, "Time unknown")}{f.reason ? `: ${f.reason}` : ""}</span></li>
           ))}
         </ul>
       </>}
@@ -835,14 +835,14 @@ function LineageCard({ id }: { id: string }) {
             <li key={`i-${i}`}>
               {x.event === "merge" ? "Merged in " : "Split off from "}
               <a href={entityHref(x.other)}>{x.other_label ?? x.other}</a>{" "}
-              <span className="muted">{timestamp(x.at)}</span>
+              <span className="muted">{when(x.at, "Time unknown")}</span>
             </li>
           ))}
           {d.pins.map((p, i) => (
             <li key={`p-${i}`}>
               <code>{p.left_ref}</code> {p.rule === "must" ? "is the same item as" : "is not the same item as"}{" "}
               <code>{p.right_ref}</code>{" "}
-              <span className="muted">by {p.by ?? "a steward"}, {timestamp(p.at)}{p.reason ? `: ${p.reason}` : ""}</span>
+              <span className="muted">by {p.by ?? "a steward"}, {when(p.at, "Time unknown")}{p.reason ? `: ${p.reason}` : ""}</span>
             </li>
           ))}
         </ul>
@@ -852,7 +852,7 @@ function LineageCard({ id }: { id: string }) {
       {d.work.count > 0 && (
         <ul className="small">
           {d.work.recent.map((w) => (
-            <li key={w.id}><a href={caseHref(w.id)}>{w.title}</a> <span className="muted">{w.state} · {timestamp(w.created_at)}</span></li>
+            <li key={w.id}><a href={caseHref(w.id)}>{w.title}</a> <span className="muted">{w.state} · {when(w.created_at, "Time unknown")}</span></li>
           ))}
           {d.work.count > d.work.recent.length && (
             <li className="muted">and {d.work.count - d.work.recent.length} earlier</li>
@@ -865,7 +865,7 @@ function LineageCard({ id }: { id: string }) {
             <li key={w.id}>
               <SourceBadge source={w.system} /> {w.kind.replace(/_/g, " ")} {w.record ? <code>{w.record}</code> : null}{" "}
               <span className="muted">{w.state}{w.approved_by ? `, approved by ${w.approved_by}` : ""}
-                {w.confirmed_at ? `, confirmed ${timestamp(w.confirmed_at)}` : ""}</span>{" "}
+                {w.confirmed_at ? `, confirmed ${when(w.confirmed_at, "Time unknown")}` : ""}</span>{" "}
               <a href={caseHref(w.item_id)}>case</a>
             </li>
           ))}
@@ -886,7 +886,7 @@ function HistoryCard({ id }: { id: string }) {
       <ul className="timeline">
         {h.data.map((c, i) => (
           <li key={i}>
-            <span className="when">{c.at?.slice(0, 16).replace("T", " ")}</span>
+            <span className="when">{when(c.at)}</span>
             <div className="what">
               <span className="small">
                 <UIBadge className="badge source">{c.record.split(":")[0]}</UIBadge> {c.record.split(":").slice(2).join(":")}{" "}

@@ -1,16 +1,16 @@
 // The daily report (#98, #242), and the regulatory reports (P7.6, RegulatoryReports.tsx): one page for each production day's narrative, where its review stands, and the
 // review itself (publish, or send back with what to change). The `daily_report` case behind it is linked for
 // its history; the day's production figures are the `production_day` record (EC DAY001).
-import { units, dayStamp } from "../wording";
-import { money } from "../format";
+import { units } from "../wording";
+import { money, when, whenDay } from "../format";
 import { useState } from "react";
 import { api, type DailyReport, type DailyStatus } from "../api";
 import { Markdown } from "../Markdown";
 import { readableCitations } from "../entityRefs";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
-import { usePerson, when } from "../work";
+import { usePerson } from "../work";
 import { AgentIdle } from "./workflows/shared";
-import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea } from "../ui";
+import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText } from "../ui";
 import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
 const STATUS_CLASS: Record<string, string> = {
@@ -26,7 +26,7 @@ const STATUS_HELP: Record<string, string> = {
 };
 
 const weekday = (day: string) => new Date(`${day}T00:00Z`).toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" });
-const dayMonth = (day: string) => dayStamp(`${day}T00:00Z`, true);
+const dayMonth = (day: string) => whenDay(day);
 
 export function StatusBadge({ status }: { status: DailyStatus }) {
   return <UIBadge className={`badge ${STATUS_CLASS[status] ?? ""}`} title={STATUS_HELP[status]}>{status}</UIBadge>;
@@ -42,7 +42,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
   return (
     <section>
       <PageHeader>Daily reports</PageHeader>
-      <Status loading={days.loading && !days.data} error={days.error} empty={days.data?.length === 0}>
+      <Status of={days} empty={days.data?.length === 0}>
         No reports yet: `fuzer report` closes a day.
       </Status>
       {waiting > 0 && <p className="small">{waiting} report{waiting > 1 ? "s" : ""} awaiting review.</p>}
@@ -62,7 +62,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
       )}
       {day && <Report key={day} day={day} onChange={days.reload} />}
       <h2>Regulatory reports</h2>
-      <Status loading={regulatory.loading && !regulatory.data} error={regulatory.error} />
+      <Status of={regulatory} />
       {regulatory.data && <RegulatoryList data={regulatory.data} selected={report} onChange={regulatory.reload} />}
       <ObligationsDue />
       {template && period && (
@@ -78,7 +78,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
   const d = r.data;
   return (
     <>
-      <Status loading={r.loading && !d} error={r.error} />
+      <Status of={r} />
       {d && (
         <>
           <Review d={d} onDone={() => { r.reload(); onChange(); }} />
@@ -144,7 +144,7 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
         <StatusBadge status={rv.status} /> <span className="muted">{STATUS_HELP[rv.status] ?? rv.status}
           {rv.closed_at && ` ${when(rv.closed_at)}`}</span>
         {rv.comments && rv.status === "sent back" && <span>Asked for: “{rv.comments}”</span>}
-        {step?.error && <span className="error">{step.error}</span>}
+        {step?.error && <ErrorText inline>{step.error}</ErrorText>}
         <AgentIdle step={step} />
         {caseLink}
       </p>
@@ -186,7 +186,7 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
           )}
         </>
       )}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </UICard>
   );
 }

@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, ErrorText } from "../ui";
 import { percent } from "../format";
 import { useState } from "react";
 import { api } from "../api";
@@ -19,7 +19,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
     <section>
       <PageHeader help="analyses">Studies</PageHeader>
       <NewStudy onDone={list.reload} />
-      <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.length === 0}>No studies yet.</Status>
+      <Status of={list} empty={list.data?.length === 0}>No studies yet.</Status>
       {list.data && list.data.length > 0 && (
         <Table variant="results">
           <thead><tr><th>Study</th><th>Kind</th><th>Status</th><th>Result</th><th>Run by</th></tr></thead>
@@ -75,7 +75,7 @@ function NewStudy({ onDone }: { onDone: () => void }) {
       <label className="small">Since <Input type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} /></label>
       <label className="small">Until <Input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} /></label>
       <Button variant="primary" onClick={run}>Run</Button>
-      {error && <span className="error">{error}</span>}
+      <ErrorText inline>{error}</ErrorText>
     </UICard>
   );
 }
@@ -85,7 +85,7 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
   const d = s.data;
   return (
     <UICard  as="section">
-      <Status loading={s.loading && !d} error={s.error} />
+      <Status of={s} />
       {d && (
         <>
           <h2>study:{d.id} <span className="muted small">{d.kind} · {d.status}</span></h2>

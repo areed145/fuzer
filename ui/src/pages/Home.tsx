@@ -1,14 +1,14 @@
 import { AttentionCard } from "./HomeAttention";
 import { openReviews } from "../figures";
-import { money } from "../format";
+import { money, when, count } from "../format";
 import { alarm, plural, say } from "../wording";
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, type Stats, type Upset } from "../api";
 import { caseHref } from "./workflows/shared";
 import { iocCounts, workHref } from "./AllWork";
-import { Status, entityHref, href, timestamp, useAsync } from "../lib";
+import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson } from "../work";
-import { Button, PageHeader, Input, Card as UICard, Empty } from "../ui";
+import { Button, PageHeader, Input, Card as UICard, Empty, ErrorText } from "../ui";
 import { usePermission } from "../Auth";
 import { LiveFigure } from "../analytics/LiveFigure";
 import { YourShift } from "./HomeShift";
@@ -138,7 +138,7 @@ function LatestReportCard() {
           </a>
         )}
       </div>
-      <Status loading={latest.loading && !latest.data} error={latest.error} onRetry={latest.reload} empty={latest.data === null}>
+      <Status of={latest} empty={latest.data === null}>
         No daily report recorded. <a href={href("/reports")}>Open daily reports</a>.
       </Status>
       {latest.data && (
@@ -208,7 +208,7 @@ function MasterDataCard({ stats }: { stats?: Stats }) {
   return (
     <UICard className="home-card" as="section">
       <div className="row spread"><h2>Master data</h2><a href={href("/masterdata")}>Open Master data</a></div>
-      <Status loading={unmatched.loading && !unmatched.data} error={unmatched.error} onRetry={unmatched.reload} />
+      <Status of={unmatched} />
       <ul className="home-counts">
         {unmatched.data && <Count n={unmatched.data.length} to={href("/masterdata")} late>ref on open work matched nothing|refs on open work matched nothing</Count>}
         {reviews !== null && <Count n={reviews} to={href("/masterdata", { tab: "questions" })}>record to review|records to review</Count>}
@@ -229,7 +229,7 @@ function IncidentsCard() {
         <a href={href("/incidents")}>All incidents</a>
       </div>
       <h3>Latest incidents</h3>
-      <Status loading={incidents.loading && !incidents.data} error={incidents.error} onRetry={incidents.reload} empty={incidents.data?.items.length === 0}>
+      <Status of={incidents} empty={incidents.data?.items.length === 0}>
         No incidents recorded.
       </Status>
       {recentIncidents.length > 0 && (
@@ -238,7 +238,7 @@ function IncidentsCard() {
             <li key={incident.id}>
               <a href={entityHref(incident.id)}>{say(incident.description)}</a>
               <span className="muted small">Started {incident.start}{incident.lost_oil_bbl > 0
-                && ` · ${Math.round(incident.lost_oil_bbl).toLocaleString()} bbl lost oil`}</span>
+                && ` · ${count(Math.round(incident.lost_oil_bbl))} bbl lost oil`}</span>
             </li>
           ))}
         </ul>
@@ -248,7 +248,7 @@ function IncidentsCard() {
           <h3>Detections without a recorded end</h3>
           <a href={href("/exceptions", { list: "ranked", view: "kind" })}>All work by type</a>
         </div>
-        <Status loading={upsets.loading && !upsets.data} error={upsets.error} onRetry={upsets.reload}
+        <Status of={upsets}
           empty={upsets.data !== undefined && openUpsets.length === 0}>
           No upsets without a recorded end.
         </Status>
@@ -268,7 +268,7 @@ function UpsetItem({ upset }: { upset: Upset }) {
       <a href={upset.work_item_id ? href(`/cases/${upset.work_item_id}`) : href("/exceptions", { list: "ranked", view: "kind" })}>
         {upset.first_key ? `${alarm(upset.first_key)}${upset.first_unit ? ` on ${upset.first_unit}` : ""}`
           : upset.first_point || `Upset ${upset.id}`}</a>
-      <span className="muted small">From {timestamp(upset.start)} · {upset.first_key ? upset.first_point ?? "Unknown point"
+      <span className="muted small">From {when(upset.start, "Time unknown")} · {upset.first_key ? upset.first_point ?? "Unknown point"
         : upset.first_unit ?? "Unknown unit"} · {plural(upset.detections, "detection")}</span>
     </li>
   );
@@ -294,7 +294,7 @@ function SourceHealthPanel() {
         <strong>Sources</strong>
         <a href={href("/sources")}>Source health</a>
       </div>
-      <Status loading={sources.loading && !sources.data} error={sources.error} onRetry={sources.reload} empty={sources.data?.length === 0}>
+      <Status of={sources} empty={sources.data?.length === 0}>
         No source health data.
       </Status>
       {sources.data && rows.length > 0 && (
@@ -306,7 +306,7 @@ function SourceHealthPanel() {
                 <li key={source.dataset}>
                   <a href={href("/sources", { view: "dataset", name: source.dataset })}>{source.dataset}</a>
                   <span className="muted small">{source.state} · {source.last_loaded
-                    ? `Last ingested: ${timestamp(source.last_loaded)}` : "No recorded ingestion time"}</span>
+                    ? `Last ingested: ${when(source.last_loaded, "Time unknown")}` : "No recorded ingestion time"}</span>
                 </li>
               ))}
               {checks.slice(0, 3).map(({ source, check }, i) => (
@@ -332,10 +332,10 @@ function JobsHealthPanel() {
         <strong>Jobs</strong>
         <a href={href("/jobs")}>Job health</a>
       </div>
-      <Status loading={jobs.loading && !jobs.data} error={jobs.error} onRetry={jobs.reload} />
+      <Status of={jobs} />
       {jobs.data && (!jobs.data.available ? <Empty className="small">Scheduler history unavailable.</Empty>
         : jobs.data.failed_runs_24h > 0 || jobs.data.failing_checks > 0
-          ? <p className="small error">{jobs.data.summary}</p>
+          ? <ErrorText>{jobs.data.summary}</ErrorText>
           : <Empty className="small">No failures in recent runs or checks.</Empty>)}
     </div>
   );

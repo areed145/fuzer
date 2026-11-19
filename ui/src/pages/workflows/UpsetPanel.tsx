@@ -1,9 +1,9 @@
 import { useState } from "react";
+import { when } from "../../format";
 import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure } from "../../ui";
 import { api, type RelatedUpset, type UpsetView } from "../../api";
 import { Status, useAsync, useAction } from "../../lib";
 import { PlotlyChart } from "../../analytics/PlotlyChart";
-import { when } from "../../work";
 import { caseHref } from "./shared";
 
 const ROLE: Record<RelatedUpset["role"], { label: string; tone: "ok" | "warn" | "danger" | "muted" }> = {
@@ -25,7 +25,7 @@ export function UpsetPanel({ upsetId, itemId, person, canMerge, onMerged }: {
   const v = view.data;
   return (
     <UICard className="upset-panel" title="How it spread">
-      <Status loading={view.loading && !v} error={view.error} onRetry={view.reload} />
+      <Status of={view} />
       {v && <Spread v={v} />}
       {v && <Detections v={v} />}
       {v && <Related v={v} upsetId={upsetId} itemId={itemId} person={person} canMerge={canMerge}

@@ -1,7 +1,7 @@
 /** Water, gas and test age (#339), on How the plant is running: the wells whose water cut stepped up (a breakthrough
  * suggestion) or whose GOR climbed, and whether each well's latest test is recent enough to trust. Patterns are
  * suggestions for the engineer; cumulative oil is estimated from tests. */
-import { percent } from "../format";
+import { percent, count } from "../format";
 import { api } from "../api";
 import { Badge, Card, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
@@ -13,7 +13,7 @@ export function WellScreen() {
   const s = d?.staleness;
   return (
     <Card className="well-screen" title="Water, gas and test age">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && s && <>
         <div className="small well-staleness">
           {s.summary.current} of {s.summary.wells} wells tested within {s.max_days} days at {s.as_of}
@@ -37,7 +37,7 @@ export function WellScreen() {
                 <td data-label="What the tests show">
                   {p.water_cut_step && <>Water cut {p.water_cut_step.water_cut_before_pct}% to {p.water_cut_step.water_cut_after_pct}% on
                     {" "}{p.water_cut_step.at}, oil {p.water_cut_step.oil_before_bbld} to {p.water_cut_step.oil_after_bbld} bbl/d,
-                    {" "}at about {p.water_cut_step.cum_oil_bbl.toLocaleString()} bbl cumulative (estimated from tests)</>}
+                    {" "}at about {count(p.water_cut_step.cum_oil_bbl)} bbl cumulative (estimated from tests)</>}
                   {p.gor_climb && <>GOR {p.gor_climb.first_gor} to {p.gor_climb.latest_gor} scf/bbl (x{p.gor_climb.ratio})</>}
                 </td>
               </tr>

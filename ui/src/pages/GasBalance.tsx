@@ -17,7 +17,7 @@ export function GasBalance() {
   const latest = d?.days.filter((r) => r.gap_pct != null).slice(-7) ?? [];
   return (
     <Card className="gas-balance" title="Gas balance">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && s && <>
         <div className="small gb-summary">
           {d.since} to {d.until}: median closure gap {s.median_gap_pct ?? "unknown"}% of the gas handled,

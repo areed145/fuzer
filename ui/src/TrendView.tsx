@@ -12,7 +12,7 @@ import { caseHref } from "./pages/workflows/shared";
 import { useTheme } from "./theme";
 import { buildFigure, fromQuery, LANE_SHORT, names, OTHER, reading, toQuery, valueAt, type Palette, type TimelineEvent,
   type TrendTrace } from "./trendFigure";
-import { Badge, Button, Card, Disclosure, Input, Table } from "./ui";
+import { Badge, Button, Card, Disclosure, Input, Table, ErrorText } from "./ui";
 
 const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
 const local = (iso: string) => iso.slice(0, 16);
@@ -264,7 +264,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         </Card>
       )}
       {compact && !pending && chipsBlock}
-      {t.error && <p className="small error">Events unavailable: {t.error}</p>}
+      {t.error && <ErrorText>Events unavailable: {t.error}</ErrorText>}
       {!pending && shownTraces.length > 0 && (
         <Disclosure className="small" label={<>Table</>}>
           <Table variant="list" density="compact">

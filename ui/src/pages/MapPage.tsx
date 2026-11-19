@@ -1,4 +1,5 @@
 import { PageHeader } from "../ui";
+import { count } from "../format";
 import { api } from "../api";
 import { MapView } from "../MapView";
 import { Status, useAsync } from "../lib";
@@ -12,10 +13,10 @@ export function MapPage() {
       <div className="row spread">
         <PageHeader>Map</PageHeader>
         <span className="muted small">
-          {n.toLocaleString()} located things{m.data?.truncated ? " (first 20,000)" : ""} · select one to open it
+          {count(n)} located things{m.data?.truncated ? " (first 20,000)" : ""} · select one to open it
         </span>
       </div>
-      <Status loading={m.loading && !m.data} error={m.error} empty={m.data && n === 0}>
+      <Status of={m} empty={m.data && n === 0}>
         Nothing has a location yet. GIS exports (GeoJSON) load like any other source.
       </Status>
       {m.data && n > 0 && <MapView data={m.data} />}

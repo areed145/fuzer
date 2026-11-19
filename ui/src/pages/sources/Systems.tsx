@@ -1,4 +1,4 @@
-import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea } from "../../ui";
+import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea, ErrorText } from "../../ui";
 import { confirmDialog } from "../../ui";
 import { percent } from "../../format";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
@@ -34,7 +34,7 @@ export function Systems() {
     <>
       <NewSystem onDone={cat.reload} />
       <ImportPack onDone={cat.reload} />
-      <Status loading={cat.loading && !cat.data} error={cat.error} />
+      <Status of={cat} />
       {cat.data?.systems.map((s) => <SystemCard key={s.id} s={s} cat={cat.data!} reload={cat.reload} />)}
     </>
   );
@@ -53,7 +53,7 @@ export function NewSystem({ onDone }: { onDone: (name: string) => void }) {
       <Button variant="secondary" disabled={!name || !!a.busy}
         onClick={() => a.run("add", () => api.addSystem(name, { ...(kind ? { kind } : {}), ...(owner ? { owner } : {}) }, reviewer()),
           () => { onDone(name); setName(""); })}>Add system</Button>
-      {a.error && <span className="error small">{a.error}</span>}
+      <ErrorText inline>{a.error}</ErrorText>
     </div>
   );
 }
@@ -87,7 +87,7 @@ export function ImportPack({ onDone }: { onDone: () => void }) {
           {a.busy ? "Importing…" : "Import"}</Button>
         <Button variant="link" onClick={() => { setOpen(false); setReport(null); }}>Close</Button>
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
       {report && <PackInstalled report={report} />}
     </UICard>
   );
@@ -133,7 +133,7 @@ export function PackInstalled({ report }: { report: PackReport }) {
 function SystemWork({ system }: { system: string }) {
   const w = useAsync(() => api.systemWorkflows(system), [system]);
   const a = useAction();
-  if (!w.data) return <Status loading={w.loading} error={w.error} />;
+  if (!w.data) return <Status of={w} />;
   const { types, rules, webhook } = w.data;
   return (
     <>
@@ -167,7 +167,7 @@ function SystemWork({ system }: { system: string }) {
         {webhook.secret ? <UIBadge tone={webhook.ready ? "ok" : "warn"} title={webhook.secret}>
           {webhook.ready ? "secret resolves" : `${webhook.secret} is not set`}</UIBadge>
           : <span className="muted">off (set a webhook secret above)</span>}</p>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </>
   );
 }
@@ -177,7 +177,7 @@ function SystemWork({ system }: { system: string }) {
 function SystemContext({ system }: { system: string }) {
   const c = useAsync(() => api.systemContext(system), [system]);
   const a = useAction();
-  if (!c.data) return <Status loading={c.loading} error={c.error} />;
+  if (!c.data) return <Status of={c} />;
   const r = c.data;
   if (!r.records) return null;
   const auto = r.decided.key + r.decided.score;
@@ -204,7 +204,7 @@ function SystemContext({ system }: { system: string }) {
       {r.unmatched.length > 0 && <ConfirmAction label="They are new items" busy={!!a.busy}
         consequence={`${r.steward.unmatched === 1 ? "The record stays" : `The ${r.steward.unmatched} records stay`} as new items and aren't asked about again. To match one instead, open it and use Same as….`}
         onConfirm={() => void a.run("new", () => api.systemRecordsAreNew(system, reviewer(), "new items, not ones the register has"), c.reload)} />}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
       {r.automatic.length > 0 && <Disclosure label={`Automatic matches (${auto})`}>
         <Table density="compact">
           <thead><tr><th>Record</th><th>Matched to</th><th>Basis</th><th>Confidence</th><th>Also in</th></tr></thead>
@@ -264,7 +264,7 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
           [k, vals[k] === "" ? null : k === "rank" ? Number(vals[k]) : vals[k]])), reviewer()), reload)}>Save</Button>
       <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("pack", () => api.exportPack(s.name),
         (r) => download(`${s.name}.source-pack.yaml`, r.yaml, "application/yaml"))}>Download source pack</Button>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
       <SystemContext system={s.name} />
       <SystemWork system={s.name} />
       <SystemWritebacks system={s.name} />
@@ -326,7 +326,7 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
       )}
       {test && !test.ok && <TestSteps steps={test.steps} />}
       {found && <TableList tables={found} system={system} connection={c.id} />}
-      {a.error && <span className="error"> {a.error}</span>}
+      <ErrorText inline>{a.error}</ErrorText>
     </div>
   );
 }
@@ -391,7 +391,7 @@ export function ConnectionForm({ system, types, onDone, initial }: { system: str
         </tbody>
       </Table>
       <Button variant="primary" disabled={!!a.busy} onClick={save}>{a.busy ? "Adding…" : "Add connection"}</Button>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </UICard>
   );
 }

@@ -11,7 +11,7 @@ export function QualityTrend() {
   if (d && !d.series?.length) return null;  // no lab results landed
   return (
     <Card className="quality-trend" title="Separator and export quality">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && <>
         <div className="small quality-summary">
           {d.since} to {d.until}: {d.summary.series} analytes at {d.summary.sample_points} sample points,
