@@ -108,6 +108,7 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
         say("Building the register ...")
         r = pipeline.rebuild(conn, pack)
         say(f"Register: {r['entities']:,} entities, {r['edges']:,} links")
+    remember_project(conn)  # before the plan follows: the project's bundle names the schedule templates to seed
     follow(conn, pack)
 
 

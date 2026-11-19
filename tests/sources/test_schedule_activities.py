@@ -75,7 +75,7 @@ def test_activities_join_the_graph(plant):
     assert form["warnings"] == []
     r = client.post("/sources/project_schedules/load", json={"yaml": ACTIVITIES, "by": "ana"})
     assert r.status_code == 200, r.text
-    assert r.json()["loaded"] == ["project_schedules"]
+    assert r.json()["loaded"] == ["project_schedules"], r.json()
     pipeline.rebuild(conn, load_pack("okan"))
 
     kinds = {r["kind"]: r["n"] for r in conn.execute(
