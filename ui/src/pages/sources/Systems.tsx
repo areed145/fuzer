@@ -45,7 +45,7 @@ export function NewSystem({ onDone }: { onDone: (name: string) => void }) {
   const a = useAction();
   return (
     <div className="row">
-      <Input placeholder="new system name, e.g. p6" value={name} onChange={(e) => setName(e.target.value.trim())} />
+      <Input placeholder="new system name, e.g. planning" value={name} onChange={(e) => setName(e.target.value.trim())} />
       <Input placeholder="kind" value={kind} onChange={(e) => setKind(e.target.value)} />
       <Input placeholder="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
       <Button variant="secondary" disabled={!name || !!a.busy}
