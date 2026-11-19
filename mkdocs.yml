@@ -65,6 +65,7 @@ nav:
       - work-routing.md
       - architecture.md
       - adapter-boundaries.md
+      - stack.md
       - ui-style.md
       - data-model.md
       - sources.md

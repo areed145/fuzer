@@ -1,3 +1,15 @@
+# Stack and shared modules
+
+Read the [approved stack](docs/stack.md) before writing code. Fuzer uses one library per job, listed with its
+purpose in `stack.json`; `ui/tests/stack.test.cjs` and `tests/architecture/test_stack.py` fail on any dependency
+that is not listed.
+
+- Using a good library is encouraged, but **ask Adam before adding, swapping or removing a dependency**, and wait
+  for the answer. Say what it is for, what it replaces, its size and licence. Never edit `stack.json`,
+  `package.json`, `pyproject.toml` or a lock file to add one without that go-ahead.
+- Use the shared modules as they are. Do not copy one into a page, write a local variant, or reach past it to the
+  library it wraps.
+
 # Product changes
 
 Read [adapter boundaries](docs/adapter-boundaries.md) and the [UI style guide](docs/ui-style.md)
