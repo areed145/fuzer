@@ -112,7 +112,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
     ["Expected", ds.expected_hours ? `a delivery every ${ds.expected_hours} h` : <span className="muted">no expectation</span>],
     ["Owner", ds.owner ?? <span className="muted">none (alerts go to the system's owner, else data stewards)</span>],
     ["Records", h?.rows != null ? count(h.rows) : "–"],
-    ["Last ingested (not event date)", <>{when(h?.last_loaded)}{last && <span className="muted"> · last run {last.status} ({last.trigger})</span>}</>],
+    ["Last ingested (not event date)", <>{when(h?.last_loaded, "Time unknown")}{last && <span className="muted"> · last run {last.status} ({last.trigger})</span>}</>],
   ];
   return (
     <>

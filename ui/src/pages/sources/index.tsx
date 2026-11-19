@@ -107,7 +107,7 @@ function Datasets() {
                   <td className="small">{d.owner ?? <span className="muted">–</span>}</td>
                   <td className="muted small">{d.schedule ? scheduleText(d.schedule) : "daily"}</td>
                   <td>{d.rows != null ? countText(d.rows) : "Unknown"}</td>
-                  <td className="muted small" title={d.loaded_at ?? undefined}>{when(d.loaded_at)}</td>
+                  <td className="muted small" title={d.loaded_at ?? undefined}>{when(d.loaded_at, "Time unknown")}</td>
                 </tr>
               ))}
             </tbody>

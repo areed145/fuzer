@@ -3,7 +3,7 @@ import { when, count } from "../format";
 import { useEffect, useRef } from "react";
 import { api, type Investigation, type InvestigationRecord } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Stat, Empty } from "../ui";
+import { Badge, ButtonLink, Card, EmptyState, PageHeader, Stat, Empty } from "../ui";
 
 const STEPS = [
   { key: "issue", label: "Understand the issue" },
@@ -44,7 +44,6 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
       {result.error && (
         <EmptyState title="The investigation could not be opened">
           <p>Its loaded records may be unavailable. Nothing was generated or changed.</p>
-          <Button onClick={result.reload}>Try again</Button>{" "}
           <ButtonLink href={href("/")}>Return home</ButtonLink>
         </EmptyState>
       )}

@@ -59,7 +59,6 @@ function Administration({ query }: { query: URLSearchParams }) {
   return <div>
     <ActionStatus>{message && <p>{message}</p>}</ActionStatus>
     <Status of={data} />
-    {data.error && <Button onClick={data.reload}>Try again</Button>}
     {data.data && <>
       <Card title="Owner recovery">
         <p>{enabledOwners} enabled {enabledOwners === 1 ? "owner" : "owners"}. Keep at least one enabled owner.

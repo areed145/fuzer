@@ -21,7 +21,7 @@ before(async () => {
 after(async () => { await browser?.close(); server?.kill("SIGTERM"); });
 beforeEach(async () => {
   // The offline worker (P5.14d) would answer page loads before the fixtures below can; its own test turns it on.
-  context = await browser.newContext({ serviceWorkers: "block" });
+  context = await browser.newContext({ serviceWorkers: "block", timezoneId: "UTC" });
   page = await context.newPage();
   errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -765,8 +765,8 @@ test("Core consistency Sources uses keyboard links, UTC ingestion times and expl
   const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Last ingested (not event date)", exact: true }) });
   await table.getByText("Health unknown", { exact: true }).first().waitFor();
   await table.getByText("Time unknown", { exact: true }).waitFor();
-  await table.getByText("2026-11-06 12:00 UTC", { exact: true }).waitFor();
-  await table.getByText("2024-03-14 03:20 plant time", { exact: true }).waitFor();
+  await table.getByText(/^Nov 6(, 2026)?, 12:00 PM$/).waitFor();
+  await table.getByText("Mar 14, 2024, 3:20 AM plant time", { exact: true }).waitFor();
   // the how-to lives in the docs, so the table is on the first screen (#415)
   assert.equal(await page.locator("details, summary").count(), 0);
   assert.equal(await table.getByText("failed", { exact: true }).first().getAttribute("class").then(c => c.includes("ui-badge-danger")), true);
@@ -819,7 +819,7 @@ test("Core consistency Jobs preserves metadata units, missing outcomes and actio
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await page.getByText("some earlier steps may have completed", { exact: false }).waitFor();
   await page.getByText("Scheduler start: Time unknown", { exact: false }).waitFor();
-  await page.getByText("Scheduler observation: 2026-11-06 12:00 UTC", { exact: true }).waitFor();
+  await page.getByText(/^Scheduler observation: Nov 6(, 2026)?, 12:00 PM$/).waitFor();
   assert.equal(await page.locator(".ui-badge-danger").first().evaluate(e => {
     const probe = document.createElement("span");
     probe.style.color = "var(--danger)";
@@ -3038,8 +3038,8 @@ test("Home leads with the facility search, labels times and links each item to i
     await page.getByText("Started 2025-03-11 · 1,450 bbl lost oil", { exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "High alarm on 20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
     assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/exceptions?list=ranked&view=kind");
-    await page.getByText("From 2025-12-21 03:00 UTC", { exact: false }).waitFor();
-    await page.getByText("2025-12-22 03:00 plant time", { exact: false }).waitFor();
+    await page.getByText(/From Dec 21(, 2025)?, 3:00 AM/).waitFor();
+    await page.getByText(/Dec 22(, 2025)?, 3:00 AM plant time/).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await waveScreenshot(`home-populated-${width}`);
   }
@@ -3512,7 +3512,7 @@ test("a fresh demo offers a sample IOC team, an agent step with no worker can be
   await expectReports(handed, 1);
   assert.equal(handed[0].to, "riley");
   await page.getByText("Details").click();
-  await page.getByText("2025-12-30 00:00 (data time)").waitFor();
+  await page.getByText(/Dec 30(, 2025)?, 12:00 AM plant time/).waitFor();
   await page.getByText("alarm low excursions").waitFor();
 });
 
@@ -3623,10 +3623,10 @@ test("an asset's page opens with one line on how it is doing right now", async (
   await page.goto(`${url}/#/e/${id}`);
   const line = page.getByRole("status", { name: "Status now" });
   await line.getByText("Down", { exact: true }).waitFor();
-  assert.match(await line.innerText(), /since 2026-11-10: Gas lift valve failure/);
+  assert.match(await line.innerText(), /since Nov 10(, 2026)?: Gas lift valve failure/);
   assert.match(await line.innerText(), /2 open exceptions/);
-  assert.match(await line.innerText(), /Last incident 2026-10-02 of 3/);
-  assert.match(await line.innerText(), /Last test 2026-11-01: oil rate 40.2 bbl\/d · water cut 53.7 %/);
+  assert.match(await line.innerText(), /Last incident Oct 2(, 2026)? of 3/);
+  assert.match(await line.innerText(), /Last test Nov 1(, 2026)?: oil rate 40.2 bbl\/d · water cut 53.7 %/);
   // With nothing open it says so, and claims nothing it has no record of.
   status.downtime.open = false; status.downtime.end = "2026-11-11T10:00"; status.open_work = 0;
   await page.reload();
