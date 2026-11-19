@@ -5,9 +5,11 @@ What each part of the web UI is for, shown on the Okan demo. The screenshots wer
 fictional field and its data is synthetic; its sample crew works the queue on today's clock, so the work on the
 screens is live, and the people are not real.
 
-The menu holds eight destinations, in this order: **Home**, **Work**, **Plan**, **Explore**, **Investigate**,
+The menu holds eight destinations, in this order: **Home**, **Work**, **Plan**, **Explore**, **Reports**,
 **Sources**, **Jobs** and **Settings**. Each opens a row of tabs for its pages. On a phone the bottom bar keeps
-Home, My work, Explore and Investigate in thumb reach and **Menu** opens the rest. The panel at the foot of the
+Home, My work, Explore and Reports in thumb reach and **Menu** opens the rest. The magnifying glass at the top
+left (in the sidebar on a wider screen, or press `/`) is app search: one box for pages, their tabs and records,
+and a question typed there is sent to Ask. The panel at the foot of the
 sidebar names the facility and says whether its data checks and jobs are healthy.
 
 ```mermaid
@@ -15,14 +17,14 @@ flowchart TB
   home["Home<br><small>where attention is needed</small>"]
   home --> work["Work<br><small>All work, My work,<br>Workflows, Master data</small>"]
   home --> plan["Plan<br><small>Plan, Schedules,<br>Resources</small>"]
-  home --> explore["Explore<br><small>Browse, Map,<br>Network, 3D</small>"]
-  home --> investigate["Investigate<br><small>Downtime, Ask, Incidents,<br>Daily reports, Metrics,<br>Lessons learned, Studies</small>"]
+  home --> explore["Explore<br><small>Browse, Map,<br>Network, 3D, Ask</small>"]
+  home --> reports["Reports<br><small>Downtime, Incidents,<br>Daily reports, Metrics,<br>Lessons learned, Studies</small>"]
   home --> sources["Sources<br><small>Sources, Ontology</small>"]
   home --> jobs["Jobs"]
   home --> settings["Settings<br><small>Application settings,<br>Users, Routing</small>"]
   work <-.->|"plan for a day,<br>planned work holds back findings"| plan
   work -.->|"the asset a case is about"| explore
-  investigate -.->|"draft work"| work
+  reports -.->|"draft work"| work
   sources -.->|"loads and rebuilds"| explore
 ```
 
@@ -111,7 +113,7 @@ device cannot draw 3D, the same scene is drawn flat.
 
 ![3D: an area drawn as a schematic, coloured by status](assets/screens/scene-3d.png){ loading=lazy }
 
-## Investigate
+## Reports
 
 **Downtime** ranks lost production by equipment, class and reason. **Incidents** groups downtime records, log
 events and notifications on the same plant within a few days into one upset.
@@ -120,7 +122,7 @@ events and notifications on the same plant within a few days into one upset.
 
 ![Incidents, newest first](assets/screens/incidents.png){ loading=lazy }
 
-**Ask** is the operations assistant: suggested questions per domain, the specialists and what they cannot do, and
+**Ask**, under Explore, is the operations assistant: suggested questions per domain, the specialists and what they cannot do, and
 a prompt. It answers only from loaded evidence, cites every fact and never gives operating instructions. It needs
 an AI provider configured by the owner, and each question is a deliberate, metered call.
 

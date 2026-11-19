@@ -168,7 +168,7 @@ function App() {
           {section === "" && query.has("q") ? (
             <Search query={query} stats={s} />
           ) : section === "" ? (
-            <HomePage query={query} stats={s} statsLoading={stats.loading} statsError={stats.error} />
+            <HomePage stats={s} statsLoading={stats.loading} statsError={stats.error} />
           ) : section === "demo" || (section === "investigate" && path[1] === "okan") ? (
             !demo.data || demo.error ? <section><PageHeader>Demo</PageHeader>
               <Status loading={demo.loading && !demo.data} error={demo.error} onRetry={demo.reload} />

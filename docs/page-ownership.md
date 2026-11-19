@@ -2,21 +2,21 @@
 
 Organize by user goals, not by the adapter, database table or feature's implementation history.
 These are ownership boundaries, not a requirement for eight top-level navigation entries.
-The eight operational primary destinations are **Home, Work, Plan, Explore, Investigate,
+The eight operational primary destinations are **Home, Work, Plan, Explore, Reports,
 Sources, Jobs and Settings**, in that order. Work is today's shift (triage, dispatch, close out) and Plan is the
 days and weeks ahead, so they sit together. Demo is not in the menu; `#/demo` still opens the guided tour.
 Specialist pages appear in secondary area navigation using their existing URLs.
 
-Primary landings reuse Home, All work (Work), Plan (Plan), Browse (Explore), Downtime (Investigate),
+Primary landings reuse Home, All work (Work), Plan (Plan), Browse (Explore), Downtime (Reports),
 Sources, Jobs and Settings. Demo owns onboarding, not a new generic investigation subsystem.
 Direct links select their owning primary destination.
 
 | Owner | Existing routes and surfaces | Boundary |
 |---|---|---|
-| Home | `#/`, legacy `#/?q=…` search entry, compatible `#/analytics` redirect | Orientation, the production Chart Show and brief readiness links. Work is summarized, not copied (#556): counts for the person's roles (My work for everyone, All work's views for the ops lead, Master data for the steward and configurers), each linking to the view that shows the same number, and the next few titles. Where attention is needed: open exceptions gathered at the located places they are about, on the field map (the Map page's `MapView`) and as a ranked list; a place opens All work filtered to it (`at=`), so dispatch stays on All work. No work rows, actions or embedded configuration. Search reuses Browse. |
+| Home | `#/`, legacy `#/?q=…` search entry, compatible `#/analytics` redirect | Orientation, the production Chart Show and brief readiness links. Work is summarized, not copied (#556): counts for the person's roles (My work for everyone, All work's views for the ops lead, Master data for the steward and configurers), each linking to the view that shows the same number, and the next few titles. Where attention is needed: open exceptions gathered at the located places they are about, on the field map (the Map page's `MapView`) and as a ranked list; a place opens All work filtered to it (`at=`), so dispatch stays on All work. No work rows, actions or embedded configuration. Home has no search box of its own; app search (the magnifying glass at the top left) serves every page. |
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
-| Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/3d` | Assets and connected evidence. All entity links reuse the existing entity viewer. An asset's kind links to it in the Ontology for configurers. |
-| Investigate | `#/ask`, `#/incidents`, `#/downtime`, `#/reports`, `#/metrics`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. Paid Ask remains AI-permission gated. |
+| Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/3d`, `#/ask` | Assets and connected evidence, and the operations assistant that answers from them. Paid Ask remains AI-permission gated. All entity links reuse the existing entity viewer. An asset's kind links to it in the Ontology for configurers. |
+| Reports | `#/incidents`, `#/downtime`, `#/reports`, `#/metrics`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. |
 | Work | `#/exceptions` (All work, with compatible `#/board` and `#/cases` redirects into its views), `#/inbox` (My work, with `#/field` redirecting into it), `#/inbox/task/:id`, contextual `#/teams` and `#/handover`, `#/masterdata` (its Questions tab answers what `#/review` did, which redirects there), `#/cases/:id`, Workflows at `#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key` (the older `#/processes…` URLs open the same pages) | Human priorities, read-only team workload, review decisions, tasks, cases and workflow definitions. |
 | Plan | `#/plan` (with `#/turnaround` redirecting into it), `#/plan?schedules=1` (Schedules), `#/plan?schedule=CODE`, `#/plan?resources=1` (Resources) | The days and weeks ahead: every source's planned work on one timeline, schedules, resources and their clashes. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views, configure-protected `#/ontology` (`?kind=…` opens on a kind) | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
@@ -37,9 +37,12 @@ All existing route URLs remain compatible. The legacy `#/work`, `#/work/item/:id
 Navigation grouping is presentation, not authorization: keep server permission checks and existing
 owner-only/configure/AI visibility rules.
 
-Explore secondary pages are Browse, Map and Network. Sources secondary pages are Sources and configure-protected
+Explore secondary pages are Browse, Map, Network, 3D and AI-gated Ask.
+App search (`ui/src/AppSearch.tsx`, the magnifying glass at the top left of every screen, or `/`) finds pages from
+the menu, the tabs pages declare in `ui/src/pageTabs.ts`, and records through the same `/entities` search Browse
+uses; a question opens Ask with it and asks it once. It is a way in, not an owner: each result opens its owning page. Sources secondary pages are Sources and configure-protected
 Ontology, the model each source maps onto.
-Demo is one route outside the menu, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Investigate contains AI-gated Ask, Downtime, Incidents, Daily reports,
+Demo is one route outside the menu, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Reports contains Downtime, Incidents, Daily reports, Metrics,
 Lessons and Studies. Work contains four entries: All work, My work, Workflows and Master data (#554). Workflows (formerly Processes;
 "process" means the plant in oil and gas) are the playbooks the work follows; a case or task links to the workflow it
 is following. Plan contains Plan (the timeline), Schedules and Resources. A work item planned for a day links to its

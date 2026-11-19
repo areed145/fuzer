@@ -16,23 +16,22 @@ import { ContextTab } from "./Context";
 import { ProposalsTab } from "./Proposals";
 import { LearnedRules } from "./Learned";
 import { Review } from "../Review";
+import { MASTER_DATA_TABS as TABS } from "../../pageTabs";
 import { person as personName } from "../../wording";
 
-const TABS = [["unmatched", "Unmatched on open work"], ["questions", "Questions"], ["unresolved", "Unresolved values"],
-  ["gaps", "Gaps"], ["context", "Asset context"], ["proposals", "Claude's proposals"], ["decisions", "Decisions"]] as const;
 
 /** Keeping the register matching the work, in one place (#505, P2.3): the questions the build leaves (possible
  * matches, conflicting values, changed columns, drawing disagreements, ...) sit beside unmatched refs and the
  * decision log. Each question is also a case in the data steward's queue. */
 export function MasterDataPage({ query }: { query: URLSearchParams }) {
-  const tab = TABS.some(([k]) => k === query.get("tab")) ? query.get("tab")! : "unmatched";
+  const tab = TABS.some(({ key }) => key === query.get("tab")) ? query.get("tab")! : "unmatched";
   const stats = useAsync(() => api.stats(), []);
   const questions = openReviews(stats.data);
   return (
     <section>
       <PageHeader>Master data</PageHeader>
       <div className="tabs" role="tablist">
-        {TABS.map(([k, label]) => <a key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}
+        {TABS.map(({ key: k, label }) => <a key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}
           href={href("/masterdata", { tab: k })}>{label}{k === "questions" && questions ? ` (${questions})` : ""}</a>)}
       </div>
       {tab === "unmatched" ? <Unmatched /> : tab === "questions" ? <Review query={query} stats={stats.data ?? undefined} />

@@ -113,6 +113,20 @@ export function AskPage({ query }: { query: URLSearchParams }) {
     }
   };
 
+  // A question sent from app search (#/ask?q=…&send=1) is asked once, as if typed here. The link loses `send` first,
+  // so a reload or Back does not ask it again.
+  const sentFromSearch = useRef(false);
+  useEffect(() => {
+    if (sentFromSearch.current || query.get("send") !== "1" || !ai || demo) return;
+    sentFromSearch.current = true;
+    const params = new URLSearchParams(query);
+    params.delete("send");
+    params.delete("q");
+    history.replaceState(history.state, "", href("/ask", Object.fromEntries(params)));
+    const question = query.get("q");
+    if (question) void ask(question);
+  }, [query, ai, demo]);
+
   // Poll the running job.
   const running = turns.findIndex((t) => t.jobId && (!t.job || t.job.status === "running") && !t.error);
   useEffect(() => {

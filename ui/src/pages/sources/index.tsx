@@ -10,6 +10,7 @@ import { HealthBadge, RebuildBanner, STATE, scheduleText, when } from "./common"
 import { DatasetPage, type Tab } from "./DatasetPage";
 import { Rules } from "./Rules";
 import { Systems } from "./Systems";
+import { SOURCES_VIEWS } from "../../pageTabs";
 
 export function SourcesPage({ query }: { query: URLSearchParams }) {
   const configure = usePermission("configure");
@@ -41,7 +42,7 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
       </div>
       {/* Sources' own pages are section tabs under the title, as on Settings. */}
       <nav className="area-navigation" aria-label="Sources pages">
-        {[["datasets", "Datasets"], ["systems", "Systems & connections"], ["rules", "Rules"]].map(([k, label]) => (
+        {SOURCES_VIEWS.map(({ key: k, label }) => (
           <a key={k} href={href("/sources", { view: k })} aria-current={view === k ? "page" : undefined}>{label}</a>
         ))}
       </nav>

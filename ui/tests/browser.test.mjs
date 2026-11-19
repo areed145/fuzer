@@ -1100,9 +1100,9 @@ test("reader Settings and Sources do not request protected configuration or conn
   await page.goto(`${url}/#/investigate/okan`);
   await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
   assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
-  await nav.getByRole("link", { name: "Investigate", exact: true }).click();
-  await page.getByRole("navigation", { name: "Investigate pages" }).waitFor();
-  assert.equal(await page.getByRole("navigation", { name: "Investigate pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
+  await nav.getByRole("link", { name: "Explore", exact: true }).click();
+  await page.getByRole("navigation", { name: "Explore pages" }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Explore pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
   await page.goto(`${url}/#/settings`);
   assert.equal(await page.getByRole("link", { name: "Users", exact: true }).count(), 0);
 });
@@ -1949,17 +1949,22 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Work", "Plan", "Explore", "Investigate", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Work", "Plan", "Explore", "Reports", "Sources", "Jobs", "Settings"]);
   // Demo left the menu; its page still opens from a direct link.
   await page.goto(`${url}/#/demo`);
   await page.getByRole("heading", { level: 1, name: "Demo", exact: true }).waitFor();
   assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
   assert.equal(await page.getByRole("navigation", { name: "Demo pages", exact: true }).count(), 0);
-  await nav.getByRole("link", { name: "Investigate", exact: true }).click();
-  const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
-  await investigate.waitFor();
-  assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/metrics", "#/lessons", "#/studies"]);
+  await nav.getByRole("link", { name: "Reports", exact: true }).click();
+  const reports = page.getByRole("navigation", { name: "Reports pages", exact: true });
+  await reports.waitFor();
+  assert.deepEqual(await reports.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
+    ["#/downtime", "#/incidents", "#/reports", "#/metrics", "#/lessons", "#/studies"]);
+  // Ask is under Explore now, after the views of the register.
+  await nav.getByRole("link", { name: "Explore", exact: true }).click();
+  await page.getByRole("navigation", { name: "Explore pages", exact: true }).waitFor();
+  assert.deepEqual(await page.getByRole("navigation", { name: "Explore pages", exact: true }).locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
+    ["#/browse", "#/map", "#/network", "#/3d", "#/ask"]);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/exceptions"][aria-current="page"]').waitFor();
@@ -2004,7 +2009,7 @@ test("primary destination navigation keeps page headings and active context alig
   const destinations = [
     { label: "Home", href: "#/", heading: "Home" },
     { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
-    { label: "Investigate", href: "#/downtime", heading: "Downtime", area: "Investigate pages", current: "Downtime" },
+    { label: "Reports", href: "#/downtime", heading: "Downtime", area: "Reports pages", current: "Downtime" },
     { label: "Work", href: "#/exceptions", heading: "All work", area: "Work pages", current: "All work" },
     { label: "Plan", href: "#/plan", heading: "Plan", area: "Plan pages", current: "Plan" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
@@ -2301,7 +2306,7 @@ test("Demo visibility fails explicitly, recovers and follows global refresh with
   await page.getByText("Demo is disabled", { exact: true }).waitFor();
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
-  assert.equal(await nav.getByRole("link", { name: "Investigate", exact: true }).count(), 1);
+  assert.equal(await nav.getByRole("link", { name: "Reports", exact: true }).count(), 1);
   await page.goto(`${url}/#/investigate/okan?step=finding`);
   await page.getByText("Demo is disabled", { exact: true }).waitFor();
   assert.equal(investigations, 0);
@@ -3023,12 +3028,12 @@ async function homeFixture(fixtures, { fail = false } = {}) {
   });
 }
 
-test("Home leads with the facility search, labels times and links each item to its owner", async () => {
+test("Home has the app search at the top left, labels times and links each item to its owner", async () => {
   await homeFixture(homePopulated);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${url}/#/`);
-    await page.getByRole("search").getByRole("textbox", { name: "Search the facility" }).waitFor();
+    await page.locator(width > 900 ? ".sidebar" : ".topbar").getByRole("button", { name: "Search", exact: true }).waitFor();
     // Home is not a second menu: destinations live in the navigation, not a grid of link cards (docs/ui-style.md).
     assert.equal(await page.locator(".home-guide-links").count(), 0);
     // My work is counted, each count linking to the page that shows it; Home copies no work rows (#556).
@@ -7522,7 +7527,48 @@ test("P7.4 Work performance shows by detector and by skill which earn their keep
   await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
 });
 
-test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away at the bottom", async () => {
+test("App search at the top left finds pages, tabs and records, and sends a question to Ask", async () => {
+  let asked = null;
+  await page.route("**/entities*", (route) => route.fulfill({ json: new URL(route.request().url()).searchParams.get("q") === "P-101"
+    ? [{ fuzer_id: "equipment:P-101", kind: "equipment", label: "P-101", description: "Export pump" }] : [] }));
+  await page.route("**/assistant/ask", (route) => { asked = route.request().postDataJSON(); return route.fulfill({ json: { conversation_id: "c1", job_id: "j1" } }); });
+  await page.route("**/assistant/jobs/j1", (route) => route.fulfill({ json: { id: "j1", status: "running", steps: [] } }));
+  for (const [width, bar] of [[390, ".topbar"], [1440, ".sidebar"]]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`${url}/#/`);
+    if (width === 390) {
+      // Search at the left, the mark in the middle, the account at the right.
+      const [glass, logo, account] = await Promise.all([".topbar .search-button", ".topbar .brand", ".topbar .account-button"]
+        .map((s) => page.locator(s).boundingBox()));
+      assert.ok(glass.x < logo.x && logo.x + logo.width < account.x);
+      assert.ok(Math.abs(logo.x + logo.width / 2 - 195) < 4);
+    }
+    await page.locator(bar).getByRole("button", { name: "Search", exact: true }).click();
+    const box = page.getByRole("combobox", { name: "Search pages, records, or ask a question" });
+    await box.fill("dispatch");
+    const results = page.getByRole("listbox", { name: "Results" });
+    await results.getByRole("option", { name: /To dispatch/ }).waitFor();
+    await box.fill("reports");
+    await results.getByRole("group", { name: "Pages" }).getByRole("option", { name: /Daily reports/ }).waitFor();
+    await box.fill("P-101");
+    const record = results.getByRole("group", { name: "Records" }).getByRole("option", { name: /P-101/ });
+    assert.equal(await record.getAttribute("href"), "#/e/equipment%3AP-101");
+    await box.press("Escape");
+    assert.equal(await page.locator(".app-search").count(), 0);
+  }
+  // A question puts Ask first; Enter asks it on the Ask page, once.
+  await page.keyboard.press("/");
+  const box = page.getByRole("combobox", { name: "Search pages, records, or ask a question" });
+  await box.fill("why did P-101 trip?");
+  assert.equal(await page.locator(".app-search-results [role=option]").first().getAttribute("href"), "#/ask?q=why+did+P-101+trip%3F&send=1");
+  await box.press("Enter");
+  await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
+  await page.waitForFunction(() => location.hash === "#/ask");
+  await page.getByText("why did P-101 trip?", { exact: true }).first().waitFor();
+  assert.equal(asked?.question, "why did P-101 trip?");
+});
+
+test("P5.14b On a phone, Home, My work, Explore and Reports are one tap away at the bottom", async () => {
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["operator"], mine: [], queue: [],
     counts: { mine: { total: 2 }, queue: { total: 0 } } } }));
@@ -7531,7 +7577,7 @@ test("P5.14b On a phone, Home, My work, Explore and Investigate are one tap away
   const bar = page.getByRole("navigation", { name: "Quick", exact: true });
   await bar.waitFor();
   const targets = bar.locator(":scope > a, :scope > button");
-  assert.deepEqual(await targets.evaluateAll(els => els.map(e => e.lastElementChild.textContent.trim())), ["Home", "My work", "Explore", "Investigate", "Menu"]);
+  assert.deepEqual(await targets.evaluateAll(els => els.map(e => e.lastElementChild.textContent.trim())), ["Home", "My work", "Explore", "Reports", "Menu"]);
   for (const box of await targets.evaluateAll(els => els.map(e => e.getBoundingClientRect().toJSON())))
     assert.ok(box.height >= 44 && box.width >= 44, "every tab is big enough for a gloved thumb");
   const barBox = await bar.boundingBox();
