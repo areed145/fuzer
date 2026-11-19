@@ -4,9 +4,13 @@
   "long-subtitle": 0,
   "disclaimer": 0,
   "literal-color": 2,
-  "inline-style": 25,
+  "inline-style": 23,
   "status-pill": 0,
   "summary-marker": 0,
   "local-number-format": 0,
-  "raw-control": 5
+  "local-action-state": 29,
+  "kit-override": 106,
+  "computed-total": 16,
+  "raw-fetch": 1,
+  "raw-control": 7
 }

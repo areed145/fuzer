@@ -7,10 +7,10 @@ import { useState } from "react";
 import { api, type DailyReport, type DailyStatus } from "../api";
 import { Markdown } from "../Markdown";
 import { readableCitations } from "../entityRefs";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson, when } from "../work";
-import { AgentIdle, useAct } from "./workflows/shared";
-import { Button, PageHeader , Card as UICard, Badge as UIBadge} from "../ui";
+import { AgentIdle } from "./workflows/shared";
+import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea } from "../ui";
 import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
 const STATUS_CLASS: Record<string, string> = {
@@ -135,7 +135,7 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
   const [person] = usePerson();
   const [revising, setRevising] = useState(false);
   const [comments, setComments] = useState("");
-  const a = useAct();
+  const a = useAction();
   const rv = d.review;
   if (!rv) return <p className="small muted"><StatusBadge status="no review" /> {STATUS_HELP["no review"]}</p>;
   const step = rv.step;
@@ -174,7 +174,7 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
             with what to change{!step.assignee && step.role ? ` (it is in the ${step.role.replace("role:", "")} queue; reviewing claims it)` : ""}.</p>
           {revising ? (
             <div className="task-form">
-              <textarea rows={3} placeholder="What to change, e.g. lead with the train C trip" value={comments}
+              <Textarea rows={3} placeholder="What to change, e.g. lead with the train C trip" value={comments}
                 onChange={(e) => setComments(e.target.value)} />
               <div className="actions">
                 <Button variant="primary" disabled={!!a.busy || !comments.trim()}

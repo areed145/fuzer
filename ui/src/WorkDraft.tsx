@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { api } from "./api";
 import { usePermission } from "./Auth";
-import { Status, entityHref, href, useAsync } from "./lib";
+import { Status, entityHref, href, useAction, useAsync } from "./lib";
 import { ActionStatus, ConfirmAction, Card } from "./ui";
 import { usePerson } from "./work";
 import { Markdown } from "./Markdown";
@@ -16,16 +15,11 @@ export function WorkDraftCard({ id }: { id: string }) {
   const draft = useAsync(() => api.workDraft(id), [id]);
   const operate = usePermission("operate");
   const [person] = usePerson();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAction();
   const d = draft.data;
   const names = useEntityNames(d?.evidence ?? []);
-  const confirm = async () => {
-    setBusy(true); setError(null);
-    try { await api.confirmWorkDraft(id, person); }
-    catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); draft.reload(); }  // the recorded state, whichever way that went
-  };
+  // reload the recorded state, whichever way that went
+  const confirm = () => run("create", () => api.confirmWorkDraft(id, person)).finally(draft.reload);
   return <Card className="work-draft" as="section" aria-label="Draft work item">
     <Status loading={draft.loading && !d} error={draft.error} onRetry={draft.reload} />
     {d && <>
@@ -37,7 +31,7 @@ export function WorkDraftCard({ id }: { id: string }) {
       {d.item_id
         ? <p role="status">Created by {personName(d.confirmed_by)}. <a href={href(`/cases/${d.item_id}`)}>Open the case</a>.</p>
         : operate
-          ? <ConfirmAction label="Create work item" busy={busy}
+          ? <ConfirmAction label="Create work item" busy={!!busy}
               consequence={`This adds shared work to the ${queue(d.role)} queue, with you recorded as its creator.`} onConfirm={confirm} />
           : <p className="small muted">Creating work needs operate access. Ask an administrator or someone in this queue.</p>}
       <ActionStatus busy={busy ? "Creating the work item…" : null} error={error} />

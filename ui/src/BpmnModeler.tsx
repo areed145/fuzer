@@ -11,7 +11,7 @@ import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 import { href } from "./lib";
 import { fuzerModdle, subsetModule } from "./bpmnSubset";
-import { Button, Input, Select as UISelect, Empty } from "./ui";
+import { Button, Input, Select as UISelect, Empty, Textarea } from "./ui";
 import { workflowComponents } from "./workflowComponents";
 
 export interface ModelerContext {
@@ -510,7 +510,7 @@ function Text({ label, value, onCommit, placeholder, hint, mono, list, multiline
   return (
     <label className="prop">
       {label && <span>{label}</span>}
-      {multiline ? <textarea rows={5} value={v} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={commit} />
+      {multiline ? <Textarea rows={5} value={v} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={commit} />
         : <Input className={mono ? "mono" : ""} value={v} placeholder={placeholder} list={list} onChange={(e) => setV(e.target.value)}
           onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />}
       {list === "fz-messages" && <datalist id="fz-messages">{MESSAGES.map((m) => <option key={m} value={m} />)}</datalist>}

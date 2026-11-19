@@ -9,6 +9,7 @@
  * background sync, so nothing is sent while the app is closed. Only writes that never reached the server are sent
  * again; one the server refused is not resent (AGENTS.md), and an expired session holds the outbox until sign-in. */
 import { stamp } from "./wording";
+import { errorMessage } from "./lib";
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type FieldReading, type PlanItem } from "./api";
 import { getProject, projectUrl } from "./authState";
@@ -332,7 +333,7 @@ export async function flush(): Promise<FlushResult> {
       } catch (e) {
         if (unreachable(e)) break;
         if (heldBySession(e)) { out.held = true; break; }
-        const reason = (e as Error).message;
+        const reason = errorMessage(e);
         out.refused.push(reason);
         await store.put("outbox", { ...w, refused: { reason, at: new Date().toISOString() } });
         continue;

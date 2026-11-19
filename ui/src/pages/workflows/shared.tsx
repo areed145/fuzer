@@ -6,7 +6,7 @@ import { usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
 import { useState } from "react";
 import { api, type WorkRow } from "../../api";
-import { href, notifyChanged, useAsync } from "../../lib";
+import { href, useAction, useAsync } from "../../lib";
 import { queue } from "../../wording";
 import { ATTENTION_TONE } from "../../kinds";
 
@@ -119,27 +119,6 @@ export function AssignPicker({ value, onChange, agents = false, placeholder = "c
   );
 }
 
-/** A button's async action with busy and error state; success refreshes every view. */
-export function useAct() {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const run = async <T,>(name: string, fn: () => Promise<T>, after?: (r: T) => void) => {
-    setBusy(name);
-    setError(null);
-    try {
-      const r = await fn();
-      after?.(r);
-      notifyChanged();
-      return r;
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
-  return { busy, error, run };
-}
-
 /** A sample IOC team for a fictional demo field: an ops lead who triages, a field operator who gets dispatched, a
  * maintenance planner, a production engineer (short gas days, deferment) and a data steward (source problems), so
  * every queue the demo's work routes to has someone in it. Offered only where the roster is empty or holds only
@@ -160,7 +139,7 @@ export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
   const [person, setPerson] = usePerson();
   const demo = useAsync(() => api.demoConfig(), []);
   const people = useAsync(() => api.workPeople(), []);
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   if (session?.mode === "microsoft" || !configure || !demo.data?.enabled || !people.data) return null;
   const sample = new Set(SAMPLE_TEAM.map((p) => p.name));
   if (people.data.some((p) => !sample.has(p.name))) return null;  // someone's own roster: leave it alone
@@ -196,7 +175,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");
   const [blocked, setBlocked] = useState<string[] | null>(null);
-  const a = useAct();
+  const a = useAction();
   const field = (people.data ?? []).filter((p) => p.roles.includes("operator"));
   const send = () => a.run("send", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined), () => {
     setTo(""); setAsk(""); setWhy(""); setBlocked(null); onDone();

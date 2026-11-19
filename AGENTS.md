@@ -9,6 +9,15 @@ that is not listed.
   `package.json`, `pyproject.toml` or a lock file to add one without that go-ahead.
 - Use the shared modules as they are. Do not copy one into a page, write a local variant, or reach past it to the
   library it wraps.
+- Before writing a helper, look in the shared-module table in docs/stack.md: numbers go through `ui/src/format.ts`,
+  async actions through `useAction`, questions through `confirmDialog`, controls through `ui/src/ui`, figures
+  through `ui/src/figures.ts` or the API. If the same thing is needed in a second place, move it to a shared module
+  and move the first use onto it in the same change.
+- One value, one source. A page shows what the API returned; it does not add up, count, round or re-date a list.
+  Two pages that show the same figure read the same field or the same accessor.
+- The kit (`ui/src/ui`) is used, not edited around: no restyling `.ui-*` classes from a page stylesheet, no raw
+  `<button>`, `<table>`, `<textarea>` or browser dialogs. `ui/tests/style-lint.test.cjs` counts each of these and
+  the counts only go down; never raise a number in `style-baseline.json`.
 
 # Product changes
 

@@ -2,7 +2,7 @@ import "../styles/settings.css";
 import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty } from "../ui";
 import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
-import { Status, href, notifyChanged, useAsync } from "../lib";
+import { Status, href, notifyChanged, useAsync, useReasonedAction } from "../lib";
 import { loadPerson } from "../work";
 import { Appearance } from "../theme";
 import { usePermission } from "../Auth";
@@ -158,30 +158,13 @@ function Editor({ s, project, person, saved }: {
   const [scope, setScope] = useState<SettingScope>(canProject ? "project" : "global");
   const current = scope === "project" ? s.project : s.global;
   const [value, setValue] = useState<string>(String(current ?? s.value ?? ""));
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const run = async (fn: () => Promise<unknown>) => {
-    setError(null);
-    setMessage("");
-    if (reason.trim().length < 3) return setError("Give a short reason: it goes in the history.");
-    setBusy(true);
-    try {
-      await fn();
-      setMessage(s.restart
-        ? "Saved. The affected application or scheduler process must be restarted by the deployment operator. Running values have not been verified."
-        : "Saved. Applies on next use after the settings cache refreshes; existing work is not rerun.");
-      setReason("");
-      saved();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const save = () => run(() => api.setSetting(s.key, value, scope, project, person, reason.trim()));
-  const reset = () => run(() => api.resetSetting(s.key, scope, project, person, reason.trim()));
+  const { reason, setReason, busy: acting, error, done: message, setDone: setMessage, run } = useReasonedAction(saved);
+  const busy = !!acting;
+  const after = s.restart
+    ? "Saved. The affected application or scheduler process must be restarted by the deployment operator. Running values have not been verified."
+    : "Saved. Applies on next use after the settings cache refreshes; existing work is not rerun.";
+  const save = () => run("save", (why) => api.setSetting(s.key, value, scope, project, person, why), after);
+  const reset = () => run("reset", (why) => api.resetSetting(s.key, scope, project, person, why), after);
   return (
     <div className="row small">
       <Select aria-label={`Scope for ${s.key}`} value={scope} onChange={(e) => {

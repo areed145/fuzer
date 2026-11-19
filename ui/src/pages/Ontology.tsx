@@ -2,13 +2,14 @@
 // where kinds and link types are defined. A kind or link a new dataset brings that nobody has described shows
 // under "Needs definition".
 import { useMemo, useState } from "react";
+import { confirmDialog, Textarea } from "../ui";
 import {
   api, type KindDef, type KindIn, type Ontology as OntologyData, type OntologyKind, type RelationDef, type RelationIn,
 } from "../api";
 import { GraphCanvas, Legend, REL_VIEWS, kindColor } from "../graph";
 import { Bar, Button, PageHeader, Table, Input, Select , Card as UICard, Badge as UIBadge, Disclosure } from "../ui";
-import { SourceBadge, Status, href, useAsync } from "../lib";
-import { reviewer, useAction, when } from "./sources/common";
+import { SourceBadge, Status, href, useAsync, useAction } from "../lib";
+import { reviewer, when } from "./sources/common";
 import type { ElementDefinition } from "cytoscape";
 import { person as personName } from "../wording";
 
@@ -405,7 +406,7 @@ function KindForm({ o, def, draft, onDone, onCancel }: {
           </td></tr>
           <tr><th>Label</th><td><Input value={k.label ?? ""} onChange={(e) => set({ label: e.target.value })} /></td></tr>
           <tr><th>Description</th><td>
-            <textarea rows={3} value={k.description ?? ""} placeholder="What one of these is, in the plant's words"
+            <Textarea rows={3} value={k.description ?? ""} placeholder="What one of these is, in the plant's words"
               onChange={(e) => set({ description: e.target.value })} />
           </td></tr>
           <tr><th>Group</th><td>
@@ -435,7 +436,7 @@ function KindForm({ o, def, draft, onDone, onCancel }: {
         <Button variant="primary" disabled={!!a.busy || !k.name || !k.label} onClick={save}>{def ? "Save" : "Add kind"}</Button>
         <Button onClick={onCancel}>Cancel</Button>
         {def && !core && <Button disabled={!!a.busy}
-          onClick={() => confirm(`Delete kind ${def.name}?`) && a.run("delete", () => api.kindDelete(def.name, reviewer(), reason || undefined), onDone)}>
+          onClick={async () => (await confirmDialog(`Delete kind ${def.name}?`)) && a.run("delete", () => api.kindDelete(def.name, reviewer(), reason || undefined), onDone)}>
           Delete</Button>}
         {def && <span className="muted small">last changed by {def.updated_by} {when(def.updated_at)}</span>}
       </div>
@@ -473,7 +474,7 @@ function RelationForm({ o, def, draft, onDone, onCancel }: {
           <tr><th>Label</th><td><Input value={r.label ?? ""} placeholder={words(r.name ?? "")}
             onChange={(e) => set({ label: e.target.value })} /></td></tr>
           <tr><th>Description</th><td>
-            <textarea rows={2} value={r.description ?? ""} placeholder="What it means that one links to the other"
+            <Textarea rows={2} value={r.description ?? ""} placeholder="What it means that one links to the other"
               onChange={(e) => set({ description: e.target.value })} />
           </td></tr>
           <tr><th>From</th><td><KindPicker o={o} value={r.from_kinds ?? []} onChange={(v) => set({ from_kinds: v })} /></td></tr>
@@ -495,7 +496,7 @@ function RelationForm({ o, def, draft, onDone, onCancel }: {
         <Button variant="primary" disabled={!!a.busy || !r.name} onClick={save}>{def ? "Save" : "Add link type"}</Button>
         <Button onClick={onCancel}>Cancel</Button>
         {def && !core && <Button disabled={!!a.busy}
-          onClick={() => confirm(`Delete link type ${def.name}?`) && a.run("delete", () => api.relationDelete(def.name, reviewer(), reason || undefined), onDone)}>
+          onClick={async () => (await confirmDialog(`Delete link type ${def.name}?`)) && a.run("delete", () => api.relationDelete(def.name, reviewer(), reason || undefined), onDone)}>
           Delete</Button>}
         {def && <span className="muted small">last changed by {def.updated_by} {when(def.updated_at)}</span>}
       </div>

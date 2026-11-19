@@ -78,7 +78,7 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 - `Button` uses `primary` for the main action, `secondary` for ordinary actions, `ghost` for low emphasis, `link` for inline actions, and `danger` for destructive actions. Use `sm` for compact table actions and `md` elsewhere. Use `ButtonLink` for navigation styled as a button and `ButtonLabel` for labels that open hidden file inputs.
 - `Card` (also exported as `Section`) groups related content. Supply `title` and `actions` when the group needs a heading or controls.
 - `Table` provides the shared scroll container and table base. Use it for data tables and choose a compact density for dense lists; use specialized classes only for domain-specific layout.
-- `Field`, `Input`, and `Select` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
+- `Field`, `Input`, `Select` and `Textarea` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
 - `Tabs` switches between views of one page; `Notice` holds something the user must act on; `HelpLink` links a docs page.
 - `Badge` shows a compact status with `ok`, `warn`, `danger`, or `muted` tone.
 - `Stat` presents a summary number; `EmptyState` explains an empty result; `Bar` displays a percentage or other bounded value from 0 to 100.
@@ -90,6 +90,12 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 - `ConfirmAction` presents inline consequences and explicit confirm/cancel controls for shared-state changes.
   `ActionStatus` announces action progress/results with `role="status"` and failures with `role="alert"`.
   Reuse these for source ingestion and review instead of browser dialogs or transient success toasts.
+- `confirmDialog(message)` and `promptDialog(label)` are the app's one modal: await the answer in a handler
+  (`if (!(await confirmDialog("Delete kind pump?"))) return;`). Questions asked while one is open wait their turn.
+  Never call the browser's `confirm`, `prompt` or `alert`.
+- `useAction` (`ui/src/lib.tsx`) runs a button's async action: `busy` names the action in flight, `error` holds the
+  failure for `ActionStatus`, and a success refreshes every view. `useReasonedAction` is the same for a change that
+  needs a reason. Don't keep busy and error state by hand.
 
 ## Action lifecycle
 

@@ -4,9 +4,9 @@
 import { useState } from "react";
 import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
 import { Button, Card, Disclosure, Field, Input, Select } from "../ui";
-import { Status, useAsync } from "../lib";
+import { Status, useAsync, useAction } from "../lib";
 import { Actor, when } from "../work";
-import { caseHref, useAct } from "./workflows/shared";
+import { caseHref } from "./workflows/shared";
 
 type Draft = Partial<Record<"disposition" | "failure_mode" | "mechanism" | "cause" | "activity" | "outcome" | "note", string>>
   & { duplicate_of?: string };
@@ -62,7 +62,7 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
     : { disposition: s.disposition, failure_mode: s.failure_mode, mechanism: s.mechanism, cause: s.cause,
         activity: s.activity, outcome: s.outcome };
   const [d, setD] = useState<Draft>(start);
-  const a = useAct();
+  const a = useAction();
   const set = (k: keyof Draft) => (e: { target: { value: string } }) => setD({ ...d, [k]: e.target.value || undefined });
   const real = d.disposition === "real";
   // equipment-failure terms are required only on an equipment case (#1145); elsewhere they are optional
@@ -129,7 +129,7 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
 export function RecheckCard({ firstId, person, closed, readOnly, reload }:
   { firstId: number; person: string; closed: boolean; readOnly: boolean; reload: () => void }) {
   const [note, setNote] = useState("");
-  const a = useAct();
+  const a = useAction();
   const answer = (held: boolean) => a.run(held ? "held" : "not", () => api.answerRecheck(firstId, person, held, note || undefined), reload);
   return (
     <Card className="recheck" title="Did the fix hold?">

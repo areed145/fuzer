@@ -1,4 +1,5 @@
-import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
+import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select, Badge as UIBadge, Disclosure, Textarea } from "../ui";
+import { confirmDialog } from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
 // published, compared with the published version), the process monitor (work waiting at each step,
 // drawn on the diagram) and the form-js form editor.
@@ -6,8 +7,8 @@ import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select ,
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type Modeler from "bpmn-js/lib/Modeler";
 import { api, type ProcessStats, type WorkChange, type WorkCompare, type WorkDefinition, type WorkProblem } from "../api";
-import { caseHref, taskHref, useAct } from "./workflows/shared";
-import { Status, href, useAsync } from "../lib";
+import { caseHref, taskHref } from "./workflows/shared";
+import { Status, href, useAsync, useAction, errorMessage } from "../lib";
 import { Actor, Due, duration, holder, span, usePerson, when } from "../work";
 import { blankProcess, focusElement } from "../bpmnSubset";
 
@@ -78,7 +79,7 @@ export function ProcessesPage() {
       await api.importDefinition(blankProcess(key, name || key), person);
       location.hash = href(`/workflows/${key}`, { tab: "model" });
     } catch (e) {
-      setError(`Couldn't create the draft: ${(e as Error).message}`);
+      setError(`Couldn't create the draft: ${errorMessage(e)}`);
     } finally {
       setBusy(null);
     }
@@ -90,7 +91,7 @@ export function ProcessesPage() {
       const rows = await api.importDefinition(await f.text(), person);
       location.hash = href(`/workflows/${rows[0].process_key}`, { tab: "model", v: String(rows[0].id) });
     } catch (e) {
-      setError(`Couldn't import ${f.name}: ${(e as Error).message}. Fix the file and import it again.`);
+      setError(`Couldn't import ${f.name}: ${errorMessage(e)}. Fix the file and import it again.`);
     } finally {
       setBusy(null);
       if (file.current) file.current.value = "";
@@ -315,7 +316,7 @@ function ModelTab({ def, defs, draft, reload }: {
     } catch (e) {
       const body = (e as any).body;
       if (body?.problems) setProblems(body.problems);
-      setMsg({ text: (e as Error).message, error: true });
+      setMsg({ text: errorMessage(e), error: true });
     } finally {
       setBusy("");
     }
@@ -374,7 +375,7 @@ function ModelTab({ def, defs, draft, reload }: {
   });
   const onApply = () => run("review", async () => {
     if (!proposal || !modeler.current) return;
-    if (!window.confirm("Replace the current canvas with this proposal? It will remain unsaved until you save the draft.")) return;
+    if (!(await confirmDialog("Replace the current canvas with this proposal? It will remain unsaved until you save the draft."))) return;
     setPreviousCanvas((await modeler.current.saveXML({ format: true })).xml!);
     setReady(false);
     setCanvasXml(proposal.xml);
@@ -425,7 +426,7 @@ function ModelTab({ def, defs, draft, reload }: {
           nothing is saved or run automatically. BPMN is maintained behind the canvas; import and download remain available.</p>
         <label className="prop">
           <span>Workflow description</span>
-          <textarea rows={3} maxLength={12000} value={description} onChange={(e) => setDescription(e.target.value)}
+          <Textarea rows={3} maxLength={12000} value={description} onChange={(e) => setDescription(e.target.value)}
             placeholder="Detect anomalies, inspect changed data, then ask an engineer to review the evidence…" />
         </label>
         <div className="actions">
@@ -619,7 +620,7 @@ function bulkProblem(text: string): string | null {
     const v = JSON.parse(text);
     return v && typeof v === "object" ? null : "Bulk actions must be a JSON object or list.";
   } catch (e) {
-    return `Bulk actions aren't valid JSON: ${(e as Error).message}`;
+    return `Bulk actions aren't valid JSON: ${errorMessage(e)}`;
   }
 }
 
@@ -684,7 +685,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
         setMsg({ text: `Saved v${r.version}. Steps that use this form show v${r.version} from now on; steps already filled in keep what was entered.` });
       }
     } catch (e) {
-      setMsg({ text: `Couldn't save: ${(e as Error).message}. Your changes are still here; try again.`, error: true });
+      setMsg({ text: `Couldn't save: ${errorMessage(e)}. Your changes are still here; try again.`, error: true });
     } finally {
       setSaving(false);
     }
@@ -739,7 +740,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
         <Disclosure className="card small" label={<>Bulk actions {bulk.trim() ? "(set)" : ""}</>}>
           <label className="prop">
             <span>Bulk actions (JSON): the decisions a lead can apply to many tasks at once</span>
-            <textarea className="mono" rows={5} value={bulk} aria-invalid={!!badBulk}
+            <Textarea className="mono" rows={5} value={bulk} aria-invalid={!!badBulk}
               onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
           </label>
           {badBulk && <p className="small error" role="alert">{badBulk}</p>}
@@ -777,7 +778,7 @@ function RunningTab({ processKey }: { processKey: string }) {
   const [state, setState] = useState("running");
   const list = useAsync(() => api.workInstances(processKey, state), [processKey, state]);
   const [person] = usePerson();
-  const a = useAct();
+  const a = useAction();
   return (
     <>
       <div className="tabs small">
@@ -804,7 +805,7 @@ function RunningTab({ processKey }: { processKey: string }) {
                 <td className="small"><Actor who={i.started_by} /></td>
                 <td>{i.state === "running" && person && (
                   <Button variant="link" className="small" disabled={!!a.busy}
-                    onClick={() => confirm(`Cancel "${i.title}"?`) && a.run(`c${i.id}`, () => api.cancelProcess(i.id, person, "cancelled from the workflow page"), list.reload)}>cancel</Button>
+                    onClick={async () => (await confirmDialog(`Cancel "${i.title}"?`)) && a.run(`c${i.id}`, () => api.cancelProcess(i.id, person, "cancelled from the workflow page"), list.reload)}>cancel</Button>
                 )}</td>
               </tr>
             ))}

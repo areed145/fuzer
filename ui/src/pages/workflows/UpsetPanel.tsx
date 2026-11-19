@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure } from "../../ui";
 import { api, type RelatedUpset, type UpsetView } from "../../api";
-import { Status, useAsync } from "../../lib";
+import { Status, useAsync, useAction } from "../../lib";
 import { PlotlyChart } from "../../analytics/PlotlyChart";
 import { when } from "../../work";
-import { caseHref, useAct } from "./shared";
+import { caseHref } from "./shared";
 
 const ROLE: Record<RelatedUpset["role"], { label: string; tone: "ok" | "warn" | "danger" | "muted" }> = {
   likely_cause: { label: "Likely cause", tone: "danger" },
@@ -66,7 +66,7 @@ function Detections({ v }: { v: UpsetView }) {
 function Related({ v, upsetId, itemId, person, canMerge, onMerged }: {
   v: UpsetView; upsetId: number; itemId: number; person: string; canMerge: boolean; onMerged: () => void;
 }) {
-  const a = useAct();
+  const a = useAction();
   const [done, setDone] = useState<{ text: string; moved?: number } | null>(null);
   const rows = v.related.related.filter((r) => r.role !== "coincident" || r.work_item_id);
   return (

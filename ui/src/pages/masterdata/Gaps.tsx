@@ -1,13 +1,13 @@
 /** Register gaps (#476): fields most of a kind carry and some lack, one value written several ways, and open
  * conflicts between sources. Each says where it is fixed; spellings are fixed here, across every entity at once. */
 import { useState } from "react";
+import { confirmDialog } from "../../ui";
 import { percent } from "../../format";
 import { api, type SpellingGroup } from "../../api";
 import { Button, Card, Select, Table, Empty } from "../../ui";
-import { Status, entityHref, fieldLabel, fmt, href, useAsync } from "../../lib";
+import { Status, entityHref, fieldLabel, fmt, href, useAsync, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
-import { useAct } from "../workflows/shared";
 
 export function Gaps() {
   return <>
@@ -37,7 +37,7 @@ function SpellingRow({ g, done }: { g: SpellingGroup; done: () => void }) {
   const [person] = usePerson();
   const operate = usePermission("operate");
   const [keep, setKeep] = useState(g.usual);
-  const a = useAct();
+  const a = useAction();
   const others = g.spellings.filter((s) => s.value !== keep);
   const n = others.reduce((t, s) => t + s.entities, 0);
   return (
@@ -48,8 +48,8 @@ function SpellingRow({ g, done }: { g: SpellingGroup; done: () => void }) {
         <Select aria-label={`Spelling of ${g.field} to keep`} value={keep} onChange={(e) => setKeep(e.target.value)}>
           {g.spellings.map((s) => <option key={s.value} value={s.value}>{s.value}</option>)}
         </Select>
-        <Button size="sm" disabled={!!a.busy || !n} onClick={() => {
-          if (!confirm(`Set ${g.field} to “${keep}” on ${n} entit${n === 1 ? "y" : "ies"}?`)) return;
+        <Button size="sm" disabled={!!a.busy || !n} onClick={async () => {
+          if (!(await confirmDialog(`Set ${g.field} to “${keep}” on ${n} entit${n === 1 ? "y" : "ies"}?`))) return;
           void a.run("fix", () => api.setValues(g.field, keep, others.flatMap((s) => s.fuzer_ids), person,
             `one spelling for ${g.field}`), done);
         }}>Use it on {n}</Button>

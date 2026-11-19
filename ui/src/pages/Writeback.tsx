@@ -1,9 +1,9 @@
-import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table } from "../ui";
+import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea } from "../ui";
 import { useState } from "react";
 import { api, type Writeback, type WritebackDetail } from "../api";
-import { Status, useAsync } from "../lib";
+import { Status, useAsync, useAction } from "../lib";
 import { Actor, DataView, when } from "../work";
-import { caseHref, useAct } from "./workflows/shared";
+import { caseHref } from "./workflows/shared";
 
 const STATE: Record<Writeback["state"], string> = {
   drafted: "drafted",
@@ -32,7 +32,7 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
   const d = useAsync(() => api.writeback(id), [id]);
   const [text, setText] = useState<string | null>(null);
   const [why, setWhy] = useState("");
-  const a = useAct();
+  const a = useAction();
   if (!d.data) return <Status loading={d.loading} error={d.error} />;
   const w: WritebackDetail = d.data;
   const system = w.system.toUpperCase();
@@ -52,7 +52,7 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
       </p>
       {w.error && <p role="alert" className="error small">{w.error}</p>}
       {hasText ? (
-        <textarea rows={3} className="lesson-text" aria-label="Change to write" disabled={!decide}
+        <Textarea rows={3} className="lesson-text" aria-label="Change to write" disabled={!decide}
           value={text ?? String(w.payload.text)} onChange={(e) => setText(e.target.value)} />
       ) : <DataView data={w.payload} />}
       {decide && (

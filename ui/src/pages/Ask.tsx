@@ -1,10 +1,10 @@
 import "../styles/ask.css";
 import { money } from "../format";
-import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input , Badge as UIBadge, Disclosure } from "../ui";
+import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AskContext, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
-import { entityHref, href, useAsync } from "../lib";
+import { entityHref, href, useAsync, errorMessage } from "../lib";
 import { loadPerson } from "../work";
 import { DemoContext } from "../DemoContext";
 import { usePermission } from "../Auth";
@@ -91,7 +91,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
       const got = await Promise.all(files.slice(0, MAX_IMAGES - images.length).map(attach));
       setImages((xs) => [...xs, ...got].slice(0, MAX_IMAGES));
     } catch (e) {
-      setAttachError(String((e as Error).message ?? e));
+      setAttachError(String(errorMessage(e) ?? e));
     }
   };
   const busy = turns.some((t) => t.jobId && (!t.job || t.job.status === "running") && !t.error);
@@ -175,7 +175,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
       {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} demo={demo} caseId={context.data?.item_id ?? undefined} />)}
       <div ref={end} />
       {ai && <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); if (!demo) ask(text); }}>
-        <textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : context.data ? `Ask about ${context.data.label}…` : "Ask about the plant…"}
+        <Textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : context.data ? `Ask about ${context.data.label}…` : "Ask about the plant…"}
                   onChange={(e) => setText(e.target.value)}
                   onPaste={(e) => {
                     const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));
@@ -368,7 +368,7 @@ function AttachToCase({ id, caseId }: { id: string; caseId: number }) {
         onClick={() => {
           setState("busy"); setError(undefined);
           api.attachAnswer(id, caseId, asker()).then(() => setState("done"),
-            (e) => { setError(e instanceof Error ? e.message : String(e)); setState("idle"); });
+            (e) => { setError(errorMessage(e)); setState("idle"); });
         }}>{state === "busy" ? "Attaching…" : `Attach to case ${caseId}`}</Button>
       {error && <span className="error" role="alert"> {error}</span>}
     </div>
@@ -419,7 +419,7 @@ function Rate({ id }: { id: string }) {
     if (busy) return;
     setBusy(true); setError("");
     try { await api.feedback(`answer:${id}`, useful, asker(), comment || undefined); setSent(useful); }
-    catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+    catch (failure) { setError(errorMessage(failure)); }
     finally { setBusy(false); }
   };
   return (

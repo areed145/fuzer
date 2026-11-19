@@ -3,13 +3,13 @@
  * reason and evidence; nothing changes until a person accepts it (or picks another option). Bulk accept appears only
  * once `stewardship.bulk_accept_at` is set. */
 import { useState } from "react";
+import { confirmDialog } from "../../ui";
 import { percent } from "../../format";
 import { api, type Proposal } from "../../api";
 import { Badge, Button, Card, Select, Table, Disclosure, Empty } from "../../ui";
-import { Status, entityHref, useAsync } from "../../lib";
+import { Status, entityHref, useAsync, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
-import { useAct } from "../workflows/shared";
 
 const KIND: Record<Proposal["kind"], string> = {
   unresolved: "Which asset", match: "Same item?", conflict: "Which value", spelling: "One spelling?",
@@ -28,7 +28,7 @@ export function ProposalsTab() {
   const rows = useAsync(() => api.proposals(status), [status]);
   const [person] = usePerson();
   const operate = usePermission("operate");
-  const a = useAct();
+  const a = useAction();
   const at = rows.data?.bulk_accept_at ?? 0;
   const confident = (rows.data?.proposals ?? []).filter((p) => p.answer && p.answer.choice !== "none" && p.answer.confidence >= at);
   return (
@@ -44,8 +44,8 @@ export function ProposalsTab() {
           title={rows.data?.configured === false ? "No model provider is configured (Settings › LLM)" : "Answers are cached; only new or changed questions are asked"}
           onClick={() => void a.run("ask", () => api.runProposals(), rows.reload)}>{a.busy === "ask" ? "Asking Claude…" : "Ask Claude"}</Button>}
         {operate && person && at > 0 && status === "open" && confident.length > 0 &&
-          <Button size="sm" disabled={!!a.busy} onClick={() => {
-            if (!confirm(`Accept the ${confident.length} proposals at ${percent(at)} confidence or more?`)) return;
+          <Button size="sm" disabled={!!a.busy} onClick={async () => {
+            if (!(await confirmDialog(`Accept the ${confident.length} proposals at ${percent(at)} confidence or more?`))) return;
             void a.run("bulk", () => api.acceptConfident(person), rows.reload);
           }}>Accept {confident.length} at ≥{percent(at)}</Button>}
       </div>
@@ -65,7 +65,7 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
   const [person] = usePerson();
   const operate = usePermission("operate");
   const [choice, setChoice] = useState(p.answer && p.answer.choice !== "none" ? p.answer.choice : "");
-  const a = useAct();
+  const a = useAction();
   const picked = p.options.find((o) => o.id === p.answer?.choice);
   return (
     <tr>

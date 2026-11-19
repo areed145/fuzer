@@ -6,7 +6,7 @@ import "../styles/all-work.css";
 import { useEffect, useRef, useState } from "react";
 import { Button, Input, PageHeader, Select } from "../ui";
 import { api, type ExceptionRow } from "../api";
-import { href, useAsync, useDebounced } from "../lib";
+import { href, useAsync, useDebounced, errorMessage } from "../lib";
 import { AssignPicker } from "./workflows/shared";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
@@ -158,7 +158,7 @@ function SavedViews({ list, filters, roles }: { list: WorkList; filters: WorkFil
       const kept = Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) as Record<string, string>;
       await api.saveWorkView(person, forRole, name.trim(), list, kept);
       setNaming(false); setName(""); saved.reload();
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { setError(errorMessage(e)); }
   };
   if (!views.length && !roles.length) return null;
   return (

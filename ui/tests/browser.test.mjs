@@ -1678,9 +1678,9 @@ test("a system says how its records matched, what is left for a steward and ever
     unlinked = route.request().postDataJSON();
     return route.fulfill({ json: { unlinked: {} } });
   });
-  page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Links it states (1)", exact: true }).click();
   await page.getByRole("button", { name: "Not this link", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Confirm", exact: true }).click();
   for (let i = 0; i < 50 && !unlinked; i++) await page.waitForTimeout(50);
   assert.deepEqual([unlinked?.src, unlinked?.rel, unlinked?.dst], ["fz-tag-1", "located_at", "fz-area-1"]);
   for (const width of [1440, 390]) {
@@ -1818,7 +1818,6 @@ test("like questions are answered once, for new ones too when asked (P2.3c)", as
     groups = [];
     return route.fulfill({ json: { decided: [1, 2, 3, 4, 5], skipped: [{ id: 6, why: "already pinned the other way" }], rebuild: null } });
   });
-  page.on("dialog", (d) => d.accept());
   await page.goto(`${url}/#/masterdata?tab=questions&kind=match`);
   const card = page.locator(".like-questions");
   await card.getByText("6 × jde and maximo records at the same tag where the maker is unknown on one side").waitFor();
@@ -1829,6 +1828,8 @@ test("like questions are answered once, for new ones too when asked (P2.3c)", as
   }
   await card.getByLabel("and new ones like these").check();
   await card.getByRole("button", { name: "Keep each pair apart" }).click();
+  const ask = page.getByRole("dialog", { name: "Keep each pair apart for all 6 questions, and for new ones like them?" });
+  await ask.getByRole("button", { name: "Confirm", exact: true }).click();
   await page.getByText("Answered 5 of 6; 1 left for you (already pinned the other way).").waitFor();
   assert.deepEqual(sent, { key: "match|jde+maximo|the maker is unknown on one side", decision: "reject", standing: true, by: "ana" });
 });

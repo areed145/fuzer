@@ -1,4 +1,5 @@
 import { AttentionCard } from "./HomeAttention";
+import { openReviews } from "../figures";
 import { money } from "../format";
 import { alarm, plural, say } from "../wording";
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
@@ -203,7 +204,7 @@ function AllWorkCard({ onReady }: { onReady?: () => void } = {}) {
 
 function MasterDataCard({ stats }: { stats?: Stats }) {
   const unmatched = useAsync(() => api.unmatchedRefs(), []);
-  const reviews = stats ? Object.values(stats.open_reviews).reduce((a, b) => a + b, 0) : null;
+  const reviews = stats ? openReviews(stats) : null;
   return (
     <UICard className="home-card" as="section">
       <div className="row spread"><h2>Master data</h2><a href={href("/masterdata")}>Open Master data</a></div>

@@ -3,8 +3,8 @@ import { percent } from "../../format";
 /** Survivorship and match rules (#225): the systems' rank (the default priority) and field / match rules. */
 import { useState } from "react";
 import { api, type MatchCalibration } from "../../api";
-import { Status, useAsync } from "../../lib";
-import { reviewer, useAction } from "./common";
+import { Status, useAsync, useAction } from "../../lib";
+import { reviewer } from "./common";
 
 export function Rules() {
   const r = useAsync(() => api.rules(), []);

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type ModelRollout, type ModelVersion, type Standing, type StandingDeviation } from "../api";
-import { Status, useAsync } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table } from "../ui";
+import { Status, useAsync, errorMessage } from "../lib";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea } from "../ui";
 import { loadPerson, usePerson } from "../work";
 import { person as personName } from "../wording";
 
@@ -41,7 +41,7 @@ export function Standards() {
       await fn();
       setDone(message);
     } catch (e) {
-      setError(`${label} failed: ${(e as Error).message}.`);
+      setError(`${label} failed: ${errorMessage(e)}.`);
     } finally {
       setBusy(null);
       c.reload(); v.reload();
@@ -224,7 +224,7 @@ function Propose({ person, busy, act }: { person: string; busy: boolean; act: Ac
       {PARTS.map((p) => <option key={p} value={p}>{p.replace("_", " ")}</option>)}</Select></Field>
     <Field label="Key" width="md"><Input value={key} onChange={(e) => setKey(e.target.value)} /></Field>
     <Field label="New value (JSON; empty removes it)" width="lg" hint={bad ?? undefined}>
-      <textarea rows={3} value={value} onChange={(e) => setValue(e.target.value)} aria-invalid={!!bad} /></Field>
+      <Textarea rows={3} value={value} onChange={(e) => setValue(e.target.value)} aria-invalid={!!bad} /></Field>
     <Field label="What it changes and why" width="lg"><Input value={summary} onChange={(e) => setSummary(e.target.value)} /></Field>
     <Button variant="primary" disabled={busy || !key.trim() || !summary.trim() || !!bad} onClick={() => act("Propose",
       () => api.proposeModelChange({ changes: { [part]: { [key.trim()]: parsed } }, summary, by: loadPerson() }),

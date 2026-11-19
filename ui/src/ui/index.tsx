@@ -1,5 +1,5 @@
 import "../styles/ui-kit.css";
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { lockPageScroll } from "../scrollLock";
 
@@ -136,6 +136,10 @@ export function Field({ label, hint, width = "md", children }: { label: ReactNod
 export function Input({ width, className = "", ...props }: InputHTMLAttributes<HTMLInputElement> & { width?: Width; ref?: Ref<HTMLInputElement> }) {
   return <input {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
 }
+/** Longer text. The same field as `Input`; give it `rows`, and `width="full"` to span its container. */
+export function Textarea({ width, className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { width?: Width; ref?: Ref<HTMLTextAreaElement> }) {
+  return <textarea {...props} className={`ui-textarea ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
+}
 export function Select({ width, className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement> & { width?: Width }) {
   return <select {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
 }
@@ -227,3 +231,5 @@ export function FullscreenButton({ on, onClick, className = "" }: { on: boolean;
     </Button>
   );
 }
+
+export { DialogHost, confirmDialog, promptDialog } from "./dialog";

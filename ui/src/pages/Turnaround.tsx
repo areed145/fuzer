@@ -6,8 +6,7 @@
 import { dayStamp } from "../wording";
 import { api, type PlanItem, type TurnaroundScope } from "../api";
 import { Badge, Button, Card, Empty } from "../ui";
-import { entityHref, href } from "../lib";
-import { useAct } from "./workflows/shared";
+import { entityHref, href, useAction } from "../lib";
 import { LiveFigure } from "../analytics/LiveFigure";
 
 const day = (at: string | null) => (at ? dayStamp(at) : "no date");
@@ -15,7 +14,7 @@ const day = (at: string | null) => (at ? dayStamp(at) : "no date");
 export function TurnaroundPanel({ scope: t, person, onChange }: {
   scope: TurnaroundScope; person: string | null; onChange: () => void;
 }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const bringIn = (i: PlanItem) => person && run("Bringing it in", () => api.turnaroundBringIn(i.id, person, t.revision), onChange);
   const items = (list: PlanItem[], why: (i: PlanItem) => string) => <ul className="plain">{list.map((i) => <li key={i.id}>
     <strong>{i.title}</strong> <span className="muted small">{i.kind.replace(/_/g, " ")} · {day(i.start_at)} · {why(i)}</span>{" "}

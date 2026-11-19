@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type AccessAccount, type AccessAdministration, type AccessRole, type AuditCoverage, type DocumentGroups, type WorkRoleRow } from "../api";
 import { refreshAccess, useAuth, usePermission } from "../Auth";
-import { href, notifyChanged, Status, useAsync } from "../lib";
+import { href, Status, useAction, useAsync } from "../lib";
 import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure } from "../ui";
 import { TeamsPage, WorkflowAssignments } from "./workflows/Teams";
 
@@ -105,17 +105,15 @@ function AccountCard({ account, data, workflow, assigned, groups, reload }: {
   const [enabled, setEnabled] = useState(account.enabled);
   const [owner, setOwner] = useState(account.owner);
   const [roles, setRoles] = useState(account.roles);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy: acting, error, run } = useAction();
+  const busy = !!acting;
   const [saved, setSaved] = useState(false);
   const permissions = account.owner ? Object.keys(data.permissions) : [...new Set(
     data.roles.filter(r => account.roles.includes(r.name)).flatMap(r => r.permissions))];
   const dirty = enabled !== account.enabled || owner !== account.owner || [...roles].sort().join() !== [...account.roles].sort().join();
   const save = async () => {
-    setBusy(true); setError(""); setSaved(false);
-    try { await api.updateAccount(account.id, { enabled, owner, roles }); setSaved(true); reload(`Account access saved for ${account.display_name}.`); refreshAccess(); notifyChanged(); }
-    catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
-    finally { setBusy(false); }
+    setSaved(false);
+    await run("save", async () => { await api.updateAccount(account.id, { enabled, owner, roles }); setSaved(true); reload(`Account access saved for ${account.display_name}.`); refreshAccess(); });
   };
   return <Card className="access-account" title={<>{account.display_name} <Badge tone={account.enabled ? "ok" : "warn"}>
     {account.owner ? "Owner" : account.enabled ? "Enabled" : "Not enabled"}</Badge></>}>
@@ -182,19 +180,16 @@ function AreasEditor({ account, project, saved, reload }: {
   account: AccessAccount; project: string; saved: string[]; reload: (message?: string) => void;
 }) {
   const [areas, setAreas] = useState(saved);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const { busy: acting, error, run } = useAction();
+  const busy = !!acting;
   const options = useAsync(() => api.search("", "area"), []);
   const dirty = [...areas].sort().join() !== [...saved].sort().join();
   const save = async () => {
-    setBusy(true); setError("");
-    try {
+    await run("save", async () => {
       await api.setAreas(account.id, project, areas);
       reload(areas.length ? `${account.display_name} now acts only on work in ${areas.length} ${areas.length === 1 ? "area" : "areas"} of ${project}.`
         : `${account.display_name} acts on work across all of ${project} again.`);
-      notifyChanged();
-    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
-    finally { setBusy(false); }
+    });
   };
   return <>
     <p>{saved.length ? `Acts only on work in ${saved.length} ${saved.length === 1 ? "area" : "areas"}.` : "Acts on work anywhere in this project."}
@@ -224,13 +219,13 @@ function AuditRecord({ project }: { project: string }) {
   const [since, setSince] = useState(day(new Date(today.getTime() - 30 * 86400000)));
   const [until, setUntil] = useState(day(today));
   const [format, setFormat] = useState<"csv" | "json">("csv");
-  const [busy, setBusy] = useState(false);
+  const { busy: acting, error: failure, run } = useAction();
+  const busy = !!acting;
   const [done, setDone] = useState("");
-  const [failure, setFailure] = useState("");
   const coverage = useAsync<AuditCoverage | null>(() => api.auditCoverage(project), [project]);
   const download = async () => {
-    setBusy(true); setFailure(""); setDone("");
-    try {
+    setDone("");
+    await run("save", async () => {
       // the window runs to the end of its last day
       const end = new Date(`${until}T00:00:00Z`); end.setUTCDate(end.getUTCDate() + 1);
       const text = await api.auditExport(project, `${since}T00:00:00Z`, end.toISOString(), format);
@@ -241,8 +236,7 @@ function AuditRecord({ project }: { project: string }) {
       link.click();
       URL.revokeObjectURL(link.href);
       setDone(`Downloaded ${rows} ${rows === 1 ? "event" : "events"} from ${project}, ${since} to ${until}. The download is itself in the record.`);
-    } catch (e) { setFailure(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+    });
   };
   const c = Array.isArray(coverage.data?.included) ? coverage.data : null;  // an API without the coverage answers otherwise
   const every = c?.included.filter(i => i.history).map(i => i.source) ?? [];
@@ -274,20 +268,17 @@ function RestrictedDocuments({ project, data, loading, error, reload }: {
 }) {
   const saved = data?.restricted ?? {};
   const [restricted, setRestricted] = useState<Record<string, string>>(saved);
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState("");
+  const { busy: acting, error: failure, run } = useAction();
+  const busy = !!acting;
   const wanted = Object.fromEntries(Object.entries(restricted).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
   const dirty = JSON.stringify(Object.entries(wanted).sort()) !== JSON.stringify(Object.entries(saved).sort());
   const count = Object.keys(wanted).length;
   const save = async () => {
-    setBusy(true); setFailure("");
-    try {
+    await run("save", async () => {
       await api.setDocumentGroups(project, wanted);
       reload(count ? `${count} document ${count === 1 ? "class is" : "classes are"} now restricted in ${project}.`
         : `Every document class is open in ${project} again.`);
-      notifyChanged();
-    } catch (e) { setFailure(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+    });
   };
   return <Card title={`Restricted documents in ${project}`}>
     <p>Restrict a document class, such as licensed OEM manuals, to a group. People outside the group can't see those
@@ -321,18 +312,15 @@ function GroupsEditor({ account, project, groups, saved, reload }: {
   account: AccessAccount; project: string; groups: string[]; saved: string[]; reload: (message?: string) => void;
 }) {
   const [chosen, setChosen] = useState(saved);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const { busy: acting, error, run } = useAction();
+  const busy = !!acting;
   const dirty = [...chosen].sort().join() !== [...saved].sort().join();
   const save = async () => {
-    setBusy(true); setError("");
-    try {
+    await run("save", async () => {
       await api.setGroups(account.id, project, chosen);
       reload(chosen.length ? `${account.display_name} is now in ${chosen.join(", ")} in ${project}.`
         : `${account.display_name} is in no document groups in ${project}.`);
-      notifyChanged();
-    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
-    finally { setBusy(false); }
+    });
   };
   return <>
     <p>{saved.length ? `Sees documents restricted to ${saved.join(", ")}.` : "Sees no restricted documents."}</p>
@@ -354,17 +342,16 @@ function RoleCard({ role, data, reload }: { role?: AccessRole; data: AccessAdmin
   const [name, setName] = useState(role?.name ?? "");
   const [description, setDescription] = useState(role?.description ?? "");
   const [permissions, setPermissions] = useState(role?.permissions ?? ["read"]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const { busy: acting, error, run } = useAction();
+  const busy = !!acting;
   const [saved, setSaved] = useState(false);
   const save = async () => {
-    setBusy(true); setError(""); setSaved(false);
-    try {
+    setSaved(false);
+    await run("save", async () => {
       await api.setAccessRole(name, { description, permissions });
       if (!role) { setName(""); setDescription(""); setPermissions(["read"]); }
-      setSaved(true); reload(`Application role ${name} saved. Existing sessions use the updated permissions.`); refreshAccess(); notifyChanged();
-    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
-    finally { setBusy(false); }
+      setSaved(true); reload(`Application role ${name} saved. Existing sessions use the updated permissions.`); refreshAccess();
+    });
   };
   return <Card className="access-role" title={role?.name ?? "Add an application role"}>
     <fieldset disabled={busy}><legend>Application role definition</legend>

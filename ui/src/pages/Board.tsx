@@ -1,4 +1,5 @@
 import "../styles/board.css";
+import { promptDialog } from "../ui";
 import { money } from "../format";
 import { Button, Input, PageHeader, Table, Select , Badge as UIBadge} from "../ui";
 import { useEffect, useState } from "react";
@@ -60,8 +61,8 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
     setPage(1);
     setFilter((cur) => ({ ...cur, [k]: v || undefined }));
   };
-  const save = () => {
-    const name = window.prompt("Name this filter");
+  const save = async () => {
+    const name = (await promptDialog("Name this filter"));
     if (!name) return;
     const next = { ...saved, [name]: { ...filter, text: text || undefined } };
     setSaved(next);
@@ -235,9 +236,9 @@ function PinForm({ card: c, reload }: { card: BoardCard; reload: () => void }) {
 
 function ProjectButton() {
   const add = async () => {
-    const title = window.prompt("Project title");
+    const title = (await promptDialog("Project title"));
     if (!title) return;
-    const benefit = window.prompt("Expected benefit over the horizon, USD (optional)");
+    const benefit = (await promptDialog("Expected benefit over the horizon, USD (optional)"));
     await api.boardProject({ title, by: loadPerson() || "anonymous", owner: loadPerson() || undefined,
       benefit_usd: benefit ? Number(benefit) : undefined });
     notifyChanged();

@@ -2,9 +2,9 @@
  * disposition with a confidence, what it could not check and what it cost against its budget. The person who
  * decides says whether they followed the proposal; the brief never decides. Sits above the decision. */
 import { useState } from "react";
+import { useAction } from "./lib";
 import { money, percent } from "./format";
 import { api, type WorkItem } from "./api";
-import { useAct } from "./pages/workflows/shared";
 import { Actor, when } from "./work";
 import { Badge, Button, Card, Disclosure, Input, Notice, Table } from "./ui";
 
@@ -16,7 +16,7 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
 }) {
   const v = it.brief;
   const [note, setNote] = useState("");
-  const act = useAct();
+  const act = useAction();
   if (!v || (!v.expected && !v.entry)) return null;
   const e = v.entry;
   if (!e) {

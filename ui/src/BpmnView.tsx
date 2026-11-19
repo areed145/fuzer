@@ -1,4 +1,5 @@
 import "./styles/bpmn.css";
+import { errorMessage } from "./lib";
 import "./styles/graphs.css";
 // A process diagram drawn by Fuzer from the BPMN file's diagram (processDrawing.ts), in the app's own colours, on a
 // canvas that pans and zooms: drag to pan, pinch or the buttons to zoom, Fit for the whole process, Waiting step for
@@ -47,7 +48,7 @@ export default function BpmnView({ xml, marks, classes, overlays, tall }: {
   const moved = useRef(false);   // the person panned or zoomed: a resize keeps their view
 
   const parsed = useMemo((): { d?: Drawing; error?: string } => {
-    try { return { d: parseProcess(xml) }; } catch (e) { return { error: (e as Error).message }; }
+    try { return { d: parseProcess(xml) }; } catch (e) { return { error: errorMessage(e) }; }
   }, [xml]);
   const d = parsed.d;
 

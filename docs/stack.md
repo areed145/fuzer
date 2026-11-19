@@ -55,3 +55,19 @@ doesn't cover a case, extend the module, with a test, so every page gets the cha
 | Pattern | Use | Enforced by |
 | --- | --- | --- |
 | Money, percentages, quantities, counts | `ui/src/format.ts` in the UI; `fuzer.core.wording.money` in Python. Pass the number the API returned. | `style-lint` rule `local-number-format`; the two formatters share test cases |
+| A button's async action (busy, failure, refresh) | `useAction` in `ui/src/lib.tsx`; `useReasonedAction` when the change needs a reason for the history; `errorMessage` for a caught error | `style-lint` rule `local-action-state` |
+| Asking before a change, asking for one value | `confirmDialog` and `promptDialog` from `ui/src/ui` (awaitable, queued); `ConfirmAction` for an inline confirm step | `style-lint` rule `raw-control` (no `confirm`, `prompt`, `alert`, `<dialog>`) |
+| Controls and tables | `Button`, `Input`, `Select`, `Textarea`, `Field`, `Table` and the rest of `ui/src/ui` | `style-lint` rule `raw-control` |
+| A figure worked out from API data (a total across kinds) | `ui/src/figures.ts`, or a field on the API. A page never adds up a list itself. | `style-lint` rule `computed-total` |
+| Loading data | `useAsync` in `ui/src/lib.tsx` over the `api` facade; never `fetch` in a page | `style-lint` rule `raw-fetch` |
+
+### The kit is used, not edited
+
+`ui/src/ui` is the component kit. Pages import from `ui/src/ui` only and take the components as they come.
+
+- A page stylesheet does not restyle a kit class (`.ui-*`); `style-lint` rule `kit-override` counts these and the
+  count only goes down.
+- A component that is missing a variant gets one in the kit, for every page, not a one-off class in a page.
+- Changing how an existing kit component looks or behaves changes every page: say so in the PR and check phone,
+  iPad and desktop.
+

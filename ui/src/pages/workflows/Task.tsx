@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty } from "../../ui";
+import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea } from "../../ui";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
 import { person as personName, say } from "../../wording";
@@ -8,10 +8,10 @@ import { CaseBrief } from "../../CaseBrief";
 import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
 import { CaseSafeguards } from "./Safeguards";
-import { Status, href, useAsync } from "../../lib";
+import { Status, href, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
 import { CloseoutPanel, ProcessDiagram, Timeline } from "./Cases";
-import { AssignPicker, GENERIC_STEP, SendToField, StepBadges, caseHref, useAct } from "./shared";
+import { AssignPicker, GENERIC_STEP, SendToField, StepBadges, caseHref } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
@@ -26,7 +26,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
   const v = view.data;
   const item = useAsync(() => (v ? api.workItem(v.item.id) : Promise.resolve(null)), [v?.item.id]);
   const [person] = usePerson();
-  const a = useAct();
+  const a = useAction();
   const [done, setDone] = useState<string | null>(null);
   const [completion, setCompletion] = useState<Record<string, unknown> | null>(null);
   useEffect(() => { setCompletion(null); }, [v?.task.assignee, v?.task.state]);
@@ -153,7 +153,7 @@ function exceptionOf(it: unknown): number | null {
 
 function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, disabled }: {
   id: number; person: string; requiresHuman: boolean; onDone: () => void; demo?: boolean;
-  action: ReturnType<typeof useAct>; disabled: boolean;
+  action: ReturnType<typeof useAction>; disabled: boolean;
 }) {
   const [to, setTo] = useState("");
   const [reason, setReason] = useState("");
@@ -183,7 +183,7 @@ function FixForm({ busy, onRetry }: { busy: boolean; onRetry: (data: Record<stri
   return (
     <div className="task-form">
       <p className="small">Correct the workflow data the step tripped on, then retry it.</p>
-      <textarea className="mono" rows={4} value={text} onChange={(e) => setText(e.target.value)} />
+      <Textarea className="mono" rows={4} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="actions">
         <Button variant="primary" disabled={busy || !data} onClick={() => data && onRetry(data)}>Retry step</Button>
         {!data && <span className="error small">Not valid JSON.</span>}
@@ -199,7 +199,7 @@ function NoteForm({ element, missing, busy, onSubmit }: {
   return (
     <div className="task-form">
       {missing && <p className="small muted">Form “{missing}” isn't loaded; completing with a note.</p>}
-      <textarea rows={3} placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} />
+      <Textarea rows={3} placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="actions">
         <Button variant="primary" disabled={busy} onClick={() => onSubmit(note ? { [`${element}_note`]: note } : {})}>Complete</Button>
       </div>

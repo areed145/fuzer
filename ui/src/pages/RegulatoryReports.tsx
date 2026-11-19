@@ -4,9 +4,8 @@
 import { useState } from "react";
 import { quantity } from "../format";
 import { api, type RegulatoryListing, type RegulatoryReport, type ReportBasis, type ReportFigure, type ReportRow } from "../api";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson, when } from "../work";
-import { useAct } from "./workflows/shared";
 import { Badge, Button, Card, ConfirmAction, Input, Table } from "../ui";
 import "../styles/reports.css";
 import { person as personName } from "../wording";
@@ -67,7 +66,7 @@ function Decide({ d, onDone }: { d: RegulatoryReport; onDone: () => void }) {
   const [person] = usePerson();
   const [note, setNote] = useState("");
   const [system, setSystem] = useState("");
-  const a = useAct();
+  const a = useAction();
   const latest = d.version === Math.max(...d.versions);
   const needsNote = d.marked.length > 0;
   return (
@@ -122,7 +121,7 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
   const [version, setVersion] = useState<number | undefined>();
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [person] = usePerson();
-  const a = useAct();
+  const a = useAction();
   const r = useAsync(() => api.regulatoryReport(template, period, version), [template, period, version]);
   const d = r.data;
   const toggle = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
@@ -184,7 +183,7 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
 /** The regulatory reports drafted, and a way to draft this month's. */
 export function RegulatoryList({ data, selected, onChange }: { data: RegulatoryListing; selected?: string; onChange: () => void }) {
   const [person] = usePerson();
-  const a = useAct();
+  const a = useAction();
   const month = new Date().toISOString().slice(0, 7);
   const reports = Array.isArray(data.reports) ? data.reports : [];  // an API without regulatory reports answers otherwise
   const templates = Array.isArray(data.templates) ? data.templates : [];

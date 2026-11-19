@@ -1,6 +1,6 @@
 import "../styles/events.css";
 import { percent } from "../format";
-import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty } from "../ui";
+import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -305,7 +305,7 @@ function Rate({ target }: { target: string }) {
         <p className="small">Thanks: rated {sent ? "useful" : "not useful"}.</p>
       ) : (
         <>
-          <textarea className="lesson-text" rows={2} placeholder="What was missing or wrong? (optional)"
+          <Textarea className="lesson-text" rows={2} placeholder="What was missing or wrong? (optional)"
                     value={comment} onChange={(e) => setComment(e.target.value)} />
           <div className="row">
             <Button variant="primary" onClick={() => send(true)}>Useful</Button>

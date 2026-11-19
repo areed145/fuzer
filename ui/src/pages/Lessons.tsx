@@ -1,8 +1,8 @@
-import { Badge, Button, PageHeader, Card as UICard, Disclosure } from "../ui";
+import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea } from "../ui";
 import { percent } from "../format";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
-import { Status, entityHref, href, notifyChanged, useAsync } from "../lib";
+import { Status, entityHref, href, useAction, useAsync } from "../lib";
 import { Actor, usePerson, when } from "../work";
 
 export function LessonsPage({ query }: { query: URLSearchParams }) {
@@ -30,14 +30,10 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
 
 function LessonCard({ lesson }: { lesson: Lesson }) {
   const [text, setText] = useState(lesson.text);
-  const [busy, setBusy] = useState(false);
+  const { busy, error, run } = useAction();
   const [person] = usePerson();
   const by = person || "anonymous";
-  const decide = async (d: "approve" | "reject" | "edit") => {
-    setBusy(true);
-    await api.decideLesson(lesson.id, d, by, text);
-    notifyChanged();
-  };
+  const decide = (d: "approve" | "reject" | "edit") => run(d, () => api.decideLesson(lesson.id, d, by, text));
   return (
     <UICard className="review">
       <div className="row spread">
@@ -54,7 +50,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
           {lesson.review_overdue && <> <Badge tone="warn">review overdue</Badge></>}
         </p>
       )}
-      <textarea className="lesson-text" value={text} onChange={(e) => setText(e.target.value)} rows={6} />
+      <Textarea className="lesson-text" value={text} onChange={(e) => setText(e.target.value)} rows={6} />
       <Disclosure className="small" label={<>Evidence</>}>
         <ul className="plain">
           {lesson.evidence.map((e) => (
@@ -68,14 +64,15 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
       <Disclosure className="small" label={<>History</>}>
         <LessonHistory id={lesson.id} />
       </Disclosure>
+      <ActionStatus error={error} />
       <div className="actions">
-        {lesson.status !== "approved" && <Button variant="primary" disabled={busy} onClick={() => decide("approve")}>Approve</Button>}
+        {lesson.status !== "approved" && <Button variant="primary" disabled={!!busy} onClick={() => decide("approve")}>Approve</Button>}
         {lesson.status === "approved" && text === lesson.text && (
-          <Button variant={lesson.review_overdue ? "primary" : "secondary"} disabled={busy} onClick={() => decide("approve")}>
+          <Button variant={lesson.review_overdue ? "primary" : "secondary"} disabled={!!busy} onClick={() => decide("approve")}>
             Reviewed, still holds</Button>
         )}
-        {text !== lesson.text && <Button disabled={busy} onClick={() => decide("edit")}>Save edits</Button>}
-        {lesson.status !== "rejected" && <Button disabled={busy} onClick={() => decide("reject")}>Reject</Button>}
+        {text !== lesson.text && <Button disabled={!!busy} onClick={() => decide("edit")}>Save edits</Button>}
+        {lesson.status !== "rejected" && <Button disabled={!!busy} onClick={() => decide("reject")}>Reject</Button>}
         {lesson.decided_by && <span className="muted small">last decided by {lesson.decided_by}</span>}
       </div>
     </UICard>

@@ -1,11 +1,12 @@
-import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
+import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea } from "../../ui";
+import { confirmDialog } from "../../ui";
 import { percent } from "../../format";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState, type ReactNode } from "react";
 import { api, type Catalog, type CatalogConnection, type CatalogSystem, type Json, type PackReport } from "../../api";
-import { Status, entityHref, href, useAsync } from "../../lib";
-import { TestSteps, reviewer, useAction } from "./common";
+import { Status, entityHref, href, useAsync, useAction } from "../../lib";
+import { TestSteps, reviewer } from "./common";
 import { SystemWritebacks } from "../Writeback";
 
 const SYSTEM_FIELDS: [keyof CatalogSystem & string, string, string][] = [
@@ -71,7 +72,7 @@ export function ImportPack({ onDone }: { onDone: () => void }) {
     <UICard title="Import a source pack">
       <p className="small">Importing a pack is safe to repeat. A mapping that differs from an approved one becomes a draft.</p>
       <input type="file" accept=".yaml,.yml" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText(await f.text()); }} />
-      <textarea className="mono" rows={8} style={{ width: "100%" }} placeholder="fuzer_source_pack: 1 …" value={text}
+      <Textarea className="mono" rows={8} width="full" placeholder="fuzer_source_pack: 1 …" value={text}
         onChange={(e) => setText(e.target.value)} />
       {conns.map((c) => (
         <div key={c} className="row small">
@@ -157,7 +158,7 @@ function SystemWork({ system }: { system: string }) {
               <td>{r.dataset}</td>
               <td className="mono small">{whenText(r.when)}{r.clear_when ? ` · clears when ${whenText(r.clear_when)}` : ""}</td>
               <td>{r.type}</td>
-              <td><Button variant="link" disabled={!!a.busy} onClick={() => confirm(`Remove rule ${r.name}? Exceptions it raised stay until cleared.`)
+              <td><Button variant="link" disabled={!!a.busy} onClick={async () => (await confirmDialog(`Remove rule ${r.name}? Exceptions it raised stay until cleared.`))
                 && a.run(`del-${r.name}`, () => api.deleteExceptionRule(system, r.name, reviewer()), w.reload)}>remove</Button></td></tr>
           ))}</tbody>
         </Table>
@@ -219,7 +220,7 @@ function SystemContext({ system }: { system: string }) {
           <tbody>{r.links.listed.map((l) => (
             <tr key={`${l.src}|${l.rel}|${l.dst}`}><td><a href={entityHref(l.src)}>{l.src_label}</a></td><td>{l.rel.replace(/_/g, " ")}</td>
               <td><a href={entityHref(l.dst)}>{l.dst_label}</a></td><td>{l.basis}{l.confidence < 1 ? ` (${pct(l.confidence)})` : ""}</td>
-              <td><Button size="sm" variant="link" disabled={!!a.busy} onClick={() => confirm(`Leave out ${system}'s link from ${l.src_label} to ${l.dst_label}? The next rebuilds won't state it${l.with_others ? " for this system (another system also states it)" : ""}.`)
+              <td><Button size="sm" variant="link" disabled={!!a.busy} onClick={async () => (await confirmDialog(`Leave out ${system}'s link from ${l.src_label} to ${l.dst_label}? The next rebuilds won't state it${l.with_others ? " for this system (another system also states it)" : ""}.`))
                 && a.run(`unlink-${l.src}-${l.dst}`, () => api.systemUnlink(system, l, reviewer(), "not this link"), c.reload)}>Not this link</Button></td></tr>
           ))}</tbody>
         </Table>
@@ -274,7 +275,7 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
       ) : <Button variant="secondary" onClick={() => setAdding(true)}>+ Add a connection</Button>}
       {s.datasets.length === 0 && (
         <p className="small">
-          <Button variant="link" disabled={!!a.busy} onClick={() => confirm(`Delete system ${s.name} and its connections?`) &&
+          <Button variant="link" disabled={!!a.busy} onClick={async () => (await confirmDialog(`Delete system ${s.name} and its connections?`)) &&
             a.run("delsys", () => api.deleteSystem(s.name, reviewer()), reload)}>Delete this system</Button>
           <span className="muted"> (it has no datasets)</span>
         </p>
@@ -306,7 +307,7 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
       <Button variant="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
         what it holds</Button>
       <Button variant="link" onClick={() => setEditing(!editing)}>edit</Button>
-      <Button variant="link" disabled={!!a.busy} onClick={() => confirm(`Delete connection ${c.name}?`) &&
+      <Button variant="link" disabled={!!a.busy} onClick={async () => (await confirmDialog(`Delete connection ${c.name}?`)) &&
         a.run("del", () => api.deleteConnection(c.id, reviewer()), reload)}>delete</Button>
       {editing && (
         <div className="row wrap">
