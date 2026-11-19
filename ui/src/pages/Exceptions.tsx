@@ -178,7 +178,7 @@ export const withTheField = (r: ExceptionRow, operators: Set<string>) => {
 
 const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "Field: done", could_not_do: "Field: could not do", note: "Field note" };
 
-export type Person = { name: string; roles: string[]; away_until?: string | null; display_name?: string | null };
+export type Person = { name: string; roles: string[]; away_until?: string | null; display_name?: string | null; holding?: number };
 
 /** The same event as other systems reported it, worked on this one case (#464): each source, and a way to split one out
  * when it turns out to be a different event. */
@@ -333,7 +333,7 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
         <option value="">choose a person or queue</option>
         {people.length > 0 && <optgroup label="People">{people.map((p) => <option key={p.name} value={p.name}>
           {p.display_name || p.name}{p.roles.length ? ` (${p.roles.join(", ").replace(/_/g, " ")})` : ""}
-          {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ""}</option>)}</optgroup>}
+          {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ` · holds ${p.holding ?? 0}`}</option>)}</optgroup>}
         <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{queue(q)}</option>)}</optgroup>
       </Select></Field>
       {to.trim() && <Field label="What to do" width="lg"><Input placeholder="what to check or do (they see this)"
@@ -348,7 +348,7 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
           : blocked && !why.trim() ? "Not ready: say why it should go anyway" : undefined}
         onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
           blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onDone(); })}>
-        {r.item_id ? "Hand over" : "Send"}</Button>
+        Send</Button>
     </div>
     {error && <p role="alert" className="error">{error}</p>}
   </div>;

@@ -234,18 +234,27 @@ function HandOver({ job, person, onChange }: { job: FieldJob; person: string; on
   const [done, setDone] = useState("");
   const [left, setLeft] = useState("");
   const [unsafe, setUnsafe] = useState("");
+  // Who can take it: the people in the job's role, so a typo can't hand it to nobody.
+  const people = useAsync(() => open ? api.workPeople() : Promise.resolve([]), [open]);
+  const role = job.role ?? "operator";
+  const takers = (people.data ?? []).filter((p) => p.name !== person && p.roles.includes(role));
   if (!open) return <Button size="sm" onClick={() => setOpen(true)}>Hand over at shift change</Button>;
-  const ready = to.trim() && done.trim() && left.trim();
+  const ready = to.trim() && done.trim() && left.trim() && unsafe.trim();
   return (
     <fieldset className="field-evidence">
       <legend className="small">Hand over to the incoming crew</legend>
-      <Input aria-label="Hand over to" placeholder="who takes it" value={to} onChange={(e) => setTo(e.target.value)} />
+      <Select aria-label="Hand over to" value={to} onChange={(e) => setTo(e.target.value)}>
+        <option value="">who takes it</option>
+        {takers.map((p) => <option key={p.name} value={p.name}>{p.display_name ?? personName(p.name)}
+          {p.away_until ? " (away)" : ""}</option>)}
+      </Select>
       <Input aria-label="What was done" placeholder="what was done" value={done} onChange={(e) => setDone(e.target.value)} />
       <Input aria-label="What is left" placeholder="what is left" value={left} onChange={(e) => setLeft(e.target.value)} />
-      <Input aria-label="Unsafe to leave" placeholder="anything unsafe to leave (optional)" value={unsafe}
+      <Input aria-label="Unsafe to leave" placeholder="anything unsafe to leave (or none)" value={unsafe}
         onChange={(e) => setUnsafe(e.target.value)} />
       <Button variant="primary" disabled={!ready || !!busy} onClick={() => run("Handing over", () => api.fieldHandover(job.id,
-        { by: person, to: to.trim(), done: done.trim(), left: left.trim(), unsafe: unsafe.trim() || undefined }), onChange)}>Hand over</Button>
+        { by: person, to: to.trim(), done: done.trim(), left: left.trim(),
+          unsafe: /^(none|nothing|no|n\/a)\.?$/i.test(unsafe.trim()) ? undefined : unsafe.trim() }), onChange)}>Hand over</Button>
       {error && <p role="alert" className="error small">{error}</p>}
     </fieldset>
   );
@@ -332,6 +341,10 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   };
   const last = job.field[job.field.length - 1];
   const desk = DESK_ROLES.has(job.role ?? "");
+  // On site since their last report: Done is the next step then, not before. Before it, Done needs something to say
+  // (a note, a reading or a photo), so one stray tap can't close a job with no evidence.
+  const onSite = last?.status === "on_site" && last.by === person;
+  const evidence = !!note.trim() || !!reading || photos.length > 0;
   return (
     <Card className="field-job" title={<>{job.title}{job.label && !job.title.toLowerCase().includes(job.label.toLowerCase()) && <> <Badge>{job.label}</Badge></>}</>}>
       {job.handover && <HandoverNote h={job.handover} />}
@@ -392,7 +405,9 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         </li>)}</ul>
       </div>}
       {job.handover?.mine_to_accept ? null : job.queued ? <div className="row field-actions">
-        <p className="small muted">Waiting in the {job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.</p>
+        <p className="small">{last?.status === "on_site"
+          ? `Back in the ${job.role?.replace(/_/g, " ") ?? ""} queue: ${personName(last.by)} was on site ${when(last.at)} and has not reported since.`
+          : `Waiting in the ${job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.`}</p>
         <Button variant="primary" disabled={!!busy || !signal.live}
           onClick={() => run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), onChange)}>Take it</Button>
         {!signal.live && <span className="small muted">{NEEDS_SIGNAL}</span>}
@@ -424,10 +439,12 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         <Input id={`why-${job.id}`} value={why} onChange={(e) => setWhy(e.target.value)} />
       </>}
       <div className="row field-actions">
-        <Button disabled={!!busy || (blocked && !why.trim())}
-          title={blocked && !why.trim() ? "No valid permit: say why it starts anyway" : undefined}
-          onClick={() => say("on_site")}>On site</Button>
-        <Button variant="primary" disabled={!!busy} onClick={() => say("done")}>Done</Button>
+        <Button variant={onSite ? undefined : "primary"} disabled={!!busy || onSite || (blocked && !why.trim())}
+          title={onSite ? "You are on site" : blocked && !why.trim() ? "No valid permit: say why it starts anyway" : undefined}
+          onClick={() => say("on_site")}>{onSite ? "On site ✓" : "On site"}</Button>
+        <Button variant={onSite ? "primary" : undefined} disabled={!!busy || (!onSite && !evidence)}
+          title={onSite || evidence ? undefined : "Say you are on site, or add a note, reading or photo first"}
+          onClick={() => say("done")}>Done</Button>
         <Button disabled={!!busy || !note.trim()} title={note.trim() ? undefined : "Say why in the note first"}
           onClick={() => say("could_not_do")}>Could not do</Button>
         <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>

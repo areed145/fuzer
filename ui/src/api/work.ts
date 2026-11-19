@@ -922,7 +922,8 @@ export const workApi = {
   boardProject: (p: { title: string; by: string; owner?: string; due?: string; benefit_usd?: number; scope?: string }) =>
     request<unknown>("POST", "/board/projects", undefined, p),
   workNames: () => request<Record<string, string>>("GET", "/work/names"),
-  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null }[]>("GET", "/work/people"),
+  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null;
+    /** Open cases and waiting steps they hold now. */ holding?: number }[]>("GET", "/work/people"),
   /** The demo account picks the human roles it acts as in this project; none is every role. */
   actAs: (roles: string[]) => request<{ name: string; roles: string[]; picked: string[] }>("PUT", "/work/me/roles", undefined, { roles }),
   setWorkPerson: (name: string, roles: string[], by: string) =>
