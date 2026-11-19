@@ -1307,12 +1307,13 @@ def plan_change(item_id: int, c: PlanChange, conn=Depends(get_conn)):
 
 @router.post("/plan/sync")
 def plan_sync(conn=Depends(get_conn)):
-    """Bring the plan's SAP work orders and maintenance plans up to date with the register now (the rebuild does it
-    too)."""
-    from ..ops import plan
+    """Bring the plan's SAP work orders, maintenance plans and planning-system schedules up to date with the register
+    now (the rebuild does it too)."""
+    from ..ops import plan, schedule
 
     def both(c):
-        return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c)}
+        return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c),
+                "planning_system": schedule.sync_activities(c)}
     return _plan_call(conn, both)
 
 

@@ -75,7 +75,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
           { key: "resources", label: "Resources", href: here("resources"), current: rows === "resources" }]} />
         {(list.data?.length ?? 0) > 1 && <label className="small">Schedule <Select aria-label="Schedule" value={p.code}
           onChange={(e) => { location.hash = `#/plan?schedule=${encodeURIComponent(e.target.value)}`; }}>
-          {list.data!.map((x) => <option key={x.code} value={x.code}>{x.code}</option>)}
+          {list.data!.map((x) => <option key={x.code} value={x.code}>{x.code} {acronyms(x.title).slice(0, 40)}</option>)}
         </Select></label>}
         <label className="small">Zoom <Select aria-label="Zoom" value={String(zoom)} onChange={(e) => setZoom(Number(e.target.value))}>
           <option value="1">Fit</option><option value="2">2×</option><option value="4">4×</option>

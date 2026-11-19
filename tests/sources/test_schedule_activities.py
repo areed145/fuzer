@@ -115,3 +115,49 @@ def test_the_turnaround_s_curve_from_the_loaded_schedule(plant):
     assert [x["label"] for x in s["stats"]][:2] == ["Earned", "Planned by now"]
     days = fig["spec"]["data"][0]["x"]
     assert days == sorted(days) and fig["spec"]["data"][0]["y"][-1] == 100
+
+
+def test_the_planning_system_s_schedules_land_on_the_integrated_plan(plant):
+    """Adam's question: "isn't there P6 data connected, why isn't it in the schedule?" Each P6 project becomes a
+    schedule on Plan at the export's dates and progress; the turnaround planners keep on Plan is left to them; the
+    other planned work in a schedule's span (SAP orders with their crews) is listed beside it."""
+    from fuzer.ops import plan, schedule
+
+    conn, client = plant
+    r = client.post("/sources/project_schedules/load", json={"yaml": ACTIVITIES, "by": "ana"})  # tests run in any order
+    assert r.status_code == 200, r.text
+    conn.execute("""update source_system s set date_format = '%d/%m/%Y' from source_dataset d
+                    where d.system_id = s.id and d.name = 'project_schedules'""")
+    ingest.ingest(conn, os.environ["FUZER_DATA_DIR"], exports=["project_schedules"], full=True)
+    pipeline.rebuild(conn, load_pack("okan"))
+    conn.execute("update source_dataset set fingerprint = null where name = 'project_schedules'")
+    plan.sync_work_orders(conn)
+    template = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "okan" / "schedules" / "OK-TAR-2026.yaml"
+    import yaml
+    schedule.import_template(conn, yaml.safe_load(template.read_text()), "tests")
+    out = schedule.sync_activities(conn)
+    assert "OK-TAR-2026" in out["kept"], "the turnaround planners keep on Plan is theirs"
+    assert out["schedules"] >= 2 and out["activities"] >= 10, out
+    codes = {p["code"]: p for p in schedule.projects(conn)}
+    assert {"OK-CAP-0142", "OK-CAP-0157"} <= set(codes) and codes["OK-CAP-0142"]["activities"] >= 5
+    gl = schedule.analyse(conn, "OK-CAP-0142")
+    exported = {x["activity_id"]: x for x in schedules.rows(Path(os.environ["FUZER_DATA_DIR"]))[0]}
+    for a in gl["activities"]:
+        src = exported[f"OK-CAP-0142-{a['code']}"]
+        day, month, year = src["start"].split("/")
+        assert a["start"].date().isoformat() == f"{year}-{month}-{day}", (a["code"], a["start"], src["start"])
+        assert a["status"] == ("done" if src["percent_complete"] >= 100 else "in_progress" if src["percent_complete"] else "scheduled")
+        assert a["needs"] == {} and a["predecessors"] == []  # the export has neither: none are made up
+    rel = schedule.analyse(conn, "OK-CAP-0157")["activities"]
+    assert any(a["assets"] for a in rel), "an activity the export locates on a tag Fuzer knows is on that asset"
+    # a planner moves one: the next sync keeps their dates and still takes the export's progress
+    one = next(a for a in gl["activities"] if a["status"] == "scheduled")
+    later = one["start"] + __import__("datetime").timedelta(days=30)
+    schedule.change_activity(conn, one["id"], "ana", not_before=later)
+    again = schedule.sync_activities(conn)
+    assert again["activities"] == out["activities"] and again["removed"] == 0
+    assert next(a for a in schedule.analyse(conn, "OK-CAP-0142")["activities"] if a["id"] == one["id"])["start"] >= later
+    # scheduled work orders in the turnaround's span are listed with the crews they need
+    tar = schedule.analyse(conn, "OK-TAR-2026")
+    assert all(o["start"] < tar["levelled_finish"] for o in tar["other_work"])
+    conn.rollback()

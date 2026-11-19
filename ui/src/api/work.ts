@@ -804,7 +804,9 @@ export interface ScheduleAnalysis {
   levelled_days_longer: number; overruns_window_by_days: number; levelled_chain: { code: string; waited_for?: string }[];
   overloads_if_unlevelled: ScheduleOverload[]; overloads_levelled: ScheduleOverload[];
   resources: PlanResource[]; profiles: { levelled: Record<string, ScheduleDay[]>; unlevelled: Record<string, ScheduleDay[]> };
-  other_work: { id: number; title: string; resource: string; quantity: number; start: string; end: string; project: string | null }[];
+  /** Every other active job in the schedule's span, a row per resource it needs (resource null when it needs none). */
+  other_work: { id: number; title: string; resource: string | null; quantity: number | null; start: string; end: string; project: string | null;
+    order?: string | null; status?: string }[];
 }
 export interface ResourceMove {
   item_id: number; title: string; source: string; code: string | null; order: string | null; slip_hours: number;

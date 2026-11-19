@@ -404,6 +404,119 @@ def seed(conn, project: str, by: str = "system") -> list[dict]:
     return [import_template(conn, doc, by) for doc in (cfg.get("bundle") or {}).get("schedules") or []]
 
 
+P6 = "p6"  # who keeps a schedule that a planning system's export put on the plan
+
+
+def sync_activities(conn, by: str = P6) -> dict:
+    """A planning system's schedules (Primavera P6, MS Project: `activity` entities from a connected source) as
+    schedules on the integrated plan. Each top activity with activities under it is a schedule; each lowest activity
+    under it an activity at the export's dates (held to start no earlier), with its percent complete, the assets it
+    is located at and, where it executes an SAP order, that order as its group. The export carries no logic and no
+    resource needs, so none are made up: a planner adds them on Plan, and the SAP orders bring their own crews.
+    A schedule planners already keep on Plan under the same code is left alone, and so are the dates of an activity
+    a person has moved; progress always follows the export. Activities the export dropped go."""
+    from datetime import UTC, time
+
+    from ..graph.operations import DONE, _day, _num
+
+    rows = conn.execute(
+        """
+        select e.fuzer_id as id, min(l.label) as label,
+               (select jsonb_object_agg(g.field, g.value) from golden g where g.fuzer_id = e.fuzer_id) as f,
+               (select min(x.dst) from edge x join entity pe on pe.fuzer_id = x.dst and pe.kind = 'activity'
+                where x.src = e.fuzer_id and x.rel = 'part_of') as parent,
+               (select array_agg(distinct x.dst) from edge x where x.src = e.fuzer_id and x.rel = 'located_at') as places,
+               (select min(k.key) from edge x join entity_key k on k.fuzer_id = x.dst and k.kind = 'work_order'
+                where x.src = e.fuzer_id and x.rel = 'executes') as work_order
+        from entity e join entity_label l using (fuzer_id)
+        where e.kind = 'activity' and e.retired_at is null and e.merged_into is null
+        group by e.fuzer_id
+        """).fetchall()
+    by_id = {r["id"]: r for r in rows}
+    parents = {r["parent"] for r in rows if r["parent"]}
+
+    def root(r):
+        seen = set()
+        while r["parent"] in by_id and r["id"] not in seen:
+            seen.add(r["id"])
+            r = by_id[r["parent"]]
+        return r
+
+    under = defaultdict(list)
+    for r in rows:
+        top = root(r)
+        if top["id"] != r["id"] and r["id"] not in parents:
+            under[top["id"]].append(r)
+    at = lambda d: datetime.combine(d, time(), UTC)
+    out = {"schedules": 0, "activities": 0, "kept": [], "undated": 0, "removed": 0}
+    for top_id, leaves in sorted(under.items(), key=lambda x: by_id[x[0]]["label"]):
+        top = by_id[top_id]
+        code, tf = top["label"], top["f"] or {}
+        have = conn.execute("select created_by from plan_project where code = %s", (code,)).fetchone()
+        if have and have["created_by"] != by:
+            out["kept"].append(code)  # planners keep this one on Plan
+            continue
+        dated = []
+        for r in leaves:
+            f = r["f"] or {}
+            s, e = _day(f.get("start")), _day(f.get("finish"))
+            if s and e and e >= s:
+                dated.append((r, f, at(s), at(e) + timedelta(days=1)))  # the finish day is worked
+            else:
+                out["undated"] += 1
+        if not dated:
+            continue
+        start = min(d[2] for d in dated)
+        finish_by = at(_day(tf["finish"])) + timedelta(days=1) if _day(tf.get("finish")) else max(d[3] for d in dated)
+        conn.execute(
+            """
+            insert into plan_project (code, title, kind, start_at, finish_by, notes, created_by, updated_by)
+            values (%s, %s, 'project', %s, %s, %s, %s, %s)
+            on conflict (code) do update set title = excluded.title, start_at = excluded.start_at,
+                finish_by = excluded.finish_by, updated_at = now()
+            """, (code, str(tf.get("description") or tf.get("name") or code), start, max(finish_by, start + timedelta(days=1)),
+                  "From the planning system's export: dates and progress follow it", by, by))
+        keys = []
+        for r, f, s, e in dated:
+            pct = min(100.0, max(0.0, _num(f.get("percent_complete"))))
+            done = pct >= 100 or str(f.get("status") or "").lower() in DONE or bool(f.get("actual_finish"))
+            status = "done" if done else "in_progress" if pct > 0 or f.get("actual_start") else "scheduled"
+            act = r["label"].removeprefix(f"{code}-") or r["label"]
+            order = conn.execute("select id from plan_item where source = 'sap' and source_key = %s",
+                                 (r["work_order"],)).fetchone() if r["work_order"] else None
+            subjects = list(r["places"] or [])
+            keys.append(f"{code}:{act}")
+            conn.execute(
+                """
+                insert into plan_item (kind, title, source, source_key, subjects, area_id, start_at, end_at, status, project,
+                                       code, wbs, parent_id, duration_hours, percent_complete, not_before, notes,
+                                       created_by, updated_by)
+                values ('project', %(title)s, 'schedule', %(key)s, %(subjects)s, %(area)s, %(s)s, %(e)s, %(status)s, %(project)s,
+                        %(code)s, %(wbs)s, %(parent)s, %(hours)s, %(pct)s, %(s)s, %(notes)s, %(by)s, %(by)s)
+                on conflict (source, source_key) where source_key is not null do update set
+                    title = excluded.title, subjects = excluded.subjects, area_id = excluded.area_id, wbs = excluded.wbs,
+                    parent_id = excluded.parent_id, percent_complete = excluded.percent_complete, status = excluded.status,
+                    start_at = case when plan_item.updated_by = %(by)s then excluded.start_at else plan_item.start_at end,
+                    end_at = case when plan_item.updated_by = %(by)s then excluded.end_at else plan_item.end_at end,
+                    duration_hours = case when plan_item.updated_by = %(by)s then excluded.duration_hours
+                                          else plan_item.duration_hours end,
+                    not_before = case when plan_item.updated_by = %(by)s then excluded.not_before else plan_item.not_before end,
+                    updated_at = now()
+                """, {"title": str(f.get("description") or f.get("name") or r["label"]), "key": keys[-1], "subjects": subjects,
+                      "area": plan._area(conn, subjects), "s": s, "e": e, "status": status, "project": code, "code": act,
+                      "wbs": f.get("wbs"), "parent": order["id"] if order else None,
+                      "hours": (e - s).total_seconds() / 3600, "pct": pct, "notes": f"Planning system activity {r['label']}",
+                      "by": by})
+        out["removed"] += conn.execute(
+            "delete from plan_item where project = %s and source = 'schedule' and created_by = %s and not (source_key = any(%s))",
+            (code, by, keys)).rowcount
+        out["schedules"] += 1
+        out["activities"] += len(keys)
+    if out["schedules"]:
+        events.publish(conn, "plan.changed", "plan_project:planning-system", {"change": "synced", "by": by, **out})
+    return out
+
+
 def projects(conn) -> list[dict]:
     return conn.execute(
         """
@@ -467,7 +580,6 @@ def analyse(conn, code: str | None = None) -> dict:
     for r in conn.execute("select * from plan_demand_all where item_id = any(%s)", (list(by_id),)):
         demands[r["item_id"]][r["resource"]] = r["quantity"]
     used = {r for d in demands.values() for r in d}
-    capacity, resources = _capacity_fn(conn, used, cal)
     finish_by = cal.hours(p["finish_by"]) if p["finish_by"] else None
     not_before = {a["id"]: max(0.0, cal.hours(a["start_at"])) for a in acts if a["status"] in ("in_progress", "done")}
     for a in acts:  # a planner's "start no earlier than"
@@ -479,14 +591,18 @@ def analyse(conn, code: str | None = None) -> dict:
     horizon_end = cal.at(max(cp["finish"] * 3, cp["finish"] + 24 * 30))
     other = conn.execute(
         """
-        select i.id, i.title, i.start_at, i.end_at, d.resource, d.quantity, i.project
-        from plan_demand_all d join plan_item i on i.id = d.item_id
-        where d.resource = any(%s) and i.status = any(%s) and not (i.id = any(%s))
+        select i.id, i.title, i.start_at, i.end_at, d.resource, d.quantity, i.project, i.source, i.source_key, i.status
+        from plan_item i left join plan_demand_all d on d.item_id = i.id
+        where i.status = any(%s) and not (i.id = any(%s))
           and i.start_at < %s and i.end_at > %s and coalesce(i.project, '') <> %s
-        """, (list(used), list(plan.ACTIVE), list(by_id), horizon_end, p["start_at"], p["code"])).fetchall()
+        order by i.start_at, i.id
+        """, (list(plan.ACTIVE), list(by_id), horizon_end, p["start_at"], p["code"])).fetchall()
+    used |= {o["resource"] for o in other if o["resource"] and o["start_at"] < cal.at(cp["finish"])}  # the crews that other work holds are shown beside it
+    capacity, resources = _capacity_fn(conn, used, cal)
     background = defaultdict(list)
     for o in other:
-        background[o["resource"]].append((cal.hours(o["start_at"]), cal.hours(o["end_at"]), o["quantity"]))
+        if o["resource"] in used:
+            background[o["resource"]].append((cal.hours(o["start_at"]), cal.hours(o["end_at"]), o["quantity"]))
     routine = routine_load(conn, resources.values())
     for r, x in routine.items():  # rounds and checks hold their people the whole way through
         background[r].append((0.0, cal.hours(horizon_end), x["quantity"]))
@@ -511,7 +627,9 @@ def analyse(conn, code: str | None = None) -> dict:
                      "early_start": cal.at(cp["es"][i]), "early_finish": cal.at(cp["ef"][i]),
                      "late_start": cal.at(cp["ls"][i]), "late_finish": cal.at(cp["lf"][i]),
                      "float_hours": round(cp["float"][i], 1), "critical": i in cp["critical"],
-                     "start": cal.at(lv["start"][i]), "finish": cal.at(lv["finish"][i]),
+                     # finished work is shown where it was done; the rest where the logic and the crews put it
+                     "start": a["start_at"] if a["status"] == "done" else cal.at(lv["start"][i]),
+                     "finish": a["end_at"] if a["status"] == "done" else cal.at(lv["finish"][i]),
                      "held_back_hours": round(lv["waited"][i], 1),
                      "held_back_by": ({"resource": lv["why"][i]["resource"],
                                        "activities": [label(x) for x in lv["why"][i]["held_by"]]} if i in lv["why"] else None),
@@ -541,8 +659,12 @@ def analyse(conn, code: str | None = None) -> dict:
                        "capacity": r["capacity"], "counts": r["counts"], "routine": routine.get(r["code"])}
                       for r in resources.values()],
         "profiles": {"levelled": histogram(lv["start"]), "unlevelled": histogram(cp["es"])},
+        # every other active job in the schedule's own span: SAP orders, campaigns, other schedules' work; a row per
+        # resource it needs (resource null when it needs none)
         "other_work": [{"id": o["id"], "title": o["title"], "resource": o["resource"], "quantity": o["quantity"],
-                        "start": o["start_at"], "end": o["end_at"], "project": o["project"]} for o in other],
+                        "start": o["start_at"], "end": o["end_at"], "project": o["project"],
+                        "order": o["source_key"] if o["source"] == "sap" else None, "status": o["status"]}
+                       for o in other if o["start_at"] < max(levelled, finish) and (o["resource"] is None or o["resource"] in used)],
         "hours": "working hours on the project's calendar",
         "window_hours": finish_by,
     }
