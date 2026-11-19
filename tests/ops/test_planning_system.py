@@ -6,9 +6,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from fakeplant.common import _write_csv
 
 from fakeplant import schedules
-from fakeplant.common import _write_csv
 from fuzer.core.pack import load_pack
 from fuzer.ops import pipeline, schedule
 from fuzer.sources import ingest
