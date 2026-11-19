@@ -892,6 +892,22 @@ export interface FieldPermit {
     isolations: { isolation: string; point: string | null; method: string | null; state: string | null }[] } | null;
 }
 
+/** One opportunity with its working (GET /opportunities/{key}): the value its scan stored, which the board, the case
+ * and the daily report all read, and how it is made. */
+export interface OpportunityMove {
+  from: string | null; from_id: string | null; to: string | null; to_id: string | null;
+  gas: number | null; gas_unit: string | null; gain: number | null; gain_unit: string | null;
+  from_marginal: number | null; to_marginal: number | null;
+}
+export interface OpportunityView {
+  key: string; kind: string; title: string; target: string | null; gain_bbld: number | null; value_usd: number | null;
+  status: string; item_id: number | null; reason: string | null; scanned_at: string; decided_by: string | null;
+  decided_at: string | null; detail: Record<string, unknown>;
+  worth: { usd: number; days: number; gain: number; gain_unit: string; oil_bbl: number; price_bbl: number; currency: string } | null;
+  moves: OpportunityMove[];
+  evidence: { records: string[]; first: string | null; last: string | null };
+}
+
 /** The most rows the server lists of exceptions in one request (`/exceptions` caps `limit` at 1000). */
 export const EXCEPTIONS_LIMIT = 1000;
 
@@ -926,6 +942,10 @@ export const workApi = {
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string; closed_since?: string; at?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", { limit: String(EXCEPTIONS_LIMIT), ...f }),
   attention: () => request<Attention>("GET", "/attention"),
+  opportunity: (key: string) => request<OpportunityView>("GET", `/opportunities/${encodeURIComponent(key)}`),
+  decideOpportunity: (key: string, decision: "accepted" | "rejected" | "project", by: string, reason?: string) =>
+    request<unknown>("POST", `/opportunities/${encodeURIComponent(key)}/decision`, undefined,
+      { decision, by, reason: reason ?? null }),
   exceptionsSuppressed: () => request<SuppressedView>("GET", "/exceptions/suppressed"),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),
   handover: (id: number) => request<Handover>("GET", `/handovers/${id}`),

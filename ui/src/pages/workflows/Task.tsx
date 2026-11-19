@@ -13,6 +13,7 @@ import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when
 import { CloseoutPanel, ProcessDiagram, Timeline } from "./Cases";
 import { AssignPicker, GENERIC_STEP, SendToField, StepBadges, caseHref, useAct } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
+import { OpportunityPanel } from "./OpportunityPanel";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
 import { FieldPhoto, photosOf } from "../../FieldPhoto";
@@ -80,6 +81,8 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
           <CaseSafeguards id={v.item.id} />
           <CaseFindings sources={v.sources} />
           <CaseAround id={v.item.id} />
+          {typeof v.data.opportunity === "string" && <OpportunityPanel opportunityKey={v.data.opportunity} person={person}
+            readOnly={demo} onDecided={refresh} />}
           {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
             canMerge={waiting && operate && !demo} onMerged={refresh} />}
           {kept && !demo ? <p className="notice small">Done on this phone, waiting to send. The case moves on when the signal

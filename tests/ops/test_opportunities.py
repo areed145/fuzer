@@ -48,6 +48,7 @@ def test_scan_board_and_rejection(conn):
     assert conn.execute("select process_key from work_process where item_id = %s",  # the engineer's SLA (#509)
                         (item_id,)).fetchone()["process_key"] == "task"
     assert any(r.startswith("opportunity:scan:") for r in held["records"])
+    _shows_its_working_and_one_value_everywhere(conn)
 
     key = max(opportunities.listing(conn), key=lambda o: o["gain_bbld"] or 0)["key"]
     with pytest.raises(ValueError, match="reason"):
@@ -92,3 +93,22 @@ def test_two_board_refreshes_at_once_take_turns(conn, okan_db):
         board.refresh(first, PACK)
         t.join(60)
     assert done and done[0]["cards"] > 0 and done[0]["new"] == 0
+
+
+
+def _shows_its_working_and_one_value_everywhere(conn):
+    """An opportunity's value is the one its scan stored, on the board too, and the sum that makes it is shown: rate x
+    days x price gives the value; each move names its wells and gas; the tests it rests on are dated."""
+    o = max((x for x in opportunities.listing(conn) if x["kind"] == "gas_lift_reallocation"),
+            key=lambda x: x["value_usd"] or 0)
+    got = opportunities.get(conn, o["key"], PACK)
+    w = got["worth"]
+    assert w["usd"] == o["value_usd"]
+    assert round(got["gain_bbld"] * w["days"] * w["price_bbl"]) == pytest.approx(w["usd"], rel=1e-3)
+    assert got["moves"] and all(m["from_id"] and m["to_id"] and m["gas"] and m["gas_unit"] for m in got["moves"])
+    assert got["evidence"]["first"] and got["evidence"]["first"] <= got["evidence"]["last"]
+    card = conn.execute("select effective_usd from board_card where records::text like %s",
+                        (f"%opportunity:scan:{o['key']}%",)).fetchone()
+    assert card and round(card["effective_usd"]) == round(o["value_usd"])
+    with pytest.raises(LookupError):
+        opportunities.get(conn, "no-such-key", PACK)

@@ -273,6 +273,16 @@ def opportunity_list(status: str | None = "open", limit: int = 100, conn=Depends
     return opportunities.listing(conn, status, min(limit, 500))
 
 
+@router.get("/opportunities/{key:path}")
+def opportunity_get(key: str, conn=Depends(get_conn)):
+    """One opportunity with its working: its value and how it is made, its moves, and the tests behind it."""
+    from ..ops import opportunities
+    try:
+        return opportunities.get(conn, key, deps.pack())
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
+
+
 class OpportunityDecision(BaseModel):
     decision: Literal["accepted", "rejected", "project"]
     by: str = "anonymous"

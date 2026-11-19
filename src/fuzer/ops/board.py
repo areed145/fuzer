@@ -31,11 +31,16 @@ def _value_cards(conn, pack) -> list[dict]:
     from ..analysis import value
 
     cfg = value.config(pack)
+    # A scanned opportunity's value is the one its scan stored, which its case, its page and the daily report show:
+    # scored again here on another day's prices it read $5,540,400 on Home against $5,520,150 everywhere else.
+    stored = ({r["key"]: r["value_usd"] for r in conn.execute("select key, value_usd from opportunity")}
+              if conn.execute("select to_regclass('opportunity') is not null as x").fetchone()["x"] else {})
     out = []
     for item in value.items(conn, pack):
         s = value.score(item, cfg)
+        usd = stored.get(s["id"].removeprefix("scan:"), s["value_usd"]) if s["id"].startswith("scan:") else s["value_usd"]
         out.append({"key": f"{s['kind']}:{s['id']}", "kind": s["kind"], "title": s["label"] or s["id"], "text": s["text"],
-                    "unit_id": s["tag_id"], "value_usd": s["value_usd"], "reason": s["reason"],
+                    "unit_id": s["tag_id"], "value_usd": usd, "reason": s["reason"],
                     "breakdown": {k: s[k] for k in ("components", "urgency", "effort", "unknown", "value_per_effort")}})
     return out
 
