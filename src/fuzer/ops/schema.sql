@@ -244,6 +244,17 @@ create table if not exists opportunity (
     decided_at  timestamptz,
     scanned_at  timestamptz not null default now()
 );
+-- US oilfield units (#1159): the gain was kept in Sm3/d of oil before. A database built before then keeps its
+-- decided opportunities, so the column moves and its values convert (a decided one comes back only on a material
+-- change, and a change of unit is not one).
+do $$ begin
+    if exists (select 1 from information_schema.columns where table_schema = current_schema()
+               and table_name = 'opportunity' and column_name = 'gain_sm3d') then
+        alter table opportunity drop column if exists gain_bbld;  -- added empty beside the old column, if at all
+        alter table opportunity rename column gain_sm3d to gain_bbld;
+        update opportunity set gain_bbld = round((gain_bbld * 6.28981)::numeric, 1);
+    end if;
+end $$;
 alter table detection add column if not exists seen_until timestamp;  -- the end of the last window that saw it
 
 -- Studies (#106): a correlation or clustering run kept with its parameters, top results and figure, so people can
