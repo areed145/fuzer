@@ -6,16 +6,16 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { kindWord, person as personName } from "../wording";
-import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select } from "../ui";
+import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
   sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
 import { NEEDS_SIGNAL } from "../signal";
 import { useSignal } from "../useSignal";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, useAsync, useAction, errorMessage } from "../lib";
 import { Due, reportedBy, when } from "../work";
 import { FindingEvidence } from "../Finding";
-import { taskHref, useAct } from "./workflows/shared";
+import { taskHref } from "./workflows/shared";
 
 /** Reports kept on this phone while there was no signal (P5.3c): the app's one sender (P5.17a) sends them as soon as
  * the signal returns, from whichever page is open; this card counts them and can send now by hand. One the server
@@ -49,7 +49,7 @@ export function Outbox({ onSent, jobs = [] }: { onSent: () => void; jobs?: { id:
 }
 
 function Refused({ w, jobs }: { w: QueuedWrite; jobs: { id: number; title: string }[] }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [to, setTo] = useState("");
   const note = asNote(w);
   const from = (w.payload as { exception_id?: number }).exception_id;
@@ -81,7 +81,7 @@ const day = (at: string) => new Date(at).toLocaleDateString(undefined, { weekday
 /** What they are planned onto over the next two weeks, so tomorrow's job is no surprise today. On the day, they
  * say when they've started and when it's done; the plan, and the IOC, see it. */
 export function ComingUp({ items, person, onChange }: { items: PlanItem[]; person: string; onChange: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const soon = Date.now() + 86_400_000;
   // Said without signal, it is kept on the phone and sent when the signal returns (P5.17e).
   const waiting = useOutbox().waiting.filter((w) => w.kind === "plan_change").map((w) => w.payload as { item: number; status: string });
@@ -188,7 +188,7 @@ function TakePoint({ run, point, person, onTaken }: { run: number; point: RoundP
   const send = (t: { value?: number; passed?: boolean; note?: string }) => {
     setError(null);
     sendTake({ run, point: point.id, by: person, ...t }).then((how) => { setFailing(false); setNote(""); if (how === "sent") onTaken(); },
-      (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+      (e: unknown) => setError(errorMessage(e)));
   };
   const label = `${point.what}${point.asset_label ? ` on ${point.asset_label}` : ""}`;
   if (point.kind === "reading") {
@@ -228,7 +228,7 @@ function HandoverNote({ h }: { h: FieldHandover }) {
 
 /** Hand a job in progress to the incoming crew at shift change (P5.11c). */
 function HandOver({ job, person, onChange }: { job: FieldJob; person: string; onChange: () => void }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [open, setOpen] = useState(false);
   const [to, setTo] = useState("");
   const [done, setDone] = useState("");
@@ -288,7 +288,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   /** Told when Done or Could not do reached the IOC, so the page can say so after the card leaves the list. */
   onReported?: (said: string) => void;
 }) {
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   const [note, setNote] = useState("");
   const [what, setWhat] = useState("");
   const [value, setValue] = useState("");
@@ -397,7 +397,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         {!signal.live && <span className="small muted">{NEEDS_SIGNAL}</span>}
       </div> : <>
       <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC (a reading, what you found, why it couldn't be done)</label>
-      <textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+      <Textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
       {dictate && <Button size="sm" onClick={dictate.toggle} aria-pressed={dictate.listening}>
         {dictate.listening ? "Stop dictating" : "Dictate the note"}</Button>}
       <fieldset className="field-evidence">

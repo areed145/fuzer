@@ -1,11 +1,12 @@
 import "../../styles/work.css";
+import { count, money } from "../../format";
 import { Button, ConfirmAction, Disclosure, Field, Input, Select , Badge as UIBadge} from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
 import { usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
 import { useState } from "react";
 import { api, type WorkRow } from "../../api";
-import { href, notifyChanged, useAsync } from "../../lib";
+import { href, useAction, useAsync } from "../../lib";
 import { queue } from "../../wording";
 import { ATTENTION_TONE } from "../../kinds";
 
@@ -49,7 +50,7 @@ export function AgentIdle({ step, configured, onTakeOver }: {
  * yet, which reads as no priority rather than "priority 0.00" (#405). */
 export function priorityText(p: number | null | undefined): string | null {
   if (p == null || p === 0) return null;
-  return p < 2 ? p.toFixed(2) : Math.round(p).toLocaleString();
+  return p < 2 ? p.toFixed(2) : count(Math.round(p));
 }
 
 export type PriorityLevel = { level: "High" | "Medium" | "Low"; tone: "danger" | "warn" | "info"; why: string };
@@ -66,8 +67,7 @@ export function priorityLevel(p: number | null | undefined, type?: string | null
     return level(sap <= 2 ? "High" : sap === 3 ? "Medium" : "Low", `SAP priority ${sap}`);
   }
   if (p <= 1) return level(p >= 0.8 ? "High" : p >= 0.5 ? "Medium" : "Low", `scored ${p.toFixed(2)} of 1`);
-  const usd = p >= 1000 ? `$${Math.round(p / 1000).toLocaleString()}k` : `$${Math.round(p)}`;
-  return level(p >= 10000 ? "High" : p >= 1000 ? "Medium" : "Low", `${usd} at stake`);
+  return level(p >= 10000 ? "High" : p >= 1000 ? "Medium" : "Low", `${money(p)} at stake`);
 }
 
 /** High, Medium or Low in its colour; why it is that is the tooltip. Low is left out unless asked for, so it doesn't
@@ -119,27 +119,6 @@ export function AssignPicker({ value, onChange, agents = false, placeholder = "c
   );
 }
 
-/** A button's async action with busy and error state; success refreshes every view. */
-export function useAct() {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const run = async <T,>(name: string, fn: () => Promise<T>, after?: (r: T) => void) => {
-    setBusy(name);
-    setError(null);
-    try {
-      const r = await fn();
-      after?.(r);
-      notifyChanged();
-      return r;
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
-  return { busy, error, run };
-}
-
 /** A sample IOC team for a fictional demo field: an ops lead who triages, a field operator who gets dispatched, a
  * maintenance planner, a production engineer (short gas days, deferment) and a data steward (source problems), so
  * every queue the demo's work routes to has someone in it. Offered only where the roster is empty or holds only
@@ -160,7 +139,7 @@ export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
   const [person, setPerson] = usePerson();
   const demo = useAsync(() => api.demoConfig(), []);
   const people = useAsync(() => api.workPeople(), []);
-  const { busy, error, run } = useAct();
+  const { busy, error, run } = useAction();
   if (session?.mode === "microsoft" || !configure || !demo.data?.enabled || !people.data) return null;
   const sample = new Set(SAMPLE_TEAM.map((p) => p.name));
   if (people.data.some((p) => !sample.has(p.name))) return null;  // someone's own roster: leave it alone
@@ -196,7 +175,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");
   const [blocked, setBlocked] = useState<string[] | null>(null);
-  const a = useAct();
+  const a = useAction();
   const field = (people.data ?? []).filter((p) => p.roles.includes("operator"));
   const send = () => a.run("send", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined), () => {
     setTo(""); setAsk(""); setWhy(""); setBlocked(null); onDone();

@@ -1,4 +1,5 @@
 import "./styles/finding.css";
+import { money, percent } from "./format";
 import type { CaseSource, Finding, FindingItem } from "./api";
 import { entityHref } from "./lib";
 import { Card, Disclosure } from "./ui";
@@ -30,8 +31,8 @@ export function findingSentence(finding: Finding, title: string): string {
   const going = finding.items.find((i) => i.kind === "flag" && /still going/i.test(i.label));
   const at = finding.start ? ` on ${when(finding.start)}${finding.end ? ` to ${when(finding.end)}` : ""}` : "";
   const what = say(title).replace(/[.?\s]+$/, "");
-  const stake = finding.value_usd != null && finding.value_usd > 0 ? ` $${Math.round(finding.value_usd).toLocaleString()} at stake.` : "";
-  const sure = finding.confidence != null ? ` ${Math.round(finding.confidence * 100)}% confident.` : "";
+  const stake = finding.value_usd != null && finding.value_usd > 0 ? ` ${money(finding.value_usd)} at stake.` : "";
+  const sure = finding.confidence != null ? ` ${percent(finding.confidence)} confident.` : "";
   return `${WHO[finding.origin]} found this${at}: ${what}${going ? (going.value ? ", still going" : ", now over") : ""}.${stake}${sure}`;
 }
 
@@ -47,8 +48,8 @@ export function FindingEvidence({ finding, checks = true }: { finding: Finding; 
         {finding.standard && <div><dt>Standard</dt><dd>{finding.standard}</dd></div>}
         {finding.start && <div><dt>Window</dt><dd><time dateTime={finding.start}>{when(finding.start)}</time>
           {finding.end ? <> to <time dateTime={finding.end}>{when(finding.end)}</time></> : null}</dd></div>}
-        {finding.confidence != null && <div><dt>Confidence</dt><dd>{Math.round(finding.confidence * 100)}%</dd></div>}
-        {finding.value_usd != null && <div><dt>Value at stake</dt><dd>${Math.round(finding.value_usd).toLocaleString()}</dd></div>}
+        {finding.confidence != null && <div><dt>Confidence</dt><dd>{percent(finding.confidence)}</dd></div>}
+        {finding.value_usd != null && <div><dt>Value at stake</dt><dd>{money(finding.value_usd)}</dd></div>}
         {finding.items.map((item) => <div key={item.label}><dt>{item.label}</dt><dd><Value item={item} /></dd></div>)}
       </dl>
       {checks && finding.checks.length > 0 && <>

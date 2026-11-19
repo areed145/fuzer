@@ -2,11 +2,11 @@
  * number here is the number everywhere. Each metric opens to its definition, formula and the records behind it, cut by
  * any grain it declares; every row drills to its items or cases. */
 import { api, type MetricDeclaration } from "../api";
+import { quantity } from "../format";
 import { Badge, Card, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
-const show = (v: number | null, unit: string) =>
-  v == null ? "–" : unit === "%" ? `${v}%` : `${v.toLocaleString()} ${unit}`;
+const show = (v: number | null, unit: string) => (v == null ? "–" : quantity(v, unit));
 
 const refHref = (ref: string) => ref.startsWith("case:") ? href(`/cases/${ref.slice(5)}`) : entityHref(ref);
 const refText = (ref: string) => ref.startsWith("case:") ? `case ${ref.slice(5)}` : ref;
@@ -53,7 +53,7 @@ function MetricList() {
   for (const m of list.data ?? []) groups.set(m.group, [...(groups.get(m.group) ?? []), m]);
   return (
     <section>
-      <PageHeader subtitle="Each measure defined once; the same number on every page, the daily report and for agents."
+      <PageHeader
         actions={<a href={href("/scorecard")}>How the plant is running</a>} help="metrics">Metrics</PageHeader>
       <Status loading={list.loading && !list.data} error={list.error} onRetry={list.reload} />
       {list.data && !list.data.length && <Empty>No metrics are registered.</Empty>}
@@ -99,7 +99,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
   const m = v.data;
   return (
     <section>
-      <PageHeader subtitle={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">
+      <PageHeader detail={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">
         {m?.label ?? metricKey}</PageHeader>
       <Status loading={v.loading && !m} error={v.error} onRetry={v.reload} />
       {m && <>

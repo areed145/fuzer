@@ -98,7 +98,7 @@ def test_score_adds_up_and_explains():
     parts = [s["components"][k]["value_usd"] for k in ("production", "risk", "compliance")]
     assert s["value_usd"] == sum(parts) and s["value_per_effort"] == round(s["value_usd"] / 10000, 2)
     assert s["unknown"] == [] and s["components"]["risk"]["sources"]["criticality"].startswith("SAP")
-    assert s["reason"].startswith("INSP-1 20-V-2001: 566 bbl oil at risk over 90 d ($42k); INSP 20 d overdue")
+    assert s["reason"].startswith("INSP-1 20-V-2001: 566 bbl oil at risk over 90 d ($42,458); INSP 20 d overdue ($24,000)")
     assert "due now" in s["reason"]  # biggest part first
     later = value.score(dataclasses.replace(item, time_to_consequence_days=30), CFG)
     assert later["value_usd"] == round(s["value_usd"] / 2)

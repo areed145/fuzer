@@ -1,4 +1,5 @@
 import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
+import { percent } from "../format";
 import { useState } from "react";
 import { api } from "../api";
 import { FigureView } from "../Figure";
@@ -16,7 +17,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
   const open = query.get("id");
   return (
     <section>
-      <PageHeader subtitle="Saved correlation and clustering runs." help="analyses">Studies</PageHeader>
+      <PageHeader help="analyses">Studies</PageHeader>
       <NewStudy onDone={list.reload} />
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.length === 0}>No studies yet.</Status>
       {list.data && list.data.length > 0 && (
@@ -114,7 +115,7 @@ function CascadeTable({ result }: { result: CascadeResult }) {
       <thead><tr><th>First</th><th>Then</th><th>Times</th><th>Share followed</th><th>Typical lag</th><th>Links</th></tr></thead>
       <tbody>{result.patterns.map((p) => (
         <tr key={`${p.first}|${p.then}`}><td>{p.first}</td><td>{p.then}</td><td>{p.support} of {p.first_seen}</td>
-          <td>{Math.round(p.confidence * 100)}%</td>
+          <td>{percent(p.confidence)}</td>
           <td>{p.median_lag_minutes} min <span className="muted small">({p.lag_range_minutes[0]}–{p.lag_range_minutes[1]})</span></td>
           <td>{p.hops ?? "—"}</td></tr>
       ))}</tbody>

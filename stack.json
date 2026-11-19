@@ -1,0 +1,86 @@
+{
+  "about": "The approved stack. tests/architecture/test_stack.py and ui/tests/stack.test.cjs fail when a manifest names a dependency that is not here, or this file names one no manifest uses. Adding, removing or swapping an entry needs Adam's go-ahead first (AGENTS.md, 'Stack and shared modules').",
+  "ui": {
+    "dependencies": {
+      "react": "The UI framework. Function components and hooks only.",
+      "react-dom": "React's browser renderer.",
+      "plotly.js-cartesian-dist-min": "Charts. Figures are built by the server; draw them with LiveFigure or PlotlyChart.",
+      "leaflet": "Maps, behind ui/src/map/engine.ts (MapKit is the other engine).",
+      "cytoscape": "Graph views (entity graph, network), through ui/src/graph.tsx.",
+      "cytoscape-dagre": "Layered layout for Cytoscape.",
+      "cytoscape-fcose": "Force layout for Cytoscape.",
+      "bpmn-js": "The workflow diagram viewer and modeler (BpmnView, BpmnModeler).",
+      "@bpmn-io/form-js-viewer": "Renders a task's form from its schema (TaskForm). The one way to draw a workflow form.",
+      "@bpmn-io/form-js-editor": "Edits a task form's schema (FormEditor).",
+      "mermaid": "Diagrams in assistant answers, through MermaidDiagram.",
+      "pdfjs-dist": "Documents and drawings, through DocumentViewer and DrawingViewer.",
+      "three": "The 3D scene (Scene3D)."
+    },
+    "devDependencies": {
+      "typescript": "Type checking: strict, no emit.",
+      "vite": "Dev server and build.",
+      "@vitejs/plugin-react": "React support in Vite.",
+      "tailwindcss": "Theme tokens and base styles; components use the kit's classes, not utility strings in pages.",
+      "@tailwindcss/vite": "Tailwind's Vite plugin.",
+      "playwright": "Browser tests (ui/tests/browser.test.mjs) and screenshots.",
+      "@types/react": "Types.",
+      "@types/react-dom": "Types.",
+      "@types/leaflet": "Types.",
+      "@types/three": "Types.",
+      "@types/cytoscape-fcose": "Types."
+    }
+  },
+  "python": {
+    "fuzer": {
+      "fastapi": "The HTTP API. Every data or execution router uses AuthenticatedRoute.",
+      "uvicorn": "Serves the API.",
+      "msal": "Microsoft sign-in.",
+      "pyjwt": "Signs Apple MapKit JS tokens.",
+      "psycopg": "Postgres, the only database. No ORM: SQL through the existing stores.",
+      "pgserver": "Embedded Postgres for local runs.",
+      "pyyaml": "Packs, mappings and settings files.",
+      "python-dotenv": "Local environment files.",
+      "httpx": "Outbound HTTP: PI Web API, ADX, Teams.",
+      "rapidfuzz": "Fuzzy matching in entity resolution.",
+      "mcp": "The MCP server adapter.",
+      "anthropic": "Claude. The only model SDK in the default install.",
+      "agent-framework-core": "The operations assistant and its specialists (Microsoft Agent Framework).",
+      "agent-framework-anthropic": "Agent Framework on Claude.",
+      "dagster": "Scheduled loads, rebuilds and agent runs. The only scheduler.",
+      "dagster-webserver": "Dagster's UI, linked from Jobs.",
+      "dagster-postgres": "Dagster's storage in the app's Postgres.",
+      "pyarrow": "Parquet and columnar reads.",
+      "deltalake": "Delta Lake tables in the lake connector.",
+      "openpyxl": "Excel exports and imports.",
+      "pypdf": "Reads PDF documents.",
+      "pillow": "Images: drawings, photos, figure thumbnails.",
+      "numpy": "Numerics.",
+      "scipy": "Statistics and signal methods in analyses.",
+      "scikit-learn": "Models in analyses.",
+      "matplotlib": "Chart images the assistant looks at. Charts for people are Plotly figures."
+    },
+    "fuzer[openai]": {
+      "agent-framework-openai": "Optional: the assistant on an OpenAI-compatible model.",
+      "openai": "Optional: the OpenAI SDK for that provider."
+    },
+    "dev": {
+      "pytest": "Tests, in unit, integration and e2e tiers.",
+      "pytest-xdist": "Parallel test workers.",
+      "pytest-randomly": "Random test order.",
+      "httpx": "FastAPI's test client.",
+      "fuzer-fakeplant": "The fake plants (workspace package).",
+      "spiffworkflow": "Reference behaviour the work engine is tested against. Tests only.",
+      "import-linter": "Enforces the layer contract.",
+      "ruff": "Lint.",
+      "thermo": "Equations of state for checking fake-plant design points. Tests only."
+    },
+    "docs": {
+      "mkdocs-material": "The docs site."
+    },
+    "fakeplant": {
+      "fuzer": "The fake plants build on Fuzer (workspace package).",
+      "pillow": "Draws the fake drawings and photos.",
+      "pyarrow": "Writes the fake exports."
+    }
+  }
+}

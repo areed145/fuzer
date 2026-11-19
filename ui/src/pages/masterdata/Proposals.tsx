@@ -3,12 +3,13 @@
  * reason and evidence; nothing changes until a person accepts it (or picks another option). Bulk accept appears only
  * once `stewardship.bulk_accept_at` is set. */
 import { useState } from "react";
+import { confirmDialog } from "../../ui";
+import { percent } from "../../format";
 import { api, type Proposal } from "../../api";
 import { Badge, Button, Card, Select, Table, Disclosure, Empty } from "../../ui";
-import { Status, entityHref, useAsync } from "../../lib";
+import { Status, entityHref, useAsync, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
-import { useAct } from "../workflows/shared";
 
 const KIND: Record<Proposal["kind"], string> = {
   unresolved: "Which asset", match: "Same item?", conflict: "Which value", spelling: "One spelling?",
@@ -27,14 +28,11 @@ export function ProposalsTab() {
   const rows = useAsync(() => api.proposals(status), [status]);
   const [person] = usePerson();
   const operate = usePermission("operate");
-  const a = useAct();
+  const a = useAction();
   const at = rows.data?.bulk_accept_at ?? 0;
   const confident = (rows.data?.proposals ?? []).filter((p) => p.answer && p.answer.choice !== "none" && p.answer.confidence >= at);
   return (
     <Card title="Claude's proposals">
-      <p className="small muted">Claude picks from options built from the register; it can say it isn't sure but can't invent
-        an asset or a value. Nothing changes until you accept. Accepting does what you would by hand: an alias, a pinned
-        match, a chosen value or a spelling fix, each reversible from Decisions.</p>
       <div className="row">
         <Select aria-label="Show" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="open">Open</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option>
@@ -43,10 +41,10 @@ export function ProposalsTab() {
           title={rows.data?.configured === false ? "No model provider is configured (Settings › LLM)" : "Answers are cached; only new or changed questions are asked"}
           onClick={() => void a.run("ask", () => api.runProposals(), rows.reload)}>{a.busy === "ask" ? "Asking Claude…" : "Ask Claude"}</Button>}
         {operate && person && at > 0 && status === "open" && confident.length > 0 &&
-          <Button size="sm" disabled={!!a.busy} onClick={() => {
-            if (!confirm(`Accept the ${confident.length} proposals at ${Math.round(at * 100)}% confidence or more?`)) return;
+          <Button size="sm" disabled={!!a.busy} onClick={async () => {
+            if (!(await confirmDialog(`Accept the ${confident.length} proposals at ${percent(at)} confidence or more?`))) return;
             void a.run("bulk", () => api.acceptConfident(person), rows.reload);
-          }}>Accept {confident.length} at ≥{Math.round(at * 100)}%</Button>}
+          }}>Accept {confident.length} at ≥{percent(at)}</Button>}
       </div>
       {a.error && <p role="alert" className="error small">{a.error}</p>}
       <Status loading={rows.loading && !rows.data} error={rows.error} />
@@ -64,7 +62,7 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
   const [person] = usePerson();
   const operate = usePermission("operate");
   const [choice, setChoice] = useState(p.answer && p.answer.choice !== "none" ? p.answer.choice : "");
-  const a = useAct();
+  const a = useAction();
   const picked = p.options.find((o) => o.id === p.answer?.choice);
   return (
     <tr>
@@ -72,7 +70,7 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
       <td>{p.answer ? <>
         {p.answer.choice === "none" ? <span className="muted">not sure</span>
           : picked?.fuzer_id ? <a href={entityHref(picked.fuzer_id)}>{picked.text}</a> : picked?.text}
-        {" "}<span className="muted small">{Math.round(p.answer.confidence * 100)}%</span></> : <span className="muted">not asked yet</span>}</td>
+        {" "}<span className="muted small">{percent(p.answer.confidence)}</span></> : <span className="muted">not asked yet</span>}</td>
       <td className="small">{p.answer?.reason}
         {(p.answer?.evidence ?? []).length > 0 && <Disclosure label={<>evidence</>}>
           <ul className="plain">{p.answer!.evidence.map((e, i) => <li key={i}><code>{e}</code></li>)}</ul></Disclosure>}</td>

@@ -4,10 +4,9 @@
 import { useState } from "react";
 import { api, type MergePreview, type SearchHit, type SplitPreview } from "../../api";
 import { Button, Input, Empty } from "../../ui";
-import { entityHref, fmt, href } from "../../lib";
+import { entityHref, fmt, href, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
-import { useAct } from "../workflows/shared";
 
 const AFTER = "Applied on a rebuild that starts now; undo it from Master data › Decisions.";
 
@@ -21,7 +20,7 @@ export function NotThisRecord({ fuzerId, refId, onDone }: { fuzerId: string; ref
   const [p, setP] = useState<SplitPreview | null>(null);
   const [reason, setReason] = useState("");
   const [done, setDone] = useState<string | null>(null);
-  const a = useAct();
+  const a = useAction();
   if (!operate || !person) return null;
   if (done) return <Done batch={done} />;
   if (!p) return <Button size="sm" variant="link" disabled={!!a.busy} title="This record is a different thing"
@@ -52,7 +51,7 @@ export function SameAs({ fuzerId, kind, onDone }: { fuzerId: string; kind: strin
   const [p, setP] = useState<MergePreview | null>(null);
   const [reason, setReason] = useState("");
   const [done, setDone] = useState<string | null>(null);
-  const a = useAct();
+  const a = useAction();
   if (!operate || !person) return null;
   if (done) return <Done batch={done} />;
   if (!open) return <Button size="sm" variant="link" onClick={() => setOpen(true)}

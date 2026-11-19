@@ -1,16 +1,17 @@
 import { useState } from "react";
+import { percent } from "../format";
 import {
   api, type Closeouts, type DetectorCloseouts, type DetectorParam, type DetectorRow, type EquipmentClass, type PromotedRule,
   type ProviderRow, type Trust, type TuningProposal, type WatchPattern, type WatchProposal,
 } from "../api";
-import { Status, notifyChanged, useAsync } from "../lib";
+import { Status, errorMessage, notifyChanged, useAsync, useReasonedAction } from "../lib";
 import { loadPerson } from "../work";
 import { ActionStatus, Badge, Button, Card, ConfirmAction, Empty, Field, Input, Select, Table } from "../ui";
 
 const when = (at: string | null | undefined) => (at ? at.slice(0, 16).replace("T", " ") : "");
 const show = (v: unknown) =>
   v === null || v === undefined || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
-const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
+const pct = (v: number | null) => (v === null ? "—" : percent(v));
 
 function State({ d }: { d: DetectorRow }) {
   if (!d.on) return <Badge>Off</Badge>;
@@ -129,7 +130,7 @@ function Proposal({ p, person, decided }: { p: TuningProposal; person: string; d
   const act = async (label: string, fn: () => Promise<unknown>) => {
     setError(null);
     setBusy(label);
-    try { await fn(); decided(); } catch (e) { setError(String((e as Error).message ?? e)); } finally { setBusy(null); }
+    try { await fn(); decided(); } catch (e) { setError(String(errorMessage(e) ?? e)); } finally { setBusy(null); }
   };
   return <div className="setting-edit">
     <p><b>{p.title}</b></p>
@@ -167,7 +168,7 @@ function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; per
       setDone(after);
       reload();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     } finally {
       setBusy(null);
     }
@@ -237,7 +238,7 @@ function PatternLine({ p, name, busy, draft }: { p: WatchPattern; name: string; 
 }
 
 function RuleLine({ r, name, person, saved }: { r: PromotedRule; name: string; person: string; saved: () => void }) {
-  const c = useChange(saved);
+  const c = useReasonedAction(saved);
   const s = r.score;
   const live = r.status !== "retired";
   return <div className="setting-param">
@@ -273,7 +274,7 @@ function ProviderLine({ p, classes, levels, person, open, toggle, saved }: {
   p: ProviderRow; classes: EquipmentClass[]; levels: Record<Trust, string>; person: string; open: boolean;
   toggle: () => void; saved: () => void;
 }) {
-  const c = useChange(saved);
+  const c = useReasonedAction(saved);
   const [cls, setCls] = useState("");
   const [trust, setTrust] = useState<Trust>("route");
   const name = (code: string) => (code ? classes.find((x) => x.code === code)?.name ?? code : "All classes");
@@ -342,32 +343,8 @@ function DetectorLine({ d, classes, project, person, open, toggle, saved }: {
   </>;
 }
 
-function useChange(saved: () => void) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState("");
-  const run = async (label: string, fn: (reason: string) => Promise<unknown>, after: string) => {
-    setError(null);
-    setDone("");
-    if (reason.trim().length < 3) return setError("Give a short reason: it goes in the history.");
-    setBusy(label);
-    try {
-      await fn(reason.trim());
-      setDone(after);
-      setReason("");
-      saved();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
-  return { reason, setReason, busy, error, done, run };
-}
-
 function Switch({ d, project, person, saved }: { d: DetectorRow; project: string | null; person: string; saved: () => void }) {
-  const c = useChange(saved);
+  const c = useReasonedAction(saved);
   const next = !d.on;
   return <div className="row small">
     <Input aria-label={`Reason to switch ${d.title}`} className="grow" placeholder="reason for the change"
@@ -385,7 +362,7 @@ function Switch({ d, project, person, saved }: { d: DetectorRow; project: string
 function Param({ d, s, classes, person, saved }: {
   d: DetectorRow; s: DetectorParam; classes: EquipmentClass[]; person: string; saved: () => void;
 }) {
-  const c = useChange(saved);
+  const c = useReasonedAction(saved);
   const [cls, setCls] = useState("");
   const set = s.classes.find((x) => x.qualifier === cls);
   const [value, setValue] = useState(String(s.value ?? ""));

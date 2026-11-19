@@ -1,3 +1,27 @@
+# Stack and shared modules
+
+Read the [approved stack](docs/stack.md) before writing code. Fuzer uses one library per job, listed with its
+purpose in `stack.json`; `ui/tests/stack.test.cjs` and `tests/architecture/test_stack.py` fail on any dependency
+that is not listed.
+
+- Using a good library is encouraged, but **ask Adam before adding, swapping or removing a dependency**, and wait
+  for the answer. Say what it is for, what it replaces, its size and licence. Never edit `stack.json`,
+  `package.json`, `pyproject.toml` or a lock file to add one without that go-ahead.
+- Use the shared modules as they are. Do not copy one into a page, write a local variant, or reach past it to the
+  library it wraps.
+- Before writing a helper, look in the shared-module table in docs/stack.md: numbers go through `ui/src/format.ts`,
+  async actions through `useAction`, questions through `confirmDialog`, controls through `ui/src/ui`, figures
+  through `ui/src/figures.ts` or the API. If the same thing is needed in a second place, move it to a shared module
+  and move the first use onto it in the same change.
+- One value, one source. A page shows what the API returned; it does not add up, count, round or re-date a list.
+  Two pages that show the same figure read the same field or the same accessor.
+- No decoration text. Don't write a tagline under a title, a sentence that explains a card, a caption that restates
+  what is on screen, or a reassurance. Write a label, the data, and the one line a person needs at the point they
+  act. `PageHeader` takes no fixed subtitle; grey paragraphs are counted and the count only goes down.
+- The kit (`ui/src/ui`) is used, not edited around: no restyling `.ui-*` classes from a page stylesheet, no raw
+  `<button>`, `<table>`, `<textarea>` or browser dialogs. `ui/tests/style-lint.test.cjs` counts each of these and
+  the counts only go down; never raise a number in `style-baseline.json`.
+
 # Product changes
 
 Read [adapter boundaries](docs/adapter-boundaries.md) and the [UI style guide](docs/ui-style.md)

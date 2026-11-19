@@ -2,6 +2,7 @@
  * against the one before, reached from Metrics. Each KPI shows its window, unit and source, and opens the records
  * behind each value; one the records can't say is unknown, never zero. Internal evidence, not an approved report. */
 import { api, type Kpi, type KpiPeriod } from "../api";
+import { quantity } from "../format";
 import { WellsAgainstForecast } from "./WellsAgainstForecast";
 import { CostOfUnreliability } from "./CostOfUnreliability";
 import { InterventionGains } from "./InterventionGains";
@@ -24,8 +25,7 @@ import { Status, entityHref, href, useAsync } from "../lib";
 const PERIODS = [7, 30, 90];
 const TONE: Record<Kpi["verdict"], "ok" | "danger" | "muted"> = { better: "ok", worse: "danger", same: "muted", unknown: "muted" };
 
-const show = (v: number | null, unit: string) =>
-  v == null ? "unknown" : unit === "%" ? `${v}%` : `${v.toLocaleString()} ${unit}`;
+const show = (v: number | null, unit: string) => (v == null ? "unknown" : quantity(v, unit));
 
 function Side({ p, unit, label }: { p: KpiPeriod; unit: string; label: string }) {
   return <>
@@ -45,7 +45,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
   const d = data.data;
   return (
     <section className="plant-scorecard">
-      <PageHeader subtitle="Production, maintenance and reliability, this period against the one before."
+      <PageHeader
         actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">How the plant is running</PageHeader>
       <Tabs label="Period" items={PERIODS.map((n) => ({
         key: String(n), label: `${n} days`, current: n === days,

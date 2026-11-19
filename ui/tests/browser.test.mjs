@@ -493,7 +493,7 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await card.waitFor();
   await card.getByText("Stage 1 ran within 4 % of its surge line", { exact: false }).waitFor();
   await card.getByText("Proposed: Plan an anti-surge valve check", { exact: true }).waitFor();
-  await card.getByText("72 % confident", { exact: false }).waitFor();
+  await card.getByText("72% confident", { exact: false }).waitFor();
   await card.getByText("no OEM map revision date", { exact: true }).waitFor();
   await card.getByText("$0.62 of $0.50 budget", { exact: false }).waitFor();
   await card.getByText("over budget", { exact: true }).waitFor();
@@ -1678,9 +1678,9 @@ test("a system says how its records matched, what is left for a steward and ever
     unlinked = route.request().postDataJSON();
     return route.fulfill({ json: { unlinked: {} } });
   });
-  page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Links it states (1)", exact: true }).click();
   await page.getByRole("button", { name: "Not this link", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Confirm", exact: true }).click();
   for (let i = 0; i < 50 && !unlinked; i++) await page.waitForTimeout(50);
   assert.deepEqual([unlinked?.src, unlinked?.rel, unlinked?.dst], ["fz-tag-1", "located_at", "fz-area-1"]);
   for (const width of [1440, 390]) {
@@ -1818,7 +1818,6 @@ test("like questions are answered once, for new ones too when asked (P2.3c)", as
     groups = [];
     return route.fulfill({ json: { decided: [1, 2, 3, 4, 5], skipped: [{ id: 6, why: "already pinned the other way" }], rebuild: null } });
   });
-  page.on("dialog", (d) => d.accept());
   await page.goto(`${url}/#/masterdata?tab=questions&kind=match`);
   const card = page.locator(".like-questions");
   await card.getByText("6 × jde and maximo records at the same tag where the maker is unknown on one side").waitFor();
@@ -1829,6 +1828,8 @@ test("like questions are answered once, for new ones too when asked (P2.3c)", as
   }
   await card.getByLabel("and new ones like these").check();
   await card.getByRole("button", { name: "Keep each pair apart" }).click();
+  const ask = page.getByRole("dialog", { name: "Keep each pair apart for all 6 questions, and for new ones like them?" });
+  await ask.getByRole("button", { name: "Confirm", exact: true }).click();
   await page.getByText("Answered 5 of 6; 1 left for you (already pinned the other way).").waitFor();
   assert.deepEqual(sent, { key: "match|jde+maximo|the maker is unknown on one side", decision: "reject", standing: true, by: "ana" });
 });
@@ -3374,7 +3375,7 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
   assert.deepEqual(await titles("Back from the field"), ["Strainer DP high", "Wellhead pressure high"]);
   assert.deepEqual(await titles("Closed today"), ["Cooler fan tripped"]);  // an open row in the closed answer stays put
   assert.ok(asked.some((q) => q.state === "any" && q.closed_since));
-  await column("To dispatch").getByText("$120k at stake · oldest 2h 10m").waitFor();
+  await column("To dispatch").getByText("$120,000 at stake · oldest 2h 10m").waitFor();
   // Back from the field: done goes to its case to close out; could not do can go out again.
   const done = column("Back from the field").locator(".work-card", { hasText: "Strainer DP high" });
   assert.equal(await done.getByRole("link", { name: "Close out" }).getAttribute("href"), "#/cases/34");
@@ -6062,7 +6063,7 @@ test("the task form editor previews, survives a failed save, and recovers a miss
   await page.route("**/work/forms?*", (route) => { saves.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, json: { detail: "Database restarting" } }); });
   await page.goto(`${url}/#/processes/forms/lesson-review`);
-  await page.getByText("v2. Saving makes a new version", { exact: false }).waitFor();
+  await page.getByText("v2", { exact: true }).waitFor();
   await page.locator(".form-editor .fjs-editor-container").waitFor();
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   const preview = page.locator(".form-preview");
@@ -6352,11 +6353,11 @@ test("Cost of unreliability shows each part with its currency and never adds an 
   const card = page.locator(".cost-unreliability");
   await card.getByText("Lost oil at 470 USD per bbl (pack okan)", { exact: false }).waitFor();
   const sep = card.locator('tr[data-unit="40-V-2002"]');
-  await sep.getByText("141,000 USD").waitFor();
+  await sep.getByText("$141,000").waitFor();
   await sep.getByText("55,936 (currency unknown)").waitFor();
   await sep.locator(".unreliability-no-total").getByText("no currency in the source", { exact: false }).waitFor();
   const k = card.locator('tr[data-unit="20-K-2300A"]');
-  await k.getByText("100,000 USD").waitFor();
+  await k.getByText("$100,000").waitFor();
   await k.getByText("2 orders, 1 without a cost").waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -8265,7 +8266,7 @@ test("a case opens on its decision: what it waits on, the next action, and a mis
   const history = page.locator(".timeline");
   await history.getByText("was due within 4 hours while it was with the engineer queue. It passed to the ops lead queue.", { exact: false }).waitFor();
   assert.equal(await history.getByText("SLA PT4H", { exact: false }).count(), 0);
-  await page.getByText("priority, $4k at stake", { exact: false }).waitFor();
+  await page.getByText("priority, $4,026 at stake", { exact: false }).waitFor();
   const [card, timeline] = await Promise.all([next.boundingBox(), history.boundingBox()]);
   assert.ok(card.y < timeline.y, "the decision sits above the history");
 });

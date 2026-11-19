@@ -2,10 +2,10 @@
  * pack's price, beside what its corrective orders cost, each with its currency. A total only when both share one; an
  * unknown currency is shown as unknown and never added. An operational estimate, not a financial figure. */
 import { api } from "../api";
+import { money } from "../format";
 import { Card, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
-const money = (v: number, cur: string) => (cur === "unknown" ? `${v.toLocaleString()} (currency unknown)` : `${v.toLocaleString()} ${cur}`);
 
 export function CostOfUnreliability() {
   const data = useAsync(() => api.costOfUnreliability(), []);

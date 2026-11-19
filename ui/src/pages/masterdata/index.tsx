@@ -2,11 +2,13 @@
  * blocks: refs on open exceptions that matched nothing, link values each source wrote that named nothing, and the
  * decisions stewards made (aliases and pinned matches), each reversible. */
 import { useState } from "react";
+import { openReviews } from "../../figures";
+import { confirmDialog } from "../../ui";
 import { api } from "../../api";
 import { Badge, Button, Card, Input, PageHeader, Table, Empty } from "../../ui";
-import { Status, entityHref, href, useAsync } from "../../lib";
+import { Status, entityHref, href, useAsync, useAction } from "../../lib";
 import { usePerson, when } from "../../work";
-import { caseHref, useAct } from "../workflows/shared";
+import { caseHref } from "../workflows/shared";
 import { usePermission } from "../../Auth";
 import { MatchRef } from "./MatchRef";
 import { Gaps } from "./Gaps";
@@ -25,10 +27,10 @@ const TABS = [["unmatched", "Unmatched on open work"], ["questions", "Questions"
 export function MasterDataPage({ query }: { query: URLSearchParams }) {
   const tab = TABS.some(([k]) => k === query.get("tab")) ? query.get("tab")! : "unmatched";
   const stats = useAsync(() => api.stats(), []);
-  const questions = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
+  const questions = openReviews(stats.data);
   return (
     <section>
-      <PageHeader subtitle="Keeping the register matching the work.">Master data</PageHeader>
+      <PageHeader>Master data</PageHeader>
       <div className="tabs" role="tablist">
         {TABS.map(([k, label]) => <a key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}
           href={href("/masterdata", { tab: k })}>{label}{k === "questions" && questions ? ` (${questions})` : ""}</a>)}
@@ -44,13 +46,11 @@ function Unmatched() {
   const rows = useAsync(() => api.unmatchedRefs(), []);
   const [person] = usePerson();
   const operate = usePermission("operate");
-  const a = useAct();
+  const a = useAction();
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   if (!rows.data.length) return <Empty>Every open exception matched the register.</Empty>;
   return (
     <Card title="Refs on open exceptions that matched nothing">
-      <p className="small muted">Matching one here matches every open exception that carries it, and remembering it makes the
-        next one match on its own.</p>
       <Table density="compact">
         <thead><tr><th>Ref</th><th>Open exceptions</th><th>From</th><th /></tr></thead>
         <tbody>{rows.data.map((u) => (
@@ -74,7 +74,7 @@ function Unresolved() {
   const rows = useAsync(() => api.unresolvedValues(), []);
   const [person] = usePerson();
   const operate = usePermission("operate");
-  const a = useAct();
+  const a = useAction();
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   if (!rows.data.length) return <><LearnedRules onChange={rows.reload} />
     <Empty>Every link value the last rebuild read named something in the register.</Empty></>;
@@ -82,7 +82,6 @@ function Unresolved() {
     <>
     <LearnedRules onChange={rows.reload} />
     <Card title="Link values that named nothing (last rebuild)">
-      <p className="small muted">Make one an alias of the entity it means and the next rebuild links those records to it.</p>
       <Table density="compact">
         <thead><tr><th>Value</th><th>Source</th><th>Link</th><th>Rows</th><th /></tr></thead>
         <tbody>{rows.data.map((u) => (
@@ -106,7 +105,7 @@ function Decisions() {
   const rows = useAsync(() => api.stewardDecisions(q, !all), [q, all]);
   const [person] = usePerson();
   const operate = usePermission("operate");
-  const a = useAct();
+  const a = useAction();
   return (
     <Card title="Decisions">
       <div className="row">
@@ -122,8 +121,8 @@ function Decisions() {
               <td><Badge>{d.kind.replace("_", " ")}</Badge> {d.fuzer_id ? <a href={entityHref(d.fuzer_id)}>{d.what}</a> : d.what}</td>
               <td>{personName(d.by)}</td><td>{when(d.at)}</td><td>{d.reason ?? ""}</td>
               <td>{d.reversed ? <span className="muted">reversed by {d.reversed_by} {d.reversed_at && when(d.reversed_at)}</span>
-                : operate && person && <Button size="sm" variant="link" disabled={!!a.busy} onClick={() => {
-                  if (!confirm(d.kind === "fix" ? `Reverse “${d.what}”? The values go back now.` : `Reverse “${d.what}”? It stops applying on the next rebuild.`)) return;
+                : operate && person && <Button size="sm" variant="link" disabled={!!a.busy} onClick={async () => {
+                  if (!(await confirmDialog(d.kind === "fix" ? `Reverse “${d.what}”? The values go back now.` : `Reverse “${d.what}”? It stops applying on the next rebuild.`))) return;
                   const undo = d.kind === "alias" ? () => api.retireAlias(Number(d.id), person, "reversed from the decision log")
                     : d.kind === "fix" ? () => api.undoFix(String(d.id), person, "reversed from the decision log")
                     : d.kind === "merge" || d.kind === "split" ? () => api.undoDecision(String(d.id), person, "reversed from the decision log")

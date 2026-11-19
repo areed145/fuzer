@@ -1,6 +1,7 @@
 /** Water, gas and test age (#339), on How the plant is running: the wells whose water cut stepped up (a breakthrough
  * suggestion) or whose GOR climbed, and whether each well's latest test is recent enough to trust. Patterns are
  * suggestions for the engineer; cumulative oil is estimated from tests. */
+import { percent } from "../format";
 import { api } from "../api";
 import { Badge, Card, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
@@ -45,7 +46,7 @@ export function WellScreen() {
         ) : <Empty>No water cut step or GOR climb on any well.</Empty>}
         <div className="small muted">
           A step is {d.thresholds.water_cut_step_points} water cut points over the tests before; a climb is GOR up
-          {" "}{Math.round((d.thresholds.gor_rise - 1) * 100)}% end to end. {d.note} {s.note}
+          {" "}{percent(d.thresholds.gor_rise - 1)} end to end. {d.note} {s.note}
         </div>
       </>}
     </Card>

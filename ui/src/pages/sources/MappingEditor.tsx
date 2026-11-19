@@ -1,10 +1,11 @@
-import { Button, Input, Select, Table , Badge as UIBadge} from "../../ui";
+import { Button, Input, Select, Table, Badge as UIBadge, Textarea } from "../../ui";
+import { promptDialog } from "../../ui";
 /** Editing a mapping (#225): column by column (what each column means, which it links to, the key), or the YAML.
  * The form is written over the mapping on the server, so what it doesn't show is kept. */
 import { useEffect, useRef, useState } from "react";
 import { api, type MapperColumn, type MapperForm, type OntologyDeclared } from "../../api";
-import { Status, href, useAsync } from "../../lib";
-import { reviewer, useAction } from "./common";
+import { Status, href, useAsync, useAction, errorMessage } from "../../lib";
+import { reviewer } from "./common";
 
 export function MappingEditor({ yaml, dataset, columns, samples, onSave, onChange }: {
   yaml: string;
@@ -28,7 +29,7 @@ export function MappingEditor({ yaml, dataset, columns, samples, onSave, onChang
       </div>
       {view === "columns"
         ? <ColumnForm text={text} dataset={dataset} columns={columns} samples={samples} onText={set} />
-        : <textarea className="yaml mono" rows={Math.min(30, text.split("\n").length + 1)} value={text}
+        : <Textarea className="yaml mono" rows={Math.min(30, text.split("\n").length + 1)} value={text}
             onChange={(e) => set(e.target.value)} spellCheck={false} />}
       {onSave && (
         <div className="row">
@@ -174,14 +175,14 @@ function KindSelect({ model, value, onChange }: {
   const [error, setError] = useState<string | null>(null);
   const known = !value || !model || model.kinds.some((k) => k.name === value);
   const add = async () => {
-    const name = prompt("Name of the new kind (lower case, words joined with _), e.g. activity")?.trim();
+    const name = (await promptDialog("Name of the new kind (lower case, words joined with _), e.g. activity"))?.trim();
     if (!name) return;
     try {
       await api.kindAdd({ name, status: "draft" }, reviewer(), "made while mapping a dataset");
       setError(null);
       onChange(name);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     }
   };
   return (

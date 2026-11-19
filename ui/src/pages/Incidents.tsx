@@ -1,5 +1,6 @@
 import "../styles/events.css";
-import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty } from "../ui";
+import { percent } from "../format";
+import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -19,7 +20,7 @@ export function IncidentsPage() {
   const ready = (list.data || list.error) && (repeats.data !== undefined || repeats.error);
   return (
     <section>
-      <PageHeader subtitle="Events, downtime and notifications grouped per asset.">Incidents</PageHeader>
+      <PageHeader>Incidents</PageHeader>
       {/* Repeats lead: whether problems come back is what a manager reads this page for (#1078). */}
       {ready && <IncidentRepeats data={repeats} />}
       <Status loading={!ready} error={list.error} empty={list.data?.total === 0}>
@@ -90,7 +91,7 @@ function RatingProgress() {
         Rate the troubleshooting briefs{" "}
         <span className="muted small">
           {r.data.rated} of {r.data.incidents} incidents rated
-          {r.data.useful_share !== null && ` · ${Math.round(r.data.useful_share * 100)}% of ratings useful`}
+          {r.data.useful_share !== null && ` · ${percent(r.data.useful_share)} of ratings useful`}
         </span>
       </h2>
       {next.length > 0 && (
@@ -304,7 +305,7 @@ function Rate({ target }: { target: string }) {
         <p className="small">Thanks: rated {sent ? "useful" : "not useful"}.</p>
       ) : (
         <>
-          <textarea className="lesson-text" rows={2} placeholder="What was missing or wrong? (optional)"
+          <Textarea className="lesson-text" rows={2} placeholder="What was missing or wrong? (optional)"
                     value={comment} onChange={(e) => setComment(e.target.value)} />
           <div className="row">
             <Button variant="primary" onClick={() => send(true)}>Useful</Button>

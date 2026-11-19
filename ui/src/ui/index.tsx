@@ -1,5 +1,5 @@
 import "../styles/ui-kit.css";
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { lockPageScroll } from "../scrollLock";
 
@@ -30,18 +30,19 @@ type Width = "xs" | "sm" | "md" | "lg" | "full";
 
 const DOCS = "https://areed145.github.io/fuzer/";
 
-/** The page title, an optional one-line subtitle and the page's actions. `help` names a docs page
+/** The page title and the page's actions. `detail` is a fact about the record the page shows (its description, its
+ * dates, its version), never a line about what the page is for: a title needs no tagline. `help` names a docs page
  * (for example "workflow") and adds a Help link, which is where explanations of the page belong. */
 /** A standing note about the whole page (the demo's "View only"). The shell provides it and the page header shows it
  * under the title, so the title stays the first thing on the page. */
 export const PageNote = createContext<ReactNode>(null);
 
-export function PageHeader({ children, subtitle, actions, help, className = "" }: {
-  children: ReactNode; subtitle?: ReactNode; actions?: ReactNode; help?: string; className?: string;
+export function PageHeader({ children, detail, actions, help, className = "" }: {
+  children: ReactNode; detail?: ReactNode; actions?: ReactNode; help?: string; className?: string;
 }) {
   const tools = (actions || help) && <div className="ui-page-actions">{actions}{help && <HelpLink doc={help} />}</div>;
   const note = useContext(PageNote);
-  return <><header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{subtitle && <p className="ui-page-subtitle">{subtitle}</p>}</div>{tools}</header>{note}</>;
+  return <><header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{detail && <p className="ui-page-subtitle">{detail}</p>}</div>{tools}</header>{note}</>;
 }
 
 /** A quiet link to the docs page that explains this screen. Use it instead of paragraphs of guidance on the page. */
@@ -136,6 +137,10 @@ export function Field({ label, hint, width = "md", children }: { label: ReactNod
 export function Input({ width, className = "", ...props }: InputHTMLAttributes<HTMLInputElement> & { width?: Width; ref?: Ref<HTMLInputElement> }) {
   return <input {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
 }
+/** Longer text. The same field as `Input`; give it `rows`, and `width="full"` to span its container. */
+export function Textarea({ width, className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { width?: Width; ref?: Ref<HTMLTextAreaElement> }) {
+  return <textarea {...props} className={`ui-textarea ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
+}
 export function Select({ width, className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement> & { width?: Width }) {
   return <select {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
 }
@@ -227,3 +232,5 @@ export function FullscreenButton({ on, onClick, className = "" }: { on: boolean;
     </Button>
   );
 }
+
+export { DialogHost, confirmDialog, promptDialog } from "./dialog";

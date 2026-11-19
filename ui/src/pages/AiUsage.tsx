@@ -1,9 +1,9 @@
 import { useState } from "react";
+import { money } from "../format";
 import { api, type AiUsage as Usage, type UsageGroup } from "../api";
 import { href, Status, useAsync } from "../lib";
 import { Bar, Badge, Button, Card, Empty, Notice, Select, Stat, Table } from "../ui";
 
-const usd = (v: number) => (v < 0.01 && v > 0 ? "<$0.01" : `$${v.toFixed(2)}`);
 const tokens = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(v));
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "never");
 const BUDGET = href("/settings", { view: "configuration", filter: "llm.budget" });
@@ -36,10 +36,10 @@ function Summary({ d }: { d: Usage }) {
     {!b.reached && b.cap_usd > 0 && b.alert_pct > 0 && share >= b.alert_pct &&
       <Notice tone="warn">This month&apos;s model spend is {Math.round(share)}% of its budget.</Notice>}
     <div className="investigation-stats">
-      <Stat label={`Spent in ${b.month} (UTC)`} value={usd(b.spent_usd)}
-        detail={b.cap_usd ? <>of a {usd(b.cap_usd)} budget · <a href={BUDGET}>change</a></> :
+      <Stat label={`Spent in ${b.month} (UTC)`} value={money(b.spent_usd)}
+        detail={b.cap_usd ? <>of a {money(b.cap_usd)} budget · <a href={BUDGET}>change</a></> :
           <>no budget · <a href={BUDGET}>set one</a></>} />
-      <Stat label={`Last ${d.days === 1 ? "day" : `${d.days} days`}`} value={usd(d.total.cost_usd)}
+      <Stat label={`Last ${d.days === 1 ? "day" : `${d.days} days`}`} value={money(d.total.cost_usd)}
         detail={`${d.total.calls} calls · ${tokens(d.total.input_tokens + d.total.cache_read_tokens + d.total.cache_write_tokens)} in, ${tokens(d.total.output_tokens)} out`} />
       <Stat label="Last call" value={when(d.total.last_at)} detail={d.recent[0]?.feature ?? "none yet"} />
     </div>
@@ -56,7 +56,7 @@ function Summary({ d }: { d: Usage }) {
         <tbody>{d.recent.map((r, i) => <tr key={i}>
           <td>{when(r.at)}</td><td>{r.feature}</td><td>{r.project ?? "—"}</td>
           <td>{r.model} {r.batch && <Badge>batch</Badge>}</td>
-          <td>{tokens(r.input_tokens)} / {tokens(r.output_tokens)}</td><td>{usd(r.cost_usd)}</td>
+          <td>{tokens(r.input_tokens)} / {tokens(r.output_tokens)}</td><td>{money(r.cost_usd)}</td>
         </tr>)}</tbody>
       </Table>}
     </Card>
@@ -77,7 +77,7 @@ function Daily({ d }: { d: Usage }) {
     {rows.length === 0 ? <Empty>No model calls in this window.</Empty> : <Table density="compact">
       <thead><tr><th>Day (UTC)</th><th>Cost</th><th /><th>Calls</th><th>Most spent on</th></tr></thead>
       <tbody>{rows.map(([day, v]) => <tr key={day}>
-        <td>{day}</td><td>{usd(v.cost)}</td><td><Bar value={(100 * v.cost) / most} label={`${day} cost`} /></td>
+        <td>{day}</td><td>{money(v.cost)}</td><td><Bar value={(100 * v.cost) / most} label={`${day} cost`} /></td>
         <td>{v.calls}</td><td>{v.top}</td>
       </tr>)}</tbody>
     </Table>}
@@ -90,7 +90,7 @@ function Groups({ title, rows }: { title: string; rows: UsageGroup[] }) {
       <thead><tr><th>{title.replace("By ", "")}</th><th>Calls</th><th>Tokens in</th><th>Tokens out</th><th>Cost</th><th>Last call (UTC)</th></tr></thead>
       <tbody>{rows.map((r) => <tr key={r.key}>
         <td>{r.key}</td><td>{r.calls}</td><td>{tokens(r.input_tokens)}</td><td>{tokens(r.output_tokens)}</td>
-        <td>{usd(r.cost_usd)}</td><td>{when(r.last_at)}</td>
+        <td>{money(r.cost_usd)}</td><td>{when(r.last_at)}</td>
       </tr>)}</tbody>
     </Table>}
   </Card>;

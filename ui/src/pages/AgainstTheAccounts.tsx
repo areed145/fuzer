@@ -3,6 +3,7 @@
  * oil in each currency. The accounted volume is the authority: a difference is for production accounting to resolve,
  * and nothing is restated. */
 import { api, type AccountingMonth } from "../api";
+import { quantity } from "../format";
 import { Badge, Card, Disclosure, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
@@ -14,7 +15,7 @@ const SAY: Record<AccountingMonth["verdict"], string> = {
   no_accounting: "no accounted volume", no_operational: "no daily reports",
 };
 
-const n = (v: number | null | undefined, unit: string) => (v == null ? "unknown" : `${v.toLocaleString()} ${unit}`);
+const n = (v: number | null | undefined, unit: string) => (v == null ? "unknown" : quantity(v, unit));
 
 export function AgainstTheAccounts() {
   const data = useAsync(() => api.plantAccounting(), []);

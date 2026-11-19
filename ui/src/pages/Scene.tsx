@@ -18,7 +18,7 @@ export function Scene({ query = new URLSearchParams() }: { query?: URLSearchPara
   const relDef = useCallback((name: string): RelationDef | undefined => relations?.find((r) => r.name === name), [relations]);
   return (
     <section>
-      <PageHeader subtitle="A facility as generic shapes, laid out from its links.">3D</PageHeader>
+      <PageHeader>3D</PageHeader>
       <NetworkScene query={query} set={set} relDef={relDef} />
     </section>
   );

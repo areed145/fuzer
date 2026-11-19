@@ -2,9 +2,9 @@ import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Se
 /** Shared workflow administration in Users and contextual read-only team workload in Work. */
 import { useState } from "react";
 import { api, type WorkRoleRow, type WorkloadPerson } from "../../api";
-import { Status, href, useAsync } from "../../lib";
+import { Status, href, useAsync, useAction } from "../../lib";
 import { duration, usePerson, when } from "../../work";
-import { caseHref, processHref, useAct } from "./shared";
+import { caseHref, processHref } from "./shared";
 import { useAuth, usePermission } from "../../Auth";
 
 /** A role as people say it: "ops_lead" reads "ops lead", as the Acting as picker and My work already show it. */
@@ -90,7 +90,7 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
                                                        reload: () => void; editable: boolean }) {
   const [v, setV] = useState({ description: r.description ?? "", default_sla: r.default_sla ?? "", escalate_to: r.escalate_to ?? "",
                                assignment: r.assignment });
-  const a = useAct();
+  const a = useAction();
   const changed = v.description !== (r.description ?? "") || v.default_sla !== (r.default_sla ?? "") ||
     v.escalate_to !== (r.escalate_to ?? "") || v.assignment !== r.assignment;
   return (
@@ -145,7 +145,7 @@ function NewRole({ person, reload }: { person: string; reload: () => void }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [kind, setKind] = useState<"person" | "agent">("person");
-  const a = useAct();
+  const a = useAction();
   return (
     <div className="row">
       <Input aria-label="New workflow role name" placeholder="new role, e.g. integrity_engineer" value={name} onChange={(e) => setName(e.target.value)} />
@@ -162,7 +162,7 @@ function NewRole({ person, reload }: { person: string; reload: () => void }) {
 function People({ people, roles, person, reload, inspect, editable, focus }: { people: WorkloadPerson[]; roles: WorkRoleRow[]; person: string;
   reload: () => void; inspect: () => void; editable: boolean; focus: string | null }) {
   const [name, setName] = useState("");
-  const a = useAct();
+  const a = useAction();
   return (
     <>
       {editable && <p>For signed-in users, assign roles directly from their account under Accounts &amp; access.
@@ -207,7 +207,7 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
   const [awayOpen, setAwayOpen] = useState(false);
   const [until, setUntil] = useState("");
   const [delegate, setDelegate] = useState(p.delegate ?? "");
-  const a = useAct();
+  const a = useAction();
   return (
     <Card className="access-account" title={p.display_name || p.name}>
       <p className="small">Roster identity: <code>{p.name}</code>. {p.account_enabled === false
@@ -260,7 +260,7 @@ export function WorkflowAssignments({ name, roles, assigned, reload, onInspect }
   const [selected, setSelected] = useState(assigned);
   const [inspected, setInspected] = useState(false);
   const [person] = usePerson();
-  const a = useAct();
+  const a = useAction();
   const dirty = [...selected].sort().join() !== [...assigned].sort().join();
   return <div>
     <fieldset disabled={!!a.busy}><legend>Saved workflow roles for {name}</legend>
@@ -289,7 +289,7 @@ function CoverEditor({ name, roles, covers, coverRoles, reload }: {
   const [every, setEvery] = useState(!covers?.length);
   const [chosen, setChosen] = useState<string[]>(covers ?? []);
   const [person] = usePerson();
-  const a = useAct();
+  const a = useAction();
   const target = who.trim();
   const where = every ? "every field" : chosen.join(", ");
   return <div>

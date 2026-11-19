@@ -1,9 +1,10 @@
 import { Button, Empty, Input, Table, Card as UICard } from "../../ui";
+import { percent } from "../../format";
 /** Survivorship and match rules (#225): the systems' rank (the default priority) and field / match rules. */
 import { useState } from "react";
 import { api, type MatchCalibration } from "../../api";
-import { Status, useAsync } from "../../lib";
-import { reviewer, useAction } from "./common";
+import { Status, useAsync, useAction } from "../../lib";
+import { reviewer } from "./common";
 
 export function Rules() {
   const r = useAsync(() => api.rules(), []);
@@ -65,7 +66,7 @@ export function Rules() {
   );
 }
 
-const pct = (x: number | null | undefined) => (x == null ? "not measured" : `${Number((x * 100).toFixed(1))}%`);
+const pct = (x: number | null | undefined) => (x == null ? "not measured" : percent(x, 1));
 
 /** Match confidence per source (P2.2): the thresholds in use and what was measured at them against the stewards'
  * decisions and the answer key, with the lower bound that says how much the pairs behind it can show. */
@@ -76,9 +77,6 @@ function MatchConfidence({ rows, reload }: { rows: MatchCalibration[]; reload: (
   return (
     <UICard className="match-confidence">
       <h2>Match confidence</h2>
-      <p className="small">A match at or above straight-through merges on its own; between review and straight-through
-        a person decides; below review it is left apart. Each is measured against what stewards decided and the
-        answer key, aiming at {pct(rows[0]?.target ?? 0.99)} correct.</p>
       {!rows.length ? <Empty className="small">Not measured yet. Measure after a rebuild.</Empty> : (
         <Table variant="list" density="compact">
           <thead><tr><th>Source</th><th>Straight-through</th><th>Measured there</th><th>Review from</th></tr></thead>

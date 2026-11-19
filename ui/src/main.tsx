@@ -1,4 +1,6 @@
 import "./styles.css";
+import { entityTotal, openReviews } from "./figures";
+import { count } from "./format";
 import "./styles/shell.css";
 import "./styles/shared.css";
 import "./styles/workflows.css";
@@ -44,7 +46,7 @@ import { DemoPage } from "./pages/Demo";
 import type { JobsHealth } from "./api";
 import { useAppData } from "./useAppData";
 import { AppErrorBoundary } from "./AppErrorBoundary";
-import { Button, EmptyState, PageHeader, PageNote } from "./ui";
+import { Button, DialogHost, EmptyState, PageHeader, PageNote } from "./ui";
 import { Status } from "./lib";
 import "./theme";
 import { AuthGate, useViewOnly } from "./Auth";
@@ -78,7 +80,7 @@ function App() {
   void declared.data;
 
   const s = stats.data;
-  const openReviews = s ? Object.values(s.open_reviews).reduce((a, b) => a + b, 0) : 0;
+  const reviews = openReviews(s);
   const section = path[0] ?? "";
   const viewOnly = useViewOnly();
   const navSection = !section && query.has("q") ? "browse" : section;
@@ -139,11 +141,11 @@ function App() {
         demoEnabled={demo.data?.enabled === true}
         section={navSection}
         path={path}
-        badges={{ work, review: openReviews }}
+        badges={{ work, review: reviews }}
         status={
           <>
             {s && (
-              <div className="facts" title={`${Object.values(s.entities).reduce((a, b) => a + b, 0).toLocaleString()} entities, ${s.edges.toLocaleString()} links, ${s.records.toLocaleString()} source records`}>
+              <div className="facts" title={`${count(entityTotal(s))} entities, ${count(s.edges)} links, ${count(s.records)} source records`}>
                 <strong>{s.facility}</strong>
               </div>
             )}
@@ -300,6 +302,6 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localho
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AppErrorBoundary><AuthGate><App /></AuthGate></AppErrorBoundary>
+    <AppErrorBoundary><AuthGate><App /></AuthGate><DialogHost /></AppErrorBoundary>
   </StrictMode>,
 );

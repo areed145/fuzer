@@ -1,9 +1,8 @@
 import { ActionStatus, ConfirmAction, Badge as UIBadge, Empty } from "../../ui";
 /** Shared by the Sources pages (#225): who is acting, small formatting helpers, async buttons, badges, a line diff
  * and the "rebuild needed" banner. */
-import { useState } from "react";
 import { api, type SourceHealth, type SourceLoad } from "../../api";
-import { notifyChanged, timestamp, useAsync } from "../../lib";
+import { timestamp, useAction, useAsync } from "../../lib";
 import { loadPerson } from "../../work";
 
 export const reviewer = () => loadPerson() || "anonymous";
@@ -40,27 +39,6 @@ export const DRIFT_HELP: Record<string, string> = {
   hold_any: "hold the load on any change, new columns too",
   ignore: "load anyway",
 };
-
-/** A button's async action with its busy and error state; every success tells the other views to refresh. */
-export function useAction() {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const run = async <T,>(name: string, fn: () => Promise<T>, after?: (r: T) => void) => {
-    setBusy(name);
-    setError(null);
-    try {
-      const r = await fn();
-      after?.(r);
-      notifyChanged();
-      return r;
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
-  return { busy, error, run };
-}
 
 export function HealthBadge({ h }: { h: SourceHealth | null | undefined }) {
   if (!h) return <UIBadge>Health unknown</UIBadge>;

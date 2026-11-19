@@ -32,7 +32,7 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
   }, [step.key, !!result.data, evidence]);
   return (
     <section className="investigation">
-      <PageHeader subtitle="Follow one issue from an asset to its source records and a finding you can check.">
+      <PageHeader>
         Guided investigation
       </PageHeader>
       <div className="investigation-context">
@@ -99,9 +99,8 @@ function Issue({ data }: { data: Investigation }) {
       <p>Start with <strong>{data.asset_label}</strong>, the asset this scenario is about.
         What do the linked records say happened, what production loss was recorded, and what maintenance followed?</p>
       <div className="investigation-stats">
-        <Stat label="Investigation window" value={monthOf(data.since)} detail="Event dates, not today's operating state" />
-        <Stat label="Connected evidence" value={data.evidence.length} detail="Loaded records, not an AI-generated answer" />
-        <Stat label="What you will learn" value="Trace the evidence" detail="Asset → records → finding and limitations" />
+        <Stat label="Investigation window" value={monthOf(data.since)} />
+        <Stat label="Connected evidence" value={data.evidence.length} />
       </div>
       <p>No setup, paid AI calls, or plant actions are needed. You can use browser Back, reload, or share
         this page without changing any records.</p>

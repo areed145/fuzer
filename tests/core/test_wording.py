@@ -81,3 +81,12 @@ def test_one_reads_singular_in_text_already_written():
     assert wording.say("Upset from 20:50: alarm:lo on X, 1 detections, still going") == \
         "Upset from 20:50: low alarm on X, 1 detection, still going"
     assert wording.say("11 detections and 2.1 alarms") == "11 detections and 2.1 alarms"
+
+
+def test_money_reads_one_way_and_matches_the_ui():
+    # the same cases as ui/tests/format.test.cjs
+    assert [wording.money(v) for v in (5540400, 5520150.4, 1000, 100, 0)] == \
+        ["$5,540,400", "$5,520,150", "$1,000", "$100", "$0"]
+    assert [wording.money(v) for v in (12.5, 0.42, 0.004, -3)] == ["$12.50", "$0.42", "<$0.01", "-$3.00"]
+    assert wording.money(5520150, "NOK") == "5,520,150 NOK"
+    assert wording.money(40, "unknown") == "40.00 (currency unknown)"

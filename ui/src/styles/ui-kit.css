@@ -141,3 +141,10 @@ html.ui-fullscreen-open .bottombar { display: none; }
    row of filters lines up. (iOS sets its own 44-point controls; field mode its larger ones.) */
 :root:not(.ios):not(.field-mode) main :is(input.ui-input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], .search), select.ui-input, select) { box-sizing: border-box; height: 34px; }
 :root:not(.ios):not(.field-mode) main .ui-button-primary.ui-button-md { min-height: 34px; }
+
+/* The one modal (ui/dialog.tsx): a question answered before an action goes ahead. */
+.ui-dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--text); padding: 16px; width: min(440px, calc(100vw - 32px)); box-shadow: var(--shadow); }
+.ui-dialog::backdrop { background: rgb(16 24 32 / .45); }
+.ui-dialog p { margin: 0; overflow-wrap: anywhere; }
+.ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+@media (pointer: coarse) { .ui-dialog-actions .ui-button { min-height: 44px; flex: 1; } }

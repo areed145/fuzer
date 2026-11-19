@@ -3,6 +3,7 @@
  * Home. Lanes split the columns by source or kind. A card's button is the next step: dispatch it, or close out what
  * came back from the field on its case. On a phone one stage shows at a time. */
 import { say, dayStamp } from "../wording";
+import { money } from "../format";
 import "../styles/work-board.css";
 import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
@@ -11,7 +12,7 @@ import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
 import { holder, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
-import { DispatchControls, age, backFromField, money, namedSubjects, plannedLater, waitingToDispatch, withTheField, type Person } from "./Exceptions";
+import { DispatchControls, age, backFromField, namedSubjects, plannedLater, waitingToDispatch, withTheField, type Person } from "./Exceptions";
 
 type StageKey = "dispatch" | "desk" | "plan" | "field" | "back" | "closed";
 

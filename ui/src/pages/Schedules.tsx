@@ -8,7 +8,7 @@ export function SchedulesPage() {
   const list = useAsync(() => api.schedules(), []);
   return (
     <section>
-      <PageHeader subtitle="Turnarounds, projects and campaigns, each with its activities, logic and resources.">Schedules</PageHeader>
+      <PageHeader>Schedules</PageHeader>
       <Status loading={list.loading} error={list.error} onRetry={list.reload} />
       {Array.isArray(list.data) && (list.data.length ? <Table variant="list" className="phone-rows" aria-label="Schedules">
         <thead><tr><th>Schedule</th><th>Kind</th><th>Runs</th><th>Activities</th></tr></thead>

@@ -16,10 +16,9 @@ look like a calm operations tool: a title, the work, and the one or two actions 
 These rules come first; the sections below say how the components carry them out. It must read as a
 plain, conventional enterprise application for any asset type.
 
-1. **Say it once, where it's needed.** A page has a title and at most one subtitle line (90 characters,
-   no links). How a page works belongs in the docs: pass `help="workflow"` to `PageHeader` for a Help
-   link, rather than writing paragraphs on the page. Cross-links to related pages go in the navigation,
-   not in sentences.
+1. **A title needs no tagline.** A page has a title and nothing under it that says what the page is for. `PageHeader`'s
+   `detail` is for a fact about the record shown (its description, its dates, its version). How a page works belongs
+   in the docs: pass `help="workflow"` for a Help link. Cut any sentence that restates what the screen already shows.
 2. **No standing disclaimers.** State a limit where the user acts on it: the confirm step, a disabled
    button's reason, an empty state. Data provenance (synthetic, historical) is one `Badge` in the page
    header or chart title, not a sentence per card. Error text says what failed and what to do next in
@@ -52,9 +51,16 @@ plain, conventional enterprise application for any asset type.
    and work lists as rows of title, asset and state rather than wide tables.
 
 `npm --prefix ui test` runs `ui/tests/style-lint.test.cjs`, which counts help disclosures, grey
-paragraphs, long subtitles, carets, standing disclaimers, literal colours, inline styles and raw buttons and
+paragraphs, page taglines, carets, standing disclaimers, literal colours, inline styles and raw buttons and
 tables in `ui/src`. Counts may only go down: when you remove clutter, lower the number in
 `ui/tests/style-baseline.json`; when the test fails, follow its hint rather than raising the number.
+
+## Numbers
+
+`ui/src/format.ts` is the only place a number becomes text: `money`, `percent`, `quantity` and `count`. Pass the
+value as the API returned it; never round, scale or abbreviate it in a page. Money is whole dollars from 100 up and
+cents below, never "k" or "M", so one amount reads the same on every page. Text written by the server uses
+`fuzer.core.wording.money`, which formats the same way.
 
 ## API client
 
@@ -67,11 +73,11 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 
 ## Components
 
-- `PageHeader` is the page title, an optional one-line subtitle, actions and an optional `help` docs link. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
+- `PageHeader` is the page title, an optional `detail` (a fact about the record, never fixed text), actions and an optional `help` docs link. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
 - `Button` uses `primary` for the main action, `secondary` for ordinary actions, `ghost` for low emphasis, `link` for inline actions, and `danger` for destructive actions. Use `sm` for compact table actions and `md` elsewhere. Use `ButtonLink` for navigation styled as a button and `ButtonLabel` for labels that open hidden file inputs.
 - `Card` (also exported as `Section`) groups related content. Supply `title` and `actions` when the group needs a heading or controls.
 - `Table` provides the shared scroll container and table base. Use it for data tables and choose a compact density for dense lists; use specialized classes only for domain-specific layout.
-- `Field`, `Input`, and `Select` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
+- `Field`, `Input`, `Select` and `Textarea` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
 - `Tabs` switches between views of one page; `Notice` holds something the user must act on; `HelpLink` links a docs page.
 - `Badge` shows a compact status with `ok`, `warn`, `danger`, or `muted` tone.
 - `Stat` presents a summary number; `EmptyState` explains an empty result; `Bar` displays a percentage or other bounded value from 0 to 100.
@@ -83,6 +89,12 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 - `ConfirmAction` presents inline consequences and explicit confirm/cancel controls for shared-state changes.
   `ActionStatus` announces action progress/results with `role="status"` and failures with `role="alert"`.
   Reuse these for source ingestion and review instead of browser dialogs or transient success toasts.
+- `confirmDialog(message)` and `promptDialog(label)` are the app's one modal: await the answer in a handler
+  (`if (!(await confirmDialog("Delete kind pump?"))) return;`). Questions asked while one is open wait their turn.
+  Never call the browser's `confirm`, `prompt` or `alert`.
+- `useAction` (`ui/src/lib.tsx`) runs a button's async action: `busy` names the action in flight, `error` holds the
+  failure for `ActionStatus`, and a success refreshes every view. `useReasonedAction` is the same for a change that
+  needs a reason. Don't keep busy and error state by hand.
 
 ## Action lifecycle
 

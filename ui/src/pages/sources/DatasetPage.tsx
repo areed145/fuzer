@@ -1,12 +1,11 @@
 import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
+import { confirmDialog } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
  * matching and history. */
 import { useState } from "react";
 import { api, type DatasetDetail, type ImpactResult, type Json, type MappingVersion, type SourceLoad } from "../../api";
-import { Status, href, useAsync } from "../../lib";
-import {
-  DRIFT_HELP, DUPLICATES_HELP, Diff, HealthBadge, LOAD_HELP, Loaded, SCHEDULES, TestSteps, cell, reviewer, scheduleText, useAction, when,
-} from "./common";
+import { Status, href, useAsync, useAction } from "../../lib";
+import { DRIFT_HELP, DUPLICATES_HELP, Diff, HealthBadge, LOAD_HELP, Loaded, SCHEDULES, TestSteps, cell, reviewer, scheduleText, when } from "./common";
 import { MappingEditor } from "./MappingEditor";
 import { person as personName } from "../../wording";
 
@@ -285,7 +284,7 @@ function Lifecycle({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           <Button variant="secondary" disabled={!!a.busy}
             onClick={() => a.run("keep", () => api.retireDataset(ds.name, false, reviewer()), reload)}>Retire, keep records</Button>
           <Button variant="secondary" disabled={!!a.busy}
-            onClick={() => confirm(`Retire ${ds.name} and remove its ${p.records} records?`) &&
+            onClick={async () => (await confirmDialog(`Retire ${ds.name} and remove its ${p.records} records?`)) &&
               a.run("retract", () => api.retireDataset(ds.name, true, reviewer()), reload)}>Retire and remove records</Button>
           <span className="muted small">For a source you've stopped using: {p.records.toLocaleString()} records,
             {" "}{p.entities_only_here.toLocaleString()} entities only it holds.</span>
@@ -293,7 +292,7 @@ function Lifecycle({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       )}
       <div className="row">
         <Button variant="secondary" disabled={!!a.busy}
-          onClick={() => confirm(`Delete ${ds.name}, its ${p.records} records, runs, checks and (unless shared) mapping?`) &&
+          onClick={async () => (await confirmDialog(`Delete ${ds.name}, its ${p.records} records, runs, checks and (unless shared) mapping?`)) &&
             a.run("delete", () => api.deleteDataset(ds.name, reviewer()), () => { location.hash = href("/sources"); })}>
           Delete dataset</Button>
         <span className="muted small">Undo adding it (a mistake): everything about it goes; the history keeps the change.</span>
