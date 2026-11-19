@@ -56,6 +56,10 @@ def plant(okan_db):
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
+    # this site's schedules are only in the table its planner loads here, not in the built-in P6 export Okan carries
+    (data / "p6_activities.csv").unlink()
+    okan_db.conn.execute("delete from source_record where source = 'p6' and record_type = 'activity'")
+    okan_db.conn.commit()
     mp = pytest.MonkeyPatch()
     mp.setenv("FUZER_DATA_DIR", str(data))
     from fuzer import api
