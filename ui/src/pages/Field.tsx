@@ -354,7 +354,8 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         <h3 className="small">Where</h3>
         <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
           <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <span className="muted small">{kindWord(a.kind ?? "item").toLowerCase()}</span></>}
-          {a.lat != null && a.lon != null && !desk && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
+          {!desk && a.offshore && a.site && <> · <span className="small">on {a.site}</span></>}
+          {a.lat != null && a.lon != null && !desk && !a.offshore && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
             target="_blank" rel="noreferrer">directions</a></>}
         </li>)}</ul>
       </div>}

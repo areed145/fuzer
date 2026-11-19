@@ -855,7 +855,9 @@ export interface TurnaroundScope {
 /** A job a field operator was sent to: the exception with where to go, what was seen and what they reported. */
 export interface FieldJob extends ExceptionRow {
   label: string; due: string | null; task_id: number | null; task_name: string | null;
-  assets: { fuzer_id: string; label: string | null; kind: string | null; lat: number | null; lon: number | null }[];
+  assets: { fuzer_id: string; label: string | null; kind: string | null; lat: number | null; lon: number | null;
+    /** The located place it is on (a platform's name), and whether that stands in water: no road directions there. */
+    site?: string | null; offshore?: boolean }[];
   finding: Finding;
   history: { id: number; title: string; state: string; first_seen: string }[];
   field: { at: string; by: string; status: string; note: string | null; reading?: FieldReading; photos?: number[] }[];
