@@ -61,4 +61,7 @@ def test_a_held_load_after_an_accepted_one_asks_again(okan_db):
 
     [h] = [r for r in quality.health(conn) if r["dataset"] == name]
     assert "held" in h["problems"], "a held last run shows as held even with nothing open to answer"
-    conn.rollback()
+    # put the dataset back as it was (the loads above committed), so the module's other test seeds its own hold
+    conn.execute("delete from review_item where id = %s", (item["id"],))
+    conn.execute("update source_dataset set schema = %s where name = %s", (Jsonb(item["payload"]["new"]), name))
+    conn.commit()
