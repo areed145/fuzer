@@ -71,7 +71,8 @@ export function InboxPage() {
   // its row, so a job waiting in their queue is not offered to them as a field card with "Take it".
   const fieldRole = d.roles.includes("operator");
   const sent = jobs.filter((j) => !j.queued && keep(j as unknown as WorkRow));
-  const waitingJobs = fieldRole ? jobs.filter((j) => j.queued && keep(j as unknown as WorkRow)) : [];
+  const waitingJobs = jobs.filter((j) => j.queued && keep(j as unknown as WorkRow)
+    && (fieldRole || !j.role || j.role === "operator"));
   // A job's card carries its case's step, its instruction and the report buttons, so the same case isn't listed twice.
   const onCard = new Set([...sent, ...waitingJobs].map((j) => j.item_id).filter((id): id is number => id != null));
   const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
