@@ -118,8 +118,10 @@ def watch_permits(conn, by: str = "agent:permits", now: datetime | None = None) 
                                                    "isolations": [i["isolation"] for i in p["held"]]},
                         items=tuple(items))
         n = len(p["held"])
-        title = (f"{p['label']} on {where}: lapsed {p['valid_to'] or ''} with {n} isolation{'s' if n > 1 else ''} "
-                 "still in place").replace("  ", " ")
+        # No date in the title: handovers, notifications and lists copy the title as it was, so a date in it goes
+        # stale the moment the register moves (a reissue, the demo rolling forward) and two pages disagree. The
+        # valid-to time is the finding's own fact, read live wherever the case is shown.
+        title = f"{p['label']} on {where}: lapsed with {n} isolation{'s' if n > 1 else ''} still in place"
         try:
             x = raise_exception(conn, TYPE, p["label"], title, by, source="ptw",
                                 refs=[*p["locations"], p["id"]], priority=0.75, finding=found)

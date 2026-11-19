@@ -27,7 +27,7 @@ import hashlib
 import logging
 from datetime import datetime, timedelta
 
-from ..core import projects
+from ..core import projects, roles
 
 log = logging.getLogger(__name__)
 
@@ -62,34 +62,89 @@ LEFT_WHY = "left in the ops lead queue to close out"
 ROUND_PARTLY, ROUND_MISSED = 0.08, 0.03  # rounds left part done, or not walked, this shift
 REPORTS_PER_SHIFT = 8  # things the field notices and reports each shift
 FIELD_REPORT = "field_report"
-NOTICED = (  # what an operator notices on the way round, said of a tag and its description
-    "Weeping flange on {tag} ({what})",
-    "Unusual noise from {tag} ({what})",
-    "Oil level low in the sight glass on {tag} ({what})",
-    "Local gauge on {tag} ({what}) reads higher than the DCS",
-    "Small drip from a drain valve on {tag} ({what})",
-    "Corrosion under insulation suspected on {tag} ({what})",
-    "Loose cable gland and missing cover bolt on {tag} ({what})",
-)
+# What an operator notices on the way round, by the kind of equipment (roles.equipment_class): an odd noise from a
+# machine, a weeping packing on a valve, a sight glass only where there is one. Said of a tag and its description.
+NOTICED = {
+    "rotating": ("Unusual noise from {tag} ({what})", "Oil level low in the sight glass on {tag} ({what})",
+                 "Weeping mechanical seal on {tag} ({what})", "Coupling guard bolt missing on {tag} ({what})"),
+    "choke": ("Weeping bonnet flange on {tag} ({what})", "Local gauge downstream of {tag} ({what}) reads higher than "
+              "the DCS", "Small drip from the drain valve beside {tag} ({what})",
+              "Corroded flange bolting on {tag} ({what})"),
+    "valve": ("Weeping stem packing on {tag} ({what})", "Position indicator on {tag} ({what}) disagrees with the DCS",
+              "Small drip from the drain valve beside {tag} ({what})"),
+    "exchanger": ("Weeping channel head flange on {tag} ({what})", "Corrosion under insulation suspected on {tag} "
+                  "({what})", "Local outlet temperature gauge on {tag} ({what}) reads higher than the DCS"),
+    "vessel": ("Corrosion under insulation suspected on {tag} ({what})", "Level in the sight glass on {tag} ({what}) "
+               "disagrees with the DCS", "Small drip from a drain valve on {tag} ({what})"),
+    "instrument": ("Loose cable gland and missing cover bolt on {tag} ({what})",
+                   "Local display on {tag} ({what}) reads higher than the DCS",
+                   "Weeping impulse line fitting at {tag} ({what})"),
+    "other": ("Weeping flange on {tag} ({what})", "Small drip from a drain valve on {tag} ({what})",
+              "Loose cable gland and missing cover bolt on {tag} ({what})"),
+}
 OUTSIDE = 0.04  # readings and checks found outside their limits: the field's own work for the IOC
 # Of desk work a field operator could check (by type) or not, the share sent out: work no operator can do on site
 # (an alarm flood, a register question) stays at the desk, or the field's queue fills with jobs it can only hand back.
 FIELD_SHARE = {True: 0.7, False: 0.0}
 DESK_WHY = "For the desk: nothing to check on site"
 
-DONE_NOTES = (
-    "Checked on site: reading confirmed locally, no leak or damage found. Back in its normal range.",
-    "Found a loose impulse line fitting, tightened and leak tested. Reading steady since.",
-    "Local gauge agrees with the DCS. Cleared a blocked strainer and flushed the line.",
-    "Walked down the skid with the panel operator; reset and restarted. Running normally.",
-    "Topped up the oil and replaced a weeping gasket. No further alarms over 30 minutes.",
+# What the field says when it reports back, by what the job was about (`_topic`): a lapsed permit is closed with the
+# area authority, a leak is remade, a gauge is checked against the DCS. A note that answers a different job is the
+# first thing a skeptical operator notices.
+DONE_NOTES = {
+    "permit": ("Walked the isolations with the area authority: removed, plant reinstated and the permit closed on the "
+               "PTW system.",
+               "Permit reissued for the remaining work with the isolations verified in place; the lapsed one closed."),
+    "leak": ("Tightened the flange bolts to torque and leak tested: dry after 30 minutes.",
+             "Replaced the weeping gasket and leak tested. No further weep."),
+    "seal": ("Adjusted the gland and topped up the seal pot; weep has stopped.",
+             "Changed over to the standby and isolated it for a seal change; planner has the job."),
+    "noise": ("Listened with a stethoscope and took handheld vibration: within normal. A loose guard was rattling; "
+              "tightened.",
+              "Noise was gas passing at a partly open drain; closed it and the noise stopped."),
+    "oil": ("Topped up the oil to the mark; no leak found at the seals or drain plug.",),
+    "gauge": ("Local gauge agrees with the DCS after blowing down the impulse line.",
+              "Found a loose impulse line fitting, tightened and leak tested. Reading steady since."),
+    "corrosion": ("Stripped a section of cladding: surface rust only, photos on the case. Recommend an inspection on "
+                  "the next campaign.",
+                  "Wire brushed and coated the bolting; photos on the case."),
+    "temperature": ("Checked with the IR gun: the local reading agrees with the DCS and is steady. Greased and "
+                    "watching it.",),
+    "electrical": ("Refitted the cover bolt and remade the cable gland; Ex inspection noted.",),
+    None: ("Checked on site: no leak or damage found and the reading agrees locally.",
+           "Walked down with the panel operator: nothing abnormal locally."),
+}
+COULD_NOT_NOTES = {
+    "permit": ("Area authority not on shift to sign off the isolations; day shift to close the permit first thing.",),
+    "seal": ("Spare seal kit is not on board; next boat is tomorrow morning.",),
+    "leak": ("Needs the line depressurised to remake the joint; asked the planner for a window.",),
+    "gauge": ("Needs the instrument tech to calibrate; none on board this hitch.",),
+    "corrosion": ("Needs a scaffold to reach the insulated section. Asked the planner for a slot.",),
+    None: ("No access: the area is barricaded for a crane lift until tomorrow's day shift.",
+           "Weather: wind over the limit for working at height on the cellar deck."),
+}
+TOPICS = (  # words in a job's title, and what the job is about
+    (("permit",), "permit"), (("seal",), "seal"), (("sight glass", "oil level"), "oil"),
+    (("noise", "vibration", "rattl"), "noise"), (("corrosion", "corroded", "cui"), "corrosion"),
+    (("cable gland", "cover bolt", "earth"), "electrical"),
+    (("leak", "weep", "drip", "flange", "packing"), "leak"),
+    (("gauge", "reads", "dcs", "display", "pressure", "level", "position", "transmitter", "alarm"), "gauge"),
+    (("temperature",), "temperature"),
 )
-COULD_NOT_NOTES = (
-    "No access: the area is barricaded for a crane lift until tomorrow's day shift.",
-    "Needs a scaffold to reach the valve. Asked the planner for a slot.",
-    "Spare seal kit is not on board; next boat is tomorrow morning.",
-    "Weather: wind over the limit for working at height on the cellar deck.",
-)
+
+
+def _topic(r: dict) -> str | None:
+    """What a job is about, from its kind and its title: the notes the field reports back with fit it."""
+    if r.get("type") == "permit_lapsed":
+        return "permit"
+    title = (r.get("title") or "").lower()
+    return next((topic for words, topic in TOPICS if any(w in title for w in words)), None)
+
+
+def _note(notes: dict, r: dict, *key) -> str:
+    return _pick(notes.get(_topic(r)) or notes[None], *key)
+
+
 DESK_NOTES = {  # by queue: what a desk says when it closes work it worked
     "data_steward": (
         "Raised with the source system's owner to correct at source; tracked there.",
@@ -139,9 +194,9 @@ def staff(conn) -> list[str]:
     from ..core import work
 
     added = []
-    for name, roles in CREW.items():
+    for name, seats in CREW.items():
         if not conn.execute("select 1 from work_person where name = %s", (name,)).fetchone():
-            work.add_person(conn, name, roles, by="sample crew")
+            work.add_person(conn, name, seats, by="sample crew")
             added.append(name)
     if not conn.execute("select 1 from exception_kind where name = %s", (FIELD_REPORT,)).fetchone():
         from . import exceptions
@@ -296,9 +351,9 @@ def work_queue(t: _Tick) -> None:
             elif last["status"] == "on_site" and waited >= _minutes(90, 300, r["id"], "work", visit):
                 if visit == 0 and _u(r["id"], "could") < COULD_NOT:
                     t.act("report", exceptions.report, conn, r["id"], who, "could_not_do",
-                          _pick(COULD_NOT_NOTES, r["id"], "why"))
+                          _note(COULD_NOT_NOTES, r, r["id"], "why"))
                 else:
-                    t.act("report", exceptions.report, conn, r["id"], who, "done", _pick(DONE_NOTES, r["id"], "note"))
+                    t.act("report", exceptions.report, conn, r["id"], who, "done", _note(DONE_NOTES, r, r["id"], "note"))
             continue
 
         if r["role"] == "operator" and not r["assignee"]:  # in the operator queue: a free operator takes it
@@ -398,6 +453,7 @@ def daily_reports(t: _Tick) -> None:
 
 def field_reports(t: _Tick) -> None:
     """A few times a shift, at times fixed by the shift, sam or alex reports something they noticed on an asset."""
+    from ..core import findings
     from ..core.exceptions import raise_exception
     from . import rounds
 
@@ -411,6 +467,8 @@ def field_reports(t: _Tick) -> None:
         """).fetchall()
     if not tags:
         return
+    isolated = _isolated(conn)
+    tags = [g for g in tags if g["fuzer_id"] not in isolated] or tags
     for slot in range(REPORTS_PER_SHIFT):
         key = f"{start.isoformat(timespec='minutes')}#{slot}"
         if now < start + (end - start) * (0.1 + 0.8 * _u(key, "at")):
@@ -419,9 +477,29 @@ def field_reports(t: _Tick) -> None:
             continue  # reported already (and maybe closed since): once per slot
         tag = tags[int(_u(key, "tag") * len(tags))]
         who = _pick(FIELD, key, "who")
-        title = _pick(NOTICED, key, "what").format(tag=tag["label"], what=tag["what"])
+        title = _pick(NOTICED[roles.equipment_class(tag["label"])], key, "what").format(tag=tag["label"],
+                                                                                       what=tag["what"])
+        seen = start + (end - start) * (0.1 + 0.8 * _u(key, "at"))
+        found = findings.Finding("sample_crew.field_report", findings.EXTERNAL,
+                                 method="Noticed on the way round and reported from the field", start=seen,
+                                 items=(findings.fact("Reported by", who), findings.fact("What was seen", title),
+                                        findings.asset("On", tag["fuzer_id"]), findings.at("Seen", seen)))
         t.act("field_report", raise_exception, conn, FIELD_REPORT, key, title, who, refs=[tag["fuzer_id"]],
-              source="sample crew")
+              source="sample crew", finding=found)
+
+
+def _isolated(conn) -> set[str]:
+    """Equipment under a live permit with an isolation in place: drained and vented, so nobody hears it running or
+    sees it leak. The field reports nothing on it."""
+    from . import permits
+
+    out: set[str] = set()
+    for p in conn.execute(permits._ALL).fetchall():
+        if (p["state"] or "").strip().lower() in permits.DONE:
+            continue
+        if any((i["state"] or "").lower() in permits.IN_PLACE for i in p["isolations"]):
+            out.update(p["locations"])
+    return out
 
 
 def walk_rounds(t: _Tick) -> None:

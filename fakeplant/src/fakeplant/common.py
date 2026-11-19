@@ -4,6 +4,8 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 
+from fuzer.core import roles
+
 DAMAGE_TEXT = {"D01": "High vibration on {d}", "D02": "Seal / flange leak on {d}", "D03": "{d} failed to start",
                "D04": "High temperature on {d}", "D05": "Low output from {d}", "D06": "Abnormal noise from {d}",
                "D07": "Level indication faulty on {d}", "D08": "Internal leak suspected on {d}",
@@ -189,9 +191,29 @@ def _permits(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
     return permits, isolations
 
 
+# What an operator reads and checks on a round, by the kind of equipment (the letters of its tag): a bearing
+# temperature only where there is a bearing, a level only where there is a sight glass. (what, kind, unit, low, high)
+ROUND_POINTS = {
+    "rotating": (("Bearing temperature", "reading", "degC", "0", "85"),
+                 ("Leak-free, no unusual noise or vibration", "check", "", "", "")),
+    "choke": (("Downstream pressure, local gauge", "reading", "barg", "5", "25"),
+              ("No leaks at the bonnet or flanges; position indicator matches the DCS", "check", "", "", "")),
+    "valve": (("No leaks at the stem packing or flanges", "check", "", "", ""),
+              ("Position indicator matches the DCS", "check", "", "", "")),
+    "exchanger": (("Outlet temperature, local gauge", "reading", "degC", "20", "60"),
+                  ("No leaks at the channel head or flanges", "check", "", "", "")),
+    "vessel": (("Level, sight glass", "reading", "%", "20", "80"),
+               ("No leaks; drains closed and capped", "check", "", "", "")),
+    "instrument": (("Housing, cable gland and impulse lines intact", "check", "", "", ""),
+                   ("Local display matches the DCS", "check", "", "", "")),
+    "other": (("Leak-free, no unusual noise", "check", "", "", ""),
+              ("Guards and covers in place", "check", "", "", "")),
+}
+
+
 def _rounds(equipment: list[dict]) -> list[dict]:
-    """Operator rounds checklist points (P5.4a): one round per area, reading and checking up to four items installed
-    there now. Deterministic."""
+    """Operator rounds checklist points (P5.4a): one round per area, a reading or a check on each of up to four items
+    installed there now, as fits the kind of equipment. Deterministic."""
     items = sorted({e["floc"]: e for e in equipment if e["floc"].count("-") == 2}.values(), key=lambda e: e["floc"])
     by_area: dict[str, list[dict]] = {}
     for e in items:
@@ -199,13 +221,10 @@ def _rounds(equipment: list[dict]) -> list[dict]:
     out = []
     for area, es in sorted(by_area.items()):
         for n, e in enumerate(es[:4]):
-            tag = e["floc"].split("-", 1)[1]
-            reading = n % 2 == 0
+            what, kind, unit, low, high = ROUND_POINTS[roles.equipment_class(e["floc"].split("-", 1)[1])][n % 2]
             out.append({"point_id": f"R-{area}-{n + 1:02d}", "round": f"Area {area} rounds", "area": area,
-                        "sort": str(n + 1), "floc": e["floc"],
-                        "what": f"{tag} bearing temperature" if reading else f"{tag} leak-free, no unusual noise",
-                        "kind": "reading" if reading else "check", "unit": "degC" if reading else "",
-                        "low": "0" if reading else "", "high": "85" if reading else ""})
+                        "sort": str(n + 1), "floc": e["floc"], "what": what, "kind": kind, "unit": unit,
+                        "low": low, "high": high})
     return out
 
 
