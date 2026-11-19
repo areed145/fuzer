@@ -135,6 +135,7 @@ def test_the_planning_system_s_schedules_land_on_the_integrated_plan(plant):
     ingest.ingest(conn, os.environ["FUZER_DATA_DIR"], exports=["project_schedules"], full=True)
     pipeline.rebuild(conn, load_pack("okan"))
     conn.execute("update source_dataset set fingerprint = null where name = 'project_schedules'")
+    conn.commit()  # kept past this test's rollback: a later load here reads the table again
     plan.sync_work_orders(conn)
     template = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "okan" / "schedules" / "OK-TAR-2026.yaml"
     import yaml
