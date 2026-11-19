@@ -1,10 +1,11 @@
 import { Badge as UIBadge, Button, Card as UICard, Input, Table } from "../ui";
+import { percent } from "../format";
 import { useState } from "react";
 import { api, type GateDecision, type GatePolicy } from "../api";
 import { Status, useAsync } from "../lib";
 import { Actor, loadPerson, when } from "../work";
 
-const pct = (x: number | null) => (x === null ? "always a person" : `${Math.round(x * 100)}%`);
+const pct = (x: number | null) => (x === null ? "always a person" : percent(x));
 
 /** Why a case did or didn't stop for a person (P5.10): each gate decision on it, in plain words. */
 export function CaseGates({ id }: { id: number }) {

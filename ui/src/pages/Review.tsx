@@ -1,4 +1,5 @@
 import { documentHref, openDocument } from "../DocumentViewer";
+import { percent } from "../format";
 import "../styles/review.css";
 import "../styles/trends.css";
 import { useEffect, useState } from "react";
@@ -385,7 +386,7 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
                   {m?.by === "claude" && <span className="muted small"> (Claude)</span>}
                 </td>
                 <td className="muted small">{m?.why}</td>
-                <td className="small">{Math.round(c.filled * 100)}%</td>
+                <td className="small">{percent(c.filled)}</td>
                 <td className="small mono">{c.samples.slice(0, 3).join(" · ")}</td>
               </tr>
             );
@@ -675,7 +676,7 @@ function RoleCard({ id, p, onDecide }: { id: number; p: RolePayload; onDecide: O
     <UICard className="review">
       <div className="row spread">
         <h3>{p.description ?? p.point} <span className="muted small">#{id}</span></h3>
-        <span className="muted small">{Math.round(p.confidence * 100)}% sure</span>
+        <span className="muted small">{percent(p.confidence)} sure</span>
       </div>
       <p className="small">
         <span className="mono">{p.point}</span>{p.uom ? ` in ${p.uom}` : ""}

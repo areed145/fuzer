@@ -2,13 +2,13 @@
  * disposition with a confidence, what it could not check and what it cost against its budget. The person who
  * decides says whether they followed the proposal; the brief never decides. Sits above the decision. */
 import { useState } from "react";
+import { money, percent } from "./format";
 import { api, type WorkItem } from "./api";
 import { useAct } from "./pages/workflows/shared";
 import { Actor, when } from "./work";
 import { Badge, Button, Card, Disclosure, Input, Notice, Table } from "./ui";
 
-const usd = (x: number | undefined) => `$${(x ?? 0).toFixed(2)}`;
-const pct = (x: number | null | undefined) => (x == null ? "no confidence given" : `${Math.round(x * 100)} % confident`);
+const pct = (x: number | null | undefined) => (x == null ? "no confidence given" : `${percent(x)} confident`);
 const FOLLOWED = { yes: "Followed", partly: "Partly followed", no: "Not followed" } as const;
 
 export function CaseBrief({ it, person, readOnly = false, reload }: {
@@ -29,7 +29,7 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
   const evidence = b.evidence ?? [], analysis = b.analysis ?? [], similar = b.similar ?? [], gaps = b.could_not_check ?? [];
   return (
     <Card className="case-brief" title="Specialist brief" actions={<span className="small">
-      {usd(e.ledger?.cost_usd)}{e.budget_usd ? <> of {usd(e.budget_usd)} budget</> : null}{" "}
+      {money(e.ledger?.cost_usd ?? 0)}{e.budget_usd ? <> of {money(e.budget_usd)} budget</> : null}{" "}
       {e.over_budget && <Badge tone="warn">over budget</Badge>}{" "}
       {e.late && <Badge tone="warn">late</Badge>}</span>}>
       {b.what_happened && <p>{b.what_happened}</p>}

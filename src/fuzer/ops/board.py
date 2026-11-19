@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 
 from ..core import clock
 from ..core.jsonsafe import plain as _plain
+from ..core.wording import money
 
 PAGE = 50
 
@@ -99,7 +100,7 @@ def _review_cards(conn) -> list[dict]:
 
 def _project_cards(conn) -> list[dict]:
     return [{"key": f"project:{r['id']}", "kind": "project", "title": r["title"], "text": r["scope"], "unit_id": r["unit_id"],
-             "value_usd": r["benefit_usd"], "reason": f"expected benefit {r['benefit_usd']:,.0f}" if r["benefit_usd"] else
+             "value_usd": r["benefit_usd"], "reason": f"expected benefit {money(r['benefit_usd'])}" if r["benefit_usd"] else
              "no expected benefit given", "breakdown": {"owner": r["owner"], "due": r["due"], "effort_usd": r["effort_usd"]}}
             for r in conn.execute("select * from board_project where status = 'open'")]
 
@@ -223,7 +224,7 @@ def _why(c: dict, b) -> str | None:
         return None
     d = b["rank"] - c["rank"]
     v0, v1 = b["value_usd"], c["effective_usd"]
-    because = f": value {v0:,.0f} -> {v1:,.0f}" if v0 is not None and v1 is not None and v0 != v1 else \
+    because = f": value {money(v0)} -> {money(v1)}" if v0 is not None and v1 is not None and v0 != v1 else \
         ": pinned" if c["pin"] else ": others moved"
     return f"{'up' if d > 0 else 'down'} {abs(d)} place{'s' if abs(d) > 1 else ''}{because}"
 

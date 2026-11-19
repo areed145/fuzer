@@ -56,6 +56,13 @@ paragraphs, long subtitles, carets, standing disclaimers, literal colours, inlin
 tables in `ui/src`. Counts may only go down: when you remove clutter, lower the number in
 `ui/tests/style-baseline.json`; when the test fails, follow its hint rather than raising the number.
 
+## Numbers
+
+`ui/src/format.ts` is the only place a number becomes text: `money`, `percent`, `quantity` and `count`. Pass the
+value as the API returned it; never round, scale or abbreviate it in a page. Money is whole dollars from 100 up and
+cents below, never "k" or "M", so one amount reads the same on every page. Text written by the server uses
+`fuzer.core.wording.money`, which formats the same way.
+
 ## API client
 
 `ui/src/api.ts` remains the compatible facade for calls and exported types.

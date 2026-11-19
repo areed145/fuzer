@@ -2,11 +2,11 @@
  * number here is the number everywhere. Each metric opens to its definition, formula and the records behind it, cut by
  * any grain it declares; every row drills to its items or cases. */
 import { api, type MetricDeclaration } from "../api";
+import { quantity } from "../format";
 import { Badge, Card, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
-const show = (v: number | null, unit: string) =>
-  v == null ? "–" : unit === "%" ? `${v}%` : `${v.toLocaleString()} ${unit}`;
+const show = (v: number | null, unit: string) => (v == null ? "–" : quantity(v, unit));
 
 const refHref = (ref: string) => ref.startsWith("case:") ? href(`/cases/${ref.slice(5)}`) : entityHref(ref);
 const refText = (ref: string) => ref.startsWith("case:") ? `case ${ref.slice(5)}` : ref;

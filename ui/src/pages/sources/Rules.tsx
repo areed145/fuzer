@@ -1,4 +1,5 @@
 import { Button, Empty, Input, Table, Card as UICard } from "../../ui";
+import { percent } from "../../format";
 /** Survivorship and match rules (#225): the systems' rank (the default priority) and field / match rules. */
 import { useState } from "react";
 import { api, type MatchCalibration } from "../../api";
@@ -65,7 +66,7 @@ export function Rules() {
   );
 }
 
-const pct = (x: number | null | undefined) => (x == null ? "not measured" : `${Number((x * 100).toFixed(1))}%`);
+const pct = (x: number | null | undefined) => (x == null ? "not measured" : percent(x, 1));
 
 /** Match confidence per source (P2.2): the thresholds in use and what was measured at them against the stewards'
  * decisions and the answer key, with the lower bound that says how much the pairs behind it can show. */

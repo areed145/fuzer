@@ -2,6 +2,7 @@
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { acronyms, dayStamp } from "../wording";
+import { money } from "../format";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
@@ -168,7 +169,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       <p className="small">{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</p>
       {item.exception_id != null && <p className="small"><a href={href("/exceptions", { list: "open", q: item.title })}>Open this work in All work</a></p>}
       <p className="small muted">{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
-        {item.deferment_usd != null ? ` · $${Math.round(item.deferment_usd).toLocaleString()} at risk` : ""}</p>
+        {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</p>
       {person ? <div className="row">
         <label className="small">Start <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
         <label className="small">End <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>

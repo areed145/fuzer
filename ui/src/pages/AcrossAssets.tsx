@@ -2,12 +2,12 @@
  * for the days to its own latest report. Only granted projects are read; the ones left out are named (D6). Shown
  * only when there is more than one field to compare or one left out. */
 import { api, type Kpi } from "../api";
+import { quantity } from "../format";
 import { Badge, Card, Table } from "../ui";
 import { Status, useAsync } from "../lib";
 
 const TONE: Record<Kpi["verdict"], "ok" | "danger" | "muted"> = { better: "ok", worse: "danger", same: "muted", unknown: "muted" };
-const show = (v: number | null, unit: string) =>
-  v == null ? "unknown" : unit === "%" ? `${v}%` : `${v.toLocaleString()} ${unit}`;
+const show = (v: number | null, unit: string) => (v == null ? "unknown" : quantity(v, unit));
 
 export function AcrossAssets({ days }: { days: number }) {
   const data = useAsync(() => api.fleetScorecards(days), [days]);

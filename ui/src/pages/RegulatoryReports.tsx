@@ -2,6 +2,7 @@
 // basis (measured, estimated, missing) and the rows it is made of, the figures on estimated or missing data marked
 // first, and the review case that holds it.
 import { useState } from "react";
+import { quantity } from "../format";
 import { api, type RegulatoryListing, type RegulatoryReport, type ReportBasis, type ReportFigure, type ReportRow } from "../api";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
@@ -16,8 +17,7 @@ export function BasisBadge({ basis }: { basis: ReportBasis }) {
   return <Badge tone={BASIS_TONE[basis]}>{basis}</Badge>;
 }
 
-const num = (v: number | null, unit?: string | null) =>
-  v === null ? "—" : `${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ""}`;
+const num = (v: number | null, unit?: string | null) => (v === null ? "—" : quantity(v, unit));
 
 /** Where a row drills to: the case, the point read that day, or the measurement record on the thing it measured. */
 function RowRef({ row, subject }: { row: ReportRow; subject?: string }) {

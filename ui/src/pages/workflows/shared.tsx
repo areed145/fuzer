@@ -1,4 +1,5 @@
 import "../../styles/work.css";
+import { count, money } from "../../format";
 import { Button, ConfirmAction, Disclosure, Field, Input, Select , Badge as UIBadge} from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
 import { usePerson } from "../../work";
@@ -49,7 +50,7 @@ export function AgentIdle({ step, configured, onTakeOver }: {
  * yet, which reads as no priority rather than "priority 0.00" (#405). */
 export function priorityText(p: number | null | undefined): string | null {
   if (p == null || p === 0) return null;
-  return p < 2 ? p.toFixed(2) : Math.round(p).toLocaleString();
+  return p < 2 ? p.toFixed(2) : count(Math.round(p));
 }
 
 export type PriorityLevel = { level: "High" | "Medium" | "Low"; tone: "danger" | "warn" | "info"; why: string };
@@ -66,8 +67,7 @@ export function priorityLevel(p: number | null | undefined, type?: string | null
     return level(sap <= 2 ? "High" : sap === 3 ? "Medium" : "Low", `SAP priority ${sap}`);
   }
   if (p <= 1) return level(p >= 0.8 ? "High" : p >= 0.5 ? "Medium" : "Low", `scored ${p.toFixed(2)} of 1`);
-  const usd = p >= 1000 ? `$${Math.round(p / 1000).toLocaleString()}k` : `$${Math.round(p)}`;
-  return level(p >= 10000 ? "High" : p >= 1000 ? "Medium" : "Low", `${usd} at stake`);
+  return level(p >= 10000 ? "High" : p >= 1000 ? "Medium" : "Low", `${money(p)} at stake`);
 }
 
 /** High, Medium or Low in its colour; why it is that is the tooltip. Low is left out unless asked for, so it doesn't

@@ -1,4 +1,5 @@
 import "../styles/events.css";
+import { percent } from "../format";
 import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
@@ -90,7 +91,7 @@ function RatingProgress() {
         Rate the troubleshooting briefs{" "}
         <span className="muted small">
           {r.data.rated} of {r.data.incidents} incidents rated
-          {r.data.useful_share !== null && ` · ${Math.round(r.data.useful_share * 100)}% of ratings useful`}
+          {r.data.useful_share !== null && ` · ${percent(r.data.useful_share)} of ratings useful`}
         </span>
       </h2>
       {next.length > 0 && (

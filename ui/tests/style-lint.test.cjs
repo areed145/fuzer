@@ -54,6 +54,10 @@ const RULES = {
     pattern: /(?<![-\w.])summary\b[^{]*\{/g,
     hint: "There are no <summary> elements to style. Use Disclosure for long data.",
   },
+  "local-number-format": {
+    pattern: /\$\$\{|>\$\{[^}]*(?:usd|cost|price|value)|\* 100\)\}?%|const (?:money|usd|dollars) = /g,
+    hint: "Format money, percentages, quantities and counts with ui/src/format.ts so one value reads the same on every page.",
+  },
   "raw-control": {
     pattern: /<(?:button|table)\b/g,
     hint: "Use Button and Table from ui/src/ui so controls and tables look the same everywhere.",

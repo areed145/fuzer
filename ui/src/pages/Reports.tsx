@@ -2,6 +2,7 @@
 // review itself (publish, or send back with what to change). The `daily_report` case behind it is linked for
 // its history; the day's production figures are the `production_day` record (EC DAY001).
 import { units, dayStamp } from "../wording";
+import { money } from "../format";
 import { useState } from "react";
 import { api, type DailyReport, type DailyStatus } from "../api";
 import { Markdown } from "../Markdown";
@@ -93,7 +94,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
                   <Button key={v} className={v === d.version ? "chip on" : "chip"} onClick={() => setVersion(v)}>{v}</Button>
                 ))}
                 <span>drafted by {d.drafted_by}</span>
-                {d.usage?.cost_usd !== undefined && <span>${d.usage.cost_usd.toFixed(2)}</span>}
+                {d.usage?.cost_usd !== undefined && <span>{money(d.usage.cost_usd)}</span>}
                 {d.seconds !== null && <span>{d.seconds} s</span>}
               </div>
             </UICard>

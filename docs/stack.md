@@ -46,3 +46,12 @@ library for another and adding a second library for a job that already has one.
 | Docs | MkDocs Material | |
 
 The purpose of each individual package is in `stack.json`.
+
+## Shared modules
+
+Each repeated pattern has one module. Use it as it is; don't copy it into a page or write a local variant. If it
+doesn't cover a case, extend the module, with a test, so every page gets the change.
+
+| Pattern | Use | Enforced by |
+| --- | --- | --- |
+| Money, percentages, quantities, counts | `ui/src/format.ts` in the UI; `fuzer.core.wording.money` in Python. Pass the number the API returned. | `style-lint` rule `local-number-format`; the two formatters share test cases |

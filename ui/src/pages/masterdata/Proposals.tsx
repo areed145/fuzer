@@ -3,6 +3,7 @@
  * reason and evidence; nothing changes until a person accepts it (or picks another option). Bulk accept appears only
  * once `stewardship.bulk_accept_at` is set. */
 import { useState } from "react";
+import { percent } from "../../format";
 import { api, type Proposal } from "../../api";
 import { Badge, Button, Card, Select, Table, Disclosure, Empty } from "../../ui";
 import { Status, entityHref, useAsync } from "../../lib";
@@ -44,9 +45,9 @@ export function ProposalsTab() {
           onClick={() => void a.run("ask", () => api.runProposals(), rows.reload)}>{a.busy === "ask" ? "Asking Claude…" : "Ask Claude"}</Button>}
         {operate && person && at > 0 && status === "open" && confident.length > 0 &&
           <Button size="sm" disabled={!!a.busy} onClick={() => {
-            if (!confirm(`Accept the ${confident.length} proposals at ${Math.round(at * 100)}% confidence or more?`)) return;
+            if (!confirm(`Accept the ${confident.length} proposals at ${percent(at)} confidence or more?`)) return;
             void a.run("bulk", () => api.acceptConfident(person), rows.reload);
-          }}>Accept {confident.length} at ≥{Math.round(at * 100)}%</Button>}
+          }}>Accept {confident.length} at ≥{percent(at)}</Button>}
       </div>
       {a.error && <p role="alert" className="error small">{a.error}</p>}
       <Status loading={rows.loading && !rows.data} error={rows.error} />
@@ -72,7 +73,7 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
       <td>{p.answer ? <>
         {p.answer.choice === "none" ? <span className="muted">not sure</span>
           : picked?.fuzer_id ? <a href={entityHref(picked.fuzer_id)}>{picked.text}</a> : picked?.text}
-        {" "}<span className="muted small">{Math.round(p.answer.confidence * 100)}%</span></> : <span className="muted">not asked yet</span>}</td>
+        {" "}<span className="muted small">{percent(p.answer.confidence)}</span></> : <span className="muted">not asked yet</span>}</td>
       <td className="small">{p.answer?.reason}
         {(p.answer?.evidence ?? []).length > 0 && <Disclosure label={<>evidence</>}>
           <ul className="plain">{p.answer!.evidence.map((e, i) => <li key={i}><code>{e}</code></li>)}</ul></Disclosure>}</td>

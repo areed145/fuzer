@@ -1,6 +1,7 @@
 /** Register gaps (#476): fields most of a kind carry and some lack, one value written several ways, and open
  * conflicts between sources. Each says where it is fixed; spellings are fixed here, across every entity at once. */
 import { useState } from "react";
+import { percent } from "../../format";
 import { api, type SpellingGroup } from "../../api";
 import { Button, Card, Select, Table, Empty } from "../../ui";
 import { Status, entityHref, fieldLabel, fmt, href, useAsync } from "../../lib";
@@ -71,7 +72,7 @@ function Completeness() {
         <tbody>{rows.data.map((g) => (
           <tr key={`${g.kind}|${g.field}`}>
             <td>{g.kind.replace(/_/g, " ")}</td><td>{fieldLabel(g.field)}</td>
-            <td>{g.have} of {g.total} ({Math.round(g.share * 100)}%)</td>
+            <td>{g.have} of {g.total} ({percent(g.share)})</td>
             <td>{(g.examples ?? []).slice(0, 8).map((x, i) => <span key={x.fuzer_id}>{i > 0 && ", "}
               <a href={entityHref(x.fuzer_id)}>{x.label ?? x.fuzer_id}</a></span>)}
               {g.missing > 8 && <span className="muted"> and {g.missing - 8} more</span>}</td>

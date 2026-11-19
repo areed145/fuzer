@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from ..core import units
+from ..core.wording import money
 from ..graph import operations
 from ..graph.criticality import NOT_ASSESSED
 from ..graph.operations import _num, _rows, _tags_of
@@ -84,9 +85,7 @@ class Item:
 
 
 def _money(v: float | None) -> str:
-    if v is None:
-        return "unknown"
-    return f"${v / 1e6:.1f}M" if abs(v) >= 1e6 else f"${v / 1e3:.0f}k" if abs(v) >= 1e3 else f"${v:.0f}"
+    return "unknown" if v is None else money(v)
 
 
 def _likelihood(per_year: float, bounds: list) -> int:

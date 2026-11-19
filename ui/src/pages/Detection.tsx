@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { percent } from "../format";
 import {
   api, type Closeouts, type DetectorCloseouts, type DetectorParam, type DetectorRow, type EquipmentClass, type PromotedRule,
   type ProviderRow, type Trust, type TuningProposal, type WatchPattern, type WatchProposal,
@@ -10,7 +11,7 @@ import { ActionStatus, Badge, Button, Card, ConfirmAction, Empty, Field, Input, 
 const when = (at: string | null | undefined) => (at ? at.slice(0, 16).replace("T", " ") : "");
 const show = (v: unknown) =>
   v === null || v === undefined || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
-const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
+const pct = (v: number | null) => (v === null ? "—" : percent(v));
 
 function State({ d }: { d: DetectorRow }) {
   if (!d.on) return <Badge>Off</Badge>;

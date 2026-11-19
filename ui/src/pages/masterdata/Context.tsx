@@ -2,6 +2,7 @@
  * back. The asset page shows one asset; Master data shows completeness by area and class and the top gaps, each an
  * open case in the data steward's queue. */
 import { api, type AssetContext, type ContextRollup, type PlacementSuggestion } from "../../api";
+import { percent } from "../../format";
 import { Badge, Button, Card, Empty, Table } from "../../ui";
 import { Status, entityHref, useAsync } from "../../lib";
 import { caseHref } from "../workflows/shared";
@@ -58,7 +59,7 @@ function Suggestions({ id, items, onDone }: { id: string; items: PlacementSugges
               <td>{WHAT[s.rel]}</td>
               <td><a href={entityHref(s.target)}>{s.target_label}</a></td>
               <td className="small">{s.basis.join("; ")}</td>
-              <td>{Math.round(s.confidence * 100)}%</td>
+              <td>{percent(s.confidence)}</td>
               <td><Button size="sm" disabled={!!a.busy} onClick={() => answer(true)}>Yes</Button>{" "}
                 <Button size="sm" variant="ghost" disabled={!!a.busy} onClick={() => answer(false)}>No</Button></td>
             </tr>

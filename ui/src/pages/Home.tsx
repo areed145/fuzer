@@ -1,4 +1,5 @@
 import { AttentionCard } from "./HomeAttention";
+import { money } from "../format";
 import { alarm, plural, say } from "../wording";
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, type Stats, type Upset } from "../api";
@@ -193,7 +194,7 @@ function AllWorkCard({ onReady }: { onReady?: () => void } = {}) {
         <h3>Highest value</h3>
         <ol className="home-list">{top.map((card) => <li key={card.key}>
           <a href={card.item_id ? caseHref(card.item_id) : workHref("ranked")}>{card.title}</a>
-          <span className="muted small">{card.effective_usd == null ? "not valued" : `$${Math.round(card.effective_usd).toLocaleString()}`}</span>
+          <span className="muted small">{card.effective_usd == null ? "not valued" : money(card.effective_usd)}</span>
         </li>)}</ol>
       </>}
     </UICard>

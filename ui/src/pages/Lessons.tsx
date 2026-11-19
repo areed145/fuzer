@@ -1,4 +1,5 @@
 import { Badge, Button, PageHeader, Card as UICard, Disclosure } from "../ui";
+import { percent } from "../format";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
 import { Status, entityHref, href, notifyChanged, useAsync } from "../lib";
@@ -42,7 +43,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
       <div className="row spread">
         <h3>{lesson.title}</h3>
         <span className="muted small">
-          {lesson.stats.incidents} incidents · held {Math.round(lesson.stats.fix_rate * 100)}% · {lesson.failure_mode}
+          {lesson.stats.incidents} incidents · held {percent(lesson.stats.fix_rate)} · {lesson.failure_mode}
           {" "}· version {lesson.version}
         </span>
       </div>

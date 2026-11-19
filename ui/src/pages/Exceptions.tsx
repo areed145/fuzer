@@ -1,6 +1,7 @@
 /** Exceptions: everything the IOC should work, from every source, in one list. Each is one open condition matched
  * to the assets it is about; the ones no queue picked up wait here for someone to dispatch them. */
 import { useEffect, useState } from "react";
+import { money } from "../format";
 import { api, type ExceptionRow, type Readiness } from "../api";
 import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
@@ -206,8 +207,6 @@ export function age(ms: number): string {
   if (h < 24) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
   return h % 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${Math.floor(h / 24)}d`;
 }
-
-export const money = (usd: number) => usd >= 1000 ? `$${Math.round(usd / 1000).toLocaleString()}k` : `$${Math.round(usd)}`;
 
 /** When the event itself happened, by its source (an SAP notification's created date, an alarm's start), when the
  * source said; first_seen is when Fuzer raised it, which after a bulk load is the load time (#1070). */

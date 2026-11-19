@@ -1,4 +1,5 @@
 import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
+import { percent } from "../../format";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState, type ReactNode } from "react";
@@ -179,7 +180,7 @@ function SystemContext({ system }: { system: string }) {
   const r = c.data;
   if (!r.records) return null;
   const auto = r.decided.key + r.decided.score;
-  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  const pct = percent;
   const over = r.share != null && r.share >= r.target;
   const asks: [number, string, string][] = [
     [r.steward.to_confirm, r.steward.to_confirm === 1 ? "match to confirm" : "matches to confirm", href("/masterdata", { tab: "questions", kind: "match" })],

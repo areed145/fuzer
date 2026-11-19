@@ -1,4 +1,5 @@
 import "../styles/ask.css";
+import { money } from "../format";
 import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input , Badge as UIBadge, Disclosure } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AskContext, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
@@ -332,11 +333,11 @@ function TurnView({ turn, labels, demo = false, caseId }: { turn: Turn; labels: 
             <Markdown text={j.answer} />
             <div className="row small muted answer-meta">
               {j.specialists && j.specialists.length > 0 && <span>Specialists: {j.specialists.map((id) => agentLabel(labels, id)).join(", ")}</span>}
-              <span>{steps.length} tool calls · {j.seconds} s · ${j.usage?.cost_usd.toFixed(2)}</span>
+              <span>{steps.length} tool calls · {j.seconds} s{j.usage ? ` · ${money(j.usage.cost_usd)}` : ""}</span>
               {j.usage && (
                 <span title="Calls and cost per model, as reported by the API">
                   {Object.entries(j.usage.models).map(([m, x]) =>
-                    `${m.replace("claude-", "")}: ${x.calls} calls $${x.cost_usd.toFixed(2)}${x.unpriced ? " (unpriced)" : ""}`).join(" · ")}
+                    `${m.replace("claude-", "")}: ${x.calls} calls ${money(x.cost_usd)}${x.unpriced ? " (unpriced)" : ""}`).join(" · ")}
                 </span>
               )}
               {j.recalled && j.recalled.length > 0 && (
