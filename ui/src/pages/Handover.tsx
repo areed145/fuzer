@@ -43,7 +43,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
       <PageHeader subtitle="What changed since the last shift." help="workflow">
         Shift handover</PageHeader>
       {operate && <p className="small"><Button variant="secondary" disabled={!!a.busy} onClick={() =>
-        a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the last shift change, or brings it up to date">Draft the handover</Button>
+        a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the shift in progress, or brings it up to date">Draft the handover</Button>
         {a.error && <span className="error"> {a.error}</span>}</p>}
       {/* The handover shown leads and the past ones follow once it is in: drawn sooner, its lines filling in pushed the
           past handovers out of view (#1069). */}
@@ -71,6 +71,9 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
   const a = useAct();
   const [shown, setShown] = useState<Set<string>>(new Set());
   const acked = h.state === "acknowledged";
+  // The outgoing lead's draft of the shift still running: it goes to the incoming lead at the shift change, so it
+  // can't be acknowledged yet.
+  const running = new Date(h.shift_end).getTime() > Date.now();
   // What needs the incoming lead first leads; the standing backlog (Open work) comes last, and sections with nothing
   // fold into one line, so a handover reads in a minute on a phone instead of listing every open case.
   const sections = Object.entries(h.facts.sections)
@@ -80,7 +83,8 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
   return (
     <Card title={`Shift ${when(h.shift_start)} to ${when(h.shift_end)}`}>
       <p className="small">
-        <Badge tone={acked ? "ok" : "warn"}>{acked ? `acknowledged by ${personName(h.acknowledged_by)} ${when(h.acknowledged_at!)}` : h.state.replace("_", " ")}</Badge>
+        <Badge tone={acked ? "ok" : "warn"}>{acked ? `acknowledged by ${personName(h.acknowledged_by)} ${when(h.acknowledged_at!)}`
+          : running ? `shift in progress: goes to the incoming lead ${when(h.shift_end)}` : h.state.replace("_", " ")}</Badge>
         {h.item_id && <> · <a href={caseHref(h.item_id)}>its case</a></>}
         <span className="muted"> · drafted {when(h.drafted_at)}</span>
       </p>
@@ -114,8 +118,8 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
           <div className="row">
             <Button variant="secondary" disabled={!!a.busy || !(notes ?? "").trim()} onClick={() =>
               a.run("notes", () => api.handoverNotes(h.id, person, notes!), () => { setNotes(null); reload(); })}>Save notes</Button>
-            <Button variant="primary" disabled={!!a.busy} onClick={() =>
-              a.run("ack", () => api.acknowledgeHandover(h.id, person), reload)}>I have read it: acknowledge</Button>
+            {!running && <Button variant="primary" disabled={!!a.busy} onClick={() =>
+              a.run("ack", () => api.acknowledgeHandover(h.id, person), reload)}>I have read it: acknowledge</Button>}
           </div>
         </>
       )}

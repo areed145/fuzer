@@ -82,7 +82,8 @@ export function InboxPage() {
   const types = [...new Set(all.map((r) => r.type))].sort();
   const pickedRows = all.filter((r) => r.task_id && picked.has(r.task_id));
   const lead = d.roles.includes("ops_lead");
-  const handover = lead ? handovers.data?.[0] : undefined;
+  // The latest handover whose shift has ended: one still being written by the outgoing lead isn't ready to read.
+  const handover = lead ? handovers.data?.find((h) => new Date(h.shift_end).getTime() <= Date.now()) : undefined;
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
