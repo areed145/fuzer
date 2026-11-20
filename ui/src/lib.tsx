@@ -113,6 +113,9 @@ export function useLive(reloads: (() => void)[], ms = 30_000) {
   }, [ms]);
 }
 
+/** A read that waits its turn (Home reads the map first): pending, never settling, until `ready`, then it runs. */
+export const afterMap = <T,>(ready: boolean, read: () => Promise<T>): Promise<T> => (ready ? read() : new Promise<T>(() => {}));
+
 /** What went wrong, as text to show. */
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

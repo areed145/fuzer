@@ -575,6 +575,12 @@ export default function Scene3D({ scene, selected, centre, onSelect, onPlate, li
   const tool = (label: string, onClick: () => void, icon: ReactNode) => (
     <Button variant="secondary" size="sm" className="scene-tool" onClick={onClick} aria-label={label} title={label}>{icon}</Button>
   );
+  const badgeKey = (look?.badges?.size ?? 0) > 0 && <div className="scene-key" aria-label="What the badges mean">
+    <span><b className="scene-key-badge">1</b>open work</span>
+    <span><b className="scene-key-badge">1!</b>alarms</span>
+    <span><b className="scene-key-badge">Down</b>down now</span>
+    {scene.root?.kind === "facility" && scene.items.length > BLOCKS_OVER && <span>Tap an area's badge to open it</span>}
+  </div>;
   return (
     <div ref={full.ref} className={`scene3d-frame${full.on ? " ui-fullscreen" : ""}`}>
       <div className="graph-canvas scene3d">
@@ -582,12 +588,7 @@ export default function Scene3D({ scene, selected, centre, onSelect, onPlate, li
           aria-label={`Schematic 3D view of ${scene.root?.label ?? "the facility"}: ${scene.items.length} items`} />
         <div ref={labels} className="scene-tags" />
         {/* What the badges mean, on the drawing where they are (#1075), not in the legend under it. */}
-        {(look?.badges?.size ?? 0) > 0 && <div className="scene-key" aria-label="What the badges mean">
-          <span><b className="scene-key-badge">1</b>open work</span>
-          <span><b className="scene-key-badge">1!</b>alarms</span>
-          <span><b className="scene-key-badge">Down</b>down now</span>
-          {scene.root?.kind === "facility" && scene.items.length > BLOCKS_OVER && <span>Tap an area's badge to open it</span>}
-        </div>}
+        {!full.on && badgeKey}
         <div className="graph-tools" role="toolbar" aria-label="View">
           <FullscreenButton on={full.on} onClick={() => void full.toggle()} />
           <Button variant="secondary" size="sm" className="graph-fit" onClick={() => built.current?.fit()} title="Fit to view">
@@ -605,7 +606,8 @@ export default function Scene3D({ scene, selected, centre, onSelect, onPlate, li
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 12h16M12 4v16" /></svg>)}
         </div>
       </div>
-      {footer}
+      {/* On the full screen the drawing takes the whole screen and what explains it floats over it as one panel. */}
+      {full.on ? (footer || badgeKey) && <div className="scene-over">{badgeKey}{footer}</div> : footer}
     </div>
   );
 }

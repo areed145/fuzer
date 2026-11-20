@@ -82,7 +82,7 @@ function pullToRefresh() {
   spinner.setAttribute("aria-hidden", "true");
   document.body.append(spinner);
   window.addEventListener("touchstart", (e) => {
-    const inside = (e.target as Element).closest(".mapview, .map, .work-card, .ui-fullscreen, .attention-detail");
+    const inside = (e.target as Element).closest(".mapview, .map, .work-card, .ui-fullscreen, .attention-detail, .home-feed");
     y0 = phone() && installed() && window.scrollY <= 0 && !inside ? e.touches[0].clientY : null;
     pulled = 0;
   }, { passive: true });
