@@ -9,11 +9,11 @@ import { SyncStatus } from "./SyncStatus";
 import { AccountButton } from "./Identity";
 import { AppSearch, SearchButton } from "./AppSearch";
 
-export type Badge = "work" | "review";
+// One count: what waits on you. A data question is a case in the steward's queue, so it is counted there.
+export type Badge = "work";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const BADGE_WORDS: Record<Badge, (n: number) => string> = {
   work: (n) => plural(n, "workflow step waiting on you", "workflow steps waiting on you"),
-  review: (n) => plural(n, "data review", "data reviews"),
 };
 
 export interface NavItem {
@@ -54,7 +54,7 @@ export const NAV: NavGroup[] = [
       { label: "All work", section: "exceptions", also: ["board", "cases", "performance"] },
       // Handover is reached from My work and Data review from Master data (#554).
       { label: "My work", section: "inbox", also: ["work", "teams", "field", "handover"], badge: "work" },
-      { label: "Master data", section: "masterdata", also: ["review"], badge: "review", desk: true },
+      { label: "Master data", section: "masterdata", also: ["review"], desk: true },
     ],
   },
   {
@@ -349,7 +349,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
                   if (!item) return null;
                   const on = group.items.some((entry) => isActive(entry, section));
                   const count = group.items.reduce((n, entry) => n + (entry.badge ? badges[entry.badge] : 0), 0);
-                  // Say what the number counts (#397): "1 workflow step waiting, 14 data reviews".
+                  // Say what the number counts (#397): "1 workflow step waiting on you".
                   const counted = group.items.filter((entry) => entry.badge && badges[entry.badge] > 0)
                     .map((entry) => BADGE_WORDS[entry.badge!](badges[entry.badge!])).join(", ");
                   return (

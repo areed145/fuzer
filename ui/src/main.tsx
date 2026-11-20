@@ -1,5 +1,5 @@
 import "./styles.css";
-import { entityTotal, openReviews } from "./figures";
+import { entityTotal } from "./figures";
 import { count } from "./format";
 import "./styles/shell.css";
 import "./styles/shared.css";
@@ -80,7 +80,6 @@ function App() {
   void declared.data;
 
   const s = stats.data;
-  const reviews = openReviews(s);
   const section = path[0] ?? "";
   const viewOnly = useViewOnly();
   const navSection = !section && query.has("q") ? "browse" : section;
@@ -141,7 +140,7 @@ function App() {
         demoEnabled={demo.data?.enabled === true}
         section={navSection}
         path={path}
-        badges={{ work, review: reviews }}
+        badges={{ work }}
         status={
           <>
             {s && (

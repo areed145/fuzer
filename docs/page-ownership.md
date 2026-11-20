@@ -65,7 +65,9 @@ All work (#502) is the IOC's one list: its views are To dispatch, With the field
 Closed view with its filters; case and task pages keep their URLs. One filter bar (kind of work, held by, words in
 the title) is shared by every view and kept in the URL, so switching views keeps it.
 My work (#503, `#/inbox`) is one person's list: the field jobs sent to them and waiting in their queues (the former
-My jobs page; `#/field` redirects here), their assigned steps and their queues' unclaimed steps. The rest of the consolidation is planned in #501.
+My jobs page; `#/field` redirects here), their assigned steps and their queues' unclaimed steps. The steps are one list,
+escalated first, with chips for All, Assigned to you, Unclaimed in your roles and Escalated (`?show=`). What changed on
+their work since they last looked is Home's Needs you, not a second list here; a field operator still reads it beside their jobs. The rest of the consolidation is planned in #501.
 Settings contains Application settings, configure-visible Users, Routing and external Docs. Sources retains
 its datasets/systems/rules/wizard navigation; Jobs retains run detail links. Users is deliberately
 a Settings subdestination, not a ninth primary destination.
