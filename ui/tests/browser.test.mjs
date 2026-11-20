@@ -3074,7 +3074,7 @@ test("Home's figures link to the views that show the same numbers (#556)", async
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: open }));
   await page.goto(`${url}/#/`);
   for (const [name, to] of [["To dispatch 2", "#/exceptions"], ["With the field 1", "#/exceptions?list=field"],
-    ["Back from the field 1", "#/exceptions?list=back"], ["Open work 4 at 0 places, 4 not located", "#/exceptions?list=open"]]) {
+    ["Back from the field 1", "#/exceptions?list=back"], ["Open work 4", "#/exceptions?list=open"]]) {
     assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), to);
   }
   // A dispatcher's waiting work is in Needs you too, each opening dispatch.

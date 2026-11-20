@@ -405,7 +405,9 @@
 @media (min-width: 901px) {
   :root.ios .app { grid-template-columns: 248px minmax(0, 1fr); background: var(--bg); }
   :root.ios .sidebar {
-    top: 10px; height: calc(100vh - 20px); height: calc(100dvh - 20px); margin: 10px 0 10px 10px; padding: 14px 10px;
+    /* The panel hugs its items rather than running the height of the screen, so the page (Home's map) has the rest. */
+    top: 10px; height: auto; max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); align-self: start;
+    margin: 10px 0 10px 10px; padding: 14px 10px;
     border-radius: 26px; color: var(--text);
     background: var(--panel); border: 0; box-shadow: var(--glass-shadow);
     --rail-text: var(--text); --rail-hover: var(--fill); --rail-on: var(--lens); --rail-line: var(--line);

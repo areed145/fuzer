@@ -9,7 +9,7 @@ import { count } from "../format";
 import { Status, afterMap, href, useAsync, useLive } from "../lib";
 import { Button, Card as UICard, PageHeader, Stat } from "../ui";
 import { usePermission } from "../Auth";
-import { Sparkline, show } from "../analytics/Metric";
+import { show } from "../analytics/Metric";
 import { LiveFigure } from "../analytics/LiveFigure";
 import type { HotspotSpec, Inset } from "../map/engine";
 import { iocCounts, workHref } from "./AllWork";
@@ -55,6 +55,13 @@ function savedLayers(): Set<Layer> {
   return new Set(["work", "crews", "incidents", "network"]);
 }
 
+const WIDE = "(min-width: 901px)";
+const FEED_KEY = "fuzer.home.feed";
+function savedFeed(): boolean {
+  if (!window.matchMedia(WIDE).matches) return false;
+  try { return localStorage.getItem(FEED_KEY) !== "folded"; } catch { return true; }
+}
+
 export function HomePage({ stats, inbox, jobsHealth }: {
   stats?: Stats;
   statsLoading: boolean;
@@ -87,7 +94,13 @@ export function HomePage({ stats, inbox, jobsHealth }: {
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<string | null>(null);
   const [ring, setRing] = useState<Ring>(null);
-  const [sheet, setSheet] = useState(false);  // the feed as a phone's sheet: open, or only its header
+  // Needs you open, or folded to its header: a phone's sheet starts folded, the panel on a wider screen open, and a
+  // viewer's choice there is kept.
+  const [sheet, setSheet] = useState(savedFeed);
+  const toggleFeed = () => setSheet((was) => {
+    if (window.matchMedia(WIDE).matches) try { localStorage.setItem(FEED_KEY, was ? "folded" : "open"); } catch { /* this visit */ }
+    return !was;
+  });
   const places = useMemo(() => layers.has("work") ? (spots.data?.places ?? []).filter((p) => keep(p, filter)) : [],
                          [spots.data, filter, layers]);
   const chosen = (spots.data?.places ?? []).find((p) => p.id === selected) ?? null;
@@ -114,18 +127,21 @@ export function HomePage({ stats, inbox, jobsHealth }: {
           <div className="home-top">
             <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} open={open.data ?? undefined}
                      work={spots.data ? { open: spots.data.open, places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
-            <div className="home-layers chips" role="group" aria-label="Map layers">
-              {LAYERS.map((l) => (
-                <Button key={l.key} className={layers.has(l.key) ? "chip on" : "chip"} aria-pressed={layers.has(l.key)}
-                        onClick={() => toggle(l.key)}>{l.label}</Button>
-              ))}
+            {/* One row: the layers, then which places the open work layer shows. */}
+            <div className="home-chips">
+              <div className="home-layers chips" role="group" aria-label="Map layers">
+                {LAYERS.map((l) => (
+                  <Button key={l.key} className={layers.has(l.key) ? "chip on" : "chip"} aria-pressed={layers.has(l.key)}
+                          onClick={() => toggle(l.key)}>{l.label}</Button>
+                ))}
+              </div>
+              {layers.has("work") && <div className="home-layers home-filters chips" role="group" aria-label="Show places with">
+                {FILTERS.map((f) => (
+                  <Button key={f.key} className={filter === f.key ? "chip on" : "chip"} aria-pressed={filter === f.key}
+                          onClick={() => setFilter(f.key)}>{f.label}</Button>
+                ))}
+              </div>}
             </div>
-            {layers.has("work") && <div className="home-layers chips" role="group" aria-label="Show places with">
-              {FILTERS.map((f) => (
-                <Button key={f.key} className={filter === f.key ? "chip on" : "chip"} aria-pressed={filter === f.key}
-                        onClick={() => setFilter(f.key)}>{f.label}</Button>
-              ))}
-            </div>}
           </div>
           {spots.error && <div className="home-notice"><Status error={spots.error} onRetry={spots.reload} /></div>}
           {noRecords && <UICard className="home-notice" title="Connect data before exploring">
@@ -139,7 +155,7 @@ export function HomePage({ stats, inbox, jobsHealth }: {
           </div>}
         </div>
         <NeedsYou inbox={inbox} jobsHealth={jobsHealth} ready={ready} exceptions={dispatcher ? (open.error ? [] : open.data ?? undefined) : null} steward={steward} configure={configure} onRing={setRing}
-                  open={sheet} onToggle={() => setSheet(!sheet)}
+                  open={sheet} onToggle={toggleFeed}
                   top={chosen && <PlaceDetail place={chosen} onClose={close} />} />
       </div>
     </section>
@@ -202,26 +218,27 @@ function Figures({ seat, dispatcher, stats, open, work, ready }: {
         <Tile to={workHref("back")} label="Back from the field" value={count(c.back)} late={c.back > 0} />
       </>}
       {work && seat !== "operator" && <Tile to={workHref("open")} label="Open work" value={count(work.open)}
-        detail={`at ${count(work.places)} ${work.places === 1 ? "place" : "places"}${work.unplaced ? `, ${count(work.unplaced)} not located` : ""}`} />}
+ />}
       {reviews !== null && <Tile to={href("/masterdata", { tab: "questions" })} label="Records to review" value={count(reviews)} />}
       {METRICS[seat].map((key) => <MetricTile key={key} metric={key} ready={ready} />)}
     </div>
   );
 }
 
-function Tile({ to, label, value, detail, late }: { to: string; label: string; value: string; detail?: string; late?: boolean }) {
-  return <div className="home-figure"><Stat href={to} label={label} value={value} detail={detail} tone={late ? "danger" : undefined} /></div>;
+/** A figure is a label and a number, so the strip stays one slim row; the page it links to has the detail. */
+function Tile({ to, label, value, late }: { to: string; label: string; value: string; late?: boolean }) {
+  return <div className="home-figure"><Stat href={to} label={label} value={value} tone={late ? "danger" : undefined} /></div>;
 }
 
-/** A registered metric with its last few periods; left out while it has no value (no reports loaded for it). */
+/** A registered metric's latest value, left out while it has none (no reports loaded for it). Its trend is on its page,
+ * so Home doesn't ask for the history, the slowest read it made. */
 function MetricTile({ metric, ready }: { metric: string; ready: boolean }) {
-  const m = useAsync(() => afterMap(ready, () => api.metric(metric, null, true)), [metric, ready]);
+  const m = useAsync(() => afterMap(ready, () => api.metric(metric, null, false)), [metric, ready]);
   const v = m.data;
   if (!v || v.value == null) return null;
   return (
     <div className="home-figure">
-      <Stat href={href(`/metrics/${encodeURIComponent(metric)}`)} label={v.label} value={show(v.value, v.unit)}
-            detail={v.history && v.history.length > 1 ? <Sparkline points={v.history} target={v.target} label={v.label} /> : v.as_of ? `as of ${v.as_of}` : undefined} />
+      <Stat href={href(`/metrics/${encodeURIComponent(metric)}`)} label={v.label} value={show(v.value, v.unit)} />
     </div>
   );
 }
