@@ -12,6 +12,7 @@
 .work-rows tr.on td { background: var(--accent-soft); }
 .work-rows th:first-child, .work-rows td:first-child { width: 28px; padding-right: 0; }
 .work-title { font-weight: 600; }
+.work-line { position: relative; display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
 .task-panel { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
 .task-panel h2 { margin: 0; font-size: 18px; }
 .task-form { margin: 12px 0; }

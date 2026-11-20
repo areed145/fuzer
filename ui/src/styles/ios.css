@@ -378,13 +378,6 @@
   }
   :root.ios .ui-page-subtitle { display: none; }
 }
-/* Help is a round info button beside the page's actions, on every screen. */
-:root.ios .ui-page-header .ui-help {
-  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%;
-  font-size: 0; color: var(--accent); background: var(--fill); position: relative; flex: none;
-}
-:root.ios .ui-page-header .ui-help::before { content: "?"; font-size: var(--t-body); font-weight: 600; }
-:root.ios .ui-page-header .ui-help::after { content: ""; position: absolute; inset: -6px; }
 
 /* Section tabs are always tabs on a phone: a row too wide for the screen scrolls sideways inside its capsule, with the
    current tab brought into view (ios.ts). It never folds into a pull-down or the title. */
@@ -483,11 +476,6 @@
   color: var(--text); font-weight: 500; white-space: nowrap; }
 @media (min-width: 901px) { :root.ios .chips.segmented { width: fit-content; } }
 
-/* Help alone beside a large title sits on the title's line, as a trailing info button, not on a row of its own. */
-@media (max-width: 699px) {
-  :root.ios .ui-page-header:has(> .ui-page-actions > .ui-help:only-child) { flex-direction: row; align-items: center; justify-content: space-between; }
-  :root.ios .ui-page-header:has(> .ui-page-actions > .ui-help:only-child) > .ui-page-actions { flex: none; }
-}
 /* Menus are opened by touch: the chosen row carries the check, not a focus ring. */
 
 /* ================= Selects: a compact pop-up button =================
@@ -513,14 +501,14 @@
 :root.ios :is(.home-list, .notification-list) > li + li::before {
   content: ""; position: absolute; top: 0; left: 0; right: -16px; border-top: var(--hair) solid var(--line);
 }
-:root.ios .home-list > li > .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
-:root.ios #main-content .home-list > li .row > :is(.ui-button-link, a.work-title) {
+:root.ios .work-line > .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+:root.ios #main-content .work-line > .row > :is(.ui-button-link, .work-title) {
   flex: 1 1 100%; justify-content: flex-start; text-align: left; padding: 0; min-height: 0; margin: 0;
   color: var(--text); font-size: var(--t-body); font-weight: 600; line-height: 22px;
 }
-:root.ios .home-list > li .row > :is(.ui-button-link, a.work-title)::after { content: ""; position: absolute; inset: 0; }  /* the whole row taps */
-:root.ios .home-list > li > .small { font-size: var(--t-footnote); line-height: 18px; color: var(--muted); }
-:root.ios .home-list > li > .small strong { color: var(--muted); font-weight: 500; }
+:root.ios .work-line > .row > :is(.ui-button-link, a.work-title)::after { content: ""; position: absolute; inset: 0; }  /* the whole row taps */
+:root.ios .work-line > .small { font-size: var(--t-footnote); line-height: 18px; color: var(--muted); }
+:root.ios .work-line > .small strong { color: var(--muted); font-weight: 500; }
 :root.ios .home-counts { gap: 4px 16px; }
 /* Status stays a word in its colour (the style guide's Badge tone), set semibold so it stands apart from the grey detail. */
 /* Field jobs and other stacked cards on My work: separate rounded rows with air between them. */

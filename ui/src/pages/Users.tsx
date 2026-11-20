@@ -15,7 +15,7 @@ export function UsersPage({ query }: { query: URLSearchParams }) {
     <a href={href("/")}>Return home</a></section>;
   const workflow = query.get("view") === "workflow" || !owner;
   return <section>
-    <PageHeader help="identity">Users</PageHeader>
+    <PageHeader>Users</PageHeader>
     <nav className="tabs users-tabs" aria-label="Users views">
       {owner && <a href={href("/users")} className={!workflow ? "on" : ""} aria-current={!workflow ? "page" : undefined}>Accounts &amp; access</a>}
       <a href={href("/users", { view: "workflow" })} className={workflow ? "on" : ""} aria-current={workflow ? "page" : undefined}>Workflow assignments &amp; routing</a>

@@ -26,7 +26,7 @@ function MetricList() {
   return (
     <section>
       <PageHeader
-        actions={<a href={href("/scorecard")}>How the plant is running</a>} help="metrics">Metrics</PageHeader>
+        actions={<a href={href("/scorecard")}>How the plant is running</a>}>Metrics</PageHeader>
       <Status of={list} />
       {list.data && !list.data.length && <Empty>No metrics are registered.</Empty>}
       {[...groups].map(([group, ms]) => (
@@ -71,7 +71,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
   const m = v.data;
   return (
     <section>
-      <PageHeader detail={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">
+      <PageHeader detail={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>}>
         {m?.label ?? metricKey}</PageHeader>
       <Status of={v} />
       {m && <>

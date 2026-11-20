@@ -41,7 +41,7 @@ export function Ontology({ query }: { query?: URLSearchParams }) {
 
   return (
     <section>
-      <PageHeader help="data-model"
+      <PageHeader
         actions={<>
           <Button onClick={() => edit({ what: "kind" })}>Add kind</Button>
           <Button onClick={() => edit({ what: "relation" })}>Add link type</Button>

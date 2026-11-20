@@ -8,10 +8,10 @@ import { openReviews } from "../../figures";
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync, useRouteState, useAction } from "../../lib";
-import { Due, holder, usePerson } from "../../work";
+import { usePerson } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
-import { SampleTeam, StepBadges, byUrgency, caseHref, priorityLevel, taskHref } from "./shared";
+import { SampleTeam, WorkLine, byUrgency, caseHref, taskHref } from "./shared";
 import { ComingUp, FieldJobCard, Outbox, RoundsThisShift } from "../Field";
 import { fieldJobs } from "../../fieldOffline";
 import { cap, person as personName } from "../../wording";
@@ -93,7 +93,7 @@ export function InboxPage() {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
-      <PageHeader help="workflow"
+      <PageHeader
         actions={lead ? <><ButtonLink href={href("/handover")}>Shift handover</ButtonLink>
           <ButtonLink href={href("/teams")}>Team workload</ButtonLink></> : undefined}>
         My work</PageHeader>
@@ -243,8 +243,7 @@ function OtherFields({ person }: { person: string }) {
           <Button size="sm" variant="secondary" onClick={() => switchProject(f.project)}>Work in {f.project}</Button></h3>
         <Table variant="results"><tbody>{[...f.mine, ...f.queue].sort(byUrgency).slice(0, 5).map((r) =>
           <tr key={`${f.project}-${r.task_id ?? "i"}-${r.item_id}`}>
-            <td><span className="work-title">{r.title}</span><Text as="div" small muted><strong>{r.name ?? "open"}</strong> · {r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}</Text></td>
-            <td className="nowrap"><Due at={r.due_at} /></td>
+            <td><WorkLine r={r} title={<span className="work-title">{r.title}</span>} /></td>
           </tr>)}</tbody></Table>
       </div>)}
     </UICard>
@@ -274,16 +273,8 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
         {r.task_id && r.bulk.length > 0 && <Input type="checkbox" checked={picked.has(r.task_id)} onChange={() => toggle(r.task_id!)} />}
       </td>
       <td>
-        <a href={open} className="work-title">{r.title}</a>
-        <Text as="div" small muted>
-          <strong>{r.name ?? "open"}</strong> · <UIBadge>{r.type.replace(/_/g, " ")}</UIBadge> · with {holder(r.assignee, r.role, r.kind)}
-          {priorityLevel(r.priority, r.type) && <> · <span title={priorityLevel(r.priority, r.type)!.why}>{priorityLevel(r.priority, r.type)!.level} priority</span></>}
-        </Text>
-        {r.handed_reason && <div className={r.handed_reason.startsWith("Back from the field") ? "small field-back" : "small muted"}>
-          {r.handed_reason}</div>}
-        <Line small><StepBadges row={r} /></Line>
+        <WorkLine r={r} title={<a href={open} className="work-title">{r.title}</a>} />
       </td>
-      <td className="nowrap"><Due at={r.due_at} /></td>
       <td className="nowrap">
         {r.task_id && !r.assignee && (
           <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(r.task_id!, person))}>Claim</Button>

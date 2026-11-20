@@ -17,7 +17,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
   const open = query.get("id");
   return (
     <section>
-      <PageHeader help="analyses">Studies</PageHeader>
+      <PageHeader>Studies</PageHeader>
       <NewStudy onDone={list.reload} />
       <Status of={list} empty={list.data?.length === 0}>No studies yet.</Status>
       {list.data && list.data.length > 0 && (

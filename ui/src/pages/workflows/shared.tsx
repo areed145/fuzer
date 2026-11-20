@@ -1,10 +1,10 @@
 import "../../styles/work.css";
 import { count, money } from "../../format";
-import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line } from "../../ui";
+import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line, Text } from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
-import { usePerson } from "../../work";
+import { Due, holder, usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { api, type WorkRow } from "../../api";
 import { href, useAction, useAsync } from "../../lib";
 import { queue } from "../../wording";
@@ -87,11 +87,31 @@ export function byUrgency<T extends { due_at?: string | null; due?: string | nul
 export function StepBadges({ row }: { row: Pick<WorkRow, "requires_human" | "kind" | "escalated_at"> & { covering_for?: string | null } }) {
   return (
     <>
-      {row.requires_human && <UIBadge tone="warn">needs a person</UIBadge>}
-      {row.kind === "fix" && <UIBadge tone="danger">failed: fix and retry</UIBadge>}
-      {row.escalated_at && <UIBadge tone="danger">escalated</UIBadge>}
-      {row.covering_for && <UIBadge>covering for {row.covering_for}</UIBadge>}
+      {row.requires_human && <> <UIBadge tone="warn">needs a person</UIBadge></>}
+      {row.kind === "fix" && <> <UIBadge tone="danger">failed: fix and retry</UIBadge></>}
+      {row.escalated_at && <> <UIBadge tone="danger">escalated</UIBadge></>}
+      {row.covering_for && <> <UIBadge>covering for {row.covering_for}</UIBadge></>}
     </>
+  );
+}
+
+/** One work item in a list: the title, when it is due, and one grey line that says the step, the kind, who holds it
+ * and what it needs. Home, My work and work in other fields draw their rows with it. `title` is the link or button
+ * that opens it; `extra` sits beside the title. */
+export function WorkLine({ r, title, extra }: {
+  r: Pick<WorkRow, "name" | "type" | "assignee" | "role" | "kind" | "priority" | "due_at" | "requires_human" | "escalated_at" | "covering_for" | "handed_reason">;
+  title: ReactNode; extra?: ReactNode;
+}) {
+  const p = priorityLevel(r.priority, r.type);
+  return (
+    <div className="work-line">
+      <Line as="span">{title}{extra}<Due at={r.due_at} /></Line>
+      <Text small muted>{/* a step named for the engine ("Work the case") says nothing a row needs */}
+        {!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}
+        {p && <> · <span title={p.why}>{p.level} priority</span></>}<StepBadges row={r} />
+      </Text>
+      {r.handed_reason && <Text small muted>{r.handed_reason}</Text>}
+    </div>
   );
 }
 

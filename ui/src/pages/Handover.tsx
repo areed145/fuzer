@@ -41,7 +41,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
   const reload = () => { list.reload(); h.reload(); };
   return (
     <section>
-      <PageHeader help="workflow">
+      <PageHeader>
         Shift handover</PageHeader>
       {operate && <Text as="p" small><Button variant="secondary" disabled={!!a.busy} onClick={() =>
         a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the shift in progress, or brings it up to date">Draft the handover</Button>

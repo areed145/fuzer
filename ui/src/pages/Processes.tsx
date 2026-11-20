@@ -100,7 +100,7 @@ export function ProcessesPage() {
 
   return (
     <section>
-      <PageHeader help="workflow">Workflows</PageHeader>
+      <PageHeader>Workflows</PageHeader>
       <Text as="p" small id="who-edits">Publishing needs the workflow admin role{person ? (admin ? ", which you have" : ", which you don't have") : ""}.
         Queues are set on <a href={href("/routing")}>Routing</a>.</Text>
       <NeedName person={person} />

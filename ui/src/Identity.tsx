@@ -1,7 +1,8 @@
 /** Signed-in identity; attribution-only names are limited to explicit trusted local mode. */
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { href, notifyChanged, useAsync } from "./lib";
+import { href, notifyChanged, useAsync, useRoute } from "./lib";
+import { helpHref } from "./help";
 import { usePerson } from "./work";
 import { Button, Input, Select, ErrorText, Text } from "./ui";
 import { getProject, switchProject, type AuthSession } from "./authState";
@@ -40,6 +41,7 @@ export function AccountButton() {
   const session = useAuth();
   const [person] = usePerson();
   const [open, setOpen] = useState(false);
+  const { path } = useRoute();
   const sheet = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -67,6 +69,7 @@ export function AccountButton() {
           <Button type="button" variant="link" className="account-close" onClick={() => setOpen(false)}>Done</Button>
         </div>
         <Identity />
+        <div className="identity small"><p><a href={helpHref(path[0] ?? "")} target="_blank" rel="noreferrer">Help</a></p></div>
       </div>
     </>}
   </>;
