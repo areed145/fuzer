@@ -1,4 +1,4 @@
-import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText } from "../../ui";
+import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text } from "../../ui";
 import { when } from "../../format";
 import { openReviews } from "../../figures";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
@@ -109,30 +109,30 @@ export function InboxPage() {
       <FieldModeOffer />
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
       {!offline && !fieldRole && <NewForYou person={person} told={told} />}
-      <p className="row small">
-        {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
-        <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
-        <UIBadge className="badge">{counts.queue} unclaimed in your roles ({d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"})</UIBadge>
-        {counts.overdue > 0 && <UIBadge className="badge late">{counts.overdue} overdue</UIBadge>}
-        {counts.escalated > 0 && <UIBadge className="badge late">{counts.escalated} escalated</UIBadge>}
-        {undispatched > 0 && <a className="badge late" href={href("/exceptions")}>{undispatched} exceptions waiting to be dispatched</a>}
-        {reviews > 0 && <a className="badge" href={href("/masterdata", { tab: "questions" })}>{reviews} data items to review</a>}
-        {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
-      </p>
-      <div className="row">
+      <Line as="p" small>
+        {counts.sent > 0 && <UIBadge>{counts.sent} sent to you</UIBadge>}
+        <UIBadge>{counts.mine} assigned to you</UIBadge>
+        <UIBadge>{counts.queue} unclaimed in your roles ({d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"})</UIBadge>
+        {counts.overdue > 0 && <UIBadge tone="danger">{counts.overdue} overdue</UIBadge>}
+        {counts.escalated > 0 && <UIBadge tone="danger">{counts.escalated} escalated</UIBadge>}
+        {undispatched > 0 && <a href={href("/exceptions")}><UIBadge tone="danger">{undispatched} exceptions waiting to be dispatched</UIBadge></a>}
+        {reviews > 0 && <a href={href("/masterdata", { tab: "questions" })}><UIBadge>{reviews} data items to review</UIBadge></a>}
+        {d.covering?.length ? <UIBadge>covering for {d.covering.join(", ")}</UIBadge> : null}
+      </Line>
+      <Line>
         <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select aria-label="Filter my work by case type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">All kinds</option>
           {types.map((t) => <option key={t} value={t}>{cap(t.replace(/_/g, " "))}</option>)}
         </Select>
-      </div>
+      </Line>
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
       {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
       <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
         hint="past their SLA and moved to you or your role" />
       {sent.length > 0 && <section className="field-jobs" aria-labelledby="sent-to-you">
-        <h2 id="sent-to-you">Your field jobs <span className="muted small">{sent.length} · sent to you or taken by you, most urgent first</span></h2>
+        <h2 id="sent-to-you">Your field jobs <Text small muted>{sent.length} · sent to you or taken by you, most urgent first</Text></h2>
         {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} onReported={setReported} />)}
       </section>}
       {!offline && fieldRole && <NewForYou person={person} told={told} />}
@@ -140,7 +140,7 @@ export function InboxPage() {
       <Group title="Unclaimed in your roles" rows={queue} person={person} picked={picked} toggle={toggle}
         hint="claim one to make it yours" />
       {waitingJobs.length > 0 && <section className="field-jobs" aria-labelledby="waiting-jobs">
-        <h2 id="waiting-jobs">{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues <span className="muted small">{waitingJobs.length} · take one to make it yours</span></h2>
+        <h2 id="waiting-jobs">{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues <Text small muted>{waitingJobs.length} · take one to make it yours</Text></h2>
         {waitingJobs.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}
@@ -180,7 +180,7 @@ const KIND: Record<WorkNotification["kind"], string> = {
 function NotificationLine({ n, onOpen }: { n: WorkNotification; onOpen: () => void }) {
   return (
     <li>
-      <UIBadge className={`badge ${n.kind === "escalated" || n.kind === "due_soon" ? "late" : ""}`}>{KIND[n.kind]}</UIBadge>
+      <UIBadge tone={n.kind === "escalated" || n.kind === "due_soon" ? "danger" : "muted"}>{KIND[n.kind]}</UIBadge>
       <a href={n.link} onClick={onOpen}>{n.text}</a>
       <span className="small when">{when(n.created_at)}</span>
     </li>
@@ -204,7 +204,7 @@ function HowYouAreTold({ person }: { person: string }) {
   const external = p.channel !== "in_app";
   return (
     <UICard className="" title="How you are told">
-      <div className="row small">
+      <Line small>
         <label>Also send to{" "}
           <Select value={p.channel} onChange={(e) => change({ channel: e.target.value as NotifyPreference["channel"] })}>
             {Object.entries(CHANNEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -220,7 +220,7 @@ function HowYouAreTold({ person }: { person: string }) {
         <Button variant="primary" disabled={!draft} onClick={save}>Save</Button>
         <ErrorText inline>{state.error}</ErrorText>
         {state.saved && <span role="status">Saved.</span>}
-      </div>
+      </Line>
     </UICard>
   );
 }
@@ -236,14 +236,14 @@ function OtherFields({ person }: { person: string }) {
   if (!others.length) return null;
   return (
     <UICard className="">
-      <h2>In your other fields <span className="muted small">{others.length} · you hold roles there too</span></h2>
+      <h2>In your other fields <Text small muted>{others.length} · you hold roles there too</Text></h2>
       {others.map((f) => <div key={f.project}>
-        <h3 className="small">{f.project} <span className="muted">· {f.mine.length} assigned to you · {f.queue.length} unclaimed
-          in {f.roles.join(", ").replace(/_/g, " ")}</span>{" "}
+        <h3 className="small">{f.project} <Text muted>· {f.mine.length} assigned to you · {f.queue.length} unclaimed
+          in {f.roles.join(", ").replace(/_/g, " ")}</Text>{" "}
           <Button size="sm" variant="secondary" onClick={() => switchProject(f.project)}>Work in {f.project}</Button></h3>
         <Table variant="results"><tbody>{[...f.mine, ...f.queue].sort(byUrgency).slice(0, 5).map((r) =>
           <tr key={`${f.project}-${r.task_id ?? "i"}-${r.item_id}`}>
-            <td><span className="work-title">{r.title}</span><div className="small muted"><strong>{r.name ?? "open"}</strong> · {r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}</div></td>
+            <td><span className="work-title">{r.title}</span><Text as="div" small muted><strong>{r.name ?? "open"}</strong> · {r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}</Text></td>
             <td className="nowrap"><Due at={r.due_at} /></td>
           </tr>)}</tbody></Table>
       </div>)}
@@ -257,7 +257,7 @@ function Group({ title, rows, person, picked, toggle, hint }: {
   if (!rows.length) return null;
   return (
     <UICard className="">
-      <h2>{title} <span className="muted small">{rows.length}{hint ? ` · ${hint}` : ""}</span></h2>
+      <h2>{title} <Text small muted>{rows.length}{hint ? ` · ${hint}` : ""}</Text></h2>
       <Table variant="results" className="phone-rows">
         <tbody>{rows.map((r) => <Row key={`${r.task_id ?? "i"}-${r.item_id}`} r={r} person={person} picked={picked} toggle={toggle} />)}</tbody>
       </Table>
@@ -275,13 +275,13 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
       </td>
       <td>
         <a href={open} className="work-title">{r.title}</a>
-        <div className="small muted">
-          <strong>{r.name ?? "open"}</strong> · <UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge> · with {holder(r.assignee, r.role, r.kind)}
+        <Text as="div" small muted>
+          <strong>{r.name ?? "open"}</strong> · <UIBadge>{r.type.replace(/_/g, " ")}</UIBadge> · with {holder(r.assignee, r.role, r.kind)}
           {priorityLevel(r.priority, r.type) && <> · <span title={priorityLevel(r.priority, r.type)!.why}>{priorityLevel(r.priority, r.type)!.level} priority</span></>}
-        </div>
+        </Text>
         {r.handed_reason && <div className={r.handed_reason.startsWith("Back from the field") ? "small field-back" : "small muted"}>
           {r.handed_reason}</div>}
-        <div className="row small"><StepBadges row={r} /></div>
+        <Line small><StepBadges row={r} /></Line>
       </td>
       <td className="nowrap"><Due at={r.due_at} /></td>
       <td className="nowrap">
@@ -307,8 +307,8 @@ function Bulk({ rows, person, onDone }: { rows: WorkRow[]; person: string; onDon
       {shared.length ? shared.map((l) => (
         <Button key={l} variant="primary" disabled={!!a.busy} onClick={() => a.run(l, () => api.bulkComplete(rows.map((r) => r.task_id!), person, l, reason || undefined),
           (out) => { setMsg(`${l}: ${out.done.length} done${out.refused.length ? `, ${out.refused.length} refused` : ""}`); onDone(); })}>{l}</Button>
-      )) : <span className="muted small">These steps share no bulk action.</span>}
-      {msg && <span className="small">{msg}</span>}
+      )) : <Text small muted>These steps share no bulk action.</Text>}
+      {msg && <Text small>{msg}</Text>}
       <ErrorText inline>{a.error}</ErrorText>
     </UICard>
   );

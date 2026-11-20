@@ -11,7 +11,7 @@ import { entityHref, href, Status, useAsync } from "../lib";
 import type { LabelBy, SceneLook } from "../Scene3D";
 import { BANDS, MOVED, attention, badge, headers, higher, parseMove, reroute, trace, type Band } from "../sceneLogic";
 import { THEME_CHANGED } from "../theme";
-import { Button, ButtonLink, Card as UICard, Empty, Notice, Select, Table } from "../ui";
+import { Button, ButtonLink, Card as UICard, Empty, Notice, Select, Table, Text } from "../ui";
 import { NodePanel } from "./Network";
 
 // three.js arrives with this view and no other (P5.16a).
@@ -159,9 +159,9 @@ export function NetworkScene({ query, set, relDef }: {
             {LEVEL[k]}{status.data ? ` (${levels[k]})` : ""}</span>
         ))}
         <Button size="sm" aria-pressed={only} onClick={() => set({ only: only ? undefined : "work" })}>Only items with open work</Button>
-        <span className="small muted">
+        <Text small muted>
           {status.error ? "Status couldn't be read." : status.data ? `Alarms over the last ${status.data.alarm_hours} h.` : "Reading status…"}
-        </span>
+        </Text>
       </div>
       {pick}
     </>
@@ -249,7 +249,7 @@ export function NetworkScene({ query, set, relDef }: {
                         <div className="scene-pick" aria-live="polite">
                           <strong>{item.label}</strong>
                           {commonName(item.label, item.description) && <span>{commonName(item.label, item.description)}</span>}
-                          <span className="muted">{s.shapes[item.shape]?.label}{item.area ? `, in ${item.area}` : ""}</span>
+                          <Text muted>{s.shapes[item.shape]?.label}{item.area ? `, in ${item.area}` : ""}</Text>
                           {st[item.id] && <span>{describe(st[item.id])}</span>}
                           <ButtonLink size="sm" href={entityHref(item.id)}>Open</ButtonLink>
                         </div>
@@ -261,14 +261,14 @@ export function NetworkScene({ query, set, relDef }: {
                 {item ? (
                   <>
                     <NodePanel node={item} />
-                    <p className="small">
+                    <Text as="p" small>
                       {s.shapes[item.shape]?.label}
                       {item.classes.length > 0 && ` (ISO 14224 ${item.classes.join(", ")})`}
                       {item.area ? `, in ${item.area}` : ""}. Placed by: {item.placed}.
-                    </p>
-                    <p className="small" data-testid="scene-item-status">
+                    </Text>
+                    <Text as="p" small data-testid="scene-item-status">
                       {status.loading && !status.data ? "Reading its status…" : describe(st[item.id])}
-                    </p>
+                    </Text>
                     <div className="scene-actions" role="group" aria-label="Flow path and scenarios">
                       <Button size="sm" aria-pressed={path === "up"}
                         onClick={() => set({ path: path === "up" ? undefined : "up", trip: undefined, move: undefined })}>Upstream</Button>
@@ -290,10 +290,10 @@ export function NetworkScene({ query, set, relDef }: {
                         </label>
                       </div>
                     )}
-                    {path && <p className="small" data-testid="scene-path">
+                    {path && <Text as="p" small data-testid="scene-path">
                       {path === "down" ? "Downstream" : "Upstream"} of {item.label}: {plural((lit?.items.size ?? 1) - 1, "item")} over{" "}
                       {plural(lit?.links.size ?? 0, "link")}, the rest dimmed.
-                    </p>}
+                    </Text>}
                     {trip && <TripCard read={tripRead} />}
                     {s.root.kind === "facility" && s.plates.find((p) => p.id === item.plate)?.area && (
                       <div className="actions">
@@ -305,8 +305,8 @@ export function NetworkScene({ query, set, relDef }: {
                 {rerouted && (
                   <div className="scene-scenario" data-testid="scene-reroute">
                     <strong>{labelOf(rerouted.old.src)} rerouted to {labelOf(rerouted.added.dst)}</strong>
-                    <p className="small">In this browser only: nothing is saved or sent anywhere, and no hydraulics are claimed. The old run and the
-                      new one are lit; the new one is drawn straight over the deck, not routed.</p>
+                    <Text as="p" small>In this browser only: nothing is saved or sent anywhere, and no hydraulics are claimed. The old run and the
+                      new one are lit; the new one is drawn straight over the deck, not routed.</Text>
                     <Table density="compact">
                       <thead><tr><th>Header</th><th>Wells now</th><th>After</th></tr></thead>
                       <tbody>{rerouted.changed.map((c) => (
@@ -316,11 +316,11 @@ export function NetworkScene({ query, set, relDef }: {
                     <Button size="sm" onClick={() => set({ move: undefined })}>Put it back</Button>
                   </div>
                 )}
-                {move && !rerouted && <p className="small">That reroute doesn't fit this drawing (the well or header isn't in it).</p>}
+                {move && !rerouted && <Text as="p" small>That reroute doesn't fit this drawing (the well or header isn't in it).</Text>}
               </UICard>
             </div>
           )}
-          {s.truncated && <p className="small">Too many items to draw; showing the first 3,000.</p>}
+          {s.truncated && <Text as="p" small>Too many items to draw; showing the first 3,000.</Text>}
         </>
       )}
     </>
@@ -343,7 +343,7 @@ function TripCard({ read }: { read: { data?: SceneTrip | null; loading: boolean;
   return (
     <div className="scene-scenario" data-testid="scene-trip">
       <strong>If {t.item.label} trips: an estimate over {t.hours} h</strong>
-      {!t.on_network ? <p className="small">It is on no flow link and shares its parent with nothing on one, so nothing is shown going down with it.</p> : (
+      {!t.on_network ? <Text as="p" small>It is on no flow link and shares its parent with nothing on one, so nothing is shown going down with it.</Text> : (
         <ul>
           <li>Goes down: {list(t.units)}</li>
           {t.behind.length > 0 && <li>Behind it, with nowhere to flow: {list(t.behind)}</li>}
@@ -353,7 +353,7 @@ function TripCard({ read }: { read: { data?: SceneTrip | null; loading: boolean;
           {t.untested.length > 0 && <li>No well test for {list(t.untested.map((label) => ({ label })))}, so not counted</li>}
         </ul>
       )}
-      <p className="small muted">{t.basis}</p>
+      <Text as="p" small muted>{t.basis}</Text>
     </div>
   );
 }

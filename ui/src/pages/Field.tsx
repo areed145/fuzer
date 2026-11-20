@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { kindWord, person as personName } from "../wording";
-import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText } from "../ui";
+import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
   sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
@@ -42,7 +42,7 @@ export function Outbox({ onSent, jobs = [] }: { onSent: () => void; jobs?: { id:
   const send = async () => { setBusy(true); try { await flush(); } finally { setBusy(false); } };
   return (<>{gone}
     <Card className="field-outbox" title={n ? `${n} report${n > 1 ? "s" : ""} waiting to send` : "Not accepted"}>
-      {n > 0 && <p className="small">Made without signal and kept on this phone. They send, with the time you made them, when the signal returns.</p>}
+      {n > 0 && <Text as="p" small>Made without signal and kept on this phone. They send, with the time you made them, when the signal returns.</Text>}
       {n > 0 && <Button disabled={busy} onClick={send}>{busy ? "Sending…" : "Send now"}</Button>}
       {refused.map((w) => <Refused key={w.client_id} w={w} jobs={jobs} />)}
     </Card>
@@ -57,7 +57,7 @@ function Refused({ w, jobs }: { w: QueuedWrite; jobs: { id: number; title: strin
   const others = w.kind === "field_report" ? jobs.filter((j) => j.id !== from) : [];
   return <div className="field-refused">
     <p role="alert" className="small"><strong>Not accepted:</strong> {w.refused?.reason}</p>
-    <p className="small">{describe(w)}. Kept on this phone.</p>
+    <Text as="p" small>{describe(w)}. Kept on this phone.</Text>
     <div className="row field-actions">
       {note && <Button disabled={!!busy} onClick={() => run("Sending", note)}>Send as a note</Button>}
       {others.length > 0 && <>
@@ -92,14 +92,14 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
     <Card className="field-coming" title="Coming up">
       <ul className="plain">{items.map((i) => <li key={i.id}>
         <strong>{day(i.start_at)}</strong>{day(i.end_at) !== day(i.start_at) ? `–${day(i.end_at)}` : ""} · {i.title}{" "}
-        <span className="muted small">{i.kind.replace(/_/g, " ")}{i.needs_shutdown ? " · in the shutdown" : ""}
-          {i.crew?.startsWith("role:") ? ` · for ${i.crew.slice(5)}` : ""}</span>
+        <Text small muted>{i.kind.replace(/_/g, " ")}{i.needs_shutdown ? " · in the shutdown" : ""}
+          {i.crew?.startsWith("role:") ? ` · for ${i.crew.slice(5)}` : ""}</Text>
         {i.status === "in_progress" && <> <Badge tone="ok">started</Badge></>}
         {waiting.filter((c) => c.item === i.id).slice(-1).map((c) => <span key="kept"> <Badge tone="warn">
           {c.status === "done" ? "Done" : "Started"} · waiting to send</Badge></span>)}
-        {i.assets.length > 0 && <div className="small">{i.assets.map((a) =>
-          <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</div>}
-        {i.notes && <div className="small muted">{i.notes}</div>}
+        {i.assets.length > 0 && <Text as="div" small>{i.assets.map((a) =>
+          <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</Text>}
+        {i.notes && <Text as="div" small muted>{i.notes}</Text>}
         {new Date(i.start_at).getTime() <= soon && <div className="row field-actions">
           {i.status !== "in_progress" && <Button size="sm" disabled={!!busy} onClick={() => set(i, "in_progress")}>Started</Button>}
           <Button size="sm" variant="primary" disabled={!!busy} onClick={() => set(i, "done")}>Done</Button>
@@ -129,7 +129,7 @@ export function RoundsThisShift({ person }: { person: string }) {
   if (!list.length) return null;
   return (
     <section className="field-jobs" aria-labelledby="rounds-this-shift">
-      <h2 id="rounds-this-shift">Rounds this shift <span className="muted small">{list.length} · until {when(list[0].shift_end)}</span></h2>
+      <h2 id="rounds-this-shift">Rounds this shift <Text small muted>{list.length} · until {when(list[0].shift_end)}</Text></h2>
       <ul className="plain">{list.map((r) => <li key={r.id}>
         <Button size="sm" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>
           {r.round}{r.area && !r.round.includes(r.area) ? ` (${r.area})` : ""}</Button>{" "}
@@ -145,11 +145,11 @@ function RoundProgress({ run, onPhone }: { run: RoundRun; onPhone: QueuedTake[] 
   // Points taken on the phone and not yet sent (P5.17d) count too, and say so.
   const fresh = new Set(onPhone.map((t) => t.point)).size;
   const taken = Math.min(run.points, run.taken + fresh);
-  return <span className="small">
+  return <Text small>
     <Badge tone={taken >= run.points ? "ok" : undefined}>{taken} of {run.points} taken</Badge>
     {fresh > 0 && <> <Badge tone="warn">{fresh} on this phone</Badge></>}
     {(run.found ?? 0) > 0 && <> <Badge tone="warn">{run.found} found something</Badge></>}
-  </span>;
+  </Text>;
 }
 
 /** Outside a reading point's limits, from the limits kept with the round: so the phone can say so without signal. */
@@ -164,17 +164,17 @@ function RoundPoints({ id, person, canTake, onTaken, onPhone }: { id: number; pe
   return <ol className="small">{r.data.points.map((p) => {
     const mine = onPhone.filter((t) => t.point === p.id).at(-1);
     return <li key={p.id}>
-      <strong>{p.what}</strong> <span className="muted">{p.asset_label ?? ""}</span>
-      {p.kind === "reading" && (p.low != null || p.high != null) && <span className="muted"> · {limits(p)}</span>}
-      {p.kind === "check" && <span className="muted"> · check</span>}
+      <strong>{p.what}</strong> <Text muted>{p.asset_label ?? ""}</Text>
+      {p.kind === "reading" && (p.low != null || p.high != null) && <Text muted> · {limits(p)}</Text>}
+      {p.kind === "check" && <Text muted> · check</Text>}
       {mine ? <> <Badge tone="warn">
         {p.kind === "reading" ? `${mine.value} ${p.unit ?? ""}`.trim() : mine.passed ? "Passed" : "Found something"} · on this phone</Badge>
         {(mine.passed === false || (p.kind === "reading" && mine.value != null && outside(p, mine.value))) &&
-          <span className="muted"> · {p.kind === "reading" ? `outside ${limits(p)}, ` : ""}goes to the IOC when sent</span>}</>
+          <Text muted> · {p.kind === "reading" ? `outside ${limits(p)}, ` : ""}goes to the IOC when sent</Text>}</>
       : p.taken && <> <Badge tone={p.taken.passed === false ? "warn" : "ok"}>
         {p.kind === "reading" ? `${p.taken.value} ${p.unit ?? ""}`.trim() : p.taken.passed ? "Passed" : "Found something"}
         {p.taken.passed === false && p.kind === "reading" ? ", outside its limits" : ""}</Badge>
-        {p.taken.exception_id != null && <span className="muted"> · sent to the IOC</span>}</>}
+        {p.taken.exception_id != null && <Text muted> · sent to the IOC</Text>}</>}
       {canTake && <TakePoint run={id} point={p} person={person} onTaken={taken} />}
     </li>;
   })}</ol>;
@@ -218,11 +218,11 @@ function HandoverNote({ h }: { h: FieldHandover }) {
   return (
     <div className="field-sent" role="status">
       <p><strong>{h.mine_to_accept ? `Handed over to you by ${personName(h.from)}` : `Handed over to ${personName(h.to)}: with you until they accept`}</strong>
-        <span className="muted small"> · {when(h.at)}</span></p>
-      <p className="small">Done: {h.done}</p>
-      <p className="small">Left: {h.left}</p>
+        <Text small muted> · {when(h.at)}</Text></p>
+      <Text as="p" small>Done: {h.done}</Text>
+      <Text as="p" small>Left: {h.left}</Text>
       {h.unsafe && <ErrorText>Unsafe to leave: {h.unsafe}</ErrorText>}
-      {h.permit && <p className="small muted">Permit {h.permit.label} {h.permit.state ?? ""}{h.permit.why_not ? ` · ${h.permit.why_not}` : ""}</p>}
+      {h.permit && <Text as="p" small muted>Permit {h.permit.label} {h.permit.state ?? ""}{h.permit.why_not ? ` · ${h.permit.why_not}` : ""}</Text>}
     </div>
   );
 }
@@ -267,9 +267,8 @@ function PermitPanel({ permit, inHand, onInHand }: { permit: FieldPermit; inHand
   if (permit.unchecked) return (  // no permit records to check this against (#742): confirm one in hand, kept on the case
     <div className="field-permit">
       <h3 className="small">Permit to work <Badge tone="warn">check permit</Badge></h3>
-      <p className="small">{permit.note}</p>
-      <label className="small"><Input type="checkbox" checked={inHand} onChange={(e) => onInHand(e.target.checked)} />
-        {" "}Permit in hand</label>
+      <Text as="p" small>{permit.note}</Text>
+      <Checkbox checked={inHand} onChange={onInHand}>Permit in hand</Checkbox>
     </div>
   );
   return (
@@ -277,15 +276,15 @@ function PermitPanel({ permit, inHand, onInHand }: { permit: FieldPermit; inHand
       <h3 className="small">Permit to work {permit.blocked
         ? <Badge tone="warn">blocked: no valid permit</Badge>
         : p?.valid ? <Badge tone="ok">valid</Badge> : null}</h3>
-      {p ? <p className="small"><strong>{p.label}</strong> {p.type ?? ""} · {p.state ?? "no state"}
-        {p.valid_to ? ` · to ${p.valid_to}` : ""}{p.why_not ? <span className="muted"> · {p.why_not}</span> : null}
-        {p.work ? <><br />{p.work}</> : null}</p>
-        : <p className="small muted">No permit covers this location.</p>}
+      {p ? <Text as="p" small><strong>{p.label}</strong> {p.type ?? ""} · {p.state ?? "no state"}
+        {p.valid_to ? ` · to ${p.valid_to}` : ""}{p.why_not ? <Text muted> · {p.why_not}</Text> : null}
+        {p.work ? <><br />{p.work}</> : null}</Text>
+        : <Text as="p" small muted>No permit covers this location.</Text>}
       {p && p.isolations.length > 0 && <ul className="plain small">{p.isolations.map((i) => <li key={i.isolation}>
-        {i.isolation} · {i.point ?? ""} {i.method ? <span className="muted">({i.method})</span> : null}{" "}
+        {i.isolation} · {i.point ?? ""} {i.method ? <Text muted>({i.method})</Text> : null}{" "}
         <Badge tone={["applied", "verified"].includes((i.state ?? "").toLowerCase()) ? "ok" : "warn"}>{i.state ?? "no state"}</Badge>
       </li>)}</ul>}
-      {permit.blocked && permit.blocker && <p className="small" role="status">{permit.blocker}</p>}
+      {permit.blocked && permit.blocker && <Text as="p" small role="status">{permit.blocker}</Text>}
     </div>
   );
 }
@@ -354,30 +353,30 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
           : <Button variant="primary" disabled={!!busy}
           onClick={() => run("Accepting", () => sendHandoverAccept(job.id, person), (how) => { if (how === "sent") onChange(); })}>Accept the handover</Button>}
       </div>}
-      <p className="row small">
+      <Line as="p" small>
         <Due at={job.due} />
         {last && <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
         {waiting.length > 0 && <Badge tone="warn">{waiting.length === 1 ? `${SAID[(waiting[0].payload as { status: string }).status] ?? "Report"} waiting to send`
           : `${waiting.length} reports waiting to send`}</Badge>}
-        <span className="muted">seen {job.reports ?? job.raised_count}× since {when(job.first_seen)}</span>
-      </p>
+        <Text muted>seen {job.reports ?? job.raised_count}× since {when(job.first_seen)}</Text>
+      </Line>
       {job.sent && (job.sent.reason || !job.queued) && <p className="field-sent">
         <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
-        {job.sent.by && <span className="muted small"> · sent by {job.sent.by.replace(/^agent:/, "")}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</span>}</p>}
+        {job.sent.by && <Text small muted> · sent by {job.sent.by.replace(/^agent:/, "")}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</Text>}</p>}
       {job.assets.length > 0 && <div>
         <h3 className="small">Where</h3>
         <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
-          <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <span className="muted small">{kindWord(a.kind ?? "item").toLowerCase()}</span></>}
-          {!desk && a.offshore && a.site && <> · <span className="small">on {a.site}</span></>}
+          <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <Text small muted>{kindWord(a.kind ?? "item").toLowerCase()}</Text></>}
+          {!desk && a.offshore && a.site && <> · <Text small>on {a.site}</Text></>}
           {a.lat != null && a.lon != null && !desk && !a.offshore && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
             target="_blank" rel="noreferrer">directions</a></>}
         </li>)}</ul>
       </div>}
-      {job.unmatched.length > 0 && <p className="small muted">Also named: {job.unmatched.join(", ")}</p>}
+      {job.unmatched.length > 0 && <Text as="p" small muted>Also named: {job.unmatched.join(", ")}</Text>}
       {job.sources?.length > 1 && <div>
         <h3 className="small">{reportedBy(job.sources)}</h3>
         <ul className="plain small">{job.sources.map((x) => <li key={x.id}>
-          <strong>{x.label}</strong>: {x.title} <span className="muted">· {x.source ?? ""}</span></li>)}</ul>
+          <strong>{x.label}</strong>: {x.title} <Text muted>· {x.source ?? ""}</Text></li>)}</ul>
       </div>}
       {!!job.warnings?.length && <ul className="plain small field-warnings" aria-label="Before you start">
         {job.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul>}
@@ -395,23 +394,23 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
       {!job.queued && job.history.length > 0 && <div>
         <h3 className="small">Lately at this asset</h3>
         <ul className="plain small">{job.history.map((h) => <li key={h.id}>
-          {when(h.first_seen)} · {h.title} <span className="muted">({h.state})</span></li>)}</ul>
+          {when(h.first_seen)} · {h.title} <Text muted>({h.state})</Text></li>)}</ul>
       </div>}
       {job.field.length > 0 && <div>
         <h3 className="small">Field log</h3>
         <ul className="plain small">{job.field.map((f, i) => <li key={i}>
           {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""}
-          {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <span className="muted">{personName(f.by)}</span>
+          {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <Text muted>{personName(f.by)}</Text>
           {f.photos?.length ? <div className="field-photos">{f.photos.map((p) => <FieldPhoto key={p} exceptionId={job.id} photoId={p} />)}</div> : null}
         </li>)}</ul>
       </div>}
       {job.handover?.mine_to_accept ? null : job.queued ? <div className="row field-actions">
-        <p className="small">{last?.status === "on_site"
+        <Text as="p" small>{last?.status === "on_site"
           ? `Back in the ${job.role?.replace(/_/g, " ") ?? ""} queue: ${personName(last.by)} was on site ${when(last.at)} and has not reported since.`
-          : `Waiting in the ${job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.`}</p>
+          : `Waiting in the ${job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.`}</Text>
         <Button variant="primary" disabled={!!busy || !signal.live}
           onClick={() => run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), onChange)}>Take it</Button>
-        {!signal.live && <span className="small muted">{NEEDS_SIGNAL}</span>}
+        {!signal.live && <Text small muted>{NEEDS_SIGNAL}</Text>}
       </div> : <>
       <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC (a reading, what you found, why it couldn't be done)</label>
       <Textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
@@ -419,12 +418,12 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         {dictate.listening ? "Stop dictating" : "Dictate the note"}</Button>}
       <fieldset className="field-evidence">
         <legend className="small">A reading</legend>
-        <div className="row">
+        <Line>
           <Input aria-label="What was read" placeholder="what (e.g. bearing temperature)" value={what} onChange={(e) => setWhat(e.target.value)} />
           <Input aria-label="Reading" type="number" inputMode="decimal" step="any" placeholder="value" value={value}
             onChange={(e) => setValue(e.target.value)} />
           <Input aria-label="Unit" placeholder="unit (°F, psig, in/s)" value={unit} onChange={(e) => setUnit(e.target.value)} />
-        </div>
+        </Line>
         <label className="small" htmlFor={`photo-${job.id}`}>Photos {photos.length ? `(${photos.length})` : ""}</label>
         <input id={`photo-${job.id}`} type="file" accept="image/*" capture="environment" multiple
           onChange={(e) => { void addPhoto(e.target.files); e.target.value = ""; }} />

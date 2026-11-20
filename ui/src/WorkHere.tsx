@@ -2,7 +2,7 @@
  * whoever looks up an asset sees the work around it before adding to it. */
 import { api } from "./api";
 import { when, whenDay } from "./format";
-import { Badge, Card } from "./ui";
+import { Badge, Card, Text } from "./ui";
 import { href, planItemHref, useAsync } from "./lib";
 import { holder } from "./work";
 
@@ -23,7 +23,7 @@ export function WorkHere({ id, area, data }: { id: string; area: boolean; data?:
       {exceptions.length > 0 && <>
         <h3 className="small">Open exceptions</h3>
         <ul className="plain small">{exceptions.map((x) => <li key={x.id}>
-          <a href={href("/exceptions")}>{x.title}</a> <span className="muted">{x.type.replace(/_/g, " ")} · last {when(x.last_seen)}</span>{" "}
+          <a href={href("/exceptions")}>{x.title}</a> <Text muted>{x.type.replace(/_/g, " ")} · last {when(x.last_seen)}</Text>{" "}
           {x.item_id ? <a href={href(`/cases/${x.item_id}`)}>with {holder(x.assignee, x.role)}</a>
             : x.planned ? <a className="muted" href={planItemHref(x.planned)}>planned {whenDay(x.planned.start_at)}</a> : <Badge tone="warn">not dispatched</Badge>}
         </li>)}</ul>
@@ -31,8 +31,8 @@ export function WorkHere({ id, area, data }: { id: string; area: boolean; data?:
       {items.length > 0 && <>
         <h3 className="small">Planned</h3>
         <ul className="plain small">{items.map((i) => <li key={i.id}>
-          <a href={href("/plan")}>{i.title}</a> <span className="muted">{day(i.start_at)}–{day(i.end_at)} · {i.kind.replace(/_/g, " ")}
-            {i.crew ? ` · ${i.crew}` : ""}</span>{" "}
+          <a href={href("/plan")}>{i.title}</a> <Text muted>{day(i.start_at)}–{day(i.end_at)} · {i.kind.replace(/_/g, " ")}
+            {i.crew ? ` · ${i.crew}` : ""}</Text>{" "}
           {i.clashes.some((c) => c.kind !== "bundle") && <Badge tone="danger">clash</Badge>}
           {i.needs_shutdown && <Badge tone="warn">shutdown</Badge>}
         </li>)}</ul>

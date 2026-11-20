@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { href, Status } from "../lib";
-import { Badge, Button, ButtonLink, Card } from "../ui";
+import { Badge, Button, ButtonLink, Card, Text } from "../ui";
 
 type SettingsResult = Awaited<ReturnType<typeof api.settings>>;
 type SettingsLoad = { data?: SettingsResult; loading: boolean; error?: string; reload: () => void };
@@ -17,7 +17,7 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
       recovering source data, open <a href={href("/sources")}>Sources</a>. Viewing this page makes no changes or AI calls.</p>
     <Button disabled={list.loading} onClick={list.reload}>Refresh configuration</Button>
     <Status of={list} />
-    <p className="small">Scope: {list.data?.project ?? "global"}. Configured values; refresh after a change.</p>
+    <Text as="p" small>Scope: {list.data?.project ?? "global"}. Configured values; refresh after a change.</Text>
     </Card>
     <Card title="Deployment and sign-in">
       {deployment ? <>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
 import { entityHref, href } from "./lib";
-import { Button, FullscreenButton, useFullscreen } from "./ui";
+import { Button, FullscreenButton, useFullscreen, Text } from "./ui";
 import { clusterOnScreen, pathsOf, vertices, type BasemapName, type HotspotSpec, type LatLon, type LineSpec, type MapEngine,
          type PointSpec } from "./map/engine";
 import { leafletEngine } from "./map/leafletEngine";
@@ -343,7 +343,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
                 <circle cx="13" cy="6" r="5" fill={e.color} stroke="var(--panel)" strokeWidth="1.5" />
               )}
             </svg>
-            {e.label} <span className="muted">{counts[e.key]}</span>
+            {e.label} <Text muted>{counts[e.key]}</Text>
           </Button>
         ))}
       </div>}

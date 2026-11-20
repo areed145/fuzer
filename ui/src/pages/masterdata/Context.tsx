@@ -3,7 +3,7 @@
  * open case in the data steward's queue. */
 import { api, type AssetContext, type ContextRollup, type PlacementSuggestion } from "../../api";
 import { percent } from "../../format";
-import { Badge, Button, Card, Empty, Table, ErrorText } from "../../ui";
+import { Badge, Button, Card, Empty, Table, ErrorText, Text } from "../../ui";
 import { Status, entityHref, useAsync, useAction } from "../../lib";
 import { caseHref } from "../workflows/shared";
 import { reviewer } from "../sources/common";
@@ -19,7 +19,7 @@ export function AssetContextCard({ id }: { id: string }) {
   const score = pct(a.score);
   return (
     <Card as="section" className="asset-context" title={<>Context{a.of && <> of <a href={entityHref(a.fuzer_id)}>{a.label}</a></>}</>}
-      actions={<>{score != null && <span className="small">{score}% of what {a.class_name.toLowerCase()} usually have</span>}
+      actions={<>{score != null && <Text small>{score}% of what {a.class_name.toLowerCase()} usually have</Text>}
         {a.item_id && <a className="small" href={caseHref(a.item_id)}>Open case</a>}</>}>
       <Table density="compact" variant="keyValue" headingCase="verbatim">
         <tbody>{a.known.map((k) => {
@@ -30,7 +30,7 @@ export function AssetContextCard({ id }: { id: string }) {
               <th scope="row">{k.label}</th>
               <td>
                 {k.has ? <Badge tone="ok">Known</Badge> : g ? <Badge tone="warn">Missing</Badge> : <Badge>Not recorded</Badge>}
-                {g && <div className="small">Holds back {holds.join("; ")}. {g.usual}.</div>}
+                {g && <Text as="div" small>Holds back {holds.join("; ")}. {g.usual}.</Text>}
               </td>
             </tr>
           );
@@ -84,7 +84,7 @@ export function ContextTab() {
           <tbody>{s.data.top.map((r) => (
             <tr key={r.fuzer_id}>
               <td><a href={entityHref(r.fuzer_id)}>{r.label}</a>
-                <div className="small muted">{[r.description, r.class_name, r.criticality ? `criticality ${r.criticality}` : "criticality not assessed"].filter(Boolean).join(" · ")}</div></td>
+                <Text as="div" small muted>{[r.description, r.class_name, r.criticality ? `criticality ${r.criticality}` : "criticality not assessed"].filter(Boolean).join(" · ")}</Text></td>
               <td>{r.missing.map((m) => label[m] ?? m).join(", ")}</td>
               <td>{r.blocked.length}</td>
               <td>{r.item_id ? <a href={caseHref(r.item_id)}>Open</a> : ""}</td>
@@ -110,7 +110,7 @@ function Rollup({ title, rows }: { title: string; rows: ContextRollup[] }) {
               <tr key={r.name}>
                 <td>{r.name}</td>
                 <td>{r.assets}</td>
-                <td>{score == null ? <span className="muted">too few to say</span> : `${score}%`}</td>
+                <td>{score == null ? <Text muted>too few to say</Text> : `${score}%`}</td>
                 <td>{r.gaps.map((g) => `${g.label.toLowerCase()} (${g.assets})`).join(", ")}</td>
               </tr>
             );

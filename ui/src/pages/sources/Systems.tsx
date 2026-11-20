@@ -1,4 +1,4 @@
-import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea, ErrorText } from "../../ui";
+import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea, ErrorText, Line, Text } from "../../ui";
 import { confirmDialog } from "../../ui";
 import { percent } from "../../format";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
@@ -46,7 +46,7 @@ export function NewSystem({ onDone }: { onDone: (name: string) => void }) {
   const [owner, setOwner] = useState("");
   const a = useAction();
   return (
-    <div className="row">
+    <Line>
       <Input placeholder="new system name, e.g. planning" value={name} onChange={(e) => setName(e.target.value.trim())} />
       <Input placeholder="kind" value={kind} onChange={(e) => setKind(e.target.value)} />
       <Input placeholder="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
@@ -54,7 +54,7 @@ export function NewSystem({ onDone }: { onDone: (name: string) => void }) {
         onClick={() => a.run("add", () => api.addSystem(name, { ...(kind ? { kind } : {}), ...(owner ? { owner } : {}) }, reviewer()),
           () => { onDone(name); setName(""); })}>Add system</Button>
       <ErrorText inline>{a.error}</ErrorText>
-    </div>
+    </Line>
   );
 }
 
@@ -67,10 +67,10 @@ export function ImportPack({ onDone }: { onDone: () => void }) {
   const [report, setReport] = useState<PackReport | null>(null);
   const a = useAction();
   const conns = [...text.matchAll(/- name: (\S+)\n\s+type: folder/g)].map((m) => m[1]);
-  if (!open) return <p className="small"><Button variant="link" onClick={() => setOpen(true)}>Import a source pack…</Button></p>;
+  if (!open) return <Text as="p" small><Button variant="link" onClick={() => setOpen(true)}>Import a source pack…</Button></Text>;
   return (
     <UICard title="Import a source pack">
-      <p className="small">Importing a pack is safe to repeat. A mapping that differs from an approved one becomes a draft.</p>
+      <Text as="p" small>Importing a pack is safe to repeat. A mapping that differs from an approved one becomes a draft.</Text>
       <input type="file" accept=".yaml,.yml" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText(await f.text()); }} />
       <Textarea className="mono" rows={8} width="full" placeholder="fuzer_source_pack: 1 …" value={text}
         onChange={(e) => setText(e.target.value)} />
@@ -80,13 +80,13 @@ export function ImportPack({ onDone }: { onDone: () => void }) {
           <Input placeholder="as in the pack" value={folders[c] ?? ""} onChange={(e) => setFolders({ ...folders, [c]: e.target.value })} />
         </div>
       ))}
-      <div className="row">
+      <Line>
         <Button variant="primary" disabled={!text.trim() || !!a.busy}
           onClick={() => a.run("import", () => api.importPack(text, Object.fromEntries(Object.entries(folders)
             .filter(([, v]) => v.trim()).map(([k, v]) => [k, { path: v.trim() }])), reviewer()), (r) => { setReport(r); onDone(); })}>
           {a.busy ? "Importing…" : "Import"}</Button>
         <Button variant="link" onClick={() => { setOpen(false); setReport(null); }}>Close</Button>
-      </div>
+      </Line>
       <ErrorText>{a.error}</ErrorText>
       {report && <PackInstalled report={report} />}
     </UICard>
@@ -113,7 +113,7 @@ export function PackInstalled({ report }: { report: PackReport }) {
   add("Detection", "Switched on", list("detectors"), () => href("/settings", { view: "detection" }));
   const unchanged = list("unchanged");
   return <div className="pack-installed" role="status">
-    <p className="small">{rows.length ? "Installed." : "Nothing changed: everything in the pack was already here."}</p>
+    <Text as="p" small>{rows.length ? "Installed." : "Nothing changed: everything in the pack was already here."}</Text>
     {["Sources", "Routing", "Detection"].map((page) => {
       const mine = rows.filter((r) => r[0] === page);
       return mine.length > 0 && <div key={page}>
@@ -124,7 +124,7 @@ export function PackInstalled({ report }: { report: PackReport }) {
       </div>;
     })}
     {unchanged.length > 0 && <Disclosure label={`${unchanged.length} already in place`}>
-      <p className="small">{unchanged.join(", ")}</p></Disclosure>}
+      <Text as="p" small>{unchanged.join(", ")}</Text></Disclosure>}
   </div>;
 }
 
@@ -154,7 +154,7 @@ function SystemWork({ system }: { system: string }) {
         <Table density="compact">
           <thead><tr><th>Rule</th><th>Over</th><th>Raises when</th><th>Type</th><th /></tr></thead>
           <tbody>{rules.map((r) => (
-            <tr key={r.name}><td><code>{r.name}</code>{r.enabled === false && <span className="muted"> (off)</span>}</td>
+            <tr key={r.name}><td><code>{r.name}</code>{r.enabled === false && <Text muted> (off)</Text>}</td>
               <td>{r.dataset}</td>
               <td className="mono small">{whenText(r.when)}{r.clear_when ? ` · clears when ${whenText(r.clear_when)}` : ""}</td>
               <td>{r.type}</td>
@@ -163,10 +163,10 @@ function SystemWork({ system }: { system: string }) {
           ))}</tbody>
         </Table>
       )}
-      <p className="small">Webhook <code>POST {webhook.path}</code> with header <code>X-Fuzer-Secret</code>:{" "}
+      <Text as="p" small>Webhook <code>POST {webhook.path}</code> with header <code>X-Fuzer-Secret</code>:{" "}
         {webhook.secret ? <UIBadge tone={webhook.ready ? "ok" : "warn"} title={webhook.secret}>
           {webhook.ready ? "secret resolves" : `${webhook.secret} is not set`}</UIBadge>
-          : <span className="muted">off (set a webhook secret above)</span>}</p>
+          : <Text muted>off (set a webhook secret above)</Text>}</Text>
       <ErrorText>{a.error}</ErrorText>
     </>
   );
@@ -191,10 +191,10 @@ function SystemContext({ system }: { system: string }) {
   return (
     <>
       <h3>How its records matched</h3>
-      <p className="small">{r.records} records: {auto} matched on their own, {r.decided.new} new
+      <Text as="p" small>{r.records} records: {auto} matched on their own, {r.decided.new} new
         {r.decided.pinned ? `, ${r.decided.pinned} decided by a steward` : ""}.{" "}
         <UIBadge tone={over ? "warn" : "ok"}>{r.needs_steward} need a steward ({pct(r.share ?? 0)})</UIBadge>
-        {r.links.pct != null && <> Links resolved: {r.links.pct}%.</>}</p>
+        {r.links.pct != null && <> Links resolved: {r.links.pct}%.</>}</Text>
       {(asks.some(([n]) => n) || r.unmatched.length > 0) && <ul className="small">
         {asks.filter(([n]) => n).map(([n, what, to]) => <li key={what}><a href={to}>{n} {what}</a></li>)}
         {r.unmatched.length > 0 && <li>{r.steward.unmatched} matched nothing in the register:{" "}
@@ -250,8 +250,8 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
   const a = useAction();
   const changed = SYSTEM_FIELDS.filter(([k]) => vals[k] !== (s[k] == null ? "" : String(s[k])));
   return (
-    <Disclosure className="card" label={<><code>{s.name}</code> <span className="muted small">{s.kind ?? ""} · {s.datasets.length} datasets ·{" "}
-          {s.connections.length} connection{s.connections.length === 1 ? "" : "s"}{s.owner ? ` · owner ${s.owner}` : ""}</span></>}>
+    <Disclosure className="card" label={<><code>{s.name}</code> <Text small muted>{s.kind ?? ""} · {s.datasets.length} datasets ·{" "}
+          {s.connections.length} connection{s.connections.length === 1 ? "" : "s"}{s.owner ? ` · owner ${s.owner}` : ""}</Text></>}>
       <Table variant="list" density="compact">
         <tbody>
           {SYSTEM_FIELDS.map(([k, label, hint]) => (
@@ -274,11 +274,11 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
         <ConnectionForm system={s.name} types={cat.types.connections} onDone={() => { setAdding(false); reload(); }} />
       ) : <Button variant="secondary" onClick={() => setAdding(true)}>+ Add a connection</Button>}
       {s.datasets.length === 0 && (
-        <p className="small">
+        <Text as="p" small>
           <Button variant="link" disabled={!!a.busy} onClick={async () => (await confirmDialog(`Delete system ${s.name} and its connections?`)) &&
             a.run("delsys", () => api.deleteSystem(s.name, reviewer()), reload)}>Delete this system</Button>
-          <span className="muted"> (it has no datasets)</span>
-        </p>
+          <Text muted> (it has no datasets)</Text>
+        </Text>
       )}
     </Disclosure>
   );
@@ -293,15 +293,15 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
     Object.fromEntries(Object.entries(c.config).map(([k, v]) => [k, v == null ? "" : String(v)])));
   return (
     <div className="small conn">
-      <code>{c.name}</code> {c.type} <span className="muted">{c.display ?? JSON.stringify(c.config)}</span>{" "}
-      {c.class && <span className="muted" title="The connection's zone and direction (OT security, D4)">
+      <code>{c.name}</code> {c.type} <Text muted>{c.display ?? JSON.stringify(c.config)}</Text>{" "}
+      {c.class && <Text muted title="The connection's zone and direction (OT security, D4)">
         {c.class === "control_adjacent" ? "control-adjacent" : c.class}, {c.direction === "write" ? "reads and writes" : "read only"}
-      </span>}{" "}
+      </Text>}{" "}
       {Object.entries(c.secrets).map(([k, v]) => (
-        <UIBadge key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</UIBadge>
+        <UIBadge key={k} tone={v.resolves ? "ok" : "muted"} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</UIBadge>
       ))}{" "}
-      {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "last test passed" : "last test failed"}</UIBadge>}{" "}
-      {c.last_tested_at && <span className="muted">recorded {c.last_tested_at} </span>}
+      {test && <UIBadge tone={test.ok ? "ok" : "muted"}>{test.ok ? "last test passed" : "last test failed"}</UIBadge>}{" "}
+      {c.last_tested_at && <Text muted>recorded {c.last_tested_at} </Text>}
       <Button variant="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id))}>
         {a.busy === "test" ? "testing…" : "test"}</Button>
       <Button variant="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
@@ -310,7 +310,7 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
       <Button variant="link" disabled={!!a.busy} onClick={async () => (await confirmDialog(`Delete connection ${c.name}?`)) &&
         a.run("del", () => api.deleteConnection(c.id, reviewer()), reload)}>delete</Button>
       {editing && (
-        <div className="row wrap">
+        <Line wrap>
           {Object.keys({ ...(c.type === "folder" ? { path: "" } : {}), ...c.config }).map((k) => (
             <label key={k} className="small">{k}{" "}
               <Input width={k === "path" ? "full" : "md"} value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
@@ -322,7 +322,7 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
             onClick={() => a.run("save", () => api.editConnection(c.id, {
               config: Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== "")) }, reviewer()),
               () => { setEditing(false); setFound(null); reload(); })}>Save</Button>
-        </div>
+        </Line>
       )}
       {test && !test.ok && <TestSteps steps={test.steps} />}
       {found && <TableList tables={found} system={system} connection={c.id} />}
@@ -368,12 +368,12 @@ export function ConnectionForm({ system, types, onDone, initial }: { system: str
   };
   return (
     <UICard className="inset">
-      <div className="row">
+      <Line>
         <Select value={type} onChange={(e) => { setType(e.target.value); setCfg({}); setSec({}); }}>
           {Object.keys(types).map((k) => <option key={k} value={k}>{k === "folder" ? "folder of exports / lake" : k}</option>)}
         </Select>
         <Input placeholder={`name (default ${type})`} value={name} onChange={(e) => setName(e.target.value)} />
-      </div>
+      </Line>
       <Table variant="list" density="compact">
         <tbody>
           {Object.entries(t.config).map(([k, dflt]) => (

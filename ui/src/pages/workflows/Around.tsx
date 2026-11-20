@@ -4,7 +4,7 @@ import { api } from "../../api";
 import type { CaseAround as CaseAroundData } from "../../api/work";
 import { entityHref, href, useAsync } from "../../lib";
 import { TrendView } from "../../TrendView";
-import { Button, ButtonLink, Card, Disclosure, Table } from "../../ui";
+import { Button, ButtonLink, Card, Disclosure, Table, Text } from "../../ui";
 
 const ALARM: Record<string, string> = { hihi: "High-high", hi: "High", lo: "Low", lolo: "Low-low" };
 
@@ -35,11 +35,11 @@ export function CaseAround({ id, data }: { id: number; data?: CaseAroundData }) 
       {shown && <TrendView key={shown} id={shown} start={d.window.start} end={d.window.end} />}
       {shown && (
         // The affected path in 3D (P5.16c): what this unit feeds, lit, with the rest of its area dimmed.
-        <p className="small">
+        <Text as="p" small>
           <ButtonLink variant="link" href={href("/3d", { at: shown, node: shown, path: "down", as_of: d.window.end })}>
             See what {units.find((u) => u.id === shown)?.label ?? "it"} feeds in 3D
           </ButtonLink>
-        </p>
+        </Text>
       )}
       {(d.alarms.length > 0 || d.log.length > 0) && <AroundCard d={{ ...d, window: d.window }} />}
     </>
@@ -59,9 +59,9 @@ function span(start: string, end: string | null): string {
 function AroundCard({ d }: { d: CaseAroundData & { window: { start: string; end: string } } }) {
   return (
     <Card className="case-around" title="Around the event">
-      <p className="small">
+      <Text as="p" small>
         <time dateTime={d.window.start}>{when(d.window.start)}</time> to <time dateTime={d.window.end}>{when(d.window.end)}</time>
-      </p>
+      </Text>
       {d.alarms.length > 0 && <Disclosure open label={<strong>Alarms ({d.alarms.length})</strong>}>
         <Table density="compact">
           <thead><tr><th>Point</th><th>Alarm</th><th>Limit</th><th>Peak</th><th>When</th></tr></thead>
@@ -75,7 +75,7 @@ function AroundCard({ d }: { d: CaseAroundData & { window: { start: string; end:
       </Disclosure>}
       {d.log.length > 0 && <Disclosure open label={<strong>Operator log ({d.log.length})</strong>}>
         <ul className="plain">{d.log.map((x) => (
-          <li key={x.id}><span className="small">{when(x.at)}{x.author ? ` · ${x.author}` : ""}</span>
+          <li key={x.id}><Text small>{when(x.at)}{x.author ? ` · ${x.author}` : ""}</Text>
             <div><a href={entityHref(x.id)}>{x.text ?? "Log entry"}</a></div></li>))}
         </ul>
       </Disclosure>}

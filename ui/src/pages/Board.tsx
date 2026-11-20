@@ -1,5 +1,5 @@
 import "../styles/board.css";
-import { promptDialog, ErrorText } from "../ui";
+import { promptDialog, ErrorText, Line, Text } from "../ui";
 import { money, whenDay, count } from "../format";
 import { Button, Input, PageHeader, Table, Select , Badge as UIBadge} from "../ui";
 import { useEffect, useState } from "react";
@@ -72,7 +72,7 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
   return (
     <section>
       {!embedded && <PageHeader>Work board</PageHeader>}
-      <div className="row">
+      <Line>
         <div className="tabs">
           {VIEWS.map(([v, label]) => (
             <a key={v} className={view === v ? "on" : ""} href={href("/exceptions", { list: "ranked", view: v === "ranked" ? undefined : v, ...filters })}>
@@ -92,9 +92,9 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
         )}
         <Button onClick={save}>Save filter</Button>
         <ProjectButton />
-      </div>
+      </Line>
       {view === "new" && (
-        <p className="small">{lastVisit ? `Cards first seen since ${lastVisit.replace("T", " ")}.` : "First visit: everything is new."}</p>
+        <Text as="p" small>{lastVisit ? `Cards first seen since ${lastVisit.replace("T", " ")}.` : "First visit: everything is new."}</Text>
       )}
       {group && facets && (
         <div className="chips">
@@ -105,12 +105,12 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
             ? facets.area.map((a) => (
               <Button key={a.id ?? "none"} className={filter.area === a.id ? "chip on" : "chip"}
                 onClick={() => setOne("area", a.id ?? undefined)} disabled={!a.id}>
-                {a.label ?? "no area"} <span className="muted">{a.n}</span>
+                {a.label ?? "no area"} <Text muted>{a.n}</Text>
               </Button>))
             : Object.entries(facets[group as "owner" | "kind"]).map(([k, n]) => (
               <Button key={k} className={filter[group as keyof BoardFilter] === k ? "chip on" : "chip"}
                 onClick={() => setOne(group as keyof BoardFilter, k)}>
-                {k.replace("_", " ")} <span className="muted">{n}</span>
+                {k.replace("_", " ")} <Text muted>{n}</Text>
               </Button>))}
         </div>
       )}
@@ -119,16 +119,16 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
       </Status>
       {board.data && board.data.total > 0 && (
         <>
-          <p className="small">
+          <Text as="p" small>
             {count(board.data.total)} cards · page {page} of {Math.ceil(board.data.total / board.data.per_page)}
-          </p>
+          </Text>
           <ol className="board">
             {board.data.cards.map((c) => <Card key={c.key} card={c} reload={board.reload} />)}
           </ol>
-          <div className="row">
+          <Line>
             <Button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
             <Button disabled={page * board.data.per_page >= board.data.total} onClick={() => setPage(page + 1)}>Next</Button>
-          </div>
+          </Line>
         </>
       )}
     </section>
@@ -140,22 +140,22 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
   const up = c.prev_rank !== null && c.prev_rank > c.rank;
   return (
     <li className={`card board-card${c.pinned ? " pinned" : ""}`}>
-      <div className="row">
+      <Line>
         <span className="rank mono">{c.rank}</span>
-        {c.moved && <UIBadge className={`badge ${c.moved === "new" ? "ok" : up ? "ok" : ""}`} title={c.moved}>{c.moved.split(":")[0]}</UIBadge>}
-        <UIBadge className="badge">{c.kind.replace("_", " ")}</UIBadge>
+        {c.moved && <UIBadge tone={c.moved === "new" ? "ok" : up ? "ok" : "muted"} title={c.moved}>{c.moved.split(":")[0]}</UIBadge>}
+        <UIBadge>{c.kind.replace("_", " ")}</UIBadge>
         {c.item_id ? <a href={href(`/cases/${c.item_id}`)}>{c.title}</a> : <span>{c.title}</span>}
         <span className="spacer" />
         <strong title={c.reason ?? ""}>{valued(c.effective_usd)}</strong>
         <Button variant="link" size="sm" onClick={() => setOpen(!open)}>{open ? "less" : "why"}</Button>
-      </div>
-      <div className="row small muted">
+      </Line>
+      <Line small muted>
         {c.unit && c.unit_id && <a href={entityHref(c.unit_id)}>{c.unit}</a>}
         {c.area && <span>{c.area}</span>}
         {c.owner && c.owner !== "unassigned" && <span>{c.owner}</span>}
-        {c.pinned && <UIBadge className="badge key" title={c.pin_reason ?? ""}>pinned by {c.pinned_by}: {c.pin_reason}</UIBadge>}
+        {c.pinned && <UIBadge title={c.pin_reason ?? ""}>pinned by {c.pinned_by}: {c.pin_reason}</UIBadge>}
         {c.records.length > 1 && <span>{c.records.length} records</span>}
-      </div>
+      </Line>
       {open && <Detail card={c} reload={reload} />}
     </li>
   );
@@ -166,8 +166,8 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
   const parts = c.breakdown.components ?? {};
   return (
     <div className="board-detail">
-      {c.text && <p className="small">{c.text}</p>}
-      {c.reason && <p className="small">{c.reason}{c.moved && c.moved !== "new" && ` · ${c.moved}`}</p>}
+      {c.text && <Text as="p" small>{c.text}</Text>}
+      {c.reason && <Text as="p" small>{c.reason}{c.moved && c.moved !== "new" && ` · ${c.moved}`}</Text>}
       {Object.keys(parts).length > 0 && (
         <Table density="compact">
           <tbody>
@@ -180,9 +180,9 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         </Table>
       )}
       {c.breakdown.unknown && c.breakdown.unknown.length > 0 && (
-        <p className="small">Not known: {c.breakdown.unknown.join(", ")}</p>
+        <Text as="p" small>Not known: {c.breakdown.unknown.join(", ")}</Text>
       )}
-      <p className="small">
+      <Text as="p" small>
         Records:{" "}
         {c.records.map((r) => {
           const id = r.split(":").slice(1).join(":");
@@ -192,11 +192,11 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
             </span>
           );
         })}
-      </p>
+      </Text>
       {hist.data && hist.data.length > 1 && (
-        <p className="small">
+        <Text as="p" small>
           Rank: {hist.data.map((h) => `${h.rank} (${whenDay(h.at)})`).join(" → ")}
-        </p>
+        </Text>
       )}
       <PinForm card={c} reload={reload} />
     </div>
@@ -221,7 +221,7 @@ function PinForm({ card: c, reload }: { card: BoardCard; reload: () => void }) {
     }
   };
   return (
-    <div className="row small">
+    <Line small>
       <span>Pin to rank</span>
       <Input width="xs" value={rank} onChange={(e) => setRank(e.target.value)} />
       <span>or value $</span>
@@ -230,7 +230,7 @@ function PinForm({ card: c, reload }: { card: BoardCard; reload: () => void }) {
       <Button disabled={!reason || (!rank && !value)} onClick={() => send()}>Pin</Button>
       {c.pinned && <Button onClick={() => send(true)}>Unpin</Button>}
       <ErrorText inline>{error}</ErrorText>
-    </div>
+    </Line>
   );
 }
 

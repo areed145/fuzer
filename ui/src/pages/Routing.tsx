@@ -3,7 +3,7 @@ import { when } from "../format";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api, type Route, type RouteExplanation, type RouteStep, type WorkRoleRow } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Table } from "../ui";
+import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Table, Text } from "../ui";
 import { duration, usePerson } from "../work";
 import { ExceptionTypes } from "./Exceptions";
 
@@ -42,7 +42,7 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
 const words = (name: string | null) => (name ?? "").replace(/^role:/, "").replace(/_/g, " ");
 
 function Starts({ r }: { r: Route }) {
-  if (!r.process) return <span className="muted">waits for the IOC to dispatch</span>;
+  if (!r.process) return <Text muted>waits for the IOC to dispatch</Text>;
   // Most types start the plain queue process, so only a different process is worth naming.
   const process = <a href={href(`/workflows/${r.process}`)}>{words(r.process)}</a>;
   if (!r.role) return <>the {process} workflow</>;
@@ -69,11 +69,11 @@ function also(r: Route, role?: WorkRoleRow) {
 function dueText(r: Route, role?: WorkRoleRow) {
   if (!r.due) {
     const h = isoHours(role?.default_sla);
-    return h == null ? <span className="muted">no time set</span>
-      : <>{hoursText(h)} <span className="muted">to act</span></>;
+    return h == null ? <Text muted>no time set</Text>
+      : <>{hoursText(h)} <Text muted>to act</Text></>;
   }
   const map = Object.entries(r.due.hours).map(([p, h]) => `${p}: ${h} h`).join(", ");
-  return <>{map || "off"}{r.due.setting && <span className="muted"> (setting <span className="mono">{r.due.setting}</span>)</span>}</>;
+  return <>{map || "off"}{r.due.setting && <Text muted> (setting <Text mono>{r.due.setting}</Text>)</Text>}</>;
 }
 
 function RouteDetail({ route }: { route: Route }) {
@@ -84,7 +84,7 @@ function RouteDetail({ route }: { route: Route }) {
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   const x = plan.data;
   return <Card title={<>{route.label} <Badge>{route.case_type.replace(/_/g, " ")}</Badge></>} className="route-detail">
-    {route.description && <p className="small muted">{route.description}</p>}
+    {route.description && <Text as="p" small muted>{route.description}</Text>}
     <form className="row" onSubmit={run} aria-label="Try an intake">
       <Field label="Refs" hint="comma separated, e.g. tag:P-101"><Input value={form.refs} onChange={set("refs")} /></Field>
       <Field label="Key" width="sm"><Input value={form.key} onChange={set("key")} /></Field>
@@ -101,10 +101,10 @@ function Explanation({ x }: { x: RouteExplanation }) {
   const nobody = steps.filter((s) => s.kind === "person" && !s.holders?.length);
   return <>
     <p role="status" className="route-summary"><strong>{x.summary}</strong></p>
-    {(x.matched.length > 0 || x.unmatched.length > 0) && <p className="small">
+    {(x.matched.length > 0 || x.unmatched.length > 0) && <Text as="p" small>
       {x.matched.length > 0 && <>Matches {x.matched.map((m) => m.label).join(", ")}. </>}
-      {x.unmatched.length > 0 && <span className="muted">No match for {x.unmatched.join(", ")}.</span>}</p>}
-    {x.due && <p className="small">Due {when(x.due)}.</p>}
+      {x.unmatched.length > 0 && <Text muted>No match for {x.unmatched.join(", ")}.</Text>}</Text>}
+    {x.due && <Text as="p" small>Due {when(x.due)}.</Text>}
     {nobody.length > 0 && <p role="alert" className="notice small">Nobody holds {nobody.map((s) => words(s.role)).join(", ")}:
       work there waits unseen. <a href={href("/users", { view: "workflow" })}>Assign someone</a>.</p>}
     {x.process?.published && <ProcessPicture processKey={x.process.key} steps={steps} />}
@@ -113,14 +113,14 @@ function Explanation({ x }: { x: RouteExplanation }) {
       <tbody>{steps.map((s) => <tr key={s.element}>
         <td>{s.step}</td>
         <td>{s.kind === "agent" ? `${words(s.role)} agent` : words(s.role)}</td>
-        <td>{s.kind === "agent" ? <span className="muted">agent worker</span>
+        <td>{s.kind === "agent" ? <Text muted>agent worker</Text>
           : s.holders?.length ? s.holders.map(personName).join(", ") : <Badge tone="warn">nobody</Badge>}</td>
-        <td>{s.sla ? duration(s.sla) : <span className="muted">none</span>}{s.sla_from === "role" && <span className="muted small"> (role)</span>}</td>
-        <td className="small">{s.escalation.length ? s.escalation.map(words).join(" → ") : <span className="muted">stays with its role</span>}</td>
+        <td>{s.sla ? duration(s.sla) : <Text muted>none</Text>}{s.sla_from === "role" && <Text small muted> (role)</Text>}</td>
+        <td className="small">{s.escalation.length ? s.escalation.map(words).join(" → ") : <Text muted>stays with its role</Text>}</td>
       </tr>)}</tbody>
     </Table>}
-    {x.process && <p className="small"><a href={href(`/workflows/${x.process.key}`)}>Edit the {x.process.key} workflow</a>
-      {" · "}<a href={href("/users", { view: "workflow" })}>role SLAs and escalation</a></p>}
+    {x.process && <Text as="p" small><a href={href(`/workflows/${x.process.key}`)}>Edit the {x.process.key} workflow</a>
+      {" · "}<a href={href("/users", { view: "workflow" })}>role SLAs and escalation</a></Text>}
   </>;
 }
 

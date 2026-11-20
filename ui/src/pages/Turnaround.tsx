@@ -5,7 +5,7 @@
  * S-curve shows progress against the baseline and the slip (#360). `#/turnaround` redirects to `#/plan?revision=…`. */
 import { api, type PlanItem, type TurnaroundScope } from "../api";
 import { whenDay, count } from "../format";
-import { Badge, Button, Card, Empty, ErrorText } from "../ui";
+import { Badge, Button, Card, Empty, ErrorText, Line, Text } from "../ui";
 import { entityHref, href, useAction } from "../lib";
 import { LiveFigure } from "../analytics/LiveFigure";
 
@@ -17,7 +17,7 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
   const { busy, error, run } = useAction();
   const bringIn = (i: PlanItem) => person && run("Bringing it in", () => api.turnaroundBringIn(i.id, person, t.revision), onChange);
   const items = (list: PlanItem[], why: (i: PlanItem) => string) => <ul className="plain">{list.map((i) => <li key={i.id}>
-    <strong>{i.title}</strong> <span className="muted small">{i.kind.replace(/_/g, " ")} · {day(i.start_at)} · {why(i)}</span>{" "}
+    <strong>{i.title}</strong> <Text small muted>{i.kind.replace(/_/g, " ")} · {day(i.start_at)} · {why(i)}</Text>{" "}
     {person && t.window && <Button size="sm" disabled={!!busy} aria-label={`Bring into ${t.revision}`} onClick={() => bringIn(i)}>Bring in</Button>}
   </li>)}</ul>;
   const unitDown = t.shutdown_outside.length + t.shutdown_plans_not_in_scope.length;
@@ -26,13 +26,13 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
       <h2 id="turnaround-heading">Turnaround {t.revision ?? ""}{" "}
         <a className="small" href={href("/plan")} aria-label="Close the turnaround">Close</a></h2>
       {!t.revision ? <Empty>No work order names a revision.</Empty> : <>
-        <p className="row small">
+        <Line as="p" small>
           {t.window ? <Badge>{day(t.window.start)} to {day(t.window.end)}</Badge> : <Badge tone="warn">not on the plan yet</Badge>}
           <Badge>{t.scoped_work.length} orders</Badge>
           {t.ride_along.length > 0 && <Badge tone="ok">{t.ride_along.length} could ride along</Badge>}
           {unitDown > 0 && <Badge tone="warn">{unitDown} need the unit down, not in scope</Badge>}
           {t.spares_out_of_stock.length > 0 && <Badge tone="danger">{t.spares_out_of_stock.length} spares out of stock</Badge>}
-        </p>
+        </Line>
         {busy && <p role="status">{busy}…</p>}
         <ErrorText>{error}</ErrorText>
         {t.schedule && <Card title="Progress against the baseline">
@@ -40,8 +40,8 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
         {t.scoped_work.length > 0 && <Card title="In scope">
           <ul className="plain">{t.scoped_work.map((w) => <li key={w.id}>
             <a href={entityHref(w.id)}>{w.order ?? w.id}</a> {w.text}{" "}
-            <span className="muted small">{w.tag_id ? <a href={entityHref(w.tag_id)}>{w.tag ?? w.tag_id}</a> : null}
-              {w.tag_id ? " · " : ""}{day(w.planned_start)}{w.status ? ` · ${w.status}` : ""}</span>
+            <Text small muted>{w.tag_id ? <a href={entityHref(w.tag_id)}>{w.tag ?? w.tag_id}</a> : null}
+              {w.tag_id ? " · " : ""}{day(w.planned_start)}{w.status ? ` · ${w.status}` : ""}</Text>
           </li>)}</ul>
         </Card>}
         {t.shutdown_outside.length > 0 && <Card title="Needs the unit down, planned outside it">
@@ -50,15 +50,15 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
           {items(t.ride_along, (i) => i.area_label ? `same area (${i.area_label}), close in time` : "close in time")}</Card>}
         {t.shutdown_plans_not_in_scope.length > 0 && <Card title="Shutdown-only maintenance plans not in scope">
           <ul className="plain">{t.shutdown_plans_not_in_scope.map((p) => <li key={p.id}>
-            <a href={entityHref(p.id)}>{p.task ?? p.plan ?? p.id}</a> <span className="muted small">{p.tag ?? ""} · due {day(p.next_due)}</span>
+            <a href={entityHref(p.id)}>{p.task ?? p.plan ?? p.id}</a> <Text small muted>{p.tag ?? ""} · due {day(p.next_due)}</Text>
           </li>)}</ul></Card>}
         {t.bad_actors_not_in_scope.length > 0 && <Card title="Worst bad actors not in scope">
           <ul className="plain">{t.bad_actors_not_in_scope.map((a) => <li key={a.id}>
-            <a href={entityHref(a.id)}>{a.tag ?? a.id}</a> <span className="muted small">{a.failures} failures
-              {a.lost_oil_bbl ? ` · ${count(Math.round(a.lost_oil_bbl))} bbl lost` : ""}</span></li>)}</ul></Card>}
+            <a href={entityHref(a.id)}>{a.tag ?? a.id}</a> <Text small muted>{a.failures} failures
+              {a.lost_oil_bbl ? ` · ${count(Math.round(a.lost_oil_bbl))} bbl lost` : ""}</Text></li>)}</ul></Card>}
         {t.spares_out_of_stock.length > 0 && <Card title="Spares out of stock">
           <ul className="plain">{t.spares_out_of_stock.map((p, n) => <li key={`${p.id}-${n}`}>
-            <a href={entityHref(p.id)}>{p.material ?? p.id}</a> <span className="muted small">for {p.for} · {p.description}</span></li>)}</ul></Card>}
+            <a href={entityHref(p.id)}>{p.material ?? p.id}</a> <Text small muted>for {p.for} · {p.description}</Text></li>)}</ul></Card>}
       </>}
     </aside>
   );

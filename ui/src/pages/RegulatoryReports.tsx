@@ -6,7 +6,7 @@ import { quantity, when } from "../format";
 import { api, type RegulatoryListing, type RegulatoryReport, type ReportBasis, type ReportFigure, type ReportRow } from "../api";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
-import { Badge, Button, Card, ConfirmAction, Input, Table, ErrorText } from "../ui";
+import { Badge, Button, Card, ConfirmAction, Input, Table, ErrorText, Line, Text } from "../ui";
 import "../styles/reports.css";
 import { person as personName } from "../wording";
 
@@ -21,7 +21,7 @@ const num = (v: number | null, unit?: string | null) => (v === null ? "—" : qu
 /** Where a row drills to: the case, the point read that day, or the measurement record on the thing it measured. */
 function RowRef({ row, subject }: { row: ReportRow; subject?: string }) {
   const ref = row.ref;
-  if (!ref) return <span className="muted">no record</span>;
+  if (!ref) return <Text muted>no record</Text>;
   if (ref.startsWith("case:")) return <a href={href(`/cases/${ref.slice(5)}`)}>case {ref.slice(5)}</a>;
   if (ref.startsWith("point:")) {
     const [id] = ref.slice(6).split("@");
@@ -42,7 +42,7 @@ function Figure({ f, open, onToggle }: { f: ReportFigure; open: boolean; onToggl
       </tr>
       {open && f.rows.map((r, i) => (
         <tr key={`${f.key}-${i}`} className="small">
-          <td className="report-row-label">{r.label}{r.text ? <div className="muted">{r.text}</div> : null}</td>
+          <td className="report-row-label">{r.label}{r.text ? <Text as="div" muted>{r.text}</Text> : null}</td>
           <td className="num">{num(r.value, r.unit ?? f.unit)}</td>
           <td><BasisBadge basis={r.basis} /></td>
           <td><RowRef row={r} subject={f.subject} /></td>
@@ -72,9 +72,9 @@ function Decide({ d, onDone }: { d: RegulatoryReport; onDone: () => void }) {
   return (
     <Card as="section">
       <h2>Approve and submit</h2>
-      {d.status === "draft" && !latest && <p className="small muted">An older draft; only the latest version can be approved.</p>}
+      {d.status === "draft" && !latest && <Text as="p" small muted>An older draft; only the latest version can be approved.</Text>}
       {d.status === "draft" && latest && (!person ? (
-        <p className="small">Say who you are in the sidebar (bottom left) to approve it.</p>
+        <Text as="p" small>Say who you are in the sidebar (bottom left) to approve it.</Text>
       ) : (
         <>
           {needsNote && (
@@ -88,8 +88,8 @@ function Decide({ d, onDone }: { d: RegulatoryReport; onDone: () => void }) {
         </>
       ))}
       {d.approved_by && (
-        <p className="small">Approved by {d.approved_by} {d.approved_at ? when(d.approved_at) : ""}
-          {d.approval_note ? `: “${d.approval_note}”` : ""}.</p>
+        <Text as="p" small>Approved by {d.approved_by} {d.approved_at ? when(d.approved_at) : ""}
+          {d.approval_note ? `: “${d.approval_note}”` : ""}.</Text>
       )}
       <div className="actions">
         <Button disabled={!!a.busy} onClick={() => a.run("export", () => api.exportRegulatoryReport(d.template, d.period, d.version), download)}>
@@ -108,9 +108,9 @@ function Decide({ d, onDone }: { d: RegulatoryReport; onDone: () => void }) {
         </div>
       )}
       {d.submitted && (
-        <p className="small">Submitted by {personName(d.submitted.by)} {when(d.submitted.at)}
+        <Text as="p" small>Submitted by {personName(d.submitted.by)} {when(d.submitted.at)}
           {d.submitted.via === "writeback" ? ` through the write-back queue to ${d.submitted.system}` : " as an exported file"}:
-          {" "}{d.submitted.file}, sha256 {d.submitted.sha256.slice(0, 12)}…</p>
+          {" "}{d.submitted.file}, sha256 {d.submitted.sha256.slice(0, 12)}…</Text>
       )}
       <ErrorText>{a.error}</ErrorText>
     </Card>
@@ -131,7 +131,7 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
       {d && (
         <>
           <Card as="section">
-            <div className="row spread">
+            <Line spread>
               <h2>{d.title}, {d.coverage.label}</h2>
               <span className="small row">
                 {d.versions.map((v) => (
@@ -139,18 +139,18 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
                 ))}
                 {d.review?.item_id && <a href={href(`/cases/${d.review.item_id}`)}>review case ({d.review.state})</a>}
               </span>
-            </div>
-            <p className="small muted">
+            </Line>
+            <Text as="p" small muted>
               Covers {d.coverage.since} to {d.coverage.through}
               {d.coverage.partial ? ", drafted through the data's last full day: the month is not over" : ""}.
               Drafted by {d.drafted_by} {when(d.created_at)}. Open a figure to see the records it is made of.
-            </p>
+            </Text>
             {d.marked.length > 0 ? (
               <div className="notice warn small">
                 <strong>{d.marked.length} figure{d.marked.length > 1 ? "s" : ""} on estimated or missing data</strong>
                 <ul>{d.marked.map((m) => <li key={m.key}>{m.label}: {m.flags.join("; ") || m.basis}</li>)}</ul>
               </div>
-            ) : <p className="small">Every figure rests on measured data.</p>}
+            ) : <Text as="p" small>Every figure rests on measured data.</Text>}
             <div className="actions">
               <Button disabled={!person || !!a.busy}
                 title={person ? "Draft it again from the records; a new version only when a figure changed" : "Say who you are first"}
@@ -163,8 +163,8 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
           {d.sections.map((s) => (
             <Card as="section" key={s.title}>
               <h2>{s.title}</h2>
-              {s.note && <p className="small muted">{s.note}</p>}
-              {s.figures.length === 0 ? <p className="small muted">Nothing for this period.</p> : (
+              {s.note && <Text as="p" small muted>{s.note}</Text>}
+              {s.figures.length === 0 ? <Text as="p" small muted>Nothing for this period.</Text> : (
                 <Table>
                   <thead><tr><th>Figure</th><th>Value</th><th>Basis</th><th>Notes</th></tr></thead>
                   <tbody>
@@ -188,13 +188,13 @@ export function RegulatoryList({ data, selected, onChange }: { data: RegulatoryL
   const reports = Array.isArray(data.reports) ? data.reports : [];  // an API without regulatory reports answers otherwise
   const templates = Array.isArray(data.templates) ? data.templates : [];
   return (
-    <div className="row wrap">
+    <Line wrap>
       {reports.map((x) => {
         const id = `${x.template}:${x.period}`;
         return (
-          <a key={id} className={`badge${id === selected ? " on" : ""} ${x.marked ? "warn" : "ok"}`}
+          <a key={id} aria-current={id === selected ? "true" : undefined}
             href={href("/reports", { report: id })} title={`${x.title}; ${x.marked} figure(s) on estimated or missing data`}>
-            {x.title}, {x.coverage.label}{x.version > 1 ? ` v${x.version}` : ""}{x.marked ? " ⚠" : ""}
+            <Badge tone={id === selected ? "info" : x.marked ? "warn" : "ok"}><Badge tone={id === selected ? "info" : x.marked ? "warn" : "ok"}>{x.title}, {x.coverage.label}{x.version > 1 ? ` v${x.version}` : ""}{x.marked ? " ⚠" : ""}</Badge></Badge>
           </a>
         );
       })}
@@ -206,7 +206,7 @@ export function RegulatoryList({ data, selected, onChange }: { data: RegulatoryL
           })}>Draft {t.title.toLowerCase()} for {month}</Button>
       ))}
       <ErrorText inline>{a.error}</ErrorText>
-    </div>
+    </Line>
   );
 }
 
@@ -216,9 +216,9 @@ export function ObligationsDue() {
   const due = Array.isArray(o.data?.calendar) ? o.data.calendar : [];
   if (!o.data || (due.length === 0 && !(o.data.obligations ?? []).length)) return null;
   return (
-    <div className="small">
+    <Text as="div" small>
       <strong>Coming due</strong>
-      {due.length === 0 ? <span className="muted"> nothing open: every report due is submitted.</span> : (
+      {due.length === 0 ? <Text muted> nothing open: every report due is submitted.</Text> : (
         <ul>
           {due.map((c) => (
             <li key={`${c.obligation}:${c.period}`}>
@@ -229,6 +229,6 @@ export function ObligationsDue() {
           ))}
         </ul>
       )}
-    </div>
+    </Text>
   );
 }

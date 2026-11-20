@@ -1,4 +1,4 @@
-import { Bar, Button, PageHeader, Input, Table, Card as UICard } from "../ui";
+import { Bar, Button, PageHeader, Input, Table, Card as UICard, Text } from "../ui";
 import { whenDay, count } from "../format";
 import { useState } from "react";
 import { api, type DowntimeMonth, type RankRow } from "../api";
@@ -42,11 +42,11 @@ export function DowntimePage() {
         <div className="downtime-totals">
           <p><b>{fmt(t.lost_oil_bbl)} bbl</b> oil lost over <b>{count(t.events)}</b> events ({fmt(t.hours)} h)</p>
           {t.planned && (
-            <p className="small">
+            <Text as="p" small>
               <span className="dot planned" /> Planned <b>{fmt(plannedBbl)} bbl</b> in {plannedEvents} {plannedEvents === 1 ? "event" : "events"}
               {" · "}<span className="dot unplanned" /> Unplanned <b>{fmt(t.lost_oil_bbl - plannedBbl)} bbl</b> in {t.events - plannedEvents}{" "}
               {t.events - plannedEvents === 1 ? "event" : "events"}
-            </p>
+            </Text>
           )}
         </div>
       )}
@@ -63,7 +63,7 @@ export function DowntimePage() {
       </div>
       {t && (
         <UICard as="section" className="downtime-events">
-          <h2>Events <span className="muted small">{events.length}{(t.recent?.length ?? 0) < t.events && scope === "all" ? ` newest of ${t.events}` : ""}</span></h2>
+          <h2>Events <Text small muted>{events.length}{(t.recent?.length ?? 0) < t.events && scope === "all" ? ` newest of ${t.events}` : ""}</Text></h2>
           <Table variant="list" density="compact">
             <thead><tr><th>Start</th><th>Hours</th><th>Reason</th><th>Equipment or well</th><th>Oil lost (bbl)</th></tr></thead>
             <tbody>
@@ -71,7 +71,7 @@ export function DowntimePage() {
                 <tr key={e.id}>
                   <td><a href={entityHref(e.id)}>{whenDay(e.start, "unknown")}</a></td>
                   <td>{e.duration_h ?? "–"}</td>
-                  <td>{e.reason ?? "–"}<div className="muted small">{e.comment}</div></td>
+                  <td>{e.reason ?? "–"}<Text as="div" small muted>{e.comment}</Text></td>
                   <td>{[...e.caused_by, ...e.affects].slice(0, 2).map((x, i) => <span key={x.id}>{i > 0 && ", "}
                     <a href={entityHref(x.id)}>{x.label ?? x.id}</a></span>)}</td>
                   <td>{e.lost_oil_bbl == null ? "–" : fmt(e.lost_oil_bbl)}</td>
@@ -85,7 +85,7 @@ export function DowntimePage() {
       {checks.data && checks.data.length > 0 && (
         <UICard  as="section">
           <h2>
-            Reason code doesn't match the comment <span className="muted small">{checks.data.length}</span>
+            Reason code doesn't match the comment <Text small muted>{checks.data.length}</Text>
           </h2>
           <ul className="timeline">
             {checks.data.map((c) => (
@@ -93,7 +93,7 @@ export function DowntimePage() {
                 <span className="when">{whenDay(c.start)}</span>
                 <div className="what">
                   <a href={entityHref(c.fuzer_id)}>{c.label}</a>
-                  <span className="muted small">{c.issue}</span>
+                  <Text small muted>{c.issue}</Text>
                 </div>
               </li>
             ))}
@@ -131,7 +131,7 @@ function Months({ rows, error, reload }: { rows?: DowntimeMonth[]; error?: strin
   const top = Math.max(1, ...months.map((r) => r.unplanned_bbl));
   return (
     <UICard as="section" className="downtime-months">
-      <h2>Unplanned loss by month <span className="muted small">oil lost (bbl), by the month each downtime started</span></h2>
+      <h2>Unplanned loss by month <Text small muted>oil lost (bbl), by the month each downtime started</Text></h2>
       <Status error={error} onRetry={reload} empty={rows?.length === 0}>Nothing recorded.</Status>
       {months.length > 0 && (
         <ol className="month-bars" aria-label="Unplanned oil lost by month">
@@ -161,7 +161,7 @@ function Ranking({ title, rows, error, reload, named }: {
       <Status loading={!rows && !error} error={error} onRetry={reload} empty={rows?.length === 0}>
         Nothing recorded.
       </Status>
-      {rows && rows.length > 0 && <p className="small">Oil lost (bbl)</p>}
+      {rows && rows.length > 0 && <Text as="p" small>Oil lost (bbl)</Text>}
       <ul className="coverage ranking">
         {rows?.map((r) => (
           <li key={r.label ?? "none"} className={r.unattributed ? "unattributed" : undefined}>
@@ -173,7 +173,7 @@ function Ranking({ title, rows, error, reload, named }: {
               )}
             </span>
             <Bar className="bar" value={(100 * r.lost_oil_bbl) / top} />
-            <span className="muted small">{fmt(r.lost_oil_bbl)}</span>
+            <Text small muted>{fmt(r.lost_oil_bbl)}</Text>
           </li>
         ))}
       </ul>

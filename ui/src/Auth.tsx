@@ -5,7 +5,7 @@ import { setCsrf } from "./authState";
 import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
 import { useRoute, errorMessage } from "./lib";
-import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader } from "./ui";
+import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader, Line, Text } from "./ui";
 import { forgetKept, outboxSession, unreachable } from "./fieldOffline";
 import "./styles/auth.css";
 
@@ -181,10 +181,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 onChange={(event) => setSetupCode(event.target.value)} required minLength={32} maxLength={512} /></Field>
               <Button type="submit" disabled={busy || setupCode.length < 32}>{busy ? "Confirming..." : "Set up owner access"}</Button>
             </form>}
-            <div className="row">
+            <Line>
               {check(pending.enabled ? "Check access" : "Check approval")}
               <SignOut />
-            </div>
+            </Line>
           </> : <>
             {signInResult && <p role="alert">{signInResult === "unavailable"
               ? "Microsoft sign-in is temporarily unreachable. Try again shortly."
@@ -192,7 +192,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               {" "}If this continues, contact the deployment owner to check the application registration.</p>}
             <ButtonLink variant="primary" href={location.hash.startsWith("#/") && !signInResult
               ? `/auth/login?return_to=${encodeURIComponent(location.hash)}` : "/auth/login"}>Continue with Microsoft</ButtonLink>
-            <p className="small">Personal and work or school Microsoft accounts work. An owner approves access.</p>
+            <Text as="p" small>Personal and work or school Microsoft accounts work. An owner approves access.</Text>
           </>}
         <ActionStatus busy={busy ? "Setting up owner access..." : null} error={actionError} />
       </Card>

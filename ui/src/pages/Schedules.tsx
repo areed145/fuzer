@@ -1,7 +1,7 @@
 /** Every schedule on the plan (P5.18): turnarounds, projects and campaigns, each opening its Gantt board. */
 import { api } from "../api";
 import { whenDay } from "../format";
-import { Empty, PageHeader, Table } from "../ui";
+import { Empty, PageHeader, Table, Text } from "../ui";
 import { Status, useAsync } from "../lib";
 import { acronyms } from "../wording";
 
@@ -15,10 +15,10 @@ export function SchedulesPage() {
         <thead><tr><th>Schedule</th><th>Kind</th><th>Runs</th><th>Activities</th></tr></thead>
         <tbody>{list.data.map((x) => <tr key={x.code}>
           <td><a href={`#/plan?schedule=${encodeURIComponent(x.code)}`}><strong>{acronyms(x.title)}</strong></a>{" "}
-            <span className="mono small muted">{x.code}</span></td>
-          <td data-label="Kind">{x.kind}</td>
-          <td data-label="Runs">{whenDay(x.first_start ?? x.start_at)}{x.last_finish || x.finish_by ? ` to ${whenDay((x.last_finish ?? x.finish_by)!)}` : ""}</td>
-          <td data-label="Activities">{x.activities}</td>
+            <Text small muted mono>{x.code}</Text></td>
+          <td>{x.kind}</td>
+          <td>{whenDay(x.first_start ?? x.start_at)}{x.last_finish || x.finish_by ? ` to ${whenDay((x.last_finish ?? x.finish_by)!)}` : ""}</td>
+          <td>{x.activities}</td>
         </tr>)}</tbody>
       </Table> : <Empty>No schedules yet. A turnaround, project or campaign from the planning system appears here.</Empty>)}
     </section>

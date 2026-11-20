@@ -523,11 +523,10 @@
 :root.ios .home-list > li > .small strong { color: var(--muted); font-weight: 500; }
 :root.ios .home-counts { gap: 4px 16px; }
 /* Status stays a word in its colour (the style guide's Badge tone), set semibold so it stands apart from the grey detail. */
-:root.ios #main-content .badge:is(.late, .soon) { font-size: var(--t-footnote); font-weight: 600; white-space: nowrap; }
 /* Field jobs and other stacked cards on My work: separate rounded rows with air between them. */
 :root.ios .field-job.ui-card { margin-bottom: 12px; }
 :root.ios .field-job .ui-card-header h2 { font-size: var(--t-body); line-height: 22px; }
-:root.ios .field-job .ui-card-header h2 .badge { display: inline; font-size: var(--t-footnote); color: var(--muted); }
+:root.ios .field-job .ui-card-header h2 .ui-badge { display: inline; font-size: var(--t-footnote); color: var(--muted); }
 
 /* ================= Ask: suggested questions and the composer =================
    The suggestions are one inset grouped list, not a stack of tinted cards: the topic a small grey caption on the
@@ -570,10 +569,10 @@
     border: 0; border-radius: 999px; background: var(--fill); box-shadow: none; white-space: nowrap; font-size: var(--t-subhead);
   }
   :root.ios .report-day.on { background: var(--accent); color: var(--accent-text, #fff); box-shadow: none; }
-  :root.ios .report-day.on :is(.report-day-week, .badge, .warn-text) { color: inherit; opacity: .85; }
+  :root.ios .report-day.on :is(.report-day-week, .ui-badge, .warn-text) { color: inherit; opacity: .85; }
   :root.ios .report-day-week { font-size: var(--t-footnote); letter-spacing: 0; text-transform: none; }
   :root.ios .report-day strong { font-weight: 600; }
-  :root.ios .report-day .badge { font-size: var(--t-caption); }
+  :root.ios .report-day .ui-badge { font-size: var(--t-caption); }
 }
 :root.ios .md { font-size: var(--t-subhead); line-height: 1.45; overflow-wrap: break-word; }
 :root.ios .md :is(p, ul, ol) { line-height: 1.45; }
@@ -601,7 +600,7 @@
 :root.ios #main-content h3.small { font-size: var(--t-footnote); line-height: 18px; }
 :root.ios #main-content { font-size: var(--t-subhead); line-height: 20px; }
 :root.ios #main-content :is(.small, small) { font-size: var(--t-footnote); line-height: 18px; }
-:root.ios #main-content :is(.ui-badge, .badge):not(.late, .soon) { font-size: var(--t-caption); }
+:root.ios #main-content .ui-badge { font-size: var(--t-caption); }
 :root.ios #main-content :is(th, td) { font-size: var(--t-subhead); }
 :root.ios #main-content :is(th) { font-size: var(--t-footnote); font-weight: 600; }
 @media (max-width: 600px) {

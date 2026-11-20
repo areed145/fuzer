@@ -8,7 +8,7 @@ import { caseHref } from "./workflows/shared";
 import { iocCounts, workHref } from "./AllWork";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson } from "../work";
-import { PageHeader, Card as UICard, Empty, ErrorText } from "../ui";
+import { PageHeader, Card as UICard, Empty, ErrorText, Line, Text } from "../ui";
 import { usePermission } from "../Auth";
 import { LiveFigure } from "../analytics/LiveFigure";
 import { YourShift } from "./HomeShift";
@@ -114,29 +114,29 @@ function LatestReportCard() {
   const production = (facts?.["Production and deferment"] ?? []) as HeadlineFact[];
   return (
     <UICard className="home-card home-today" as="section">
-      <div className="row spread">
+      <Line spread>
         <h2>Latest daily report</h2>
         {latest.data && (
-          <a className="badge" href={href("/reports", { day: latest.data.day.day })}>
+          <a className="small muted" href={href("/reports", { day: latest.data.day.day })}>
             {latest.data.day.day} · {latest.data.report.checks.ok ? "checks passed" : "needs review"}
           </a>
         )}
-      </div>
+      </Line>
       <Status of={latest} empty={latest.data === null}>
         No daily report recorded. <a href={href("/reports")}>Open daily reports</a>.
       </Status>
       {latest.data && (
         <>
-          <p className="small">Report date {latest.data.day.day}</p>
+          <Text as="p" small>Report date {latest.data.day.day}</Text>
           {headlines.length > 0 ? (
             <ul className="home-list home-headline">
               {headlines.map((fact, i) => <li key={i}>{say(fact.text)}</li>)}
             </ul>
           ) : <Empty className="small">This report has no headline facts.</Empty>}
           {production.length > 0 && (
-            <p className="small">
+            <Text as="p" small>
               {production.filter((fact) => fact.text.includes("7-day average")).map((fact) => say(fact.text)).join(" · ")}
-            </p>
+            </Text>
           )}
           <a href={href("/reports", { day: latest.data.day.day })}>Read the daily report</a>
         </>
@@ -167,7 +167,7 @@ function AllWorkCard({ onReady }: { onReady?: () => void } = {}) {
   useEffect(() => { if (ready) onReady?.(); }, [ready, onReady]);
   return (
     <UICard className="home-card" as="section">
-      <div className="row spread"><h2>All work</h2><a href={workHref("dispatch")}>Open All work</a></div>
+      <Line spread><h2>All work</h2><a href={workHref("dispatch")}>Open All work</a></Line>
       <Status loading={!ready} error={open.error} onRetry={open.reload} />
       {ready && c && <ul className="home-counts">
         <Count n={c.dispatch} to={workHref("dispatch")} late>to dispatch</Count>
@@ -179,7 +179,7 @@ function AllWorkCard({ onReady }: { onReady?: () => void } = {}) {
         <h3>Highest value</h3>
         <ol className="home-list">{top.map((card) => <li key={card.key}>
           <a href={card.item_id ? caseHref(card.item_id) : workHref("ranked")}>{card.title}</a>
-          <span className="muted small">{card.effective_usd == null ? "not valued" : money(card.effective_usd)}</span>
+          <Text small muted>{card.effective_usd == null ? "not valued" : money(card.effective_usd)}</Text>
         </li>)}</ol>
       </>}
     </UICard>
@@ -191,7 +191,7 @@ function MasterDataCard({ stats }: { stats?: Stats }) {
   const reviews = stats ? openReviews(stats) : null;
   return (
     <UICard className="home-card" as="section">
-      <div className="row spread"><h2>Master data</h2><a href={href("/masterdata")}>Open Master data</a></div>
+      <Line spread><h2>Master data</h2><a href={href("/masterdata")}>Open Master data</a></Line>
       <Status of={unmatched} />
       <ul className="home-counts">
         {unmatched.data && <Count n={unmatched.data.length} to={href("/masterdata")} late>ref on open work matched nothing|refs on open work matched nothing</Count>}
@@ -208,10 +208,10 @@ function IncidentsCard() {
   const recentIncidents = incidents.data?.items.slice(0, 3) ?? [];
   return (
     <UICard className="home-card" as="section">
-      <div className="row spread">
+      <Line spread>
         <h2>Incidents and upsets</h2>
         <a href={href("/incidents")}>All incidents</a>
-      </div>
+      </Line>
       <h3>Latest incidents</h3>
       <Status of={incidents} empty={incidents.data?.items.length === 0}>
         No incidents recorded.
@@ -221,17 +221,17 @@ function IncidentsCard() {
           {recentIncidents.map((incident) => (
             <li key={incident.id}>
               <a href={entityHref(incident.id)}>{say(incident.description)}</a>
-              <span className="muted small">Started {incident.start}{incident.lost_oil_bbl > 0
-                && ` · ${count(Math.round(incident.lost_oil_bbl))} bbl lost oil`}</span>
+              <Text small muted>Started {incident.start}{incident.lost_oil_bbl > 0
+                && ` · ${count(Math.round(incident.lost_oil_bbl))} bbl lost oil`}</Text>
             </li>
           ))}
         </ul>
       )}
       <div className="home-subsection">
-        <div className="row spread">
+        <Line spread>
           <h3>Detections without a recorded end</h3>
           <a href={href("/exceptions", { list: "ranked", view: "kind" })}>All work by type</a>
-        </div>
+        </Line>
         <Status of={upsets}
           empty={upsets.data !== undefined && openUpsets.length === 0}>
           No upsets without a recorded end.
@@ -252,8 +252,8 @@ function UpsetItem({ upset }: { upset: Upset }) {
       <a href={upset.work_item_id ? href(`/cases/${upset.work_item_id}`) : href("/exceptions", { list: "ranked", view: "kind" })}>
         {upset.first_key ? `${alarm(upset.first_key)}${upset.first_unit ? ` on ${upset.first_unit}` : ""}`
           : upset.first_point || `Upset ${upset.id}`}</a>
-      <span className="muted small">From {when(upset.start, "Time unknown")} · {upset.first_key ? upset.first_point ?? "Unknown point"
-        : upset.first_unit ?? "Unknown unit"} · {plural(upset.detections, "detection")}</span>
+      <Text small muted>From {when(upset.start, "Time unknown")} · {upset.first_key ? upset.first_point ?? "Unknown point"
+        : upset.first_unit ?? "Unknown unit"} · {plural(upset.detections, "detection")}</Text>
     </li>
   );
 }
@@ -274,23 +274,23 @@ function SourceHealthPanel() {
   const problems = rows.filter((source) => source.problems.length > 0);
   return (
     <div className="home-subsection">
-      <div className="row spread">
+      <Line spread>
         <strong>Sources</strong>
         <a href={href("/sources")}>Source health</a>
-      </div>
+      </Line>
       <Status of={sources} empty={sources.data?.length === 0}>
         No source health data.
       </Status>
       {sources.data && rows.length > 0 && (
         <>
-          <p className="small">{rows.length} datasets · {problems.length} with reported problems · {checks.length} failed {checks.length === 1 ? "check" : "checks"}.</p>
+          <Text as="p" small>{rows.length} datasets · {problems.length} with reported problems · {checks.length} failed {checks.length === 1 ? "check" : "checks"}.</Text>
           {rows.length > 0 && (
             <ul className="home-list">
               {rows.filter((source) => source.problems.length || source.failing_checks.length).slice(0, 3).map((source) => (
                 <li key={source.dataset}>
                   <a href={href("/sources", { view: "dataset", name: source.dataset })}>{source.dataset}</a>
-                  <span className="muted small">{source.state} · {source.last_loaded
-                    ? `Last ingested: ${when(source.last_loaded, "Time unknown")}` : "No recorded ingestion time"}</span>
+                  <Text small muted>{source.state} · {source.last_loaded
+                    ? `Last ingested: ${when(source.last_loaded, "Time unknown")}` : "No recorded ingestion time"}</Text>
                 </li>
               ))}
               {checks.slice(0, 3).map(({ source, check }, i) => (
@@ -312,10 +312,10 @@ function JobsHealthPanel() {
   const jobs = useAsync(() => api.jobsHealth(), []);
   return (
     <div className="home-subsection">
-      <div className="row spread">
+      <Line spread>
         <strong>Jobs</strong>
         <a href={href("/jobs")}>Job health</a>
-      </div>
+      </Line>
       <Status of={jobs} />
       {jobs.data && (!jobs.data.available ? <Empty className="small">Scheduler history unavailable.</Empty>
         : jobs.data.failed_runs_24h > 0 || jobs.data.failing_checks > 0

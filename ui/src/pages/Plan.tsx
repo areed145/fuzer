@@ -5,7 +5,7 @@ import { acronyms } from "../wording";
 import { money, whenDay, count } from "../format";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText } from "../ui";
+import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
@@ -91,7 +91,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
       <PageHeader
         actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
         Plan</PageHeader>
-      <div className="row">
+      <Line>
         <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
         <label className="small">Showing <Select aria-label="Weeks shown" value={String(weeks)} onChange={(e) => setWeeks(Number(e.target.value))}>
           {[2, 4, 8, 12, 26].map((w) => <option key={w} value={w}>{w} weeks</option>)}
@@ -104,7 +104,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
         {clashes > 0 && <Badge tone="danger">{clashes} with a clash</Badge>}
         {bundles > 0 && <Badge tone="ok">{bundles} could ride along with a shutdown</Badge>}
         {waiting > 0 && <Badge tone="warn">{waiting} waiting on parts</Badge>}
-      </div>
+      </Line>
       {busy && <p role="status">{busy}…</p>}
       <ErrorText>{error}</ErrorText>
       <div className={revision !== null ? "plan-layout with-panel" : "plan-layout"}>
@@ -127,7 +127,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
           <ul className="plan-rows">{list.map((i) => <li key={i.id} id={`plan-item-${i.id}`} className={`plan-row status-${i.status}`}>
             <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
               <strong>{acronyms(i.title)}</strong>
-              <span className="muted small"> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${i.crew}` : ""}</span>
+              <Text small muted> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${i.crew}` : ""}</Text>
               {i.clashes.filter((c) => c.kind !== "bundle").length > 0 && <Badge tone="danger">clash</Badge>}
               {i.clashes.some((c) => c.kind === "bundle") && <Badge tone="ok">bundle</Badge>}
               {i.needs_shutdown && <Badge tone="warn">shutdown</Badge>}
@@ -162,14 +162,14 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
     <div className="plan-detail">
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
         {c.kind === "bundle" ? "Bundle: " : c.kind === "simops" ? "Simultaneous operations: " : "Clash: "}{c.say}</p>)}
-      {!!item.parts_short?.length && <p className="small">
+      {!!item.parts_short?.length && <Text as="p" small>
         Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
-          `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</p>}
-      <p className="small">{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</p>
-      {item.exception_id != null && <p className="small"><a href={href("/exceptions", { list: "open", q: item.title })}>Open this work in All work</a></p>}
-      <p className="small muted">{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
-        {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</p>
-      {person ? <div className="row">
+          `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</Text>}
+      <Text as="p" small>{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</Text>
+      {item.exception_id != null && <Text as="p" small><a href={href("/exceptions", { list: "open", q: item.title })}>Open this work in All work</a></Text>}
+      <Text as="p" small muted>{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
+        {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</Text>
+      {person ? <Line>
         <label className="small">Start <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
         <label className="small">End <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
         <label className="small">Crew <Input value={crew} placeholder="person or role:…" onChange={(e) => setCrew(e.target.value)} /></label>
@@ -177,7 +177,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         <Select aria-label="Status" value={item.status} disabled={!!busy} onChange={(e) => change({ status: e.target.value })}>
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </Select>
-      </div> : <p className="small">Choose who you are to change the plan.</p>}
+      </Line> : <Text as="p" small>Choose who you are to change the plan.</Text>}
       <ErrorText>{error}</ErrorText>
     </div>
   );
@@ -197,21 +197,21 @@ function AtRiskCard({ from }: { from: string }) {
     <Card title="Production at risk from planned shutdowns" className="plan-at-risk">
       <Status of={risk} />
       {d && (d.windows.length ? <>
-        <p className="small">The next {d.days} days. {d.basis} An estimate for planning, not a schedule.</p>
+        <Text as="p" small>The next {d.days} days. {d.basis} An estimate for planning, not a schedule.</Text>
         <ul className="plain">{d.windows.map((w, n) => <li key={w.start} className="plan-risk-window">
           <Button variant="link" className="plan-label" aria-expanded={open === n} onClick={() => setOpen(open === n ? null : n)}>
             <strong>{short(w.start)}–{short(w.end)}</strong>{" "}
             <span>{w.at_risk.length ? w.at_risk.map(amount).join(", ") : "no tested wells behind it"}</span>{" "}
-            <span className="muted small">{w.wells.length} wells · {w.items.length} {w.items.length === 1 ? "job" : "jobs"}</span>
+            <Text small muted>{w.wells.length} wells · {w.items.length} {w.items.length === 1 ? "job" : "jobs"}</Text>
           </Button>
-          {open === n && <div className="small">
+          {open === n && <Text as="div" small>
             <ul>{w.items.map((i) => <li key={i.id}>{acronyms(i.title)}: {i.hours} h down
               {i.units.length ? ` (${i.units.map((u) => u.label).join(", ")})` : " (not on the flow network)"}
-              {i.assumed && <span className="muted"> · assumed</span>}</li>)}</ul>
+              {i.assumed && <Text muted> · assumed</Text>}</li>)}</ul>
             {w.assumptions.map((a) => <p key={a}>Assumption: {a}.</p>)}
             {!!w.untested.length && <p>No test on record, so not counted: {w.untested.join(", ")}.</p>}
             <p>{w.wells.map((x) => `${x.label} ${x.hours} h`).join(" · ")}</p>
-          </div>}
+          </Text>}
         </li>)}</ul>
       </> : <Empty>No shutdowns planned in the next {d.days} days.</Empty>)}
     </Card>

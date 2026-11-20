@@ -4,7 +4,7 @@
 import { type CSSProperties, useState } from "react";
 import { when, whenDay } from "../format";
 import { api, type ResourceLoad, type ResourceMove, type ResourceOverload } from "../api";
-import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select, ErrorText } from "../ui";
+import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select, ErrorText, Line, Text } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { acronyms } from "../wording";
 
@@ -21,7 +21,7 @@ export function ResourcesPage({ query, person }: { query: URLSearchParams; perso
   return (
     <section>
       <PageHeader>Resources</PageHeader>
-      <div className="row">
+      <Line>
         <label className="small">Resource <Select aria-label="Resource" value={pick} onChange={(e) => go(e.target.value)}>
           <option value="">All</option>
           {(all.data ?? []).map((r) => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
@@ -30,7 +30,7 @@ export function ResourcesPage({ query, person }: { query: URLSearchParams; perso
         <label className="small">Showing <Select aria-label="Days shown" value={String(days)} onChange={(e) => setDays(Number(e.target.value))}>
           {[14, 28, 42, 90].map((d) => <option key={d} value={d}>{d} days</option>)}
         </Select></label>
-      </div>
+      </Line>
       {!load.data ? <Status of={load} /> : <>
         {!load.data.resources.length && <Empty>No shared resources yet.</Empty>}
         {load.data.resources.map((r) => <ResourceCard key={r.code} r={r} person={person} onChange={load.reload} />)}
@@ -53,15 +53,15 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
   const picked = r.days.find((d) => d.day === day);
   return (
     <Card title={`${r.name} (${r.code})`} className="load-card"
-      actions={<span className="small">capacity {num(r.capacity)} {r.unit ?? ""}{r.work_center ? ` · work center ${r.work_center}` : ""}</span>}>
-      <div className="row">
+      actions={<Text small>capacity {num(r.capacity)} {r.unit ?? ""}{r.work_center ? ` · work center ${r.work_center}` : ""}</Text>}>
+      <Line>
         {over > 0 ? <Badge tone="danger">over capacity on {over} {over === 1 ? "day" : "days"}</Badge> : <Badge tone="ok">within capacity</Badge>}
         {r.sources.map((s) => <span key={s} className="load-legend small"><span className={`load-swatch ${color(s)}`} />{s}</span>)}
-      </div>
-      {r.counts.length > 0 && <p className="small">{r.kind === "seats" ? `Counts ${r.counts.join(", ")} flying out for their first job on a schedule and back after their last.`
-        : `Counts everyone working on ${r.counts.join(", ")}.`}</p>}
-      {r.kind === "capacity" && <p className="small">Counts what each job that needs a unit down takes offline: the wells behind the unit at their latest test rate, each well once.</p>}
-      {r.routine_load && <p className="small">{r.routine_load.source} hold {num(r.routine_load.quantity)} the whole time: {r.routine_load.basis}.</p>}
+      </Line>
+      {r.counts.length > 0 && <Text as="p" small>{r.kind === "seats" ? `Counts ${r.counts.join(", ")} flying out for their first job on a schedule and back after their last.`
+        : `Counts everyone working on ${r.counts.join(", ")}.`}</Text>}
+      {r.kind === "capacity" && <Text as="p" small>Counts what each job that needs a unit down takes offline: the wells behind the unit at their latest test rate, each well once.</Text>}
+      {r.routine_load && <Text as="p" small>{r.routine_load.source} hold {num(r.routine_load.quantity)} the whole time: {r.routine_load.basis}.</Text>}
       <div className="load-cols" role="img" aria-label={`${r.name}: ${over ? `over capacity on ${over} days` : "within capacity"}`}>
         {r.days.map((d) => <span role="button" tabIndex={0} key={d.day} aria-pressed={day === d.day} aria-label={`${whenDay(d.day)}: ${num(d.demand)} of ${num(d.capacity)}`}
           className={`load-col${d.demand > d.capacity + 1e-6 ? " over" : ""}${day === d.day ? " on" : ""}`} onClick={() => setDay(day === d.day ? null : d.day)}
@@ -71,8 +71,8 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
         </span>)}
       </div>
       <div className="load-axis small"><span>{whenDay(r.days[0]?.day ?? "")}</span><span>{whenDay(r.days[r.days.length - 1]?.day ?? "")}</span></div>
-      {picked && <p className="small">{whenDay(picked.day)}: {num(picked.demand)} needed at the busiest hour against {num(picked.capacity)}
-        {Object.keys(picked.by_source).length ? ` (${Object.entries(picked.by_source).map(([s, q]) => `${s} ${num(q)}`).join(", ")})` : ""}.</p>}
+      {picked && <Text as="p" small>{whenDay(picked.day)}: {num(picked.demand)} needed at the busiest hour against {num(picked.capacity)}
+        {Object.keys(picked.by_source).length ? ` (${Object.entries(picked.by_source).map(([s, q]) => `${s} ${num(q)}`).join(", ")})` : ""}.</Text>}
       {r.overloads.length > 0 && <>
         <h3>Overloads</h3>
         <ul className="plain load-overloads">{r.overloads.map((o) => <Overload key={o.from} o={o} unit={r.unit} person={person} onChange={onChange} />)}</ul>
@@ -89,7 +89,7 @@ function Overload({ o, unit, person, onChange }: { o: ResourceOverload; unit: st
     <li>
       <strong>{when(o.from)} to {when(o.to)}</strong>{" "}
       <span>needs {num(o.peak)} against {num(o.capacity)}{unit ? ` ${unit}` : ""}</span> <Badge tone="danger">{num(o.over_by)} over</Badge>
-      <p className="small">In use by {o.jobs.map((j) => `${j.code ?? ""}${j.code ? " " : ""}${acronyms(j.title)} (${num(j.quantity)})`).join("; ")}.</p>
+      <Text as="p" small>In use by {o.jobs.map((j) => `${j.code ?? ""}${j.code ? " " : ""}${acronyms(j.title)} (${num(j.quantity)})`).join("; ")}.</Text>
       {o.moves.length ? <ul className="plain">{o.moves.map((m) => <li key={m.item_id} className="small load-move">
         Slip {m.code ? `${m.code} ` : ""}{acronyms(m.title)} {num(m.slip_hours)} h to {when(m.new_start)}
         {m.finish_later_days == null ? ", no schedule logic behind it" : m.finish_later_days > 0
@@ -97,7 +97,7 @@ function Overload({ o, unit, person, onChange }: { o: ResourceOverload; unit: st
         {m.source && m.finish_later_days != null
           ? <ButtonLink size="sm" variant="link" href={`#/plan?schedule=${encodeURIComponent(m.source)}`}>Open schedule</ButtonLink>
           : <Button size="sm" variant="link" disabled={!person || !!busy} onClick={() => move(m)}>Move</Button>}
-      </li>)}</ul> : <p className="small">No single job clears it: raise capacity or split the work.</p>}
+      </li>)}</ul> : <Text as="p" small>No single job clears it: raise capacity or split the work.</Text>}
       <ErrorText>{error}</ErrorText>
     </li>
   );
@@ -120,27 +120,27 @@ function Capacity({ r, person, onChange }: { r: ResourceLoad; person: string | n
         {when(w.start)} to {when(w.end)}: {num(w.capacity)}{w.reason ? ` (${w.reason})` : ""}{" "}
         {person && <Button size="sm" variant="link" disabled={!!busy} onClick={() => run("Removing", () => api.capacityWindowRemove(w.id, person), onChange)}>Remove</Button>}
       </li>)}</ul> : <Empty>{`${num(r.capacity)} every day.`}</Empty>}
-      {!person ? <p className="small">Choose who you are to change capacity.</p>
+      {!person ? <Text as="p" small>Choose who you are to change capacity.</Text>
         : !editing ? <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>Change capacity</Button> : <>
-        <div className="row">
+        <Line>
           <Field label="Usual capacity" width="xs"><Input type="number" min="0" step="any" value={base} onChange={(e) => setBase(e.target.value)} /></Field>
           <Button disabled={!!busy || base === "" || Number(base) === r.capacity}
             onClick={() => run("Saving", () => api.planResourceChange(r.code, person, { capacity: Number(base) }), onChange)}>Save</Button>
-        </div>
-        <div className="row">
+        </Line>
+        <Line>
           <Field label="From" width="sm"><Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
           <Field label="To" width="sm"><Input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
           <Field label="Capacity" width="xs"><Input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} /></Field>
           <Field label="Reason" width="md"><Input value={reason} placeholder="leave, certification, in dock" onChange={(e) => setReason(e.target.value)} /></Field>
           <Button disabled={!!busy || !start || !end || qty === "" || new Date(end).getTime() - new Date(start).getTime() < DAY / 24}
             onClick={add}>Set for a while</Button>
-        </div>
-        {r.kind === "crew" && <div className="row">
+        </Line>
+        {r.kind === "crew" && <Line>
           <Field label="Routine duties" width="md"><Select value={r.routine ?? ""} disabled={!!busy}
             onChange={(e) => run("Saving", () => api.planResourceChange(r.code, person, { routine: e.target.value }), onChange)}>
             <option value="">None</option><option value="rounds">Operator rounds and checks</option>
           </Select></Field>
-        </div>}
+        </Line>}
         <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Done</Button>
       </>}
       <ErrorText>{error}</ErrorText>
@@ -168,7 +168,7 @@ function AddResource({ person, known, onChange }: { person: string; known: strin
   if (!open) return <Button variant="ghost" onClick={() => setOpen(true)}>Add a resource</Button>;
   return (
     <Card title="Add a resource" actions={<Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>}>
-      <div className="row">
+      <Line>
         <Field label="Kind" width="md"><Select value={kind} onChange={(e) => setKind(e.target.value)}>
           {KINDS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </Select></Field>
@@ -178,7 +178,7 @@ function AddResource({ person, known, onChange }: { person: string; known: strin
         {(kind === "beds" || kind === "seats") && <Field label="Counts the people on" width="md">
           <Input value={counts} placeholder={known.slice(0, 3).join(", ")} onChange={(e) => setCounts(e.target.value)} /></Field>}
         <Button disabled={!!busy || !code.trim() || !name.trim() || cap === "" || unknown.length > 0} onClick={add}>Add</Button>
-      </div>
+      </Line>
       {unknown.length > 0 && <ErrorText>No resource {unknown.join(", ")}.</ErrorText>}
       <ErrorText>{error}</ErrorText>
     </Card>

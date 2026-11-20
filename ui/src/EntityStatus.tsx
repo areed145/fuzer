@@ -1,7 +1,7 @@
 import { api } from "./api";
 import { whenDay } from "./format";
 import { entityHref, useAsync } from "./lib";
-import { Badge } from "./ui";
+import { Badge, Text } from "./ui";
 
 const RATES = ["oil_rate", "gas_rate", "condensate_rate", "water_cut", "gor"];
 const words = (name: string) => name.replace(/_/g, " ").replace(/^gor$/, "GOR");
@@ -29,7 +29,7 @@ export function EntityStatus({ id, data }: { id: string; data?: Awaited<ReturnTy
       : <Badge tone="ok">No open exceptions</Badge>}</span>
     {(s.alarms ?? 0) > 0 && <span><Badge tone="warn">{s.alarms} {s.alarms === 1 ? "alarm" : "alarms"} sounding</Badge></span>}
     {s.incident && <span>Last incident <a href={entityHref(s.incident.id)}>{day(s.incident.start)}</a>
-      {s.incident.total > 1 && <span className="muted"> of {s.incident.total}</span>}</span>}
+      {s.incident.total > 1 && <Text muted> of {s.incident.total}</Text>}</span>}
     {s.well_test && <span>Last test {day(s.well_test.at)}
       {rates.length > 0 && <>: {rates.map((v) => `${words(v.quantity)} ${v.value}${v.unit ? ` ${v.unit}` : ""}`).join(" · ")}</>}</span>}
   </p>;

@@ -3,7 +3,7 @@
  * reason and evidence; nothing changes until a person accepts it (or picks another option). Bulk accept appears only
  * once `stewardship.bulk_accept_at` is set. */
 import { useState } from "react";
-import { confirmDialog, ErrorText } from "../../ui";
+import { confirmDialog, ErrorText, Line, Text } from "../../ui";
 import { percent } from "../../format";
 import { api, type Proposal } from "../../api";
 import { Badge, Button, Card, Select, Table, Disclosure, Empty } from "../../ui";
@@ -33,7 +33,7 @@ export function ProposalsTab() {
   const confident = (rows.data?.proposals ?? []).filter((p) => p.answer && p.answer.choice !== "none" && p.answer.confidence >= at);
   return (
     <Card title="Claude's proposals">
-      <div className="row">
+      <Line>
         <Select aria-label="Show" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="open">Open</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option>
         </Select>
@@ -45,7 +45,7 @@ export function ProposalsTab() {
             if (!(await confirmDialog(`Accept the ${confident.length} proposals at ${percent(at)} confidence or more?`))) return;
             void a.run("bulk", () => api.acceptConfident(person), rows.reload);
           }}>Accept {confident.length} at ≥{percent(at)}</Button>}
-      </div>
+      </Line>
       <ErrorText>{a.error}</ErrorText>
       <Status of={rows} />
       {rows.data && !rows.data.proposals.length && <Empty>{status === "open"
@@ -68,14 +68,14 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
     <tr>
       <td><Badge>{KIND[p.kind]}</Badge> {what(p)}</td>
       <td>{p.answer ? <>
-        {p.answer.choice === "none" ? <span className="muted">not sure</span>
+        {p.answer.choice === "none" ? <Text muted>not sure</Text>
           : picked?.fuzer_id ? <a href={entityHref(picked.fuzer_id)}>{picked.text}</a> : picked?.text}
-        {" "}<span className="muted small">{percent(p.answer.confidence)}</span></> : <span className="muted">not asked yet</span>}</td>
+        {" "}<Text small muted>{percent(p.answer.confidence)}</Text></> : <Text muted>not asked yet</Text>}</td>
       <td className="small">{p.answer?.reason}
         {(p.answer?.evidence ?? []).length > 0 && <Disclosure label={<>evidence</>}>
           <ul className="plain">{p.answer!.evidence.map((e, i) => <li key={i}><code>{e}</code></li>)}</ul></Disclosure>}</td>
-      <td>{p.status !== "open" ? <span className="muted small">{p.status} by {p.decided_by}</span>
-        : operate && person && <div className="row">
+      <td>{p.status !== "open" ? <Text small muted>{p.status} by {p.decided_by}</Text>
+        : operate && person && <Line>
           <Select aria-label="Option to accept" value={choice} onChange={(e) => setChoice(e.target.value)}>
             <option value="">choose…</option>
             {p.options.map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
@@ -85,7 +85,7 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
           <Button size="sm" variant="link" disabled={!!a.busy}
             onClick={() => void a.run("reject", () => api.rejectProposal(p.id, person), done)}>Reject</Button>
           <ErrorText inline>{a.error}</ErrorText>
-        </div>}</td>
+        </Line>}</td>
     </tr>
   );
 }

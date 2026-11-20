@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { money, when, whenDay, count } from "../format";
 import { api, type ExceptionRow, type Readiness } from "../api";
-import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty, ErrorText } from "../ui";
+import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty, ErrorText, Line, Text, Checkbox } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../lib";
 import { holder, reportedBy, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -53,7 +53,7 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
           <option value="open">open</option><option value="cleared">cleared</option>
           <option value="closed">closed</option><option value="shelved">shelved</option><option value="">any state</option>
         </Select>}
-        <span className="small muted">{shown.length} {shown.length === 1 ? "event" : "events"}</span>
+        <Text small muted>{shown.length} {shown.length === 1 ? "event" : "events"}</Text>
       </div>
       <Card className="work-list-card">
         {!shown.length ? <Empty>{EMPTY[view]}</Empty> : <>
@@ -113,17 +113,17 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
   }), () => { setF({ name: "", label: "", role: "", field: true }); kinds.reload(); });
   return (
     <Card title="Exception types">
-      {refs.data && refs.data.length > 0 && <div className="small">
-        <strong>Refs Fuzer matches</strong> <span className="muted">(an exception's <code>refs</code>; one that matches nothing
-          is kept as unmatched and the sender is told)</span>
+      {refs.data && refs.data.length > 0 && <Text as="div" small>
+        <strong>Refs Fuzer matches</strong> <Text muted>(an exception's <code>refs</code>; one that matches nothing
+          is kept as unmatched and the sender is told)</Text>
         <ul className="plain">{refs.data.slice(0, 8).map((f) => <li key={f.form}>
-          <code>{f.example}</code> <span className="muted">{f.form} · {count(f.entities)} entities</span></li>)}</ul>
-      </div>}
+          <code>{f.example}</code> <Text muted>{f.form} · {count(f.entities)} entities</Text></li>)}</ul>
+      </Text>}
       <Table variant="results">
         <thead><tr><th>Type</th><th>Worked by</th><th>Seen by</th><th>Open</th><th>Defined</th><th /></tr></thead>
         <tbody>{kinds.data.map((k) => <tr key={k.name}>
-          <td><strong>{k.label}</strong> <span className="muted small">{k.name}</span></td>
-          <td className="small">{k.process ? `process ${k.process}` : k.role ?? <span className="muted">waits to be dispatched</span>}</td>
+          <td><strong>{k.label}</strong> <Text small muted>{k.name}</Text></td>
+          <td className="small">{k.process ? `process ${k.process}` : k.role ?? <Text muted>waits to be dispatched</Text>}</td>
           <td className="small">{k.audience.join(", ")}</td>
           <td>{k.open}</td>
           <td className="small">{k.defined_in}</td>
@@ -132,16 +132,16 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
             onClick={() => run("Removing", () => api.removeExceptionKind(k.name), kinds.reload)}>Remove</Button>}</td>
         </tr>)}</tbody>
       </Table>
-      {canConfigure && person && <div className="row">
+      {canConfigure && person && <Line>
         <Input aria-label="Type name" placeholder="scada_alarm" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         <Input aria-label="Label" placeholder="SCADA alarm" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
         <Select aria-label="Queue" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
           <option value="">waits for the IOC to dispatch</option>
           {queues.map((q) => <option key={q} value={`role:${q}`}>{queue(q)}</option>)}
         </Select>
-        <label className="small"><Input type="checkbox" checked={f.field} onChange={(e) => setF({ ...f, field: e.target.checked })} /> field sees it</label>
+        <Checkbox checked={f.field} onChange={(checked) => setF({ ...f, field: checked })}>field sees it</Checkbox>
         <Button disabled={!!busy || !f.name.trim() || !f.label.trim()} onClick={save}>Define type</Button>
-      </div>}
+      </Line>}
       <ErrorText>{error}</ErrorText>
     </Card>
   );
@@ -187,16 +187,16 @@ function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | nul
   const operate = usePermission("operate");
   const all = r.joined ?? [];
   return (
-    <div className="small">
+    <Text as="div" small>
       <Badge tone="ok">{reportedBy([r, ...all])}</Badge>
       <ul className="plain">{all.map((j) => <li key={j.id}>
-        {j.label}: {say(j.title)} <span className="muted">· {j.source ?? ""} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</span>
+        {j.label}: {say(j.title)} <Text muted>· {j.source ?? ""} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</Text>
         {j.state === "open" && person && operate && <> <Button size="sm" disabled={!!busy}
           title="A different event: give it a case of its own"
           onClick={() => run("Splitting", () => api.splitException(j.id, person), onChange)}>Split out</Button></>}
       </li>)}</ul>
       <ErrorText>{error}</ErrorText>
-    </div>
+    </Text>
   );
 }
 
@@ -252,11 +252,11 @@ function Row({ r, person, people, queues, onChange }: {
     <li className={fieldSaid?.status === "could_not_do" ? "work-card work-row attention" : "work-card work-row"}>
       <div className="work-row-what">
         <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
-        <div className="small muted"><PriorityBadge p={r.priority} type={r.type} />{" "}
+        <Text as="div" small muted><PriorityBadge p={r.priority} type={r.type} />{" "}
           {/* The type opens its route: where this kind of work goes, who holds it and when it is due (#1078). */}
           <a className="muted work-type-link" href={href("/routing", { type: r.type })} title="Where this type of work goes">
             {r.type.replace(/_/g, " ")}</a>
-          {[r.source, r.value_usd ? `${money(r.value_usd)} at stake` : null].filter(Boolean).map((x) => ` · ${x}`).join("")}</div>
+          {[r.source, r.value_usd ? `${money(r.value_usd)} at stake` : null].filter(Boolean).map((x) => ` · ${x}`).join("")}</Text>
         {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}
       </div>
       <div className="work-row-where small">{subjects.map((s) => <div key={s}><a href={entityHref(s)}
@@ -266,15 +266,15 @@ function Row({ r, person, people, queues, onChange }: {
             run("Matching", () => api.resolveRef(r.id, person!, u, fid, remember), onChange)} />}</div>)}</div>
       <div className="work-row-age small" title={`Raised in Fuzer ${when(r.first_seen)} · last reported ${when(r.last_seen)}`}>
         <strong>{age(Date.now() - new Date(r.first_seen).getTime())}</strong>
-        <span className="muted">{event ? ` · happened ${day(event)}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</span>
+        <Text muted>{event ? ` · happened ${day(event)}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</Text>
       </div>
       <div className="work-row-with small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
         : r.planned ? <a href={planItemHref(r.planned)}>planned {whenDay(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
-        : <span className="muted">not dispatched</span>}
+        : <Text muted>not dispatched</Text>}
         {fieldSaid && <div title={fieldSaid.note ?? undefined}>
           <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>
-            {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <span className="muted">{personName(fieldSaid.by)} · {when(fieldSaid.at)}</span>
-          {fieldSaid.note && <div className="muted">{fieldSaid.note}</div>}</div>}
+            {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <Text muted>{personName(fieldSaid.by)} · {when(fieldSaid.at)}</Text>
+          {fieldSaid.note && <Text as="div" muted>{fieldSaid.note}</Text>}</div>}
         {shelved && <div><Badge>Shelved</Badge> until {day(r.shelved_until!)}: {r.shelved_reason}
           {r.shelved_by ? ` · ${personName(r.shelved_by)}` : ""}</div>}
       </div>
@@ -288,10 +288,10 @@ function Row({ r, person, people, queues, onChange }: {
       </div>}
       {canAct && panel && <div className="work-row-panel">
         {panel === "dispatch" && <DispatchControls r={r} person={person!} people={people} queues={queues} onDone={done} />}
-        {panel === "more" && <div className="row wrap" role="group" aria-label="More actions">
+        {panel === "more" && <Line wrap role="group" aria-label="More actions">
           <Button size="sm" variant="secondary" onClick={() => setPanel("plan")}>Plan for a day</Button>
           <Button size="sm" variant="secondary" onClick={() => setPanel("shelve")}>Shelve until a date</Button>
-        </div>}
+        </Line>}
         {panel === "plan" && <div className="row wrap work-row-form">
           <Field label="Plan for" width="sm"><Input type="date" value={planOn} onChange={(e) => setPlanOn(e.target.value)} /></Field>
           <Button size="sm" variant="primary" disabled={!planOn || !!busy} title="Put it on the integrated plan instead of working it now"
@@ -326,7 +326,7 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
   const [ready, setReady] = useState<Readiness | null>(null);
   const blocked = !!ready && !ready.ready;
   return <div className="dispatch-controls">
-    <div className="row wrap">
+    <Line wrap>
       <Field label="Dispatch to" width="md"><Select value={to} onChange={(e) => setTo(e.target.value)}>
         <option value="">choose a person or queue</option>
         {people.length > 0 && <optgroup label="People">{people.map((p) => <option key={p.name} value={p.name}>
@@ -336,18 +336,18 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
       </Select></Field>
       {to.trim() && <Field label="What to do" width="lg"><Input placeholder="what to check or do (they see this)"
         value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>}
-    </div>
+    </Line>
     {to.trim() && <ReadyToDispatch id={r.id} onResult={setReady} />}
     {to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
       placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => setWhy(e.target.value)} />}
-    <div className="row">
+    <Line>
       <Button size="sm" variant="primary" disabled={!to.trim() || !!busy || (!r.item_id && !ask.trim()) || (blocked && !why.trim())}
         title={!r.item_id && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job"
           : blocked && !why.trim() ? "Not ready: say why it should go anyway" : undefined}
         onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
           blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onDone(); })}>
         Send</Button>
-    </div>
+    </Line>
     <ErrorText>{error}</ErrorText>
   </div>;
 }

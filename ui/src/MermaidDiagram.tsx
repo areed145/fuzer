@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { Text } from "./ui";
 import { useTheme } from "./theme";
 import { DiagramNeedsReload, staleBuild } from "./DiagramNeedsReload";
 
@@ -34,9 +35,9 @@ export function MermaidDiagram({ source }: { source: string }) {
   if (stale) return <DiagramNeedsReload source={source} />;
   return <figure className="md-diagram">
     {failed
-      ? <p className="small muted">This diagram could not be drawn, so its source is shown below.</p>
+      ? <Text as="p" small muted>This diagram could not be drawn, so its source is shown below.</Text>
       : <>
-        {!drawn && <p className="small muted" role="status">Drawing the diagram…</p>}
+        {!drawn && <Text as="p" small muted role="status">Drawing the diagram…</Text>}
         <div ref={element} role="img" aria-label="Diagram from the assistant; its source is below" />
       </>}
     {failed && <pre><code>{source}</code></pre>}

@@ -2,7 +2,6 @@
 .entity-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
 /* A long status (a close-out sentence) wraps inside the page instead of running off its edge. */
 .entity-head > div { min-width: 0; max-width: 100%; }
-.entity-head .row .badge { white-space: normal; overflow-wrap: anywhere; }
 .entity .grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
 .entity .grid > * { min-width: 0; }
 @media (max-width: 800px) {
@@ -34,9 +33,6 @@ ul.others li { display: flex; gap: 6px; align-items: center; }
 .quote { color: var(--muted); font-style: italic; font-size: 12px; }
 .sources { margin-left: auto; display: flex; gap: 4px; }
 .entity .page-tabs { margin-bottom: 16px; }
-.entity-head a.kind-link { text-decoration: none; }
-.entity-head a.kind-link .badge { color: var(--accent); }
-.entity-head a.kind-link:hover .badge { text-decoration: underline; }
 
 /* what the asset is (make, model, serial, class, location, manual): two columns where there's room */
 .profile-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 24px; margin: 0; }

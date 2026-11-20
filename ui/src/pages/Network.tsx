@@ -1,4 +1,4 @@
-import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empty } from "../ui";
+import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empty, Line, Text } from "../ui";
 import { useMemo } from "react";
 import { api, type GraphNode, type RelationDef, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, REL_VIEWS, kindColor, relColor, subgraphElements } from "../graph";
@@ -87,7 +87,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
 
   return (
     <section>
-      <div className="row spread">
+      <Line spread>
         <div>
           <PageHeader>Network</PageHeader>
         </div>
@@ -100,22 +100,22 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
             </Button>
           )}
         </label>
-      </div>
+      </Line>
       <div className="network-filters">
         <div className="chips" role="group" aria-label="Link types">
-          <span className="muted small">Links</span>
+          <Text small muted>Links</Text>
           {primary.map((r) => (
             <Button key={r} className={on.includes(r) ? "chip on" : "chip"} aria-pressed={on.includes(r)}
               title={relDef(r)?.description || undefined} onClick={() => toggleRel(r)}>
               {on.includes(r) && <i className="dot" style={{ background: colors.get(r) }} />} {relDef(r)?.label ?? words(r)}
-              {relCounts.has(r) && <span className="muted"> {relCounts.get(r)}</span>}
+              {relCounts.has(r) && <Text muted> {relCounts.get(r)}</Text>}
             </Button>
           ))}
           {others.length > 0 && (
             <Disclosure className="more-rels" label={<>More link types</>}>
               {others.map((v) => (
                 <div key={v.id} className="chips">
-                  <span className="muted small">{v.label}</span>
+                  <Text small muted>{v.label}</Text>
                   {v.rels.map((r) => (
                     <Button key={r} className="chip" aria-pressed={false} title={relDef(r)?.description || undefined}
                       onClick={() => toggleRel(r)}>
@@ -129,11 +129,11 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
         </div>
         {kinds.length > 0 && (
           <div className="chips" role="group" aria-label="Kinds of thing">
-            <span className="muted small">Kinds</span>
+            <Text small muted>Kinds</Text>
             {kinds.map(([k, n]) => (
               <Button key={k} className={hidden.has(k) ? "chip" : "chip on"} aria-pressed={!hidden.has(k)}
                 onClick={() => toggleKind(k)}>
-                <i className="dot" style={{ background: kindColor(k) }} /> {words(k)} <span className="muted">{n}</span>
+                <i className="dot" style={{ background: kindColor(k) }} /> {words(k)} <Text muted>{n}</Text>
               </Button>
             ))}
           </div>
@@ -172,7 +172,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
               </UICard>
             </div>
           )}
-          {net.data.truncated && <p className="small">Too many links to draw; showing the first 5,000.</p>}
+          {net.data.truncated && <Text as="p" small>Too many links to draw; showing the first 5,000.</Text>}
         </>
       )}
     </section>
@@ -229,9 +229,9 @@ export function NodePanel({ node, onExpand, onFocus }: { node: GraphNode; onExpa
   return (
     <>
       <h2 className="mono">{node.label ?? node.id}</h2>
-      <div className="row">
+      <Line>
         <KindBadge kind={node.kind} />
-      </div>
+      </Line>
       {node.description && <p>{node.description}</p>}
       <div className="actions">
         <ButtonLink href={entityHref(node.id)}>

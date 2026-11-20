@@ -3,51 +3,49 @@
  * Evidence only, not an emissions inventory. */
 import { api } from "../api";
 import { count } from "../format";
-import { Badge, Card, Table } from "../ui";
-import { Status, useAsync } from "../lib";
+import { Badge, Table, Text } from "../ui";
+import { ReadCard, useAsync } from "../lib";
 
 export function LeakSurveys() {
   const data = useAsync(() => api.ldar(), []);
   const d = data.data;
   const c = d?.coverage;
   return (
-    <Card className="leak-surveys" title="Leak surveys">
-      <Status of={data} />
-      {d && d.verdict === "no_surveys" && <div className="small ls-none">{d.note}</div>}
+    <ReadCard of={data} className="leak-surveys" title="Leak surveys" note={d && d.verdict !== "no_surveys" && d.note}>
+      {d && d.verdict === "no_surveys" && <Text as="div" small>{d.note}</Text>}
       {d && c && d.verdict !== "no_surveys" && <>
-        <div className="small ls-summary">
+        <Text as="div" small>
           {d.surveys.length} surveys {d.since} to {d.until}; {c.covered} of {c.in_scope} tags screened in the last
           {" "}{d.coverage_days} days.{" "}
           {d.repeat_leakers.length > 0
-            ? <Badge tone="warn" className="ls-verdict">{d.repeat_leakers.length} repeat leaker{d.repeat_leakers.length > 1 ? "s" : ""}</Badge>
-            : <Badge tone="ok" className="ls-verdict">no repeat leakers</Badge>}
-        </div>
-        {d.repeat_leakers.length > 0 && <Table density="compact" className="ls-repeat phone-rows">
+            ? <Badge tone="warn">{d.repeat_leakers.length} repeat leaker{d.repeat_leakers.length > 1 ? "s" : ""}</Badge>
+            : <Badge tone="ok">no repeat leakers</Badge>}
+        </Text>
+        {d.repeat_leakers.length > 0 && <Table density="compact">
           <thead><tr><th>Tag</th><th>Component</th><th>Found leaking</th></tr></thead>
           <tbody>{d.repeat_leakers.map((r) => (
             <tr key={`${r.tag}-${r.component}`} data-tag={r.tag}>
               <td>{r.tag}</td>
-              <td data-label="Component">{r.component}</td>
-              <td data-label="Found leaking">{r.surveys.join(", ")} <span className="muted">(up to {count(r.max_ppm)} ppm)</span></td>
+              <td>{r.component}</td>
+              <td>{r.surveys.join(", ")} <Text muted>(up to {count(r.max_ppm)} ppm)</Text></td>
             </tr>
           ))}</tbody>
         </Table>}
-        {c.unknown.length > 0 && <div className="small ls-unknown">
+        {c.unknown.length > 0 && <Text as="div" small>
           Unknown, never surveyed: {c.unknown.map((u) => u.tag).join(", ")}.
-        </div>}
-        <Table density="compact" className="ls-table phone-rows">
+        </Text>}
+        <Table density="compact">
           <thead><tr><th>Survey</th><th>Components</th><th>Leaks</th><th>Missed</th></tr></thead>
           <tbody>{d.surveys.slice(-4).map((s) => (
             <tr key={s.date} data-date={s.date}>
               <td>{s.date}</td>
-              <td data-label="Components">{s.components} on {s.tags} tags</td>
-              <td data-label="Leaks">{s.leaks} ({s.leak_rate_pct}%)</td>
-              <td data-label="Missed">{s.missed.length ? `${s.missed.length} tags usually screened` : "none"}</td>
+              <td>{s.components} on {s.tags} tags</td>
+              <td>{s.leaks} ({s.leak_rate_pct}%)</td>
+              <td>{s.missed.length ? `${s.missed.length} tags usually screened` : "none"}</td>
             </tr>
           ))}</tbody>
         </Table>
-        <div className="small muted">{d.note}</div>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

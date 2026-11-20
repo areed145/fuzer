@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, type AccessAccount, type AccessAdministration, type AccessRole, type AuditCoverage, type DocumentGroups, type WorkRoleRow } from "../api";
 import { refreshAccess, useAuth, usePermission } from "../Auth";
 import { href, Status, useAction, useAsync } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure, Line, Text, Checkbox } from "../ui";
 import { TeamsPage, WorkflowAssignments } from "./workflows/Teams";
 
 export function UsersPage({ query }: { query: URLSearchParams }) {
@@ -124,8 +124,8 @@ function AccountCard({ account, data, workflow, assigned, groups, reload }: {
     </Disclosure>
     <Disclosure open={!account.enabled} label={<>{account.enabled ? "Change account access" : "Approve or keep disabled"}</>}>
       <fieldset disabled={busy}><legend>Account status</legend>
-        <label><Input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />Enabled</label>
-        <label><Input type="checkbox" checked={owner} onChange={(event) => setOwner(event.target.checked)} />Owner (all capabilities)</label>
+        <Checkbox checked={enabled} onChange={setEnabled}>Enabled</Checkbox>
+        <Checkbox checked={owner} onChange={setOwner}>Owner (all capabilities)</Checkbox>
       </fieldset>
       <fieldset disabled={busy || owner}><legend>Application roles</legend>
         {data.roles.map((role) => <label key={role.name} title={role.description}>
@@ -195,11 +195,7 @@ function AreasEditor({ account, project, saved, reload }: {
     <Status of={options} />
     {options.data && !options.data.length && <p>This project's register has no areas yet.</p>}
     {options.data && options.data.length > 0 && <fieldset disabled={busy}><legend>Areas it can act on (none ticked: all)</legend>
-      {options.data.map((hit) => <label key={hit.fuzer_id}>
-        <Input type="checkbox" checked={areas.includes(hit.fuzer_id)}
-          onChange={(event) => setAreas(event.target.checked ? [...areas, hit.fuzer_id] : areas.filter((value) => value !== hit.fuzer_id))} />
-        {hit.label ?? hit.fuzer_id}
-      </label>)}
+      {options.data.map((hit) => <Checkbox key={hit.fuzer_id} checked={areas.includes(hit.fuzer_id)} onChange={(checked) => setAreas(checked ? [...areas, hit.fuzer_id] : areas.filter((value) => value !== hit.fuzer_id))}>{hit.label ?? hit.fuzer_id}</Checkbox>)}
     </fieldset>}
     <ConfirmAction label="Save areas" busy={busy} disabled={!dirty}
       consequence={areas.length ? `Narrow ${account.display_name} to ${areas.length} ${areas.length === 1 ? "area" : "areas"} of ${project}? Their actions on work elsewhere are refused; they can still read it.`
@@ -242,20 +238,20 @@ function AuditRecord({ project }: { project: string }) {
   return <Card title={`Audit record for ${project}`}>
     <p>Who approved a write-back, changed a routing or signed in, for this project only. Each row says whether its
       record keeps every change or only the latest.</p>
-    <div className="row wrap">
+    <Line wrap>
       <Field label="From"><Input type="date" value={since} max={until} onChange={e => setSince(e.target.value)} /></Field>
       <Field label="To"><Input type="date" value={until} min={since} onChange={e => setUntil(e.target.value)} /></Field>
       <Field label="Format"><Select aria-label="Format" value={format} onChange={e => setFormat(e.target.value as "csv" | "json")}>
         <option value="csv">CSV</option><option value="json">JSON</option>
       </Select></Field>
-    </div>
+    </Line>
     <Button disabled={busy || !since || !until || since > until} onClick={download}>Download audit record</Button>
     <ActionStatus busy={busy ? "Exporting the audit record..." : null} error={failure}>{done && <p>{done}</p>}</ActionStatus>
     <Status of={coverage} />
     {c?.retention && <ul className="small">{Object.entries(c.retention).map(([k, v]) => <li key={k}>{v}</li>)}</ul>}
     {c && <Disclosure label={<>What the record covers ({every.length + latest.length} records, {(c.excluded ?? []).length} left out)</>}>
-      <p className="small"><strong>Every change:</strong> {every.join(", ") || "none"}</p>
-      <p className="small"><strong>Latest only</strong> (overwritten when decided again): {latest.join(", ") || "none"}</p>
+      <Text as="p" small><strong>Every change:</strong> {every.join(", ") || "none"}</Text>
+      <Text as="p" small><strong>Latest only</strong> (overwritten when decided again): {latest.join(", ") || "none"}</Text>
       <ul className="small">{(c.excluded ?? []).map(x => <li key={x.source}>{x.source}: {x.reason}</li>)}</ul>
     </Disclosure>}
   </Card>;
@@ -323,11 +319,7 @@ function GroupsEditor({ account, project, groups, saved, reload }: {
   return <>
     <p>{saved.length ? `Sees documents restricted to ${saved.join(", ")}.` : "Sees no restricted documents."}</p>
     <fieldset disabled={busy}><legend>Groups</legend>
-      {groups.map((group) => <label key={group}>
-        <Input type="checkbox" checked={chosen.includes(group)}
-          onChange={(event) => setChosen(event.target.checked ? [...chosen, group] : chosen.filter((value) => value !== group))} />
-        {group}
-      </label>)}
+      {groups.map((group) => <Checkbox key={group} checked={chosen.includes(group)} onChange={(checked) => setChosen(checked ? [...chosen, group] : chosen.filter((value) => value !== group))}>{group}</Checkbox>)}
     </fieldset>
     <ConfirmAction label="Save groups" busy={busy} disabled={!dirty}
       consequence={`Put ${account.display_name} in ${chosen.join(", ") || "no groups"} in ${project}? They see exactly the restricted documents of those groups.`}
@@ -358,13 +350,9 @@ function RoleCard({ role, data, reload }: { role?: AccessRole; data: AccessAdmin
       <Field label="Description" width="full"><Input width="full" value={description}
         onChange={(event) => setDescription(event.target.value)} required maxLength={500} /></Field>
       <fieldset disabled={busy}><legend>Permissions (changes apply to existing sessions)</legend>
-        {Object.entries(data.permissions).map(([key, label]) => <label key={key}>
-          <Input type="checkbox" checked={permissions.includes(key)}
-            onChange={(event) => setPermissions(event.target.checked ? [...permissions, key] : permissions.filter((value) => value !== key))} />
-          {label}
-        </label>)}
+        {Object.entries(data.permissions).map(([key, label]) => <Checkbox key={key} checked={permissions.includes(key)} onChange={(checked) => setPermissions(checked ? [...permissions, key] : permissions.filter((value) => value !== key))}>{label}</Checkbox>)}
       </fieldset>
-      <p className="small">AI access permits provider charges and is not part of the administrator role.</p>
+      <Text as="p" small>AI access permits provider charges and is not part of the administrator role.</Text>
       <ConfirmAction label={role ? "Save application role" : "Add application role"} busy={busy}
         disabled={!/^[a-z][a-z0-9_]{0,63}$/.test(name) || !description.trim()}
         consequence={`Apply application role ${name} with permissions ${permissions.join(", ") || "none"}? This affects all assigned accounts and their existing sessions. AI access can incur provider charges.`}

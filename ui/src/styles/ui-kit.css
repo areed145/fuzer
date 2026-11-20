@@ -57,6 +57,7 @@
 .ui-stat > span, .ui-stat small { color: var(--muted); font-size: 12px; }
 .ui-stat strong { font-size: 20px; font-weight: 600; }
 .ui-page-subtitle { color: var(--muted); }
+.ui-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-right: 12px; }
 .ui-error { color: var(--danger); font-size: 13px; }
 p.ui-error { margin: 6px 0; }
 .ui-empty-line { color: var(--muted); margin: 8px 0; }
@@ -118,7 +119,7 @@ html.ui-fullscreen-open .bottombar { display: none; }
 /* A phone never scrolls sideways (#1077): a long badge (a list of roles, a long name) wraps instead of pushing the page
  * wider, and anything still too wide is clipped at the screen edge rather than letting the whole page pan. */
 @media (max-width: 600px) {
-  #main-content :is(.ui-badge, .badge) { white-space: normal; overflow-wrap: break-word; }
+  #main-content .ui-badge { white-space: normal; overflow-wrap: break-word; }
 }
 @media (max-width: 900px) {
   html, body { overflow-x: clip; }

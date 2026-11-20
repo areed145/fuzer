@@ -3,7 +3,7 @@
  * any grain it declares; every row drills to its items or cases. */
 import { api, type MetricDeclaration } from "../api";
 import { quantity } from "../format";
-import { Badge, Card, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
+import { Badge, Card, Disclosure, Empty, PageHeader, Table, Tabs, Text } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
 const show = (v: number | null, unit: string) => (v == null ? "–" : quantity(v, unit));
@@ -25,7 +25,7 @@ const targetText = (m: MetricDeclaration) =>
 
 /** The value over earlier periods as a small line, its last point marked; a dashed line at the target. */
 function Sparkline({ points, target, label }: { points: { at: string; value: number }[]; target?: number | null; label: string }) {
-  if (points.length < 2) return <span className="muted small">no history yet</span>;
+  if (points.length < 2) return <Text small muted>no history yet</Text>;
   const vs = points.map((p) => p.value).concat(target == null ? [] : [target]);
   const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
   const W = 96, H = 24;
@@ -78,10 +78,10 @@ function MetricRowNow({ m }: { m: MetricDeclaration }) {
   const target = targetText(m);
   return (
     <tr>
-      <td><a href={href(`/metrics/${m.key}`)}>{m.label}</a><div className="small muted">{m.definition}</div></td>
+      <td><a href={href(`/metrics/${m.key}`)}>{m.label}</a><Text as="div" small muted>{m.definition}</Text></td>
       {/* The value says whether it meets its target, in colour and in words, never by colour alone (#1078). */}
-      <td data-label="Now">{v.loading ? <span className="muted small">loading</span> : v.error ? <span className="muted">unavailable</span>
-        : v.data?.value == null ? <span className="muted small" title={v.data?.note ?? undefined}>no reading{v.data?.note ? `: ${v.data.note}` : ""}</span>
+      <td data-label="Now">{v.loading ? <Text small muted>loading</Text> : v.error ? <Text muted>unavailable</Text>
+        : v.data?.value == null ? <Text small muted title={v.data?.note ?? undefined}>no reading{v.data?.note ? `: ${v.data.note}` : ""}</Text>
         : <><strong className={good === null ? undefined : good ? "metric-good" : "metric-bad"} title={v.data?.note ?? undefined}>
             {show(v.data.value, m.unit)}</strong>
           {target && <div className={`small ${good === false ? "metric-bad" : "muted"}`}>{good === false ? "off " : ""}{target}</div>}</>}</td>
@@ -89,7 +89,7 @@ function MetricRowNow({ m }: { m: MetricDeclaration }) {
       <td data-label="For" className="small">{v.data?.as_of ? `${m.period}, ${v.data.as_of}` : m.period}</td>
       <td data-label="Cut by" className="small">{m.grains.length
         ? m.grains.map((g, i) => <span key={g}>{i ? ", " : ""}<a href={href(`/metrics/${m.key}`, { grain: g })}>{g}</a></span>)
-        : <span className="muted">–</span>}</td>
+        : <Text muted>–</Text>}</td>
     </tr>
   );
 }
@@ -105,11 +105,11 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
       {m && <>
         <p>
           <strong>{show(m.value, m.unit)}</strong>{" "}
-          <span className="muted small">{m.as_of ? `${m.period}, ${m.as_of}` : m.period}
-            {BETTER[m.better] && ` · ${BETTER[m.better]}`}</span>
+          <Text small muted>{m.as_of ? `${m.period}, ${m.as_of}` : m.period}
+            {BETTER[m.better] && ` · ${BETTER[m.better]}`}</Text>
           {m.standard && <> <Badge>{m.standard}</Badge></>}
         </p>
-        {m.note && <p className="small muted">{m.note}</p>}
+        {m.note && <Text as="p" small muted>{m.note}</Text>}
         <dl className="data">
           <div><dt>Formula</dt><dd><code>{m.formula}</code></dd></div>
           <div><dt>Records</dt><dd>{m.records}</dd></div>
@@ -126,7 +126,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
               <tr key={r.key}>
                 <td>{r.label}</td>
                 <td data-label="Value">{show(r.value, m.unit)}</td>
-                <td data-label="Records">{r.refs.length ? <Refs refs={r.refs} /> : <span className="muted">–</span>}</td>
+                <td>{r.refs.length ? <Refs refs={r.refs} /> : <Text muted>–</Text>}</td>
               </tr>
             ))}</tbody>
           </Table>
@@ -140,6 +140,6 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
 function Refs({ refs, label }: { refs: string[]; label?: string }) {
   return <Disclosure label={label ?? `${refs.length} ${refs.length === 1 ? "record" : "records"}`}>
     <ul className="plain small">{refs.slice(0, 200).map((r) => <li key={r}><a href={refHref(r)}>{refText(r)}</a></li>)}</ul>
-    {refs.length > 200 && <p className="small muted">The first 200 of {refs.length}.</p>}
+    {refs.length > 200 && <Text as="p" small muted>The first 200 of {refs.length}.</Text>}
   </Disclosure>;
 }

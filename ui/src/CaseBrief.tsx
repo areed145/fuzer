@@ -6,7 +6,7 @@ import { useAction } from "./lib";
 import { money, percent, when } from "./format";
 import { api, type WorkItem } from "./api";
 import { Actor } from "./work";
-import { Badge, Button, Card, Disclosure, Input, Notice, Table, ErrorText } from "./ui";
+import { Badge, Button, Card, Disclosure, Input, Notice, Table, ErrorText, Line, Text } from "./ui";
 
 const pct = (x: number | null | undefined) => (x == null ? "no confidence given" : `${percent(x)} confident`);
 const FOLLOWED = { yes: "Followed", partly: "Partly followed", no: "Not followed" } as const;
@@ -21,34 +21,34 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
   const e = v.entry;
   if (!e) {
     if (it.closed_at) return null;
-    return <Card className="case-brief" title="Specialist brief"><p className="small muted">The specialist has not briefed this case yet. Due {when(v.due)}.</p></Card>;
+    return <Card className="case-brief" title="Specialist brief"><Text as="p" small muted>The specialist has not briefed this case yet. Due {when(v.due)}.</Text></Card>;
   }
-  if (e.missing) return <Card className="case-brief" title="Specialist brief"><p className="small">No brief: {e.missing}.</p></Card>;
+  if (e.missing) return <Card className="case-brief" title="Specialist brief"><Text as="p" small>No brief: {e.missing}.</Text></Card>;
   const b = e.brief ?? {};
   const p = b.proposal ?? {};
   const evidence = b.evidence ?? [], analysis = b.analysis ?? [], similar = b.similar ?? [], gaps = b.could_not_check ?? [];
   return (
-    <Card className="case-brief" title="Specialist brief" actions={<span className="small">
+    <Card className="case-brief" title="Specialist brief" actions={<Text small>
       {money(e.ledger?.cost_usd ?? 0)}{e.budget_usd ? <> of {money(e.budget_usd)} budget</> : null}{" "}
       {e.over_budget && <Badge tone="warn">over budget</Badge>}{" "}
-      {e.late && <Badge tone="warn">late</Badge>}</span>}>
+      {e.late && <Badge tone="warn">late</Badge>}</Text>}>
       {b.what_happened && <p>{b.what_happened}</p>}
       {p.disposition && (
         <Notice tone="info">
-          <strong>Proposed: {p.disposition}</strong> <span className="small">({pct(p.confidence)})</span>
-          {p.why && <p className="small">{p.why}</p>}
+          <strong>Proposed: {p.disposition}</strong> <Text small>({pct(p.confidence)})</Text>
+          {p.why && <Text as="p" small>{p.why}</Text>}
         </Notice>
       )}
       {gaps.length > 0 && (
-        <div className="small"><strong>Could not check</strong>
+        <Text as="div" small><strong>Could not check</strong>
           <ul>{gaps.map((c, i) => <li key={i}>{c}</li>)}</ul>
-        </div>
+        </Text>
       )}
       {(e.lessons ?? []).length > 0 && (
-        <div className="small"><strong>Reviewed lessons it was given</strong>
+        <Text as="div" small><strong>Reviewed lessons it was given</strong>
           <ul>{(e.lessons ?? []).map((l) => <li key={l.id}>{l.title}{l.by && <> (approved by <Actor who={l.by} />)</>}
             {l.review_overdue && <> <Badge tone="warn">review overdue</Badge></>}</li>)}</ul>
-        </div>
+        </Text>
       )}
       {evidence.length + analysis.length + similar.length > 0 && (
         <Disclosure label={<>Evidence, analysis and similar cases</>}>
@@ -67,10 +67,10 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
         </Disclosure>
       )}
       {v.verdict ? (
-        <p className="small">{FOLLOWED[v.verdict.followed]} by <Actor who={v.verdict.by} /> {when(v.verdict.at)}
-          {v.verdict.note && <>: {v.verdict.note}</>}</p>
+        <Text as="p" small>{FOLLOWED[v.verdict.followed]} by <Actor who={v.verdict.by} /> {when(v.verdict.at)}
+          {v.verdict.note && <>: {v.verdict.note}</>}</Text>
       ) : !readOnly && person && p.disposition ? (
-        <div className="row small">
+        <Line small>
           <span>Did you follow the proposal?</span>
           <Input aria-label="Note on the proposal" placeholder="Note (optional)" value={note}
             onChange={(ev) => setNote(ev.target.value)} />
@@ -80,7 +80,7 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
               {FOLLOWED[f]}</Button>
           ))}
           <ErrorText>{act.error}</ErrorText>
-        </div>
+        </Line>
       ) : null}
     </Card>
   );
