@@ -5,7 +5,7 @@ import { when } from "./format";
 import { type ReactNode } from "react";
 import { type WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
-import { entityHref, fieldLabel, fmt } from "./lib";
+import { entityHref, fieldLabel, fmt, href } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
 import { person as personName, queue, say } from "./wording";
@@ -110,6 +110,8 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "checked": return { text: <>{d.state === "done" ? "ticked off" : d.state === "skipped" ? "marked not needed" : "opened again"} <strong>{d.item}</strong></>,
       body: d.note && <Text as="p" small>{d.note}</Text> };
     case "checklist_edited": return { text: <>reworded <strong>{d.from}</strong> to <strong>{d.to}</strong></> };
+    case "checklist_sent": return { text: <>sent <strong>{d.item}</strong> to {to(d.to)} as <a href={href(`/cases/${d.case}`)}>case {d.case}</a></>,
+      body: d.note && <Text as="p" small>{d.note}</Text> };
     case "checklist_removed": return { text: <>took <strong>{d.item}</strong> off the checklist</> };
     default: return { text: <>{e.kind.replace(/_/g, " ")}</> };
   }

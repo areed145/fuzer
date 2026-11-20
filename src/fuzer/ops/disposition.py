@@ -197,9 +197,12 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
 
 def _checklist_said(conn, item_id: int) -> str:
     """The case's checklist as its close-out leaves it: what was done, not needed, or left open."""
-    c = conn.execute("select count(*) filter (where state = 'done') as done, count(*) filter (where state = 'skipped') "
-                     "as skipped, count(*) filter (where state = 'open') as open, count(*) as total from work_check "
-                     "where item_id = %s", (item_id,)).fetchone()
+    # an item sent as its own case is done when that case is (workflow/checklist.py)
+    c = conn.execute(
+        "select count(*) filter (where c.state = 'done' or (c.state = 'open' and ch.state = 'done')) as done, "
+        "count(*) filter (where c.state = 'skipped') as skipped, "
+        "count(*) filter (where c.state = 'open' and ch.state is distinct from 'done') as open, count(*) as total "
+        "from work_check c left join work_item ch on ch.id = c.child_item_id where c.item_id = %s", (item_id,)).fetchone()
     if not c["total"]:
         return ""
     parts = [f"{c['done']} of {c['total']} checklist items done"]
