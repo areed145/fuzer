@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, ErrorText, Text } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, ErrorText, Text, Field } from "../ui";
 import { percent } from "../format";
 import { useState } from "react";
 import { api } from "../api";
@@ -65,15 +65,15 @@ function NewStudy({ onDone }: { onDone: () => void }) {
   };
   return (
     <UICard className="row small study-form">
-      <label className="small">Study <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+      <Field inline label="Study"><Select value={kind} onChange={(e) => setKind(e.target.value)}>
         {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-      </Select></label>
-      {kind === "correlate" && <label className="small">Target PI point <Input value={target} onChange={(e) => setTarget(e.target.value)} /></label>}
+      </Select></Field>
+      {kind === "correlate" && <Field inline label="Target PI point"><Input value={target} onChange={(e) => setTarget(e.target.value)} /></Field>}
       {kind !== "events" && kind !== "entities" && kind !== "cascades" && (
-        <label className="small">Scope <Input placeholder="unit, area or facility" value={scope} onChange={(e) => setScope(e.target.value)} /></label>
+        <Field inline label="Scope"><Input placeholder="unit, area or facility" value={scope} onChange={(e) => setScope(e.target.value)} /></Field>
       )}
-      <label className="small">Since <Input type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} /></label>
-      <label className="small">Until <Input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} /></label>
+      <Field inline label="Since"><Input type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} /></Field>
+      <Field inline label="Until"><Input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} /></Field>
       <Button variant="primary" onClick={run}>Run</Button>
       <ErrorText inline>{error}</ErrorText>
     </UICard>

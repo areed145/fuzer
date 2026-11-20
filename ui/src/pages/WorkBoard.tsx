@@ -85,7 +85,7 @@ export function WorkBoardPage({ query, filters = {} }: {
   return (
     <>
       <div className="row wrap work-board-controls">
-        <Field label="Lanes" width="sm">
+        <Field inline label="Lanes">
           <Select value={lanes} onChange={(e) => setLanes(e.target.value as Lanes)}>
             {LANES.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
           </Select>

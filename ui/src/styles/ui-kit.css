@@ -41,6 +41,7 @@
 .ui-field { display: inline-flex; flex-direction: column; gap: 4px; }
 .ui-field > span { font-size: 12px; color: var(--muted); }
 .ui-field small { color: var(--muted); }
+.ui-field-inline { flex-direction: row; align-items: center; gap: 6px; }
 .ui-input { box-sizing: border-box; max-width: 100%; }
 .ui-width-xs { width: 6rem; }
 .ui-width-sm { width: 10rem; }

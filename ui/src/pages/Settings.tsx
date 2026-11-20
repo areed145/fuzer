@@ -1,6 +1,6 @@
 import "../styles/settings.css";
 import { when } from "../format";
-import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text, Field } from "../ui";
 import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync, useReasonedAction } from "../lib";
@@ -66,16 +66,13 @@ function Configuration({ query }: { query: URLSearchParams }) {
       {readiness && <Appearance />}
       {detection ? <Detection focus={query.get("detector")} /> : onboarding ? <Onboarding /> : standards ? <Standards /> : aiUsage ? <AiUsage /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
       <UICard className="row small">
-        <label>
-          Project{" "}
-          <Select
+        <Field inline label="Project"><Select
             value={list.data?.project ?? ""}
             onChange={(e) => (location.hash = href("/settings", { project: e.target.value || undefined, view: "configuration" }))}
           >
             {!list.data?.project && <option value="">(none: global only)</option>}
             {list.data?.projects.map((p) => <option key={p} value={p}>{p}</option>)}
-          </Select>
-        </label>
+          </Select></Field>
         <Input aria-label="Filter settings" placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </UICard>
       <Text as="p" small>Manage source endpoints and secret references in{" "}

@@ -1,4 +1,4 @@
-import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text } from "../../ui";
+import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text, Field } from "../../ui";
 import { when } from "../../format";
 import { openReviews } from "../../figures";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
@@ -205,18 +205,14 @@ function HowYouAreTold({ person }: { person: string }) {
   return (
     <UICard title="How you are told">
       <Line small>
-        <label>Also send to{" "}
-          <Select value={p.channel} onChange={(e) => change({ channel: e.target.value as NotifyPreference["channel"] })}>
+        <Field inline label="Also send to"><Select value={p.channel} onChange={(e) => change({ channel: e.target.value as NotifyPreference["channel"] })}>
             {Object.entries(CHANNEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </Select>
-        </label>
+          </Select></Field>
         {external && <label>{p.channel === "email" ? "Address" : "Webhook kept in"}{" "}
           <Input value={p.address ?? ""} placeholder={p.channel === "email" ? "name@company.com" : "env:NAME"}
             onChange={(e) => change({ address: e.target.value })} /></label>}
-        {external && <label>Quiet from{" "}
-          <Input type="time" value={p.quiet_from?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_from: e.target.value || null })} /></label>}
-        {external && <label>to{" "}
-          <Input type="time" value={p.quiet_to?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_to: e.target.value || null })} /></label>}
+        {external && <Field inline label="Quiet from"><Input type="time" value={p.quiet_from?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_from: e.target.value || null })} /></Field>}
+        {external && <Field inline label="to"><Input type="time" value={p.quiet_to?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_to: e.target.value || null })} /></Field>}
         <Button variant="primary" disabled={!draft} onClick={save}>Save</Button>
         <ErrorText inline>{state.error}</ErrorText>
         {state.saved && <span role="status">Saved.</span>}

@@ -11,7 +11,7 @@ import { entityHref, href, Status, useAsync } from "../lib";
 import type { LabelBy, SceneLook } from "../Scene3D";
 import { BANDS, MOVED, attention, badge, headers, higher, parseMove, reroute, trace, type Band } from "../sceneLogic";
 import { THEME_CHANGED } from "../theme";
-import { Button, ButtonLink, Card as UICard, Empty, Notice, Select, Table, Text } from "../ui";
+import { Button, ButtonLink, Card as UICard, Empty, Notice, Select, Table, Text, Field } from "../ui";
 import { NodePanel } from "./Network";
 
 // three.js arrives with this view and no other (P5.16a).
@@ -279,15 +279,12 @@ export function NetworkScene({ query, set, relDef }: {
                     </div>
                     {wellNow && routes && routes.into.length > 1 && (
                       <div className="scene-actions">
-                        <label className="small">
-                          Reroute to
-                          <Select aria-label="Move this well to another header" value={move?.well === item.id ? move.to : ""}
+                        <Field inline label="Reroute to"><Select aria-label="Move this well to another header" value={move?.well === item.id ? move.to : ""}
                             onChange={(e) => set({ move: e.target.value ? `${item.id}~${e.target.value}` : undefined, path: undefined, trip: undefined })}>
                             <option value="">{labelOf(wellNow.dst)} (now)</option>
                             {routes.into.filter((h) => h !== wellNow.dst).sort((a, b) => labelOf(a).localeCompare(labelOf(b)))
                               .map((h) => <option key={h} value={h}>{labelOf(h)}</option>)}
-                          </Select>
-                        </label>
+                          </Select></Field>
                       </div>
                     )}
                     {path && <Text as="p" small data-testid="scene-path">

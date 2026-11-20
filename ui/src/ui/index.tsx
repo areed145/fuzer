@@ -134,8 +134,8 @@ export function Table({ children, className = "", variant = "default", density =
   return <div className="ui-table-wrap"><table ref={ref} {...props} className={`ui-table ui-table--${variant} ui-table-${density}${clickable ? " ui-table-clickable" : ""} ui-table-heading-${headingCase}${stacks ? " phone-stack" : ""} ${className}`.trim()}>{children}</table></div>;
 }
 
-export function Field({ label, hint, width = "md", children }: { label: ReactNode; hint?: ReactNode; width?: Width; children: ReactNode }) {
-  return <label className={`ui-field ui-width-${width}`}><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
+export function Field({ label, hint, width, inline, children }: { label: ReactNode; hint?: ReactNode; width?: Width; inline?: boolean; children: ReactNode }) {
+  return <label className={inline ? `ui-field ui-field-inline${width ? ` ui-width-${width}` : ""}` : `ui-field ui-width-${width ?? "md"}`}><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
 export function Input({ width, className = "", ...props }: InputHTMLAttributes<HTMLInputElement> & { width?: Width; ref?: Ref<HTMLInputElement> }) {
   return <input {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
