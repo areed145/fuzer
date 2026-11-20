@@ -34,7 +34,7 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 .home-figures:empty { display: none; }
 .home-figure { flex: 1 0 auto; display: grid; min-width: 112px; white-space: nowrap; }
 /* The layers and the place filters share one row, which scrolls sideways rather than wrapping to a second. */
-.home-chips { align-items: center; gap: 6px; padding: 2px; }
+.home-chips { align-items: center; gap: 6px; padding: 2px; scroll-padding-inline: 2px; }
 .home-layers { flex: none; display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; margin: 0; }
 .home-layers .chip { flex: none; white-space: nowrap; }
 .home-filters { padding-left: 8px; border-left: 1px solid var(--line); }
