@@ -2,46 +2,18 @@
  * number here is the number everywhere. Each metric opens to its definition, formula and the records behind it, cut by
  * any grain it declares; every row drills to its items or cases. */
 import { api, type MetricDeclaration } from "../api";
-import { quantity } from "../format";
+import { Sparkline, onTarget, show } from "../analytics/Metric";
 import { Badge, Card, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
-const show = (v: number | null, unit: string) => (v == null ? "–" : quantity(v, unit));
 
 const refHref = (ref: string) => ref.startsWith("case:") ? href(`/cases/${ref.slice(5)}`) : entityHref(ref);
 const refText = (ref: string) => ref.startsWith("case:") ? `case ${ref.slice(5)}` : ref;
 
 const BETTER: Record<MetricDeclaration["better"], string> = { higher: "higher is better", lower: "lower is better", none: "" };
 
-/** Whether a value meets its target (#1078): at least it when higher is better, at most when lower. Null when either is
- * missing, so a number with no target is never coloured as good or bad. */
-export function onTarget(m: Pick<MetricDeclaration, "better" | "target">, v: number | null | undefined): boolean | null {
-  if (v == null || m.target == null || m.better === "none") return null;
-  return m.better === "higher" ? v >= m.target : v <= m.target;
-}
-
 const targetText = (m: MetricDeclaration) =>
   m.target == null || m.better === "none" ? "" : `target ${m.better === "higher" ? "≥" : "≤"} ${show(m.target, m.unit)}`;
-
-/** The value over earlier periods as a small line, its last point marked; a dashed line at the target. */
-function Sparkline({ points, target, label }: { points: { at: string; value: number }[]; target?: number | null; label: string }) {
-  if (points.length < 2) return <span className="muted small">no history yet</span>;
-  const vs = points.map((p) => p.value).concat(target == null ? [] : [target]);
-  const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
-  const W = 96, H = 24;
-  const x = (i: number) => (i / (points.length - 1)) * (W - 4) + 2;
-  const y = (v: number) => H - 2 - ((v - lo) / span) * (H - 4);
-  const d = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
-  const last = points[points.length - 1];
-  return (
-    <svg className="sparkline" viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img"
-         aria-label={`${label}: ${points.map((p) => `${p.at} ${p.value}`).join(", ")}`}>
-      {target != null && <line x1={0} x2={W} y1={y(target)} y2={y(target)} className="sparkline-target" />}
-      <path d={d} />
-      <circle cx={x(points.length - 1)} cy={y(last.value)} r={2.2} />
-    </svg>
-  );
-}
 
 export function MetricsPage({ metricKey, query }: { metricKey?: string; query: URLSearchParams }) {
   return metricKey ? <MetricDetail metricKey={metricKey} grain={query.get("grain")} /> : <MetricList />;

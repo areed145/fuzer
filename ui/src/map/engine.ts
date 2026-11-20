@@ -41,14 +41,21 @@ export interface HotspotSpec {
   crew?: { html: string; title: string };
 }
 
+export interface Inset { top: number; right: number; bottom: number; left: number }
+
 export interface MapEngine {
   readonly kind: "leaflet" | "mapkit";
   setBasemap(name: BasemapName | "none", dark: boolean): void;
   drawNetwork(lines: LineSpec[], points: PointSpec[]): void;
   drawHotspots(spots: HotspotSpec[]): void;
   fit(coords: LatLon[], padding: number, maxZoom: number): void;
+  /** Panels drawn over the map's edges (Home's figures and feed), in pixels: fits and reveals keep clear of them. */
+  setInset(inset: Inset): void;
   /** Pan so the place is in view, unless it already is. */
   reveal(at: LatLon): void;
+  /** Ring one place (Home: what a feed item is about) over everything else, or clear the ring with null. Pans to it
+   * when it is out of view. */
+  highlight(at: LatLon | null, label?: string): void;
   /** Mark the person's location and centre on it, at a street-level zoom or closer. */
   showLocation(at: LatLon, accuracyMetres: number, colors: { accent: string; panel: string }): void;
   /** The zoom level, in Leaflet's 256-pixel-tile terms, so clustering speaks the same on both engines. */

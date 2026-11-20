@@ -78,7 +78,7 @@ thumb reach, and **Menu** opens the rest, including Plan.
 
 | Destination | What it is for | Main pages |
 |---|---|---|
-| **Home** | Where attention is needed now, on the field map and as a list | Home |
+| **Home** | The field map with open work, crews and incidents on it, key figures over it, and Needs you: what waits on you, ringed on the map | Home |
 | **Work** | Everything that came in, and what waits on you | All work, My work, Workflows, Master data |
 | **Plan** | Every planned activity from every source on one timeline | Plan, Schedules, Resources |
 | **Explore** | Assets and how they connect | Browse, Map, Network, 3D |

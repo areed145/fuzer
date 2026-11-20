@@ -5,7 +5,7 @@ import type { AttentionPlace, GeoCollection, GeoFeature } from "./api";
 import { kindColor, productColor } from "./kinds";
 import { entityHref, href } from "./lib";
 import { Button, FullscreenButton, useFullscreen } from "./ui";
-import { clusterOnScreen, pathsOf, vertices, type BasemapName, type HotspotSpec, type LatLon, type LineSpec, type MapEngine,
+import { clusterOnScreen, pathsOf, vertices, type BasemapName, type HotspotSpec, type Inset, type LatLon, type LineSpec, type MapEngine,
          type PointSpec } from "./map/engine";
 import { leafletEngine } from "./map/leafletEngine";
 import { mapkitEngine } from "./map/mapkitEngine";
@@ -130,7 +130,7 @@ function hotspotSpec(p: AttentionPlace, selected: boolean, labelled: boolean,
  * network is drawn faintly under the places that need attention, and `compact` leaves out the layer and basemap
  * controls. */
 export function MapView({ data, focus, height = "70vh", basemap = true, hotspots, selected, onSelect, crews = true,
-                          compact = false, overlay, onFullscreen }: {
+                          compact = false, legend = !compact, marks, highlight, inset, overlay, onFullscreen }: {
   data: GeoCollection;
   focus?: string | null;
   height?: string;
@@ -140,6 +140,14 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   onSelect?: (id: string) => void;
   crews?: boolean;
   compact?: boolean;
+  /** The layer chips under the map; Home keeps its own layer control over the map instead. */
+  legend?: boolean;
+  /** More markers drawn with the hotspots (Home's incidents layer), in the same classes. */
+  marks?: HotspotSpec[];
+  /** One place ringed over everything (Home: what the feed item in hand is about). */
+  highlight?: { at: LatLon; label: string } | null;
+  /** Panels over the map's edges, in pixels, that fits and reveals keep clear of. */
+  inset?: Inset;
   /** Shown over the map while it is full screen (Home's chosen place), where nothing outside the map can show. */
   overlay?: ReactNode;
   onFullscreen?: (on: boolean) => void;
@@ -195,6 +203,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     setEngine(made);
     return () => { made.destroy(); setEngine(null); };
   }, [library]);
+
+  useEffect(() => { if (inset) engine?.setInset(inset); }, [engine, inset?.top, inset?.right, inset?.bottom, inset?.left]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const choices = library === "mapkit" ? APPLE : (Object.keys(BASEMAPS) as BasemapName[]);
   const shown: Basemap = basemapName === "none" || choices.includes(basemapName) ? basemapName : "standard";
@@ -283,7 +293,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   }, [engine, data, hidden, focus, themeVersion, hotspots === undefined, whole]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!engine || !hotspots) return;
+    if (!engine || !hotspots) { if (engine && marks) engine.drawHotspots(marks); return; }
     // Least urgent first, so the most urgent sit on top where markers overlap. The chosen place is named on the map;
     // the rest name themselves on hover, with every name in the list beside the map. Places whose markers would
     // overlap at this zoom are one marker, which zooms in to part them (#1074); the chosen place always stands alone.
@@ -306,8 +316,11 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     engine.drawHotspots(groups.map((g) => ({ g, p: gathered(g) })).sort((a, b) => RANK[b.p.band] - RANK[a.p.band]).map(({ g, p }) => hotspotSpec(
       p, p.id === selected, p.id === selected || (!narrow && groups.length <= 3),
       crews ? p.crews.find((x) => x.status === "on site" || x.status === "planned") : undefined,
-      pick(g), g.length > 1)));
-  }, [engine, hotspots, selected, crews, themeVersion, zoomed]);  // eslint-disable-line react-hooks/exhaustive-deps
+      pick(g), g.length > 1)).concat(marks ?? []));
+  }, [engine, hotspots, marks, selected, crews, themeVersion, zoomed]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { engine?.highlight(highlight?.at ?? null, highlight?.label); },
+            [engine, highlight?.at[0], highlight?.at[1], highlight?.label]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {  // a place picked in the list comes into view
     const p = hotspots?.find((x) => x.id === selected);
@@ -330,7 +343,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
 
   return (
     <div className={`mapview${compact ? " mapview-compact" : ""}`}>
-      {!compact && <div className="map-legend" aria-label="Show or hide map layers">
+      {legend && <div className="map-legend" aria-label="Show or hide map layers">
         {entries.map((e) => (
           <Button key={e.key} className={`chip ${hidden.has(e.key) ? "off" : ""}`} aria-pressed={!hidden.has(e.key)}
                   onClick={() => toggle(e.key)}>

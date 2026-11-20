@@ -1,7 +1,7 @@
 // Small shared hooks and components.
 
 import { Badge as UIBadge, Button } from "./ui";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Mark } from "./brand";
 
 /** Hash-based routing: #/ , #/e/<id> , #/review. Keeps the API free to own real paths. */
@@ -77,6 +77,17 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
     };
   }, [...deps, tick]);
   return { ...state, ...(state.key === key ? {} : { data: undefined, error: undefined, loading: true }), reload };
+}
+
+/** Read again every `ms` while the page is in view (Home's live feed and map). Reads only: an action never repeats. */
+export function useLive(reloads: (() => void)[], ms = 30_000) {
+  const latest = useRef(reloads);
+  latest.current = reloads;
+  useEffect(() => {
+    const tick = () => { if (document.visibilityState === "visible") latest.current.forEach((r) => r()); };
+    const timer = window.setInterval(tick, ms);
+    return () => window.clearInterval(timer);
+  }, [ms]);
 }
 
 /** What went wrong, as text to show. */

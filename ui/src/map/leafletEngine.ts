@@ -1,6 +1,6 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import type { BasemapName, EngineEvents, HotspotSpec, LatLon, LineSpec, MapEngine, PointSpec } from "./engine";
+import type { BasemapName, EngineEvents, HotspotSpec, Inset, LatLon, LineSpec, MapEngine, PointSpec } from "./engine";
 
 type Tiles = { url: string; attribution: string; maxNativeZoom: number; subdomains?: string };
 /* Without a MapKit key the maps draw Google's public map tiles (mt0 to mt3): roadmap, satellite with names, and terrain.
@@ -23,7 +23,15 @@ export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine 
   const network = L.layerGroup().addTo(map);
   const location = L.layerGroup().addTo(map);
   const spots = L.layerGroup().addTo(map);
+  const ring = L.layerGroup().addTo(map);
   let tiles: L.TileLayer | null = null;
+  let inset: Inset = { top: 0, right: 0, bottom: 0, left: 0 };
+  /** The part of the map no panel covers, as bounds. */
+  const clear = () => {
+    const size = map.getSize();
+    return L.latLngBounds(map.containerPointToLatLng([inset.left, size.y - inset.bottom]),
+                          map.containerPointToLatLng([size.x - inset.right, inset.top]));
+  };
   // A tap on a phone opens the popup; a hover label there would stick beside it, saying the same thing twice.
   const hover = () => matchMedia("(hover: hover)").matches;
   map.on("zoomend", () => events.onZoom?.(map.getZoom()));
@@ -83,10 +91,24 @@ export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine 
     },
     fit(coords: LatLon[], padding, maxZoom) {
       const bounds = L.latLngBounds(coords);
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [padding, padding], maxZoom });
+      if (bounds.isValid()) map.fitBounds(bounds, { paddingTopLeft: [padding + inset.left, padding + inset.top],
+                                                     paddingBottomRight: [padding + inset.right, padding + inset.bottom], maxZoom });
     },
+    setInset(next) { inset = next; },
     reveal(at) {
-      if (!map.getBounds().pad(-0.1).contains(at)) map.panTo(at);
+      if (clear().pad(-0.1).contains(at)) return;
+      // Centre it in the uncovered part: the map centre moves by half the difference of the insets.
+      const size = map.getSize();
+      const p = map.latLngToContainerPoint(at);
+      const want = L.point((inset.left + size.x - inset.right) / 2, (inset.top + size.y - inset.bottom) / 2);
+      map.panBy(p.subtract(want));
+    },
+    highlight(at, label) {
+      ring.clearLayers();
+      if (!at) return;
+      L.marker(at, { icon: L.divIcon({ className: "map-highlight", html: "<span></span>", iconSize: [64, 64], iconAnchor: [32, 32] }),
+                     interactive: false, keyboard: false, zIndexOffset: 2000, title: label }).addTo(ring);
+      this.reveal(at);
     },
     showLocation(at, accuracy, colors) {
       location.clearLayers();

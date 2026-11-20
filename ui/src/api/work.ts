@@ -246,7 +246,7 @@ export interface WorkloadPerson {
 export interface WorkHome {
   person: string; seen_at: string | null;
   changes: { id: number; item_id: number; kind: string; actor: string; at: string; data: Record<string, unknown>;
-    title: string; type: string; state: string; watching: boolean }[];
+    title: string; type: string; state: string; subjects: string[]; watching: boolean }[];
   watching: string[];
 }
 
@@ -713,6 +713,7 @@ export interface AttentionPlace {
   open: number; counts: Record<AttentionBand, number>; overdue: number; unassigned: number;
   top: AttentionItem[]; exceptions: number[]; crews: AttentionCrew[];
 }
+export interface LocatedPlace { id: string; label: string; name: string | null; kind: string; lon: number; lat: number }
 export interface Attention { places: AttentionPlace[]; open: number; unplaced: number; data_work: number; truncated: boolean }
 
 /** An exception that joined another's case: the same event reported by another source. */
@@ -945,6 +946,8 @@ export const workApi = {
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string; closed_since?: string; at?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", { limit: String(EXCEPTIONS_LIMIT), ...f }),
   attention: () => request<Attention>("GET", "/attention"),
+  /** Where each entity sits on Home's map, by the place its chain leads to; unlocated ids are left out. */
+  attentionPlaces: (ids: string[]) => request<Record<string, LocatedPlace>>("GET", "/attention/places", { ids: ids.join(",") }),
   opportunity: (key: string) => request<OpportunityView>("GET", `/opportunities/${encodeURIComponent(key)}`),
   decideOpportunity: (key: string, decision: "accepted" | "rejected" | "project", by: string, reason?: string) =>
     request<unknown>("POST", `/opportunities/${encodeURIComponent(key)}/decision`, undefined,
