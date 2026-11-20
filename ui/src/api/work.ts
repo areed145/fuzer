@@ -710,6 +710,24 @@ export interface ExceptionRow {
   joined?: JoinedException[];
 }
 
+/** One row of all the work (GET /cases): an event (with its case, if any) or a case no event raised, in one shape.
+ * A case-only row has no exception `id`, `exception_id` or `key`. */
+export interface WorkListRow extends Omit<ExceptionRow, "id" | "key"> {
+  uid: string; id: number | null; exception_id: number | null; key: string | null;
+  kind: string; kind_label: string; stage: EventStage; holder: string; queue: string;
+  due_at: string | null; overdue: boolean; opened: string; updated: string;
+}
+/** The filters of all the work, each a comma list where it can be one; a preset is only a set of these. */
+export interface WorkListFilters {
+  state?: string; kind?: string; stage?: string; holder?: string; queue?: string; waiting_on?: string;
+  overdue?: string; subject?: string; at?: string; source?: string; q?: string; sort?: string;
+}
+export interface WorkListResult {
+  rows: WorkListRow[]; total: number;
+  facets: { kind: Record<string, number>; stage: Record<string, number>; holder: Record<string, number>;
+            queue: Record<string, number>; source: Record<string, number>; overdue: number };
+}
+
 /** Where attention is needed (Home's map): open exceptions gathered at the located places they are about. */
 export type AttentionBand = "high" | "medium" | "low";
 export interface AttentionCrew { who: string | null; status: "on site" | "planned"; at: string | null }
@@ -1046,6 +1064,10 @@ export const workApi = {
   unshelveException: (id: number, by: string) =>
     request<ExceptionRow>("POST", `/exceptions/${id}/unshelve`, undefined, { by }),
   exceptionKinds: () => request<ExceptionKind[]>("GET", "/exceptions/types"),
+  workList: (f: WorkListFilters) => {
+    const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][]);
+    return request<WorkListResult>("GET", `/cases${qs.size ? `?${qs}` : ""}`);
+  },
   /** The reference forms another system's refs are matched by, each with an example from this register. */
   exceptionRefs: () => request<{ form: string; example: string; entities: number }[]>("GET", "/exceptions/refs"),
   defineExceptionKind: (name: string, k: { by: string; label: string; role?: string | null; process?: string | null;

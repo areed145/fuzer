@@ -166,7 +166,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
           `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</Text>}
       <Text as="p" small>{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</Text>
-      {item.exception_id != null && <Text as="p" small><a href={href("/exceptions", { list: "open", q: item.title })}>Open this work in All work</a></Text>}
+      {item.exception_id != null && <Text as="p" small><a href={href("/list", { q: item.title })}>Open this work in All work</a></Text>}
       <Text as="p" small muted>{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
         {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</Text>
       {person ? <Line>

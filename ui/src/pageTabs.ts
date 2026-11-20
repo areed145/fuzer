@@ -1,25 +1,42 @@
 // The tabs inside pages, one list each. The page that draws a row of tabs reads it from here, and so does app search,
 // so a tab found by search is always a tab the page has.
-import type { WorkList } from "./pages/AllWork";
 import { href } from "./lib";
 
 export interface PageTab { key: string; label: string }
 
-/** All work's views (#502). The first is the default and carries no `list` in its link. */
-export const WORK_LISTS: { key: WorkList; label: string }[] = [
-  { key: "dispatch", label: "To dispatch" },
-  { key: "field", label: "With the field" },
-  { key: "back", label: "Back from the field" },
-  { key: "open", label: "All open" },
-  { key: "progress", label: "In progress" },
-  { key: "ranked", label: "Ranked by value" },
-  { key: "closed", label: "Closed" },
-  { key: "board", label: "Board" },
-];
+/** The views All work had before it became one list (#502). Each is only a set of the list's filters now, so its old
+ * links and saved views still open the same work. */
+export type WorkList = "dispatch" | "field" | "back" | "open" | "progress" | "ranked" | "closed" | "board";
+const VIEW_FILTERS: Record<WorkList, Record<string, string>> = {
+  dispatch: { stage: "dispatch" }, field: { stage: "field" }, back: { stage: "back" }, open: {}, progress: {},
+  ranked: {}, closed: { state: "closed" }, board: {},
+};
 
-/** A link to one view of All work, with that view's own filters. */
+/** The filters a link can carry, renamed from the old ones (`type` is the kind, `who` the holder). */
+export function listFilters(query?: Record<string, string | undefined>): Record<string, string | undefined> {
+  const { type, who, list: _list, view: _view, ...rest } = query ?? {};
+  return { ...rest, ...(type ? { kind: type } : {}), ...(who ? { holder: who } : {}) };
+}
+
+/** What a saved view filters on: the old view's own filters, then the ones it was saved with. */
+export const savedFilters = (list: string, filters: Record<string, string | undefined>): Record<string, string> =>
+  Object.fromEntries(Object.entries({ ...VIEW_FILTERS[list as WorkList] ?? {}, ...listFilters(filters) })
+    .filter(([, v]) => v)) as Record<string, string>;
+
+/** A link to all the work as a List (or the Board), with an old view's filters and any others. */
 export const workHref = (list: WorkList, query?: Record<string, string | undefined>) =>
-  href("/exceptions", { list: list === "dispatch" ? undefined : list, ...query });
+  list === "ranked" ? href("/ranked", { view: query?.view })  // the backlog ranked by value, under Plan
+    : href(list === "board" ? "/board" : "/list", { ...VIEW_FILTERS[list] ?? {}, ...listFilters(query) });
+
+/** Presets: sets of filters people found worth a name. `me` stands for the person looking. Add one only once it has
+ * proved its worth; anyone can save their own filters for a role as a saved view. */
+export const WORK_PRESETS: { key: string; label: string; filters: Record<string, string> }[] = [
+  { key: "mine", label: "Waiting on me", filters: { waiting_on: "me" } },
+  { key: "dispatch", label: "To dispatch", filters: { stage: "dispatch" } },
+  { key: "back", label: "Back from the field", filters: { stage: "back" } },
+  { key: "overdue", label: "Overdue", filters: { overdue: "true" } },
+  { key: "data", label: "Data questions", filters: { queue: "data_steward" } },
+];
 
 /** Master data's tabs (`?tab=`). The first is the default. */
 export const MASTER_DATA_TABS: PageTab[] = [

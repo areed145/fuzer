@@ -1,13 +1,13 @@
 # Page ownership and navigation
 
 Organize by user goals, not by the adapter, database table or feature's implementation history.
-These are ownership boundaries, not a requirement for eight top-level navigation entries.
-The eight operational primary destinations are **Home, Work, Plan, Explore, Reports,
-Sources, Jobs and Settings**, in that order. Work is today's shift (triage, dispatch, close out) and Plan is the
-days and weeks ahead, so they sit together. Demo is not in the menu; `#/demo` still opens the guided tour.
+These are ownership boundaries, not a requirement for a fixed number of top-level navigation entries.
+The operational primary destinations are **Home, List, Board, Plan, Explore, Reports,
+Sources, Jobs and Settings**, in that order. List and Board are all the work, today's shift (triage, dispatch,
+close out), as rows or as columns; Plan is the days and weeks ahead, so they sit together. Demo is not in the menu; `#/demo` still opens the guided tour.
 Specialist pages appear in secondary area navigation using their existing URLs.
 
-Primary landings reuse Home, All work (Work), Plan (Plan), Browse (Explore), Downtime (Reports),
+Primary landings reuse Home, All work (List), the Board (Board), Plan (Plan), Browse (Explore), Downtime (Reports),
 Sources, Jobs and Settings. Demo owns onboarding, not a new generic investigation subsystem.
 Direct links select their owning primary destination.
 
@@ -17,7 +17,7 @@ Direct links select their owning primary destination.
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/3d`, `#/ask` | Assets and connected evidence, and the operations assistant that answers from them. Paid Ask remains AI-permission gated. All entity links reuse the existing entity viewer. An asset's kind links to it in the Ontology for configurers. |
 | Reports | `#/incidents`, `#/downtime`, `#/reports`, `#/metrics`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. |
-| Work | `#/exceptions` (All work, with compatible `#/board` and `#/cases` redirects into its views), `#/inbox` (My work, with `#/field` redirecting into it), `#/inbox/task/:id` (opens its case, where the step is worked), contextual `#/teams` and `#/handover`, `#/masterdata` (its Questions tab answers what `#/review` did, which redirects there), `#/cases/:id` | Human priorities, read-only team workload, review decisions, tasks and cases. Workflows (`#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key`; the older `#/processes…` URLs open the same pages) are in Settings. |
+| List and Board | `#/list` and `#/board`: all the work (`GET /cases`), filtered and sorted on any dimension in the URL (`kind`, `stage`, `holder`, `queue`, `source`, `state`, `overdue`, `waiting_on`, `subject`, `at`, `q`, `sort`; the Board adds `group`). Old links land on the same work: `#/exceptions?list=…` and `#/cases?state=…` redirect to `#/list` with the filters the old view meant. Presets (Waiting on me, To dispatch, Back from the field, Overdue, Data questions) and views saved for a role only set filters. `#/inbox` (a field operator's jobs with their report buttons, kept for no signal; `#/field` redirects into it), `#/masterdata` (its Questions tab answers what `#/review` did), contextual `#/teams` and `#/handover`, and `#/cases/:id` keep their URLs and light List. | Human priorities, dispatch, review decisions, tasks and cases. Workflows (`#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key`; the older `#/processes…` URLs open the same pages) are in Settings. |
 | Plan | `#/plan` (with `#/turnaround` redirecting into it), `#/plan?schedules=1` (Schedules), `#/plan?schedule=CODE`, `#/plan?resources=1` (Resources) | The days and weeks ahead: every source's planned work on one timeline, schedules, resources and their clashes. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views, configure-protected `#/ontology` (`?kind=…` opens on a kind) | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
@@ -43,9 +43,8 @@ the menu, the tabs pages declare in `ui/src/pageTabs.ts`, and records through th
 uses; a question opens Ask with it and asks it once. It is a way in, not an owner: each result opens its owning page. Sources secondary pages are Sources and configure-protected
 Ontology, the model each source maps onto.
 Demo is one route outside the menu, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Reports contains Downtime, Incidents, Daily reports, Metrics,
-Lessons and Studies. Work contains three entries: All work, My work and Master data. All work shows all the work as a List or a
-Board; To dispatch, With the field, Back from the field, All open, In progress, Ranked by value and Closed are filters
-on the list. Workflows (formerly Processes; "process" means the plant in oil and gas) sit in Settings beside Routing:
+Lessons and Studies. List and Board are one entry each: all the work as rows or as columns, with the same filters.
+My work and Master data's questions are presets on it, not menu entries. Workflows (formerly Processes; "process" means the plant in oil and gas) sit in Settings beside Routing:
 they are the playbooks the work follows; a case or task links to the workflow it
 is following. Plan contains Plan (the timeline), Schedules and Resources. A work item planned for a day links to its
 bar (`#/plan?item=ID&from=DATE` opens it), and a bar planned from work links back to it in All work. Shift handover is
@@ -58,12 +57,12 @@ and its capacity windows. Data review is the Questions tab of Master data
 (P2.3, #505): `#/review?kind=…` redirects to `#/masterdata?tab=questions&kind=…`, and each question is also a case in
 the data steward's queue that links to it. Routing stays under Settings and
 links to each type's workflow.
-All work (#502) is the IOC's one list: its views are To dispatch, With the field, Back from the field, All open
-(exceptions), In progress and Closed (the former Cases list), Ranked by value (the former Work board) and Board
-(the open work by stage, one column per view).
-`#/board?view=…` redirects to `#/exceptions?list=ranked&view=…`, and `#/cases?state=…` to the In progress or
-Closed view with its filters; case and task pages keep their URLs. One filter bar (kind of work, held by, words in
-the title) is shared by every view and kept in the URL, so switching views keeps it.
+All work (#502, the simplification review) is one set of rows: every event and every case, from `GET /cases`. With
+no filter it shows all the open work. One filter bar (kind, stage, held by, team, source, state, sort, overdue, words,
+and the place, entity or person a link names) is shared by the List and the Board and kept in the URL, so switching
+between them keeps it; each picker shows how many match each value. The views it once had (To dispatch, With the
+field, Back from the field, All open, In progress, Ranked by value, Closed) are filters, and their old links redirect
+to them.
 My work (#503, `#/inbox`) is one person's list: the field jobs sent to them and waiting in their queues (the former
 My jobs page; `#/field` redirects here), their assigned steps and their queues' unclaimed steps. The steps are one list,
 escalated first, with chips for All, Assigned to you, Unclaimed in your roles and Escalated (`?show=`). What changed on
@@ -107,7 +106,7 @@ automatic relevance ranking or widget configuration until the owning workflows a
 
 Before adding a page or action, identify its owner here and link to an existing surface when one
 already owns it. Update this ownership map and navigation together when responsibility changes.
-Keep the eight operational destinations; do not substitute a catch-all Manage group.
+Keep these operational destinations; do not substitute a catch-all Manage group.
 Preserve old URLs or add
 explicit tested redirects. Verify active navigation, contextual links, direct reader
 access and desktop/mobile navigation. Use the existing API/domain boundaries and shared UI kit.

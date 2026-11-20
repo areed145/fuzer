@@ -6,7 +6,7 @@ import { type AttentionBand, type AttentionItem, type AttentionPlace } from "../
 import { Badge, Button, ButtonLink, Line, Text, Heading } from "../ui";
 import { entityHref, href } from "../lib";
 import { ATTENTION_TONE } from "../kinds";
-import { workHref } from "./AllWork";
+import { workHref } from "../pageTabs";
 
 export type Filter = "all" | "high" | "overdue" | "unassigned";
 export const FILTERS: { key: Filter; label: string }[] = [

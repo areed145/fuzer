@@ -17,12 +17,14 @@
 .work-card-meta { display: flex; justify-content: space-between; gap: 8px; }
 .work-card-meta > span:last-child { white-space: nowrap; }
 .work-card-actions { margin-top: 4px; gap: 6px; }
-.work-board-stages { display: none; }
+.work-board-stages, .chips.work-board-stages { display: none; }
 @media (max-width: 600px) {
-  .work-board-stages { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 12px; }
+  .work-board-stages, .chips.work-board-stages { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 12px; }
   .work-board-stages .chip { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   .work-board { display: block; overflow: visible; }
   .work-board-column, .work-board-column.empty { display: none; min-width: 0; }
   .work-board-column.shown { display: block; }
   .work-card-actions .ui-button { min-height: 44px; }
 }
+/* The column chips are the phone's way through the columns; a desk shows every column side by side. */
+@media (min-width: 601px) { :root.ios .work-board-stages { display: none; } }

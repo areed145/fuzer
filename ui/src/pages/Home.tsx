@@ -13,7 +13,12 @@ import { usePermission } from "../Auth";
 import { show } from "../analytics/Metric";
 import { LiveFigure } from "../analytics/LiveFigure";
 import type { HotspotSpec, Inset } from "../map/engine";
-import { iocCounts, workHref } from "./AllWork";
+import { workHref } from "../pageTabs";
+
+/** How many open events wait at each stage, from the one count every page reads (GET /work/counts). */
+const iocCounts = (c: WorkFigures) => ({
+  dispatch: c.events.stages.dispatch, field: c.events.stages.field, back: c.events.stages.back, open: c.events.open,
+});
 import { FILTERS, PlaceDetail, keep, type Filter } from "./HomeAttention";
 import { NeedsYou, type Ring } from "./HomeFeed";
 

@@ -1,12 +1,16 @@
-"""Saved views per role on All work (P5.1c, #651): a named set of All work's filters, kept for a role, so everyone in
+"""Saved views per role on All work (P5.1c, #651): a named set of the List's or the Board's filters, kept for a role, so everyone in
 that role finds the same view in All work's picker. Only someone in the role saves or removes a view for it."""
 
 from psycopg.types.json import Jsonb
 
 from .definitions import roles_of
 
-LISTS = {"dispatch", "field", "back", "open", "progress", "ranked", "closed"}
-FILTERS = ("type", "who", "q")
+# `list` and `board` are All work as rows or columns (the simplification review); the rest are the views it had, kept
+# so views saved before still open the same work.
+LISTS = {"list", "board", "dispatch", "field", "back", "open", "progress", "ranked", "closed"}
+# The list's filters (ops.worklist), and the old names some saved views still carry (`type` the kind, `who` the holder).
+FILTERS = ("state", "kind", "stage", "holder", "queue", "waiting_on", "overdue", "subject", "at", "source", "q", "sort",
+           "group", "type", "who")
 
 
 def views(conn, person: str) -> list[dict]:

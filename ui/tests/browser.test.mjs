@@ -58,7 +58,48 @@ beforeEach(async () => {
     if (path.startsWith("/assets/") || path === "/" || path.endsWith(".svg") || path.endsWith(".png")) return route.continue();
     await route.fulfill({ json: fixtures[path] ?? [] });
   });
+  // All work's rows (GET /cases) made from the test's own /exceptions and /work/people, shaped and filtered as the
+  // server does (ops/worklist.py), so a test that serves exceptions serves the List and the Board too.
+  await page.route(/\/cases(\?|$)/, async (route) => {
+    const u = new URL(route.request().url());
+    const f = Object.fromEntries(u.searchParams.entries());
+    const state = f.state || "open";
+    // The page may navigate or close while this reads; then nothing is answered.
+    const got = await page.evaluate(async (s) => {
+      const read = async (p) => { try { const r = await fetch(p); return r.ok ? await r.json() : []; } catch { return []; } };
+      return { rows: await read(`/exceptions?state=${s}`), people: await read("/work/people") };
+    }, state === "all" ? "any" : state).catch(() => null);
+    if (!got) return route.abort().catch(() => {});
+    await route.fulfill({ json: workList(Array.isArray(got.rows) ? got.rows : [], f, Array.isArray(got.people) ? got.people : []) })
+      .catch(() => {});
+  });
 });
+
+/** GET /cases from exception rows: each row with its stage, holder, kind and dates, the filters applied, and each
+ * dimension's counts with its own filter left out. */
+function workList(rows, f = {}, people = []) {
+  const field = new Set(people.filter((p) => (p.roles ?? []).includes("operator")).map((p) => p.name));
+  const shaped = rows.map((r) => {
+    const last = r.evidence?.field?.[r.evidence.field.length - 1];
+    const back = r.back_from_field || (!!last && ["done", "could_not_do"].includes(last.status) && r.assignee !== last.by);
+    const stage = r.stage ?? (r.state && r.state !== "open" ? "closed" : !r.item_id ? (r.planned ? "planned" : "dispatch")
+      : back ? "back" : r.role === "operator" || field.has(r.assignee) || last?.status === "on_site" ? "field" : "desk");
+    return { subjects: [], unmatched: [], joined: [], ...r, uid: `e${r.id}`, exception_id: r.id, kind: r.type,
+      kind_label: r.type.replace(/_/g, " "), stage, holder: r.assignee ?? (r.role ? `role:${r.role}` : "none"),
+      queue: r.queue ?? "none", source: r.source ?? null, due_at: r.due_at ?? null, overdue: !!r.overdue,
+      opened: r.first_seen, updated: r.last_seen, state: !r.state || r.state === "open" ? "open" : "closed" };
+  });
+  const dims = ["kind", "stage", "holder", "queue", "source"];
+  const on = (r, d) => !f[d] || f[d].split(",").includes(String(r[d]));
+  const words = (f.q ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const base = shaped.filter((r) => (!words || `${r.title} ${r.key}`.toLowerCase().replace(/[^a-z0-9]/g, "").includes(words))
+    && (f.overdue !== "true" || r.overdue)
+    && (!f.waiting_on || r.assignee === f.waiting_on || (!r.assignee && !!r.role)));
+  const facets = Object.fromEntries(dims.map((d) => [d, base.filter((r) => dims.every((x) => x === d || on(r, x)))
+    .reduce((n, r) => ({ ...n, [r[d]]: (n[r[d]] ?? 0) + 1 }), {})]));
+  const matched = base.filter((r) => dims.every((d) => on(r, d)));
+  return { rows: matched, total: matched.length, facets: { ...facets, overdue: matched.filter((r) => r.overdue).length } };
+}
 afterEach(async () => {
   await context.close();
   assert.deepEqual(errors, [], "No unhandled rendering errors");
@@ -208,7 +249,7 @@ test("Wave 1 disabled owners retain status but have no effective workflow roles 
 
 test("Wave 1 account search updates the URL without adding per-character Back steps", async () => {
   await usersFixture();
-  await page.goto(`${url}/#/exceptions`);
+  await page.goto(`${url}/#/list`);
   await page.getByRole("heading", { name: "All work", exact: true }).waitFor();
   await page.evaluate(() => { location.hash = "#/users"; });
   const search = page.getByRole("searchbox", { name: "Find accounts", exact: true });
@@ -722,7 +763,7 @@ test("the Work badge says what it counts and the Cases filters are labelled (#39
   await page.route("**/stats", route => route.fulfill({ json: { facility: "OKAN", pack: "okan", records: 1, entities: {}, edges: 0,
     open_reviews: { match: 14 }, rebuild: {} } }));
   await page.goto(`${url}/#/cases`);
-  const badge = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Work/ }).locator(".count");
+  const badge = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^List/ }).locator(".count");
   await page.waitForFunction(() => document.querySelector("nav[aria-label=Main] .count")?.getAttribute("title")
     === "1 workflow step waiting on you");
   assert.equal(await badge.locator("[aria-hidden=true]").innerText(), "1", "a data question is counted in the steward's queue, not again");
@@ -1208,8 +1249,7 @@ test("Users keeps last-owner failures actionable and legacy roster links compati
   await page.getByRole("heading", { name: "Workflow assignments & routing", exact: true }).waitFor();
   await page.goto(`${url}/#/teams?role=engineer`);
   await page.getByRole("heading", { name: "Team workload", exact: true }).waitFor();
-  assert.equal(await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Work", exact: true }).getAttribute("aria-current"), "page");
-  assert.equal(await page.getByRole("navigation", { name: "Work pages", exact: true }).getByRole("link", { name: "My work", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "List", exact: true }).getAttribute("aria-current"), "page");
   assert.equal(await page.getByRole("button", { name: "Save workflow assignments", exact: true }).count(), 0);
   assert.match(await page.getByRole("main").getByRole("link", { name: "Users", exact: true }).last().getAttribute("href"), /view=workflow.*role=engineer/);
 });
@@ -1931,11 +1971,11 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.getByRole("link", { name: "Explore", exact: true }).waitFor();
-  const expected = ["#/", "#/exceptions", "#/plan", "#/browse", "#/downtime", "#/sources", "#/jobs", "#/settings"];
+  const expected = ["#/", "#/list", "#/board", "#/plan", "#/browse", "#/downtime", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Work", "Plan", "Explore", "Reports", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "List", "Board", "Plan", "Explore", "Reports", "Sources", "Jobs", "Settings"]);
   // Demo left the menu; its page still opens from a direct link.
   await page.goto(`${url}/#/demo`);
   await page.getByRole("heading", { level: 1, name: "Demo", exact: true }).waitFor();
@@ -1953,17 +1993,18 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
     ["#/browse", "#/map", "#/network", "#/3d", "#/ask"]);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
-  await nav.locator('a[href="#/exceptions"][aria-current="page"]').waitFor();
-  const work = page.getByRole("navigation", { name: "Work pages", exact: true });
-  assert.equal(await work.getByRole("link", { name: "My work", exact: true }).getAttribute("aria-current"), "page");
-  assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/exceptions", "#/inbox", "#/masterdata"]);
-  // The pages that left Work's nav still open, under the entry that owns them now (#554).
+  // My work and Master data are presets on the list now; their pages keep their links and light List.
+  await nav.locator('a[href="#/list"][aria-current="page"]').waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "List pages", exact: true }).count(), 0, "List is one entry");
+  for (const route of ["#/handover", "#/review", "#/masterdata"]) {
+    await page.goto(`${url}/${route}`);
+    await nav.locator('a[href="#/list"][aria-current="page"]').waitFor();
+  }
+  // The pages that left the menu still open, under the entry that owns them now (#554).
   await page.route("**/plan/schedules", (route) => route.fulfill({ json: [] }));
   await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: "2026-11-01", end: "2026-12-01", days: 30, resources: [] } }));
   await page.route("**/plan/resources", (route) => route.fulfill({ json: [] }));
-  for (const [route, owner, area] of [["#/handover", "My work", "Work pages"], ["#/review", "Master data", "Work pages"],
-    ["#/processes", "Workflows", "Settings pages"],
+  for (const [route, owner, area] of [["#/processes", "Workflows", "Settings pages"],
     ["#/plan?resources=1", "Resources", "Plan pages"], ["#/plan?schedules=1", "Schedules", "Plan pages"]]) {
     await page.goto(`${url}/${route}`);
     await page.getByRole("navigation", { name: area, exact: true }).locator(`a[aria-current="page"]`, { hasText: owner }).waitFor();
@@ -1996,7 +2037,8 @@ test("primary destination navigation keeps page headings and active context alig
     { label: "Home", href: "#/", heading: "Home" },
     { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
     { label: "Reports", href: "#/downtime", heading: "Downtime", area: "Reports pages", current: "Downtime" },
-    { label: "Work", href: "#/exceptions", heading: "All work", area: "Work pages", current: "All work" },
+    { label: "List", href: "#/list", heading: "All work" },
+    { label: "Board", href: "#/board", heading: "Board" },
     { label: "Plan", href: "#/plan", heading: "Plan", area: "Plan pages", current: "Plan" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
     { label: "Jobs", href: "#/jobs", heading: "Jobs" },
@@ -3112,15 +3154,17 @@ test("Home's figures link to the views that show the same numbers (#556)", async
     "/exceptions": open, "/work/people": [], "/work/counts": workCounts({ dispatch: 2, field: 1, back: 1 }) });
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: open }));
   await page.goto(`${url}/#/`);
-  for (const [name, to] of [["To dispatch 2", "#/exceptions"], ["With the field 1", "#/exceptions?list=field"],
-    ["Back from the field 1", "#/exceptions?list=back"], ["Open work 4", "#/exceptions?list=open"]]) {
+  for (const [name, to] of [["To dispatch 2", "#/list?stage=dispatch"], ["With the field 1", "#/list?stage=field"],
+    ["Back from the field 1", "#/list?stage=back"], ["Open work 4", "#/list"]]) {
     assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), to);
   }
   // A dispatcher's waiting work is in Needs you too, each opening dispatch.
   const feed = page.getByRole("complementary", { name: "Needs you" });
-  assert.match(await feed.getByRole("link", { name: "Exception 1", exact: true }).getAttribute("href"), /^#\/exceptions\?q=Exception/);
+  assert.match(await feed.getByRole("link", { name: "Exception 1", exact: true }).getAttribute("href"), /^#\/list\?stage=dispatch&q=Exception/);
   await page.getByRole("link", { name: "To dispatch 2", exact: true }).click();
-  await page.getByRole("navigation", { name: "All work views" }).getByRole("link", { name: /To dispatch\s*2/ }).waitFor();
+  // The figure opens the list filtered to the same stage, and the stage picker says how many.
+  await page.getByRole("option", { name: "To dispatch (2)" }).waitFor({ state: "attached" });
+  assert.equal(await page.getByRole("combobox", { name: "Stage", exact: true }).inputValue(), "dispatch");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/`);
   const target = await page.getByRole("link", { name: "To dispatch 2", exact: true }).boundingBox();
@@ -3165,7 +3209,7 @@ test("Home's open work layer gathers work at places, and a marker opens its plac
     await page.locator('.hotspot[title^="Jacket 07"]').click();
     const detail = page.getByRole("region", { name: "Jacket 07" });
     assert.equal(await detail.getByRole("link", { name: "W-73 shut in, lift gas short" }).getAttribute("href"), "#/cases/11");
-    assert.equal(await detail.getByRole("link", { name: "Open 2 in All work" }).getAttribute("href"), "#/exceptions?list=open&at=fz-j7");
+    assert.equal(await detail.getByRole("link", { name: "Open 2 in All work" }).getAttribute("href"), "#/list?at=fz-j7");
     // The place closes from its X and from Escape.
     await detail.getByRole("button", { name: "Close" }).click();
     await detail.waitFor({ state: "detached" });
@@ -3357,17 +3401,16 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await page.route("**/exceptions/7/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ dispatch: 1 }) }));
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`${url}/#/exceptions`);
-  const views = page.getByRole("navigation", { name: "All work views", exact: true });
-  await views.getByRole("link", { name: "To dispatch 1", exact: true }).waitFor();  // the count shows before the view opens
-  assert.equal(await views.getByRole("link", { name: "To dispatch 1", exact: true }).getAttribute("aria-current"), "page");
+  await page.goto(`${url}/#/exceptions?list=dispatch`);
+  await page.waitForURL(/#\/list\?stage=dispatch$/);  // an old view's link opens the list with its filter
+  await page.getByRole("option", { name: "To dispatch (1)" }).waitFor({ state: "attached" });
   // Exception types are configuration, so they live on Settings > Routing, not under All work.
   await page.goto(`${url}/#/routing`);
   await page.getByText("tag:20-K-2100B").waitFor();  // what another system's refs should look like
   const queue = page.getByLabel("Queue");  // a new type routes to a known queue, picked, not typed
   await queue.getByRole("option", { name: "engineer queue" }).waitFor({ state: "attached" });
   assert.deepEqual(await queue.locator("option").allTextContents(), ["waits for the IOC to dispatch", "operator queue", "engineer queue"]);
-  await page.goto(`${url}/#/exceptions`);
+  await page.goto(`${url}/#/list`);
   await page.getByRole("button", { name: "Send to", exact: true }).click();
   await page.getByLabel("Dispatch to").getByRole("option", { name: "fred (operator)" }).waitFor({ state: "attached" });
   await page.getByLabel("Dispatch to").selectOption("fred");
@@ -3416,8 +3459,9 @@ test("the field's report sits above the IOC's decision, and operators are only o
   await page.route("**/exceptions/types", (route) => route.fulfill({ json: [] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [] }));
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`${url}/#/exceptions`);
-  await page.getByRole("navigation", { name: "All work views", exact: true }).getByRole("link", { name: "Back from the field 1" }).click();
+  await page.goto(`${url}/#/list`);
+  await page.getByRole("combobox", { name: "Stage", exact: true }).selectOption("back");
+  await page.waitForURL(/stage=back/);
   await page.getByText("Seal weeping on P-101").waitFor();
   assert.equal(await page.getByText("Compressor trip").count(), 0);
 });
@@ -3453,7 +3497,7 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
   await page.route("**/exceptions/types", (route) => route.fulfill({ json: [{ name: "sap_notification", label: "SAP notification",
     role: null, process: null, case_type: null, audience: ["ioc"], close_case_on_clear: false, description: "", defined_in: "code", open: 6 }] }));
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto(`${url}/#/exceptions?list=board`);
+  await page.goto(`${url}/#/board`);
   const column = (name) => page.getByRole("region", { name, exact: true });
   await column("To dispatch").getByText("3rd stage compressor tripped").waitFor();
   const titles = async (name) => (await column(name).locator(".work-card-title").allTextContents()).sort();
@@ -3462,42 +3506,42 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
   assert.deepEqual(await titles("On the plan"), ["PSV recertification overdue"]);
   assert.deepEqual(await titles("With the field"), ["Drain valve weeping", "Seal leak at export pump B"]);
   assert.deepEqual(await titles("Back from the field"), ["Strainer DP high", "Wellhead pressure high"]);
-  assert.deepEqual(await titles("Closed today"), ["Cooler fan tripped"]);  // an open row in the closed answer stays put
-  assert.ok(asked.some((q) => q.state === "any" && q.closed_since));
-  await column("To dispatch").getByText("$120,000 at stake · oldest 2h 10m").waitFor();
+  assert.equal(await column("Closed").count(), 0, "the open work has no closed column");
+  await column("To dispatch").getByText("$120,000", { exact: false }).waitFor();
   // Back from the field: done goes to its case to close out; could not do can go out again.
   const done = column("Back from the field").locator(".work-card", { hasText: "Strainer DP high" });
-  assert.equal(await done.getByRole("link", { name: "Close out" }).getAttribute("href"), "#/cases/34");
-  assert.equal(await done.getByRole("button", { name: "Re-dispatch" }).count(), 0);
-  await column("Back from the field").locator(".work-card", { hasText: "Wellhead pressure high" }).getByRole("button", { name: "Re-dispatch" }).waitFor();
+  assert.equal(await done.getByRole("link", { name: "Close out" }).getAttribute("href"), "#/cases/34?close=1");
+  assert.equal(await done.getByRole("button", { name: "Send again" }).count(), 0);
+  await column("Back from the field").locator(".work-card", { hasText: "Wellhead pressure high" }).getByRole("button", { name: "Send again" }).waitFor();
   assert.equal(await column("With the field").getByRole("button").count(), 0);  // only the field moves its own work
-  await page.getByLabel("Lanes").selectOption("source");
-  await page.waitForURL(/lanes=source/);
-  assert.deepEqual(await column("To dispatch").locator(".work-board-lane").allTextContents(), ["historian", "sap"]);
+  // The columns can be any dimension, with the same filters as the List.
+  await page.getByLabel("Columns by").selectOption("source");
+  await page.waitForURL(/group=source/);
+  await column("historian").getByText("Separator level high").waitFor();
+  await page.getByLabel("Columns by").selectOption("");
   await waveScreenshot("work-board");
 
   const dispatched = [];
   await page.route("**/exceptions/1/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: open[0] }); });
   const card = column("To dispatch").locator(".work-card", { hasText: "3rd stage compressor tripped" });
-  await card.getByRole("button", { name: "Dispatch" }).click();
+  await card.getByRole("button", { name: "Send to" }).click();
   await card.getByLabel("Dispatch to").selectOption("sam");
   await card.getByLabel("What to do").fill("check the trip log");
   await card.locator(".dispatch-controls").getByRole("button", { name: "Send", exact: true }).click();
   await expectReports(dispatched, 1);
   assert.equal(dispatched[0].to, "sam");
 
-  // A phone shows one stage at a time, chosen from the chips, and never scrolls sideways.
+  // A phone shows one column at a time, chosen from the chips, and never scrolls sideways.
   await page.setViewportSize({ width: 390, height: 844 });
-  const stages = page.getByRole("navigation", { name: "Stages" });
-  await stages.getByRole("link", { name: "Field 2" }).click();
-  await page.waitForURL(/stage=field/);
+  const stages = page.getByRole("navigation", { name: "Columns" });
+  await stages.getByRole("button", { name: "With the field 2" }).click();
   await column("With the field").getByText("Seal leak at export pump B").waitFor();
   assert.equal(await column("To dispatch").isVisible(), false);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await waveScreenshot("work-board-phone");
 });
 
-test("All work holds the Work board and Cases as views, and their old links land on the same view (#502)", async () => {
+test("All work is one list of every open event and case, filtered on any dimension, and old links land on the same work", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));  // the counts are read for the person
   const exc = (id, extra) => ({ id, type: "upset", key: `k${id}`, source: "sre", state: "open", priority: null, value_usd: null,
     subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
@@ -3514,44 +3558,52 @@ test("All work holds the Work board and Cases as views, and their old links land
   await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ dispatch: 1, field: 1, back: 1 }) }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/exceptions`);
-  const views = page.getByRole("navigation", { name: "All work views", exact: true });
-  await views.getByRole("link", { name: "All open 3", exact: true }).waitFor();
+  await page.waitForURL(/#\/list$/);  // with no view an old link opens all the open work
   await page.getByText("Compressor trip").waitFor();
-  assert.deepEqual((await views.locator("a").allTextContents()).map((t) => t.trim()),
-    ["To dispatch 1", "With the field 1", "Back from the field 1", "All open 3", "In progress", "Ranked by value", "Closed", "Waiting on me"]);
-  await page.getByText("Compressor trip").waitFor();
-  assert.equal(await page.getByText("Packing leak").count(), 0);
-  await views.getByRole("link", { name: "With the field 1" }).click();
+  await page.getByText("Packing leak").waitFor();
+  await page.getByText("Seal weeping").waitFor();
+  await waveScreenshot("all-work-list");
+  assert.equal(await page.getByRole("navigation", { name: "All work views" }).count(), 0, "views are filters, not tabs");
+  // Each picker says how many match each value, given the other filters.
+  const stage = page.getByRole("combobox", { name: "Stage", exact: true });
+  assert.deepEqual(await stage.locator("option").allTextContents(),
+    ["Every stage", "To dispatch (1)", "With the field (1)", "Back from the field (1)"]);
+  await stage.selectOption("field");
+  await page.waitForURL(/stage=field/);
   await page.getByText("Packing leak").waitFor();
   assert.equal(await page.getByText("Compressor trip").count(), 0);
 
-  // One filter bar for every view, kept in the URL across views (#502 part 2).
-  await page.goto(`${url}/#/exceptions?list=open`);
+  // One filter bar, kept in the URL, shared by the List and the Board.
+  await page.goto(`${url}/#/list`);
   await page.getByText("Seal weeping").waitFor();
   await page.getByRole("searchbox", { name: "Search titles" }).fill("seal");
-  await page.waitForURL(/list=open&q=seal$/);
+  await page.waitForURL(/q=seal$/);
   await page.getByText("Seal weeping").waitFor();
   assert.equal(await page.getByText("Compressor trip").count(), 0);
-  await page.getByRole("combobox", { name: "Held by" }).selectOption("otto");
-  await page.waitForURL(/who=otto/);
-  await page.getByText("Nothing here.").waitFor();  // erin holds the seal case, not otto
-  assert.match(await views.getByRole("link", { name: /In progress/ }).getAttribute("href"), /list=progress&who=otto&q=seal/);
+  await page.getByRole("combobox", { name: "Held by" }).selectOption("erin");
+  await page.waitForURL(/holder=erin/);
+  await page.getByText("Seal weeping").waitFor();
+  assert.match(await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Board", exact: true }).getAttribute("href"), /^#\/board/);
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.waitForURL(/#\/list$/);
+  await page.getByText("Compressor trip").waitFor();
 
-  await page.goto(`${url}/#/board?view=kind`);
-  await page.waitForURL(/#\/exceptions\?list=ranked&view=kind$/);
-  assert.equal(await views.getByRole("link", { name: "Ranked by value" }).getAttribute("aria-current"), "page");
+  // A preset is only filters.
+  await page.getByRole("combobox", { name: "Preset" }).selectOption("dispatch");
+  await page.waitForURL(/#\/list\?stage=dispatch$/);
+  await page.getByText("Compressor trip").waitFor();
+  assert.equal(await page.getByText("Seal weeping").count(), 0);
+
+  await page.goto(`${url}/#/cases?state=closed&type=upset`);
+  await page.waitForURL(/#\/list\?state=closed&kind=upset$/);
+  await page.goto(`${url}/#/exceptions?list=back&type=upset`);
+  await page.waitForURL(/#\/list\?stage=back&kind=upset$/);
   await page.getByRole("heading", { level: 1, name: "All work", exact: true }).waitFor();
   assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
-  await page.goto(`${url}/#/cases?state=closed&type=upset`);
-  await page.waitForURL(/#\/exceptions\?list=closed&type=upset$/);
-  await page.goto(`${url}/#/cases`);
-  await page.waitForURL(/#\/exceptions\?list=progress$/);
-  await page.getByText("No cases match.").waitFor();
-  const work = page.getByRole("navigation", { name: "Work pages", exact: true });
-  assert.equal(await work.getByRole("link", { name: "All work", exact: true }).getAttribute("aria-current"), "page");
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
+
 
 test("a fresh demo offers a sample IOC team, an agent step with no worker can be taken over, evidence reads as words", async () => {
   const added = [];
@@ -3653,7 +3705,7 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   await page.goto(`${url}/#/plan?item=2&from=${at(3).slice(0, 10)}`);
   const back = page.getByRole("link", { name: "Open this work in All work" });
   await back.waitFor();
-  assert.equal(await back.getAttribute("href"), "#/exceptions?list=open&q=North+train+overhaul");
+  assert.equal(await back.getAttribute("href"), "#/list?q=North+train+overhaul");
   assert.equal(await page.getByRole("button", { name: /North train overhaul/ }).getAttribute("aria-expanded"), "true");
   assert.equal(await page.getByLabel("From").inputValue(), at(3).slice(0, 10));
 });
@@ -3769,7 +3821,7 @@ test("work board cards are dense rows and don't repeat 'unassigned' (#408)", asy
   await page.route("**/board?*", route => route.fulfill({ json: { total: 2, page: 1, per_page: 50,
     cards: [card(1, "unassigned"), card(2, "ana")], facets: { kind: {}, owner: {}, area: [] } } }));
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(`${url}/#/board`);
+  await page.goto(`${url}/#/ranked`);
   await page.getByText("Replace seal 1", { exact: true }).waitFor();
   const box = await page.locator(".board-card").first().boundingBox();
   assert.ok(box.height <= 60, `a card should be a dense row, got ${box.height}px`);
@@ -4629,7 +4681,7 @@ for (const [bundle, type, job] of LOOP_JOBS) {
 // P0.2c (#578): every page has its empty, loading and failed states. A page never goes blank or crashes: with empty data
 // it shows its heading, while its reads are held it says it is loading, and when they fail it says so with a retry.
 const EVERY_PAGE = ["#/", "#/browse", "#/network", "#/ontology", "#/downtime", "#/ask", "#/incidents", "#/reports",
-  "#/lessons", "#/studies", "#/exceptions", "#/exceptions?list=ranked", "#/exceptions?list=progress", "#/inbox", "#/plan",
+  "#/lessons", "#/studies", "#/list", "#/board", "#/ranked", "#/list?state=closed", "#/inbox", "#/plan",
   "#/masterdata", "#/review", "#/handover", "#/teams", "#/processes", "#/sources", "#/sources?view=systems", "#/jobs",
   "#/settings", "#/users", "#/routing", "#/demo"];
 const SHELL = new Set(["/auth/me"]);
@@ -4643,6 +4695,7 @@ for (const state of ["empty", "loading", "failed"]) {
         "/ontology": { kinds: [], relations: [], groups: [], views: [], model: { kinds: [], relations: [] },
           needs_definition: { kinds: [], relations: [], not_allowed: [] } },
         "/network": { nodes: [], edges: [], truncated: false, rels: [] },
+        "/cases": { rows: [], total: 0, facets: { kind: {}, stage: {}, holder: {}, queue: {}, source: {}, overdue: 0 } },
         "/feedback/briefs": { incidents: 0, rated: 0, ratings: 0, useful_share: null, items: [] },
         "/work/workload": { people: [], roles: {}, agents: [], agent_failures: [] },
         "/sources/catalog": { systems: [], types: { connections: {}, load_modes: [], drift_policies: [], statuses: [] },
@@ -5654,21 +5707,26 @@ test("a view saved on All work for a role opens for everyone in that role with i
     asked.push(new URL(route.request().url()).searchParams.get("person"));
     return route.fulfill({ json: saved });
   });
-  await page.goto(`${url}/#/exceptions?list=back&type=upset`);
+  await page.goto(`${url}/#/list?stage=back&kind=upset`);
   await page.getByRole("button", { name: "Save this view for a role", exact: true }).click();
   await page.getByLabel("View name").fill("Upsets back from the field");
   await page.getByRole("button", { name: "Save for every ops lead", exact: true }).click();
-  const picker = page.getByLabel("Saved views");
+  const picker = page.getByLabel("Preset");
   await picker.getByRole("option", { name: "Upsets back from the field (ops lead)" }).waitFor({ state: "attached" });
   assert.deepEqual(saved.map((v) => [v.role, v.list, v.filters, v.created_by]),
-    [["ops_lead", "back", { type: "upset" }, "ines"]]);
+    [["ops_lead", "list", { stage: "back", kind: "upset" }, "ines"]]);
+  // A view saved before the list had filters opens the same work.
+  saved.push({ id: 2, role: "ops_lead", name: "Old upsets view", list: "back", filters: { type: "upset" }, created_by: "ines",
+    created_at: "2026-11-01T06:00:00Z" });
 
   await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "olu"));
-  await page.goto(`${url}/#/exceptions`);
+  await page.goto(`${url}/#/list`);
   await page.reload();  // a fresh load as the other ops lead
-  await page.getByLabel("Saved views").selectOption({ label: "Upsets back from the field (ops lead)" });
-  await page.waitForURL(/list=back/);
-  assert.match(page.url(), /type=upset/);
+  await page.getByLabel("Preset").selectOption({ label: "Upsets back from the field (ops lead)" });
+  await page.waitForURL(/stage=back/);
+  assert.match(page.url(), /kind=upset/);
+  await page.getByLabel("Preset").selectOption({ label: "Old upsets view (ops lead)" });
+  await page.waitForURL(/#\/list\?stage=back&kind=upset$/);
   assert.equal(asked.at(-1), "olu");  // the other ops lead's own picker
 });
 
@@ -5793,7 +5851,7 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
     ],
     types: [], compliance: { as_of: "2026-11-12", summary: { PM: { plans: 10, overdue: 2, on_time_pct: 80 } } },
   } }));
-  await page.goto(`${url}/#/exceptions`);
+  await page.goto(`${url}/#/list`);
   await page.getByRole("link", { name: "How the work is running" }).click();
   await page.getByRole("heading", { name: "Work performance" }).waitFor();
   const row = page.getByRole("row").filter({ hasText: "operator" });
@@ -5806,8 +5864,8 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
   assert.deepEqual(await cases.getByRole("link").allInnerTexts(), ["case 11", "case 12", "case 13"]);
   assert.equal(await cases.getByRole("link", { name: "case 11" }).getAttribute("href"), "#/cases/11");
   await page.getByText("80% on time", { exact: false }).waitFor();
-  // All work stays the highlighted area while the view is open
-  assert.equal(await page.getByRole("link", { name: "All work", exact: true }).first().getAttribute("aria-current"), "page");
+  // List stays the highlighted area while the view is open
+  assert.equal(await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "List", exact: true }).getAttribute("aria-current"), "page");
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -5828,7 +5886,7 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
     checks: [{ check: "spares", label: "Spares", ready: false, checked: true, note: null, blockers: [] }] } }));
   const sent = [];
   await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
-  await page.goto(`${url}/#/exceptions`);
+  await page.goto(`${url}/#/list`);
   await page.getByRole("button", { name: "Send to", exact: true }).click();
   await page.getByLabel("Dispatch to").selectOption("fred");
   await page.getByText("Rod packing set: 0 in stock, 2 needed; nothing on order", { exact: false }).waitFor();
@@ -5862,7 +5920,7 @@ test("the dispatch card shows the crew's load, its permit, and a full crew block
     blockers: ["Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #3 Look at the standby generator"],
     checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [],
       centers: [{ ...elec, busy: 1, full: true, jobs: [{ id: 3, title: "Look at the standby generator", assignee: "fred" }] }] }] } }));
-  await page.goto(`${url}/#/exceptions`);
+  await page.goto(`${url}/#/list`);
   await page.getByText("Generator batteries").waitFor();
   for (const open of await page.getByRole("button", { name: "Send to", exact: true }).all()) await open.click();
   for (const sel of await page.getByLabel("Dispatch to").all()) await sel.selectOption("fred");
@@ -5917,7 +5975,7 @@ test("an open MOC on the equipment is a warning at dispatch and on the phone, ne
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
   await page.route("**/exceptions/31/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [], warnings: [warn],
     checks: [{ check: "moc", label: "MOC", ready: true, checked: true, note: null, blockers: [], warnings: [warn] }] } }));
-  await page.goto(`${url}/#/exceptions`);
+  await page.goto(`${url}/#/list`);
   await page.getByText("HP separator level control").waitFor();
   await page.getByRole("button", { name: "Send to", exact: true }).first().click();
   await page.getByLabel("Dispatch to").first().selectOption("fred");
@@ -7678,36 +7736,18 @@ test("App search at the top left finds pages, tabs and records, and sends a ques
   assert.equal(asked?.question, "why did P-101 trip?");
 });
 
-test("A field operator's phone leaves Master data out of Work's tabs; the desk and other roles keep it", async () => {
-  let roles = ["operator"];
+test("A field operator finds their jobs, with the report buttons, from the List", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
-  await page.route("**/work/inbox*", (route) => route.fulfill({ json: { person: "fred", roles, mine: [], queue: [],
-    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
-  const tabs = () => page.getByRole("navigation", { name: "Work pages", exact: true }).locator("a:visible").allTextContents();
-  for (const [who, width, expected] of [
-    [["operator"], 390, ["All work", "My work"]],
-    [["operator"], 1440, ["All work", "My work", "Master data"]],
-    [["operator", "data_steward"], 390, ["All work", "My work", "Master data"]],
-  ]) {
-    roles = who;
-    await page.setViewportSize({ width, height: 844 });
-    await page.goto(`${url}/#/exceptions`);
-    await page.reload();
-    await page.getByRole("navigation", { name: "Work pages", exact: true }).waitFor();
-    await page.waitForFunction((n) => [...document.querySelectorAll('nav[aria-label="Work pages"] a')]
-      .filter((a) => a.getClientRects().length).length === n, expected.length);
-    assert.deepEqual(await tabs(), expected);
-  }
-  // The pages still open from a link, with their own tab shown while on them.
-  roles = ["operator"];
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/list`);
+  assert.equal(await page.getByRole("link", { name: "Your field jobs" }).getAttribute("href"), "#/inbox");
   await page.goto(`${url}/#/masterdata`);
-  await page.reload();
-  await page.waitForFunction(() => [...document.querySelectorAll('nav[aria-label="Work pages"] a')].filter((a) => a.getClientRects().length).length === 3);
-  assert.deepEqual(await tabs(), ["All work", "My work", "Master data"]);
+  // Master data is a preset now, not a menu entry: its page still opens from a link, under List.
+  await page.locator('#sidebar nav[aria-label="Main"] a[href="#/list"][aria-current="page"]').waitFor({ state: "attached" });
 });
 
-test("P5.14b On a phone, Home, My work, Explore and Reports are one tap away at the bottom", async () => {
+test("P5.14b On a phone, Home, the List, the Board and Explore are one tap away at the bottom", async () => {
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["operator"], mine: [], queue: [],
     counts: { mine: { total: 2 }, queue: { total: 0 } } } }));
@@ -7716,7 +7756,7 @@ test("P5.14b On a phone, Home, My work, Explore and Reports are one tap away at 
   const bar = page.getByRole("navigation", { name: "Quick", exact: true });
   await bar.waitFor();
   const targets = bar.locator(":scope > a, :scope > button");
-  assert.deepEqual(await targets.evaluateAll(els => els.map(e => e.lastElementChild.textContent.trim())), ["Home", "My work", "Explore", "Reports", "Menu"]);
+  assert.deepEqual(await targets.evaluateAll(els => els.map(e => e.lastElementChild.textContent.trim())), ["Home", "List", "Board", "Explore", "Menu"]);
   for (const box of await targets.evaluateAll(els => els.map(e => e.getBoundingClientRect().toJSON())))
     assert.ok(box.height >= 44 && box.width >= 44, "every tab is big enough for a gloved thumb");
   const barBox = await bar.boundingBox();
@@ -7724,18 +7764,15 @@ test("P5.14b On a phone, Home, My work, Explore and Reports are one tap away at 
   assert.ok(Math.round(barBox.y + barBox.height) >= 824 && barBox.y + barBox.height <= 844, "the bar sits on the bottom edge");
   assert.equal(await bar.locator('a[aria-current="page"]').innerText(), "Explore");
 
-  // My work says how much is waiting and opens the operator's own list, not All work.
-  const mine = bar.getByRole("link", { name: "My work, 2 workflow steps waiting on you", exact: true });
-  await mine.click();
-  await page.waitForURL(/#\/inbox$/);
-  await bar.locator('a[aria-current="page"]', { hasText: "My work" }).waitFor();
-  // On All work the Work slot stays lit, so the bar always shows where you are (#1131). It is not the current page.
-  await page.evaluate(() => { location.hash = "#/exceptions"; });
-  await page.getByRole("heading", { name: "All work", exact: true }).waitFor();
-  assert.equal(await bar.locator('a[aria-current="page"]').count(), 0);
-  assert.equal(await bar.locator("a.on").evaluate((a) => a.lastElementChild.textContent.trim()), "My work");
-  assert.equal(await bar.locator("a.on").getAttribute("aria-current"), "true");
+  // List says how much is waiting on you and opens all the work.
+  const list = bar.getByRole("link", { name: "List, 2 workflow steps waiting on you", exact: true });
+  await list.click();
+  await page.waitForURL(/#\/list$/);
+  await bar.locator('a[aria-current="page"]', { hasText: "List" }).waitFor();
+  // On My work's page the List slot stays lit, so the bar always shows where you are (#1131): List owns it.
   await page.evaluate(() => { location.hash = "#/inbox"; });
+  await page.getByRole("heading", { name: "My work", exact: true }).waitFor();
+  assert.equal(await bar.locator("a.on").evaluate((a) => a.lastElementChild.textContent.trim()), "List");
 
   // Menu opens the drawer with everything else, and the page's foot clears the bar.
   await bar.getByRole("button", { name: "Open menu", exact: true }).click();
