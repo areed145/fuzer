@@ -56,13 +56,14 @@ export function CaseChecklist({ it, person, readOnly, reload }: {
           </li>
         ))}
       </ol>
-      {editable && items.length > 0 && !shaping && <Button variant="link" onClick={() => setShaping(true)}>Change the list</Button>}
-      {editable && (shaping || !items.length) && <Line wrap>
+      {/* most cases have no checklist: one link starts one, rather than an empty field on every case */}
+      {editable && !shaping && <Button variant="link" onClick={() => setShaping(true)}>{items.length ? "Change the list" : "Add a checklist"}</Button>}
+      {editable && shaping && <Line wrap>
         <Input aria-label="Add a checklist item" width="lg" maxLength={300} placeholder="Add to the checklist"
           value={adding} onChange={(e) => setAdding(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && adding.trim()) add(); }} />
         <Button variant="secondary" disabled={!adding.trim() || !!a.busy} onClick={add}>Add</Button>
-        {items.length > 0 && <Button variant="link" onClick={() => setShaping(false)}>Done changing</Button>}
+        <Button variant="link" onClick={() => setShaping(false)}>{items.length ? "Done changing" : "Cancel"}</Button>
       </Line>}
       <ErrorText>{a.error}</ErrorText>
     </div>
