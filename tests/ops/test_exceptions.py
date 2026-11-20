@@ -1255,3 +1255,27 @@ def test_an_upset_is_not_swallowed_by_an_alert_on_the_same_machine(conn, compres
                             finding=external("test", {"zone": "C"}))
     assert later["joined"] == up["id"] and later["item_id"] == up["item_id"]
     conn.rollback()
+
+
+def test_where_an_event_stands_is_decided_once_and_counted_over_every_open_event(conn, types):
+    """One definition of open and of each All work view (the simplification review, recommendation 4): the server says each event's
+    stage, and the counts every page shows are taken over every open event, not the first listed page."""
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    types("drip", audience=("ioc", "field"))
+    raised = [raise_exception(conn, "drip", f"D-{i}", f"Drip at D-{i}", "walk", refs=[f"tag:D-{i}"]) for i in range(3)]
+    ex.dispatch(conn, raised[1]["id"], "ivy", "olly", reason="look at it")
+    ex.dispatch(conn, raised[2]["id"], "ivy", "olly", reason="look at it")
+    ex.report(conn, raised[2]["id"], "olly", "done", note="tightened it")
+    stage = {r["id"]: r["stage"] for r in ex.listing(conn, type="drip")}
+    assert [stage[r["id"]] for r in raised] == ["dispatch", "field", "back"]
+    before = ex.counts(conn)
+    assert before["open"] == sum(before["stages"].values())
+    raise_exception(conn, "drip", "D-3", "Drip at D-3", "walk", refs=["tag:D-3"])
+    after = ex.counts(conn)
+    assert after["open"] == before["open"] + 1 and after["stages"]["dispatch"] == before["stages"]["dispatch"] + 1
+    assert engine.case_counts(conn)["open"] >= 2
+    conn.commit()

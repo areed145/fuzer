@@ -489,6 +489,14 @@ export interface WritebackDetail extends Writeback {
 /** A reading the field took on site (P5.3b): a number with its unit, and what it was of. */
 export interface FieldReading { value: number; unit: string; what?: string | null }
 
+/** The headline work figures, each by its one definition (GET /work/counts): every page that shows one reads it here. */
+export type EventStage = "dispatch" | "planned" | "field" | "back" | "desk" | "closed";
+export interface WorkFigures {
+  cases: { open: number; overdue: number };
+  waiting_on_you: { total: number; overdue: number; mine: number; queue: number };
+  events: { open: number; stages: Record<Exclude<EventStage, "closed">, number> };
+}
+
 export interface WorkInbox {
   person: string;
   roles: string[];
@@ -689,6 +697,8 @@ export interface ExceptionRow {
   raised_count: number; reports?: number; first_seen: string; last_seen: string;
   /** Its case's last hand-on was the field's report sending it back to the IOC to close out. */
   back_from_field?: boolean;
+  /** Where it stands, decided once on the server (ops/exceptions.py stage): All work's views filter and count by it. */
+  stage?: EventStage;
   /** When it was closed or cleared, and when anything about it last changed. */
   closed_at?: string | null; updated_at?: string;
   planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
@@ -934,6 +944,7 @@ export const workApi = {
       "DELETE", `/work/people/${encodeURIComponent(name)}`, { by }),
   workRoleSummary: () => request<WorkRoleSummary[]>("GET", "/work/roles/summary"),
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
+  workCounts: (person: string) => request<WorkFigures>("GET", "/work/counts", { person }),
   notifications: (person: string) =>
     request<{ notifications: WorkNotification[]; unread: number }>("GET", "/work/notifications", { person }),
   notifyPreference: (person: string) => request<NotifyPreference>("GET", `/work/people/${encodeURIComponent(person)}/notify`),
