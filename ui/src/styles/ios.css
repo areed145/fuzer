@@ -129,14 +129,15 @@
 
   /* ---- Pull to refresh ---- */
   :root.ios .ios-pull {
-    --pull: 0px; position: fixed; z-index: 1099; left: 50%; top: calc(env(safe-area-inset-top) + 48px);
-    width: 26px; height: 26px; margin-left: -13px; border-radius: 50%;
-    border: 2.5px solid var(--line); border-top-color: var(--muted);
-    opacity: min(1, calc(var(--pull) / 80px)); transform: translateY(calc(var(--pull) / 3)) rotate(calc(var(--pull) * 3deg));
-    pointer-events: none;
+    --pull: 0px; position: fixed; z-index: 1200; left: 0; top: env(safe-area-inset-top); height: 3px; width: 100%;
+    transform-origin: left; transform: scaleX(min(1, calc(var(--pull) / 80px))); opacity: min(1, calc(var(--pull) / 40px));
+    background: var(--accent); pointer-events: none;
   }
-  :root.ios .ios-pull.spinning { animation: ios-spin .7s linear infinite; }
-  @keyframes ios-spin { to { transform: translateY(30px) rotate(360deg); } }
+  /* Refreshing: the line runs along the top edge until the answers are in. Nothing is drawn over the page. */
+  :root.ios .ios-pull.spinning { transform: none; opacity: 1;
+    background: linear-gradient(90deg, transparent, var(--accent) 40%, var(--accent) 60%, transparent) 0 0 / 40% 100% no-repeat;
+    animation: ios-spin 1s ease-in-out infinite; }
+  @keyframes ios-spin { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 }
 
 /* ---- Every width, iPhone and iPad alike: titles, segmented controls, cards and controls ---- */
@@ -440,7 +441,7 @@
    into rows that push the results down. Segmented rows (Home's filters, the Board's stages) keep their own style. */
 :root.ios .chips:not(.attention-bar .chips, .segmented) { gap: 8px; align-items: center; }
 :root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip {
-  min-height: 32px; min-width: 0; padding: 0 12px; gap: 5px; border: 0; border-radius: 999px;
+  min-height: var(--chip-h); min-width: 0; padding: 0 var(--chip-px); gap: 5px; border: 0; border-radius: 999px;
   font-size: var(--t-subhead); font-weight: 500; line-height: 1; color: var(--text);
   background: var(--fill); background-image: none; box-shadow: none;
 }
@@ -468,7 +469,7 @@
 :root.ios:not(.field-mode) #main-content .ui-button.ui-button-sm:not(.ui-button-link, .chip, .example, .tabs > *, .attention-row, .df-btn, .df-chip, .map-basemap, .work-card-actions *, .graph-tools *, .account-button) {
   min-height: 34px; padding: 0 14px; font-size: var(--t-subhead);
 }
-:root.ios:not(.field-mode) #main-content .chips:not(.attention-bar .chips, .segmented) > .chip { min-height: 32px; padding: 0 12px; font-size: var(--t-subhead); }
+:root.ios:not(.field-mode) #main-content .chips:not(.attention-bar .chips, .segmented) > .chip { min-height: var(--chip-h); height: var(--chip-h); padding: 0 var(--chip-px); font-size: var(--t-subhead); }
 /* Segments split the control evenly, as UISegmentedControl does, and never squeeze a label. */
 :root.ios:not(.field-mode) :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips, .chips.segmented) > * {
   flex: 1 1 0; min-width: max-content; padding: 0 12px; font-size: var(--t-footnote);
@@ -568,9 +569,11 @@
 :root.ios .md :is(p, ul, ol) { line-height: 1.45; }
 :root.ios .md :is(h1, h2, h3, h4) { font-size: var(--t-body); line-height: 22px; }
 
-/* Every segmented control is the same 36-point capsule (32-point segments), whatever page or element it is built from. */
+/* Every segmented control is one control height (--control-h) overall, its segments inset by the 3-point track,
+   whatever page or element it is built from. */
 :root.ios:not(.field-mode) #main-content :is(.area-navigation, .tabs, .work-board-stages, .chips.segmented) > * {
-  min-height: 32px; height: 32px; padding-block: 0; line-height: 32px; box-sizing: border-box;
+  min-height: calc(var(--control-h) - 6px); height: calc(var(--control-h) - 6px); padding-block: 0;
+  line-height: calc(var(--control-h) - 6px); box-sizing: border-box;
 }
 /* Disclosures in a card (Evidence, History) sit as a tight pair of tappable rows, not islands of empty space. */
 :root.ios .ui-disclosure { margin: 0; }
@@ -663,7 +666,7 @@
   :root.ios .sidebar.open { box-shadow: none; }
 }
 /* The map's layer chips are the same 32-point chips as Browse's kinds and Network's link types. */
-:root.ios:not(.field-mode) .map-legend .chip { min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; font-size: var(--t-subhead); font-weight: 500; background: var(--fill); color: var(--text); }
+:root.ios:not(.field-mode) .map-legend .chip { min-height: var(--chip-h); height: var(--chip-h); padding: 0 var(--chip-px); border: 0; border-radius: 999px; font-size: var(--t-subhead); font-weight: 500; background: var(--fill); color: var(--text); }
 /* An off switch has a track you can see in dark mode too, and no shadow under the knob. */
 :root.ios[data-theme="dark"] input[type=checkbox]:not(td input):not(:checked) { background: rgb(120 120 128 / .36); }
 :root.ios input[type=checkbox]:not(td input)::after { box-shadow: none; }
@@ -799,7 +802,34 @@
 /* A phone is used with gloves in the field: every field and button there is at least a 44-point target, the iOS
    minimum. */
 @media (max-width: 600px) {
-  :root.ios:not(.field-mode) #main-content :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), select, .ui-button:not(.ui-button-link)) { min-height: 44px !important; }
+  :root.ios:not(.field-mode) #main-content :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), select, .ui-button:not(.ui-button-link, .chip)) { min-height: 44px !important; }
 }
 /* A board card is a dense row: its "why" link sits in the line, not on a button-height block. */
 :root.ios .board-card .ui-button-link { min-height: 0; padding: 0; }
+
+/* ================= One control height =================
+   The avatar sets it: every control in the top bar (search, back, the mark, share, the avatar), the tab bar's current
+   tab, every chip and every segmented control looks --control-h tall. Round buttons and tabs keep their 44-point
+   target for a gloved thumb: the element stays 44 points and the visible shape is drawn inside it. */
+:root.ios .account-button.ui-button, :root.ios .topbar .account-button.ui-button { width: var(--control-h); height: var(--control-h); }
+@media (max-width: 900px) {
+  :root.ios .topbar :is(.back-button, .search-button, .share-button, .refresh-button) {
+    position: relative; isolation: isolate; width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+    background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  :root.ios .topbar :is(.back-button, .search-button, .share-button, .refresh-button)::before {
+    content: ""; position: absolute; z-index: -1; inset: calc((44px - var(--control-h)) / 2); border-radius: 50%;
+    background: var(--glass); background-image: var(--glass-sheen);
+    -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%);
+    border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
+  }
+  :root.ios .topbar :is(.back-button, .search-button, .share-button, .refresh-button) svg { width: 20px; height: 20px; }
+  :root.ios .topbar .brand { display: inline-flex; align-items: center; height: var(--control-h); }
+  :root.ios .topbar .brand .logo { height: 22px; }
+  :root.ios .bottombar { padding: 0 4px; }
+  :root.ios .bottombar > a, :root.ios .bottombar > .menu-button { position: relative; isolation: isolate; min-height: 44px; height: 44px; }
+  :root.ios .bottombar > a.on { background: none; }
+  :root.ios .bottombar > a.on::before { content: ""; position: absolute; z-index: -1; inset: calc((44px - var(--control-h)) / 2) 0;
+    border-radius: 999px; background: var(--lens); }
+  :root.ios .bottombar .tab-icon svg { width: 22px; height: 22px; }
+}
