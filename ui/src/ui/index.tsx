@@ -88,7 +88,8 @@ export const SCROLL_ROWS = ".ui-scroller, .tabs, .area-navigation, .chips, .repo
 
 function markScroll(el: HTMLElement) {
   const max = el.scrollWidth - el.clientWidth, at = Math.abs(el.scrollLeft);
-  const more = max <= 1 ? "" : at <= 1 ? "end" : at >= max - 1 ? "start" : "both";
+  // A few pixels either way is a row's own padding settling under the snap, not more to scroll to.
+  const more = max <= 4 ? "" : at <= 4 ? "end" : at >= max - 4 ? "start" : "both";
   if ((el.dataset.more ?? "") !== more) { if (more) el.dataset.more = more; else delete el.dataset.more; }
 }
 
