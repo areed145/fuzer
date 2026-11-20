@@ -2,7 +2,7 @@ import { useState } from "react";
 import { money, when } from "../format";
 import { api, type AiUsage as Usage, type UsageGroup } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Bar, Badge, Button, Card, Empty, Notice, Select, Stat, Table, Line, Text } from "../ui";
+import { Bar, Badge, Button, Card, Empty, Notice, Select, Stat, Stats, Table, Line, Text } from "../ui";
 
 const tokens = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(v));
 const BUDGET = href("/settings", { view: "configuration", filter: "llm.budget" });
@@ -34,14 +34,14 @@ function Summary({ d }: { d: Usage }) {
       the month ends or <a href={BUDGET}>the budget</a> is raised.</Notice>}
     {!b.reached && b.cap_usd > 0 && b.alert_pct > 0 && share >= b.alert_pct &&
       <Notice tone="warn">This month&apos;s model spend is {Math.round(share)}% of its budget.</Notice>}
-    <div className="investigation-stats">
+    <Stats>
       <Stat label={`Spent in ${b.month} (UTC)`} value={money(b.spent_usd)}
         detail={b.cap_usd ? <>of a {money(b.cap_usd)} budget · <a href={BUDGET}>change</a></> :
           <>no budget · <a href={BUDGET}>set one</a></>} />
       <Stat label={`Last ${d.days === 1 ? "day" : `${d.days} days`}`} value={money(d.total.cost_usd)}
         detail={`${d.total.calls} calls · ${tokens(d.total.input_tokens + d.total.cache_read_tokens + d.total.cache_write_tokens)} in, ${tokens(d.total.output_tokens)} out`} />
       <Stat label="Last call" value={when(d.total.last_at, "never")} detail={d.recent[0]?.feature ?? "none yet"} />
-    </div>
+    </Stats>
     {b.cap_usd > 0 && <Bar value={share} label="Share of the month's budget spent" />}
     <Text as="p" small>Costs are estimates from token counts and list prices{d.total.unpriced ? "; some models have no listed price" : ""}.
       The provider&apos;s bill is the record.</Text>

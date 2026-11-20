@@ -3,7 +3,7 @@
  * any grain it declares; every row drills to its items or cases. */
 import { api, type MetricDeclaration } from "../api";
 import { Sparkline, onTarget, show } from "../analytics/Metric";
-import { Badge, Card, Disclosure, Empty, PageHeader, Table, Tabs, Text, List } from "../ui";
+import { Badge, Card, Disclosure, Empty, Facts, PageHeader, Table, Tabs, Text, List } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
 
@@ -82,11 +82,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
           {m.standard && <> <Badge>{m.standard}</Badge></>}
         </p>
         {m.note && <Text as="p" small muted>{m.note}</Text>}
-        <dl className="data">
-          <div><dt>Formula</dt><dd><code>{m.formula}</code></dd></div>
-          <div><dt>Records</dt><dd>{m.records}</dd></div>
-          <div><dt>Key</dt><dd><code>{m.key}</code></dd></div>
-        </dl>
+        <Facts items={[["Formula", <code>{m.formula}</code>], ["Records", m.records], ["Key", <code>{m.key}</code>]]} />
         {m.grains.length > 0 && <Tabs label="Cut by" items={[
           { key: "", label: "Headline", href: href(`/metrics/${m.key}`), current: !grain },
           ...m.grains.map((g) => ({ key: g, label: `By ${g}`, href: href(`/metrics/${m.key}`, { grain: g }), current: grain === g })),

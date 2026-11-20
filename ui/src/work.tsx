@@ -1,6 +1,6 @@
 // Shared bits of the work pages (#97): who is acting, due dates, how history reads, evidence.
 
-import { Badge as UIBadge, Disclosure, ErrorText, Text } from "./ui";
+import { Badge as UIBadge, Disclosure, ErrorText, Facts, Text } from "./ui";
 import { when } from "./format";
 import { type ReactNode } from "react";
 import { type WorkEvent } from "./api";
@@ -117,14 +117,7 @@ export function DataView({ data }: { data: unknown }) {
   const entries = Object.entries(data as Record<string, unknown>);
   if (!entries.length) return null;
   return (
-    <dl className="data">
-      {entries.map(([k, v]) => (
-        <div key={k}>
-          <dt>{fieldLabel(k)}</dt>
-          <dd><Value v={v} /></dd>
-        </div>
-      ))}
-    </dl>
+    <Facts items={entries.map(([k, v]) => [fieldLabel(k), <Value v={v} />] as const)} />
   );
 }
 

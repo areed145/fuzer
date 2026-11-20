@@ -3,7 +3,7 @@ import { when, count } from "../format";
 import { useEffect, useRef } from "react";
 import { api, type Investigation, type InvestigationRecord } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Badge, ButtonLink, Card, EmptyState, PageHeader, Stat, Empty, Text } from "../ui";
+import { Badge, ButtonLink, Card, EmptyState, PageHeader, Stat, Stats, Empty, Facts, Text } from "../ui";
 
 const STEPS = [
   { key: "issue", label: "Understand the issue" },
@@ -98,10 +98,10 @@ function Issue({ data }: { data: Investigation }) {
       <h3>{data.title}</h3>
       <p>Start with <strong>{data.asset_label}</strong>, the asset this scenario is about.
         What do the linked records say happened, what production loss was recorded, and what maintenance followed?</p>
-      <div className="investigation-stats">
+      <Stats>
         <Stat label="Investigation window" value={monthOf(data.since)} />
         <Stat label="Connected evidence" value={data.evidence.length} />
-      </div>
+      </Stats>
       <p>No setup, paid AI calls, or plant actions are needed. You can use browser Back, reload, or share
         this page without changing any records.</p>
     </>
@@ -115,11 +115,7 @@ function Asset({ data }: { data: Investigation }) {
       <p>Fuzer connects records from different systems to one asset. These are the register's selected
         values, with the source that supplied each value.</p>
       {data.asset_fields.length ? (
-        <dl className="investigation-fields">
-          {data.asset_fields.map((f) => (
-            <div key={f.name}><dt>{f.name}</dt><dd>{f.value} <Badge>{f.source}</Badge></dd></div>
-          ))}
-        </dl>
+        <Facts grid items={data.asset_fields.map((f) => [f.name, <>{f.value} <Badge>{f.source}</Badge></>] as const)} />
       ) : <Empty>No descriptive asset fields are available.</Empty>}
       <h3>Asset provenance</h3>
       <Provenance records={data.asset_records} />

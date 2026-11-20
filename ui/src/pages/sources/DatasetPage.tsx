@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty, ErrorText, Line, Text, Checkbox, List, Notice } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Stats, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty, ErrorText, Line, Text, Checkbox, List, Notice } from "../../ui";
 import { when, count } from "../../format";
 import { confirmDialog } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
@@ -170,11 +170,11 @@ function Scorecard({ s }: { s: DatasetDetail["scorecard"] }) {
   return (
     <section aria-label="Quality scorecard">
       <h3>Quality</h3>
-      <div className="scorecard">{s.measures.map((m) => (
+      <Stats>{s.measures.map((m) => (
         <Stat key={m.key} label={m.label} value={pct(m.now)} detail={m.now == null ? "can't be said yet"
           : <>{m.dropped && <UIBadge tone="warn">dropped</UIBadge>} {m.trend.filter((v) => v != null).slice(-6).map((v) => Math.round(v!)).join(" · ")}
             {m.dropped && m.best != null && ` (best ${pct(m.best)})`}</>} />
-      ))}</div>
+      ))}</Stats>
     </section>
   );
 }

@@ -5,7 +5,7 @@ import { api } from "./api";
 import { when } from "./format";
 import { href, useAsync } from "./lib";
 import { reading, type TrendLimit, type TrendTrace, names } from "./trendFigure";
-import { Badge, Card, Text } from "./ui";
+import { Badge, Card, Stat, Stats } from "./ui";
 
 /** Roles that say most about a unit at a glance, first found first: is it turning, what it delivers, how it runs. */
 const KEY_ROLES = ["speed", "discharge_pressure", "vibration", "discharge_temperature", "wellhead_pressure", "tubing_pressure",
@@ -67,28 +67,19 @@ export function LiveReadings({ id, data }: { id: string; data?: Awaited<ReturnTy
   const state = running(traces);
   const last = shown.flatMap((t) => t.values.map(([when]) => when)).sort().pop() ?? v.end;
   return (
-    <Card as="section" className="live-readings" aria-label="Now">
-      <div className="row live-readings-head">
-        <h2>Now</h2>
-        {state !== null && <Badge tone={state ? "ok" : "warn"}>{state ? "Running" : "Stopped"}</Badge>}
-        <Text small muted>latest reading {at(last)} UTC</Text>
-        {v.provider === "synthetic" && <Badge title="Generated values: no PI or ADX historian is connected">Demo data</Badge>}
-        <span className="spacer" />
-        <a className="small" href={href(`/e/${encodeURIComponent(id)}`, { tab: "trends" })}>Timeline</a>
-      </div>
-      <dl className="live-readings-grid">
+    <Card as="section" className="live-readings" aria-label="Now" title="Now"
+      detail={<>
+        {state !== null && <Badge tone={state ? "ok" : "warn"}>{state ? "Running" : "Stopped"}</Badge>} latest reading {at(last)} UTC
+        {v.provider === "synthetic" && <> <Badge title="Generated values: no PI or ADX historian is connected">Demo data</Badge></>}
+      </>}
+      actions={<a className="small" href={href(`/e/${encodeURIComponent(id)}`, { tab: "trends" })}>Timeline</a>}>
+      <Stats>
         {shown.map((t) => {
           const s = against(t.last, t.limits);
-          return (
-            <div key={t.id}>
-              <dt>{name.get(t.id)}</dt>
-              <dd><strong>{reading(t.last)}</strong>{t.uom ? ` ${t.uom}` : ""}</dd>
-              <dd>{s.tone === "ok" || s.tone === "muted" ? <Text small muted>{s.text}</Text>
-                : <Badge tone={s.tone}>{s.text}</Badge>}</dd>
-            </div>
-          );
+          return <Stat key={t.id} label={name.get(t.id)} value={<>{reading(t.last)}{t.uom ? <small> {t.uom}</small> : ""}</>}
+            detail={s.tone === "ok" || s.tone === "muted" ? s.text : <Badge tone={s.tone}>{s.text}</Badge>} />;
         })}
-      </dl>
+      </Stats>
     </Card>
   );
 }
