@@ -94,6 +94,9 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
             conn.execute("drop table keep_llm")
             conn.commit()
     db.init_schema(conn)
+    # The project is stored before the first load: a rolling facility's dates (#1085) move on from its very first
+    # read, so the next start finds nothing changed instead of re-reading every record on the moved dates.
+    remember_project(conn)
     from ..sources import catalog
 
     if seeded := catalog.seed(conn):  # built-in mappings that changed (never over a person's edit)
@@ -108,7 +111,6 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
         say("Building the register ...")
         r = pipeline.rebuild(conn, pack)
         say(f"Register: {r['entities']:,} entities, {r['edges']:,} links")
-    remember_project(conn)  # before the plan follows: the project's bundle names the schedule templates to seed
     follow(conn, pack)
 
 
