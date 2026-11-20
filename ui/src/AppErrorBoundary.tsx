@@ -16,7 +16,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { error
     if (!this.state.error) return this.props.children;
     return (
       <main>
-        <PageHeader>This page could not be displayed</PageHeader>
+        <PageHeader record>This page could not be displayed</PageHeader>
         <Card>
           <p role="alert">An unexpected interface error occurred. Your saved facility data has not been cleared.</p>
           <ErrorText>{this.state.error.message}</ErrorText>

@@ -19,7 +19,7 @@ const TAB_LABEL: Record<Tab, string> = {
 
 export function DatasetPage({ name, tab }: { name: string; tab: Tab }) {
   const d = useAsync(() => api.dataset(name), [name]);
-  if (!d.data) return <section><PageHeader>{name}</PageHeader>
+  if (!d.data) return <section><PageHeader record>{name}</PageHeader>
     <Status of={d} />
     {d.error && <p>Dataset details are unavailable. <a href={href("/sources")}>Return to Sources</a> to inspect connections and recorded loads.</p>}
   </section>;
@@ -29,7 +29,7 @@ export function DatasetPage({ name, tab }: { name: string; tab: Tab }) {
     <section>
       <Text as="p" small><a href={href("/sources")}>Sources</a> › {ds.source}</Text>
       <Line spread>
-        <PageHeader><code>{name}</code> <HealthBadge h={x.health} /></PageHeader>
+        <PageHeader record><code>{name}</code> <HealthBadge h={x.health} /></PageHeader>
         <Text small muted>{ds.source} · {ds.record_type ?? ds.reader} · {ds.status}</Text>
       </Line>
       <LastLoad d={x} reload={d.reload} />

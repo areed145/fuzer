@@ -137,7 +137,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <Logo />
       <Card>
         <Badge tone="warn">Synthetic Okan demonstration</Badge>
-        <PageHeader>{heading}</PageHeader>
+        <PageHeader record>{heading}</PageHeader>
         {["sign-in", "sign-in-failed", "checking"].includes(state) &&
           <p>Explore the Okan facility, trace a recorded issue to its asset and supporting evidence, and read a cited finding.
             The demonstration uses historical synthetic records.</p>}

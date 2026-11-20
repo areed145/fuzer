@@ -199,7 +199,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {demo && <DemoContext step="workflow" />}
       <div className="entity-head">
         <div>
-          <PageHeader className={it.title.length > 48 ? "case-title-long" : undefined}>{say(it.title)}</PageHeader>
+          <PageHeader record className={it.title.length > 48 ? "case-title-long" : undefined}>{say(it.title)}</PageHeader>
           <Line small>
             <UIBadge>{it.type.replace(/_/g, " ")}</UIBadge>
             <UIBadge tone={closed ? "ok" : "muted"}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>

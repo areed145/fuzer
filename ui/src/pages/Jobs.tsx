@@ -310,7 +310,7 @@ export function JobRunPage({ id }: { id: string }) {
   return (
     <section className="jobs">
       <Line>
-        <PageHeader><code>{d.job}</code></PageHeader>
+        <PageHeader record><code>{d.job}</code></PageHeader>
         <RunBadge status={d.status} />
       </Line>
       <Text as="p" small>

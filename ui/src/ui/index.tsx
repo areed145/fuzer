@@ -39,12 +39,17 @@ type Width = "xs" | "sm" | "md" | "lg" | "full";
  * under the title, so the title stays the first thing on the page. */
 export const PageNote = createContext<ReactNode>(null);
 
-export function PageHeader({ children, detail, actions, className = "" }: {
-  children: ReactNode; detail?: ReactNode; actions?: ReactNode; className?: string;
+/** The page's heading. A page's name is not shown: the lit tab already says where you are, and the top bar shows the
+ * Fuzer mark. The h1 stays for screen readers and focus. Pass `record` when the heading names the record on screen
+ * (a case, an asset, a dataset), which the tab cannot say. */
+export function PageHeader({ children, detail, actions, className = "", record = false }: {
+  children: ReactNode; detail?: ReactNode; actions?: ReactNode; className?: string; record?: boolean;
 }) {
   const tools = actions && <div className="ui-page-actions">{actions}</div>;
   const note = useContext(PageNote);
-  return <><header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{detail && <p className="ui-page-subtitle">{detail}</p>}</div>{tools}</header>{note}</>;
+  const heading = <h1 tabIndex={-1} className={`${className}${record ? "" : " sr-only"}`.trim() || undefined}>{children}</h1>;
+  if (!record && !detail && !tools) return <>{heading}{note}</>;
+  return <><header className="ui-page-header"><div>{heading}{detail && <p className="ui-page-subtitle">{detail}</p>}</div>{tools}</header>{note}</>;
 }
 
 /** A message the user needs to act on. Not for explanations or disclaimers. */

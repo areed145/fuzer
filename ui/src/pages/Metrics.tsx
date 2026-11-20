@@ -71,7 +71,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
   const m = v.data;
   return (
     <section>
-      <PageHeader detail={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>}>
+      <PageHeader record detail={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>}>
         {m?.label ?? metricKey}</PageHeader>
       <Status of={v} />
       {m && <>

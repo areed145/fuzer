@@ -55,8 +55,8 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       {demo && <DemoContext step="workflow" />}
       <Line spread>
         {/* A step named for the engine ("Do the task") says nothing (#1131): there the work is the title. */}
-        {generic ? <PageHeader className={v.item.title.length > 48 ? "case-title-long" : undefined}>{say(v.item.title)}</PageHeader>
-          : <PageHeader>{t.name ?? t.element}</PageHeader>}
+        {generic ? <PageHeader record className={v.item.title.length > 48 ? "case-title-long" : undefined}>{say(v.item.title)}</PageHeader>
+          : <PageHeader record>{t.name ?? t.element}</PageHeader>}
         <Due at={t.due_at} closed={!waiting} />
       </Line>
       <Text as="p" small muted>
