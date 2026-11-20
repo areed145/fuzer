@@ -25,8 +25,9 @@ export function closeoutLine(r: CaseCloseout, v: CloseoutVocabulary): string {
   return [terms ? `${what}: ${terms}` : what, outcome].filter(Boolean).join("; ");
 }
 
-export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, startOpen = false }:
-  { itemId: number; person: string; closed: boolean; readOnly: boolean; reload: () => void; startOpen?: boolean }) {
+export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, startOpen = false, openItems = 0 }:
+  { itemId: number; person: string; closed: boolean; readOnly: boolean; reload: () => void; startOpen?: boolean;
+    /** checklist items still open: finishing leaves them open in the record */ openItems?: number }) {
   const form = useAsync(() => api.caseCloseout(itemId), [itemId]);
   const [open, setOpen] = useState(startOpen && !closed);
   if (!form.data) return form.error ? <Status error={form.error} onRetry={form.reload} /> : null;
@@ -47,16 +48,20 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, sta
     );
   }
   if (readOnly) return closed ? <Text as="p" small muted>Close-out missing.</Text> : null;
-  if (!closed && !open) return <Button variant="primary" onClick={() => setOpen(true)}>Close out</Button>;
-  return <CloseoutForm itemId={itemId} person={person} data={form.data} missing={closed && !record}
+  // work someone asked for is finished, not closed out as a problem (the glossary's Finish)
+  if (!closed && !open) return <Button variant="primary" onClick={() => setOpen(true)}>{form.data.asked ? "Finish" : "Close out"}</Button>;
+  return <CloseoutForm itemId={itemId} person={person} data={form.data} missing={closed && !record} openItems={openItems}
     onDone={() => { setOpen(false); form.reload(); reload(); }} onCancel={closed && !record ? undefined : () => setOpen(false)} />;
 }
 
-function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
+function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openItems = 0 }: {
   itemId: number; person: string; data: NonNullable<Awaited<ReturnType<typeof api.caseCloseout>>>; missing: boolean;
-  onDone: () => void; onCancel?: () => void;
+  onDone: () => void; onCancel?: () => void; openItems?: number;
 }) {
   const v = data.vocabulary;
+  // asked work is done as asked or a duplicate; "done as asked" never fits a problem an exception raised
+  const dispositions = Object.fromEntries(Object.entries(v.dispositions)
+    .filter(([code]) => (data.asked ? ["done", "duplicate"].includes(code) : code !== "done")));
   const s = data.suggestion;
   const start: Draft = data.record
     ? Object.fromEntries(Object.entries(data.record).filter(([, x]) => x != null).map(([k, x]) => [k, String(x)]))
@@ -90,11 +95,13 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
     suggested: data.record ? undefined : s,
   }), onDone);
   return (
-    <Card className="closeout-form" title={missing ? "Close-out missing" : "Close out"}>
+    <Card className="closeout-form" title={missing ? "Close-out missing" : data.asked ? "Finish" : "Close out"}>
+      {openItems > 0 && !missing && <Notice tone="warn">{openItems === 1 ? "1 checklist item is" : `${openItems} checklist items are`} still
+        open. Tick each one done or mark it not needed first, or finish and they stay open in the record.</Notice>}
       {missing && <Text as="p" small>This case closed without saying what it was. Fill it in so it counts.</Text>}
-      {suggested && <Text as="p" small muted>Filled in from {s.from === "agent" ? "the agent's suggestion" : "what the case says"}.
+      {suggested && !data.asked && <Text as="p" small muted>Filled in from {s.from === "agent" ? "the agent's suggestion" : "what the case says"}.
         Check it before you save.</Text>}
-      {list("disposition", "What it was", v.dispositions, true)}
+      {list("disposition", "What it was", dispositions, true)}
       {needsTerms && <>
         {list("failure_mode", "Failure mode", v.failure_modes, true)}
         {list("cause", "Cause", v.causes, true)}
@@ -117,7 +124,7 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
       <Field label="Note" width="full"><Input width="full" aria-label="Note" value={d.note ?? ""} onChange={set("note")} /></Field>
       <Line wrap>
         <Button variant="primary" disabled={!ready || !person || !!a.busy} onClick={save}>
-          {missing || data.record ? "Save close-out" : "Close the case"}</Button>
+          {missing || data.record ? "Save close-out" : data.asked ? "Finish the case" : "Close the case"}</Button>
         {onCancel && <Button variant="secondary" onClick={onCancel}>Cancel</Button>}
       </Line>
       {hint && !a.busy && <Text as="p" small muted>{hint}.</Text>}

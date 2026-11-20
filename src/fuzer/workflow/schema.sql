@@ -128,6 +128,24 @@ create index if not exists work_item_role on work_item (role, due) where closed_
 create index if not exists work_item_due on work_item (due) where closed_at is null;
 create index if not exists work_item_subjects on work_item using gin (subjects);
 
+-- A case's checklist (workflow/checklist.py): what it asks for, ticked off as done. Not workflow steps.
+create table if not exists work_check (
+    id         bigserial primary key,
+    item_id    bigint not null references work_item (id),
+    position   int not null,
+    text       text not null,
+    subjects   text[] not null default '{}',   -- the entities the item is about
+    state      text not null default 'open',   -- open | done | skipped (not needed, with why in note)
+    note       text,
+    done_by    text,
+    done_at    timestamptz,
+    created_by text not null,
+    created_at timestamptz not null default now()
+);
+create index if not exists work_check_item on work_check (item_id, position);
+-- the steps the assistant proposed with a draft, each {text, subjects}: the case's checklist once confirmed
+alter table work_draft add column if not exists steps jsonb not null default '[]';
+
 create table if not exists work_process (
     id              bigserial primary key,
     definition_id   bigint not null references work_definition (id),

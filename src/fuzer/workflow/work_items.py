@@ -4,6 +4,7 @@ from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
+from . import checklist
 from .assignment import hand_off
 from .definitions import (
     DUE_SOON,
@@ -201,7 +202,8 @@ def list_items(conn, state: str | None = "open", type: str | None = None, assign
                i.due < %(now)s and i.closed_at is null as overdue,
                (select p.process_key from work_process p where p.item_id = i.id order by p.id limit 1) as process_key,
                exists (select 1 from work_token t where t.item_id = i.id and t.state = 'waiting'
-                       and t.escalated_at is not null) as escalated
+                       and t.escalated_at is not null) as escalated,
+               {checklist.PROGRESS_SQL}
         from work_item i where {cond}
         order by i.priority desc nulls last, i.due nulls last, i.id limit %(limit)s offset %(offset)s
         """, args).fetchall()
@@ -233,7 +235,7 @@ def item(conn, item_id: int) -> dict:
         p["open"] = [s for s in mine if s["state"] in ("ready", "waiting")]
     events = conn.execute("select id, kind, actor, element, data, at, process_id, token_id from work_event "
                           "where item_id = %s order by id", (item_id,)).fetchall()
-    return {**row, "processes": procs, "events": events}
+    return {**row, "processes": procs, "events": events, "checklist": checklist.items(conn, item_id)}
 
 def process(conn, process_id: int) -> dict:
     row = conn.execute("select item_id from work_process where id = %s", (process_id,)).fetchone()

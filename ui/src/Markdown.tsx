@@ -41,6 +41,9 @@ function makeInline(names: EntityNames | undefined) {
 
 const cells = (row: string) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
 
+const ITEM = /^\s*([-*]|\d+[.)])\s+/;
+const indent = (line: string) => line.length - line.trimStart().length;
+
 const FIGURE = /\[\[(?:figure:f|work-draft:d)_[0-9a-f]+\]\]/g;
 
 export function Markdown({ text }: { text: string }) {
@@ -100,18 +103,32 @@ export function Markdown({ text }: { text: string }) {
           </Table>
         </div>,
       );
-    } else if (/^\s*([-*]|\d+[.)])\s+/.test(line)) {
+    } else if (ITEM.test(line)) {
+      // An item indented under the one before it is its sub-item (one level), so "Decide on orders for:" keeps its
+      // three orders under it instead of numbering them as steps of their own.
       const ordered = /^\s*\d/.test(line);
-      const items: string[] = [];
-      while (i < lines.length && /^\s*([-*]|\d+[.)])\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*([-*]|\d+[.)])\s+/, ""));
+      const base = indent(line);
+      const items: { text: string; sub: string[]; subOrdered: boolean }[] = [];
+      while (i < lines.length && ITEM.test(lines[i])) {
+        const nested = items.length > 0 && indent(lines[i]) > base;
+        const text = lines[i].replace(ITEM, "");
+        if (nested) {
+          const last = items[items.length - 1];
+          if (!last.sub.length) last.subOrdered = /^\s*\d/.test(lines[i]);
+          last.sub.push(text);
+        } else items.push({ text, sub: [], subOrdered: false });
         i++;
-        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*]|\d+[.)])\s+/.test(lines[i])) {
-          items[items.length - 1] += " " + lines[i++].trim();
+        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !ITEM.test(lines[i])) {
+          const last = items[items.length - 1];
+          if (last.sub.length) last.sub[last.sub.length - 1] += " " + lines[i++].trim();
+          else last.text += " " + lines[i++].trim();
         }
       }
       const List = ordered ? "ol" : "ul";
-      out.push(<List key={i}>{items.map((t, j) => <li key={j}>{inline(t)}</li>)}</List>);
+      out.push(<List key={i}>{items.map((t, j) => {
+        const Sub = t.subOrdered ? "ol" : "ul";
+        return <li key={j}>{inline(t.text)}{t.sub.length > 0 && <Sub>{t.sub.map((x, k) => <li key={k}>{inline(x)}</li>)}</Sub>}</li>;
+      })}</List>);
     } else {
       const para: string[] = [];
       while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|\s*\||\s*([-*]|\d+[.)])\s|\s*\[\[(figure|work-draft):)/.test(lines[i]) && !FENCE.test(lines[i]) && !DIAGRAM.test(lines[i].trim())) {
