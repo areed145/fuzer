@@ -1,4 +1,5 @@
 import "./styles/form-editor.css";
+import { ErrorText } from "./ui";
 // The form-js editor for task forms (#97). Fields beside the components (the form's `id`, `fuzer.bulk`
 // bulk actions) are kept as they are when the schema is saved.
 
@@ -37,7 +38,7 @@ export default function FormEditor({ schema, onReady, onDirty }: {
 
   return (
     <>
-      {error && <div className="status error">Couldn't open the form: {error}</div>}
+      {error && <ErrorText>Couldn't open the form: {error}</ErrorText>}
       <div className="form-editor" ref={box} />
     </>
   );

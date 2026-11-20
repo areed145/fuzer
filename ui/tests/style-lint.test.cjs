@@ -84,6 +84,16 @@ const RULES = {
     pattern: / data-label="/g,
     hint: "The kit Table labels each cell from its column heading for the phone layout. Type data-label only where the heading can't say it.",
   },
+  "raw-list-class": {
+    skip: /^ui\//,
+    pattern: /<(?:ul|ol)[^>]*? className="(?:(?:plain|small|muted)(?: |(?=")))+"/g,
+    hint: "Use List (plain, small, muted) from ui/src/ui instead of the class names on a list.",
+  },
+  "raw-notice": {
+    skip: /^ui\//,
+    pattern: /<(?:p|div|span)[^>]*? className="(?:[^"]* )?(?:notice|status error|error small|small error)\b/g,
+    hint: "Use Notice for something to act on and ErrorText for a failure, from ui/src/ui, instead of the class names.",
+  },
   "badge-class": {
     pattern: /<(?:UI)?Badge\b[^>]*? className=|className=(?:"|\{`)badge\b/g,
     hint: "A Badge is a word in its tone (ok, warn, danger, info, muted). Pick the tone; don't add a class name or a page colour.",

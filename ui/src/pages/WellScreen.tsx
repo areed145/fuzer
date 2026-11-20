@@ -3,7 +3,7 @@
  * suggestions for the engineer; cumulative oil is estimated from tests. */
 import { percent, count } from "../format";
 import { api } from "../api";
-import { Badge, Empty, Table, Text } from "../ui";
+import { Badge, Empty, Table, Text, List } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 
 export function WellScreen() {
@@ -23,10 +23,10 @@ export function WellScreen() {
           {" "}{s.summary.stale} stale, {s.summary.no_test_on_file} with no test on file.
         </Text>
         {s.wells.filter((w) => w.status !== "current").length > 0 && (
-          <ul className="plain small">{s.wells.filter((w) => w.status !== "current").map((w) => (
+          <List plain small>{s.wells.filter((w) => w.status !== "current").map((w) => (
             <li key={w.id}><a href={entityHref(w.id)}>{w.well}</a>: {w.status === "stale"
               ? `latest test ${w.latest_test}, ${w.age_days} days old` : "no test on file"}</li>
-          ))}</ul>
+          ))}</List>
         )}
         {d.patterns.length ? (
           <Table density="compact">

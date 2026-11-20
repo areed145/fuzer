@@ -6,7 +6,7 @@
  * compliance finding, and no permit limit is loaded. */
 import { api, type FlareReview } from "../api";
 import { whenDay, count } from "../format";
-import { Badge, Empty, Table, Text } from "../ui";
+import { Badge, Empty, Table, Text, List } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 
 const KIND: Record<FlareReview["episodes"][number]["causes"][number]["kind"], string> = {
@@ -28,7 +28,7 @@ export function FlareAttribution() {
             {" "}{count(s.over_baseline_mscf)} Mscf over the baseline</>}.
         </Text>
         {d.episodes.length ? (
-          <ul className="plain small">{d.episodes.map((e) => (
+          <List plain small>{d.episodes.map((e) => (
             <li key={`${e.label}|${e.start}`} data-start={e.start.slice(0, 10)}>
               <b>{whenDay(e.start)}</b> about {count(e.volume)} {e.volume_unit ?? ""} over the baseline
               {" "}{e.attributed
@@ -39,7 +39,7 @@ export function FlareAttribution() {
                   {c.kind === "detection" ? c.text : <a href={entityHref(c.id)}>{c.text}</a>}</Text>
               ))}
             </li>
-          ))}</ul>
+          ))}</List>
         ) : <Empty>No day flared above its baseline in the window.</Empty>}
         {d.systems?.map((f) => (
           <Text as="div" key={f.subject} small>

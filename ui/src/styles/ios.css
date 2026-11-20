@@ -496,9 +496,9 @@
 /* ================= Lists you can tell apart =================
    Rows in a card are an inset grouped list: one leading edge, a hairline between rows, the title in the primary
    colour and weight, one grey line of detail under it, and status as a semibold word in its colour. */
-:root.ios :is(.home-list, .notification-list, .attention-list) { gap: 0; }
-:root.ios :is(.home-list, .notification-list) > li { position: relative; padding: 11px 0; }
-:root.ios :is(.home-list, .notification-list) > li + li::before {
+:root.ios :is(.notification-list, .attention-list) { gap: 0; }
+:root.ios .notification-list > li { position: relative; padding: 11px 0; }
+:root.ios .notification-list > li + li::before {
   content: ""; position: absolute; top: 0; left: 0; right: -16px; border-top: var(--hair) solid var(--line);
 }
 :root.ios .work-line > .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }

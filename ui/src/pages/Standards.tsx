@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type ModelRollout, type ModelVersion, type Standing, type StandingDeviation } from "../api";
 import { Status, useAsync, errorMessage } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea, Text } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea, Text, List } from "../ui";
 import { loadPerson, usePerson } from "../work";
 import { person as personName } from "../wording";
 
@@ -74,7 +74,7 @@ export function Standards() {
             <td><Promote project={p.project} deviation={x} person={person} busy={!!busy} act={act} /></td>
           </tr>)}</tbody>
         </Table>}
-        {p.practice && <ul className="small">
+        {p.practice && <List small>
           <li>Steps on time: {pct(p.practice.sla.met_pct)} of {p.practice.sla.due} due
             ({p.practice.sla.late} late, {p.practice.sla.open_past_due} still open past due).</li>
           <li>Overrides: {p.practice.overrides.sent_not_ready} sent to the field though not ready,{" "}
@@ -82,7 +82,7 @@ export function Standards() {
           <li>Steps skipped: {p.practice.skipped} left undone when their case closed.</li>
           <li>Rounds done: {pct(p.practice.rounds.done_pct)} of {p.practice.rounds.rounds}
             ({p.practice.rounds.partly_done} partly, {p.practice.rounds.missed} missed).</li>
-        </ul>}
+        </List>}
       </>}
     </Card>)}
     {d && d.left_out.length > 0 && <Text as="p" small>Not shown, because you aren't granted them:{" "}

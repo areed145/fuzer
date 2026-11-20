@@ -1,6 +1,6 @@
 import "../styles/entity.css";
 import { when, whenDay, count } from "../format";
-import { Bar, Button, ButtonLink, Notice, PageHeader, Table, Tabs, Input, Card as UICard, Badge as UIBadge, ErrorText, Line, Text } from "../ui";
+import { Bar, Button, ButtonLink, Notice, PageHeader, Table, Tabs, Input, Card as UICard, Badge as UIBadge, ErrorText, Line, Text, List } from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer, SheetThumb } from "../DrawingViewer";
@@ -714,7 +714,7 @@ function ConversationsCard({ id }: { id: string }) {
   if (!list.length) return d.error ? <Status error={d.error} onRetry={d.reload} /> : null;
   return (
     <UICard as="section" className="conversations" title="From Teams">
-      <ul className="plain">{list.map((c) => <li key={c.id} className="conversation">
+      <List plain>{list.map((c) => <li key={c.id} className="conversation">
         <p><strong>{c.subject ?? c.problem ?? "Thread"}</strong>{" "}
           <UIBadge tone={c.state === "open" ? "warn" : "ok"}>{c.state === "open" ? "still open" : "fixed"}</UIBadge></p>
         <Text as="p" small>{[c.channel, c.started_at ? when(c.started_at, "Time unknown") : null, c.participants.join(", ")].filter(Boolean).join(" · ")}</Text>
@@ -722,7 +722,7 @@ function ConversationsCard({ id }: { id: string }) {
         {c.tried.length > 0 && <Text as="p" small>Tried: {c.tried.join(" · ")}</Text>}
         {c.fix && <Text as="p" small>Fix: {c.fix}</Text>}
         {c.web_url && <a className="small" href={c.web_url} target="_blank" rel="noopener noreferrer">Open in Teams</a>}
-      </li>)}</ul>
+      </li>)}</List>
     </UICard>
   );
 }
@@ -746,7 +746,7 @@ function KnowledgeCard({ id }: { id: string }) {
       <h2>
         Documents <Text small muted>manuals, procedures and guides that apply here</Text>
       </h2>
-      <ul className="plain">
+      <List plain>
         {docs.data.map((d) => (
           <li key={d.id} className="small">
             <a href={documentHref(d.id)} onClick={(ev) => { ev.preventDefault(); openDocument(d.id); }}>{d.title ?? d.label}</a>{" "}
@@ -755,7 +755,7 @@ function KnowledgeCard({ id }: { id: string }) {
             </Text>
           </li>
         ))}
-      </ul>
+      </List>
       <form className="actions" onSubmit={(ev) => { ev.preventDefault(); setAsked(q.trim()); }}>
         <Input value={q} placeholder="Ask the documents, e.g. what causes high vibration?" onChange={(ev) => setQ(ev.target.value)} />
         <Button disabled={!q.trim()}>Search</Button>
@@ -817,7 +817,7 @@ function LineageCard({ id }: { id: string }) {
       {rules && <Text as="p" small>Values chosen {rules}. {d.note}</Text>}
       {(d.reviewed.length > 0 || d.fixes.length > 0) && <>
         <h3>Reviewer choices</h3>
-        <ul className="small">
+        <List small>
           {d.reviewed.map((r) => (
             <li key={`r-${r.field}`}><b>{fieldLabel(r.field)}</b>: {fmt(r.value)}{" "}
               <Text muted>chosen by {r.by ?? "a reviewer"}{r.at ? `, ${when(r.at, "Time unknown")}` : ""}</Text></li>
@@ -826,11 +826,11 @@ function LineageCard({ id }: { id: string }) {
             <li key={`f-${i}`}><b>{fieldLabel(f.field)}</b>: {fmt(f.old_value)} → {fmt(f.new_value)}{" "}
               <Text muted>fixed by {personName(f.by)}, {when(f.at, "Time unknown")}{f.reason ? `: ${f.reason}` : ""}</Text></li>
           ))}
-        </ul>
+        </List>
       </>}
       {(d.identity.length > 0 || d.pins.length > 0) && <>
         <h3>Merges and splits</h3>
-        <ul className="small">
+        <List small>
           {d.identity.map((x, i) => (
             <li key={`i-${i}`}>
               {x.event === "merge" ? "Merged in " : "Split off from "}
@@ -845,22 +845,22 @@ function LineageCard({ id }: { id: string }) {
               <Text muted>by {p.by ?? "a steward"}, {when(p.at, "Time unknown")}{p.reason ? `: ${p.reason}` : ""}</Text>
             </li>
           ))}
-        </ul>
+        </List>
       </>}
       <h3>Work and write-backs</h3>
       {!d.work.count && <Text as="p" small>No work has been about this record.</Text>}
       {d.work.count > 0 && (
-        <ul className="small">
+        <List small>
           {d.work.recent.map((w) => (
             <li key={w.id}><a href={caseHref(w.id)}>{w.title}</a> <Text muted>{w.state} · {when(w.created_at, "Time unknown")}</Text></li>
           ))}
           {d.work.count > d.work.recent.length && (
             <li className="muted">and {d.work.count - d.work.recent.length} earlier</li>
           )}
-        </ul>
+        </List>
       )}
       {d.writebacks.length > 0 && (
-        <ul className="small">
+        <List small>
           {d.writebacks.map((w) => (
             <li key={w.id}>
               <SourceBadge source={w.system} /> {w.kind.replace(/_/g, " ")} {w.record ? <code>{w.record}</code> : null}{" "}
@@ -869,7 +869,7 @@ function LineageCard({ id }: { id: string }) {
               <a href={caseHref(w.item_id)}>case</a>
             </li>
           ))}
-        </ul>
+        </List>
       )}
     </UICard>
   );

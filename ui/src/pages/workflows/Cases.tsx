@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Checkbox } from "../../ui";
+import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Checkbox, Notice } from "../../ui";
 import { when } from "../../format";
 import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
@@ -228,8 +228,8 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null} />
       {typeof raised.opportunity === "string" && <OpportunityPanel opportunityKey={raised.opportunity} person={person}
         readOnly={demo} onDecided={item.reload} />}
-      {typeof raised.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
-        <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
+      {typeof raised.handover_id === "number" && <Notice>This is a shift handover.{" "}
+        <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</Notice>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
         reload={item.reload} />}
       {typeof raised.recheck_of === "number" && <RecheckCard firstId={raised.recheck_of} person={person} closed={closed}

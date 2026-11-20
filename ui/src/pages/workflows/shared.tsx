@@ -1,6 +1,6 @@
 import "../../styles/work.css";
 import { count, money } from "../../format";
-import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line, Text } from "../../ui";
+import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line, Text, List } from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
 import { Due, holder, usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
@@ -177,7 +177,7 @@ export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
       {fresh
         ? <p><strong>Nobody is on the team yet.</strong> Add a sample team to dispatch work to people:</p>
         : <p><strong>Some queues have nobody in them.</strong> Add the rest of the sample team:</p>}
-      <ul className="plain">{missing.map((p) => <li key={p.name}><strong>{p.name}</strong> · {p.does}</li>)}</ul>
+      <List plain>{missing.map((p) => <li key={p.name}><strong>{p.name}</strong> · {p.does}</li>)}</List>
       <ConfirmAction label={fresh ? "Add the sample team" : "Add the rest of the sample team"} busy={!!busy}
         consequence={`Adds ${list} to this project's shared roster with the roles shown${fresh ? ", and sets you to riley if you haven't picked a name" : ""}. They are sample names for a demo field; remove them on Teams & routing.`} onConfirm={add} />
       {" "}<a href={href("/teams")}>Or add your own people on Teams &amp; routing</a>

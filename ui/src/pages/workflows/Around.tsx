@@ -4,7 +4,7 @@ import { api } from "../../api";
 import type { CaseAround as CaseAroundData } from "../../api/work";
 import { entityHref, href, useAsync } from "../../lib";
 import { TrendView } from "../../TrendView";
-import { Button, ButtonLink, Card, Disclosure, Table, Text } from "../../ui";
+import { Button, ButtonLink, Card, Disclosure, Table, Text, List } from "../../ui";
 
 const ALARM: Record<string, string> = { hihi: "High-high", hi: "High", lo: "Low", lolo: "Low-low" };
 
@@ -74,10 +74,10 @@ function AroundCard({ d }: { d: CaseAroundData & { window: { start: string; end:
         </Table>
       </Disclosure>}
       {d.log.length > 0 && <Disclosure open label={<strong>Operator log ({d.log.length})</strong>}>
-        <ul className="plain">{d.log.map((x) => (
+        <List plain>{d.log.map((x) => (
           <li key={x.id}><Text small>{when(x.at)}{x.author ? ` · ${x.author}` : ""}</Text>
             <div><a href={entityHref(x.id)}>{x.text ?? "Log entry"}</a></div></li>))}
-        </ul>
+        </List>
       </Disclosure>}
     </Card>
   );

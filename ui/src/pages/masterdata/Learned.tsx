@@ -3,7 +3,7 @@
  * every like value after each rebuild; withdrawn, its answers are retired. */
 import { api, type LearnedProposal, type LearnedRule } from "../../api";
 import { whenDay } from "../../format";
-import { Button, Card, ConfirmAction, Disclosure, Table, ErrorText, Line, Text } from "../../ui";
+import { Button, Card, ConfirmAction, Disclosure, Table, ErrorText, Line, Text, List } from "../../ui";
 import { entityHref, useAsync, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -47,9 +47,9 @@ function Proposal({ p, busy, can, onAccept, onReject }: {
       <p><strong>{p.rule}.</strong> Learned from {p.taught} answers, such as{" "}
         {p.examples.slice(0, 3).map((e, i) => <span key={e.id}>{i ? ", " : ""}<code>{e.value}</code></span>)}.</p>
       <Disclosure label={`It would answer ${p.would_answer} more ${p.would_answer === 1 ? "value" : "values"} on ${p.rows} ${p.rows === 1 ? "row" : "rows"}`}>
-        <ul className="plain small">{p.values.map((v) => (
+        <List plain small>{p.values.map((v) => (
           <li key={v.value}><code>{v.value}</code> names <a href={entityHref(v.fuzer_id)}>{v.key}</a> ({v.rows} {v.rel.replace(/_/g, " ")})</li>
-        ))}</ul>
+        ))}</List>
         {p.would_answer > p.values.length && <Text as="p" small muted>The first {p.values.length} of {p.would_answer}.</Text>}
       </Disclosure>
       {can && <Line>

@@ -79,7 +79,7 @@ export default function BpmnModeler({ xml, classes, ctx, onReady, onDirty }: {
         {modeler && <WorkflowPalette modeler={modeler} />}
         <label className="small row"><input type="checkbox" checked={advanced} onChange={(e) => setAdvanced(e.target.checked)} />
           Advanced BPMN tools (pools, lanes and event variants)</label>
-        {error && <div className="status error small">{error}</div>}
+        {error && <ErrorText>{error}</ErrorText>}
         <div className="bpmn-canvas tall" ref={box} />
       </div>
       {modeler && <Properties modeler={modeler} ctx={ctx} />}

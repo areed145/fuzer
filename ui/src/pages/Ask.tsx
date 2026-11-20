@@ -1,6 +1,6 @@
 import "../styles/ask.css";
 import { money, when } from "../format";
-import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text } from "../ui";
+import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, List } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AskContext, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
@@ -254,8 +254,8 @@ type About = { case_id?: number; subject?: string };
  * never has to name the case or the asset. */
 function AboutBanner({ about, context }: { about: About; context: ReturnType<typeof useAsync<AskContext | null>> }) {
   if (about.case_id === undefined && !about.subject) return null;
-  if (context.error) return <p className="error small" role="alert">The {about.case_id !== undefined ? "case" : "asset"} this
-    question is about could not be loaded: {context.error}</p>;
+  if (context.error) return <ErrorText>The {about.case_id !== undefined ? "case" : "asset"} this
+    question is about could not be loaded: {context.error}</ErrorText>;
   const c = context.data;
   if (!c) return <Text as="p" small role="status">Loading what this conversation is about…</Text>;
   const back = c.item_id != null ? href(`/cases/${c.item_id}`) : entityHref(c.subject!);
@@ -473,7 +473,7 @@ function Conversations({ current, reload, busy, onOpen, onDeleted, readOnly = fa
   if (items.length === 0) return null;
   return (
     <Disclosure className="card recent" open label={<>Your conversations <Text small muted>{items.length}</Text></>}>
-      <ul className="plain small">
+      <List plain small>
         {items.map((c) => (
           <li key={c.id}>
             <Text muted mono>{when(c.updated_at)}</Text>{" "}
@@ -487,7 +487,7 @@ function Conversations({ current, reload, busy, onOpen, onDeleted, readOnly = fa
             </Button>}
           </li>
         ))}
-      </ul>
+      </List>
     </Disclosure>
   );
 }

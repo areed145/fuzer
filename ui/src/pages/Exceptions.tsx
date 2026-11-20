@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { money, when, whenDay, count } from "../format";
 import { api, type ExceptionRow, type Readiness } from "../api";
-import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty, ErrorText, Line, Text, Checkbox } from "../ui";
+import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty, ErrorText, Line, Text, Checkbox, List } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../lib";
 import { holder, reportedBy, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -82,10 +82,10 @@ function Suppressed() {
   if (!d?.findings) return null;
   return (
     <Card title={`Suppressed: ${d.findings} ${d.findings === 1 ? "finding" : "findings"}, raised ${d.raised} times`}>
-      {d.windows.length > 0 && <ul className="plain small">{d.windows.map((w) => (
+      {d.windows.length > 0 && <List plain small>{d.windows.map((w) => (
         <li key={`${w.kind}-${w.id}`}><strong>{WINDOW[w.kind] ?? w.kind}</strong>: {w.reason} · until {when(w.end_at)}
           {" · "}{w.findings} held back</li>))}
-      </ul>}
+      </List>}
       <Disclosure label="What was held back">
         <Table density="compact">
           <thead><tr><th>Finding</th><th>Window</th><th>Raised</th><th>Last seen</th></tr></thead>
@@ -116,8 +116,8 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
       {refs.data && refs.data.length > 0 && <Text as="div" small>
         <strong>Refs Fuzer matches</strong> <Text muted>(an exception's <code>refs</code>; one that matches nothing
           is kept as unmatched and the sender is told)</Text>
-        <ul className="plain">{refs.data.slice(0, 8).map((f) => <li key={f.form}>
-          <code>{f.example}</code> <Text muted>{f.form} · {count(f.entities)} entities</Text></li>)}</ul>
+        <List plain>{refs.data.slice(0, 8).map((f) => <li key={f.form}>
+          <code>{f.example}</code> <Text muted>{f.form} · {count(f.entities)} entities</Text></li>)}</List>
       </Text>}
       <Table variant="results">
         <thead><tr><th>Type</th><th>Worked by</th><th>Seen by</th><th>Open</th><th>Defined</th><th /></tr></thead>
@@ -189,12 +189,12 @@ function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | nul
   return (
     <Text as="div" small>
       <Badge tone="ok">{reportedBy([r, ...all])}</Badge>
-      <ul className="plain">{all.map((j) => <li key={j.id}>
+      <List plain>{all.map((j) => <li key={j.id}>
         {j.label}: {say(j.title)} <Text muted>· {j.source ?? ""} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</Text>
         {j.state === "open" && person && operate && <> <Button size="sm" disabled={!!busy}
           title="A different event: give it a case of its own"
           onClick={() => run("Splitting", () => api.splitException(j.id, person), onChange)}>Split out</Button></>}
-      </li>)}</ul>
+      </li>)}</List>
       <ErrorText>{error}</ErrorText>
     </Text>
   );
@@ -369,5 +369,5 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
           .map((p) => `Permit ${p.label} (${p.type ?? "permit"}) valid to ${p.valid_to ?? "?"}.`)),
         ...r.checks.filter((c) => !c.checked && !c.confirm).map((c) => c.note)].filter(Boolean).join(" ")}</p>
     : <div className="small ready-note" role="status"><Badge tone="warn">not ready</Badge>
-      <ul className="plain">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>}</>;
+      <List plain>{r.blockers.map((b) => <li key={b}>{b}</li>)}</List></div>}</>;
 }

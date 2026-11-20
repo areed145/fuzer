@@ -77,8 +77,8 @@ p.ui-error { margin: 6px 0; }
 .notice.ui-notice-warn { border-color: var(--warn); }
 .notice.ui-notice-danger { border-color: var(--danger); }
 /* A plain list: no bullets. Shared, so a page that uses it doesn't depend on another page's stylesheet being loaded. */
-ul.plain { list-style: none; padding: 0; margin: 0 0 12px; }
-ul.plain li { padding: 2px 0; }
+ul.plain, ol.plain { list-style: none; padding: 0; margin: 0 0 12px; }
+ul.plain li, ol.plain li { padding: 2px 0; }
 /* Disclosure: a text button that shows more. No caret, no box. */
 .ui-disclosure { margin: 8px 0; }
 .ui-disclosure-toggle { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-align: left; cursor: pointer; }

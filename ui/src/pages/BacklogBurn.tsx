@@ -2,7 +2,7 @@
  * the open backlog at each month's end, and the days from a notification to the order raised for it. Orders with no
  * notification are counted and left out of the lag, never read as zero. */
 import { api } from "../api";
-import { Badge, Table, Text } from "../ui";
+import { Badge, Table, Text, List } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 
 const TONE = { growing: "danger", steady: "muted", shrinking: "ok" } as const;
@@ -40,10 +40,10 @@ export function BacklogBurn() {
           {" "}{d.lag.without_notification} of {d.lag.orders} orders had no notification and are left out.
           {d.lag.ordered_before_notified > 0 && <> {d.lag.ordered_before_notified} were ordered before the notification was created.</>}
         </Text>
-        {d.lag.longest.length > 0 && <ul className="plain small">{d.lag.longest.slice(0, 5).map((l) => (
+        {d.lag.longest.length > 0 && <List plain small>{d.lag.longest.slice(0, 5).map((l) => (
           <li key={l.order}><a href={entityHref(l.order)}>{l.label}</a>: {l.lag_days} days, notified {l.notified}, ordered {l.ordered}
             {l.priority && `, priority ${l.priority}`}</li>
-        ))}</ul>}
+        ))}</List>}
       </>}
     </ReadCard>
   );

@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { when, whenDay } from "../format";
 import { api, type ScheduleAnalysis, type ScheduleLinkRef, type ScheduleRow } from "../api";
-import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs, ErrorText, Line, Text } from "../ui";
+import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs, ErrorText, Line, Text, List } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { acronyms } from "../wording";
 import { type BoardChange, type BoardRows, ScheduleBoard } from "./ScheduleBoard";
@@ -140,12 +140,12 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
           {a.not_before && <Button variant="ghost" disabled={!!busy} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { clear_not_before: true }))}>Release</Button>}
         </Line>
         <h3>Predecessors</h3>
-        {a.predecessors.length ? <ul className="plain">{a.predecessors.map((p) => <li key={p.code}>
+        {a.predecessors.length ? <List plain>{a.predecessors.map((p) => <li key={p.code}>
           {p.code} {TYPE_WORD[p.type]}{p.lag_hours ? `, lag ${hours(p.lag_hours)} h` : ""}{" "}
           <Button variant="link" size="sm" disabled={!!busy} onClick={() => {
             const id = byCode.get(p.code);
             if (id != null) act("Removing the link", () => api.scheduleUnlink(person, id, a.id));
-          }}>Remove</Button></li>)}</ul> : <Empty>Starts when the schedule starts.</Empty>}
+          }}>Remove</Button></li>)}</List> : <Empty>Starts when the schedule starts.</Empty>}
         <Line>
           <Field label="After" width="sm"><Select value={pred} onChange={(e) => setPred(e.target.value)}>
             <option value="">Choose</option>
@@ -159,10 +159,10 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
           <Button disabled={!!busy || !pred} onClick={() => act("Linking", () => api.scheduleLink(person, Number(pred), a.id, type, Number(lag || 0)))}>Add link</Button>
         </Line>
         <h3>Needs</h3>
-        {Object.keys(a.needs).length ? <ul className="plain">{Object.entries(a.needs).map(([r, q]) => <li key={r}>
+        {Object.keys(a.needs).length ? <List plain>{Object.entries(a.needs).map(([r, q]) => <li key={r}>
           {s.resources.find((x) => x.code === r)?.name ?? r}: {hours(q)}{" "}
           <Button variant="link" size="sm" disabled={!!busy} onClick={() => act("Removing the need", () => api.scheduleDemand(a.id, person, r, null))}>Remove</Button>
-        </li>)}</ul> : <Empty>Needs no shared resource.</Empty>}
+        </li>)}</List> : <Empty>Needs no shared resource.</Empty>}
         <Line>
           <Field label="Resource" width="sm"><Select value={res} onChange={(e) => setRes(e.target.value)}>
             <option value="">Choose</option>

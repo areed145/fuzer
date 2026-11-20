@@ -3,7 +3,7 @@
  * any grain it declares; every row drills to its items or cases. */
 import { api, type MetricDeclaration } from "../api";
 import { Sparkline, onTarget, show } from "../analytics/Metric";
-import { Badge, Card, Disclosure, Empty, PageHeader, Table, Tabs, Text } from "../ui";
+import { Badge, Card, Disclosure, Empty, PageHeader, Table, Tabs, Text, List } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
 
@@ -111,7 +111,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
 
 function Refs({ refs, label }: { refs: string[]; label?: string }) {
   return <Disclosure label={label ?? `${refs.length} ${refs.length === 1 ? "record" : "records"}`}>
-    <ul className="plain small">{refs.slice(0, 200).map((r) => <li key={r}><a href={refHref(r)}>{refText(r)}</a></li>)}</ul>
+    <List plain small>{refs.slice(0, 200).map((r) => <li key={r}><a href={refHref(r)}>{refText(r)}</a></li>)}</List>
     {refs.length > 200 && <Text as="p" small muted>The first 200 of {refs.length}.</Text>}
   </Disclosure>;
 }

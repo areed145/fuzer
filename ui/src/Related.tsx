@@ -2,7 +2,7 @@
  * the asset reaches what is already known about it. Nothing shows when there is none. */
 import { api, type RelatedWork } from "./api";
 import { when } from "./format";
-import { Card, Text } from "./ui";
+import { Card, Text, List } from "./ui";
 import { Status, href, useAsync } from "./lib";
 import { IncidentList } from "./pages/Incidents";
 
@@ -20,18 +20,18 @@ export function Related({ about, incidents = true }: { about: { case?: number; s
       </>}
       {d.studies.length > 0 && <>
         <h3 className="small">Studies</h3>
-        <ul className="plain small">{d.studies.map((s) => <li key={s.id}>
+        <List plain small>{d.studies.map((s) => <li key={s.id}>
           <a href={href("/studies", { id: String(s.id) })}>{s.summary || s.kind.replace(/_/g, " ")}</a>{" "}
           <Text muted>{s.kind.replace(/_/g, " ")} · {s.status} · {when(s.created_at)}</Text>
-        </li>)}</ul>
+        </li>)}</List>
       </>}
       {d.lessons.length > 0 && <>
         <h3 className="small">Lessons</h3>
-        <ul className="plain small">{d.lessons.map((l) => <li key={l.id}>
+        <List plain small>{d.lessons.map((l) => <li key={l.id}>
           <a href={href("/lessons", { status: l.status })}>{l.title}</a>{" "}
           <Text muted>{l.status === "approved" ? "approved" : "suggested, not yet reviewed"} · {l.failure_mode}
             {" "}· for its {l.scope_kind.replace(/_/g, " ")}</Text>
-        </li>)}</ul>
+        </li>)}</List>
       </>}
     </Card>
   );

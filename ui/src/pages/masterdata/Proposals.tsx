@@ -3,7 +3,7 @@
  * reason and evidence; nothing changes until a person accepts it (or picks another option). Bulk accept appears only
  * once `stewardship.bulk_accept_at` is set. */
 import { useState } from "react";
-import { confirmDialog, ErrorText, Line, Text } from "../../ui";
+import { confirmDialog, ErrorText, Line, Text, List } from "../../ui";
 import { percent } from "../../format";
 import { api, type Proposal } from "../../api";
 import { Badge, Button, Card, Select, Table, Disclosure, Empty } from "../../ui";
@@ -73,7 +73,7 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
         {" "}<Text small muted>{percent(p.answer.confidence)}</Text></> : <Text muted>not asked yet</Text>}</td>
       <td className="small">{p.answer?.reason}
         {(p.answer?.evidence ?? []).length > 0 && <Disclosure label={<>evidence</>}>
-          <ul className="plain">{p.answer!.evidence.map((e, i) => <li key={i}><code>{e}</code></li>)}</ul></Disclosure>}</td>
+          <List plain>{p.answer!.evidence.map((e, i) => <li key={i}><code>{e}</code></li>)}</List></Disclosure>}</td>
       <td>{p.status !== "open" ? <Text small muted>{p.status} by {p.decided_by}</Text>
         : operate && person && <Line>
           <Select aria-label="Option to accept" value={choice} onChange={(e) => setChoice(e.target.value)}>

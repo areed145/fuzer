@@ -1,5 +1,5 @@
 import { documentHref, openDocument } from "../DocumentViewer";
-import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox } from "../ui";
+import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice } from "../ui";
 import { percent } from "../format";
 import "../styles/review.css";
 import "../styles/trends.css";
@@ -154,11 +154,11 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       </Text>
 
       {toast && (
-        <div role="status" className="notice">
+        <Notice role="status">
           {toast}
           <p><a href={href("/sources")}>Review source loads and freshness</a>{" · "}
             <a href={href("/jobs")}>Inspect technical execution</a></p>
-        </div>
+        </Notice>
       )}
 
       <LikeQuestions kind={kind} name={name} onDone={() => { items.reload(); notifyChanged(); }} />
@@ -208,7 +208,7 @@ export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKin
   const [name] = usePerson();
   const [done, setDone] = useState<string>();
   const item = q.data?.find((i) => i.id === id);
-  if (done) return <p role="status" className="notice">{done}</p>;
+  if (done) return <Notice role="status">{done}</Notice>;
   if (!item) return <Status of={q} />;
   const sheet = item.kind === "pid_mismatch" ? item.payload : null;
   return <div className="case-question">
@@ -281,11 +281,11 @@ function useBusy(onDecide: OnDecide, consequence = "It may change accepted value
   };
   const feedback = <>
     {!operate && <p>Decisions require operate access and any applicable workflow role. Ask an owner to update your roles.</p>}
-    {pending && !busy && <div className="notice" role="group" aria-label="Confirm review decision">
+    {pending && !busy && <Notice role="group" aria-label="Confirm review decision">
       <p>Save this answer for everyone? {consequence} The records catch up in the background after you save.</p>
       <Button type="button" variant="primary" onClick={submit}>Confirm decision</Button>{" "}
       <Button type="button" onClick={() => { setPending(null); setError(undefined); }}>Cancel</Button>
-    </div>}
+    </Notice>}
     <ActionStatus busy={busy ? "Saving review decision…" : null} error={error} />
   </>;
   return { busy: busy || !operate, feedback, run: (d: Omit<Decision, "by">) => {
@@ -683,7 +683,7 @@ function RoleCard({ id, p, onDecide }: { id: number; p: RolePayload; onDecide: O
         {p.asset && <> on <a href={entityHref(p.asset)}>{p.asset_label ?? "its equipment"}</a></>}
       </Text>
       <p>{p.proposed_label ? <>Proposed: <b>{p.proposed_label}</b></> : "Nothing says what this point measures."}</p>
-      <ul className="small">{p.basis.map((b) => <li key={b}>{b}</li>)}</ul>
+      <List small>{p.basis.map((b) => <li key={b}>{b}</li>)}</List>
       <Line>
         {p.proposed && <Button variant="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
           Confirm {p.proposed_label?.toLowerCase()}
@@ -710,12 +710,12 @@ function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onD
   return (
     <UICard className="">
       <h2>#{id} <code>{p.dataset}</code> <Text small muted>held load</Text></h2>
-      <ul className="small">
+      <List small>
         {failed.map((f, i) => (
           <li key={i}>{f.kind === "duplicate keys" ? `repeats ${f.value} key${f.value === 1 ? "" : "s"}` : `${f.kind} failed (${f.value})`}
             {f.detail?.examples?.length ? <Text muted> e.g. {f.detail.examples.join(", ")}</Text> : null}</li>
         ))}
-      </ul>
+      </List>
       <Line>
         <ButtonLink variant="primary" href={href("/sources", { view: "dataset", name: p.dataset })}>Open the dataset</ButtonLink>
         <Button variant="secondary" disabled={busy} onClick={() => run({ decision: "accept" })}>Seen</Button>

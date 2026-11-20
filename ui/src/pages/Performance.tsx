@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { money, percent, when } from "../format";
 import { api, type DetectorEarning, type FindingOrigin, type PerfCell, type PerfRow, type SkillEarning } from "../api";
-import { Badge, Button, Card, Empty, PageHeader, Table, Tabs, Text, type Tone } from "../ui";
+import { Badge, Button, Card, Empty, PageHeader, Table, Tabs, Text, type Tone, List } from "../ui";
 import { Status, href, useAsync } from "../lib";
 
 const VERDICT: Record<PerfRow["keeping_up"], { text: string; tone: Tone }> = {
@@ -82,12 +82,12 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
       ) : <Empty>No work in the last five weeks.</Empty>)}
       {open && <Card className="perf-cases" title={open.label}
         actions={<Button variant="link" onClick={() => setOpen(null)}>Close</Button>}>
-        <ul className="plain small">{open.ids.map((id) => <li key={id}><a href={href(`/cases/${id}`)}>case {id}</a></li>)}</ul>
+        <List plain small>{open.ids.map((id) => <li key={id}><a href={href(`/cases/${id}`)}>case {id}</a></li>)}</List>
       </Card>}
       {d?.compliance && <Card title="Schedule compliance">
-        <ul className="plain small">{Object.entries(d.compliance.summary).map(([kind, s]) => (
+        <List plain small>{Object.entries(d.compliance.summary).map(([kind, s]) => (
           <li key={kind}><strong>{kind}</strong> {s.on_time_pct}% on time · {s.overdue} of {s.plans} plans overdue</li>
-        ))}</ul>
+        ))}</List>
         <Text as="p" small muted>Maintenance and inspection plans as of {d.compliance.as_of}.</Text>
       </Card>}
       {d?.rounds && d.rounds.length > 0 && <Card title="Operator rounds per shift">
@@ -158,7 +158,7 @@ function Detectors() {
     </> : <Empty>No case has been put down to a detector yet.</Empty>)}
     {open && <Card className="perf-cases" title={open.label}
       actions={<Button variant="link" onClick={() => setOpen(null)}>Close</Button>}>
-      <ul className="plain small">{open.ids.map((id) => <li key={id}><a href={href(`/cases/${id}`)}>case {id}</a></li>)}</ul>
+      <List plain small>{open.ids.map((id) => <li key={id}><a href={href(`/cases/${id}`)}>case {id}</a></li>)}</List>
     </Card>}
   </>;
 }

@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { when } from "../format";
 import { api, type Handover } from "../api";
-import { Badge, Button, Card, PageHeader, Table, Empty, Textarea, ErrorText, Line, Text } from "../ui";
+import { Badge, Button, Card, PageHeader, Table, Empty, Textarea, ErrorText, Line, Text, List } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { caseHref } from "./workflows/shared";
@@ -97,13 +97,13 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
         const visible = open ? lines : lines.slice(0, FIRST);
         return <div key={name}>
           <h3>{name} <Text small muted>{total}</Text></h3>
-          <ul className="small">
+          <List small>
             {visible.map((l, i) => (
               <li key={i}>{l.text}{" "}
                 {l.cites.filter((c, _, all) => !(c.startsWith("exception:") && all.some((x) => x.startsWith("case:")))).map((c, n) => <span key={c}>{n > 0 && " · "}<a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>
             ))}
             {open && more > 0 && <li className="muted">and {more} more</li>}
-          </ul>
+          </List>
           {lines.length > FIRST && <Button size="sm" variant="ghost" aria-expanded={open}
             onClick={() => setShown((s) => { const n = new Set(s); if (open) n.delete(name); else n.add(name); return n; })}>
             {open ? "Show fewer" : `Show all ${total}`}</Button>}

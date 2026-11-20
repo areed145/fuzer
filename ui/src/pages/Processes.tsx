@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Text } from "../ui";
+import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Text, List } from "../ui";
 import { when } from "../format";
 import { confirmDialog } from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
@@ -166,14 +166,14 @@ export function ProcessesPage() {
         <Status of={forms}
           empty={!forms.loading && !forms.error && !forms.data?.length}>
           No forms yet. A person's step without a form asks only for a decision and a note.</Status>
-        <ul className="plain">
+        <List plain>
           {forms.data?.map((f) => (
             <li key={f.key} className="row small">
               <a className="mono" href={href(`/workflows/forms/${f.key}`)}>{f.key}</a>
               <Text muted>v{f.version} · <Actor who={f.created_by} /> {when(f.created_at)}</Text>
             </li>
           ))}
-        </ul>
+        </List>
       </UICard>
     </section>
   );
@@ -442,10 +442,10 @@ function ModelTab({ def, defs, draft, reload }: {
         {proposal && <>
           <Text as="p" small>{proposal.steps} steps · {proposal.connections} connections. Inspect the proposal below,
             then review and refine it on the canvas.</Text>
-          {!!proposal.problems.length && <div className="status small error">
+          {!!proposal.problems.length && <ErrorText>
             <strong>Fix before publishing:</strong>
             <ul>{proposal.problems.map((p, i) => <li key={i}>{p.element}: {p.message}</li>)}</ul>
-          </div>}
+          </ErrorText>}
           <Suspense fallback={<div className="status">Loading proposal…</div>}><BpmnView xml={proposal.xml} /></Suspense>
           <div className="actions">
             <Button variant="primary" disabled={!!busy || !ready} onClick={onApply}>Review on canvas</Button>
@@ -457,7 +457,7 @@ function ModelTab({ def, defs, draft, reload }: {
       {problems.length > 0 && (
         <UICard className="problems">
           <h3>Problems</h3>
-          <ul className="plain">
+          <List plain>
             {problems.map((p, i) => (
               <li key={i} className="small">
                 {p.element ? <Button variant="link" className="mono" aria-label={`Show ${p.element} on the diagram`}
@@ -465,12 +465,12 @@ function ModelTab({ def, defs, draft, reload }: {
                   : <Text muted>file</Text>}: {p.message}
               </li>
             ))}
-          </ul>
+          </List>
         </UICard>
       )}
 
-      {xmlError && <div className="status error" role="alert">Couldn't load the diagram: {xmlError}{" "}
-        <Button onClick={() => location.reload()}>Reload the page</Button></div>}
+      {xmlError && <ErrorText>Couldn't load the diagram: {xmlError}{" "}
+        <Button onClick={() => location.reload()}>Reload the page</Button></ErrorText>}
       {xml && (
         <Suspense fallback={<div className="status">Loading modeler…</div>}>
           {editable ? <BpmnModeler xml={canvasXml ?? xml} classes={classes} ctx={ctx} onReady={onReady} onDirty={onDirty} />
@@ -708,10 +708,10 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       )}
       <ErrorText>{keyProblem}</ErrorText>
       {loadError && (loadError.missing
-        ? <div className="status error" role="alert">There is no form “{formKey}”.{" "}
-            <a href={href("/workflows/forms/new", { key: formKey })}>Create it</a></div>
-        : <div className="status error" role="alert">Couldn't load the form: {loadError.text}{" "}
-            <Button onClick={() => setTries((n) => n + 1)}>Try again</Button></div>)}
+        ? <ErrorText>There is no form “{formKey}”.{" "}
+            <a href={href("/workflows/forms/new", { key: formKey })}>Create it</a></ErrorText>
+        : <ErrorText>Couldn't load the form: {loadError.text}{" "}
+            <Button onClick={() => setTries((n) => n + 1)}>Try again</Button></ErrorText>)}
       {schema && <>
         <div className="work-toolbar">
           {dirty && <UIBadge tone="warn">unsaved changes</UIBadge>}

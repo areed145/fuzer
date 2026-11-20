@@ -1,6 +1,6 @@
 import "../styles/events.css";
 import { percent, when, whenDay, count } from "../format";
-import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea, ErrorText, Line, Text } from "../ui";
+import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea, ErrorText, Line, Text, List } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -95,13 +95,13 @@ function RatingProgress() {
         </Text>
       </h2>
       {next.length > 0 && (
-        <ul className="plain">
+        <List plain>
           {next.map((i) => (
             <li key={i.id} className="small">
               <Text muted mono>{i.start}</Text> <a href={entityHref(i.id)}>{i.description}</a>
             </li>
           ))}
-        </ul>
+        </List>
       )}
     </UICard>
   );
@@ -155,7 +155,7 @@ function IncidentPanels({ id }: { id: string }) {
         {reading.data && reading.data.length > 0 && (
           <>
             <h2>Suggested reading</h2>
-            <ul className="plain">
+            <List plain>
               {reading.data.map((r) => (
                 <li key={r.id} className="small">
                   <a href={entityHref(r.id)}>{r.document_label} · {r.heading}</a>
@@ -163,21 +163,21 @@ function IncidentPanels({ id }: { id: string }) {
                   {r.failure_modes.map((m) => <UIBadge key={m}>{m}</UIBadge>)}
                 </li>
               ))}
-            </ul>
+            </List>
           </>
         )}
         <h2>Similar past incidents</h2>
         <Status loading={similar.loading && !similar.data} empty={similar.data?.length === 0}>
           None found.
         </Status>
-        <ul className="plain">
+        <List plain>
           {similar.data?.map((s) => (
             <li key={s.id} className="small">
               <Text muted mono>{s.start}</Text> <a href={entityHref(s.id)}>{s.description}</a>
               {s.same_unit && <UIBadge>same unit</UIBadge>}
             </li>
           ))}
-        </ul>
+        </List>
       </UICard>
     </div>
   );
@@ -200,7 +200,7 @@ function BriefCard({ id }: { id: string }) {
             {b.suggested_checks.length === 0 ? (
               <Empty className="small">No approved lessons or reading for this unit yet.</Empty>
             ) : (
-              <ol className="small">
+              <List as="ol" small>
                 {b.suggested_checks.map((c, n) => (
                   <li key={n}>
                     {c.step}{" "}
@@ -209,7 +209,7 @@ function BriefCard({ id }: { id: string }) {
                     </Text>
                   </li>
                 ))}
-              </ol>
+              </List>
             )}
             <Moved pv={b.process_values} />
           </div>
@@ -217,7 +217,7 @@ function BriefCard({ id }: { id: string }) {
             {b.measurements.length > 0 && (
               <>
                 <h3>Measurements <Text small muted>latest, not in PI</Text></h3>
-                <ul className="plain small">
+                <List plain small>
                   {b.measurements.slice(0, 6).map((m) => (
                     <li key={`${m.quantity}|${m.location}|${m.of.id}`}>
                       {m.quantity.replaceAll("_", " ")}{m.location && <Text muted> {m.location}</Text>}:{" "}
@@ -228,28 +228,28 @@ function BriefCard({ id }: { id: string }) {
                       </Text>
                     </li>
                   ))}
-                </ul>
+                </List>
               </>
             )}
             {b.lessons.approved.length > 0 && (
               <>
                 <h3>Lessons</h3>
-                <ul className="plain small">
+                <List plain small>
                   {b.lessons.approved.map((l) => <li key={l.id}><a href={href("/lessons")}>{l.title}</a></li>)}
-                </ul>
+                </List>
               </>
             )}
             {b.spares.length > 0 && (
               <>
                 <h3>Spares</h3>
-                <ul className="plain small">
+                <List plain small>
                   {b.spares.slice(0, 6).map((p) => (
                     <li key={p.fuzer_id}>
                       <a href={entityHref(p.fuzer_id)}>{p.description || p.label}</a>{" "}
                       <span className={p.stock > 0 ? "muted" : "error"}>{p.stock > 0 ? `${p.stock} in ${p.bin}` : "none in stock"}</span>
                     </li>
                   ))}
-                </ul>
+                </List>
               </>
             )}
             <Rate target={`brief:${id}`} />
@@ -273,7 +273,7 @@ function Moved({ pv }: { pv: Brief["process_values"] }) {
       {moved.length === 0 ? (
         <Empty className="small">No point moved more than 10%.{pv.errors && ` ${pv.errors.length} points couldn't be read.`}</Empty>
       ) : (
-        <ul className="plain small">
+        <List plain small>
           {moved.map((s) => (
             <li key={s.id}>
               <a href={entityHref(s.id)}>{s.description || s.point}</a>{" "}
@@ -285,7 +285,7 @@ function Moved({ pv }: { pv: Brief["process_values"] }) {
               </Text>
             </li>
           ))}
-        </ul>
+        </List>
       )}
       {pv.note && <Text as="p" small>{pv.note}</Text>}
     </>

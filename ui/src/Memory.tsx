@@ -2,7 +2,7 @@ import { useState } from "react";
 import { whenDay } from "./format";
 import { api, type AssistantFact } from "./api";
 import { entityHref, useAsync } from "./lib";
-import { Button, Input, Card as UICard, Textarea, ErrorText, Line, Text } from "./ui";
+import { Button, Input, Card as UICard, Textarea, ErrorText, Line, Text, List } from "./ui";
 import { loadPerson } from "./work";
 
 /** Who is editing: the name the Review page remembers. */
@@ -25,9 +25,9 @@ export function MemoryCard({ id }: { id: string }) {
         <Text small muted>learned from answers rated useful, not source records</Text>
       </h2>
       <ErrorText>{error}</ErrorText>
-      <ul className="plain">
+      <List plain>
         {r.data.map((f) => <FactRow key={f.id} f={f} act={act} />)}
-      </ul>
+      </List>
     </UICard>
   );
 }

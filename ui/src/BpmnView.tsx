@@ -8,7 +8,7 @@ import "./styles/graphs.css";
 // licence asks); this view doesn't.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { Button, FullscreenButton, useFullscreen } from "./ui";
+import { Button, FullscreenButton, useFullscreen, ErrorText } from "./ui";
 import { parseProcess, roundedPath, wrap, type Drawing, type Shape } from "./processDrawing";
 
 export interface Marks {
@@ -176,7 +176,7 @@ export default function BpmnView({ xml, marks, classes, overlays, tall }: {
     e.preventDefault();
   };
 
-  if (parsed.error || !d) return <div className="status error">Couldn't draw the process: {parsed.error}</div>;
+  if (parsed.error || !d) return <ErrorText>Couldn't draw the process: {parsed.error}</ErrorText>;
 
   const describe = d.nodes.filter((n) => n.name).map((n) => `${n.name}${STATE_WORDS[state[n.id]] ? ` (${STATE_WORDS[state[n.id]]})` : ""}`);
   const laneOf = (lane: Shape) => d.pools.find((p) => lane.x >= p.x && lane.y >= p.y && lane.y < p.y + p.h);

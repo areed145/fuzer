@@ -3,7 +3,7 @@ import { when } from "../format";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api, type Route, type RouteExplanation, type RouteStep, type WorkRoleRow } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Table, Text } from "../ui";
+import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Table, Text, Notice } from "../ui";
 import { duration, usePerson } from "../work";
 import { ExceptionTypes } from "./Exceptions";
 
@@ -105,8 +105,8 @@ function Explanation({ x }: { x: RouteExplanation }) {
       {x.matched.length > 0 && <>Matches {x.matched.map((m) => m.label).join(", ")}. </>}
       {x.unmatched.length > 0 && <Text muted>No match for {x.unmatched.join(", ")}.</Text>}</Text>}
     {x.due && <Text as="p" small>Due {when(x.due)}.</Text>}
-    {nobody.length > 0 && <p role="alert" className="notice small">Nobody holds {nobody.map((s) => words(s.role)).join(", ")}:
-      work there waits unseen. <a href={href("/users", { view: "workflow" })}>Assign someone</a>.</p>}
+    {nobody.length > 0 && <Notice role="alert">Nobody holds {nobody.map((s) => words(s.role)).join(", ")}:
+      work there waits unseen. <a href={href("/users", { view: "workflow" })}>Assign someone</a>.</Notice>}
     {x.process?.published && <ProcessPicture processKey={x.process.key} steps={steps} />}
     {steps.length > 0 && <Table variant="list" className="phone-rows">
       <thead><tr><th>Step</th><th>Lane</th><th>Held by</th><th>SLA</th><th>Escalates to</th></tr></thead>
