@@ -14,8 +14,10 @@ const BUILD = typeof document === "undefined" ? ""
 const ROOT = "fz:snap:";
 const PREFIX = `${ROOT}${BUILD}|`;
 export const MAX_AGE_MS = 30 * 60_000;
-const ENTRY_LIMIT = 256 * 1024;
-const BUDGET = 3 * 1024 * 1024;
+// Characters, as the browser counts its ~5 million-character sessionStorage quota. A page's main list (open exceptions,
+// My work's fields) runs to a few hundred thousand: kept, or the page opens on Loading after all.
+const ENTRY_LIMIT = 1_500_000;
+const BUDGET = 4_000_000;
 /** The longest a wave holds answers that have already come back while others are still out. */
 export const WAVE_LIMIT_MS = 10_000;
 
