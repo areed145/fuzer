@@ -2,8 +2,8 @@
  * days between them, any that came back after linked work was recorded closed, and the age of open linked orders.
  * Linked work is a proxy, not an action register, and order status says what was recorded, not that it worked. */
 import { api, type LinkedOrder } from "../api";
-import { Badge, Card, Disclosure, Empty, Table } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Badge, Disclosure, Empty, Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 import { plural, say } from "../wording";
 
 const LINK: Record<LinkedOrder["link"], string> = {
@@ -16,31 +16,30 @@ export const useRepeats = () => useAsync(() => api.incidentRepeats(), []);
 /** `data` is the page's read of the repeats (useRepeats), so the page draws them with the list below (#1069). */
 export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> }) {
   const d = data.data;
-  if (d && !d.units?.length) return null;  // none in the window (or a list that isn't this shape)
+  if (d && !d.units?.length) return null;
   const once = (d?.units ?? []).filter((u) => !u.repeat);
   return (
-    <Card className="incident-repeats" title="Do problems come back?">
-      <Status of={data} />
+    <ReadCard of={data} className="incident-repeats" title="Do problems come back?" note={d && <>{d.summary.incidents_without_linked_work} incidents have no linked work. {d.note}</>}>
       {d && <>
-        <div className="small">
+        <Text as="div" small>
           {d.since} to {d.until}: {d.summary.incidents} incidents on {d.summary.units} units, {d.summary.repeat_units} with
           {" "}more than one; {d.summary.came_back_after_closed_work} came back after linked work was closed;
           {" "}{d.summary.open_orders} linked orders still open.
-        </div>
-        <Table density="compact" className="repeats-table phone-rows">
+        </Text>
+        <Table density="compact" className="repeats-table">
           <thead><tr><th>Unit</th><th>Incidents</th><th>Days between</th><th>Linked work</th></tr></thead>
           <tbody>{d.units.filter((u) => u.repeat).map((u) => (
             <tr key={u.unit_id ?? u.unit} data-unit={u.unit}>
               <td>{u.unit_id ? <a href={entityHref(u.unit_id)}>{u.unit}</a> : u.unit}
-                {u.repeat && <> <Badge tone="danger" className="repeat-badge">repeat</Badge></>}</td>
-              <td data-label="Incidents">{u.incidents}
+                {u.repeat && <> <Badge tone="danger">repeat</Badge></>}</td>
+              <td>{u.incidents}
                 <Disclosure label="Which">
                   <ul className="plain small">{u.items.map((i) => (
                     <li key={i.id}><a href={entityHref(i.id)}>{i.start}</a> {say(i.description)}</li>
                   ))}</ul>
                 </Disclosure></td>
-              <td data-label="Days between">{u.days_between.length ? u.days_between.join(", ") : "once"}</td>
-              <td data-label="Linked work">
+              <td>{u.days_between.length ? u.days_between.join(", ") : "once"}</td>
+              <td>
                 {plural(u.items.reduce((n, i) => n + i.linked_orders, 0), "order")}, {u.items.reduce((n, i) => n + i.open_orders, 0)} open
                 {u.came_back_after_closed_work.map((c) => (
                   <div key={c.incident} className="small came-back">
@@ -59,17 +58,16 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
           ))}</ul>
         </Disclosure>}
         <h3>Open linked work, by age at {d.as_of}</h3>
-        <div className="small repeats-ageing">
+        <Text as="div" small>
           {Object.entries(d.summary.open_by_age).map(([band, n]) => <span key={band} data-band={band}>{band}: {n}. </span>)}
-        </div>
+        </Text>
         {d.open_work.length ? (
           <ul className="plain small">{d.open_work.map((w) => (
             <li key={w.id}><a href={entityHref(w.id)}>{w.order}</a> {w.status}, {w.age_days} days old,
               {" "}{LINK[w.link]}: {w.description}</li>
           ))}</ul>
         ) : <Empty>No open order is linked to these incidents.</Empty>}
-        <div className="small muted">{d.summary.incidents_without_linked_work} incidents have no linked work. {d.note}</div>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

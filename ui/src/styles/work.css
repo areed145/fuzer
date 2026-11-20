@@ -1,9 +1,4 @@
 /* Work: inbox, task panel, item page (#97) */
-.badge.late { color: var(--danger); }
-.badge.soon { color: var(--warn); }
-.badge.human { color: var(--warn); }
-.badge.actor-agent { color: var(--accent); }
-.badge.actor-system { color: var(--muted); }
 .work-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 12px; }
 .work-toolbar .tabs > * { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 0; }
 .work-toolbar input[type="search"] { flex: 1; min-width: 180px; max-width: 320px; }

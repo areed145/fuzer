@@ -84,9 +84,13 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 - `Button` uses `primary` for the main action, `secondary` for ordinary actions, `ghost` for low emphasis, `link` for inline actions, and `danger` for destructive actions. Use `sm` for compact table actions and `md` elsewhere. Use `ButtonLink` for navigation styled as a button and `ButtonLabel` for labels that open hidden file inputs.
 - `Card` (also exported as `Section`) groups related content. Supply `title` and `actions` when the group needs a heading or controls.
 - `Table` provides the shared scroll container and table base. Use it for data tables and choose a compact density for dense lists; use specialized classes only for domain-specific layout.
+- `Text` sets the text style (`small`, `muted`, `mono`) and `Line` puts things on one line (`spread`, `wrap`). Use them instead of the class names; a style that is missing is added to the kit, not to a page.
+- `Checkbox` is a checkbox with its label; `onChange` gets the new state.
+- `ErrorText` shows a failure message.
 - `Field`, `Input`, `Select` and `Textarea` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
 - `Tabs` switches between views of one page; `Notice` holds something the user must act on; `HelpLink` links a docs page.
-- `Badge` shows a compact status with `ok`, `warn`, `danger`, or `muted` tone.
+- `Badge` is a status word in one of five tones (`ok`, `warn`, `danger`, `info`, `muted`), `mono` for an identifier. It takes no class name: a page picks a tone and never adds a badge colour of its own. `Table` labels each cell from its column heading, so type `data-label` only where the heading cannot say it.
+- `ReadCard` (in `ui/src/lib.tsx`) is the card for one read: pass the `useAsync` result as `of`, the content as children and the read's own note as `note`. It shows the loading and failed states itself. Analysis cards use it and carry no class names of their own inside.
 - `Stat` presents a summary number; `EmptyState` explains an empty result; `Bar` displays a percentage or other bounded value from 0 to 100.
 - `LiveFigure` shows a server-built figure with all its wording in a `Card`, so a chart needs no page code. Never set colours or chart text in the UI: series follow the theme colorway by trace position. Put several charts in a grid of cards, not a carousel.
 - `FindingEvidence` (`ui/src/Finding.tsx`) is the one way to show what was found: how (rule, agent or another system, with method and standard), when, and the labelled values with units, local times and assets by name. `CaseFindings` wraps it for a case's sources. Never print a finding's fields, or evidence keys, another way.

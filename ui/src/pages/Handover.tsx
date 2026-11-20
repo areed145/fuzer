@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { when } from "../format";
 import { api, type Handover } from "../api";
-import { Badge, Button, Card, PageHeader, Table, Empty, Textarea, ErrorText } from "../ui";
+import { Badge, Button, Card, PageHeader, Table, Empty, Textarea, ErrorText, Line, Text } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { caseHref } from "./workflows/shared";
@@ -43,9 +43,9 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
     <section>
       <PageHeader help="workflow">
         Shift handover</PageHeader>
-      {operate && <p className="small"><Button variant="secondary" disabled={!!a.busy} onClick={() =>
+      {operate && <Text as="p" small><Button variant="secondary" disabled={!!a.busy} onClick={() =>
         a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the shift in progress, or brings it up to date">Draft the handover</Button>
-        <ErrorText inline>{a.error}</ErrorText></p>}
+        <ErrorText inline>{a.error}</ErrorText></Text>}
       {/* The handover shown leads and the past ones follow once it is in: drawn sooner, its lines filling in pushed the
           past handovers out of view (#1069). */}
       <Status loading={(list.loading && !list.data) || (!!id && h.data === undefined && !h.error)} error={list.error ?? h.error} />
@@ -58,7 +58,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
             <tbody>{list.data!.map((r) => (
               <tr key={r.id}><td><a href={href("/handover", { id: String(r.id) })}>{when(r.shift_start)} to {when(r.shift_end)}</a></td>
                 <td>{r.lines ?? 0}</td>
-                <td>{r.acknowledged_by ? `${personName(r.acknowledged_by)}, ${when(r.acknowledged_at!)}` : <span className="muted">{r.state.replace("_", " ")}</span>}</td></tr>
+                <td>{r.acknowledged_by ? `${personName(r.acknowledged_by)}, ${when(r.acknowledged_at!)}` : <Text muted>{r.state.replace("_", " ")}</Text>}</td></tr>
             ))}</tbody>
           </Table>
         </Card>
@@ -83,12 +83,12 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
   const quiet = sections.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) === 0).map(([name]) => name);
   return (
     <Card title={`Shift ${when(h.shift_start)} to ${when(h.shift_end)}`}>
-      <p className="small">
+      <Text as="p" small>
         <Badge tone={acked ? "ok" : "warn"}>{acked ? `acknowledged by ${personName(h.acknowledged_by)} ${when(h.acknowledged_at!)}`
           : running ? `shift in progress: goes to the incoming lead ${when(h.shift_end)}` : h.state.replace("_", " ")}</Badge>
         {h.item_id && <> · <a href={caseHref(h.item_id)}>its case</a></>}
-        <span className="muted"> · drafted {when(h.drafted_at)}</span>
-      </p>
+        <Text muted> · drafted {when(h.drafted_at)}</Text>
+      </Text>
       {busy.length === 0 && <Empty className="small">Nothing to hand over.</Empty>}
       {busy.map(([name, lines]) => {
         const more = h.facts.more?.[name] ?? 0;
@@ -96,7 +96,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
         const open = shown.has(name);
         const visible = open ? lines : lines.slice(0, FIRST);
         return <div key={name}>
-          <h3>{name} <span className="muted small">{total}</span></h3>
+          <h3>{name} <Text small muted>{total}</Text></h3>
           <ul className="small">
             {visible.map((l, i) => (
               <li key={i}>{l.text}{" "}
@@ -109,22 +109,22 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
             {open ? "Show fewer" : `Show all ${total}`}</Button>}
         </div>;
       })}
-      {quiet.length > 0 && <p className="small muted">Nothing in {quiet.join(", ").toLowerCase()}.</p>}
+      {quiet.length > 0 && <Text as="p" small muted>Nothing in {quiet.join(", ").toLowerCase()}.</Text>}
       <h3>Outgoing notes</h3>
-      {h.notes && notes === null && <p>{h.notes} <span className="muted small">({personName(h.notes_by)}, {when(h.notes_at!)})</span></p>}
+      {h.notes && notes === null && <p>{h.notes} <Text small muted>({personName(h.notes_by)}, {when(h.notes_at!)})</Text></p>}
       {!acked && canAct && (
         <>
           <Textarea rows={3} className="handover-notes" aria-label="Outgoing notes" placeholder="What the lines don't say: plans, risks, asks"
             value={notes ?? h.notes ?? ""} onChange={(e) => setNotes(e.target.value)} />
-          <div className="row">
+          <Line>
             <Button variant="secondary" disabled={!!a.busy || !(notes ?? "").trim()} onClick={() =>
               a.run("notes", () => api.handoverNotes(h.id, person, notes!), () => { setNotes(null); reload(); })}>Save notes</Button>
             {!running && <Button variant="primary" disabled={!!a.busy} onClick={() =>
               a.run("ack", () => api.acknowledgeHandover(h.id, person), reload)}>I have read it: acknowledge</Button>}
-          </div>
+          </Line>
         </>
       )}
-      {h.acknowledged_note && <p className="small">Incoming: {h.acknowledged_note}</p>}
+      {h.acknowledged_note && <Text as="p" small>Incoming: {h.acknowledged_note}</Text>}
       <ErrorText>{a.error}</ErrorText>
     </Card>
   );

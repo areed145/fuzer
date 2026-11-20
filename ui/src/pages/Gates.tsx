@@ -1,4 +1,4 @@
-import { Badge as UIBadge, Button, Card as UICard, Input, Table, ErrorText } from "../ui";
+import { Badge as UIBadge, Button, Card as UICard, Input, Table, ErrorText, Text } from "../ui";
 import { percent, when } from "../format";
 import { useState } from "react";
 import { api, type GateDecision, type GatePolicy } from "../api";
@@ -22,12 +22,12 @@ export function CaseGates({ id }: { id: number }) {
 function GateLine({ d }: { d: GateDecision }) {
   return (
     <li>
-      <UIBadge className={`badge ${d.fired ? "late" : "ok"}`}>{d.fired ? "Stopped for a person" : "Went ahead"}</UIBadge>
+      <UIBadge tone={d.fired ? "danger" : "ok"}>{d.fired ? "Stopped for a person" : "Went ahead"}</UIBadge>
       <span>{d.reason}</span>
-      <span className="small">
+      <Text small>
         {d.confidence !== null && <>confidence {pct(d.confidence)} · </>}needs {pct(d.threshold)}
         {d.criticality && <> · criticality {d.criticality}</>} · <Actor who={d.actor} /> · {when(d.at)}
-      </span>
+      </Text>
     </li>
   );
 }
@@ -64,7 +64,7 @@ function GateRow({ c, saved }: { c: GatePolicy["confidence"][number]; saved: () 
   };
   return (
     <tr>
-      <td>{c.label}{c.updated_by && <div className="small">changed by {c.updated_by}{c.updated_at ? `, ${when(c.updated_at)}` : ""}</div>}</td>
+      <td>{c.label}{c.updated_by && <Text as="div" small>changed by {c.updated_by}{c.updated_at ? `, ${when(c.updated_at)}` : ""}</Text>}</td>
       <td>{edit === null ? <b>{pct(c.default)}</b> : <Input aria-label={`Goes ahead at, for ${c.label}`} type="number" min={1}
         max={100} value={edit} placeholder="always a person" onChange={(e) => setEdit(e.target.value)} />}
         <ErrorText>{error}</ErrorText></td>

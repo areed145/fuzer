@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { money, percent, when } from "../format";
 import { api, type DetectorEarning, type FindingOrigin, type PerfCell, type PerfRow, type SkillEarning } from "../api";
-import { Badge, Button, Card, Empty, PageHeader, Table, Tabs } from "../ui";
+import { Badge, Button, Card, Empty, PageHeader, Table, Tabs, Text, type Tone } from "../ui";
 import { Status, href, useAsync } from "../lib";
 
-const VERDICT: Record<PerfRow["keeping_up"], { text: string; tone: string }> = {
+const VERDICT: Record<PerfRow["keeping_up"], { text: string; tone: Tone }> = {
   keeping_up: { text: "keeping up", tone: "ok" },
-  holding: { text: "holding", tone: "" },
-  falling_behind: { text: "falling behind", tone: "late" },
+  holding: { text: "holding", tone: "muted" },
+  falling_behind: { text: "falling behind", tone: "danger" },
 };
 const COUNTS: [keyof PerfCell, string][] = [["sla_misses", "SLA misses"], ["escalations", "Escalations"],
   ["hand_backs", "Hand-backs"], ["repeats", "Repeats"]];
@@ -34,7 +34,7 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
   const rows: PerfRow[] = d ? (by === "type" ? d.types : d.queues) : [];
   const n = (label: string, cell: { n: number; ids: number[] }) => cell.n
     ? <Button variant="link" className="perf-n" onClick={() => setOpen({ label, ids: cell.ids })}>{cell.n}</Button>
-    : <span className="muted">0</span>;
+    : <Text muted>0</Text>;
   return (
     <section>
       <PageHeader actions={<a href={href("/exceptions")}>All work</a>}>
@@ -53,8 +53,8 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
         <Table density="compact" className="perf-table phone-rows">
           <thead><tr>
             <th>{by === "type" ? "Work type" : "Queue"}</th><th>This week</th>
-            <th>Arrived <span className="muted small">4-wk avg</span></th><th>Closed <span className="muted small">4-wk avg</span></th>
-            <th>Open now <span className="muted small">last 5 weeks</span></th>
+            <th>Arrived <Text small muted>4-wk avg</Text></th><th>Closed <Text small muted>4-wk avg</Text></th>
+            <th>Open now <Text small muted>last 5 weeks</Text></th>
             <th>Median hours</th>{COUNTS.map(([, l]) => <th key={l}>{l}</th>)}
           </tr></thead>
           <tbody>{rows.map((r) => {
@@ -63,12 +63,12 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
             return (
               <tr key={name}>
                 <td><strong>{name}</strong></td>
-                <td data-label="This week"><Badge className={`badge ${VERDICT[r.keeping_up].tone}`}>{VERDICT[r.keeping_up].text}</Badge></td>
-                <td data-label="Arrived">{n(`${name}: arrived this week`, w.arrivals)} <span className="small muted">avg {r.arrivals_avg4}</span></td>
-                <td data-label="Closed">{n(`${name}: closed this week`, w.closed)} <span className="small muted">avg {r.closed_avg4}</span></td>
-                <td data-label="Open now">{n(`${name}: open now`, w.backlog)} <span className="small muted">avg {r.backlog_avg4}</span>
+                <td><Badge tone={VERDICT[r.keeping_up].tone}>{VERDICT[r.keeping_up].text}</Badge></td>
+                <td data-label="Arrived">{n(`${name}: arrived this week`, w.arrivals)} <Text small muted>avg {r.arrivals_avg4}</Text></td>
+                <td data-label="Closed">{n(`${name}: closed this week`, w.closed)} <Text small muted>avg {r.closed_avg4}</Text></td>
+                <td data-label="Open now">{n(`${name}: open now`, w.backlog)} <Text small muted>avg {r.backlog_avg4}</Text>
                   <WeekBars values={r.weeks.map((c) => c.backlog.n)} label={`${name}: open at the end of each of the last five weeks`} /></td>
-                <td data-label="Median hours" className="small">
+                <td className="small">
                   <dl className="perf-hours">
                     {([["triage", w.triage_h], ["dispatch", w.dispatch_h], ["close", w.close_h]] as const).map(([k, h]) => (
                       <div key={k}><dt>{k}</dt><dd>{h == null ? "–" : `${h} h`}</dd></div>))}
@@ -88,18 +88,18 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
         <ul className="plain small">{Object.entries(d.compliance.summary).map(([kind, s]) => (
           <li key={kind}><strong>{kind}</strong> {s.on_time_pct}% on time · {s.overdue} of {s.plans} plans overdue</li>
         ))}</ul>
-        <p className="small muted">Maintenance and inspection plans as of {d.compliance.as_of}.</p>
+        <Text as="p" small muted>Maintenance and inspection plans as of {d.compliance.as_of}.</Text>
       </Card>}
       {d?.rounds && d.rounds.length > 0 && <Card title="Operator rounds per shift">
         <Table density="compact" className="phone-rows">
           <thead><tr><th>Shift</th><th>Done</th><th>Partly done</th><th>Missed</th><th>Checks not taken</th><th>Found something</th></tr></thead>
           <tbody>{d.rounds.map((r) => <tr key={r.shift_start}>
-            <td>{when(r.shift_start)}{r.open ? <span className="small muted"> · {r.open} under way</span> : null}</td>
-            <td data-label="Done">{r.done} of {r.rounds}</td>
-            <td data-label="Partly done">{r.partly_done}</td>
-            <td data-label="Missed">{r.missed ? <Badge tone="warn">{r.missed}</Badge> : 0}</td>
-            <td data-label="Checks not taken">{r.not_taken}</td>
-            <td data-label="Found something">{r.found}</td>
+            <td>{when(r.shift_start)}{r.open ? <Text small muted> · {r.open} under way</Text> : null}</td>
+            <td>{r.done} of {r.rounds}</td>
+            <td>{r.partly_done}</td>
+            <td>{r.missed ? <Badge tone="warn">{r.missed}</Badge> : 0}</td>
+            <td>{r.not_taken}</td>
+            <td>{r.found}</td>
           </tr>)}</tbody>
         </Table>
       </Card>}
@@ -128,27 +128,27 @@ function Detectors() {
   return <>
     <Status of={data} />
     {d && (d.detectors.length ? <>
-      <p className="small">Confirmed cases found by {(Object.keys(ORIGIN) as FindingOrigin[])
+      <Text as="p" small>Confirmed cases found by {(Object.keys(ORIGIN) as FindingOrigin[])
         .filter((o) => d.by_origin[o].cases).map((o) => `${ORIGIN[o].toLowerCase()} ${pct(d.by_origin[o].share)}`)
-        .join(", ") || "none yet"} ({d.confirmed} confirmed)</p>
+        .join(", ") || "none yet"} ({d.confirmed} confirmed)</Text>
       <Table density="compact" className="perf-table phone-rows">
         <thead><tr>
           <th>Detector</th><th>Verdict</th><th>Cases</th><th>Confirmed</th><th>False alarm</th><th>Hours to case</th>
           <th>Value confirmed</th><th>Found by</th><th />
         </tr></thead>
         <tbody>{d.detectors.map((r) => <tr key={r.detector}>
-          <td><strong>{r.title}</strong><div className="small muted">{r.kind_label}</div></td>
-          <td data-label="Verdict"><Badge tone={EARNS[r.verdict].tone}>{EARNS[r.verdict].text}</Badge></td>
-          <td data-label="Cases"><Button variant="link" className="perf-n"
+          <td><strong>{r.title}</strong><Text as="div" small muted>{r.kind_label}</Text></td>
+          <td><Badge tone={EARNS[r.verdict].tone}>{EARNS[r.verdict].text}</Badge></td>
+          <td><Button variant="link" className="perf-n"
             onClick={() => setOpen({ label: `${r.title}: cases`, ids: r.item_ids })}>{r.cases}</Button>
-            <span className="small muted"> {r.closed} closed out</span></td>
-          <td data-label="Confirmed">{pct(r.confirmed_rate)}</td>
-          <td data-label="False alarm">{pct(r.false_alarm_rate)}
-            {r.duplicate ? <span className="small muted"> +{r.duplicate} duplicate</span> : null}</td>
-          <td data-label="Hours to case">{r.hours_to_case ?? "–"}</td>
-          <td data-label="Value confirmed">{cost(r.value_confirmed_usd)}
-            {r.real > r.valued && r.valued ? <span className="small muted"> on {r.valued} of {r.real}</span> : null}</td>
-          <td data-label="Found by" className="small">{(Object.keys(ORIGIN) as FindingOrigin[])
+            <Text small muted> {r.closed} closed out</Text></td>
+          <td>{pct(r.confirmed_rate)}</td>
+          <td>{pct(r.false_alarm_rate)}
+            {r.duplicate ? <Text small muted> +{r.duplicate} duplicate</Text> : null}</td>
+          <td>{r.hours_to_case ?? "–"}</td>
+          <td>{cost(r.value_confirmed_usd)}
+            {r.real > r.valued && r.valued ? <Text small muted> on {r.valued} of {r.real}</Text> : null}</td>
+          <td className="small">{(Object.keys(ORIGIN) as FindingOrigin[])
             .filter((o) => r.by_origin[o]).map((o) => `${ORIGIN[o]} ${r.by_origin[o]}`).join(" · ") || "–"}</td>
           <td>{r.tuning_case
             ? <a href={href(`/cases/${r.tuning_case}`)}>Tuning proposed</a>
@@ -187,18 +187,18 @@ function Skills() {
         <th>Edits</th><th />
       </tr></thead>
       <tbody>{active.map((s) => <tr key={s.skill}>
-        <td><strong>{spaced(s.name)}</strong><div className="small muted">{spaced(s.owner)}</div></td>
-        <td data-label="Verdict"><Badge tone={SKILL_VERDICT[s.verdict].tone}>{SKILL_VERDICT[s.verdict].text}</Badge>
-          {s.verdicts ? <div className="small muted">{s.short} of {s.verdicts} fell short</div> : null}</td>
-        <td data-label="Briefs">{s.briefs}</td>
-        <td data-label="Followed">{pct(s.followed_rate)}
-          {s.followed.partly + s.followed.no ? <div className="small muted">
-            {s.followed.partly} partly, {s.followed.no} not</div> : null}</td>
-        <td data-label="Answers useful">{pct(s.useful_rate)}
-          {s.rated.useful + s.rated.not_useful ? <span className="small muted"> of {s.rated.useful + s.rated.not_useful}</span> : null}</td>
-        <td data-label="Cost per case">{cost(s.brief_cost_per_case)}</td>
-        <td data-label="Edits">{s.edits.live_version ? `v${s.edits.live_version} live` : s.edits.published ? `${s.edits.published} published` : "–"}
-          {s.edits.live_since ? <div className="small muted">since {when(s.edits.live_since)}</div> : null}</td>
+        <td><strong>{spaced(s.name)}</strong><Text as="div" small muted>{spaced(s.owner)}</Text></td>
+        <td><Badge tone={SKILL_VERDICT[s.verdict].tone}>{SKILL_VERDICT[s.verdict].text}</Badge>
+          {s.verdicts ? <Text as="div" small muted>{s.short} of {s.verdicts} fell short</Text> : null}</td>
+        <td>{s.briefs}</td>
+        <td>{pct(s.followed_rate)}
+          {s.followed.partly + s.followed.no ? <Text as="div" small muted>
+            {s.followed.partly} partly, {s.followed.no} not</Text> : null}</td>
+        <td>{pct(s.useful_rate)}
+          {s.rated.useful + s.rated.not_useful ? <Text small muted> of {s.rated.useful + s.rated.not_useful}</Text> : null}</td>
+        <td>{cost(s.brief_cost_per_case)}</td>
+        <td>{s.edits.live_version ? `v${s.edits.live_version} live` : s.edits.published ? `${s.edits.published} published` : "–"}
+          {s.edits.live_since ? <Text as="div" small muted>since {when(s.edits.live_since)}</Text> : null}</td>
         <td>{s.edits.review_case
           ? <a href={href(`/cases/${s.edits.review_case}`)}>Review change v{s.edits.waiting}</a> : null}</td>
       </tr>)}</tbody>
@@ -207,8 +207,8 @@ function Skills() {
       <Table density="compact" className="phone-rows">
         <thead><tr><th>Specialist</th><th>Steps</th><th>Cases</th><th>Spend</th><th>Per case</th></tr></thead>
         <tbody>{d.specialists.map((s) => <tr key={s.specialist}>
-          <td>{spaced(s.specialist)}</td><td data-label="Steps">{s.steps}</td><td data-label="Cases">{s.cases}</td>
-          <td data-label="Spend">{money(s.cost_usd)}</td><td data-label="Per case">{cost(s.cost_per_case)}</td>
+          <td>{spaced(s.specialist)}</td><td>{s.steps}</td><td>{s.cases}</td>
+          <td>{money(s.cost_usd)}</td><td>{cost(s.cost_per_case)}</td>
         </tr>)}</tbody>
       </Table>
     </Card>}

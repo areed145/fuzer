@@ -149,7 +149,7 @@ function App() {
                 <strong>{s.facility}</strong>
               </div>
             )}
-            {rebuilding && <UIBadge className="badge updating">Updating…</UIBadge>}
+            {rebuilding && <UIBadge tone="warn">Updating…</UIBadge>}
             <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />
             {stats.error && <ErrorText inline>API not reachable</ErrorText>}
             {demo.error && section !== "demo" && section !== "investigate" &&

@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty, ErrorText } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty, ErrorText, Line, Text } from "../../ui";
 import { count } from "../../format";
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
@@ -15,8 +15,8 @@ function Step({ n, title, done, open, summary, onEdit, children }: {
   return (
     <UICard className={` step${open ? " current" : ""}`}>
       <h2>
-        <UIBadge className={`badge ${done ? "ok" : "key"}`}>{done ? "✓" : n}</UIBadge> {title}{" "}
-        {done && !open && <span className="muted small">{summary}</span>}{" "}
+        <UIBadge tone={done ? "ok" : "muted"}>{done ? "✓" : n}</UIBadge> {title}{" "}
+        {done && !open && <Text small muted>{summary}</Text>}{" "}
         {done && !open && onEdit && <Button variant="link" className="small" onClick={onEdit}>change</Button>}
       </h2>
       {open && children}
@@ -69,14 +69,14 @@ function PickSystem({ cat, value, onPick }: { cat: Catalog; value: string | null
   const [pick, setPick] = useState(value ?? "");
   return (
     <>
-      <div className="row">
+      <Line>
         <Select value={pick} onChange={(e) => setPick(e.target.value)}>
           <option value="">choose a system…</option>
           {cat.systems.map((s) => <option key={s.id} value={s.name}>{s.name}{s.kind ? ` (${s.kind})` : ""}</option>)}
         </Select>
         <Button variant="primary" disabled={!pick} onClick={() => onPick(pick)}>Continue</Button>
-      </div>
-      <p className="small">Or a new one:</p>
+      </Line>
+      <Text as="p" small>Or a new one:</Text>
       <NewSystem onDone={onPick} />
     </>
   );
@@ -94,20 +94,20 @@ function PickConnection({ s, types, dataDir, onPick, suggest }: { s: CatalogSyst
       {s.connections.map((c) => (
         <div key={c.id} className="row">
           <Button variant="secondary" onClick={() => onPick(c.id)}>Use <code>{c.name}</code></Button>
-          <span className="small">{c.type} <span className="muted">{c.display}</span></span>
+          <Text small>{c.type} <Text muted>{c.display}</Text></Text>
           <Button variant="link" className="small" disabled={!!a.busy}
             onClick={() => a.run(`t${c.id}`, () => api.testConnection(c.id), (r) => setTested({ ...tested, [c.id]: r }))}>test</Button>
-          {tested[c.id] && <UIBadge className={`badge ${tested[c.id].ok ? "ok" : ""}`}>{tested[c.id].ok ? "ok" : "failed"}</UIBadge>}
+          {tested[c.id] && <UIBadge tone={tested[c.id].ok ? "ok" : "muted"}>{tested[c.id].ok ? "ok" : "failed"}</UIBadge>}
           {tested[c.id] && !tested[c.id].ok && <TestSteps steps={tested[c.id].steps} />}
         </div>
       ))}
       {!hasDataFolder && (
-        <div className="row">
+        <Line>
           <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("files", () => api.addConnection(s.name,
             { name: "files", type: "folder", config: {}, secrets: {}, by: reviewer() }), (c) => onPick(Number(c.id)))}>
             Use the project data folder</Button>
-          <span className="small muted">{dataDir}</span>
-        </div>
+          <Text small muted>{dataDir}</Text>
+        </Line>
       )}
       {adding ? (
         <ConnectionForm system={s.name} types={types} initial={suggest ?? undefined} onDone={(c) => onPick(Number(c.id))} />
@@ -130,28 +130,28 @@ function PickTable({ connection, folder, onPick, onOtherConnection }: {
       {test.data && !test.data.ok && <><ErrorText>The connection test failed:</ErrorText><TestSteps steps={test.data.steps} /></>}
       {fresh.length === 0 && (
         // Not a dead end (#412): new tables elsewhere need a connection that points there.
-        <div className="small">
+        <Text as="div" small>
           <Empty>Everything this connection holds is already a dataset.{folder && " Only tables directly in its folder are read."}</Empty>
           <Button variant="secondary" size="sm" onClick={() => onOtherConnection()}>
             {folder ? "Add a connection for another folder" : "Choose or add another connection"}</Button>
-        </div>
+        </Text>
       )}
       {(t.data.subfolders ?? []).length > 0 && (
-        <div className="small">
+        <Text as="div" small>
           <p>Subfolders with tables of their own, each read through its own connection:</p>
-          <div className="row wrap">
+          <Line wrap>
             {t.data.subfolders!.map((f) => (
               <Button key={f.path} variant="secondary" size="sm" onClick={() => onOtherConnection({ name: f.name, path: f.path })}>
                 Add a connection for <code>{f.name}/</code> ({f.tables} {f.tables === 1 ? "table" : "tables"})</Button>
             ))}
-          </div>
-        </div>
+          </Line>
+        </Text>
       )}
-      <div className="row wrap">
+      <Line wrap>
         {fresh.map((x) => <Button key={x.table} variant="secondary" onClick={() => onPick(x.table)}><code>{x.table}</code></Button>)}
-      </div>
+      </Line>
       {t.data.tables.length > fresh.length && (
-        <p className="small">Already loaded: {t.data.tables.filter((x) => x.dataset).map((x) => x.table).join(", ")}</p>
+        <Text as="p" small>Already loaded: {t.data.tables.filter((x) => x.dataset).map((x) => x.table).join(", ")}</Text>
       )}
     </>
   );
@@ -172,7 +172,7 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
   const datasetOf = (y: string) => /^dataset:\s*(\S+)/m.exec(y)?.[1] ?? d.suggested.dataset;
   return (
     <>
-      <p className="small muted">{d.connector} · {d.path}</p>
+      <Text as="p" small muted>{d.connector} · {d.path}</Text>
       {d.date_hint && (
         <p className="small notice">
           Its dates look like <code>{d.date_hint.example}</code>. Set <code>{d.system}</code>'s date format to{" "}
@@ -191,21 +191,21 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
           <tbody>{d.sample.map((r, i) => <tr key={i}>{cols.map((x) => <td key={x}>{cell(r[x])}</td>)}</tr>)}</tbody>
         </Table>
       </div>
-      <h3>Mapping <span className="muted small">suggested from the columns{d.suggested.key ? `; key ${d.suggested.key}` : "; no key found: name one"}</span></h3>
-      <div className="row">
+      <h3>Mapping <Text small muted>suggested from the columns{d.suggested.key ? `; key ${d.suggested.key}` : "; no key found: name one"}</Text></h3>
+      <Line>
         <Input placeholder={`dataset name (${d.suggested.dataset})`} value={dataset} onChange={(e) => setDataset(e.target.value)} />
         <Input placeholder={`record type (${d.suggested.record_type})`} value={rtype} onChange={(e) => setRtype(e.target.value)} />
         <Button variant="secondary" onClick={() => { setText(null); setOpts({ ...opts, dataset: dataset || undefined, record_type: rtype || undefined }); }}>
           Suggest again</Button>
         <Button variant="secondary" title="Claude names the columns rules could only call code or other (costs money; cached)"
           onClick={() => { setText(null); setOpts({ ...opts, claude: true }); }}>Ask Claude</Button>
-      </div>
+      </Line>
       <MappingEditor key={d.suggested.yaml} yaml={initial?.yaml ?? d.suggested.yaml} columns={cols} samples={d.sample}
         onChange={setText} />
-      <div className="row">
+      <Line>
         <Button variant="primary" onClick={() => onDone({ yaml, dataset: datasetOf(yaml) })}>Continue</Button>
-        {text !== null && <span className="muted small">edited</span>}
-      </div>
+        {text !== null && <Text small muted>edited</Text>}
+      </Line>
       <ErrorText>{a.error}</ErrorText>
     </>
   );
@@ -225,7 +225,7 @@ function LoadSettings({ connection, table, yaml, owner, onDone }: { connection: 
           <tr><th>Load mode</th><td>
             <Select value={mode} onChange={(e) => setMode(e.target.value)}>
               {Object.keys(LOAD_HELP).map((m) => <option key={m}>{m}</option>)}
-            </Select> <span className="muted">{LOAD_HELP[mode]}</span></td></tr>
+            </Select> <Text muted>{LOAD_HELP[mode]}</Text></td></tr>
           <tr><th>Schedule</th><td>
             <Select value={schedule} onChange={(e) => setSchedule(e.target.value)}>
               <option value="">with the daily refresh (02:00) and when its file changes</option>
@@ -235,7 +235,7 @@ function LoadSettings({ connection, table, yaml, owner, onDone }: { connection: 
             </Select></td></tr>
           <tr><th>Expect a delivery every</th><td>
             <Input width="md" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="hours (empty: no expectation)" />
-            <span className="muted"> stale after that, and its owner is told</span></td></tr>
+            <Text muted> stale after that, and its owner is told</Text></td></tr>
           <tr><th>Owner</th><td><Input value={who} onChange={(e) => setWho(e.target.value)} placeholder="who answers for it" /></td></tr>
         </tbody>
       </Table>
@@ -285,11 +285,11 @@ function AddResult({ r }: { r: AddTableResult }) {
         </>
       )}
       {held && <LoadAgain name={r.dataset} />}
-      <p className="small">
+      <Text as="p" small>
         <a href={open("overview")}>Open the dataset</a> · <a href={open("runs")}>Runs</a> · <a href={open("quality")}>Profile
         and suggested checks</a> · <a href={href("/sources", { view: "add" })}>Add another source</a>
         {" · "}<a href={href("/jobs")}>Scheduler execution details</a>
-      </p>
+      </Text>
       <ActionStatus busy={a.busy ? "Requesting shared facility rebuild…" : null} error={a.error}>
         {buildRequested && <p>Rebuild requested, not yet confirmed complete. Follow the application's Updating/health
           indicator and <a href={href("/jobs")}>Jobs diagnostics</a>; then inspect the dataset's linked evidence.</p>}
@@ -302,13 +302,13 @@ function LoadAgain({ name }: { name: string }) {
   const a = useAction();
   const [done, setDone] = useState<SourceLoad | null>(null);
   return (
-    <div className="row">
+    <Line>
       <ConfirmAction label="Load again" busy={!!a.busy}
         consequence={`Retry ${name} as a full shared load? Fix the source/check issue first; this may replace or retract records.`}
         onConfirm={() => a.run("run", () => api.runDataset(name, true), setDone)} />
-      <span className="small muted">after fixing it</span>
+      <Text small muted>after fixing it</Text>
       {done && !a.busy && !a.error && <Loaded r={done} />}
       <ActionStatus busy={a.busy ? "Retrying source load…" : null} error={a.error} />
-    </div>
+    </Line>
   );
 }

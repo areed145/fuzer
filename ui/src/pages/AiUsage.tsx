@@ -2,7 +2,7 @@ import { useState } from "react";
 import { money, when } from "../format";
 import { api, type AiUsage as Usage, type UsageGroup } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Bar, Badge, Button, Card, Empty, Notice, Select, Stat, Table } from "../ui";
+import { Bar, Badge, Button, Card, Empty, Notice, Select, Stat, Table, Line, Text } from "../ui";
 
 const tokens = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(v));
 const BUDGET = href("/settings", { view: "configuration", filter: "llm.budget" });
@@ -15,12 +15,12 @@ export function AiUsage() {
   const d = u.data;
   return <div>
     <h2>AI usage</h2>
-    <div className="row small">
+    <Line small>
       <Select aria-label="Window" value={days} onChange={(e) => setDays(Number(e.target.value))}>
         {[1, 7, 30, 90].map((n) => <option key={n} value={n}>Last {n === 1 ? "day" : `${n} days`}</option>)}
       </Select>
       <Button disabled={u.loading} onClick={u.reload}>Refresh</Button>
-    </div>
+    </Line>
     <Status of={u} />
     {d && <Summary d={d} />}
   </div>;
@@ -43,8 +43,8 @@ function Summary({ d }: { d: Usage }) {
       <Stat label="Last call" value={when(d.total.last_at, "never")} detail={d.recent[0]?.feature ?? "none yet"} />
     </div>
     {b.cap_usd > 0 && <Bar value={share} label="Share of the month's budget spent" />}
-    <p className="small">Costs are estimates from token counts and list prices{d.total.unpriced ? "; some models have no listed price" : ""}.
-      The provider&apos;s bill is the record.</p>
+    <Text as="p" small>Costs are estimates from token counts and list prices{d.total.unpriced ? "; some models have no listed price" : ""}.
+      The provider&apos;s bill is the record.</Text>
     <Daily d={d} />
     <Groups title="By feature" rows={d.by_feature} />
     <Groups title="By model" rows={d.by_model} />

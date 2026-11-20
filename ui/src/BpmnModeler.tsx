@@ -11,7 +11,7 @@ import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 import { href } from "./lib";
 import { fuzerModdle, subsetModule } from "./bpmnSubset";
-import { Button, Input, Select as UISelect, Empty, Textarea, ErrorText } from "./ui";
+import { Button, Input, Select as UISelect, Empty, Textarea, ErrorText, Line } from "./ui";
 import { workflowComponents } from "./workflowComponents";
 
 export interface ModelerContext {
@@ -425,11 +425,11 @@ function GatewayProps({ ed, el }: { ed: Editing; el: any }) {
       <span>Branches</span>
       {outs.map((c) => (
         <div key={c.id} className="branch">
-          <div className="row small">
+          <Line small>
             <strong>{c.businessObject.name || c.id}</strong>
             <label className="row"><Input type="radio" checked={bo.default === c.businessObject}
               onChange={() => ed.set(el, { default: c.businessObject })} /> default</label>
-          </div>
+          </Line>
           {bo.default !== c.businessObject && (
             <Text value={c.businessObject.conditionExpression?.body} mono placeholder='triage == "real"'
               onCommit={(v) => ed.set(c, { conditionExpression: ed.expr(v) })} />

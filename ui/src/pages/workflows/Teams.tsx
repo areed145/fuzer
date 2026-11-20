@@ -1,4 +1,4 @@
-import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select , Badge as UIBadge, Disclosure } from "../../ui";
+import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select, Badge as UIBadge, Disclosure, Line, Text } from "../../ui";
 import { when } from "../../format";
 /** Shared workflow administration in Users and contextual read-only team workload in Work. */
 import { useState } from "react";
@@ -70,7 +70,7 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
             const q = work.data!.agents.find((x) => x.role === r.name);
             return (
               <tr key={r.name}><td><code>{r.name}</code></td><td>{r.description}</td><td>{q?.waiting ?? 0}</td>
-                <td>{q?.failing ? <UIBadge className="badge late">{q.failing}</UIBadge> : 0}</td>
+                <td>{q?.failing ? <UIBadge tone="danger">{q.failing}</UIBadge> : 0}</td>
                 <td>{r.processes.map((p) => <a key={p} href={processHref(p, "routing")}>{p} </a>)}</td></tr>
             );
           })}
@@ -80,7 +80,7 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
         <Disclosure className="small" label={<>Recent agent failures ({work.data.agent_failures.length})</>}>
           <ul>{work.data.agent_failures.map((f, i) => (
             <li key={i}>{when(f.at)} <code>{f.actor}</code> {f.item_id && <a href={caseHref(f.item_id)}>{f.title ?? `case ${f.item_id}`}</a>}:{" "}
-              <span className="muted">{String(f.data.error ?? "")}</span></li>))}</ul>
+              <Text muted>{String(f.data.error ?? "")}</Text></li>))}</ul>
         </Disclosure>
       )}
     </section>
@@ -95,36 +95,36 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
   const changed = v.description !== (r.description ?? "") || v.default_sla !== (r.default_sla ?? "") ||
     v.escalate_to !== (r.escalate_to ?? "") || v.assignment !== r.assignment;
   return (
-    <Disclosure className="card" open={open} label={<><strong>{words(r.name)}</strong> <span className="muted small">{r.description}</span>{" "}
-        <span className="small">· {r.members.filter((m) => !m.away).length} available{r.members.some((m) => m.away) && `, ${r.members.filter((m) => m.away).length} away`}
-          {" "}· {r.waiting} waiting{r.overdue ? <>, <UIBadge className="badge late">{r.overdue} overdue</UIBadge></> : null}
-          {" "}· SLA {r.default_sla ? duration(r.default_sla) : "set per step"}{r.escalate_to && ` → ${words(r.escalate_to)}`}</span>
-        {r.uncovered && <UIBadge className="badge late"> no one available</UIBadge>}</>}>
+    <Disclosure className="card" open={open} label={<><strong>{words(r.name)}</strong> <Text small muted>{r.description}</Text>{" "}
+        <Text small>· {r.members.filter((m) => !m.away).length} available{r.members.some((m) => m.away) && `, ${r.members.filter((m) => m.away).length} away`}
+          {" "}· {r.waiting} waiting{r.overdue ? <>, <UIBadge tone="danger">{r.overdue} overdue</UIBadge></> : null}
+          {" "}· SLA {r.default_sla ? duration(r.default_sla) : "set per step"}{r.escalate_to && ` → ${words(r.escalate_to)}`}</Text>
+        {r.uncovered && <UIBadge tone="danger"> no one available</UIBadge>}</>}>
       <fieldset className="workflow-routing-fields" disabled={!editable || !!a.busy} aria-label={`${r.name} routing configuration`}>
       <Table variant="keyValue" density="compact">
         <tbody>
           <tr><th>What it's for</th><td><Input aria-label={`${r.name} description`} width="lg" value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} /></td></tr>
           <tr><th>Default SLA</th><td><Input aria-label={`${r.name} default SLA`} value={v.default_sla} placeholder="e.g. PT4H, P1D (empty: steps set their own)"
-            onChange={(e) => setV({ ...v, default_sla: e.target.value })} /> <span className="muted">for steps that set none</span></td></tr>
+            onChange={(e) => setV({ ...v, default_sla: e.target.value })} /> <Text muted>for steps that set none</Text></td></tr>
           <tr><th>When it passes, goes to</th><td>
             <Select aria-label={`${r.name} escalation role`} value={v.escalate_to} onChange={(e) => setV({ ...v, escalate_to: e.target.value })}>
               <option value="">stays with this role</option>
               {roles.filter((x) => x.name !== r.name).map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
-            </Select> <span className="muted">(a step's own escalateTo wins; chains up to three hops)</span></td></tr>
+            </Select> <Text muted>(a step's own escalateTo wins; chains up to three hops)</Text></td></tr>
           <tr><th>New steps</th><td>
             <Select aria-label={`${r.name} assignment policy`} value={v.assignment} onChange={(e) => setV({ ...v, assignment: e.target.value as WorkRoleRow["assignment"] })}>
               {Object.entries(ASSIGN).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </Select></td></tr>
           <tr><th>Members</th><td>{r.members.length ? r.members.map((m) => (
-            <UIBadge key={m.name} className="badge">{m.name}{m.away && ` (away${m.delegate ? `, ${m.delegate} covers` : ""})`}</UIBadge>))
-            : <span className="muted">none: give the role to someone under People</span>}</td></tr>
+            <UIBadge key={m.name}>{m.name}{m.away && ` (away${m.delegate ? `, ${m.delegate} covers` : ""})`}</UIBadge>))
+            : <Text muted>none: give the role to someone under People</Text>}</td></tr>
           <tr><th>Used in</th><td>{r.processes.length ? r.processes.map((p) => <a key={p} href={processHref(p, "routing")}>{p} </a>)
-            : <span className="muted">no published process</span>}</td></tr>
+            : <Text muted>no published process</Text>}</td></tr>
         </tbody>
       </Table>
       </fieldset>
       {editable && <>
-      <div className="row">
+      <Line>
         <ConfirmAction label={`Save routing for ${r.name}`} disabled={!changed} busy={!!a.busy}
           consequence={`Update shared ${r.name} routing defaults? Step-specific settings still take precedence. Application access and account assignments do not change.`}
           onConfirm={() => a.run("save", () => api.setRole(r.name, { description: v.description || null, default_sla: v.default_sla || null,
@@ -135,7 +135,7 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
             onConfirm={() => a.run("del", () => api.deleteRole(r.name, person), reload)} />
         )}
         {r.waiting > 0 && <a className="small" href={href("/exceptions", { list: "progress", who: `role:${r.name}` })}>see its {r.waiting} waiting</a>}
-      </div>
+      </Line>
       <ActionStatus busy={a.busy ? "Updating workflow routing..." : null} error={a.error} />
       </>}
     </Disclosure>
@@ -148,7 +148,7 @@ function NewRole({ person, reload }: { person: string; reload: () => void }) {
   const [kind, setKind] = useState<"person" | "agent">("person");
   const a = useAction();
   return (
-    <div className="row">
+    <Line>
       <Input aria-label="New workflow role name" placeholder="new role, e.g. integrity_engineer" value={name} onChange={(e) => setName(e.target.value)} />
       <Input aria-label="New workflow role description" width="lg" placeholder="what it's for" value={desc} onChange={(e) => setDesc(e.target.value)} />
       <Select aria-label="Workflow role kind" value={kind} onChange={(e) => setKind(e.target.value as "person" | "agent")}><option value="person">people</option><option value="agent">an agent</option></Select>
@@ -156,7 +156,7 @@ function NewRole({ person, reload }: { person: string; reload: () => void }) {
         consequence={`Add ${name} as a ${kind === "person" ? "human routing" : "separate automated agent"} role? Application permissions stay as they are. Owners span human roles only.`}
         onConfirm={() => a.run("add", () => api.setRole(name, { kind, description: desc || null }, person), () => { setName(""); setDesc(""); reload(); })} />
       <ActionStatus busy={a.busy ? "Adding workflow role..." : null} error={a.error} />
-    </div>
+    </Line>
   );
 }
 
@@ -191,13 +191,13 @@ function People({ people, roles, person, reload, inspect, editable, focus }: { p
       </Disclosure>}
       {editable && <Disclosure label={<>Add a legacy roster identity</>}>
       <p>Use an existing stable account identity for Microsoft users. A roster entry gives no sign-in or access.</p>
-      <div className="row">
+      <Line>
         <Input aria-label="Roster identity" placeholder="add a person" value={name} onChange={(e) => setName(e.target.value)} />
         <ConfirmAction label="Add roster identity" disabled={!name.trim() || people.some(p => p.name === name.trim())} busy={!!a.busy}
           consequence={`Add ${name.trim()} to the workflow roster with no roles? This does not create, enable or impersonate a Microsoft account.`}
           onConfirm={() => a.run("add", () => api.setWorkPerson(name.trim(), [], person), () => { setName(""); reload(); })} />
         <ActionStatus busy={a.busy ? "Adding roster identity..." : null} error={a.error} />
-      </div>
+      </Line>
       </Disclosure>}
     </>
   );
@@ -211,9 +211,9 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
   const a = useAction();
   return (
     <Card className="access-account" title={p.display_name || p.name}>
-      <p className="small">Roster identity: <code>{p.name}</code>. {p.account_enabled === false
+      <Text as="p" small>Roster identity: <code>{p.name}</code>. {p.account_enabled === false
         ? "Account disabled: saved assignments remain, but effective workflow access is empty."
-        : p.account_enabled === true ? "Linked to a signed-in account." : "Legacy roster identity, not automatically linked to a sign-in account."}</p>
+        : p.account_enabled === true ? "Linked to a signed-in account." : "Legacy roster identity, not automatically linked to a sign-in account."}</Text>
       <p><a href={href("/exceptions", { list: "progress", who: p.name })}>{p.assigned} assigned work items</a> · {p.overdue} overdue</p>
       <p>Works in: {scopeText(p)}{p.covers != null && p.cover_roles?.length ? ` (${p.cover_roles.join(", ")})` : ""}</p>
       <p>Saved workflow assignments: {(p.assigned_roles ?? p.roles).join(", ") || "None"}</p>
@@ -234,7 +234,7 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
             consequence="Clear the away period and its delegation? Inspect current work for any handoff already made."
             onConfirm={() => a.run("back", () => api.setAway(p.name, person, null), reload)} /></>
           : awayOpen ? (
-            <span className="row">
+            <Line as="span">
               <Input aria-label={`Away until for ${p.name}`} type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
               <Select aria-label={`Coverage for ${p.name}`} value={delegate} onChange={(e) => setDelegate(e.target.value)}>
                 <option value="">steps go back to the queue</option>
@@ -244,7 +244,7 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
                 consequence={`Set ${p.name} away until ${until}? Waiting work is handed to ${delegate || "its role queues"}. Application access stays as it is.`}
                 onConfirm={() => a.run("away", () => api.setAway(p.name, person, new Date(until).toISOString(), delegate || null), () => { setAwayOpen(false); reload(); })} />
               <Button disabled={!!a.busy} onClick={() => setAwayOpen(false)}>Cancel away change</Button>
-            </span>
+            </Line>
           ) : <Button variant="link" onClick={() => setAwayOpen(true)}>set away</Button>}
       </Disclosure>
       {!p.owner && <Disclosure label={<>Remove workflow roster entry</>}><ConfirmAction label="Remove from roster" busy={!!a.busy}

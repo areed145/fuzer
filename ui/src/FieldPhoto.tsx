@@ -2,6 +2,7 @@
  * the phone. Photos are fetched with the project header (an <img src> can't send it) and shown as thumbnails that
  * open full size. */
 import { useEffect, useState } from "react";
+import { Text } from "./ui";
 import { getProject } from "./authState";
 import type { FieldReading } from "./api";
 
@@ -23,7 +24,7 @@ export function FieldPhoto({ exceptionId, photoId }: { exceptionId: number; phot
       .then((b) => { url = URL.createObjectURL(b); setSrc(url); }, () => setFailed(true));
     return () => { if (url) URL.revokeObjectURL(url); };
   }, [exceptionId, photoId]);
-  if (failed) return <span className="small muted">photo unavailable</span>;
+  if (failed) return <Text small muted>photo unavailable</Text>;
   if (!src) return <span className="field-photo" aria-busy="true" />;
   return <a className="field-photo" href={src} target="_blank" rel="noreferrer"><img src={src} alt="Photo from the field" /></a>;
 }

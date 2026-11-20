@@ -13,11 +13,6 @@
 .banner.health-green { background: var(--ok-soft); }
 .banner .dot { width: 10px; height: 10px; }
 .jobs h2 { margin-top: 22px; margin-bottom: 8px; }
-.badge.run-ok { color: var(--ok); }
-.badge.run-warn { color: var(--warn); }
-.badge.run-fail { color: var(--danger); }
-.badge.run-updating { color: var(--warn); }
-.badge.run-key { color: var(--muted); font-family: var(--mono); }
 .trigger { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
 .trigger + .trigger { margin-top: 4px; }
 table.ui-table--results tr.static { cursor: default; }

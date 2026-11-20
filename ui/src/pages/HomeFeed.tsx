@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { when } from "../format";
 import { api, type ExceptionRow, type LocatedPlace, type WorkHome, type WorkInbox, type WorkRow } from "../api";
-import { Badge, Button, Empty } from "../ui";
+import { Badge, Button, Empty, Text } from "../ui";
 import { Status, href, useAsync, useLive } from "../lib";
 import { Actor, Due, holder, usePerson } from "../work";
 import { useAuth } from "../Auth";
@@ -161,8 +161,8 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
     <ol className="feed feed-changes" aria-label={label}>{rows.slice(0, CHANGES).map((c) => (
       <li key={c.id} className={`feed-item${fresh(`c-${c.id}`) ? " fresh" : ""}`} {...point(c.subjects ?? [], c.title)}>
         <a href={caseHref(c.item_id)} className="feed-title">{c.title}</a>
-        <span className="small muted">{SAID[c.kind] ?? c.kind.replace(/_/g, " ")} by <Actor who={c.actor} /> · {when(c.at)}
-          {typeof c.data.text === "string" && c.data.text ? <>: {c.data.text.slice(0, 100)}</> : null}</span>
+        <Text small muted>{SAID[c.kind] ?? c.kind.replace(/_/g, " ")} by <Actor who={c.actor} /> · {when(c.at)}
+          {typeof c.data.text === "string" && c.data.text ? <>: {c.data.text.slice(0, 100)}</> : null}</Text>
       </li>))}</ol>);
   return (
     <aside className={`home-feed${open ? " open" : ""}`} aria-label="Needs you">
@@ -192,16 +192,16 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
                     : <a href={i.to} className="feed-title">{i.title}</a>}
                   {i.due !== undefined && <Due at={i.due ?? null} />}
                 </span>
-                <span className="small muted">{i.meta}</span>
+                <Text small muted>{i.meta}</Text>
                 {placeOf(i.subjects) && <span className="feed-locate"><Button variant="ghost" size="sm" aria-label={`Show ${i.title} on the map`}
                   title="Show on the map" onClick={() => showOnMap(i.subjects, i.title)}><Pin /></Button></span>}
               </li>))}</ol>
               : !inbox.error && <Empty className="small">Nothing waiting for you.</Empty>}
             {items.length > TOP && <a className="small" href={href("/inbox")}>{items.length - TOP} more on My work</a>}
-            <h3>Since you last looked <span className="muted small">{since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}</span></h3>
+            <h3>Since you last looked <Text small muted>{since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}</Text></h3>
             {own.length ? changeList(own, "Since you last looked") : <Empty className="small">Nothing new on your work.</Empty>}
             {(watched.length > 0 || (since.data?.watching?.length ?? 0) > 0) && <>
-              <h3>Watching <span className="muted small">not assigned to you</span></h3>
+              <h3>Watching <Text small muted>not assigned to you</Text></h3>
               {watched.length ? changeList(watched, "Watching") : <Empty className="small">Nothing new on what you watch.</Empty>}
             </>}
           </>}

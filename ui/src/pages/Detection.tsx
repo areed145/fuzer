@@ -6,7 +6,7 @@ import {
 } from "../api";
 import { Status, errorMessage, notifyChanged, useAsync, useReasonedAction } from "../lib";
 import { loadPerson } from "../work";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Empty, Field, Input, Select, Table } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Empty, Field, Input, Select, Table, Line, Text } from "../ui";
 
 const show = (v: unknown) =>
   v === null || v === undefined || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
@@ -20,10 +20,10 @@ function State({ d }: { d: DetectorRow }) {
 
 function LastRun({ d }: { d: DetectorRow }) {
   const r = d.last_run;
-  if (!r) return <span className="muted">Not run yet</span>;
+  if (!r) return <Text muted>Not run yet</Text>;
   const what = r.status === "ran" ? (r.found === null ? "Ran" : `Ran, ${r.found} found`)
     : r.status === "failed" ? "Failed" : r.status === "off" ? "Off" : "Not applicable";
-  return <span title={r.note ?? undefined}>{what}<div className="muted small">{when(r.at)}</div></span>;
+  return <span title={r.note ?? undefined}>{what}<Text as="div" small muted>{when(r.at)}</Text></span>;
 }
 
 function Score({ d }: { d: DetectorRow }) {
@@ -31,48 +31,48 @@ function Score({ d }: { d: DetectorRow }) {
     return <span>{d.score.shadow.map((b) => <div key={b.bundle}>
       {b.bundle}: matched {pct(b.matched)} of {b.proposals} proposals to what no rule caught, precision {pct(b.precision)}
       {b.recall != null && <>, recall {pct(b.recall)}</>}
-      {b.windows && b.windows > 1 && <span className="muted small"> over {b.windows} windows</span>}
-      {b.passes != null && <span className="muted small"> ({b.passes ? "passes" : "short of the bar"})</span>}
-      {b.model === "scripted" && <span className="muted small"> (scripted model)</span>}
-    </div>)}<div className="muted small">In shadow, on replay</div></span>;
+      {b.windows && b.windows > 1 && <Text small muted> over {b.windows} windows</Text>}
+      {b.passes != null && <Text small muted> ({b.passes ? "passes" : "short of the bar"})</Text>}
+      {b.model === "scripted" && <Text small muted> (scripted model)</Text>}
+    </div>)}<Text as="div" small muted>In shadow, on replay</Text></span>;
   }
   if (d.score?.bundles) {
     return <span>{d.score.bundles.map((b) => <div key={b.bundle}>
       {b.bundle}: recall {pct(b.recall)}, precision {pct(b.precision)}, {b.false_alarms_per_week ?? "?"} false a week
-      {b.passes != null && <span className="muted small"> ({b.passes ? "passes" : "short of the bar"})</span>}
-    </div>)}<div className="muted small">On replay, a day at a time</div></span>;
+      {b.passes != null && <Text small muted> ({b.passes ? "passes" : "short of the bar"})</Text>}
+    </div>)}<Text as="div" small muted>On replay, a day at a time</Text></span>;
   }
   if (d.score) {
     return <span>Recall {pct(d.score.recall)}, precision {pct(d.score.precision)}
-      <div className="muted small">{d.score.since} to {d.score.until}</div></span>;
+      <Text as="div" small muted>{d.score.since} to {d.score.until}</Text></span>;
   }
-  return <span className="muted">{d.eval?.startsWith("replay:") ? "Not replayed yet" : "Fake plant test"}</span>;
+  return <Text muted>{d.eval?.startsWith("replay:") ? "Not replayed yet" : "Fake plant test"}</Text>;
 }
 
 /** How what it raised was closed out: confirmed and false-alarm rates of the cases closed out so far. */
 function CloseoutRates({ c }: { c: Closeouts }) {
-  if (!c.cases) return <span className="muted">No cases yet</span>;
-  if (!c.closed) return <span className="muted">{c.cases} open, none closed out</span>;
+  if (!c.cases) return <Text muted>No cases yet</Text>;
+  if (!c.closed) return <Text muted>{c.cases} open, none closed out</Text>;
   return <span>Confirmed {pct(c.confirmed_rate)}, false alarm {pct(c.false_alarm_rate)}
-    <div className="muted small">{c.closed} of {c.cases} cases closed out</div></span>;
+    <Text as="div" small muted>{c.closed} of {c.cases} cases closed out</Text></span>;
 }
 
 /** A detector's close-outs: what share was noise (false alarms and duplicates), per class when it has cases on more
  * than one. */
 function DetectorRates({ c }: { c: DetectorCloseouts }) {
-  if (!c.cases) return <span className="muted">No cases yet</span>;
-  if (!c.closed) return <span className="muted">{c.cases} open, none closed out</span>;
+  if (!c.cases) return <Text muted>No cases yet</Text>;
+  if (!c.closed) return <Text muted>{c.cases} open, none closed out</Text>;
   return <span>Confirmed {pct(c.confirmed_rate)}, noise {pct(c.noise_rate)}
-    <div className="muted small">{c.false_alarm} false alarm{c.false_alarm === 1 ? "" : "s"}, {c.duplicate} duplicate
-      {c.duplicate === 1 ? "" : "s"}; {c.closed} of {c.cases} cases closed out</div></span>;
+    <Text as="div" small muted>{c.false_alarm} false alarm{c.false_alarm === 1 ? "" : "s"}, {c.duplicate} duplicate
+      {c.duplicate === 1 ? "" : "s"}; {c.closed} of {c.cases} cases closed out</Text></span>;
 }
 
 function ClassRates({ d, classes }: { d: DetectorRow; classes: EquipmentClass[] }) {
   const rows = d.closeouts?.by_class.filter((r) => r.closed) ?? [];
   if (rows.length < 2) return null;
   const name = (code: string) => (code ? classes.find((x) => x.code === code)?.name ?? code : "Not classified");
-  return <p className="small">Close-outs by class: {rows.map((r, i) => <span key={r.class}>{i ? "; " : ""}
-    <b>{name(r.class)}</b> {r.closed} closed, noise {pct(r.noise_rate)}</span>)}</p>;
+  return <Text as="p" small>Close-outs by class: {rows.map((r, i) => <span key={r.class}>{i ? "; " : ""}
+    <b>{name(r.class)}</b> {r.closed} closed, noise {pct(r.noise_rate)}</span>)}</Text>;
 }
 
 /** The detectors on this asset: on or off, whether they apply, their last run and replay score, and their
@@ -133,11 +133,11 @@ function Proposal({ p, person, decided }: { p: TuningProposal; person: string; d
   };
   return <div className="setting-edit">
     <p><b>{p.title}</b></p>
-    <p className="small">{pct(p.noise_rate)} noise on {p.cases} closed cases{p.class ? ` on ${p.class}` : ""}. Replayed
+    <Text as="p" small>{pct(p.noise_rate)} noise on {p.cases} closed cases{p.class ? ` on ${p.class}` : ""}. Replayed
       over {p.windows} window{p.windows === 1 ? "" : "s"}: noisy cases raised {p.before.noise} to {p.after.noise}, real
       cases raised {p.before.real} to {p.after.real}.{" "}
-      {p.missed.length ? <b>It would miss case{p.missed.length === 1 ? "" : "s"} {p.missed.join(", ")}.</b> : "It misses no real case."}</p>
-    <div className="row small">
+      {p.missed.length ? <b>It would miss case{p.missed.length === 1 ? "" : "s"} {p.missed.join(", ")}.</b> : "It misses no real case."}</Text>
+    <Line small>
       <ConfirmAction label="Accept tuning" busy={!!busy}
         consequence={`Set ${p.param} to ${p.proposed} for ${p.detector}${p.class ? ` on ${p.class}` : ""}? It takes effect on its next run and is kept in the settings history.`}
         onConfirm={() => act("Accepting", () => api.acceptTuning(p.id, person))} />
@@ -145,7 +145,7 @@ function Proposal({ p, person, decided }: { p: TuningProposal; person: string; d
         value={reason} onChange={(e) => setReason(e.target.value)} />
       <Button disabled={!!busy || reason.trim().length < 3}
         onClick={() => act("Setting aside", () => api.setTuningAside(p.id, person, reason))}>Set aside</Button>
-    </div>
+    </Line>
     <ActionStatus busy={busy} error={error} />
   </div>;
 }
@@ -208,17 +208,17 @@ function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; per
 
 function ProposalLine({ p, busy, judge }: { p: WatchProposal; busy: boolean; judge: (real: boolean) => void }) {
   return <tr>
-    <td>{when(p.start ?? p.since)}{p.end && <div className="muted small">to {when(p.end)}</div>}</td>
+    <td>{when(p.start ?? p.since)}{p.end && <Text as="div" small muted>to {when(p.end)}</Text>}</td>
     <td>{p.area_name ?? "—"}</td>
-    <td>{p.subject ?? "—"}{!p.cited && <div className="small"><Badge tone="warn">Cites what it wasn't shown</Badge></div>}</td>
-    <td>{p.why}{p.ruled_out && <div className="muted small">Ruled out: {p.ruled_out}</div>}</td>
+    <td>{p.subject ?? "—"}{!p.cited && <Text as="div" small><Badge tone="warn">Cites what it wasn't shown</Badge></Text>}</td>
+    <td>{p.why}{p.ruled_out && <Text as="div" small muted>Ruled out: {p.ruled_out}</Text>}</td>
     <td>{p.verdict
       ? <span><Badge tone={p.verdict === "confirmed" ? "ok" : "muted"}>{p.verdict === "confirmed" ? "Confirmed" : "Rejected"}</Badge>
-        <div className="muted small">{p.verdict_by}, {when(p.verdict_at)}</div></span>
-      : <div className="row small">
+        <Text as="div" small muted>{p.verdict_by}, {when(p.verdict_at)}</Text></span>
+      : <Line small>
         <Button size="sm" disabled={busy} onClick={() => judge(true)}>Confirm</Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => judge(false)}>Reject</Button>
-      </div>}</td>
+      </Line>}</td>
   </tr>;
 }
 
@@ -227,7 +227,7 @@ function PatternLine({ p, name, busy, draft }: { p: WatchPattern; name: string; 
     <td>{name}</td>
     <td>{p.confirmed} of {p.needed} needed</td>
     <td>{p.smallest_z === null ? "—" : `${p.smallest_z.toFixed(1)} × the week's spread`}
-      {p.shortest_minutes ? <div className="muted small">for {p.shortest_minutes} min at the shortest</div> : null}</td>
+      {p.shortest_minutes ? <Text as="div" small muted>for {p.shortest_minutes} min at the shortest</Text> : null}</td>
     <td>{p.rule ? <Badge tone={p.rule.status === "published" ? "ok" : undefined}>
       {p.rule.status === "published" ? "Published" : "Drafted"}</Badge>
       : <Button size="sm" disabled={busy || !p.ready}
@@ -244,18 +244,18 @@ function RuleLine({ r, name, person, saved }: { r: PromotedRule; name: string; p
     <p><b>{name}</b>{" "}
       <Badge tone={r.status === "published" ? "ok" : r.status === "retired" ? "muted" : undefined}>
         {r.status === "published" ? "Published" : r.status === "retired" ? "Retired" : "Draft"}</Badge></p>
-    <p className="small">Average over {r.spec.minutes} min moving {r.spec.direction === "high" ? "above" : "below"} the
-      week before by {r.spec.z} × its spread · fitted on {r.examples.length} confirmed proposals</p>
-    <p className="small">{s
+    <Text as="p" small>Average over {r.spec.minutes} min moving {r.spec.direction === "high" ? "above" : "below"} the
+      week before by {r.spec.z} × its spread · fitted on {r.examples.length} confirmed proposals</Text>
+    <Text as="p" small>{s
       ? <>Replay: recall {pct(s.recall)} ({s.detected} of {s.events} events), precision {pct(s.precision)},
-        {" "}{s.false_alarms_per_week ?? "—"} false alarms a week <span className="muted">({whenDay(s.since)} to {whenDay(s.until)})</span></>
-      : <span className="muted">Not replayed yet</span>}
-      <span className="muted"> · drafted by {r.drafted_by}, {when(r.drafted_at)}
+        {" "}{s.false_alarms_per_week ?? "—"} false alarms a week <Text muted>({whenDay(s.since)} to {whenDay(s.until)})</Text></>
+      : <Text muted>Not replayed yet</Text>}
+      <Text muted> · drafted by {r.drafted_by}, {when(r.drafted_at)}
         {r.published_by && ` · published by ${r.published_by}, ${when(r.published_at)}`}
         {r.retired_by && ` · retired by ${r.retired_by}, ${when(r.retired_at)}`}
-        {r.reason && ` · "${r.reason}"`}</span></p>
+        {r.reason && ` · "${r.reason}"`}</Text></Text>
 
-    {live && <div className="row small">
+    {live && <Line small>
       <Input aria-label={`Reason for the rule on ${name}`} className="grow" placeholder="reason for the change"
         value={c.reason} onChange={(e) => c.setReason(e.target.value)} />
       {r.status === "draft" && <Button variant="primary" disabled={!!c.busy}
@@ -264,7 +264,7 @@ function RuleLine({ r, name, person, saved }: { r: PromotedRule; name: string; p
       <Button variant={r.status === "published" ? "danger" : "secondary"} disabled={!!c.busy}
         onClick={() => c.run("Retiring", (why) => api.retireRule(r.id, person, why),
           r.status === "published" ? "Retired. It stops from the next scan; its detections stay." : "Retired.")}>Retire</Button>
-    </div>}
+    </Line>}
     <ActionStatus busy={c.busy} error={c.error}>{c.done}</ActionStatus>
   </div>;
 }
@@ -280,7 +280,7 @@ function ProviderLine({ p, classes, levels, person, open, toggle, saved }: {
   const all = p.trust.find((t) => t.class === "");
   return <>
     <tr>
-      <td>{p.label}<div className="muted small">{p.system}{p.enabled ? "" : " · off"}</div></td>
+      <td>{p.label}<Text as="div" small muted>{p.system}{p.enabled ? "" : " · off"}</Text></td>
       <td><code>{p.type}</code></td>
       <td>{all ? levels[all.trust] : levels.route}
         {p.trust.filter((t) => t.class).map((t) => <div key={t.class} className="muted small">{name(t.class)}: {levels[t.trust]}</div>)}
@@ -291,8 +291,8 @@ function ProviderLine({ p, classes, levels, person, open, toggle, saved }: {
     {open && <tr className="setting-edit">
       <td colSpan={5}>
         {p.trust.map((t) => <p key={t.class} className="small"><b>{name(t.class)}</b>: {levels[t.trust]}, "{t.reason}"
-          <span className="muted"> ({t.updated_by}, {when(t.updated_at)})</span></p>)}
-        <div className="row small">
+          <Text muted> ({t.updated_by}, {when(t.updated_at)})</Text></p>)}
+        <Line small>
           <Field label="Equipment class" width="sm">
             <Select value={cls} onChange={(e) => setCls(e.target.value)}>
               <option value="">All classes</option>
@@ -309,7 +309,7 @@ function ProviderLine({ p, classes, levels, person, open, toggle, saved }: {
           <Button variant="primary" disabled={!!c.busy}
             onClick={() => c.run("Saving", (r) => api.setProviderTrust(p.system, p.name, trust, cls || null, person, r),
               "Saved. Applies to its next alerts; cases already open stay as they are.")}>Save</Button>
-        </div>
+        </Line>
         <ActionStatus busy={c.busy} error={c.error}>{c.done}</ActionStatus>
       </td>
     </tr>}
@@ -322,11 +322,11 @@ function DetectorLine({ d, classes, project, person, open, toggle, saved }: {
 }) {
   return <>
     <tr>
-      <td>{d.title}{d.version && d.version > 1 ? <span className="muted small"> v{d.version}</span> : null}
-        <div className="muted small">{d.about}</div></td>
+      <td>{d.title}{d.version && d.version > 1 ? <Text small muted> v{d.version}</Text> : null}
+        <Text as="div" small muted>{d.about}</Text></td>
       <td>{d.kind_label}</td>
       <td>{d.cadence_label}</td>
-      <td><State d={d} />{!d.applicable && d.note && <div className="muted small">{d.note}</div>}</td>
+      <td><State d={d} />{!d.applicable && d.note && <Text as="div" small muted>{d.note}</Text>}</td>
       <td><LastRun d={d} /></td>
       <td><Score d={d} /></td>
       <td>{d.closeouts && <DetectorRates c={d.closeouts} />}</td>
@@ -345,7 +345,7 @@ function DetectorLine({ d, classes, project, person, open, toggle, saved }: {
 function Switch({ d, project, person, saved }: { d: DetectorRow; project: string | null; person: string; saved: () => void }) {
   const c = useReasonedAction(saved);
   const next = !d.on;
-  return <div className="row small">
+  return <Line small>
     <Input aria-label={`Reason to switch ${d.title}`} className="grow" placeholder="reason for the change"
       value={c.reason} onChange={(e) => c.setReason(e.target.value)} />
     <Button disabled={!!c.busy || !project} title={project ? undefined : "Pick a project first"}
@@ -353,9 +353,9 @@ function Switch({ d, project, person, saved }: { d: DetectorRow; project: string
         next ? "Switched on from its next run." : "Switched off from its next run. Open work it raised stays open.")}>
       {next ? "Switch on" : "Switch off"}
     </Button>
-    {d.switched && <span className="muted">Last switched by {d.switched.updated_by}, {when(d.switched.updated_at)}</span>}
+    {d.switched && <Text muted>Last switched by {d.switched.updated_by}, {when(d.switched.updated_at)}</Text>}
     <ActionStatus busy={c.busy} error={c.error}>{c.done}</ActionStatus>
-  </div>;
+  </Line>;
 }
 
 function Param({ d, s, classes, person, saved }: {
@@ -371,7 +371,7 @@ function Param({ d, s, classes, person, saved }: {
     <p><b>{s.description}</b>: {show(s.value)} <Badge>{s.from}</Badge>
       {s.classes.map((x) => <span key={x.qualifier} className="muted small"> · {name(x.qualifier)}: {show(x.value)} ({x.updated_by})</span>)}
     </p>
-    <div className="row small">
+    <Line small>
       {s.by_class && <Field label="Equipment class" width="sm">
         <Select value={cls} onChange={(e) => {
           setCls(e.target.value);
@@ -394,7 +394,7 @@ function Param({ d, s, classes, person, saved }: {
       <Button disabled={!!c.busy || (cls ? !set : s.from !== "project")}
         onClick={() => c.run("Resetting", (r) => api.tuneDetector(d.name, s.key, { ...target, reset: true }, person, r),
           cls ? "Back to the value for all classes." : "Back to the global value.")}>Reset</Button>
-    </div>
+    </Line>
     <ActionStatus busy={c.busy} error={c.error}>{c.done}</ActionStatus>
   </div>;
 }

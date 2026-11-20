@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { href, notifyChanged, useAsync } from "./lib";
 import { usePerson } from "./work";
-import { Button, Input, Select, ErrorText } from "./ui";
+import { Button, Input, Select, ErrorText, Text } from "./ui";
 import { getProject, switchProject, type AuthSession } from "./authState";
 import { SignOut, useAuth, usePermission } from "./Auth";
 
@@ -20,7 +20,7 @@ export function ProjectPicker({ session }: { session: AuthSession | null }) {
   }, [session, picked, known]);
   if (options.length < 2 && (!current || options.includes(current))) return null;
   return <label className="identity small project-picker">
-    <span className="muted">Project</span>
+    <Text muted>Project</Text>
     <Select value={current} aria-label="Project" onChange={(e) => switchProject(e.target.value)}>
       {!options.includes(current) && <option value={current}>{current ? projectName(current) : "Default"}</option>}
       {options.map((name) => <option key={name} value={name}>{projectName(name)}</option>)}
@@ -107,7 +107,7 @@ function ActingAs({ actor }: { actor: string }) {
   };
   return <>
     <label className="acting-as">
-      <span className="muted">Acting as</span>
+      <Text muted>Acting as</Text>
       <Select value={value} aria-label="Acting as" disabled={!data.data} onChange={(e) => pick(e.target.value)}>
         <option value="">{picked.length > 1 ? picked.map(spaced).join(", ") : "Every role"}</option>
         {(data.data?.roles ?? []).map((role) => <option key={role} value={role}>{spaced(role)}</option>)}
@@ -137,13 +137,13 @@ function LocalIdentity() {
   }
   return (
     <div className="identity small">
-      <span className="muted">You are </span>
+      <Text muted>You are </Text>
       <Button variant="link" title="change" onClick={() => { setDraft(person); setEditing(true); }}><strong>{person}</strong></Button>
-      <div className="muted">
+      <Text as="div" muted>
         {me ? me.roles.join(", ") || "no roles" : <a href={href("/users", { view: "workflow" })}>not on the roster: manage assignments</a>}
         {me?.away_until && new Date(me.away_until) > new Date() && " · away"}
         {covering.length > 0 && ` · covering for ${covering.map((p) => p.name).join(", ")}`}
-      </div>
+      </Text>
     </div>
   );
 }

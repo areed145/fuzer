@@ -2,7 +2,7 @@ import "./styles/finding.css";
 import { money, percent, when } from "./format";
 import type { CaseSource, Finding, FindingItem } from "./api";
 import { entityHref } from "./lib";
-import { Card, Disclosure } from "./ui";
+import { Card, Disclosure, Text } from "./ui";
 import { reportedBy } from "./work";
 import { say, unit as wordUnit } from "./wording";
 
@@ -83,7 +83,7 @@ export function CaseFindings({ sources }: { sources?: CaseSource[] }) {
   return (
     <Card className="case-findings" title={reportedBy(all)}>
       {all.map((x) => <Disclosure key={x.id} open className="evidence-item" label={<><strong>{x.label}</strong> from {x.source ?? "unknown"}: {x.title}{" "}
-          <span className="muted small">· {when(x.first_seen)}{x.state !== "open" ? ` · ${x.state}` : ""}</span></>}>
+          <Text small muted>· {when(x.first_seen)}{x.state !== "open" ? ` · ${x.state}` : ""}</Text></>}>
         <FindingEvidence finding={x.finding} />
       </Disclosure>)}
     </Card>

@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Badge as UIBadge, Empty } from "../../ui";
+import { ActionStatus, ConfirmAction, Badge as UIBadge, Empty, Text, type Tone } from "../../ui";
 import { when, count } from "../../format";
 /** Shared by the Sources pages (#225): who is acting, small formatting helpers, async buttons, badges, a line diff
  * and the "rebuild needed" banner. */
@@ -8,10 +8,7 @@ import { loadPerson } from "../../work";
 
 export const reviewer = () => loadPerson() || "anonymous";
 
-export const STATE: Record<string, string> = {
-  ok: "ok", done: "ok", unchanged: "ok", new: "key", "not loaded": "key", changed: "updating", stale: "", held: "",
-  failed: "", unmapped: "",
-};
+export const STATE: Record<string, Tone> = { ok: "ok", done: "ok", unchanged: "ok", changed: "warn" };
 
 export const cell = (v: unknown) =>
   v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v).slice(0, 80) : String(v);
@@ -64,8 +61,8 @@ export function TestSteps({ steps }: { steps: { step: string; ok: boolean; ms: n
   return (
     <ul className="small">
       {steps.map((s) => (
-        <li key={s.step}><UIBadge className={`badge ${s.ok ? "ok" : ""}`}>{s.ok ? "ok" : "failed"}</UIBadge> {s.step}{" "}
-          <span className="muted">{s.ms} ms · {cell(s.detail)}</span></li>
+        <li key={s.step}><UIBadge tone={s.ok ? "ok" : "muted"}>{s.ok ? "ok" : "failed"}</UIBadge> {s.step}{" "}
+          <Text muted>{s.ms} ms · {cell(s.detail)}</Text></li>
       ))}
     </ul>
   );

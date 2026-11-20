@@ -3,7 +3,7 @@ import { when, count } from "../format";
 import { useEffect, useRef } from "react";
 import { api, type Investigation, type InvestigationRecord } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Badge, ButtonLink, Card, EmptyState, PageHeader, Stat, Empty } from "../ui";
+import { Badge, ButtonLink, Card, EmptyState, PageHeader, Stat, Empty, Text } from "../ui";
 
 const STEPS = [
   { key: "issue", label: "Understand the issue" },
@@ -38,7 +38,7 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
       </PageHeader>
       <div className="investigation-context">
         <Badge>Synthetic demo data</Badge>
-        {result.data && <span className="small"> {monthOf(result.data.since)}, with follow-up</span>}
+        {result.data && <Text small> {monthOf(result.data.since)}, with follow-up</Text>}
       </div>
       <Status of={result} />
       {result.error && (
@@ -64,7 +64,7 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
             </ol>
           </nav>
           <Card className="investigation-stage">
-            <p className="small">Step {index + 1} of {STEPS.length}</p>
+            <Text as="p" small>Step {index + 1} of {STEPS.length}</Text>
             <h2 id="investigation-step" tabIndex={-1} ref={heading}>{step.label}</h2>
             {step.key === "issue" && <Issue data={result.data} />}
             {step.key === "asset" && <Asset data={result.data} />}
@@ -136,9 +136,9 @@ function Provenance({ records }: { records: InvestigationRecord[] }) {
       {records.map((r) => (
         <li key={`${r.source}:${r.record_type}:${r.key}`}>
           <strong>{r.source}</strong> / {r.record_type} / <code>{r.key}</code>
-          <span className="muted">Last observed during ingestion: <time dateTime={r.observed_at}>
+          <Text muted>Last observed during ingestion: <time dateTime={r.observed_at}>
             {when(r.observed_at, "Time unknown")}
-          </time></span>
+          </time></Text>
         </li>
       ))}
     </ul>
@@ -173,7 +173,7 @@ function EvidenceCard({ evidence: e, number, selected }: {
       {e.lost_oil_bbl !== null && <p><strong>{count(e.lost_oil_bbl)} bbl recorded lost oil</strong>
         {" "}(stock tank barrels, not bbl/d)</p>}
       <Provenance records={e.records} />
-      <p className="small">Register record: <code>{e.label}</code></p>
+      <Text as="p" small>Register record: <code>{e.label}</code></Text>
     </article>
   );
 }

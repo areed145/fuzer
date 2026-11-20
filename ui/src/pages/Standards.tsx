@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type ModelRollout, type ModelVersion, type Standing, type StandingDeviation } from "../api";
 import { Status, useAsync, errorMessage } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea, Text } from "../ui";
 import { loadPerson, usePerson } from "../work";
 import { person as personName } from "../wording";
 
@@ -52,9 +52,9 @@ export function Standards() {
     <h2>Standards</h2>
     <Button disabled={c.loading} onClick={() => { c.reload(); v.reload(); }}>Refresh</Button>
     <Status of={c} />
-    {d && <p className="small">Current standard: {d.current.model} v{d.current.version}. Work in practice over the
-      last {d.days} days.</p>}
-    {!person && <p className="small">Say who you are in the sidebar (bottom left) to propose, review or roll out.</p>}
+    {d && <Text as="p" small>Current standard: {d.current.model} v{d.current.version}. Work in practice over the
+      last {d.days} days.</Text>}
+    {!person && <Text as="p" small>Say who you are in the sidebar (bottom left) to propose, review or roll out.</Text>}
     <ActionStatus busy={busy} error={error}>{done}</ActionStatus>
     {d?.projects.map((p) => <Card key={p.project}
       title={<>{p.project} {p.verdict && <Badge tone={TONE[p.verdict]}>{LABEL[p.verdict]}</Badge>}</>}>
@@ -67,11 +67,11 @@ export function Standards() {
           <thead><tr><th>Where</th><th>Change</th><th>Why</th><th>Owner</th><th>Review by</th><th>Standard</th></tr></thead>
           <tbody>{p.deviations.map((x) => <tr key={`${x.part}:${x.key}`}>
             <td data-label="Where">{x.part.replace("_", " ")}: {x.key}</td>
-            <td data-label="Change">{x.change}</td>
-            <td data-label="Why">{x.reason ?? <Badge tone="danger">no reason given</Badge>}</td>
-            <td data-label="Owner">{x.owner ?? "nobody"}</td>
-            <td data-label="Review by">{x.review_by ?? "not set"}{x.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
-            <td data-label="Standard"><Promote project={p.project} deviation={x} person={person} busy={!!busy} act={act} /></td>
+            <td>{x.change}</td>
+            <td>{x.reason ?? <Badge tone="danger">no reason given</Badge>}</td>
+            <td>{x.owner ?? "nobody"}</td>
+            <td>{x.review_by ?? "not set"}{x.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
+            <td><Promote project={p.project} deviation={x} person={person} busy={!!busy} act={act} /></td>
           </tr>)}</tbody>
         </Table>}
         {p.practice && <ul className="small">
@@ -85,8 +85,8 @@ export function Standards() {
         </ul>}
       </>}
     </Card>)}
-    {d && d.left_out.length > 0 && <p className="small">Not shown, because you aren't granted them:{" "}
-      {d.left_out.join(", ")}.</p>}
+    {d && d.left_out.length > 0 && <Text as="p" small>Not shown, because you aren't granted them:{" "}
+      {d.left_out.join(", ")}.</Text>}
 
     <Card title="Changes to the standard">
       <Status of={v} />
@@ -94,12 +94,12 @@ export function Standards() {
         <thead><tr><th>Version</th><th>State</th><th>What</th><th>Proposed by</th><th>Test run</th><th>Review</th><th>Next</th></tr></thead>
         <tbody>{v.data.versions.map((x) => <tr key={`${x.name}:${x.version}`}>
           <td data-label="Version">{x.name} v{x.version}</td>
-          <td data-label="State"><Badge tone={STATE[x.state]}>{x.state}</Badge></td>
-          <td data-label="What">{x.summary}</td>
-          <td data-label="Proposed by">{x.proposed_by}</td>
-          <td data-label="Test run">{x.test_run ? <TestRun run={x.test_run} /> : "none"}</td>
-          <td data-label="Review">{x.reviewed_by ? `${x.reviewed_by}: ${x.review_note}` : "none"}</td>
-          <td data-label="Next"><Next version={x} person={person} admin={admin} busy={!!busy} act={act}
+          <td><Badge tone={STATE[x.state]}>{x.state}</Badge></td>
+          <td>{x.summary}</td>
+          <td>{x.proposed_by}</td>
+          <td>{x.test_run ? <TestRun run={x.test_run} /> : "none"}</td>
+          <td>{x.reviewed_by ? `${x.reviewed_by}: ${x.review_note}` : "none"}</td>
+          <td><Next version={x} person={person} admin={admin} busy={!!busy} act={act}
             projects={projects} rollouts={v.data!.rollouts} /></td>
         </tr>)}</tbody>
       </Table>}
@@ -113,11 +113,11 @@ export function Standards() {
         <thead><tr><th>Asset</th><th>Rolled out</th><th>From</th><th>State</th><th>By</th><th>Rollback</th></tr></thead>
         <tbody>{v.data.rollouts.map((r) => <tr key={r.id}>
           <td data-label="Asset">{r.project}</td>
-          <td data-label="Rolled out">{r.name} v{r.version}</td>
-          <td data-label="From">{r.from_name} v{r.from_version}</td>
-          <td data-label="State">{r.state.replace("_", " ")}{r.rollback_reason ? `: ${r.rollback_reason}` : ""}</td>
-          <td data-label="By">{personName(r.rolled_back_by ?? r.by)}</td>
-          <td data-label="Rollback">{r.state === "live" && <Rollback rollout={r} person={person} busy={!!busy} act={act} />}</td>
+          <td>{r.name} v{r.version}</td>
+          <td>{r.from_name} v{r.from_version}</td>
+          <td>{r.state.replace("_", " ")}{r.rollback_reason ? `: ${r.rollback_reason}` : ""}</td>
+          <td>{personName(r.rolled_back_by ?? r.by)}</td>
+          <td>{r.state === "live" && <Rollback rollout={r} person={person} busy={!!busy} act={act} />}</td>
         </tr>)}</tbody>
       </Table>
     </Card>}
@@ -149,7 +149,7 @@ function Next({ version: x, person, admin, busy, act, projects, rollouts }: {
     return <>
       <Button disabled={busy} onClick={() => act("Test run", () => api.testRunModelChange(x.version),
         `v${x.version} was test-run on this project's closed cases.`)}>Test run</Button>
-      {why ? <p className="small">{why}</p> : <>
+      {why ? <Text as="p" small>{why}</Text> : <>
         <Field label="Review note"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         <Button variant="primary" disabled={busy || !note.trim() || !!x.test_run?.problems.length}
           onClick={() => act("Approve", () => api.reviewModelChange(x.version, true, note, loadPerson()), `v${x.version} approved.`)}>
@@ -164,17 +164,17 @@ function Next({ version: x, person, admin, busy, act, projects, rollouts }: {
     return admin ? <ConfirmAction label="Publish" busy={busy}
       consequence={`v${x.version} becomes a version every asset can be rolled out to. Nothing changes on an asset until it is rolled out.`}
       onConfirm={() => act("Publish", () => api.publishModelChange(x.version, loadPerson()), `v${x.version} published.`)} />
-      : <p className="small">Publishing needs the {ADMIN} role.</p>;
+      : <Text as="p" small>Publishing needs the {ADMIN} role.</Text>;
   }
   if (x.state === "published") {
-    if (!targets.length) return <span className="small">Every asset shown runs it.</span>;
+    if (!targets.length) return <Text small>Every asset shown runs it.</Text>;
     return <>
       <Field label="Asset" width="sm"><Select value={chosen} onChange={(e) => setTarget(e.target.value)}>
         {targets.map((p) => <option key={p}>{p}</option>)}</Select></Field>
       {admin ? <ConfirmAction label="Roll out" busy={busy} disabled={!chosen}
         consequence={`${chosen} starts running ${x.name} v${x.version}: its roles, settings, workflows and forms change to this version. Its named setting differences are kept, and it can be rolled back.`}
         onConfirm={() => act("Roll out", () => api.rolloutModel(chosen, x.version, loadPerson()), `${chosen} now runs v${x.version}.`)} />
-        : <p className="small">Rolling out needs the {ADMIN} role.</p>}
+        : <Text as="p" small>Rolling out needs the {ADMIN} role.</Text>}
     </>;
   }
   return null;
@@ -182,7 +182,7 @@ function Next({ version: x, person, admin, busy, act, projects, rollouts }: {
 
 function Rollback({ rollout: r, person, busy, act }: { rollout: ModelRollout; person: string; busy: boolean; act: Act }) {
   const [reason, setReason] = useState("");
-  if (!person) return <span className="small">Say who you are first.</span>;
+  if (!person) return <Text small>Say who you are first.</Text>;
   return <>
     <Field label="Why" width="sm"><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
     <ConfirmAction label="Roll back" busy={busy} disabled={!reason.trim()}
@@ -218,7 +218,7 @@ function Propose({ person, busy, act }: { person: string; busy: boolean; act: Ac
   if (value.trim()) {
     try { parsed = JSON.parse(value); } catch { bad = "The value isn't valid JSON."; }
   }
-  if (!person) return <p className="small">Say who you are first.</p>;
+  if (!person) return <Text as="p" small>Say who you are first.</Text>;
   return <div>
     <Field label="Part" width="sm"><Select value={part} onChange={(e) => setPart(e.target.value)}>
       {PARTS.map((p) => <option key={p} value={p}>{p.replace("_", " ")}</option>)}</Select></Field>

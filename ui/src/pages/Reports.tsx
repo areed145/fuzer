@@ -10,12 +10,10 @@ import { readableCitations } from "../entityRefs";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { AgentIdle } from "./workflows/shared";
-import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText } from "../ui";
+import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Line, Text, type Tone } from "../ui";
 import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
-const STATUS_CLASS: Record<string, string> = {
-  published: "ok", "awaiting review": "key", "sent back": "warn", drafting: "warn", "needs a fix": "warn",
-};
+const STATUS_TONE: Record<string, Tone> = { published: "ok", "sent back": "warn", drafting: "warn", "needs a fix": "warn" };
 const STATUS_HELP: Record<string, string> = {
   drafting: "the reporter agent is drafting it",
   "awaiting review": "drafted; waiting for the ops lead to publish it or send it back",
@@ -29,7 +27,7 @@ const weekday = (day: string) => new Date(`${day}T00:00Z`).toLocaleDateString(un
 const dayMonth = (day: string) => whenDay(day);
 
 export function StatusBadge({ status }: { status: DailyStatus }) {
-  return <UIBadge className={`badge ${STATUS_CLASS[status] ?? ""}`} title={STATUS_HELP[status]}>{status}</UIBadge>;
+  return <UIBadge tone={STATUS_TONE[status]} title={STATUS_HELP[status]}>{status}</UIBadge>;
 }
 
 export function ReportsPage({ query }: { query: URLSearchParams }) {
@@ -45,7 +43,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
       <Status of={days} empty={days.data?.length === 0}>
         No reports yet: `fuzer report` closes a day.
       </Status>
-      {waiting > 0 && <p className="small">{waiting} report{waiting > 1 ? "s" : ""} awaiting review.</p>}
+      {waiting > 0 && <Text as="p" small>{waiting} report{waiting > 1 ? "s" : ""} awaiting review.</Text>}
       {/* A strip of days, newest first, each with its status: the wrapping line of versions read as noise (#1078). */}
       {days.data && days.data.length > 0 && (
         <nav className="report-days" aria-label="Report days">
@@ -98,7 +96,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
             </UICard>
             <UICard  as="section">
               <h2>Checks</h2>
-              {d.checks.ok ? <p className="small">Every line cites its records and every number is in them.</p> : (
+              {d.checks.ok ? <Text as="p" small>Every line cites its records and every number is in them.</Text> : (
                 <ul className="small">
                   {d.checks.uncited_lines.map((l) => <li key={l}>No citation: {l}</li>)}
                   {d.checks.unknown_citations.map((c) => <li key={c}>Cites a record not in the day's facts: {c}</li>)}
@@ -106,7 +104,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
                 </ul>
               )}
               {d.production_day && (
-                <p className="small">The day's production figures: <a href={entityHref(d.production_day)}>EC DAY001 record</a>.</p>
+                <Text as="p" small>The day's production figures: <a href={entityHref(d.production_day)}>EC DAY001 record</a>.</Text>
               )}
               {d.changes && (
                 <>
@@ -135,14 +133,14 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
   const [comments, setComments] = useState("");
   const a = useAction();
   const rv = d.review;
-  if (!rv) return <p className="small muted"><StatusBadge status="no review" /> {STATUS_HELP["no review"]}</p>;
+  if (!rv) return <Text as="p" small muted><StatusBadge status="no review" /> {STATUS_HELP["no review"]}</Text>;
   const step = rv.step;
   const caseLink = <a href={href(`/cases/${rv.item_id}`)}>case history</a>;
   if (rv.status !== "awaiting review" || !step) {
     return (
       <p className="small row">
-        <StatusBadge status={rv.status} /> <span className="muted">{STATUS_HELP[rv.status] ?? rv.status}
-          {rv.closed_at && ` ${when(rv.closed_at)}`}</span>
+        <StatusBadge status={rv.status} /> <Text muted>{STATUS_HELP[rv.status] ?? rv.status}
+          {rv.closed_at && ` ${when(rv.closed_at)}`}</Text>
         {rv.comments && rv.status === "sent back" && <span>Asked for: “{rv.comments}”</span>}
         {step?.error && <ErrorText inline>{step.error}</ErrorText>}
         <AgentIdle step={step} />
@@ -157,15 +155,15 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
   }, () => { setRevising(false); setComments(""); onDone(); });
   return (
     <UICard  as="section">
-      <div className="row spread">
+      <Line spread>
         <h2>Review this report</h2>
         <span className="small row"><StatusBadge status={rv.status} />
-          {step.due_at && <span className="muted">due {when(step.due_at)}</span>} {caseLink}</span>
-      </div>
+          {step.due_at && <Text muted>due {when(step.due_at)}</Text>} {caseLink}</span>
+      </Line>
       {!person ? (
-        <p className="small">Say who you are in the sidebar (bottom left) to review it.</p>
+        <Text as="p" small>Say who you are in the sidebar (bottom left) to review it.</Text>
       ) : held ? (
-        <p className="small">{step.assignee} has this review. <a href={href(`/inbox/task/${step.id}`)}>Open the task</a> to hand it on.</p>
+        <Text as="p" small>{step.assignee} has this review. <a href={href(`/inbox/task/${step.id}`)}>Open the task</a> to hand it on.</Text>
       ) : (
         <>
           {revising ? (

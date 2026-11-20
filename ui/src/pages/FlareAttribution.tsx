@@ -6,8 +6,8 @@
  * compliance finding, and no permit limit is loaded. */
 import { api, type FlareReview } from "../api";
 import { whenDay, count } from "../format";
-import { Badge, Card, Empty, Table } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Badge, Empty, Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 
 const KIND: Record<FlareReview["episodes"][number]["causes"][number]["kind"], string> = {
   downtime: "Downtime", log_entry: "Log", detection: "Detection",
@@ -16,40 +16,39 @@ const KIND: Record<FlareReview["episodes"][number]["causes"][number]["kind"], st
 export function FlareAttribution() {
   const data = useAsync(() => api.incidentFlare(), []);
   const d = data.data;
-  if (d && !d.days?.length) return null;  // no daily flare volume (or a list that isn't this shape)
+  if (d && !d.days?.length) return null;
   const s = d?.summary;
   return (
-    <Card className="flare-attribution" title="What explains the flare?">
-      <Status of={data} />
+    <ReadCard of={data} className="flare-attribution" title="What explains the flare?" note={d?.note}>
       {d && s && <>
-        <div className="small flare-summary">
+        <Text as="div" small>
           {d.since} to {d.until}: {count(s.flare_mscf)} Mscf flared, {s.episodes} episodes above the baseline
           {" "}({s.attributed} with records around them, {s.unknown} cause unknown)
           {s.explained_share_pct != null && <>; the records explain {s.explained_share_pct}% of the
             {" "}{count(s.over_baseline_mscf)} Mscf over the baseline</>}.
-        </div>
+        </Text>
         {d.episodes.length ? (
-          <ul className="plain small flare-episodes">{d.episodes.map((e) => (
+          <ul className="plain small">{d.episodes.map((e) => (
             <li key={`${e.label}|${e.start}`} data-start={e.start.slice(0, 10)}>
               <b>{whenDay(e.start)}</b> about {count(e.volume)} {e.volume_unit ?? ""} over the baseline
               {" "}{e.attributed
-                ? <Badge tone="muted" className="flare-cause">{e.causes.length} records</Badge>
-                : <Badge tone="warn" className="flare-cause">cause unknown</Badge>}
+                ? <Badge tone="muted">{e.causes.length} records</Badge>
+                : <Badge tone="warn">cause unknown</Badge>}
               {e.causes.slice(0, 3).map((c) => (
-                <div key={c.id} className="muted">{KIND[c.kind]} {c.at.replace("T", " ")}:{" "}
-                  {c.kind === "detection" ? c.text : <a href={entityHref(c.id)}>{c.text}</a>}</div>
+                <Text as="div" key={c.id} muted>{KIND[c.kind]} {c.at.replace("T", " ")}:{" "}
+                  {c.kind === "detection" ? c.text : <a href={entityHref(c.id)}>{c.text}</a>}</Text>
               ))}
             </li>
           ))}</ul>
         ) : <Empty>No day flared above its baseline in the window.</Empty>}
         {d.systems?.map((f) => (
-          <div key={f.subject} className="small flare-system">
+          <Text as="div" key={f.subject} small>
             <a href={entityHref(f.subject)}>{f.label}</a> meters the flare; {f.devices} relief, blowdown and control
             {" "}valves are piped into it: {f.sources.map((g) => `${g.devices.length} on ${g.area_name ?? "no area"}`).join(", ")}.
-          </div>
+          </Text>
         ))}
         {d.allocation && d.allocation.sources.length > 0 && (
-          <Table density="compact" className="flare-allocation phone-rows">
+          <Table density="compact">
             <thead><tr><th>Allocated to</th><th>Mscf</th><th>Share</th><th>Non-routine</th><th>Metered</th></tr></thead>
             <tbody>{d.allocation.sources.map((g) => (
               <tr key={g.source}>
@@ -63,8 +62,7 @@ export function FlareAttribution() {
             ))}</tbody>
           </Table>
         )}
-        <div className="small muted">{d.note}</div>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

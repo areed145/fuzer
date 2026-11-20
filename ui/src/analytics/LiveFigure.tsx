@@ -1,7 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { api, type LiveFigureData, type LiveFigureTable } from "../api";
 import { Status, useAsync } from "../lib";
-import { Disclosure, Table, ErrorText } from "../ui";
+import { Disclosure, Table, ErrorText, Text } from "../ui";
 import { PlotlyChart } from "./PlotlyChart";
 import "./analytics.css";
 
@@ -51,16 +51,16 @@ function Body({ d }: { d: LiveFigureData }) {
       {s.tables.map((table) => <FigureTable key={table.title} table={table} />)}
       {s.warnings.length > 0 && <div className="analytics-warnings" role="status"><strong>Data notes</strong><ul>{s.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
       <Disclosure className="analytics-about" label="Notes and source">
-        <p className="small muted">{s.context}</p>
+        <Text as="p" small muted>{s.context}</Text>
         {s.notes.length > 0 && <ul className="small muted analytics-notes">{s.notes.map((note) => <li key={note}>{note}</li>)}</ul>}
-        <p className="small muted">Source: {s.source}</p>
+        <Text as="p" small muted>Source: {s.source}</Text>
       </Disclosure>
   </>;
 }
 
 function FigureTable({ table }: { table: LiveFigureTable }) {
   return <Disclosure className="analytics-details" label={table.title}>
-    {table.note && <p className="small muted">{table.note}</p>}
+    {table.note && <Text as="p" small muted>{table.note}</Text>}
     <div className="analytics-table"><Table variant="list" density="compact">
       <thead><tr>{table.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
       <tbody>{table.rows.map((row, i) => <tr key={i}>{row.map((cell, c) => <td key={c}>{cell}</td>)}</tr>)}</tbody>

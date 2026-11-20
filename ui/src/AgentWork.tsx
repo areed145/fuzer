@@ -4,7 +4,7 @@
 import type { WorkItem } from "./api";
 import { money, when } from "./format";
 import { Actor } from "./work";
-import { Badge, Card, Disclosure, Table } from "./ui";
+import { Badge, Card, Disclosure, Table, Text } from "./ui";
 
 interface Ledger {
   agent?: string;
@@ -34,9 +34,9 @@ export function AgentWork({ it }: { it: WorkItem }) {
   if (!steps.length && !spend?.usd) return null;
   const over = !!spend?.cap_usd && spend.usd >= spend.cap_usd;
   return (
-    <Card title="Agent work" actions={spend && <span className="small">
+    <Card title="Agent work" actions={spend && <Text small>
       {money(spend.usd ?? 0)} {spend.cap_usd ? <>of {money(spend.cap_usd)} cap</> : "spent"}{" "}
-      {over && <Badge tone="warn">cap reached</Badge>}</span>}>
+      {over && <Badge tone="warn">cap reached</Badge>}</Text>}>
       <Table density="compact">
         <thead><tr><th>Step</th><th>Agents</th><th>Model</th><th>Tools</th><th>Cost</th><th>When</th></tr></thead>
         <tbody>
@@ -55,16 +55,16 @@ export function AgentWork({ it }: { it: WorkItem }) {
       </Table>
       {steps.map((s, i) => (
         <Disclosure key={`d-${s.id}-${i}`} label={<>What {s.step} did</>}>
-          {s.answer && <p className="small">{s.answer}</p>}
+          {s.answer && <Text as="p" small>{s.answer}</Text>}
           <Table density="compact" variant="list">
             <thead><tr><th>Tool</th><th>Agent</th><th>Arguments</th></tr></thead>
             <tbody>{(s.ledger.tools ?? []).map((t, j) => (
               <tr key={j}><td className="mono">{t.tool}</td><td className="small">{t.agent}</td>
                 <td className="small mono">{JSON.stringify(t.args ?? {})}</td></tr>))}</tbody>
           </Table>
-          <p className="small">Skill versions:{" "}
+          <Text as="p" small>Skill versions:{" "}
             {Object.entries(s.ledger.skills ?? {}).map(([k, v]) => <span key={k} className="mono">{k} {v} </span>)}
-          </p>
+          </Text>
         </Disclosure>
       ))}
     </Card>

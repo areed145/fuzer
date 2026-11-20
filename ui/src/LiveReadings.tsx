@@ -5,7 +5,7 @@ import { api } from "./api";
 import { when } from "./format";
 import { href, useAsync } from "./lib";
 import { reading, type TrendLimit, type TrendTrace, names } from "./trendFigure";
-import { Badge, Card } from "./ui";
+import { Badge, Card, Text } from "./ui";
 
 /** Roles that say most about a unit at a glance, first found first: is it turning, what it delivers, how it runs. */
 const KEY_ROLES = ["speed", "discharge_pressure", "vibration", "discharge_temperature", "wellhead_pressure", "tubing_pressure",
@@ -71,7 +71,7 @@ export function LiveReadings({ id, data }: { id: string; data?: Awaited<ReturnTy
       <div className="row live-readings-head">
         <h2>Now</h2>
         {state !== null && <Badge tone={state ? "ok" : "warn"}>{state ? "Running" : "Stopped"}</Badge>}
-        <span className="muted small">latest reading {at(last)} UTC</span>
+        <Text small muted>latest reading {at(last)} UTC</Text>
         {v.provider === "synthetic" && <Badge title="Generated values: no PI or ADX historian is connected">Demo data</Badge>}
         <span className="spacer" />
         <a className="small" href={href(`/e/${encodeURIComponent(id)}`, { tab: "trends" })}>Timeline</a>
@@ -83,7 +83,7 @@ export function LiveReadings({ id, data }: { id: string; data?: Awaited<ReturnTy
             <div key={t.id}>
               <dt>{name.get(t.id)}</dt>
               <dd><strong>{reading(t.last)}</strong>{t.uom ? ` ${t.uom}` : ""}</dd>
-              <dd>{s.tone === "ok" || s.tone === "muted" ? <span className="muted small">{s.text}</span>
+              <dd>{s.tone === "ok" || s.tone === "muted" ? <Text small muted>{s.text}</Text>
                 : <Badge tone={s.tone}>{s.text}</Badge>}</dd>
             </div>
           );

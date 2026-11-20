@@ -8,7 +8,7 @@ import { FigureView } from "./Figure";
 import { WorkDraftCard } from "./WorkDraft";
 import { TOKEN, TOKENS, display, idsIn, isId, linkCitations, type EntityNames } from "./entityRefs";
 import { entityHref } from "./lib";
-import { Table } from "./ui";
+import { Table, Text } from "./ui";
 import { DiagramNeedsReload } from "./DiagramNeedsReload";
 import { useEntityNames } from "./useEntityNames";
 
@@ -68,14 +68,14 @@ export function Markdown({ text }: { text: string }) {
       i++;  // an unclosed fence runs to the end, as in CommonMark
       const source = body.join("\n");
       out.push(fence[2].toLowerCase() === "mermaid"
-        ? <Suspense key={i} fallback={<p className="small muted" role="status">Drawing the diagram…</p>}><MermaidDiagram source={source} /></Suspense>
+        ? <Suspense key={i} fallback={<Text as="p" small muted role="status">Drawing the diagram…</Text>}><MermaidDiagram source={source} /></Suspense>
         : <pre key={i}><code>{source}</code></pre>);
     } else if (diagram) {
       if (diagram[1]) out.push(<p key={`${i}-lead`}>{inline(diagram[1].trim())}</p>);
       const body = [diagram[2]];
       i++;
       while (i < lines.length && lines[i].trim()) body.push(lines[i++]);
-      out.push(<Suspense key={i} fallback={<p className="small muted" role="status">Drawing the diagram…</p>}><MermaidDiagram source={body.join("\n")} /></Suspense>);
+      out.push(<Suspense key={i} fallback={<Text as="p" small muted role="status">Drawing the diagram…</Text>}><MermaidDiagram source={body.join("\n")} /></Suspense>);
     } else if (fig) {
       out.push(<FigureView key={i} id={fig[1]} />);
       i++;

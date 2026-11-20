@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Button, Card, Field, Notice, Select } from "./ui";
+import { Button, Card, Field, Notice, Select, Text } from "./ui";
 
 export type ThemePreference = "system" | "light" | "dark";
 const KEY = "fuzer.theme";
@@ -78,7 +78,7 @@ export function Appearance() {
           <option value="dark">Dark</option>
         </Select>
       </Field>
-      <p className="small">Currently using {theme} mode.</p>
+      <Text as="p" small>Currently using {theme} mode.</Text>
       <label className="row">
         <input type="checkbox" checked={fieldMode} onChange={(e) => setFieldMode(e.target.checked)} />
         <span>Field mode: larger buttons for gloves and high contrast for sunlight, on this device</span>

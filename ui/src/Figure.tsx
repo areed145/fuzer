@@ -6,7 +6,7 @@ import { projectUrl } from "./authState";
 import { useEffect, useRef, useState } from "react";
 import { api, type FigureData } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
-import { Button, Table , Card as UICard, Badge as UIBadge, Disclosure, FullscreenButton, useFullscreen } from "./ui";
+import { Button, Table, Card as UICard, Badge as UIBadge, Disclosure, FullscreenButton, useFullscreen, Text } from "./ui";
 import { useTheme } from "./theme";
 import { PLOTLY_CONFIG, fullscreenLayout, roomIn } from "./plotlyConfig";
 
@@ -85,7 +85,7 @@ export function FigureView({ id }: { id: string }) {
             <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="chart-fullscreen" />
           </div>
           <figcaption className="row small muted">
-            {d.by_source === "assistant" && <UIBadge className="badge">assistant-entered data</UIBadge>}
+            {d.by_source === "assistant" && <UIBadge>assistant-entered data</UIBadge>}
             <span className="spacer" />
             <Button variant="link" onClick={() => setTable((t) => !t)}>{table ? "Hide data" : "Data"}</Button>
             <a href={projectUrl(`/figures/${encodeURIComponent(d.id)}.html`)} target="_blank" rel="noreferrer">Open full size</a>
@@ -115,7 +115,7 @@ function FigureTable({ d }: { d: FigureData }) {
         const ys: unknown[] = t.y ?? [];
         const n = Math.min(200, Math.max(xs.length, ys.length));
         return (
-          <Disclosure key={i} open={d.spec.data.length === 1} label={<>{t.name || `series ${i + 1}`} <span className="muted">{Math.max(xs.length, ys.length)} points</span></>}>
+          <Disclosure key={i} open={d.spec.data.length === 1} label={<>{t.name || `series ${i + 1}`} <Text muted>{Math.max(xs.length, ys.length)} points</Text></>}>
             <Table variant="list" density="compact">
               <tbody>
                 {Array.from({ length: n }, (_, k) => (

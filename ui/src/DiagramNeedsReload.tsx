@@ -1,4 +1,4 @@
-import { Button } from "./ui";
+import { Button, Text } from "./ui";
 
 /** A built file the page asked for is gone: the app was deployed again since this page opened (P5.18a). */
 export const staleBuild = (error: unknown) =>
@@ -8,8 +8,8 @@ export const staleBuild = (error: unknown) =>
 /** What a diagram says when its drawing code belongs to an earlier deploy: reload, and the source meanwhile. */
 export function DiagramNeedsReload({ source }: { source: string }) {
   return <figure className="md-diagram">
-    <p className="small muted" role="status">Fuzer was updated since this page opened. Reload to draw this diagram.{" "}
-      <Button variant="link" size="sm" onClick={() => location.reload()}>Reload</Button></p>
+    <Text as="p" small muted role="status">Fuzer was updated since this page opened. Reload to draw this diagram.{" "}
+      <Button variant="link" size="sm" onClick={() => location.reload()}>Reload</Button></Text>
     <pre><code>{source}</code></pre>
   </figure>;
 }

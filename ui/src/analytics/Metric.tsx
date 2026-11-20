@@ -2,6 +2,7 @@
  * two pages can't word or colour the same number differently. */
 import type { MetricDeclaration } from "../api";
 import { quantity } from "../format";
+import { Text } from "../ui";
 
 export const show = (v: number | null, unit: string) => (v == null ? "–" : quantity(v, unit));
 
@@ -14,7 +15,7 @@ export function onTarget(m: Pick<MetricDeclaration, "better" | "target">, v: num
 
 /** The value over earlier periods as a small line, its last point marked; a dashed line at the target. */
 export function Sparkline({ points, target, label }: { points: { at: string; value: number }[]; target?: number | null; label: string }) {
-  if (points.length < 2) return <span className="muted small">no history yet</span>;
+  if (points.length < 2) return <Text small muted>no history yet</Text>;
   const vs = points.map((p) => p.value).concat(target == null ? [] : [target]);
   const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
   const W = 96, H = 24;

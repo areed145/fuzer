@@ -1,4 +1,4 @@
-import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea, ErrorText } from "../ui";
+import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea, ErrorText, Line, Text } from "../ui";
 import { percent, when } from "../format";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
@@ -10,7 +10,7 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
   const list = useAsync(() => api.lessons(status), [status]);
   return (
     <section>
-      <div className="row spread">
+      <Line spread>
         <div>
           <PageHeader>Lessons learned</PageHeader>
         </div>
@@ -19,7 +19,7 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
             <a key={s} className={status === s ? "on" : ""} href={href("/lessons", { status: s })}>{s[0].toUpperCase() + s.slice(1)}</a>
           ))}
         </div>
-      </div>
+      </Line>
       <Status of={list} empty={list.data?.length === 0}>
         Nothing {status}.
       </Status>
@@ -36,26 +36,26 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
   const decide = (d: "approve" | "reject" | "edit") => run(d, () => api.decideLesson(lesson.id, d, by, text));
   return (
     <UICard className="review">
-      <div className="row spread">
+      <Line spread>
         <h3>{lesson.title}</h3>
-        <span className="muted small">
+        <Text small muted>
           {lesson.stats.incidents} incidents · held {percent(lesson.stats.fix_rate)} · {lesson.failure_mode}
           {" "}· version {lesson.version}
-        </span>
-      </div>
+        </Text>
+      </Line>
       {lesson.status === "approved" && (
-        <p className="small">
+        <Text as="p" small>
           {lesson.owner ? <>Owned by <Actor who={lesson.owner} /></> : <>No owner yet</>}
           {lesson.review_by ? <>, review due {lesson.review_by}</> : <>, no review date</>}
           {lesson.review_overdue && <> <Badge tone="warn">review overdue</Badge></>}
-        </p>
+        </Text>
       )}
       <Textarea className="lesson-text" value={text} onChange={(e) => setText(e.target.value)} rows={6} />
       <Disclosure className="small" label={<>Evidence</>}>
         <ul className="plain">
           {lesson.evidence.map((e) => (
             <li key={e.id}>
-              <span className="muted mono">{e.start}</span> <a href={entityHref(e.id)}>{e.label}</a>
+              <Text muted mono>{e.start}</Text> <a href={entityHref(e.id)}>{e.label}</a>
               {e.recurred && <ErrorText inline> recurred</ErrorText>}
             </li>
           ))}
@@ -73,7 +73,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
         )}
         {text !== lesson.text && <Button disabled={!!busy} onClick={() => decide("edit")}>Save edits</Button>}
         {lesson.status !== "rejected" && <Button disabled={!!busy} onClick={() => decide("reject")}>Reject</Button>}
-        {lesson.decided_by && <span className="muted small">last decided by {lesson.decided_by}</span>}
+        {lesson.decided_by && <Text small muted>last decided by {lesson.decided_by}</Text>}
       </div>
     </UICard>
   );
@@ -92,8 +92,8 @@ function LessonHistory({ id }: { id: number }) {
       <ul className="plain">
         {h.data?.map((v) => (
           <li key={v.version}>
-            <span className="muted mono">v{v.version}</span> {ACTION[v.action]} by <Actor who={v.by} /> {when(v.at)}
-            <Disclosure label={<>Wording</>}><p className="small">{v.text}</p></Disclosure>
+            <Text muted mono>v{v.version}</Text> {ACTION[v.action]} by <Actor who={v.by} /> {when(v.at)}
+            <Disclosure label={<>Wording</>}><Text as="p" small>{v.text}</Text></Disclosure>
           </li>
         ))}
       </ul>

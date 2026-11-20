@@ -3,7 +3,7 @@
  * the decision log on the Master data page. */
 import { useState } from "react";
 import { api, type MergePreview, type SearchHit, type SplitPreview } from "../../api";
-import { Button, Input, Empty, ErrorText } from "../../ui";
+import { Button, Input, Empty, ErrorText, Line, Text } from "../../ui";
 import { entityHref, fmt, href, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -11,7 +11,7 @@ import { usePermission } from "../../Auth";
 const AFTER = "Applied on a rebuild that starts now; undo it from Master data › Decisions.";
 
 function Done({ batch }: { batch: string }) {
-  return <p className="small" role="status">Done ({batch}). {AFTER} <a href={href("/masterdata", { tab: "decisions" })}>Decision log</a></p>;
+  return <Text as="p" small role="status">Done ({batch}). {AFTER} <a href={href("/masterdata", { tab: "decisions" })}>Decision log</a></Text>;
 }
 
 export function NotThisRecord({ fuzerId, refId, onDone }: { fuzerId: string; refId: string; onDone?: () => void }) {
@@ -27,16 +27,16 @@ export function NotThisRecord({ fuzerId, refId, onDone }: { fuzerId: string; ref
     onClick={() => void a.run("preview", () => api.splitPreview(fuzerId, refId), setP)}>Not this record…</Button>;
   return (
     <div className="curation small">
-      <p>Split <span className="mono">{p.ref}</span> off. {p.stays.length} record{p.stays.length === 1 ? "" : "s"} stay.
+      <p>Split <Text mono>{p.ref}</Text> off. {p.stays.length} record{p.stays.length === 1 ? "" : "s"} stay.
         {p.brings.length > 0 && <> It takes its values with it: {p.brings.map((b) => `${b.field} ${fmt(b.value)}`).join("; ")}.</>}</p>
-      <p className="small">{p.note}</p>
-      <div className="row">
+      <Text as="p" small>{p.note}</Text>
+      <Line>
         <Input placeholder="why (kept on the decision)" value={reason} onChange={(e) => setReason(e.target.value)} />
         <Button size="sm" variant="primary" disabled={!!a.busy}
           onClick={() => void a.run("split", () => api.splitRecord(fuzerId, refId, person, reason || undefined),
             (r) => { setDone(r.batch); onDone?.(); })}>Split it off</Button>
         <Button size="sm" variant="link" onClick={() => setP(null)}>Cancel</Button>
-      </div>
+      </Line>
       <ErrorText>{a.error}</ErrorText>
     </div>
   );
@@ -61,17 +61,17 @@ export function SameAs({ fuzerId, kind, onDone }: { fuzerId: string; kind: strin
   return (
     <div className="curation small">
       {!p && <>
-        <div className="row">
+        <Line>
           <Input aria-label="Find the other entity" placeholder={`find the other ${kind}`} value={q}
             onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") search(); }} />
           <Button size="sm" onClick={search}>Search</Button>
           <Button size="sm" variant="link" onClick={() => { setOpen(false); setHits(null); }}>Cancel</Button>
-        </div>
+        </Line>
         {hits && hits.length === 0 && <Empty>No other {kind} matches “{q}”.</Empty>}
         {hits && hits.length > 0 && <ul className="plain">{hits.map((h) => (
           <li key={h.fuzer_id}><Button size="sm" variant="link" disabled={!!a.busy}
             onClick={() => void a.run("preview", () => api.mergePreview(fuzerId, h.fuzer_id), setP)}>
-            {h.label ?? h.fuzer_id}</Button> <span className="muted">{h.description ?? ""}</span></li>
+            {h.label ?? h.fuzer_id}</Button> <Text muted>{h.description ?? ""}</Text></li>
         ))}</ul>}
       </>}
       {p && <>
@@ -79,14 +79,14 @@ export function SameAs({ fuzerId, kind, onDone }: { fuzerId: string; kind: strin
           {" "}{p.records} records, keys {p.keys.map((k) => k.key).join(", ")}.</p>
         {p.differ.length > 0 && <p>Where they disagree: {p.differ.map((d) => `${d.field} ${fmt(d.a)} vs ${fmt(d.b)}`).join("; ")}.</p>}
         {p.replaces.length > 0 && <p>This reverses an earlier decision that they differ: {p.replaces.join("; ")}.</p>}
-        <p className="small">{p.note}</p>
-        <div className="row">
+        <Text as="p" small>{p.note}</Text>
+        <Line>
           <Input placeholder="why (kept on the decision)" value={reason} onChange={(e) => setReason(e.target.value)} />
           <Button size="sm" variant="primary" disabled={!!a.busy}
             onClick={() => void a.run("merge", () => api.mergeEntities(fuzerId, p.b.fuzer_id, person, reason || undefined),
               (r) => { setDone(r.batch); onDone?.(); })}>Merge them</Button>
           <Button size="sm" variant="link" onClick={() => setP(null)}>Back</Button>
-        </div>
+        </Line>
       </>}
       <ErrorText>{a.error}</ErrorText>
     </div>

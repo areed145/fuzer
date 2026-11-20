@@ -7,7 +7,7 @@ import { money, whenDay } from "../format";
 import "../styles/work-board.css";
 import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
-import { Badge, Button, ButtonLink, Empty, Field, Select } from "../ui";
+import { Badge, Button, ButtonLink, Empty, Field, Select, Text } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
 import { holder, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -94,7 +94,7 @@ export function WorkBoardPage({ query, filters = {} }: {
       <nav className="chips work-board-stages" aria-label="Stages">
         {STAGES.map((s) => <a key={s.key} href={href("/exceptions", { ...keep, list: "board", stage: s.key })}
           className={s.key === stage ? "chip on" : "chip"} aria-current={s.key === stage ? "true" : undefined}>
-          {s.short} <span className="muted">{by.get(s.key)!.length}</span></a>)}
+          {s.short} <Text muted>{by.get(s.key)!.length}</Text></a>)}
       </nav>
       <div className="work-board">
         {STAGES.map((s) => <Column key={s.key} stage={s} rows={by.get(s.key)!} lane={lanes} laneOf={lanes === "none" ? null : laneOf}
@@ -126,9 +126,9 @@ function Column({ stage, rows, lane, laneOf, shown, person, people, queues, kind
   return (
     <section className={["work-board-column", shown && "shown", !rows.length && "empty"].filter(Boolean).join(" ")}
       aria-label={stage.label}>
-      <h2><span>{stage.label}</span> <span className="muted">{rows.length}</span></h2>
-      {rows.length > 0 && <p className="small muted">{[stage.note, value > 0 && !closed ? `${money(value)} at stake` : null,
-        oldest ? `oldest ${age(oldest)}` : null].filter(Boolean).join(" · ")}</p>}
+      <h2><span>{stage.label}</span> <Text muted>{rows.length}</Text></h2>
+      {rows.length > 0 && <Text as="p" small muted>{[stage.note, value > 0 && !closed ? `${money(value)} at stake` : null,
+        oldest ? `oldest ${age(oldest)}` : null].filter(Boolean).join(" · ")}</Text>}
       {!rows.length ? <Empty>Nothing here.</Empty> : sorted.map(([name, items]) => <div key={name || "all"}>
         {laneOf && <h3 className="work-board-lane">{name}</h3>}
         {items.map((r) => <WorkCard key={r.id} r={r} stage={stage.key} lane={lane} now={now} person={person} people={people}
@@ -160,13 +160,13 @@ function WorkCard({ r, stage, lane, now, person, people, queues, kind, onChange 
       <div className="work-card-title" title={say(r.title)}>{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
       {subjects[0] && <a className="small" href={entityHref(subjects[0])}>{display(subjects[0], names)}
         {subjects.length > 1 ? ` +${subjects.length - 1}` : ""}</a>}
-      <div className="small muted">{[lane !== "kind" ? kind : null, lane !== "source" ? r.source : null,
-        reports > 1 ? `${reports} reports` : null].filter(Boolean).join(" · ")}</div>
-      {said && stage !== "dispatch" && stage !== "closed" && <div className="small">
-        <Badge tone={couldNot ? "warn" : "ok"} title={said.note ?? undefined}>{FIELD_SAID[said.status] ?? said.status}</Badge></div>}
+      <Text as="div" small muted>{[lane !== "kind" ? kind : null, lane !== "source" ? r.source : null,
+        reports > 1 ? `${reports} reports` : null].filter(Boolean).join(" · ")}</Text>
+      {said && stage !== "dispatch" && stage !== "closed" && <Text as="div" small>
+        <Badge tone={couldNot ? "warn" : "ok"} title={said.note ?? undefined}>{FIELD_SAID[said.status] ?? said.status}</Badge></Text>}
       {stage === "plan" && r.planned && <a className="small" href={planItemHref(r.planned)}>planned {whenDay(r.planned.start_at)}</a>}
       <div className="work-card-meta small">
-        <span className="muted">{who ?? (stage === "closed" ? r.state : "")}</span>
+        <Text muted>{who ?? (stage === "closed" ? r.state : "")}</Text>
         <span>{[since, r.value_usd && stage !== "closed" ? money(r.value_usd) : null].filter(Boolean).join(" · ")}</span>
       </div>
       {(canSend || (stage === "back" && r.item_id)) && <div className="row work-card-actions">
