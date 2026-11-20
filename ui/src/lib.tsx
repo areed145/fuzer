@@ -1,6 +1,6 @@
 // Small shared hooks and components.
 
-import { Badge as UIBadge, Button } from "./ui";
+import { Badge as UIBadge, Button, Card, Text } from "./ui";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Mark } from "./brand";
 
@@ -191,4 +191,19 @@ export function Status({ of, loading = !!of && of.loading && of.data === undefin
   if (loading) return <div className="status" role="status"><Mark />Loading…</div>;
   if (empty) return <div className="status status-empty">{children ?? "Nothing here."}</div>;
   return null;
+}
+
+/** A card that shows one read: its state while it loads or fails, the content once there is data, and the read's own
+ * note under it. */
+export function ReadCard({ of, title, className, note, children }: {
+  of: { loading: boolean; data?: unknown; error?: string; reload: () => void }; title: ReactNode; className?: string;
+  note?: ReactNode; children: ReactNode;
+}) {
+  return (
+    <Card className={className} title={title}>
+      <Status of={of} />
+      {children}
+      {of.data !== undefined && note && <Text as="div" small muted>{note}</Text>}
+    </Card>
+  );
 }

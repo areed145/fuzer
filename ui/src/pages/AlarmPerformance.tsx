@@ -3,27 +3,26 @@
  * works it. Measures and work for the alarm owner against ISA-18.2 and EEMUA 191: there is nothing here to
  * acknowledge, and no live alarm list. */
 import { api } from "../api";
-import { Badge, Card, Empty, Table, Text } from "../ui";
-import { Status, href, useAsync } from "../lib";
+import { Badge, Empty, Table, Text } from "../ui";
+import { href, ReadCard, useAsync } from "../lib";
 
 const day = (s: string) => s.replace("T", " ");
 
 export function AlarmPerformance() {
   const data = useAsync(() => api.alarmPerformance(), []);
   const d = data.data;
-  if (d && !d.window) return null;  // no alarm limits to measure against
+  if (d && !d.window) return null;
   return (
-    <Card className="alarm-performance" title="Alarm system performance">
-      <Status of={data} />
+    <ReadCard of={data} className="alarm-performance" title="Alarm system performance" note={d?.note}>
       {d && <>
-        <div className="small ap-summary">
+        <Text as="div" small>
           Last {d.days} days: {d.alarms} alarms, {d.per_hour} an hour against a target of {d.target_per_hour}
           {d.per_hour > d.target_per_hour && <> <Badge tone="warn">over target</Badge></>}.
           {" "}{d.floods.length} flood{d.floods.length === 1 ? "" : "s"}, {d.bad_actors.length} bad
           actor{d.bad_actors.length === 1 ? "" : "s"}{d.synthetic && <>, from the fake plant's synthetic values</>}.
-        </div>
+        </Text>
         {d.floods.length > 0 && (
-          <Table density="compact" className="ap-floods phone-rows">
+          <Table density="compact">
             <thead><tr><th>Flood</th><th>Alarms</th><th>Top contributors</th><th>Case</th></tr></thead>
             <tbody>{d.floods.map((f) => (
               <tr key={f.start} data-flood={f.start}>
@@ -36,7 +35,7 @@ export function AlarmPerformance() {
           </Table>
         )}
         {d.bad_actors.length > 0 ? (
-          <Table density="compact" className="ap-actors phone-rows">
+          <Table density="compact">
             <thead><tr><th>Point</th><th>Found</th><th>Detail</th><th>Case</th></tr></thead>
             <tbody>{d.bad_actors.map((b) => (
               <tr key={b.point_id} data-point={b.point}>
@@ -52,8 +51,7 @@ export function AlarmPerformance() {
             ))}</tbody>
           </Table>
         ) : <Empty>No standing or repeating alarms in the window.</Empty>}
-        <Text as="div" small muted>{d.note}</Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

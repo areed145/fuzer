@@ -3,8 +3,8 @@
  * injection says so, never a ratio of zero. Screening only: the injection target stays with the engineers. */
 import { api } from "../api";
 import { count } from "../format";
-import { Badge, Card, Table, Text } from "../ui";
-import { Status, useAsync } from "../lib";
+import { Badge, Table, Text } from "../ui";
+import { ReadCard, useAsync } from "../lib";
 
 const SAY = { under_replacing: "under-replacing", over_injecting: "over-injecting", balanced: "balanced",
   unknown: "unknown", no_daily_report: "no daily report" } as const;
@@ -17,16 +17,15 @@ export function WaterInjection() {
   const v = d?.voidage;
   const months = v?.months.filter((m) => m.status !== "no_injection") ?? [];
   return (
-    <Card className="water-injection" title="Water injection">
-      <Status of={data} />
-      {d && v && v.verdict === "no_injection" && <div className="small wi-none">{v.note}</div>}
+    <ReadCard of={data} className="water-injection" title="Water injection" note={d && v && v.verdict !== "no_injection" && <>{v.note} {d.hall.note}</>}>
+      {d && v && v.verdict === "no_injection" && <Text as="div" small>{v.note}</Text>}
       {d && v && v.verdict !== "no_injection" && <>
-        <div className="small wi-summary">
+        <Text as="div" small>
           {v.since} to {v.until}: injection over produced reservoir volume {v.summary.latest_vrr ?? "unknown"} over
           the latest {v.thresholds.months} months, {v.summary.cumulative_vrr ?? "unknown"} since injection started.{" "}
           <Badge tone={v.verdict === "balanced" ? "ok" : "warn"}>{SAY[v.verdict]}</Badge>
-        </div>
-        {d.hall.injectors.length > 0 && <Table density="compact" className="wi-hall phone-rows">
+        </Text>
+        {d.hall.injectors.length > 0 && <Table density="compact">
           <thead><tr><th>Injector</th><th>Hall slope</th><th>Reads</th></tr></thead>
           <tbody>{d.hall.injectors.map((i) => (
             <tr key={i.well} data-well={i.well}>
@@ -39,7 +38,7 @@ export function WaterInjection() {
             </tr>
           ))}</tbody>
         </Table>}
-        <Table density="compact" className="wi-table phone-rows">
+        <Table density="compact">
           <thead><tr><th>Month</th><th>Ratio</th><th>Running</th><th>Injected</th><th>Produced</th></tr></thead>
           <tbody>{months.map((m) => (
             <tr key={m.month} data-month={m.month}>
@@ -51,8 +50,7 @@ export function WaterInjection() {
             </tr>
           ))}</tbody>
         </Table>
-        <Text as="div" small muted>{v.note} {d.hall.note}</Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

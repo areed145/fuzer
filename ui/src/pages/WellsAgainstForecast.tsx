@@ -3,8 +3,8 @@
  * few tests are listed, never fitted. A gap is a lead for review; the reservoir cause stays unknown. */
 import { api } from "../api";
 import { whenDay, count } from "../format";
-import { Card, Disclosure, Empty, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Disclosure, Empty, Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 
 const sm3 = (v: number | null | undefined) => (v == null ? "–" : `${count(v)} bbl/d`);
 
@@ -13,8 +13,7 @@ export function WellsAgainstForecast() {
   const d = data.data;
   const below = d?.wells.filter((w) => w.verdict === "below_forecast") ?? [];
   return (
-    <Card className="wells-forecast" title="Wells against their own forecast">
-      <Status of={data} />
+    <ReadCard of={data} className="wells-forecast" title="Wells against their own forecast" note={d && <>{d.source}. {d.note}</>}>
       {d && <>
         <Text as="div" small>
           {d.since} to {d.until}. Across {d.field.wells_compared} wells the latest tests make {sm3(d.field.actual_bbld)} against
@@ -22,7 +21,7 @@ export function WellsAgainstForecast() {
           {" "}{below.length} under their forecast, {d.field.above_forecast.length} over it.
         </Text>
         {below.length ? (
-          <Table density="compact" className="forecast-table phone-rows">
+          <Table density="compact">
             <thead><tr><th>Well</th><th>Latest test</th><th>Forecast</th><th>Gap</th><th>Under since</th><th>Downtime</th></tr></thead>
             <tbody>{below.map((w) => (
               <tr key={w.id} data-well={w.well}>
@@ -43,8 +42,7 @@ export function WellsAgainstForecast() {
           <ul className="plain small">{d.not_fitted.map((w) => (
             <li key={w.id}><a href={entityHref(w.id)}>{w.well}</a>: {w.reason}</li>))}</ul>
         </Disclosure>}
-        <Text as="div" small muted>{d.source}. {d.note}</Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

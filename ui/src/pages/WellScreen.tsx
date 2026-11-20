@@ -3,8 +3,8 @@
  * suggestions for the engineer; cumulative oil is estimated from tests. */
 import { percent, count } from "../format";
 import { api } from "../api";
-import { Badge, Card, Empty, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Badge, Empty, Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 
 export function WellScreen() {
   const data = useAsync(() => api.wellScreen(), []);
@@ -12,14 +12,16 @@ export function WellScreen() {
   if (d && !d.wells_screened) return null;
   const s = d?.staleness;
   return (
-    <Card className="well-screen" title="Water, gas and test age">
-      <Status of={data} />
+    <ReadCard of={data} className="well-screen" title="Water, gas and test age" note={d && s && <>
+          A step is {d.thresholds.water_cut_step_points} water cut points over the tests before; a climb is GOR up
+          {" "}{percent(d.thresholds.gor_rise - 1)} end to end. {d.note} {s.note}
+        </>}>
       {d && s && <>
-        <div className="small well-staleness">
+        <Text as="div" small>
           {s.summary.current} of {s.summary.wells} wells tested within {s.max_days} days at {s.as_of}
           {s.summary.median_age_days != null && <> (median {s.summary.median_age_days} days, oldest {s.summary.oldest_days})</>};
           {" "}{s.summary.stale} stale, {s.summary.no_test_on_file} with no test on file.
-        </div>
+        </Text>
         {s.wells.filter((w) => w.status !== "current").length > 0 && (
           <ul className="plain small">{s.wells.filter((w) => w.status !== "current").map((w) => (
             <li key={w.id}><a href={entityHref(w.id)}>{w.well}</a>: {w.status === "stale"
@@ -27,7 +29,7 @@ export function WellScreen() {
           ))}</ul>
         )}
         {d.patterns.length ? (
-          <Table density="compact" className="well-patterns phone-rows">
+          <Table density="compact">
             <thead><tr><th>Well</th><th>Pattern</th><th>What the tests show</th></tr></thead>
             <tbody>{d.patterns.map((p) => (
               <tr key={p.well_id} data-well={p.well}>
@@ -44,11 +46,7 @@ export function WellScreen() {
             ))}</tbody>
           </Table>
         ) : <Empty>No water cut step or GOR climb on any well.</Empty>}
-        <Text as="div" small muted>
-          A step is {d.thresholds.water_cut_step_points} water cut points over the tests before; a climb is GOR up
-          {" "}{percent(d.thresholds.gor_rise - 1)} end to end. {d.note} {s.note}
-        </Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

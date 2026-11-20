@@ -3,8 +3,8 @@
  * on the same equipment) per quarter. A quarter below the sample floor says too little data. Measures the records,
  * never people or crews. */
 import { api } from "../api";
-import { Card, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 
 const pct = (v: number | null) => (v == null ? "too little data" : `${v}%`);
 
@@ -15,15 +15,14 @@ export function WorkExecution() {
   const s = d?.summary;
   const repeats = d?.periods.flatMap((p) => p.repeats) ?? [];
   return (
-    <Card className="work-execution" title="Does work finish when planned, and do repairs hold?">
-      <Status of={data} />
+    <ReadCard of={data} className="work-execution" title="Does work finish when planned, and do repairs hold?" note={d?.note}>
       {d && s && <>
-        <div className="small we-summary">
+        <Text as="div" small>
           {d.since} to {d.until}: {s.on_time} of {s.finished_with_due_date} closed orders finished by their basic finish
           {" "}({pct(s.schedule_compliance_pct)}); {s.repeats} of {s.corrective} corrective orders came within
           {" "}{d.thresholds.repeat_days} days of a repair on the same equipment ({pct(s.repeat_rate_pct)}).
-        </div>
-        <Table density="compact" className="we-table phone-rows">
+        </Text>
+        <Table density="compact">
           <thead><tr><th>Period</th><th>Schedule compliance</th><th>Repeat repairs</th></tr></thead>
           <tbody>{d.periods.map((p) => (
             <tr key={p.period} data-period={p.period}>
@@ -37,13 +36,12 @@ export function WorkExecution() {
         </Table>
         {repeats.length > 0 && <>
           <h3>Repeat repairs</h3>
-          <ul className="plain small we-repeats">{repeats.slice(-8).reverse().map((r) => (
+          <ul className="plain small">{repeats.slice(-8).reverse().map((r) => (
             <li key={r.id}><a href={entityHref(r.id)}>{r.order}</a> started {r.start}, after{" "}
               <a href={entityHref(r.after)}>a repair</a> finished {r.previous_finish}: {r.text}</li>
           ))}</ul>
         </>}
-        <Text as="div" small muted>{d.note}</Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

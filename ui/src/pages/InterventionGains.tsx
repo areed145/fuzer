@@ -3,8 +3,8 @@
  * no test, never zero. Attribution is not proof; the accountable engineer decides on further work. */
 import { api, type InterventionGain } from "../api";
 import { whenDay } from "../format";
-import { Badge, Card, Empty, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Badge, Empty, Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 
 const TONE: Record<InterventionGain["verdict"], "ok" | "danger" | "muted"> =
   { gained: "ok", lost: "danger", no_clear_change: "muted", unknown: "muted" };
@@ -15,15 +15,14 @@ export function InterventionGains() {
   const data = useAsync(() => api.interventionGains(), []);
   const d = data.data;
   return (
-    <Card className="intervention-gains" title="Did the well work pay off?">
-      <Status of={data} />
+    <ReadCard of={data} className="intervention-gains" title="Did the well work pay off?" note={d && <>{d.source}. {d.note}</>}>
       {d && <>
         <Text as="div" small>
           {d.since} to {d.until}: {d.summary.interventions} interventions, {d.summary.gained} gained, {d.summary.lost} lost,
           {" "}{d.summary.no_clear_change} no clear change, {d.summary.unknown} unknown.
         </Text>
         {d.interventions.length ? (
-          <Table density="compact" className="interventions-table phone-rows">
+          <Table density="compact">
             <thead><tr><th>Well and work</th><th>Result</th><th>Oil after</th><th>Its decline said</th><th>Water cut</th></tr></thead>
             <tbody>{d.interventions.map((i) => (
               <tr key={i.id} data-intervention={`${i.well} ${i.start.slice(0, 10)}`}>
@@ -41,8 +40,7 @@ export function InterventionGains() {
             ))}</tbody>
           </Table>
         ) : <Empty>No well intervention is recorded in the window.</Empty>}
-        <Text as="div" small muted>{d.source}. {d.note}</Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

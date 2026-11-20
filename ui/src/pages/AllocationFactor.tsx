@@ -3,8 +3,8 @@
  * ignoring downtime and the age of the tests used. Off one, the tests or the allocation are suspect; which stays the
  * engineer's question. */
 import { api } from "../api";
-import { Badge, Card, Table, Text } from "../ui";
-import { Status, useAsync } from "../lib";
+import { Badge, Table, Text } from "../ui";
+import { ReadCard, useAsync } from "../lib";
 
 const SAY = { low: "low", high: "high", drifting: "drifting" } as const;
 
@@ -14,18 +14,17 @@ export function AllocationFactor() {
   if (d && !d.months?.length) return null;
   const s = d?.summary;
   return (
-    <Card className="allocation-factor" title="Allocated oil against well tests">
-      <Status of={data} />
+    <ReadCard of={data} className="allocation-factor" title="Allocated oil against well tests" note={d?.note}>
       {d && s && <>
-        <div className="small af-summary">
+        <Text as="div" small>
           {d.since} to {d.until}: allocated over tested oil {s.factor ?? "unknown"} (band {s.band[0]} to {s.band[1]})
           {s.drift != null && <>, first {s.drift_months} months {s.first_months_factor}, latest {s.latest_months_factor}</>};
           {" "}{s.days_left_out} days left out.{" "}
           {d.flags.length
             ? d.flags.map((f) => <Badge key={f} tone="warn">{SAY[f]}</Badge>)
             : <Badge tone="ok">steady</Badge>}
-        </div>
-        <Table density="compact" className="af-table phone-rows">
+        </Text>
+        <Table density="compact">
           <thead><tr><th>Month</th><th>Factor</th><th>Ignoring downtime</th><th>Days used</th><th>Median test age</th></tr></thead>
           <tbody>{d.months.map((m) => (
             <tr key={m.month} data-month={m.month}>
@@ -37,8 +36,7 @@ export function AllocationFactor() {
             </tr>
           ))}</tbody>
         </Table>
-        <Text as="div" small muted>{d.note}</Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

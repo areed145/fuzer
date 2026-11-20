@@ -2,8 +2,8 @@
  * days between them, any that came back after linked work was recorded closed, and the age of open linked orders.
  * Linked work is a proxy, not an action register, and order status says what was recorded, not that it worked. */
 import { api, type LinkedOrder } from "../api";
-import { Badge, Card, Disclosure, Empty, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Badge, Disclosure, Empty, Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 import { plural, say } from "../wording";
 
 const LINK: Record<LinkedOrder["link"], string> = {
@@ -16,18 +16,17 @@ export const useRepeats = () => useAsync(() => api.incidentRepeats(), []);
 /** `data` is the page's read of the repeats (useRepeats), so the page draws them with the list below (#1069). */
 export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> }) {
   const d = data.data;
-  if (d && !d.units?.length) return null;  // none in the window (or a list that isn't this shape)
+  if (d && !d.units?.length) return null;
   const once = (d?.units ?? []).filter((u) => !u.repeat);
   return (
-    <Card className="incident-repeats" title="Do problems come back?">
-      <Status of={data} />
+    <ReadCard of={data} className="incident-repeats" title="Do problems come back?" note={d && <>{d.summary.incidents_without_linked_work} incidents have no linked work. {d.note}</>}>
       {d && <>
         <Text as="div" small>
           {d.since} to {d.until}: {d.summary.incidents} incidents on {d.summary.units} units, {d.summary.repeat_units} with
           {" "}more than one; {d.summary.came_back_after_closed_work} came back after linked work was closed;
           {" "}{d.summary.open_orders} linked orders still open.
         </Text>
-        <Table density="compact" className="repeats-table phone-rows">
+        <Table density="compact" className="repeats-table">
           <thead><tr><th>Unit</th><th>Incidents</th><th>Days between</th><th>Linked work</th></tr></thead>
           <tbody>{d.units.filter((u) => u.repeat).map((u) => (
             <tr key={u.unit_id ?? u.unit} data-unit={u.unit}>
@@ -59,17 +58,16 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
           ))}</ul>
         </Disclosure>}
         <h3>Open linked work, by age at {d.as_of}</h3>
-        <div className="small repeats-ageing">
+        <Text as="div" small>
           {Object.entries(d.summary.open_by_age).map(([band, n]) => <span key={band} data-band={band}>{band}: {n}. </span>)}
-        </div>
+        </Text>
         {d.open_work.length ? (
           <ul className="plain small">{d.open_work.map((w) => (
             <li key={w.id}><a href={entityHref(w.id)}>{w.order}</a> {w.status}, {w.age_days} days old,
               {" "}{LINK[w.link]}: {w.description}</li>
           ))}</ul>
         ) : <Empty>No open order is linked to these incidents.</Empty>}
-        <Text as="div" small muted>{d.summary.incidents_without_linked_work} incidents have no linked work. {d.note}</Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

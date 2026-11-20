@@ -2,22 +2,21 @@
  * last year, its earlier level against its latest samples, gaps where sampling stopped, and the drifts the
  * quality_drift detector found. No on or off specification claim: no specification or discharge limit is loaded. */
 import { api } from "../api";
-import { Badge, Card, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Badge, Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 
 export function QualityTrend() {
   const data = useAsync(() => api.plantQuality(), []);
   const d = data.data;
-  if (d && !d.series?.length) return null;  // no lab results landed
+  if (d && !d.series?.length) return null;
   return (
-    <Card className="quality-trend" title="Separator and export quality">
-      <Status of={data} />
+    <ReadCard of={data} className="quality-trend" title="Separator and export quality" note={d?.note}>
       {d && <>
-        <div className="small quality-summary">
+        <Text as="div" small>
           {d.since} to {d.until}: {d.summary.series} analytes at {d.summary.sample_points} sample points,
           {" "}{d.summary.drifting} drifting off their own level, {d.summary.with_gaps} with gaps in sampling.
-        </div>
-        <Table density="compact" className="quality-table phone-rows">
+        </Text>
+        <Table density="compact">
           <thead><tr><th>Sample point</th><th>Analyte</th><th>Earlier, then latest</th><th>Sampling</th></tr></thead>
           <tbody>{d.series.map((s) => (
             <tr key={`${s.subject}|${s.sample_point}|${s.analyte}`} data-series={`${s.sample_point}|${s.analyte}`}>
@@ -32,8 +31,7 @@ export function QualityTrend() {
             </tr>
           ))}</tbody>
         </Table>
-        <div className="small muted quality-limits">{d.note}</div>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

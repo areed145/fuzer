@@ -3,8 +3,8 @@
  * only when there is more than one field to compare or one left out. */
 import { api, type Kpi } from "../api";
 import { quantity } from "../format";
-import { Badge, Card, Table, Text } from "../ui";
-import { Status, useAsync } from "../lib";
+import { Badge, Table, Text } from "../ui";
+import { ReadCard, useAsync } from "../lib";
 
 const TONE: Record<Kpi["verdict"], "ok" | "danger" | "muted"> = { better: "ok", worse: "danger", same: "muted", unknown: "muted" };
 const show = (v: number | null, unit: string) => (v == null ? "unknown" : quantity(v, unit));
@@ -14,10 +14,9 @@ export function AcrossAssets({ days }: { days: number }) {
   const d = data.data;
   if (d && d.projects.length < 2 && !d.left_out.length) return null;
   return (
-    <Card className="across-assets" title="Across assets">
-      <Status of={data} />
+    <ReadCard of={data} className="across-assets" title="Across assets" note={d?.note}>
       {d && <>
-        <Table density="compact" className="fleet-table phone-rows">
+        <Table density="compact">
           <thead><tr><th>KPI</th>{d.projects.map((p) => <th key={p.project}>{p.project}
             {p.scorecard && <Text as="div" small muted>{p.scorecard.now.since} to {p.scorecard.now.through}</Text>}</th>)}</tr></thead>
           <tbody>{d.kpis.map((k) => (
@@ -35,10 +34,9 @@ export function AcrossAssets({ days }: { days: number }) {
             </tr>
           ))}</tbody>
         </Table>
-        {d.left_out.length > 0 && <div className="small fleet-left-out">
-          Not shown, because you aren't granted them: {d.left_out.join(", ")}.</div>}
-        <Text as="div" small muted>{d.note}</Text>
+        {d.left_out.length > 0 && <Text as="div" small>
+          Not shown, because you aren't granted them: {d.left_out.join(", ")}.</Text>}
       </>}
-    </Card>
+    </ReadCard>
   );
 }

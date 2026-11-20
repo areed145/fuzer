@@ -4,8 +4,8 @@
  * and nothing is restated. */
 import { api, type AccountingMonth } from "../api";
 import { quantity, count } from "../format";
-import { Badge, Card, Disclosure, Empty, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Badge, Disclosure, Empty, Table, Text } from "../ui";
+import { entityHref, ReadCard, useAsync } from "../lib";
 
 const TONE: Record<AccountingMonth["verdict"], "ok" | "danger" | "warn" | "muted"> = {
   agrees: "ok", differs: "danger", preliminary: "warn", incomplete: "muted", no_accounting: "muted", no_operational: "muted",
@@ -22,17 +22,16 @@ export function AgainstTheAccounts() {
   const d = data.data;
   const r = d?.reconciliation;
   const u = d?.unit_cost;
-  if (d && !r?.months.length && !u?.months.length) return null;  // a site without an accounting export
+  if (d && !r?.months.length && !u?.months.length) return null;
   return (
-    <Card className="against-accounts" title="Against the accounts">
-      <Status of={data} />
+    <ReadCard of={data} className="against-accounts" title="Against the accounts" note={u && u.months.length > 0 && <>{u.sources.cost} over {u.sources.volume}. {u.note}</>}>
       {r && <>
         <Text as="div" small>
           {r.since} to {r.until}: {r.summary.agrees} months agree within {r.tolerance_pct}%, {r.summary.differs} differ,
           {" "}{r.summary.preliminary} preliminary, {r.summary.incomplete + r.summary.no_accounting + r.summary.no_operational} can't be compared.
         </Text>
         {r.months.length ? (
-          <Table density="compact" className="accounts-table phone-rows">
+          <Table density="compact">
             <thead><tr><th>Month</th><th>Daily reports</th><th>Accounting</th><th>Difference</th></tr></thead>
             <tbody>{r.months.map((m) => (
               <tr key={`${m.period}-${m.product}`} data-month={`${m.period} ${m.product}`}>
@@ -64,13 +63,13 @@ export function AgainstTheAccounts() {
       </>}
       {u && u.months.length > 0 && <>
         <h3>Operating cost per accounted bbl of oil</h3>
-        <div className="small accounts-unit-cost">
+        <Text as="div" small>
           {Object.entries(u.window).map(([cur, w]) => (
             <div key={cur} data-currency={cur}><strong>{count(w.per_bbl)} {cur}/bbl</strong>{" "}
               <Text muted>({count(w.cost)} {cur} over {count(w.oil_bbl)} bbl)</Text></div>
           ))}
-        </div>
-        <Table density="compact" className="unit-cost-table phone-rows">
+        </Text>
+        <Table density="compact">
           <thead><tr><th>Month</th><th>Booked cost</th><th>Accounted oil</th><th>Per bbl</th></tr></thead>
           <tbody>{u.months.map((m) => (
             <tr key={`${m.period}-${m.currency}`}>
@@ -83,8 +82,7 @@ export function AgainstTheAccounts() {
             </tr>
           ))}</tbody>
         </Table>
-        <Text as="div" small muted>{u.sources.cost} over {u.sources.volume}. {u.note}</Text>
       </>}
-    </Card>
+    </ReadCard>
   );
 }

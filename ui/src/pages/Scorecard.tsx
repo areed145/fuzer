@@ -53,7 +53,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
       }))} />
       <Status of={data} />
       {d && (d.kpis.length ? <>
-        <Table density="compact" className="scorecard-table phone-rows">
+        <Table density="compact">
           <thead><tr>
             <th>KPI</th><th>{d.now.since} to {d.now.through}</th><th>{d.before.since} to {d.before.through}</th>
             <th>Change</th><th>Source</th>
@@ -72,7 +72,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
             </tr>
           ))}</tbody>
         </Table>
-        <div className="small muted scorecard-note">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </> : <Empty>No KPIs to show.</Empty>)}
       <AcrossAssets days={days} />
       <WellsAgainstForecast />
