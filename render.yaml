@@ -4,10 +4,8 @@ services:
     runtime: docker
     plan: 1c-2g
     healthCheckPath: /health
-    disk:
-      name: fuzer-runtime
-      mountPath: /var/lib/fuzer
-      sizeGB: 1
+    # No persistent disk: every bit of state is in fuzer-db, so Render deploys with zero downtime (it starts the new
+    # instance, waits for /health, moves traffic, then stops the old one). A disk would force stop-then-start.
     envVars:
       - key: FUZER_DATABASE_URL
         fromDatabase:
@@ -27,7 +25,7 @@ services:
         generateValue: true
       - key: FUZER_DEMO_TOKEN  # optional demo account for demos and automated checks; unset = off
         sync: false
-      - key: DAGSTER_HOME
+      - key: DAGSTER_HOME  # only the dagster.yaml each start writes; Dagster's storage is in fuzer-db
         value: /var/lib/fuzer/dagster
       - key: ANTHROPIC_API_KEY
         sync: false

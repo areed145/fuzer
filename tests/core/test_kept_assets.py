@@ -1,13 +1,13 @@
-"""A page opened before a deploy can still load the built files it names (P5.18a, #1171)."""
+"""A page opened before a deploy can still load the built files it names (P5.18a, #1171). The files are kept in
+Postgres, which a new instance shares with the old one on a zero-downtime deploy."""
 
-import os
-import time
+import gzip
 
+import pytest
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 
-from fuzer.core import kept_assets
+from fuzer.core import db, kept_assets
 
 
 def _build(path, *names):
@@ -17,40 +17,48 @@ def _build(path, *names):
     return path
 
 
-def test_a_file_from_the_last_deploy_is_still_served_after_the_next(tmp_path):
-    kept = tmp_path / "kept"
+@pytest.fixture
+def conn():
+    with db.connect() as c:
+        c.execute(f"drop table if exists {kept_assets.TABLE}")
+        c.commit()
+        yield c
+        c.rollback()
+        c.execute(f"drop table if exists {kept_assets.TABLE}")
+        c.commit()
+
+
+def test_a_file_from_the_last_deploy_is_still_served_after_the_next(tmp_path, conn, monkeypatch):
     old = _build(tmp_path / "old", "index-AAAAAAAA.js", "ganttDiagram-R7GPNTJY-CF2q9BH-.js")
-    assert kept_assets.keep(old, kept)["copied"] == 2
+    assert kept_assets.keep(conn, old)["copied"] == 2
     new = _build(tmp_path / "new", "index-BBBBBBBB.js", "ganttDiagram-R7GPNTJY-BsA0yh8I.js")
-    kept_assets.keep(new, kept)
+    assert kept_assets.keep(conn, new) == {"copied": 2, "kept": 4, "dropped": 0}
+    assert gzip.decompress(kept_assets.fetch(conn, "index-AAAAAAAA.js")) == b"// index-AAAAAAAA.js"
 
     app = FastAPI()
-    assets = StaticFiles(directory=new)
-    assets.all_directories.append(kept)
-    app.mount("/assets", assets)
+    app.mount("/assets", kept_assets.Kept(directory=new))
+    monkeypatch.setenv(kept_assets.ENV, "1")
     with TestClient(app) as client:
         assert client.get("/assets/ganttDiagram-R7GPNTJY-BsA0yh8I.js").text.endswith("BsA0yh8I.js")  # current build
-        assert client.get("/assets/ganttDiagram-R7GPNTJY-CF2q9BH-.js").status_code == 200  # the page opened before
+        before = client.get("/assets/ganttDiagram-R7GPNTJY-CF2q9BH-.js")  # the page opened before
+        assert before.status_code == 200 and before.text == "// ganttDiagram-R7GPNTJY-CF2q9BH-.js"
+        assert before.headers["content-type"].startswith("text/javascript")
+        assert "immutable" in before.headers["cache-control"]
+        plain = client.get("/assets/index-AAAAAAAA.js", headers={"accept-encoding": "identity"})
+        assert plain.text == "// index-AAAAAAAA.js" and "content-encoding" not in plain.headers
         assert client.get("/assets/ganttDiagram-R7GPNTJY-ZZZZZZZZ.js").status_code == 404
+        monkeypatch.delenv(kept_assets.ENV)
+        assert client.get("/assets/index-AAAAAAAA.js").status_code == 404  # a deployment that keeps nothing
 
 
-def test_files_no_build_has_named_for_two_weeks_are_dropped(tmp_path):
-    kept = tmp_path / "kept"
-    kept_assets.keep(_build(tmp_path / "a", "old-AAAAAAAA.js", "shared-CCCCCCCC.css"), kept)
-    month_ago = time.time() - 30 * 86400
-    for f in kept.iterdir():
-        os.utime(f, (month_ago, month_ago))
-    (kept / ".half-written.js.part").write_text("")
-    out = kept_assets.keep(_build(tmp_path / "b", "new-BBBBBBBB.js", "shared-CCCCCCCC.css"), kept)
-    assert sorted(f.name for f in kept.iterdir()) == ["new-BBBBBBBB.js", "shared-CCCCCCCC.css"]
-    assert out["dropped"] == 2
-    assert time.time() - (kept / "shared-CCCCCCCC.css").stat().st_mtime < 60, "a file the build still names is current"
-
-
-def test_no_kept_folder_unless_it_is_configured_and_present(tmp_path, monkeypatch):
-    monkeypatch.delenv(kept_assets.ENV, raising=False)
-    assert kept_assets.folder() is None
-    monkeypatch.setenv(kept_assets.ENV, str(tmp_path / "missing"))
-    assert kept_assets.folder() is None
-    monkeypatch.setenv(kept_assets.ENV, str(tmp_path))
-    assert kept_assets.folder() == tmp_path
+def test_files_no_build_has_named_for_a_week_are_dropped(tmp_path, conn):
+    kept_assets.keep(conn, _build(tmp_path / "a", "old-AAAAAAAA.js", "shared-CCCCCCCC.css"))
+    conn.execute(f"update {kept_assets.TABLE} set last_named = now() - interval '30 days'")
+    conn.commit()
+    out = kept_assets.keep(conn, _build(tmp_path / "b", "new-BBBBBBBB.js", "shared-CCCCCCCC.css"))
+    names = [r["name"] for r in conn.execute(f"select name from {kept_assets.TABLE} order by name").fetchall()]
+    assert names == ["new-BBBBBBBB.js", "shared-CCCCCCCC.css"]
+    assert out == {"copied": 1, "kept": 2, "dropped": 1}
+    fresh = conn.execute(f"select now() - last_named < interval '1 minute' as fresh from {kept_assets.TABLE} "
+                         "where name = 'shared-CCCCCCCC.css'").fetchone()["fresh"]
+    assert fresh, "a file the build still names is current"

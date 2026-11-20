@@ -69,8 +69,8 @@ def test_shutdown_stops_all_children(monkeypatch):
     assert killed == [(123, signal.SIGTERM)]
 
 
-def test_the_daemon_waits_for_the_startup_readings(monkeypatch):
-    started, stop, ready = [], threading.Event(), threading.Event()
+def test_held_tasks_start_when_their_gate_opens(monkeypatch):
+    started, stop, owned, read = [], threading.Event(), threading.Event(), threading.Event()
 
     class Proc:
         pid = 5
@@ -84,41 +84,44 @@ def test_the_daemon_waits_for_the_startup_readings(monkeypatch):
         def wait(self, timeout=None):
             return 0
 
-    waits = iter([False, False, True])
+    waits = iter([False, False, False, True])
 
     def wait_once(timeout):
-        if started == ["api"]:  # held while the readings run; they finish now
-            ready.set()
+        if started == ["api"]:  # the previous instance stopped: the agent worker may start
+            owned.set()
+        elif started == ["api", "agent"]:  # the readings finished: the daemon may start
+            read.set()
         return next(waits)
 
     monkeypatch.setattr(stop, "wait", wait_once)
     monkeypatch.setattr(deploy.subprocess, "Popen", Proc)
     monkeypatch.setattr(deploy.os, "killpg", lambda pid, sig: None)
-    deploy.supervise([("Dagster daemon", ["daemon"]), ("API", ["api"])], stop, ready)
-    assert started == ["api", "daemon"]
+    deploy.supervise([("Dagster daemon", ["daemon"]), ("Agent worker", ["agent"]), ("API", ["api"])], stop,
+                     {"Dagster daemon": read, "Agent worker": owned})
+    assert started == ["api", "agent", "daemon"]
 
 
-def test_the_daemon_starts_anyway_after_the_wait(monkeypatch):
-    started, stop = [], threading.Event()
-
-    class Proc:
-        pid = 5
-
-        def __init__(self, command, **kwargs):
-            started.append(command[0])
-
-        def poll(self):
-            return None
-
-        def wait(self, timeout=None):
-            return 0
-
-    waits = iter([False, True])
-    monkeypatch.setattr(stop, "wait", lambda timeout: next(waits))
-    monkeypatch.setattr(deploy.subprocess, "Popen", Proc)
-    monkeypatch.setattr(deploy.os, "killpg", lambda pid, sig: None)
-    deploy.supervise([("Dagster daemon", ["daemon"]), ("API", ["api"])], stop, threading.Event(), wait=0)
-    assert started == ["api", "daemon"]
+def test_a_new_instance_waits_for_the_old_one_before_taking_over_the_scheduled_work(monkeypatch):
+    """Zero-downtime deploys run the old and new instance side by side for a while: only one runs the scheduled work,
+    and the new one ends the old one's runs only once it has stopped."""
+    monkeypatch.setattr(deploy, "OWNER_POLL_SECONDS", 0.05)
+    old = deploy.wait_for_ownership(threading.Event())
+    assert old is not None
+    calls, stop, owned, read, holder = [], threading.Event(), threading.Event(), threading.Event(), []
+    monkeypatch.setattr(deploy, "end_orphaned_runs", lambda: calls.append("end orphans"))
+    monkeypatch.setattr(deploy, "read_projects", lambda added, done: calls.append("read") or done.set())
+    t = threading.Thread(target=deploy.take_over, args=([], stop, owned, read),
+                         kwargs={"holder": holder, "wait": 5}, daemon=True)
+    t.start()
+    assert not owned.wait(0.3) and calls == [], "the old instance still runs the scheduled work"
+    old.close()  # the old instance stops
+    assert owned.wait(5) and read.wait(5)
+    t.join(5)
+    assert calls == ["end orphans", "read"]
+    stopped = threading.Event()
+    stopped.set()
+    assert deploy.wait_for_ownership(stopped) is None  # told to stop while waiting: it gives up
+    holder[0].close()
 
 
 @pytest.mark.parametrize("fail_first", [False, True])
@@ -147,43 +150,49 @@ def test_startup_reads_each_project_in_its_own_scope(monkeypatch, capsys, fail_f
     assert ("Inspect recorded readings before a deliberate retry" in out) == fail_first
 
 
-def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_path):
+def test_main_serves_at_once_and_takes_over_the_scheduled_work_in_the_background(monkeypatch, tmp_path):
     calls = []
     monkeypatch.setenv("FUZER_DATABASE_URL", "postgresql://unused/test")
     monkeypatch.setenv("FUZER_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
-    monkeypatch.setattr(deploy.db, "connect", lambda **kw: nullcontext(SimpleNamespace(execute=lambda *a: calls.append("lock") if kw else None)))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-real-key")
+    monkeypatch.setattr(deploy.db, "connect", lambda **kw: nullcontext(SimpleNamespace(execute=lambda *a: calls.append("lock") if "advisory" in a[0] else SimpleNamespace(fetchone=lambda: None, fetchall=list))))
     monkeypatch.setattr(deploy, "configure_dagster", lambda home, url: calls.append("dagster"))
-    monkeypatch.setattr(deploy, "end_orphaned_runs", lambda: calls.append("end orphans"))
+    monkeypatch.setattr(deploy, "keep_assets", lambda: calls.append("assets"))
     monkeypatch.setattr(deploy, "seed", lambda conn, bundle: calls.append("seed") or {"name": "first"})
     monkeypatch.setattr(deploy, "register_projects", lambda conn, first: first == "first" and ["kestrel"])
     monkeypatch.setattr(deploy.engine, "load_defaults", lambda conn: None)
     monkeypatch.setattr(deploy.projects, "use", lambda conn, name: nullcontext())
     monkeypatch.setattr(deploy.signal, "signal", lambda *args: None)
-    monkeypatch.setattr(deploy, "commands", lambda added, role: [role])
 
     class Thread:
-        def __init__(self, *, target, args, name, daemon):
-            assert target is deploy.read_projects and args[0] == ["kestrel"]
-            assert isinstance(args[1], threading.Event)
-            assert name == "startup-readings" and daemon
+        def __init__(self, *, target, args, kwargs, name, daemon):
+            assert target is deploy.take_over and args[0] == ["kestrel"]
+            assert name == "take-over" and daemon
 
         def start(self):
-            calls.append("background readers")
+            calls.append("take over")
+
+    def supervise(tasks, stop, gates=None):
+        gates = gates or {}
+        calls.append(f"serve {[n for n, _ in tasks if n not in gates]} holding {sorted(gates)}")
 
     monkeypatch.setattr(deploy.threading, "Thread", Thread)
-    monkeypatch.setattr(deploy, "supervise", lambda tasks, stop, ready=None: calls.append(f"serve {tasks[0]}"))
+    monkeypatch.setattr(deploy, "supervise", supervise)
     monkeypatch.delenv(deploy.ROLE_ENV, raising=False)
     deploy.main(["--bundle", str(tmp_path)])
-    assert calls == ["dagster", "end orphans", "lock", "seed", "background readers", "serve all"]
-    # Split: the worker ends the runs its old machine left and does the readings; the web service does neither.
+    assert calls == ["dagster", "lock", "seed", "assets", "take over",
+                     "serve ['Dagster webserver', 'API'] holding ['Agent worker', 'Agent worker (kestrel)', "
+                     "'Dagster daemon']"]
     calls.clear()
+    monkeypatch.delenv("PORT", raising=False)
     deploy.main(["--bundle", str(tmp_path), "--role", "worker"])
-    assert calls == ["dagster", "end orphans", "lock", "seed", "background readers", "serve worker"]
+    assert calls == ["dagster", "lock", "seed", "assets", "take over",
+                     "serve [] holding ['Agent worker', 'Agent worker (kestrel)', 'Dagster daemon']"]
     calls.clear()
     monkeypatch.setenv(deploy.ROLE_ENV, "web")
     deploy.main(["--bundle", str(tmp_path)])
-    assert calls == ["dagster", "lock", "seed", "serve web"]
+    assert calls == ["dagster", "lock", "seed", "assets", "serve ['Dagster webserver', 'API'] holding []"]
 
 
 def test_a_split_deployment_runs_each_process_on_one_service(monkeypatch):

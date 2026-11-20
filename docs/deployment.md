@@ -53,14 +53,11 @@ process model **inside the image**. The data therefore survives container
 replacement; generating files only in a Render shell does not.
 
 The service uses a paid 2 GB plan for the API, Dagster webserver/daemon and agent
-worker, and a 1 GB persistent disk at `/var/lib/fuzer`. Review billing before
-syncing. It is intentionally **single-instance**. Every start writes
-`DAGSTER_HOME=/var/lib/fuzer/dagster/dagster.yaml` so Dagster's run, event and
-schedule storage lives in `fuzer-db` (schema `dagster`), not in SQLite on the disk:
-the API, webserver, daemon and every run process share it, and SQLite on a small
-network disk failed under them with `disk I/O error`. Only run output (compute
-logs, pruned after 14 days) stays on the disk, and the first start on this layout
-deletes the old SQLite files and the run history they held. Sensor and schedule
+worker, and **no persistent disk**. Review billing before syncing. Every start writes
+`DAGSTER_HOME=/var/lib/fuzer/dagster/dagster.yaml` (on the container's own, throwaway
+filesystem) so Dagster's run, event and schedule storage lives in `fuzer-db` (schema
+`dagster`): the API, webserver, daemon and every run process share it. Run output
+(compute logs) is not kept; it goes to the service log. Sensor and schedule
 ticks are purged after 14 days (skipped sensor ticks after 3). The Jobs page reads
 that same instance, including daemon heartbeats.
 Dagster's port 3000 listens on loopback only; Render exposes only the API on
@@ -69,9 +66,24 @@ exits if any required child dies so Render restarts the whole runtime.
 The Jobs page only offers an external Dagster link when `FUZER_DAGSTER_URL` is
 configured with a browser-accessible URL; it never exposes the server's loopback
 address to remote users.
-Persistent disks imply downtime during deploys; do not scale this configuration
-to multiple replicas. Splitting services later requires shared Dagster database
-storage and code-location configuration, not merely `FUZER_DAGSTER_URL`.
+### Zero-downtime deploys
+
+The service has no disk, so Render deploys without dropping the site: it starts the
+new instance, waits for `/health`, moves traffic to it, then stops the old one. A
+persistent disk would force Render to stop the old instance first (about a minute
+down on every merge), so keep anything a later instance needs in `fuzer-db`:
+
+- Dagster's runs, events and schedules: schema `dagster`.
+- When an instance was told to stop, so a run a deploy cut short isn't reported as a failure: `fuzer.deploy_stop` (`fuzer.ops.stops`).
+- Earlier builds' files, so a page opened before a deploy still loads its parts: `fuzer.kept_asset`, gzipped, dropped a week after no build names them (`fuzer.core.kept_assets`).
+
+For a few minutes both instances run. The new one serves pages as soon as it has
+seeded, but it holds the Dagster daemon and the agent workers until the old one has
+stopped (an advisory lock the running instance holds for its lifetime,
+`fuzer.cli.deploy.take_over`), so no schedule fires twice and the runs it ends at
+startup are really orphaned. Do not scale to more than one instance: the lock keeps
+the scheduled work on one, but the startup seeding and the Dagster webserver assume
+one.
 
 ### Initial load and upgrades
 
@@ -84,15 +96,15 @@ loads exports that changed in the image, and rebuilds if anything did. This runs
 before the API starts, so a deploy that changes data takes longer to come up. A
 failure here is logged as `Data refresh failed` and the service starts on the
 register it has; it isn't retried, so inspect Sources, then redeploy or run
-`fuzer ingest` deliberately. A new image can change document text, and with a key
+`fuzer ingest` deliberately. The previous instance keeps serving until this finishes. A new image can change document text, and with a key
 the startup readers then pay to read those sections. Other
 assets or unidentified pre-existing source data cause a clear startup failure:
 there is **no automatic reset**, on first boot or on subsequent redeploys.
 Zero-record ingestion is an error, not a successful bootstrap.
 
 For an existing dashboard-managed service, remove any custom Docker Command
-override so the image runs `python -m fuzer.cli.deploy --bundle /app/fakeplant/bundles/okan`, attach the persistent
-disk, and set these environment values (or sync the Blueprint):
+override so the image runs `python -m fuzer.cli.deploy --bundle /app/fakeplant/bundles/okan`, detach any persistent
+disk (it forces downtime on every deploy), and set these environment values (or sync the Blueprint):
 
 | Variable | Value |
 |---|---|
@@ -115,8 +127,8 @@ service's CPU with page requests. To keep them apart, run the same image twice a
 | Background worker | `worker` | The Dagster daemon, every run it starts, the agent workers and the startup readings |
 
 Both need `FUZER_DATABASE_URL` and the same provider keys. Dagster's run, event and schedule storage is in
-Postgres, so the Jobs page and run history work from either service. Run output (compute logs) is written where the
-run happened, on the worker; give the worker the persistent disk if those logs should survive a deploy. Both
+Postgres, so the Jobs page and run history work from either service. Run output (compute logs) goes to the log of
+the service that ran it, the worker. Both
 services seed at start, one after the other (an advisory lock).
 
 Remove stale `FUZER_PROJECT`, `FUZER_PACK`, `FUZER_DATA_DIR`, `FUZER_TIMESERIES` or other asset-specific
@@ -309,7 +321,7 @@ Everything a shift would miss lives in `fuzer-db`:
 - the shared `fuzer` schema, with accounts, grants, settings and access events;
 - the `dagster` schema, with run history and schedules.
 
-The persistent disk holds only Dagster run output, which is pruned after 14 days. The synthetic exports come with the image. So a recovery is a database recovery.
+The service has no disk. The synthetic exports come with the image. So a recovery is a database recovery.
 
 ### What Render keeps
 
@@ -317,7 +329,6 @@ The persistent disk holds only Dagster run output, which is pruned after 14 days
 |---|---|---|
 | Point-in-time recovery of `fuzer-db` | Last 3 days on a Hobby workspace, 7 on Pro or higher. None on the Free database plan. | Render creates a **new** database as it was at a time you pick, at least 10 minutes ago. The original is left as it is. |
 | Logical exports of `fuzer-db` | 7 days. Made on demand from the database's Recovery page, never automatically. | `pg_restore` into an **empty** database. |
-| Persistent disk snapshots | Daily, kept 7 days. | Whole-disk restore from the service's Disk page. It is not needed for Fuzer data. |
 
 Nothing is copied off Render. A copy older than 7 days, or one that survives losing the Render account, would need a scheduled `pg_dump` to outside storage. That is a paid service and isn't set up.
 
