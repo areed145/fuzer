@@ -874,3 +874,32 @@ def test_demo_account_never_owns_or_configures_and_an_owner_or_the_deployment_ca
     assert runtime.get("/stats").status_code == 200
     monkeypatch.delenv("FUZER_DEMO_TOKEN")  # taking the token off the deployment ends live demo sessions too
     assert runtime.get("/stats").status_code == 401
+
+
+def test_demo_account_signs_in_with_username_and_password_only_while_the_demo_is_on(runtime, monkeypatch):
+    monkeypatch.delenv("FUZER_DEMO_TOKEN", raising=False)
+    monkeypatch.delenv("FUZER_DEMO_PASSWORD", raising=False)
+    assert runtime.get("/auth/me").json()["demo_sign_in"] is False
+    assert runtime.post("/auth/password", json={"username": "demo", "password": "demo"}).status_code == 404
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
+    assert runtime.get("/auth/me").json()["demo_sign_in"] is True
+    for username, password in [("demo", "wrong"), ("admin", "demo"), ("", "")]:
+        refused = runtime.post("/auth/password", json={"username": username, "password": password})
+        assert refused.status_code == 403 and refused.json()["detail"] == "Wrong username or password"
+    response = runtime.post("/auth/password", json={"username": " Demo ", "password": "demo"})
+    assert response.status_code == 200, response.text
+    assert response.json()["actor"] == "user:demo"
+    runtime.cookies.set("__Host-fuzer_session", response.cookies["__Host-fuzer_session"],
+                        domain="testserver.local", path="/")
+    me = runtime.get("/auth/me").json()["user"]
+    assert me["actor"] == "user:demo" and not me["owner"] and "configure" not in me["permissions"]
+    assert runtime.get("/stats").status_code == 200
+    monkeypatch.setenv("FUZER_DEMO_PASSWORD", "another-password")
+    assert runtime.post("/auth/password", json={"username": "demo", "password": "demo"}).status_code == 403
+    assert runtime.post("/auth/password", json={"username": "demo", "password": "another-password"}).status_code == 200
+    with db.connect() as conn:
+        methods = [e["data"].get("method") for e in conn.execute(
+            "select data from access_event where action = 'signed_in' order by id").fetchall()]
+    assert methods == ["demo_password", "demo_password"]
+    monkeypatch.delenv("FUZER_DEMO_TOKEN")  # the same switch ends password sessions too
+    assert runtime.get("/stats").status_code == 401

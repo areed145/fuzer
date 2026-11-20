@@ -17,6 +17,8 @@ export interface AuthSession {
   configured: boolean;
   user: SignedInUser | null;
   needs_owner?: boolean;
+  /** The sign-in page offers the demo account's username and password. */
+  demo_sign_in?: boolean;
   /** The project this session's requests run for, and (local mode) the projects this instance holds. */
   project?: string | null;
   projects?: string[];

@@ -4,8 +4,8 @@ import type { AuthSession } from "./authState";
 import { setCsrf } from "./authState";
 import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
-import { useRoute, errorMessage } from "./lib";
-import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader, Line, Text, Notice, Heading } from "./ui";
+import { useRoute, errorMessage, useAction } from "./lib";
+import { ActionStatus, Badge, Button, ButtonLink, Card, ErrorText, Field, Input, PageHeader, Line, Notice, Heading } from "./ui";
 import { forgetKept, outboxSession, unreachable } from "./fieldOffline";
 import "./styles/auth.css";
 
@@ -128,19 +128,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
     unconfigured: "Sign-in is not available yet", "first-owner": "Set up the first owner",
     "no-read": "Your account needs application access", pending: "Your account is ready for approval",
     "sign-in-failed": signInResult === "unavailable" ? "Microsoft sign-in is unreachable" : "Sign-in did not complete",
-    "sign-in": "Investigate with evidence, not guesswork", admitted: "",
+    "sign-in": "Sign in", admitted: "",
   }[state];
   if (state === "checking" && !slowCheck) return null;
   const check = (label: string) => <Button onClick={reload} disabled={checking}>{checking ? "Checking..." : label}</Button>;
+  const microsoft = <ButtonLink variant={session?.demo_sign_in ? "secondary" : "primary"} className="auth-wide"
+    href={location.hash.startsWith("#/") && !signInResult ? `/auth/login?return_to=${encodeURIComponent(location.hash)}` : "/auth/login"}>
+    <MicrosoftMark />Continue with Microsoft</ButtonLink>;
   return (
     <main className="auth-page" id="main-content">
       <Logo />
       <Card>
-        <Badge tone="warn">Synthetic Okan demonstration</Badge>
         <PageHeader record>{heading}</PageHeader>
-        {["sign-in", "sign-in-failed", "checking"].includes(state) &&
-          <p>Explore the Okan facility, trace a recorded issue to its asset and supporting evidence, and read a cited finding.
-            The demonstration uses historical synthetic records.</p>}
         {ended ? <div role="alert"><p>{error}</p>{check("Reload sign-in")}</div>
           : error ? <div role="alert">
             <p>The sign-in service did not answer: {error}. Nothing was changed. Try again; if this continues,
@@ -190,14 +189,44 @@ export function AuthGate({ children }: { children: ReactNode }) {
               ? "Microsoft sign-in is temporarily unreachable. Try again shortly."
               : `Sign-in ${signInResult === "expired" ? "expired" : "could not be completed"}. Try again; you can choose a different Microsoft account.`}
               {" "}If this continues, contact the deployment owner to check the application registration.</p>}
-            <ButtonLink variant="primary" href={location.hash.startsWith("#/") && !signInResult
-              ? `/auth/login?return_to=${encodeURIComponent(location.hash)}` : "/auth/login"}>Continue with Microsoft</ButtonLink>
-            <Text as="p" small>Personal and work or school Microsoft accounts work. An owner approves access.</Text>
+            {session.demo_sign_in && <>
+              <PasswordSignIn onSignedIn={reload} />
+              <div className="auth-or" aria-hidden="true">or</div>
+            </>}
+            {microsoft}
           </>}
         <ActionStatus busy={busy ? "Setting up owner access..." : null} error={actionError} />
       </Card>
+      <Badge tone="warn">Synthetic Okan data</Badge>
     </main>
   );
+}
+
+/** The demo account's username and password, the sign-in for showing the deployment and checking it. */
+function PasswordSignIn({ onSignedIn }: { onSignedIn: () => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const { busy, error, run } = useAction();
+  return <form className="auth-form" onSubmit={(event) => {
+    event.preventDefault();
+    void run("sign-in", () => api.passwordSignIn(username, password), onSignedIn);
+  }}>
+    <Field label="Username" width="full"><Input name="username" autoComplete="username" autoCapitalize="none"
+      spellCheck={false} value={username} onChange={(event) => setUsername(event.target.value)} required maxLength={128} /></Field>
+    <Field label="Password" width="full"><Input name="password" type="password" autoComplete="current-password"
+      value={password} onChange={(event) => setPassword(event.target.value)} required maxLength={512} /></Field>
+    <ErrorText>{error}</ErrorText>
+    <Button type="submit" variant="primary" className="auth-wide" disabled={!!busy || !username || !password}>
+      {busy ? "Signing in..." : "Sign in"}</Button>
+  </form>;
+}
+
+/** Microsoft's four-square mark, in its own colours as its sign-in buttons show it. */
+function MicrosoftMark() {
+  return <svg className="auth-ms" viewBox="0 0 21 21" aria-hidden="true">
+    <path className="r" d="M0 0h10v10H0z" /><path className="g" d="M11 0h10v10H11z" />
+    <path className="b" d="M0 11h10v10H0z" /><path className="y" d="M11 11h10v10H11z" />
+  </svg>;
 }
 
 export function SignOut() {
