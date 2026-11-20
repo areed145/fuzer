@@ -121,11 +121,11 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
   // No signal and not kept on this phone (P5.17c): say so, and go back to the jobs that are.
   if (!ent.data && ent.error && ent.error.startsWith("Not kept on this phone")) return <section>
-    <PageHeader>Asset and evidence</PageHeader>
+    <PageHeader>Entity</PageHeader>
     <Notice tone="warn">This page isn't kept on this phone, and there's no signal. The assets, drawings and documents of
       your jobs are. <a href={href("/inbox")}>Back to My work</a></Notice>
   </section>;
-  if (!ent.data) return <section><PageHeader>Asset and evidence</PageHeader>
+  if (!ent.data) return <section><PageHeader>Entity</PageHeader>
     <Status of={ent} />
     {ent.error && <p>The register record may be unavailable or the request may have failed.
       {" "}<a href={href("/browse")}>Return to Explore</a> to find a loaded record.</p>}
@@ -178,7 +178,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
         </label>
       </header>
 
-      <Tabs className="page-tabs" label="Views of this record" items={tabs.map((t) => ({
+      <Tabs className="page-tabs" label="Views of this entity" items={tabs.map((t) => ({
         key: t, label: TAB_LABELS[t], current: t === view,
         href: href(`/e/${encodeURIComponent(id)}`, t === "overview" ? undefined : { tab: t }),
       }))} />
@@ -376,7 +376,7 @@ function Records({ e }: { e: EntityDetail }) {
   return (
     <UICard as="section" title="Source records">
       <Text as="div" small mono>Register ID {e.fuzer_id}</Text>
-      {!e.records.length && <p>No direct source records are linked. This may be a derived record; inspect Values and Links for supporting provenance.</p>}
+      {!e.records.length && <p>No direct source records are linked. This may be a derived entity; inspect Values and Links for supporting provenance.</p>}
       <Table variant="list">
         <tbody>
           {e.records.map((r) => (
@@ -789,7 +789,7 @@ function LineageCard({ id }: { id: string }) {
           ))}
           {d.pins.map((p, i) => (
             <li key={`p-${i}`}>
-              <code>{p.left_ref}</code> {p.rule === "must" ? "is the same item as" : "is not the same item as"}{" "}
+              <code>{p.left_ref}</code> {p.rule === "must" ? "is the same entity as" : "is not the same entity as"}{" "}
               <code>{p.right_ref}</code>{" "}
               <Text muted>by {p.by ?? "a steward"}, {when(p.at, "Time unknown")}{p.reason ? `: ${p.reason}` : ""}</Text>
             </li>
@@ -797,7 +797,7 @@ function LineageCard({ id }: { id: string }) {
         </List>
       </>}
       <Heading level={3}>Work and write-backs</Heading>
-      {!d.work.count && <Text as="p" small>No work has been about this record.</Text>}
+      {!d.work.count && <Text as="p" small>No work has been about this entity.</Text>}
       {d.work.count > 0 && (
         <List small>
           {d.work.recent.map((w) => (

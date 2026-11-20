@@ -7,7 +7,7 @@ import { api, type AttentionPlace, type JobsHealth, type Stats, type WorkInbox }
 import { openReviews } from "../figures";
 import { count } from "../format";
 import { Status, afterMap, href, useAsync, useLive } from "../lib";
-import { Button, Card as UICard, PageHeader, Stat } from "../ui";
+import { Button, Card as UICard, PageHeader, Scroller, Stat } from "../ui";
 import { usePermission } from "../Auth";
 import { show } from "../analytics/Metric";
 import { LiveFigure } from "../analytics/LiveFigure";
@@ -211,7 +211,7 @@ function Figures({ seat, dispatcher, stats, open, work, ready }: {
   const c = dispatcher && open && people.data ? iocCounts(open, operators) : null;
   const reviews = seat === "steward" && stats ? openReviews(stats) : null;
   return (
-    <div className="home-figures" aria-label="Key figures">
+    <Scroller className="home-figures" label="Key figures">
       {c && <>
         <Tile to={workHref("dispatch")} label="To dispatch" value={count(c.dispatch)} late={c.dispatch > 0} />
         <Tile to={workHref("field")} label="With the field" value={count(c.field)} />
@@ -221,7 +221,7 @@ function Figures({ seat, dispatcher, stats, open, work, ready }: {
  />}
       {reviews !== null && <Tile to={href("/masterdata", { tab: "questions" })} label="Records to review" value={count(reviews)} />}
       {METRICS[seat].map((key) => <MetricTile key={key} metric={key} ready={ready} />)}
-    </div>
+    </Scroller>
   );
 }
 

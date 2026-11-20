@@ -1,5 +1,9 @@
 # Glossary
 
+This is the dictionary for everything people read in Fuzer. Each concept has one noun and one verb; the words
+after "Not" are retired and `ui/tests/glossary.test.cjs` fails on the ones it checks. A new term is added here in
+the same change that puts it on screen.
+
 **All work.** The IOC's one list of routed work, one row per event, with views that follow it from **To dispatch**
 through **With the field** and **Back from the field** to **Closed**. See [where work goes](work-map.md).
 
@@ -47,7 +51,8 @@ travels with the job.
 **Detection.** One thing the SRE found in the process data: an excursion, a stop, a step, a drift, a bad instrument.
 
 **Entity.** One real-world thing (a tag, a pump, a well, a work order) with a stable Fuzer ID (`fz-...`), however
-many sources describe it.
+many sources describe it. Everything under Browse is an entity, shown with its **kind**; its page is `#/e/<id>`.
+Not item, record or asset as a general word.
 
 **Equipment.** The physical item installed at a tag, known by its serial number. Pumps get swapped; tags stay.
 
@@ -71,6 +76,10 @@ line citing its case. The incoming lead acknowledges it.
 
 **IOW.** Integrity operating window: a limit that protects equipment integrity rather than the process.
 
+**Kind.** What sort of entity something is (a well, a tag, a work order, a document). The ontology names and labels
+every kind; a page shows that label, or the more specific word a record carries (a compressor's template, a
+drawing's document type).
+
 **Mapping.** YAML that says what one source table's rows mean: entities, fields, links and measurements. Kept as
 versions in the source catalog (the latest approved one is in use); the files in `src/fuzer/mappings/` seed it.
 
@@ -86,6 +95,9 @@ with the one before to catch a source changing shape.
 
 **Queue.** Where work for a role waits until one of its holders takes it. A step in a queue has the role's SLA and
 escalates along the role's chain.
+
+**Record.** One row from a source system, before identity resolution decides which entity it describes. Not a word
+for the entity itself.
 
 **Register.** The golden records and the links between them: what the work is matched to.
 
@@ -123,6 +135,9 @@ project. See [settings](settings.md).
 
 **Standing.** Alarms already on when scanning began. They join an upset that starts near them but never open one.
 
+**Step.** One task in a case's workflow, held by a person, a queue or an agent. A step is worked on its case's page:
+**Take it**, **Give it back to the queue**, **Complete**, or **Send to** someone else.
+
 **Suppression.** Planned work holding back the detections it explains: a trip on a machine that is down for a
 shutdown is counted under the shutdown and opens no case.
 
@@ -134,8 +149,7 @@ first cause.
 **Watch.** An agent that reads one process area at a time and proposes what looks unusual that no detector raised.
 Its proposals are kept and scored; they are raised as work only in live mode, which is off by default.
 
-**Work item.** The record behind a case, and each step of its workflow: assigned to an agent, a person or a
-role's queue.
+**Work item.** The engine's name for a case, kept in code and the API only. On screen it is a case.
 
 **Workflow.** A BPMN process: lanes for roles, steps for people and agents, timers and escalation. Listed under
 Work > Workflows (formerly Processes).

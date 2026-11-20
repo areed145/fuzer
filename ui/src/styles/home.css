@@ -103,7 +103,15 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
   .home-stage { --gap: 8px; }
   .home-over { top: calc(var(--bar-top, 0px) + var(--gap)); right: var(--gap); }
   .home-top { padding: 6px; }
-  .home-figure { flex: none; min-width: 104px; }
+  .home-top .home-figures { flex-wrap: nowrap; }
+  /* Two figures and half the next across a phone, so the row plainly goes on and each label keeps to one line. */
+  .home-figure { flex: 0 0 calc((100% - 16px) / 2.5); min-width: 0; }
+  .home-figure small { white-space: normal; }
+  /* The mark sits on the map, which is dark in both themes: it gets the glass the buttons beside it have. */
+  html:has(.home-map) .topbar .brand { display: inline-flex; align-items: center; height: 44px; padding: 0 14px; border-radius: 22px;
+    background: var(--glass, var(--panel)); background-image: var(--glass-sheen, none);
+    -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%);
+    border: var(--hair, 1px) solid var(--glass-edge, var(--line)); box-shadow: inset 0 1px 0 var(--glass-hi, transparent), var(--glass-shadow, none); }
   .home-charts { max-height: calc(100dvh - var(--bar-top, 0px) - var(--bar-bottom, 0px) - 260px); }
   .home-feed { top: auto; left: 0; right: 0; bottom: var(--bar-bottom, 0px); width: auto; max-height: 56px; border-radius: 16px 16px 0 0;
     border-bottom: 0; transition: max-height .2s ease; }

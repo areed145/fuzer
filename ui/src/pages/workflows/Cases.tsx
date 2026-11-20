@@ -42,17 +42,17 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
     setCreated(null);
     return run("create", () => api.createWorkItem(title.trim(), role, person), (item) => { setCreated(item.id); setTitle(""); onCreated(); });
   };
-  return <Disclosure className="new-work-item" label={<>New work item</>}>
+  return <Disclosure className="new-work-item" label={<>New case</>}>
     <Line wrap>
-      <Input aria-label="Work item title" width="lg" placeholder="What needs doing" maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} />
+      <Input aria-label="Case title" width="lg" placeholder="What needs doing" maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} />
       <Select aria-label="Queue" value={role} onChange={(e) => setRole(e.target.value)}>
         <option value="">choose a queue</option>
         {(roles.data?.person ?? []).map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
       </Select>
-      <ConfirmAction label="Create work item" busy={!!busy} disabled={!title.trim() || !role}
+      <ConfirmAction label="Open the case" busy={!!busy} disabled={!title.trim() || !role}
         consequence={`This adds shared work to the ${role.replace(/_/g, " ")} queue, with you recorded as its creator.`} onConfirm={create} />
     </Line>
-    <ActionStatus busy={busy ? "Creating the work item…" : null} error={error}>
+    <ActionStatus busy={busy ? "Opening the case…" : null} error={error}>
       {created !== null && <>Created. <a href={caseHref(created)}>Open the case</a>.</>}
     </ActionStatus>
   </Disclosure>;

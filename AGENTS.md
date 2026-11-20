@@ -18,6 +18,11 @@ that is not listed.
 - No decoration text. Don't write a tagline under a title, a sentence that explains a card, a caption that restates
   what is on screen, or a reassurance. Write a label, the data, and the one line a person needs at the point they
   act. `PageHeader` takes no fixed subtitle; grey paragraphs are counted and the count only goes down.
+- Screen text uses the words in the [glossary](docs/glossary.md), which is the dictionary: one noun and one verb
+  per concept. Anything in the register is an **entity**, shown with its **kind**; never an item, a record (that is
+  a source row) or an asset as an umbrella word. A piece of work is a **case**, never a work item. A kind is labelled
+  only in `src/fuzer/core/ontology.yaml` and read with `kindWord`. A new term goes into the glossary in the same
+  change. `ui/tests/glossary.test.cjs` fails on a retired word or a kind labelled anywhere else.
 - The kit (`ui/src/ui`) is used, not edited around: no restyling `.ui-*` classes from a page stylesheet, no raw
   `<button>`, `<table>`, `<textarea>` or browser dialogs. `ui/tests/style-lint.test.cjs` counts each of these and
   the counts only go down; never raise a number in `style-baseline.json`.

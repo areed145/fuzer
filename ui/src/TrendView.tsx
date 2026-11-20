@@ -1,3 +1,4 @@
+import { kindWord } from "./wording";
 import "./styles/trend-view.css";
 // One trend with event lanes (P5.13b): an entity's process values grouped by its class's template (P5.12) as panels
 // on one time axis, with its alarms, log, cases, work orders and downtime beneath. Chips switch each trace, group and
@@ -33,8 +34,9 @@ function recordHref(e: TimelineEvent): string | null {
   return e.id ? entityHref(e.id) : null;
 }
 
-const KIND: Record<string, string> = { alarm: "Alarm", log_entry: "Log entry", case: "Case", notification: "Notification",
-  work_order: "Work order", downtime: "Downtime", incident: "Incident" };
+/** A lane event's kind as words: an entity kind as the ontology labels it, and the two that aren't entities. */
+const KIND: Record<string, string> = { alarm: "Alarm", case: "Case" };
+const kindOf = (kind: string) => KIND[kind] ?? kindWord(kind);
 /** A time as the chart's hover reads it, to the minute: "2024-03-14 03:20". */
 const minute = (x: string) => x.replace(" ", "T").slice(0, 16).replace("T", " ");
 
@@ -203,7 +205,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
       )}
       {selected.length > 0 && (
         <Card as="section" className="trend-view-detail" aria-label="Selected events"
-          title={selected.length === 1 ? (KIND[selected[0].kind] ?? "Event") : `${selected.length} events`}
+          title={selected.length === 1 ? kindOf(selected[0].kind) : `${selected.length} events`}
           actions={<Button size="sm" variant="link" onClick={() => setChosen(null)}>Close</Button>}>
           <List plain>
             {selected.map((e, i) => {
@@ -211,9 +213,9 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
               return (
                 <li key={`${e.kind}-${e.id ?? e.item_id}-${i}`}>
                   <b>{minute(e.start)}{e.end && e.end !== e.start ? ` to ${minute(e.end)}` : ""}</b>{" "}
-                  {selected.length > 1 && <Text muted>{KIND[e.kind] ?? e.kind} · </Text>}
+                  {selected.length > 1 && <Text muted>{kindOf(e.kind)} · </Text>}
                   {[e.label, e.text, e.detail, e.status].filter(Boolean).join(" · ")}
-                  {h && <> · <a href={h}>{e.kind === "case" ? "Open case" : "Open record"}</a></>}
+                  {h && <> · <a href={h}>{e.kind === "case" ? "Open case" : "Open entity"}</a></>}
                 </li>
               );
             })}

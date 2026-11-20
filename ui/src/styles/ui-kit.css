@@ -178,3 +178,17 @@ html.ui-fullscreen-open .bottombar { display: none; }
 /* A row of views standing on its own in a page or card has room above and below; in a toolbar it has none. */
 :is(section, .ui-card) > .tabs { margin: 4px 0 12px; }
 .tabs.small > *, .tabs.small > .ui-button { padding: 3px 10px; font-size: 13px; }
+
+/* Rows that scroll sideways (SCROLL_ROWS, marked by watchScrollers): the edge with more fades out, and items snap so
+   they rest whole, with only the next one peeking in. Nothing rests cut off at the start of the row. */
+:where(.ui-scroller) { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; max-width: 100%; }
+.ui-scroller::-webkit-scrollbar { display: none; }
+:where(.ui-scroller) > * { flex-shrink: 0; }
+[data-more] { --scroll-fade: 28px; scroll-snap-type: x mandatory; }
+[data-more] > * { scroll-snap-align: start; }
+[data-more="end"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--scroll-fade)), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--scroll-fade)), transparent); }
+[data-more="start"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - var(--scroll-fade)), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - var(--scroll-fade)), transparent); }
+[data-more="both"] { -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--scroll-fade), #000 calc(100% - var(--scroll-fade)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--scroll-fade), #000 calc(100% - var(--scroll-fade)), transparent); }

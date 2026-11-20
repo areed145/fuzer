@@ -201,9 +201,9 @@ function SystemContext({ system }: { system: string }) {
           {r.unmatched.slice(0, 5).map((u, i) => <span key={u.fuzer_id}>{i ? ", " : ""}<a href={entityHref(u.fuzer_id)}>{u.label}</a></span>)}
           {r.unmatched.length > 5 && ` and ${r.steward.unmatched - 5} more`}</li>}
       </List>}
-      {r.unmatched.length > 0 && <ConfirmAction label="They are new items" busy={!!a.busy}
-        consequence={`${r.steward.unmatched === 1 ? "The record stays" : `The ${r.steward.unmatched} records stay`} as new items and aren't asked about again. To match one instead, open it and use Same as….`}
-        onConfirm={() => void a.run("new", () => api.systemRecordsAreNew(system, reviewer(), "new items, not ones the register has"), c.reload)} />}
+      {r.unmatched.length > 0 && <ConfirmAction label="They are new entities" busy={!!a.busy}
+        consequence={`${r.steward.unmatched === 1 ? "The record stays" : `The ${r.steward.unmatched} records stay`} as new entities and aren't asked about again. To match one instead, open it and use Same as….`}
+        onConfirm={() => void a.run("new", () => api.systemRecordsAreNew(system, reviewer(), "new entities, not ones the register has"), c.reload)} />}
       <ErrorText>{a.error}</ErrorText>
       {r.automatic.length > 0 && <Disclosure label={`Automatic matches (${auto})`}>
         <Table density="compact">

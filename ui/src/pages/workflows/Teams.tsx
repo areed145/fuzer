@@ -214,7 +214,7 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
       <Text as="p" small>Roster identity: <code>{p.name}</code>. {p.account_enabled === false
         ? "Account disabled: saved assignments remain, but effective workflow access is empty."
         : p.account_enabled === true ? "Linked to a signed-in account." : "Legacy roster identity, not automatically linked to a sign-in account."}</Text>
-      <p><a href={href("/exceptions", { list: "progress", who: p.name })}>{p.assigned} assigned work items</a> · {p.overdue} overdue</p>
+      <p><a href={href("/exceptions", { list: "progress", who: p.name })}>{p.assigned} assigned cases</a> · {p.overdue} overdue</p>
       <p>Works in: {scopeText(p)}{p.covers != null && p.cover_roles?.length ? ` (${p.cover_roles.join(", ")})` : ""}</p>
       <p>Saved workflow assignments: {(p.assigned_roles ?? p.roles).join(", ") || "None"}</p>
       <p>Effective workflow roles: {p.account_enabled === false ? "None (account disabled)"

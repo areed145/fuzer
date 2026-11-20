@@ -11,7 +11,7 @@ const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/wording.
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(code, { exports: exportsObject });
-const { acronyms, alarm, kindWord, person, plural, queue, say, setPeopleNames, unit } = exportsObject;
+const { KIND_LABELS, acronyms, alarm, kindWord, person, plural, queue, say, setPeopleNames, unit } = exportsObject;
 
 const MACHINE = /\b(?:alarm|iow|role):[a-z_]|\bdegC\b|\bSm3\b|\b[a-z]+_[a-z_]+ queue\b/;
 
@@ -36,7 +36,9 @@ test("alarm kinds, units, queues, plurals, kinds and acronyms", () => {
   assert.equal(queue("ops_lead"), "ops lead queue");
   assert.deepEqual([plural(1, "event"), plural(3, "event"), plural(1, "place")], ["1 event", "3 events", "1 place"]);
   assert.equal(kindWord("tag", { template: "Compressor" }), "Compressor");
-  assert.equal(kindWord("tag", {}), "Asset");
+  assert.equal(kindWord("work_order", {}), "Work order");  // before the ontology loads: the kind's own name
+  KIND_LABELS.timeseries = "Historian point";  // then the ontology's label, the one place a kind is named
+  assert.equal(kindWord("timeseries"), "Historian point");
   assert.equal(kindWord("document", { doc_type: "oem_manual" }), "OEM manual");
   assert.equal(kindWord("document", {}), "Document");
   assert.equal(acronyms("365-day preventive maintenance, lp production separator"), "365-day preventive maintenance, LP production separator");

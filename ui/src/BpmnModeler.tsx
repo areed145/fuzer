@@ -241,8 +241,8 @@ function ProcessProps({ ed, ctx }: { ed: Editing; ctx: ModelerContext }) {
       <Heading level={3}>Workflow</Heading>
       <Field label="Key" value={p.id} readOnly hint="Stays the same across versions; workflows and the API start it by this." />
       <Text label="Name" value={p.name} onCommit={(v) => ed.setOn(p, { name: v })} />
-      <Text label="Work item type" value={p.workItemType} placeholder={p.id}
-        onCommit={(v) => ed.setOn(p, { workItemType: v })} hint="How its items are filed in the inbox and on the board." />
+      <Text label="Case type" value={p.workItemType} placeholder={p.id}
+        onCommit={(v) => ed.setOn(p, { workItemType: v })} hint="How its cases are filed in the inbox and on the board." />
       <Text label="Correlation key" value={p.correlationKey} mono placeholder="incident_id"
         onCommit={(v) => ed.setOn(p, { correlationKey: v })}
         hint="An expression over the start data. New evidence with the same key joins the open workflow instead of starting another." />

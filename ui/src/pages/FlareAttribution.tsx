@@ -8,10 +8,11 @@ import { api, type FlareReview } from "../api";
 import { whenDay, count } from "../format";
 import { Badge, Empty, Table, Text, List } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
+import { kindWord } from "../wording";
 
-const KIND: Record<FlareReview["episodes"][number]["causes"][number]["kind"], string> = {
-  downtime: "Downtime", log_entry: "Log", detection: "Detection",
-};
+/** A cause's kind as words: an entity kind as the ontology labels it; a detection is not an entity. */
+const causeKind = (kind: FlareReview["episodes"][number]["causes"][number]["kind"]) =>
+  kind === "detection" ? "Detection" : kindWord(kind);
 
 export function FlareAttribution() {
   const data = useAsync(() => api.incidentFlare(), []);
@@ -35,7 +36,7 @@ export function FlareAttribution() {
                 ? <Badge tone="muted">{e.causes.length} records</Badge>
                 : <Badge tone="warn">cause unknown</Badge>}
               {e.causes.slice(0, 3).map((c) => (
-                <Text as="div" key={c.id} muted>{KIND[c.kind]} {c.at.replace("T", " ")}:{" "}
+                <Text as="div" key={c.id} muted>{causeKind(c.kind)} {c.at.replace("T", " ")}:{" "}
                   {c.kind === "detection" ? c.text : <a href={entityHref(c.id)}>{c.text}</a>}</Text>
               ))}
             </li>

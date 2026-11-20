@@ -1404,7 +1404,7 @@ test("a drawing disagreement records which side needs changing and says neither 
   let sent;
   await page.route("**/review/11", (route) => { sent = route.request().postDataJSON(); return route.fulfill({ json: { decided: 11 } }); });
   await page.goto(`${url}/#/review?kind=pid_mismatch`);
-  await page.getByRole("heading", { name: /Instrument drawn on another item/ }).waitFor();
+  await page.getByRole("heading", { name: /Instrument drawn on another entity/ }).waitFor();
   assert.match(await page.locator(".review .finding").innerText(), /Found by\s+Agent\s+Method\s+A drawing read by a model[\s\S]*Drawn on\s+20-K-2200B/);
   assert.equal(await page.getByRole("link", { name: "Open OKAN-20-PID-005" }).count(), 1);
   await page.getByRole("button", { name: "Drawing is right, change SAP" }).click();
@@ -1652,13 +1652,13 @@ test("a system says how its records matched, what is left for a steward and ever
     accepted = route.request().postDataJSON();
     return route.fulfill({ json: { accepted: 1 } });
   });
-  await page.getByRole("button", { name: "They are new items", exact: true }).click();
-  await page.getByText("The record stays as new items", { exact: false }).waitFor();
-  await page.getByRole("button", { name: "Confirm They are new items", exact: true }).click();
+  await page.getByRole("button", { name: "They are new entities", exact: true }).click();
+  await page.getByText("The record stays as new entities", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Confirm They are new entities", exact: true }).click();
   await page.getByRole("button", { name: "Automatic matches (59)", exact: true }).click();
   await page.getByRole("cell", { name: "99%", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: "20-K-2100C", exact: true }).getAttribute("href"), "#/e/fz-tag-2");
-  assert.equal(accepted?.reason, "new items, not ones the register has");
+  assert.equal(accepted?.reason, "new entities, not ones the register has");
   let unlinked = null;
   await page.route("**/sources/systems/inspect/links/unlink", (route) => {
     unlinked = route.request().postDataJSON();
@@ -2651,17 +2651,17 @@ test("An assistant draft creates nothing until the person confirms, and then lin
   await page.getByRole("button", { name: /^Ask/ }).first().click();
   const confirmAsk = page.getByRole("button", { name: /Confirm|Send/ }).first();
   if (await confirmAsk.isVisible().catch(() => false)) await confirmAsk.click();
-  const card = page.getByRole("region", { name: "Draft work item" });
+  const card = page.getByRole("region", { name: "Draft case" });
   await card.getByText("not created yet", { exact: false }).waitFor();
   await card.getByText("production engineer queue", { exact: false }).first().waitFor();
   assert.deepEqual(writes, [], "Showing a draft writes nothing");
-  await card.getByRole("button", { name: "Create work item" }).click();
+  await card.getByRole("button", { name: "Open the case" }).click();
   await card.getByText("This adds shared work to the production engineer queue", { exact: false }).waitFor();
   assert.equal(calls.count(), 0, "Opening the confirmation creates nothing");
-  await card.getByRole("group", { name: "Confirm Create work item" }).getByRole("button", { name: "Create work item" }).click();
+  await card.getByRole("group", { name: "Confirm Open the case" }).getByRole("button", { name: "Open the case" }).click();
   await card.getByText("Created by ana.", { exact: false }).waitFor();
   assert.equal(await card.getByRole("link", { name: "Open the case" }).getAttribute("href"), "#/cases/41");
-  assert.equal(await card.getByRole("button", { name: "Create work item" }).count(), 0);
+  assert.equal(await card.getByRole("button", { name: "Open the case" }).count(), 0);
   assert.equal(calls.count(), 1);
 });
 
@@ -2673,7 +2673,7 @@ test("An assistant draft reads as formatted text: bold, a list and its diagram, 
   await page.getByRole("button", { name: /^Ask/ }).first().click();
   const confirmAsk = page.getByRole("button", { name: /Confirm|Send/ }).first();
   if (await confirmAsk.isVisible().catch(() => false)) await confirmAsk.click();
-  const card = page.getByRole("region", { name: "Draft work item" });
+  const card = page.getByRole("region", { name: "Draft case" });
   await card.locator("strong", { hasText: "Request:" }).waitFor();
   assert.equal(await card.locator("li").count(), 2);
   const text = await card.innerText();
@@ -2686,9 +2686,9 @@ test("A failed draft confirmation is not replayed and shows the recorded state",
   await page.getByRole("button", { name: /^Ask/ }).first().click();
   const confirmAsk = page.getByRole("button", { name: /Confirm|Send/ }).first();
   if (await confirmAsk.isVisible().catch(() => false)) await confirmAsk.click();
-  const card = page.getByRole("region", { name: "Draft work item" });
-  await card.getByRole("button", { name: "Create work item" }).click();
-  await card.getByRole("group", { name: "Confirm Create work item" }).getByRole("button", { name: "Create work item" }).click();
+  const card = page.getByRole("region", { name: "Draft case" });
+  await card.getByRole("button", { name: "Open the case" }).click();
+  await card.getByRole("group", { name: "Confirm Open the case" }).getByRole("button", { name: "Open the case" }).click();
   await card.getByRole("alert").filter({ hasText: "Connection lost" }).waitFor();
   await card.getByText("Check what was saved before trying again", { exact: false }).waitFor();
   assert.equal(calls.count(), 1, "A failure is never retried automatically");
@@ -2703,14 +2703,14 @@ test("Cases creates a plain work item for a queue after confirmation", async () 
     return route.fulfill({ json: { id: 7 } });
   });
   await page.goto(`${url}/#/cases`);
-  await page.getByText("New work item", { exact: true }).click();
-  const create = page.getByRole("button", { name: "Create work item" });
+  await page.getByText("New case", { exact: true }).click();
+  const create = page.getByRole("button", { name: "Open the case" });
   assert.equal(await create.isDisabled(), true, "A title and queue come first");
-  await page.getByLabel("Work item title").fill("Check OK-J07-03 gas lift");
+  await page.getByLabel("Case title").fill("Check OK-J07-03 gas lift");
   await page.getByLabel("Queue").selectOption("production_engineer");
   await create.click();
   assert.equal(body, undefined);
-  await page.getByRole("group", { name: "Confirm Create work item" }).getByRole("button", { name: "Create work item" }).click();
+  await page.getByRole("group", { name: "Confirm Open the case" }).getByRole("button", { name: "Open the case" }).click();
   await page.getByRole("link", { name: "Open the case" }).waitFor();
   assert.deepEqual({ title: body.title, role: body.role, type: body.type }, { title: "Check OK-J07-03 gas lift", role: "production_engineer", type: "task" });
 });
@@ -3700,7 +3700,7 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   await page.goto(`${url}/#/e/${id}`);
   // An asset opens on its work and process values; what the register holds about it is one view away.
   await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
-  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
+  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this entity" }).getByRole("link").allInnerTexts(),
     ["Overview", "Timeline", "Documents", "Data"]);
   assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
   await page.getByRole("link", { name: "Data", exact: true }).click();
@@ -4077,11 +4077,11 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   // Items are named as people know them; Labels switches to tags, kept in the link.
   const names = () => page.locator(".scene-tag:not([hidden])").allTextContents();
   await page.waitForFunction(() => [...document.querySelectorAll(".scene-tag")].some((t) => !t.hidden && t.textContent === "Booster Compressor"));
-  await page.getByLabel("Label items by").selectOption("tags");
+  await page.getByLabel("Label entities by").selectOption("tags");
   await page.waitForFunction(() => location.hash.includes("labels=tags"));
   await page.waitForFunction(() => [...document.querySelectorAll(".scene-tag")].some((t) => !t.hidden && t.textContent === "K-1"));
   assert.ok(!(await names()).includes("Booster Compressor"));
-  await page.getByLabel("Label items by").selectOption("names");
+  await page.getByLabel("Label entities by").selectOption("names");
   // By location, compacted: asked of the server and kept in the link; the line under the controls says which it is.
   await page.getByLabel("Lay the drawing out").selectOption("geo");
   await page.waitForFunction(() => location.hash.includes("layout=geo"));
@@ -4126,7 +4126,7 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   assert.equal(await card.getByRole("link", { name: "Open" }).getAttribute("href"), "#/e/K-1");
 
   // Find picks an item by name, and Show asks for another area.
-  await page.getByLabel("Find an item in the drawing").selectOption("E-1");
+  await page.getByLabel("Find an entity in the drawing").selectOption("E-1");
   await card.getByRole("heading", { name: "E-1" }).waitFor();
   await page.getByLabel("Facility or area to draw").selectOption("A2");
   await page.waitForFunction(() => location.hash.includes("at=A2") && !location.hash.includes("node="));
@@ -4200,7 +4200,7 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
   assert.equal(await fill('.scene-badge[data-item="K-1"]'), await token("--attn-medium"));
   assert.equal(await fill('.scene-badge[data-item="W2"]'), await token("--attn-high"));
   // Only items with open work: the rest dim, kept in the link.
-  const onlyWork = colours.getByRole("button", { name: "Only items with open work" });
+  const onlyWork = colours.getByRole("button", { name: "Only entities with open work" });
   await onlyWork.click();
   await page.waitForFunction(() => location.hash.includes("only=work"));
   assert.equal(await onlyWork.getAttribute("aria-pressed"), "true");
@@ -4209,7 +4209,7 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
   await page.waitForFunction(() => !location.hash.includes("only=work"));
 
   // A picked item's card says its status as its asset page does; Upstream and Downstream light the path.
-  await page.getByLabel("Find an item in the drawing").selectOption("K-1");
+  await page.getByLabel("Find an entity in the drawing").selectOption("K-1");
   const card = page.locator(".graph-panel");
   await card.getByRole("heading", { name: "K-1" }).waitFor();
   assert.equal(await card.getByTestId("scene-item-status").textContent(), "No downtime open, 2 open exceptions, 1 alarm sounding.");
@@ -4232,7 +4232,7 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
   await page.waitForFunction(() => document.querySelector("[data-scene-items]").dataset.sceneLit === "6");
 
   // A reroute moves a well to another header in the browser only; a shared link restores it.
-  await page.getByLabel("Find an item in the drawing").selectOption("W1");
+  await page.getByLabel("Find an entity in the drawing").selectOption("W1");
   await card.getByRole("heading", { name: "W1" }).waitFor();
   await card.getByLabel("Move this well to another header").selectOption("M2");
   await page.waitForFunction(() => decodeURIComponent(location.hash).includes("move=W1~M2"));
@@ -4251,7 +4251,7 @@ test("P5.16b to f the 3D view shows status, lights a path, runs a trip and a rer
   await page.waitForFunction(() => location.hash.includes("draw=2d"));
   await page.locator('[data-testid="scene-flat"] canvas').first().waitFor();
   assert.ok((await page.getByLabel("What the colours say").textContent()).includes("Alarm sounding, or medium-priority work (1)"));
-  await page.getByLabel("Find an item in the drawing").selectOption("K-1");
+  await page.getByLabel("Find an entity in the drawing").selectOption("K-1");
   await card.getByRole("button", { name: "Upstream" }).click();
   await card.getByTestId("scene-path").waitFor();
 
@@ -7587,21 +7587,21 @@ test("App search at the top left finds pages, tabs and records, and sends a ques
       assert.ok(Math.abs(logo.x + logo.width / 2 - 195) < 4);
     }
     await page.locator(bar).getByRole("button", { name: "Search", exact: true }).click();
-    const box = page.getByRole("combobox", { name: "Search pages, records, or ask a question" });
+    const box = page.getByRole("combobox", { name: "Search pages, entities, or ask a question" });
     await box.fill("dispatch");
     const results = page.getByRole("listbox", { name: "Results" });
     await results.getByRole("option", { name: /To dispatch/ }).waitFor();
     await box.fill("reports");
     await results.getByRole("group", { name: "Pages" }).getByRole("option", { name: /Daily reports/ }).waitFor();
     await box.fill("P-101");
-    const record = results.getByRole("group", { name: "Records" }).getByRole("option", { name: /P-101/ });
+    const record = results.getByRole("group", { name: "Entities" }).getByRole("option", { name: /P-101/ });
     assert.equal(await record.getAttribute("href"), "#/e/equipment%3AP-101");
     await box.press("Escape");
     assert.equal(await page.locator(".app-search").count(), 0);
   }
   // A question puts Ask first; Enter asks it on the Ask page, once.
   await page.keyboard.press("/");
-  const box = page.getByRole("combobox", { name: "Search pages, records, or ask a question" });
+  const box = page.getByRole("combobox", { name: "Search pages, entities, or ask a question" });
   await box.fill("why did P-101 trip?");
   assert.equal(await page.locator(".app-search-results [role=option]").first().getAttribute("href"), "#/ask?q=why+did+P-101+trip%3F&send=1");
   await box.press("Enter");
@@ -8080,7 +8080,7 @@ test("an asset's Overview says what it is; work orders and spares sit under Main
   for (const text of ["SN79550", "Centrifugal compressors", "Gas Compression Platform", "C40 manual"]) {
     await about.getByText(text, { exact: false }).first().waitFor();
   }
-  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link").allInnerTexts(),
+  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this entity" }).getByRole("link").allInnerTexts(),
     ["Overview", "Maintenance", "Timeline", "Documents", "Data"]);
   assert.equal(await page.getByRole("heading", { name: "Spare parts" }).count(), 0);
   // The manual opens in the reader from the card.
@@ -8114,7 +8114,7 @@ test("on an iPhone the app follows iOS: a row of views too wide for the screen s
   await page.route(`**/entities/${id}/drawings`, (route) => route.fulfill({ json: { highlight: [id], drawings: [] } }));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/?ios=1#/e/${id}`);
-  const views = page.getByRole("navigation", { name: "Views of this record" });
+  const views = page.getByRole("navigation", { name: "Views of this entity" });
   await views.getByRole("link").first().waitFor();
   await page.waitForFunction(() => document.documentElement.classList.contains("ios"));
   // Every view stays a tab: nothing folds into a menu, and the row scrolls inside itself, not the page.
@@ -8259,7 +8259,7 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
   await page.getByRole("heading", { name: "P-101 export pump" }).first().waitFor();
   await fits("the asset");
   // Its trend.
-  await page.getByRole("navigation", { name: "Views of this record" }).getByRole("link", { name: "Timeline", exact: true }).click();
+  await page.getByRole("navigation", { name: "Views of this entity" }).getByRole("link", { name: "Timeline", exact: true }).click();
   await page.locator(".trend-view .main-svg").first().waitFor();
   await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 10_000 })
     .catch(() => assert.fail("the trend fits 390 px with no sideways scroll"));
