@@ -27,7 +27,7 @@ export function myWorkCounts(d: WorkInbox, jobs: Pick<FieldJob, "item_id" | "que
     // The server's totals, not the listed rows: the lists stop at a page, the counts don't.
     sent: jobs.filter((j) => !j.queued).length, mine: d.counts?.mine.total ?? d.mine.length,
     queue: d.counts?.queue.total ?? d.queue.length,
-    overdue: all.filter((r) => r.overdue).length, escalated: all.filter((r) => r.escalated_at).length,
+    overdue: d.counts ? d.counts.mine.overdue + d.counts.queue.overdue : all.filter((r) => r.overdue).length, escalated: all.filter((r) => r.escalated_at).length,
     top: [...all].sort(byUrgency).slice(0, 3),
   };
 }

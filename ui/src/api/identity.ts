@@ -37,6 +37,9 @@ export const identityApi = {
   demoConfig: () => request<DemoConfig>("GET", "/demo/config"),
   authSession: () => request<AuthSession>("GET", "/auth/me"),
   signOut: () => request<{ ok: boolean }>("POST", "/auth/logout"),
+  /** The demo account's username and password sign-in (on while the deployment has the demo account). */
+  passwordSignIn: (username: string, password: string) =>
+    request<{ ok: boolean }>("POST", "/auth/password", undefined, { username, password }),
   bootstrapOwner: (token: string) => request<{ ok: boolean }>("POST", "/auth/bootstrap", undefined, { token }),
   accessAdministration: () => request<AccessAdministration>("GET", "/auth/access"),
   updateAccount: (id: string, update: { enabled: boolean; owner: boolean; roles: string[] }) =>

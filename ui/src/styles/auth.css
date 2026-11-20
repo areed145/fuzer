@@ -1,9 +1,23 @@
-.auth-page { width: min(100% - 32px, 680px); margin: 8vh auto; padding: 0; overflow-wrap: anywhere; }
-.auth-page > svg { max-width: 180px; margin-bottom: 24px; }
-.auth-page .ui-card { padding: clamp(20px, 5vw, 40px); }
-.auth-page h1 { font-size: clamp(26px, 4vw, 36px); line-height: 1.2; }
-.auth-page p { line-height: 1.6; }
+/* The sign-in page: the mark, one narrow card, the data label under it. Centred on every screen. */
+.auth-page {
+  box-sizing: border-box; min-height: 100dvh; width: min(100% - 32px, 420px); margin: 0 auto;
+  padding: max(48px, env(safe-area-inset-top)) 0 max(32px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; overflow-wrap: anywhere;
+}
+.auth-page > svg { width: 152px; height: auto; }
+:root main.auth-page > .card { width: 100%; box-sizing: border-box; margin: 0; padding: clamp(24px, 6vw, 32px); border-radius: 16px; }
+main.auth-page h1 { margin: 0 0 8px; }
+.auth-page p { line-height: 1.5; }
 .auth-page form { display: grid; gap: 12px; margin: 24px 0; }
+.auth-page .auth-form { gap: 14px; margin: 0; }
+.auth-page .auth-form input { min-height: 44px; font-size: 16px; }
+.auth-page .auth-form p { margin: 0; }
+.auth-wide { box-sizing: border-box; width: 100%; min-height: 44px; justify-content: center; gap: 10px; }
+.auth-form .auth-wide { margin-top: 4px; }
+.auth-ms { width: 16px; height: 16px; flex: none; }
+.auth-ms .r { fill: #f25022; } .auth-ms .g { fill: #7fba00; } .auth-ms .b { fill: #00a4ef; } .auth-ms .y { fill: #ffb900; }
+.auth-or { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--muted); font-size: 13px; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .access-account { overflow-wrap: anywhere; }
 .access-account fieldset, .access-role fieldset { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; border: 1px solid var(--line); }
 .access-account fieldset label, .access-role fieldset label { display: inline-flex; gap: 6px; align-items: center; }

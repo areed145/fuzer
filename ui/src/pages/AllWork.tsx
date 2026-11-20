@@ -5,13 +5,13 @@
 import "../styles/all-work.css";
 import { useEffect, useState } from "react";
 import { Button, Input, PageHeader, Select, ErrorText, Line, Text, Tabs } from "../ui";
-import { api, type ExceptionRow } from "../api";
+import { api, type WorkFigures } from "../api";
 import { href, useAsync, useDebounced, errorMessage } from "../lib";
 import { AssignPicker } from "./workflows/shared";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
 import { usePerson } from "../work";
-import { ExceptionsPage, backFromField, waitingToDispatch, withTheField, type ExceptionView } from "./Exceptions";
+import { ExceptionsPage, type ExceptionView } from "./Exceptions";
 import { BoardPage } from "./Board";
 import { CasesPage } from "./workflows/Cases";
 import { WorkBoardPage } from "./WorkBoard";
@@ -24,9 +24,9 @@ export { WORK_LISTS, workHref };
 const KEYS = new Set(WORK_LISTS.map((l) => l.key));
 
 /** How many open exceptions each of the IOC's views holds. Home shows the same numbers (#556). */
-export const iocCounts = (rows: ExceptionRow[], operators: Set<string>) => ({
-  dispatch: rows.filter(waitingToDispatch).length, field: rows.filter((r) => withTheField(r, operators)).length,
-  back: rows.filter(backFromField).length, open: rows.length,
+/** How many open events each of the IOC's views holds, from the one count every page reads (GET /work/counts). */
+export const iocCounts = (c: WorkFigures) => ({
+  dispatch: c.events.stages.dispatch, field: c.events.stages.field, back: c.events.stages.back, open: c.events.open,
 });
 
 /** Where an old Work board or Cases link lands: the same view, filters carried over. */
@@ -48,13 +48,11 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   const asked = query.get("list") as WorkList | null;
   // An old Exceptions link with a state (#/exceptions?state=closed) opens All open with that state.
   const list: WorkList = asked && KEYS.has(asked) ? asked : query.get("state") ? "open" : "dispatch";
-  // How many open exceptions each of the IOC's views holds, so what waits shows before a view is opened.
-  const open = useAsync(() => api.exceptions({ state: "open" }), []);
   const people = useAsync(() => api.workPeople(), []);
   const [person] = usePerson();
-  const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
-  const rows = open.data ?? [];
-  const counts: Partial<Record<WorkList, number>> = open.data ? iocCounts(rows, operators) : {};
+  // How many open events each view holds, so what waits shows before a view is opened.
+  const tally = useAsync(() => (person ? api.workCounts(person) : Promise.resolve(null)), [person]);
+  const counts: Partial<Record<WorkList, number>> = tally.data?.events ? iocCounts(tally.data) : {};
   return (
     <section>
       <PageHeader className="all-work-header"

@@ -221,6 +221,9 @@ settings and never in the repository or chat. Microsoft stays the sign-in for pe
 - `POST /auth/demo` with `{"token": "<FUZER_DEMO_TOKEN>"}` returns a normal session
   cookie and CSRF value; a wrong token is refused and leaves no account or session.
   `scripts/demo_login.py` does this and saves a Playwright storage state for screenshots.
+- While it is on, the sign-in page also takes the username `demo` and password `demo`
+  (`POST /auth/password`), so the site can be shown and checked without Microsoft. Set
+  `FUZER_DEMO_PASSWORD` to use another password. Both sign-ins open the same account.
 - The first sign-in creates the account enabled with the `operator` role in the
   projects named by `FUZER_DEMO_PROJECTS` (comma-separated; default every project the
   database holds, which on the demo deployment are Okan, Kestrel and Harrier).

@@ -3,7 +3,8 @@
  * the map the place each item is about. Home summarizes and links: every action stays on its owning page. */
 import "../styles/home.css";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { api, type AttentionPlace, type JobsHealth, type Stats, type WorkInbox } from "../api";
+import { api, type AttentionPlace, type JobsHealth, type Stats, type WorkFigures, type WorkInbox } from "../api";
+import { usePerson } from "../work";
 import { openReviews } from "../figures";
 import { count } from "../format";
 import { Status, afterMap, href, useAsync, useLive } from "../lib";
@@ -71,6 +72,7 @@ export function HomePage({ stats, inbox, jobsHealth }: {
   jobsHealth: { data?: JobsHealth | null; error?: string };
 }) {
   const configure = usePermission("configure");
+  const [person] = usePerson();
   const roles = inbox.data?.roles ?? [];
   const seat = seatOf(roles);
   const dispatcher = roles.includes("ops_lead");
@@ -82,7 +84,9 @@ export function HomePage({ stats, inbox, jobsHealth }: {
   const spots = useAsync(() => api.attention(), []);
   const ready = geo.data !== undefined || !!geo.error;
   const open = useAsync(() => (dispatcher ? afterMap(ready, () => api.exceptions({ state: "open" })) : Promise.resolve(null)), [dispatcher, ready]);
-  useLive([inbox.reload, spots.reload, open.reload]);
+  // the headline figures, each by its one definition: the same numbers All work's views show
+  const tally = useAsync(() => (person ? afterMap(ready, () => api.workCounts(person)) : Promise.resolve(null)), [person, ready]);
+  useLive([inbox.reload, spots.reload, open.reload, tally.reload]);
 
   const [layers, setLayers] = useState(savedLayers);
   const toggle = (k: Layer) => setLayers((s) => {
@@ -125,8 +129,8 @@ export function HomePage({ stats, inbox, jobsHealth }: {
         )}
         <div className="home-over">
           <div className="home-top">
-            <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} open={open.data ?? undefined}
-                     work={spots.data ? { open: spots.data.open, places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
+            <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} tally={tally.data ?? undefined}
+                     work={spots.data ? { places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
             {/* One row: the layers, then which places the open work layer shows. */}
             <div className="home-chips">
               <div className="home-layers chips" role="group" aria-label="Map layers">
@@ -202,13 +206,11 @@ function useInset(stage: RefObject<HTMLDivElement | null>): Inset | undefined {
 
 /** The figures over the map: counts that link to the view showing the same number, and the seat's metrics with their
  * trend. Each reads the field its owning page reads. */
-function Figures({ seat, dispatcher, stats, open, work, ready }: {
+function Figures({ seat, dispatcher, stats, tally, work, ready }: {
   seat: Seat; dispatcher: boolean; stats?: Stats; ready: boolean;
-  open?: Parameters<typeof iocCounts>[0]; work?: { open: number; places: number; unplaced: number };
+  tally?: WorkFigures; work?: { places: number; unplaced: number };
 }) {
-  const people = useAsync(() => (dispatcher ? afterMap(ready, () => api.workPeople()) : Promise.resolve([])), [dispatcher, ready]);
-  const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
-  const c = dispatcher && open && people.data ? iocCounts(open, operators) : null;
+  const c = dispatcher && tally?.events ? iocCounts(tally) : null;
   const reviews = seat === "steward" && stats ? openReviews(stats) : null;
   return (
     <Scroller className="home-figures" label="Key figures">
@@ -217,8 +219,7 @@ function Figures({ seat, dispatcher, stats, open, work, ready }: {
         <Tile to={workHref("field")} label="With the field" value={count(c.field)} />
         <Tile to={workHref("back")} label="Back from the field" value={count(c.back)} late={c.back > 0} />
       </>}
-      {work && seat !== "operator" && <Tile to={workHref("open")} label="Open work" value={count(work.open)}
- />}
+      {tally?.events && work && seat !== "operator" && <Tile to={workHref("open")} label="Open work" value={count(tally.events.open)} />}
       {reviews !== null && <Tile to={href("/masterdata", { tab: "questions" })} label="Records to review" value={count(reviews)} />}
       {METRICS[seat].map((key) => <MetricTile key={key} metric={key} ready={ready} />)}
     </Scroller>
