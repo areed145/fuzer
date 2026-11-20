@@ -40,14 +40,18 @@
   .scene-controls:not(.open) .scene-opt { display: none; }
 }
 .legend .scene-line { flex: none; }
-/* On the full screen the drawing takes the room its legend and picked item leave. */
+/* On the full screen the drawing is the whole screen. What explains it (the badge key, the lines, the colours and the
+   picked item) floats over its bottom left as one panel, clear of the view buttons down the right, as Home's panels
+   float over its map. */
 .scene3d-frame.ui-fullscreen { display: flex; flex-direction: column; overflow: hidden; }
 .scene3d-frame.ui-fullscreen .scene3d { flex: 1; height: auto; min-height: 0; border: 0; border-radius: 0; }
-.scene3d-frame.ui-fullscreen .legend { margin: 0; padding: 8px 12px; }
-.scene3d-frame.ui-fullscreen .scene-status { padding: 8px 12px; }
+.scene-over { position: absolute; z-index: 3; left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); max-width: min(760px, calc(100% - 88px));
+  display: grid; gap: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
+  box-shadow: 0 6px 24px rgb(0 0 0 / .18); font-size: 13px; max-height: 45%; overflow-y: auto; }
+.scene-over .scene-key { position: static; max-width: none; padding: 0; border: 0; border-radius: 0; background: none; }
+.scene-over .legend { margin: 0; padding: 0; }
 .scene-pick { display: none; }
-.scene3d-frame.ui-fullscreen .scene-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 12px;
-  border-top: 1px solid var(--line); background: var(--panel); font-size: 13px; }
+.scene-over .scene-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding-top: 8px; border-top: 1px solid var(--line); }
 .scene-pick strong { font-weight: 600; }
 /* Status, paths and scenarios (P5.16b to d). */
 .scene-badge {

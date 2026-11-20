@@ -111,19 +111,21 @@ export function HomePage({ stats, inbox, jobsHealth }: {
           </Suspense>
         )}
         <div className="home-over">
-          <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} open={open.data ?? undefined}
-                   work={spots.data ? { open: spots.data.open, places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
-          <div className="home-layers chips" role="group" aria-label="Map layers">
-            {LAYERS.map((l) => (
-              <Button key={l.key} className={layers.has(l.key) ? "chip on" : "chip"} aria-pressed={layers.has(l.key)}
-                      onClick={() => toggle(l.key)}>{l.label}</Button>
-            ))}
-            {layers.has("work") && <span className="home-layer-filter" role="group" aria-label="Show places with">
+          <div className="home-top">
+            <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} open={open.data ?? undefined}
+                     work={spots.data ? { open: spots.data.open, places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
+            <div className="home-layers chips" role="group" aria-label="Map layers">
+              {LAYERS.map((l) => (
+                <Button key={l.key} className={layers.has(l.key) ? "chip on" : "chip"} aria-pressed={layers.has(l.key)}
+                        onClick={() => toggle(l.key)}>{l.label}</Button>
+              ))}
+            </div>
+            {layers.has("work") && <div className="home-layers chips" role="group" aria-label="Show places with">
               {FILTERS.map((f) => (
                 <Button key={f.key} className={filter === f.key ? "chip on" : "chip"} aria-pressed={filter === f.key}
                         onClick={() => setFilter(f.key)}>{f.label}</Button>
               ))}
-            </span>}
+            </div>}
           </div>
           {spots.error && <div className="home-notice"><Status error={spots.error} onRetry={spots.reload} /></div>}
           {noRecords && <UICard className="home-notice" title="Connect data before exploring">
@@ -154,13 +156,17 @@ function useInset(stage: RefObject<HTMLDivElement | null>): Inset | undefined {
       // On a phone the map fills the screen under the shell's bars; the panels over it keep clear of them.
       const top = document.querySelector(".topbar")?.getBoundingClientRect();
       const tabs = document.querySelector(".bottombar")?.getBoundingClientRect();
+      // Wider, the map runs under the left menu too, and the panels start beside it.
+      const side = window.matchMedia("(min-width: 901px)").matches ? document.querySelector(".sidebar")?.getBoundingClientRect() : undefined;
+      const left = side?.width ? Math.round(side.right) : 0;
+      el.style.setProperty("--bar-left", `${left}px`);
       el.style.setProperty("--bar-top", `${top?.height ? Math.round(top.bottom) : 0}px`);
       el.style.setProperty("--bar-bottom", `${tabs?.height ? Math.round(window.innerHeight - tabs.top) : 0}px`);
       const s = el.getBoundingClientRect();
-      const over = el.querySelector(".home-over")?.getBoundingClientRect();
+      const over = el.querySelector(".home-top")?.getBoundingClientRect();
       const feed = el.querySelector(".home-feed")?.getBoundingClientRect();
       const sheet = !!feed && feed.left - s.left < 20;  // a phone's sheet across the bottom, else a panel down the right
-      const next = { top: over ? Math.round(over.bottom - s.top) : 0, left: 0,
+      const next = { top: over ? Math.round(over.bottom - s.top) : 0, left,
                      // beside the feed panel, else clear of the map's own buttons down the right edge
                      right: feed && !sheet ? Math.round(s.right - feed.left) : 56,
                      // an open sheet covers the map until it closes, so the map keeps clear of its header only
@@ -170,8 +176,8 @@ function useInset(stage: RefObject<HTMLDivElement | null>): Inset | undefined {
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    el.querySelectorAll(".home-over, .home-feed").forEach((n) => ro.observe(n));
-    document.querySelectorAll(".topbar, .bottombar").forEach((n) => ro.observe(n));
+    el.querySelectorAll(".home-top, .home-feed").forEach((n) => ro.observe(n));
+    document.querySelectorAll(".topbar, .bottombar, .sidebar").forEach((n) => ro.observe(n));
     window.addEventListener("resize", measure);
     return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
   }, [stage]);
