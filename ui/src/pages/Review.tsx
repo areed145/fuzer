@@ -116,7 +116,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
 
       <Text as="p" small>
         {kind === "match"
-          ? "These records might be the same item. Your answer is kept on every rerun."
+          ? "These records might be the same entity. Your answer is kept on every rerun."
           : kind === "mapping"
             ? "Check what each column means, edit the mapping if needed, and accept to load the table."
           : kind === "curve"
@@ -278,7 +278,7 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
   const { busy, feedback, run } = useBusy(onDecide);
   const fields = [...new Set([...Object.keys(p.left.fields), ...Object.keys(p.right.fields)])].sort();
   return (
-    <UICard className="review" title="Same item?" detail={<>#{id}</>} actions={<Score value={p.score} />}>
+    <UICard className="review" title="Same entity?" detail={<>#{id}</>} actions={<Score value={p.score} />}>
       <Text as="p" small>{p.why.charAt(0).toUpperCase() + p.why.slice(1)}.{" "}
         Match score {p.score.toFixed(2)}
         {p.review_min != null && p.auto_accept != null
@@ -311,10 +311,10 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
       </Table>
       <div className="actions">
         <Button variant="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
-          Same item
+          Same entity
         </Button>
         <Button disabled={busy} onClick={() => run({ decision: "reject" })}>
-          Different items
+          Different entities
         </Button>
         {feedback}
       </div>
@@ -484,7 +484,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
 
 function Score({ value }: { value: number }) {
   return (
-    <span className="score" title="Match score from 0 (different) to 1 (the same item)" aria-label={`Match score ${value.toFixed(2)} of 1`}>
+    <span className="score" title="Match score from 0 (different) to 1 (the same entity)" aria-label={`Match score ${value.toFixed(2)} of 1`}>
       <Bar className="bar" value={Math.round(value * 100)} />
       {value.toFixed(2)}
     </span>
@@ -556,7 +556,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
 
 /** A load held by its checks (#225): why, and the dataset to fix it on. */
 function PidConnectionCard({ id, p, onDecide }: { id: number; p: PidConnectionPayload; onDecide: OnDecide }) {
-  const { busy, feedback, run } = useBusy(onDecide, "Accept adds a piping link between the two items on the next rebuild.");
+  const { busy, feedback, run } = useBusy(onDecide, "Accept adds a piping link between the two entities on the next rebuild.");
   return (
     <UICard className="review" title="Connected across drawings?" detail={<>#{id}</>}>
       <p>{p.question}</p>
@@ -574,7 +574,7 @@ function PidConnectionCard({ id, p, onDecide }: { id: number; p: PidConnectionPa
 }
 
 const MISMATCH_TITLE: Record<string, string> = { alarm: "Alarm setting differs from the drawing",
-  alarm_unset: "Drawing rates an alarm nobody configured", placement: "Instrument drawn on another item",
+  alarm_unset: "Drawing rates an alarm nobody configured", placement: "Instrument drawn on another entity",
   twin: "DEXPI file differs from the scan", flow: "Flow link differs from the drawings" };
 
 /** The side other than the drawing: who changes if the drawing is right. */

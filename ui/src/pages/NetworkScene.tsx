@@ -37,7 +37,7 @@ const named = (label: string, description: string | null | undefined) => {
 };
 
 /** The Network page's 3D view: a facility or an area as generic shapes, laid out from its links on the server.
- * What it shows (`at`) and the picked item (`node`) live in the address, so a view can be shared and Back returns. */
+ * What it shows (`at`) and the picked entity (`node`) live in the address, so a view can be shared and Back returns. */
 export function NetworkScene({ query, set, relDef }: {
   query: URLSearchParams;
   set: (values: Record<string, string | undefined>) => void;
@@ -158,7 +158,7 @@ export function NetworkScene({ query, set, relDef }: {
           <span key={k}><span className={`swatch swatch-${k}`} />
             {LEVEL[k]}{status.data ? ` (${levels[k]})` : ""}</span>
         ))}
-        <Button size="sm" aria-pressed={only} onClick={() => set({ only: only ? undefined : "work" })}>Only items with open work</Button>
+        <Button size="sm" aria-pressed={only} onClick={() => set({ only: only ? undefined : "work" })}>Only entities with open work</Button>
         <Text small muted>
           {status.error ? "Status couldn't be read." : status.data ? `Alarms over the last ${status.data.alarm_hours} h.` : "Reading status…"}
         </Text>
@@ -170,7 +170,7 @@ export function NetworkScene({ query, set, relDef }: {
   return (
     <>
       <Status of={scene} />
-      {s && !s.root && <Empty>{s.basis === "not in an area" ? "This record is in no area, so there is nothing to draw around it."
+      {s && !s.root && <Empty>{s.basis === "not in an area" ? "This entity is in no area, so there is nothing to draw around it."
         : "No facility or area is loaded yet."}</Empty>}
       {s?.root && (
         <>
@@ -193,7 +193,7 @@ export function NetworkScene({ query, set, relDef }: {
             <Button size="sm" className="scene-options" aria-expanded={options} onClick={() => setOptions(!options)}>Options</Button>
             <label className="scene-opt">
               Find
-              <Select value={selected ?? ""} aria-label="Find an item in the drawing"
+              <Select value={selected ?? ""} aria-label="Find an entity in the drawing"
                 onChange={(e) => { select(e.target.value || null); if (e.target.value) setCentre({ id: e.target.value }); }}>
                 <option value="">an item ({s.counts.items})</option>
                 {s.items.map((i) => <option key={i.id} value={i.id}>{named(i.label, i.description)}</option>)}
@@ -209,7 +209,7 @@ export function NetworkScene({ query, set, relDef }: {
             </label>
             <label className="scene-opt">
               Labels
-              <Select value={labelBy} aria-label="Label items by" onChange={(e) => set({ labels: e.target.value === "tags" ? "tags" : undefined })}>
+              <Select value={labelBy} aria-label="Label entities by" onChange={(e) => set({ labels: e.target.value === "tags" ? "tags" : undefined })}>
                 <option value="names">Names</option>
                 <option value="tags">Tags</option>
               </Select>
@@ -317,7 +317,7 @@ export function NetworkScene({ query, set, relDef }: {
               </UICard>
             </div>
           )}
-          {s.truncated && <Text as="p" small>Too many items to draw; showing the first 3,000.</Text>}
+          {s.truncated && <Text as="p" small>Too many entities to draw; showing the first 3,000.</Text>}
         </>
       )}
     </>

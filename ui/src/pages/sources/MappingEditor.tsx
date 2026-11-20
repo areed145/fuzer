@@ -188,7 +188,7 @@ function KindSelect({ model, value, onChange }: {
   return (
     <>
       <Select width="sm" value={value ?? ""} onChange={(e) => (e.target.value === "+" ? add() : onChange(e.target.value || null))}>
-        <option value="">no entity (records only)</option>
+        <option value="">no entity (source records only)</option>
         {!known && <option value={value!}>{value} (not in the ontology)</option>}
         {model?.groups.map((g) => {
           const ks = model.kinds.filter((k) => k.group === g);

@@ -351,7 +351,7 @@ function ModelTab({ def, defs, draft, reload }: {
     await saveIfDirty();
     const r = await api.publishDefinition(def.id, person);
     setProblems([]);
-    setMsg({ text: `Published v${r.version}. New items start on it; running ones stay on their version.` });
+    setMsg({ text: `Published v${r.version}. New cases start on it; running ones stay on their version.` });
     reload();
   });
   const onDraft = (fromId?: number) => run("draft", async () => {

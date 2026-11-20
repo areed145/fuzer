@@ -1,6 +1,7 @@
 // Entity kind colours and link-type views, shared by every graph and legend. Kept apart from graph.tsx (which
 // pulls in cytoscape) so the app shell can load the ontology without the graph library.
 import type { OntologyDeclared } from "./api";
+import { KIND_LABELS } from "./wording";
 
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -51,6 +52,7 @@ export const ALL_RELS = REL_VIEWS.flatMap((v) => v.rels);
  * every page importing them sees the change on its next render. */
 export function applyOntology(o: OntologyDeclared): void {
   for (const k of o.kinds) if (k.colour && (k.status !== "core" || k.edited)) KIND_COLORS[k.name] = k.colour;
+  for (const k of o.kinds) if (k.label) KIND_LABELS[k.name] = k.label;
   const views = o.views.map((v) => ({ ...v, rels: o.relations.filter((r) => r.view === v.id).map((r) => r.name) }))
     .filter((v) => v.rels.length > 0);
   const unviewed = o.relations.filter((r) => !r.view || !o.views.some((v) => v.id === r.view)).map((r) => r.name);

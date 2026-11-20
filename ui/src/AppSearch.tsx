@@ -26,7 +26,7 @@ export function SearchButton({ wide = false }: { wide?: boolean }) {
   </Button>;
 }
 
-interface Result { id: string; group: "Ask" | "Pages" | "Tabs" | "Records" | "More"; label: string; detail?: string; kind?: string; to: string }
+interface Result { id: string; group: "Ask" | "Pages" | "Tabs" | "Entities" | "More"; label: string; detail?: string; kind?: string; to: string }
 
 /** A question rather than a name: ends in a question mark or starts like one. It puts Ask first. */
 const QUESTION = /\?\s*$|^(what|why|how|which|when|where|who|whose|is|are|was|were|does|do|did|can|could|should|will|show|list|compare|explain|summari[sz]e|tell)\b/i;
@@ -121,9 +121,9 @@ export function AppSearch() {
     for (const t of tabs) if (matches(w, t.label, t.page))
       found.push({ id: `t:${t.to}`, group: "Tabs", label: t.label, detail: t.page, to: t.to });
     for (const h of (debounced === q ? hits.data ?? [] : []).slice(0, ENTITY_LIMIT))
-      found.push({ id: `e:${h.fuzer_id}`, group: "Records", label: h.label ?? h.fuzer_id, detail: h.description ?? undefined, kind: h.kind, to: entityHref(h.fuzer_id) });
+      found.push({ id: `e:${h.fuzer_id}`, group: "Entities", label: h.label ?? h.fuzer_id, detail: h.description ?? undefined, kind: h.kind, to: entityHref(h.fuzer_id) });
     if (debounced === q && (hits.data?.length ?? 0) > ENTITY_LIMIT)
-      found.push({ id: "browse", group: "More", label: `All records matching “${q}”`, to: href("/browse", { q }) });
+      found.push({ id: "browse", group: "More", label: `All entities matching “${q}”`, to: href("/browse", { q }) });
     if (!QUESTION.test(q)) found.push(...ask);
     return found;
   }, [q, debounced, pages, tabs, hits.data, ai]);
@@ -154,8 +154,8 @@ export function AppSearch() {
     <div ref={dialog} className="app-search" role="dialog" aria-modal="true" aria-label="Search">
         <div className="app-search-bar">
           <Input ref={input} type="search" role="combobox" aria-expanded aria-controls={listId} aria-autocomplete="list"
-            aria-activedescendant={results[current] ? `${listId}-${current}` : undefined} aria-label="Search pages, records, or ask a question"
-            placeholder={ai ? "Search or ask a question" : "Search pages and records"} enterKeyHint="go" autoComplete="off"
+            aria-activedescendant={results[current] ? `${listId}-${current}` : undefined} aria-label="Search pages, entities, or ask a question"
+            placeholder={ai ? "Search or ask a question" : "Search pages and entities"} enterKeyHint="go" autoComplete="off"
             value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey} />
           <Button variant="link" className="app-search-close" onClick={() => setOpen(false)}>Cancel</Button>
         </div>
@@ -172,7 +172,7 @@ export function AppSearch() {
               </a>
             ))}
           </section>)}
-          {searching && <p className="app-search-note">Searching records…</p>}
+          {searching && <p className="app-search-note">Searching entities…</p>}
           {hits.error && <div className="app-search-note"><ErrorText>Records search failed: {hits.error}</ErrorText></div>}
           {!searching && q && !results.length && <p className="app-search-note">No matches for “{q}”.</p>}
         </div>

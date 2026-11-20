@@ -1,3 +1,4 @@
+import { kindWord } from "../wording";
 import "../styles/investigation.css";
 import { when, count } from "../format";
 import { useEffect, useRef } from "react";
@@ -14,10 +15,7 @@ const STEPS = [
 type Step = typeof STEPS[number]["key"];
 
 const journeyHref = (step: Step, evidence?: string) => href("/investigate/okan", { step, evidence });
-const kindLabel = (kind: string) => ({
-  downtime: "Downtime", notification: "Maintenance notification", log_entry: "Operator log",
-  work_order: "Work order", event: "Extracted event",
-}[kind] ?? kind.replace(/_/g, " "));
+const kindLabel = (kind: string) => kindWord(kind);
 
 export function InvestigationPage({ query }: { query: URLSearchParams }) {
   const result = useAsync(() => api.guidedInvestigation(), []);

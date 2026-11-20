@@ -98,21 +98,21 @@ const DOC_TYPES: Record<string, string> = {
   pid: "P&ID drawing", p_id: "P&ID drawing", pfd: "Process flow diagram", oem_manual: "OEM manual", datasheet: "Datasheet",
   procedure: "Procedure", troubleshooting_guide: "Troubleshooting guide", drawing: "Drawing",
 };
-const KIND_WORDS: Record<string, string> = {
-  tag: "Asset", equipment: "Equipment", equipment_model: "Equipment model", equipment_class: "Equipment class",
-  timeseries: "Historian point", document: "Document", notification: "SAP notification", work_order: "Work order",
-  event: "Log entry", downtime: "Downtime", incident: "Incident", well: "Well", facility: "Facility", area: "Area",
-  permit: "Permit to work", isolation: "Isolation",
-};
 
-/** What a record is, in the words of someone who works the plant (#1072): a compressor's page says "Compressor"
- * (its template), not "tag"; a drawing says "P&ID drawing", not "document". Unknown kinds read as the kind, spaced. */
+/** Each kind's name as people read it, filled from the declared ontology (applyOntology in kinds.ts): the one place a
+ * kind is labelled. */
+export const KIND_LABELS: Record<string, string> = {};
+
+/** What an entity is, in the words of someone who works the plant (#1072): a compressor's page says "Compressor"
+ * (its template), not "Tag"; a drawing says "P&ID drawing", not "Document". Other kinds read as the ontology labels them. */
 export function kindWord(kind: string, fields?: { template?: unknown; doc_type?: unknown; format?: unknown }): string {
   const template = typeof fields?.template === "string" ? fields.template.trim() : "";
   if (kind === "tag" && template) return template;
   const doc = typeof fields?.doc_type === "string" ? fields.doc_type.toLowerCase() : "";
   if (kind === "document" && doc) return DOC_TYPES[doc] ?? doc.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-  return KIND_WORDS[kind] ?? kind.replace(/_/g, " ");
+  // the ontology is the one place a kind is labelled; before it loads, the kind's own name
+  const label = KIND_LABELS[kind];
+  return label ?? kind.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
 /** Kinds people operate and ask about as assets; any other record is asked about as itself. */

@@ -58,7 +58,7 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
       <Card className="work-list-card">
         {!shown.length ? <Empty>{EMPTY[view]}</Empty> : <>
           <div className="work-list-head small muted" aria-hidden="true">
-            <span>Work</span><span>Assets</span><span>Age</span><span>With</span><span /></div>
+            <span>Work</span><span>Entities</span><span>Age</span><span>With</span><span /></div>
           <ul className="work-list" aria-label={`${shown.length} ${shown.length === 1 ? "event" : "events"}`}>
             {shown.map((r) => <Row key={r.id} r={r} person={person}
               people={people.data ?? []} queues={queues} onChange={rows.reload} />)}</ul>
