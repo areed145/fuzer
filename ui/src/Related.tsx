@@ -1,10 +1,10 @@
 /** Incidents, studies and lessons about a case's subjects or an asset (P4.5c), so whoever works the case or looks up
  * the asset reaches what is already known about it. Nothing shows when there is none. */
 import { api, type RelatedWork } from "./api";
+import { when } from "./format";
 import { Card } from "./ui";
 import { Status, href, useAsync } from "./lib";
 import { IncidentList } from "./pages/Incidents";
-import { when } from "./work";
 
 export function Related({ about, incidents = true }: { about: { case?: number; subject?: string }; incidents?: boolean }) {
   const r = useAsync(() => api.related(about), [about.case, about.subject]);

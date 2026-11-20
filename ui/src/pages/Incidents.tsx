@@ -1,6 +1,6 @@
 import "../styles/events.css";
-import { percent } from "../format";
-import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea } from "../ui";
+import { percent, when, whenDay, count } from "../format";
+import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea, ErrorText } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -31,7 +31,7 @@ export function IncidentsPage() {
           <h2>
             Latest{" "}
             <span className="muted small">
-              {list.data.total.toLocaleString()} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}
+              {count(list.data.total)} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}
             </span>
           </h2>
           <IncidentList items={list.data.items.slice(0, LATEST)} all={list.data.items} />
@@ -66,7 +66,7 @@ export function IncidentList({ items, all = items }: { items: Incident[]; all?: 
               {i.downtime_records > 0 && <UIBadge className="badge event-type">downtime</UIBadge>}
               {i.events > 0 && <span>{plural(i.events, "event")}</span>}
               {i.notifications > 0 && <span>{plural(i.notifications, "notification")}</span>}
-              {i.lost_oil_bbl > 0 && <span>{Math.round(i.lost_oil_bbl).toLocaleString()} bbl lost</span>}
+              {i.lost_oil_bbl > 0 && <span>{count(Math.round(i.lost_oil_bbl))} bbl lost</span>}
               {i.failure_modes?.map((m) => <UIBadge key={m} className="badge" title={`ISO 14224 ${m}`}>
                 {i.failure_mode_words?.[m] ?? m}</UIBadge>)}
             </div>
@@ -135,11 +135,11 @@ function IncidentPanels({ id }: { id: string }) {
     <div className="grid">
       <UICard  as="section">
         <h2>Timeline</h2>
-        <Status loading={timeline.loading && !timeline.data} error={timeline.error} />
+        <Status of={timeline} />
         <ul className="timeline">
           {timeline.data?.map((t) => (
             <li key={t.id}>
-              <span className="when">{t.at?.replace("T", " ").slice(0, 16)}</span>
+              <span className="when">{when(t.at)}</span>
               <div className="what">
                 <div className="row">
                   <KindBadge kind={t.kind} />
@@ -192,7 +192,7 @@ function BriefCard({ id }: { id: string }) {
       <h2>
         Troubleshooting brief <span className="muted small">what Fuzer would tell an engineer or an agent</span>
       </h2>
-      <Status loading={brief.loading && !b} error={brief.error} />
+      <Status of={brief} />
       {b && (
         <div className="grid">
           <div>
@@ -223,7 +223,7 @@ function BriefCard({ id }: { id: string }) {
                       {m.quantity.replaceAll("_", " ")}{m.location && <span className="muted"> {m.location}</span>}:{" "}
                       <span className="mono">{m.latest.qualifier ?? ""}{m.latest.value} {m.unit}</span>{" "}
                       <span className="muted">
-                        {m.latest.at.slice(0, 10)}
+                        {whenDay(m.latest.at)}
                         {m.per_year !== null && ` · ${m.per_year > 0 ? "+" : ""}${m.per_year}/year`}
                       </span>
                     </li>
@@ -313,7 +313,7 @@ function Rate({ target }: { target: string }) {
           </div>
         </>
       )}
-      {error && <p className="error small">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }

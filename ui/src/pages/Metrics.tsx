@@ -55,7 +55,7 @@ function MetricList() {
     <section>
       <PageHeader
         actions={<a href={href("/scorecard")}>How the plant is running</a>} help="metrics">Metrics</PageHeader>
-      <Status loading={list.loading && !list.data} error={list.error} onRetry={list.reload} />
+      <Status of={list} />
       {list.data && !list.data.length && <Empty>No metrics are registered.</Empty>}
       {[...groups].map(([group, ms]) => (
         // Work's measures open the queue view a manager wants, not only from All work (#1078).
@@ -101,7 +101,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
     <section>
       <PageHeader detail={m?.definition} actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">
         {m?.label ?? metricKey}</PageHeader>
-      <Status loading={v.loading && !m} error={v.error} onRetry={v.reload} />
+      <Status of={v} />
       {m && <>
         <p>
           <strong>{show(m.value, m.unit)}</strong>{" "}

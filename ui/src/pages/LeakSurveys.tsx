@@ -2,6 +2,7 @@
  * and the equipment no survey reached, named as unknown, never clean. A clean reading holds for its survey date only.
  * Evidence only, not an emissions inventory. */
 import { api } from "../api";
+import { count } from "../format";
 import { Badge, Card, Table } from "../ui";
 import { Status, useAsync } from "../lib";
 
@@ -11,7 +12,7 @@ export function LeakSurveys() {
   const c = d?.coverage;
   return (
     <Card className="leak-surveys" title="Leak surveys">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && d.verdict === "no_surveys" && <div className="small ls-none">{d.note}</div>}
       {d && c && d.verdict !== "no_surveys" && <>
         <div className="small ls-summary">
@@ -27,7 +28,7 @@ export function LeakSurveys() {
             <tr key={`${r.tag}-${r.component}`} data-tag={r.tag}>
               <td>{r.tag}</td>
               <td data-label="Component">{r.component}</td>
-              <td data-label="Found leaking">{r.surveys.join(", ")} <span className="muted">(up to {r.max_ppm.toLocaleString()} ppm)</span></td>
+              <td data-label="Found leaking">{r.surveys.join(", ")} <span className="muted">(up to {count(r.max_ppm)} ppm)</span></td>
             </tr>
           ))}</tbody>
         </Table>}

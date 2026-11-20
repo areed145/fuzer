@@ -2,8 +2,8 @@
  * versions, the tools called and the cost, read from the step's ledger in the case history, and the case's agent
  * spend against its cap. One card; the detail of a step sits behind a Disclosure. */
 import type { WorkItem } from "./api";
-import { money } from "./format";
-import { Actor, when } from "./work";
+import { money, when } from "./format";
+import { Actor } from "./work";
 import { Badge, Card, Disclosure, Table } from "./ui";
 
 interface Ledger {

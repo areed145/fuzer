@@ -2,7 +2,8 @@
  * way, the way they answered is proposed as a rule, with the values it would answer. Accepted, it answers them now and
  * every like value after each rebuild; withdrawn, its answers are retired. */
 import { api, type LearnedProposal, type LearnedRule } from "../../api";
-import { Button, Card, ConfirmAction, Disclosure, Table } from "../../ui";
+import { whenDay } from "../../format";
+import { Button, Card, ConfirmAction, Disclosure, Table, ErrorText } from "../../ui";
 import { entityHref, useAsync, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -27,13 +28,13 @@ export function LearnedRules({ onChange }: { onChange?: () => void }) {
         <tbody>{accepted.map((r: LearnedRule) => (
           <tr key={r.id}>
             <td>{r.rule}</td><td data-label="Answers">{r.answers}</td>
-            <td data-label="By" className="small">{r.decided_by}, {r.decided_at.slice(0, 10)}</td>
+            <td data-label="By" className="small">{r.decided_by}, {whenDay(r.decided_at)}</td>
             <td>{can && <Button variant="link" disabled={!!a.busy}
               onClick={() => a.run("withdraw", () => api.withdrawLearned(r.id, person), done)}>Withdraw</Button>}</td>
           </tr>
         ))}</tbody>
       </Table>}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Card>
   );
 }

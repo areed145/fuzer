@@ -142,7 +142,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
       {none ? (
         <Empty>Pick at least one link type to draw.</Empty>
       ) : (
-        <Status loading={net.loading && !net.data} error={net.error} empty={net.data?.edges.length === 0}>
+        <Status of={net} empty={net.data?.edges.length === 0}>
           No links of {on.length === 1 ? "this type" : "these types"}{asOf ? " on this date" : ""}.
         </Status>
       )}

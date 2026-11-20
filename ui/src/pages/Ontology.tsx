@@ -2,14 +2,15 @@
 // where kinds and link types are defined. A kind or link a new dataset brings that nobody has described shows
 // under "Needs definition".
 import { useMemo, useState } from "react";
-import { confirmDialog, Textarea } from "../ui";
+import { when, count as countText } from "../format";
+import { confirmDialog, Textarea, ErrorText } from "../ui";
 import {
   api, type KindDef, type KindIn, type Ontology as OntologyData, type OntologyKind, type RelationDef, type RelationIn,
 } from "../api";
 import { GraphCanvas, Legend, REL_VIEWS, kindColor } from "../graph";
 import { Bar, Button, PageHeader, Table, Input, Select , Card as UICard, Badge as UIBadge, Disclosure } from "../ui";
 import { SourceBadge, Status, href, useAsync, useAction } from "../lib";
-import { reviewer, when } from "./sources/common";
+import { reviewer } from "./sources/common";
 import type { ElementDefinition } from "cytoscape";
 import { person as personName } from "../wording";
 
@@ -31,7 +32,7 @@ export function Ontology({ query }: { query?: URLSearchParams }) {
 
   const elements = useMemo(() => (data.data ? ontologyElements(data.data, view) : []), [data.data, view]);
 
-  if (!data.data) return <Status loading={data.loading} error={data.error} />;
+  if (!data.data) return <Status of={data} />;
   const o = data.data;
   const kindDef = (name: string) => o.model.kinds.find((k) => k.name === name);
   const relDef = (name: string) => o.model.relations.find((r) => r.name === name);
@@ -92,7 +93,7 @@ function ontologyElements(o: OntologyData, view: string): ElementDefinition[] {
       .map((k) => ({
         data: {
           id: k.kind,
-          label: `${k.label ?? words(k.kind)}${k.declared === false ? " ?" : ""}\n${k.count.toLocaleString()}`,
+          label: `${k.label ?? words(k.kind)}${k.declared === false ? " ?" : ""}\n${countText(k.count)}`,
           color: k.declared === false ? themeValue("--kind-other") : kindColor(k.kind),
           size: 26 + 14 * Math.log10(k.count + 1),
         },
@@ -104,7 +105,7 @@ function ontologyElements(o: OntologyData, view: string): ElementDefinition[] {
         id: relId(r),
         source: r.src_kind,
         target: r.dst_kind,
-        label: `${r.rel}${r.allowed === false ? " ?" : ""} · ${r.n.toLocaleString()}`,
+        label: `${r.rel}${r.allowed === false ? " ?" : ""} · ${countText(r.n)}`,
         ended: false,
       },
     })),
@@ -135,7 +136,7 @@ function NeedsDefinition({ o, edit, relDef }: {
       <ul className="plain">
         {n.kinds.map((k) => (
           <li key={k} className="row small">
-            <span>Kind <b className="mono">{k}</b> <span className="muted">{count(k).toLocaleString()} entities</span></span>
+            <span>Kind <b className="mono">{k}</b> <span className="muted">{countText(count(k))} entities</span></span>
             <Button onClick={() => edit({ what: "kind", draft: { name: k } })}>Define</Button>
           </li>
         ))}
@@ -148,7 +149,7 @@ function NeedsDefinition({ o, edit, relDef }: {
         {n.relations.map((r) => (
           <li key={r} className="row small">
             <span>Link type <b className="mono">{r}</b> <span className="muted">
-              {o.relations.filter((x) => x.rel === r).reduce((a, x) => a + x.n, 0).toLocaleString()} links</span></span>
+              {countText(o.relations.filter((x) => x.rel === r).reduce((a, x) => a + x.n, 0))} links</span></span>
             <Button onClick={() => edit({ what: "relation", draft: { name: r, ...ends(r) } })}>Define</Button>
           </li>
         ))}
@@ -157,7 +158,7 @@ function NeedsDefinition({ o, edit, relDef }: {
           return (
             <li key={relId(x)} className="row small">
               <span><b className="mono">{x.rel}</b> from {words(x.src_kind)} to {words(x.dst_kind)}{" "}
-                <span className="muted">{x.n.toLocaleString()} links its link type doesn't allow</span></span>
+                <span className="muted">{countText(x.n)} links its link type doesn't allow</span></span>
               {d && <Button onClick={() => edit({
                 what: "relation", def: d, draft: {
                   from_kinds: d.from_kinds.length && !d.from_kinds.includes(x.src_kind) ? [...d.from_kinds, x.src_kind] : d.from_kinds,
@@ -197,13 +198,13 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
           <Button onClick={() => edit(def ? { what: "kind", def } : { what: "kind", draft: { name: kind.kind } })}>
             {def ? "Edit" : "Define"}</Button>
         </p>
-        <p className="small">{kind.count.toLocaleString()} entities</p>
+        <p className="small">{countText(kind.count)} entities</p>
 
         <h3>Fed by</h3>
         <div className="row">
           {kind.sources.map((s) => (
             <span key={s.source} className="row small">
-              <SourceBadge source={s.source} /> {s.records.toLocaleString()}
+              <SourceBadge source={s.source} /> {countText(s.records)}
             </span>
           ))}
         </div>
@@ -215,12 +216,12 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
         <ul className="plain">
           {out.map((r) => (
             <li key={relId(r)} className="small">
-              → <b>{r.rel}</b> {words(r.dst_kind)} <span className="muted">{r.n.toLocaleString()}</span>
+              → <b>{r.rel}</b> {words(r.dst_kind)} <span className="muted">{countText(r.n)}</span>
             </li>
           ))}
           {inc.map((r) => (
             <li key={relId(r)} className="small">
-              ← {words(r.src_kind)} <b>{r.rel}</b> <span className="muted">{r.n.toLocaleString()}</span>
+              ← {words(r.src_kind)} <b>{r.rel}</b> <span className="muted">{countText(r.n)}</span>
             </li>
           ))}
         </ul>
@@ -251,7 +252,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
           })}>{def ? "Edit link type" : "Define"}</Button>
         </p>
         <p className="small">
-          {rel.n.toLocaleString()} links{rel.dated > 0 && `, ${rel.dated.toLocaleString()} with start/end dates`}
+          {countText(rel.n)} links{rel.dated > 0 && `, ${countText(rel.dated)} with start/end dates`}
         </p>
         <h3>From</h3>
         <div className="row">
@@ -267,8 +268,8 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
     <>
       <h2>Model</h2>
       <p className="small">
-        {o.kinds.reduce((a, k) => a + k.count, 0).toLocaleString()} entities ·{" "}
-        {o.relations.reduce((a, r) => a + r.n, 0).toLocaleString()} links
+        {countText(o.kinds.reduce((a, k) => a + k.count, 0))} entities ·{" "}
+        {countText(o.relations.reduce((a, r) => a + r.n, 0))} links
       </p>
     </>
   );
@@ -310,7 +311,7 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
                   <td><span className="row"><i className="dot" style={{ background: kindColor(k.name) }} />
                     <span>{k.label}<br /><span className="mono muted small">{k.name}</span></span></span></td>
                   <td className="small wide">{k.description || <span className="muted">no description</span>}</td>
-                  <td className="small" data-label="Entities">{(k.count ?? 0).toLocaleString()}</td>
+                  <td className="small" data-label="Entities">{countText((k.count ?? 0))}</td>
                   <td><StatusBadge status={k.status} /></td>
                   <td><Button onClick={() => edit({ what: "kind", def: k })}>Edit</Button></td>
                 </tr>
@@ -331,7 +332,7 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
                   <td><span className="mono">{r.name}</span>{r.dated && <span className="muted small"> dated</span>}</td>
                   <td className="small wide">{r.from_kinds.map(words).join(", ") || "any"} → {r.to_kinds.map(words).join(", ") || "any"}</td>
                   <td className="small wide">{r.description || <span className="muted">no description</span>}</td>
-                  <td className="small" data-label="Links">{(r.count ?? 0).toLocaleString()}</td>
+                  <td className="small" data-label="Links">{countText((r.count ?? 0))}</td>
                   <td><StatusBadge status={r.status} /></td>
                   <td><Button onClick={() => edit({ what: "relation", def: r })}>Edit</Button></td>
                 </tr>
@@ -439,7 +440,7 @@ function KindForm({ o, def, draft, onDone, onCancel }: {
           Delete</Button>}
         {def && <span className="muted small">last changed by {def.updated_by} {when(def.updated_at)}</span>}
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
       {def && <History object="kind" name={def.name} />}
     </UICard>
   );
@@ -499,7 +500,7 @@ function RelationForm({ o, def, draft, onDone, onCancel }: {
           Delete</Button>}
         {def && <span className="muted small">last changed by {def.updated_by} {when(def.updated_at)}</span>}
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
       {def && <History object="relation" name={def.name} />}
     </UICard>
   );

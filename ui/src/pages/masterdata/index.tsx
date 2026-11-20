@@ -2,12 +2,13 @@
  * blocks: refs on open exceptions that matched nothing, link values each source wrote that named nothing, and the
  * decisions stewards made (aliases and pinned matches), each reversible. */
 import { useState } from "react";
+import { when } from "../../format";
 import { openReviews } from "../../figures";
-import { confirmDialog } from "../../ui";
+import { confirmDialog, ErrorText } from "../../ui";
 import { api } from "../../api";
 import { Badge, Button, Card, Input, PageHeader, Table, Empty } from "../../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../../lib";
-import { usePerson, when } from "../../work";
+import { usePerson } from "../../work";
 import { caseHref } from "../workflows/shared";
 import { usePermission } from "../../Auth";
 import { MatchRef } from "./MatchRef";
@@ -46,7 +47,7 @@ function Unmatched() {
   const [person] = usePerson();
   const operate = usePermission("operate");
   const a = useAction();
-  if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
+  if (!rows.data) return <Status of={rows} />;
   if (!rows.data.length) return <Empty>Every open exception matched the register.</Empty>;
   return (
     <Card title="Refs on open exceptions that matched nothing">
@@ -64,7 +65,7 @@ function Unmatched() {
           </tr>
         ))}</tbody>
       </Table>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Card>
   );
 }
@@ -74,7 +75,7 @@ function Unresolved() {
   const [person] = usePerson();
   const operate = usePermission("operate");
   const a = useAction();
-  if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
+  if (!rows.data) return <Status of={rows} />;
   if (!rows.data.length) return <><LearnedRules onChange={rows.reload} />
     <Empty>Every link value the last rebuild read named something in the register.</Empty></>;
   return (
@@ -92,7 +93,7 @@ function Unresolved() {
           </tr>
         ))}</tbody>
       </Table>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Card>
     </>
   );
@@ -111,7 +112,7 @@ function Decisions() {
         <Input placeholder="search a value, tag or ref" value={q} onChange={(e) => setQ(e.target.value)} />
         <label className="small"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> include reversed</label>
       </div>
-      <Status loading={rows.loading && !rows.data} error={rows.error} />
+      <Status of={rows} />
       {rows.data && (
         <Table density="compact">
           <thead><tr><th>Decision</th><th>Who</th><th>When</th><th>Why</th><th /></tr></thead>
@@ -132,7 +133,7 @@ function Decisions() {
           ))}</tbody>
         </Table>
       )}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Card>
   );
 }

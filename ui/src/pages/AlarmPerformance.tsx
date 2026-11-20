@@ -14,7 +14,7 @@ export function AlarmPerformance() {
   if (d && !d.window) return null;  // no alarm limits to measure against
   return (
     <Card className="alarm-performance" title="Alarm system performance">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && <>
         <div className="small ap-summary">
           Last {d.days} days: {d.alarms} alarms, {d.per_hour} an hour against a target of {d.target_per_hour}

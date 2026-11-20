@@ -55,10 +55,13 @@ doesn't cover a case, extend the module, with a test, so every page gets the cha
 | Pattern | Use | Enforced by |
 | --- | --- | --- |
 | Money, percentages, quantities, counts | `ui/src/format.ts` in the UI; `fuzer.core.wording.money` in Python. Pass the number the API returned. | `style-lint` rule `local-number-format`; the two formatters share test cases |
+| Times and dates | `when`, `whenDay` and `ago` in `ui/src/format.ts`. An instant reads in the viewer's clock; a value without an offset is the plant's clock, shown as written and marked "plant time"; a date alone stays that day. | `style-lint` rules `local-time-format`, `local-count-format` |
 | A button's async action (busy, failure, refresh) | `useAction` in `ui/src/lib.tsx`; `useReasonedAction` when the change needs a reason for the history; `errorMessage` for a caught error | `style-lint` rule `local-action-state` |
 | Asking before a change, asking for one value | `confirmDialog` and `promptDialog` from `ui/src/ui` (awaitable, queued); `ConfirmAction` for an inline confirm step | `style-lint` rule `raw-control` (no `confirm`, `prompt`, `alert`, `<dialog>`) |
 | Controls and tables | `Button`, `Input`, `Select`, `Textarea`, `Field`, `Table` and the rest of `ui/src/ui` | `style-lint` rule `raw-control` |
 | A figure worked out from API data (a total across kinds) | `ui/src/figures.ts`, or a field on the API. A page never adds up a list itself. | `style-lint` rule `computed-total` |
+| The state of a read (loading, failed, empty) | `<Status of={read} />` from `ui/src/lib.tsx`, given the `useAsync` result; a failed read always offers Try again | `style-lint` rule `read-state` |
+| A failure message | `ErrorText` from `ui/src/ui`; `ActionStatus` for a button's action | `style-lint` rule `raw-error` |
 | Loading data | `useAsync` in `ui/src/lib.tsx` over the `api` facade; never `fetch` in a page | `style-lint` rule `raw-fetch` |
 
 ### The kit is used, not edited

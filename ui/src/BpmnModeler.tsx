@@ -11,7 +11,7 @@ import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 import { href } from "./lib";
 import { fuzerModdle, subsetModule } from "./bpmnSubset";
-import { Button, Input, Select as UISelect, Empty, Textarea } from "./ui";
+import { Button, Input, Select as UISelect, Empty, Textarea, ErrorText } from "./ui";
 import { workflowComponents } from "./workflowComponents";
 
 export interface ModelerContext {
@@ -294,7 +294,7 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
     <>
       <h3>{workflowComponents.find((c) => "agent" in c && c.id === bo.component)?.name ?? title}
         {bo.$type === "bpmn:EndEvent" && def ? " (terminate)" : ""}</h3>
-      {!supported && <p className="error small">The engine doesn't run a {bo.$type.replace("bpmn:", "")}; publishing will refuse it.</p>}
+      {!supported && <ErrorText>The engine doesn't run a {bo.$type.replace("bpmn:", "")}; publishing will refuse it.</ErrorText>}
       <Field label="Id" value={bo.id} readOnly mono />
       {!is(bo, "bpmn:TextAnnotation") && <Text label="Name" value={bo.name} onCommit={(v) => ed.set(el, { name: v })} />}
 
@@ -353,7 +353,7 @@ function UserTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: any;
   const laneRole = lane?.role;
   return (
     <>
-      {lane?.agent && !bo.role && <p className="error small">This person's task is in the {lane.agent} agent's lane: give it a role or move it.</p>}
+      {lane?.agent && !bo.role && <ErrorText>This person's task is in the {lane.agent} agent's lane: give it a role or move it.</ErrorText>}
       <Select label="Role" value={bo.role} options={ctx.roles.person} blank={laneRole ? `${human(laneRole)} (from the lane)` : "(choose)"}
         onChange={(v) => ed.set(el, { "fuzer:role": v })} />
       <Text label="Assignee" value={bo.assignee} placeholder="anyone with the role"

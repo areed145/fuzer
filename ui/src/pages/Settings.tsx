@@ -1,5 +1,6 @@
 import "../styles/settings.css";
-import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty } from "../ui";
+import { when } from "../format";
+import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText } from "../ui";
 import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync, useReasonedAction } from "../lib";
@@ -15,7 +16,6 @@ import { AiUsage } from "./AiUsage";
 import { person as personName } from "../wording";
 import { SETTINGS_VIEWS } from "../pageTabs";
 
-const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
 const show = (v: unknown) =>
   v === null || v === undefined || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
@@ -81,7 +81,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
       <p className="small">Manage source endpoints and secret references in{" "}
         <a href={href("/sources", { view: "systems" })}>Systems &amp; connections</a>, not legacy source-seeding settings.</p>
       {!f && <p>Accounts, permissions and workflow assignments are managed in <a href={href("/users")}>Users</a>.</p>}
-      <Status loading={list.loading && !list.data} error={list.error} empty={list.data && rows.length === 0}>
+      <Status of={list} empty={list.data && rows.length === 0}>
         No settings match.
       </Status>
       {groups.map((g) => (
@@ -203,7 +203,7 @@ function Editor({ s, project, person, saved }: {
         title={scope === "project" ? "back to the global value" : "back to the default"}>
         Reset
       </Button>
-      {error && <span role="alert" className="error">{error}</span>}
+      <ErrorText inline>{error}</ErrorText>
       {message && <span role="status">{message}</span>}
     </div>
   );
@@ -211,7 +211,7 @@ function Editor({ s, project, person, saved }: {
 
 function History({ settingKey }: { settingKey: string }) {
   const h = useAsync(() => api.settingHistory(settingKey), [settingKey]);
-  if (h.error) return <div className="error small">{h.error}</div>;
+  if (h.error) return <ErrorText>{h.error}</ErrorText>;
   if (!h.data) return null;
   if (h.data.length === 0) return <Empty className="small">Never changed: it has always been the default.</Empty>;
   return (

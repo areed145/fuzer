@@ -2,11 +2,11 @@
 // basis (measured, estimated, missing) and the rows it is made of, the figures on estimated or missing data marked
 // first, and the review case that holds it.
 import { useState } from "react";
-import { quantity } from "../format";
+import { quantity, when } from "../format";
 import { api, type RegulatoryListing, type RegulatoryReport, type ReportBasis, type ReportFigure, type ReportRow } from "../api";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
-import { usePerson, when } from "../work";
-import { Badge, Button, Card, ConfirmAction, Input, Table } from "../ui";
+import { usePerson } from "../work";
+import { Badge, Button, Card, ConfirmAction, Input, Table, ErrorText } from "../ui";
 import "../styles/reports.css";
 import { person as personName } from "../wording";
 
@@ -112,7 +112,7 @@ function Decide({ d, onDone }: { d: RegulatoryReport; onDone: () => void }) {
           {d.submitted.via === "writeback" ? ` through the write-back queue to ${d.submitted.system}` : " as an exported file"}:
           {" "}{d.submitted.file}, sha256 {d.submitted.sha256.slice(0, 12)}…</p>
       )}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Card>
   );
 }
@@ -127,7 +127,7 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
   const toggle = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   return (
     <>
-      <Status loading={r.loading && !d} error={r.error} />
+      <Status of={r} />
       {d && (
         <>
           <Card as="section">
@@ -157,7 +157,7 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
                 onClick={() => a.run("draft", () => api.draftRegulatoryReport(template, period, person),
                   () => { setVersion(undefined); r.reload(); onChange(); })}>Draft again from the records</Button>
             </div>
-            {a.error && <p className="error small">{a.error}</p>}
+            <ErrorText>{a.error}</ErrorText>
           </Card>
           <Decide d={d} onDone={() => { r.reload(); onChange(); }} />
           {d.sections.map((s) => (
@@ -205,7 +205,7 @@ export function RegulatoryList({ data, selected, onChange }: { data: RegulatoryL
             window.location.assign(href("/reports", { report: `${t.name}:${month}` }));
           })}>Draft {t.title.toLowerCase()} for {month}</Button>
       ))}
-      {a.error && <span className="error small">{a.error}</span>}
+      <ErrorText inline>{a.error}</ErrorText>
     </div>
   );
 }
@@ -223,7 +223,7 @@ export function ObligationsDue() {
           {due.map((c) => (
             <li key={`${c.obligation}:${c.period}`}>
               <a href={href("/reports", { report: `${c.template}:${c.period}` })}>{c.obligation}, {c.period}</a>
-              {c.regulator ? ` for ${c.regulator}` : ""}: {c.overdue ? <span className="error">overdue since {c.due}</span>
+              {c.regulator ? ` for ${c.regulator}` : ""}: {c.overdue ? <ErrorText inline>overdue since {c.due}</ErrorText>
                 : `due ${c.due}, in ${c.days_left} days`}; {c.report ? `version ${c.report.version} ${c.report.status}` : "not started"}
             </li>
           ))}

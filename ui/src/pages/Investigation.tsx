@@ -1,8 +1,9 @@
 import "../styles/investigation.css";
+import { when, count } from "../format";
 import { useEffect, useRef } from "react";
 import { api, type Investigation, type InvestigationRecord } from "../api";
-import { href, Status, timestamp, useAsync } from "../lib";
-import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Stat, Empty } from "../ui";
+import { href, Status, useAsync } from "../lib";
+import { Badge, ButtonLink, Card, EmptyState, PageHeader, Stat, Empty } from "../ui";
 
 const STEPS = [
   { key: "issue", label: "Understand the issue" },
@@ -39,11 +40,10 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
         <Badge>Synthetic demo data</Badge>
         {result.data && <span className="small"> {monthOf(result.data.since)}, with follow-up</span>}
       </div>
-      <Status loading={result.loading && !result.data} error={result.error} />
+      <Status of={result} />
       {result.error && (
         <EmptyState title="The investigation could not be opened">
           <p>Its loaded records may be unavailable. Nothing was generated or changed.</p>
-          <Button onClick={result.reload}>Try again</Button>{" "}
           <ButtonLink href={href("/")}>Return home</ButtonLink>
         </EmptyState>
       )}
@@ -137,7 +137,7 @@ function Provenance({ records }: { records: InvestigationRecord[] }) {
         <li key={`${r.source}:${r.record_type}:${r.key}`}>
           <strong>{r.source}</strong> / {r.record_type} / <code>{r.key}</code>
           <span className="muted">Last observed during ingestion: <time dateTime={r.observed_at}>
-            {timestamp(r.observed_at)}
+            {when(r.observed_at, "Time unknown")}
           </time></span>
         </li>
       ))}
@@ -170,7 +170,7 @@ function EvidenceCard({ evidence: e, number, selected }: {
         <span>{e.text ?? e.label}</span>
       </h3>
       {!e.text && <p className="section-text">No record text is available.</p>}
-      {e.lost_oil_bbl !== null && <p><strong>{e.lost_oil_bbl.toLocaleString()} bbl recorded lost oil</strong>
+      {e.lost_oil_bbl !== null && <p><strong>{count(e.lost_oil_bbl)} bbl recorded lost oil</strong>
         {" "}(stock tank barrels, not bbl/d)</p>}
       <Provenance records={e.records} />
       <p className="small">Register record: <code>{e.label}</code></p>

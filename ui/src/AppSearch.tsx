@@ -7,7 +7,7 @@ import { usePermission } from "./Auth";
 import { KindBadge, entityHref, href, useAsync, useDebounced } from "./lib";
 import { NAV, useNavigationAccess, type NavGroup, type NavItem } from "./nav";
 import { MASTER_DATA_TABS, SETTINGS_VIEWS, SOURCES_VIEWS, WORK_LISTS, workHref } from "./pageTabs";
-import { Button, Input } from "./ui";
+import { Button, ErrorText, Input } from "./ui";
 
 const OPEN = "fuzer:search";
 const ENTITY_LIMIT = 8;
@@ -173,7 +173,7 @@ export function AppSearch() {
             ))}
           </section>)}
           {searching && <p className="app-search-note">Searching records…</p>}
-          {hits.error && <p className="app-search-note error">Records search failed: {hits.error}</p>}
+          {hits.error && <div className="app-search-note"><ErrorText>Records search failed: {hits.error}</ErrorText></div>}
           {!searching && q && !results.length && <p className="app-search-note">No matches for “{q}”.</p>}
         </div>
     </div>

@@ -12,7 +12,7 @@ export function Onboarding() {
     <h2>Onboarding</h2>
     <p>Each step a new asset goes through, from its seed bundle to the loop eval. Viewing this page changes nothing.</p>
     <Button disabled={j.loading} onClick={j.reload}>Refresh</Button>
-    <Status loading={j.loading && !j.data} error={j.error} />
+    <Status of={j} />
     {j.data && <p className="small">
       {j.data.project ? `Project ${j.data.project}: ` : ""}{j.data.ready} ready, {j.data.blocked} blocked, {j.data.to_do} to do.
     </p>}

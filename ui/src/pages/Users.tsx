@@ -58,8 +58,7 @@ function Administration({ query }: { query: URLSearchParams }) {
   const restricted = (message?: string) => { changed(message); documents.reload(); };
   return <div>
     <ActionStatus>{message && <p>{message}</p>}</ActionStatus>
-    <Status loading={data.loading} error={data.error} />
-    {data.error && <Button onClick={data.reload}>Try again</Button>}
+    <Status of={data} />
     {data.data && <>
       <Card title="Owner recovery">
         <p>{enabledOwners} enabled {enabledOwners === 1 ? "owner" : "owners"}. Keep at least one enabled owner.
@@ -92,7 +91,7 @@ function Administration({ query }: { query: URLSearchParams }) {
       <RoleCard data={data.data} reload={changed} />
       </Disclosure>
     </>}
-    <Status loading={workflow.loading} error={workflow.error} />
+    <Status of={workflow} />
     {workflow.error && <Button onClick={workflow.reload}>Retry workflow assignments</Button>}
   </div>;
 }
@@ -193,7 +192,7 @@ function AreasEditor({ account, project, saved, reload }: {
   return <>
     <p>{saved.length ? `Acts only on work in ${saved.length} ${saved.length === 1 ? "area" : "areas"}.` : "Acts on work anywhere in this project."}
       {" "}Reading is never narrowed; facility-wide work stays shared.</p>
-    <Status loading={options.loading} error={options.error} />
+    <Status of={options} />
     {options.data && !options.data.length && <p>This project's register has no areas yet.</p>}
     {options.data && options.data.length > 0 && <fieldset disabled={busy}><legend>Areas it can act on (none ticked: all)</legend>
       {options.data.map((hit) => <label key={hit.fuzer_id}>
@@ -252,7 +251,7 @@ function AuditRecord({ project }: { project: string }) {
     </div>
     <Button disabled={busy || !since || !until || since > until} onClick={download}>Download audit record</Button>
     <ActionStatus busy={busy ? "Exporting the audit record..." : null} error={failure}>{done && <p>{done}</p>}</ActionStatus>
-    <Status loading={coverage.loading} error={coverage.error} />
+    <Status of={coverage} />
     {c?.retention && <ul className="small">{Object.entries(c.retention).map(([k, v]) => <li key={k}>{v}</li>)}</ul>}
     {c && <Disclosure label={<>What the record covers ({every.length + latest.length} records, {(c.excluded ?? []).length} left out)</>}>
       <p className="small"><strong>Every change:</strong> {every.join(", ") || "none"}</p>

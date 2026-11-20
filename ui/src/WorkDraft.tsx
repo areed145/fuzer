@@ -21,7 +21,7 @@ export function WorkDraftCard({ id }: { id: string }) {
   // reload the recorded state, whichever way that went
   const confirm = () => run("create", () => api.confirmWorkDraft(id, person)).finally(draft.reload);
   return <Card className="work-draft" as="section" aria-label="Draft work item">
-    <Status loading={draft.loading && !d} error={draft.error} onRetry={draft.reload} />
+    <Status of={draft} />
     {d && <>
       <p className="small muted">{d.item_id ? "Work item" : "Draft from the assistant · not created yet"} · {queue(d.role)} queue</p>
       <h3>{say(d.title)}</h3>

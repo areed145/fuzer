@@ -65,7 +65,7 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
           ))}
         </div>
       </div>
-      <Status loading={graph.loading && !graph.data} error={graph.error} />
+      <Status of={graph} />
       {graph.data && (
         <>
           <div className="graph-layout">

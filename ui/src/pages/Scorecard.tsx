@@ -51,7 +51,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
         key: String(n), label: `${n} days`, current: n === days,
         href: href("/scorecard", { days: String(n), ...(until ? { until } : {}) }),
       }))} />
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && (d.kpis.length ? <>
         <Table density="compact" className="scorecard-table phone-rows">
           <thead><tr>

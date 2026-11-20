@@ -1,8 +1,9 @@
 import { ActionStatus, ConfirmAction, Badge as UIBadge, Empty } from "../../ui";
+import { when, count } from "../../format";
 /** Shared by the Sources pages (#225): who is acting, small formatting helpers, async buttons, badges, a line diff
  * and the "rebuild needed" banner. */
 import { api, type SourceHealth, type SourceLoad } from "../../api";
-import { timestamp, useAction, useAsync } from "../../lib";
+import { useAction, useAsync } from "../../lib";
 import { loadPerson } from "../../work";
 
 export const reviewer = () => loadPerson() || "anonymous";
@@ -14,7 +15,6 @@ export const STATE: Record<string, string> = {
 
 export const cell = (v: unknown) =>
   v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v).slice(0, 80) : String(v);
-export const when = timestamp;
 
 export const SCHEDULES: [string, string][] = [
   ["", "with the daily refresh (02:00) and when its file changes"], ["0 * * * *", "hourly"],
@@ -54,7 +54,7 @@ export function Loaded({ r }: { r: SourceLoad }) {
   if (r.unchanged.length) return <ActionStatus><p>Unchanged since the last load: nothing to ingest.</p></ActionStatus>;
   return (
     <p role="status" className="small">
-      Loaded {r.records.toLocaleString()} records ({r.inserted} new, {r.updated} changed, {r.removed} removed).
+      Loaded {count(r.records)} records ({r.inserted} new, {r.updated} changed, {r.removed} removed).
       {" "}Review the dataset's Runs and freshness; apply any required rebuild shown in Sources.
     </p>
   );

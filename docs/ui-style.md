@@ -62,6 +62,13 @@ value as the API returned it; never round, scale or abbreviate it in a page. Mon
 cents below, never "k" or "M", so one amount reads the same on every page. Text written by the server uses
 `fuzer.core.wording.money`, which formats the same way.
 
+## Times
+
+`when`, `whenDay` and `ago` in `ui/src/format.ts` are the only place a time becomes text: "Nov 14, 2:11 PM", with the
+year only when it is not this year. A value with an offset is an instant and reads in the viewer's clock. A value
+without one is the plant's own clock: it is shown as written and marked "plant time", never converted. A date alone
+("2026-11-17") stays that day in every timezone. Never cut a date string with `slice` in a page.
+
 ## API client
 
 `ui/src/api.ts` remains the compatible facade for calls and exported types.

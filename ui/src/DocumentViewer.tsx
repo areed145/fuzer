@@ -105,7 +105,7 @@ export function DocumentPages({ id, zoom = 1, className = "" }: { id: string; zo
     ro.observe(el);
     return () => ro.disconnect();
   }, [d.data]);
-  if (!d.data) return <Status loading={d.loading} error={d.error} onRetry={d.reload} />;
+  if (!d.data) return <Status of={d} />;
   const doc = d.data;
   return (
     <div ref={box} className={`doc-pages ${className}`}>

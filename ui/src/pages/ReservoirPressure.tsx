@@ -13,7 +13,7 @@ export function ReservoirPressure() {
   const pi = d?.productivity;
   return (
     <Card className="reservoir-pressure" title="Reservoir pressure">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && mb && pi && <>
         <div className="small rp-summary">
           {mb.verdict === "fitted"

@@ -2,10 +2,11 @@
  * day by day against its capacity, each overload with the jobs in it and the move that clears it at the least cost,
  * and the owner's capacity and capacity windows (leave, a certification lapsing, a vessel in dock). */
 import { type CSSProperties, useState } from "react";
+import { when, whenDay } from "../format";
 import { api, type ResourceLoad, type ResourceMove, type ResourceOverload } from "../api";
-import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select } from "../ui";
+import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select, ErrorText } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
-import { acronyms, dayStamp, stamp } from "../wording";
+import { acronyms } from "../wording";
 
 const DAY = 86_400_000;
 const num = (n: number | null | undefined) => (n == null ? "" : Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -30,7 +31,7 @@ export function ResourcesPage({ query, person }: { query: URLSearchParams; perso
           {[14, 28, 42, 90].map((d) => <option key={d} value={d}>{d} days</option>)}
         </Select></label>
       </div>
-      {!load.data ? <Status loading={load.loading} error={load.error} onRetry={load.reload} /> : <>
+      {!load.data ? <Status of={load} /> : <>
         {!load.data.resources.length && <Empty>No shared resources yet.</Empty>}
         {load.data.resources.map((r) => <ResourceCard key={r.code} r={r} person={person} onChange={load.reload} />)}
       </>}
@@ -62,15 +63,15 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
       {r.kind === "capacity" && <p className="small">Counts what each job that needs a unit down takes offline: the wells behind the unit at their latest test rate, each well once.</p>}
       {r.routine_load && <p className="small">{r.routine_load.source} hold {num(r.routine_load.quantity)} the whole time: {r.routine_load.basis}.</p>}
       <div className="load-cols" role="img" aria-label={`${r.name}: ${over ? `over capacity on ${over} days` : "within capacity"}`}>
-        {r.days.map((d) => <span role="button" tabIndex={0} key={d.day} aria-pressed={day === d.day} aria-label={`${dayStamp(d.day)}: ${num(d.demand)} of ${num(d.capacity)}`}
+        {r.days.map((d) => <span role="button" tabIndex={0} key={d.day} aria-pressed={day === d.day} aria-label={`${whenDay(d.day)}: ${num(d.demand)} of ${num(d.capacity)}`}
           className={`load-col${d.demand > d.capacity + 1e-6 ? " over" : ""}${day === d.day ? " on" : ""}`} onClick={() => setDay(day === d.day ? null : d.day)}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDay(day === d.day ? null : d.day); } }}>
           {r.sources.filter((s) => d.by_source[s]).map((s) => <span key={s} className={`load-part ${color(s)}`} style={h(d.by_source[s])} />)}
           <span className="load-cap" style={cap(d.capacity)} />
         </span>)}
       </div>
-      <div className="load-axis small"><span>{dayStamp(r.days[0]?.day ?? "")}</span><span>{dayStamp(r.days[r.days.length - 1]?.day ?? "")}</span></div>
-      {picked && <p className="small">{dayStamp(picked.day)}: {num(picked.demand)} needed at the busiest hour against {num(picked.capacity)}
+      <div className="load-axis small"><span>{whenDay(r.days[0]?.day ?? "")}</span><span>{whenDay(r.days[r.days.length - 1]?.day ?? "")}</span></div>
+      {picked && <p className="small">{whenDay(picked.day)}: {num(picked.demand)} needed at the busiest hour against {num(picked.capacity)}
         {Object.keys(picked.by_source).length ? ` (${Object.entries(picked.by_source).map(([s, q]) => `${s} ${num(q)}`).join(", ")})` : ""}.</p>}
       {r.overloads.length > 0 && <>
         <h3>Overloads</h3>
@@ -86,18 +87,18 @@ function Overload({ o, unit, person, onChange }: { o: ResourceOverload; unit: st
   const move = (m: ResourceMove) => person && run("Moving", () => api.planChange(m.item_id, person, { start: m.new_start, end: m.new_end }), onChange);
   return (
     <li>
-      <strong>{stamp(o.from)} to {stamp(o.to)}</strong>{" "}
+      <strong>{when(o.from)} to {when(o.to)}</strong>{" "}
       <span>needs {num(o.peak)} against {num(o.capacity)}{unit ? ` ${unit}` : ""}</span> <Badge tone="danger">{num(o.over_by)} over</Badge>
       <p className="small">In use by {o.jobs.map((j) => `${j.code ?? ""}${j.code ? " " : ""}${acronyms(j.title)} (${num(j.quantity)})`).join("; ")}.</p>
       {o.moves.length ? <ul className="plain">{o.moves.map((m) => <li key={m.item_id} className="small load-move">
-        Slip {m.code ? `${m.code} ` : ""}{acronyms(m.title)} {num(m.slip_hours)} h to {stamp(m.new_start)}
+        Slip {m.code ? `${m.code} ` : ""}{acronyms(m.title)} {num(m.slip_hours)} h to {when(m.new_start)}
         {m.finish_later_days == null ? ", no schedule logic behind it" : m.finish_later_days > 0
           ? `, ${m.source} finishes ${num(m.finish_later_days)} days later` : `, within its float (${num(m.float_hours)} h)`}{" "}
         {m.source && m.finish_later_days != null
           ? <ButtonLink size="sm" variant="link" href={`#/plan?schedule=${encodeURIComponent(m.source)}`}>Open schedule</ButtonLink>
           : <Button size="sm" variant="link" disabled={!person || !!busy} onClick={() => move(m)}>Move</Button>}
       </li>)}</ul> : <p className="small">No single job clears it: raise capacity or split the work.</p>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </li>
   );
 }
@@ -116,7 +117,7 @@ function Capacity({ r, person, onChange }: { r: ResourceLoad; person: string | n
     <>
       <h3>Capacity</h3>
       {r.capacity_windows.length ? <ul className="plain">{r.capacity_windows.map((w) => <li key={w.id} className="small">
-        {stamp(w.start)} to {stamp(w.end)}: {num(w.capacity)}{w.reason ? ` (${w.reason})` : ""}{" "}
+        {when(w.start)} to {when(w.end)}: {num(w.capacity)}{w.reason ? ` (${w.reason})` : ""}{" "}
         {person && <Button size="sm" variant="link" disabled={!!busy} onClick={() => run("Removing", () => api.capacityWindowRemove(w.id, person), onChange)}>Remove</Button>}
       </li>)}</ul> : <Empty>{`${num(r.capacity)} every day.`}</Empty>}
       {!person ? <p className="small">Choose who you are to change capacity.</p>
@@ -142,7 +143,7 @@ function Capacity({ r, person, onChange }: { r: ResourceLoad; person: string | n
         </div>}
         <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Done</Button>
       </>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </>
   );
 }
@@ -178,8 +179,8 @@ function AddResource({ person, known, onChange }: { person: string; known: strin
           <Input value={counts} placeholder={known.slice(0, 3).join(", ")} onChange={(e) => setCounts(e.target.value)} /></Field>}
         <Button disabled={!!busy || !code.trim() || !name.trim() || cap === "" || unknown.length > 0} onClick={add}>Add</Button>
       </div>
-      {unknown.length > 0 && <p className="small error">No resource {unknown.join(", ")}.</p>}
-      {error && <p role="alert" className="error">{error}</p>}
+      {unknown.length > 0 && <ErrorText>No resource {unknown.join(", ")}.</ErrorText>}
+      <ErrorText>{error}</ErrorText>
     </Card>
   );
 }

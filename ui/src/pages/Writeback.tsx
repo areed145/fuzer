@@ -1,8 +1,9 @@
-import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea } from "../ui";
+import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea, ErrorText } from "../ui";
+import { when } from "../format";
 import { useState } from "react";
 import { api, type Writeback, type WritebackDetail } from "../api";
 import { Status, useAsync, useAction } from "../lib";
-import { Actor, DataView, when } from "../work";
+import { Actor, DataView } from "../work";
 import { caseHref } from "./workflows/shared";
 
 const STATE: Record<Writeback["state"], string> = {
@@ -33,7 +34,7 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
   const [text, setText] = useState<string | null>(null);
   const [why, setWhy] = useState("");
   const a = useAction();
-  if (!d.data) return <Status loading={d.loading} error={d.error} />;
+  if (!d.data) return <Status of={d} />;
   const w: WritebackDetail = d.data;
   const system = w.system.toUpperCase();
   const done = () => { d.reload(); reload(); setText(null); setWhy(""); };
@@ -50,7 +51,7 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
         {w.adapter === "export" && <span className="muted"> {system} has no write API here: it goes into an export file for
           its owner, who confirms once it is applied.</span>}
       </p>
-      {w.error && <p role="alert" className="error small">{w.error}</p>}
+      <ErrorText>{w.error}</ErrorText>
       {hasText ? (
         <Textarea rows={3} className="lesson-text" aria-label="Change to write" disabled={!decide}
           value={text ?? String(w.payload.text)} onChange={(e) => setText(e.target.value)} />
@@ -73,7 +74,7 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
             api.failWriteback(id, person, why), done)}>Couldn't apply it</Button>
         </div>
       )}
-      {a.error && <p role="alert" className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
       <ul className="plain small">{w.history.map((h) => (
         <li key={h.id}>{STATE[h.state as Writeback["state"]] ?? h.state} · <Actor who={h.by} /> · {when(h.at)}
           {h.note && <span className="muted"> · {h.note}</span>}</li>
@@ -86,7 +87,7 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
 export function SystemWritebacks({ system }: { system: string }) {
   const list = useAsync(() => api.writebacks({ system }), [system]);
   const rows = Array.isArray(list.data) ? list.data : [];
-  if (!list.data) return <Status loading={list.loading} error={list.error} />;
+  if (!list.data) return <Status of={list} />;
   return (
     <>
       <h3>Changes written back</h3>
@@ -98,7 +99,7 @@ export function SystemWritebacks({ system }: { system: string }) {
               <td>{w.kind.replace(/_/g, " ")}</td>
               <td>{w.record ?? ""}</td>
               <td><UIBadge className={`badge ${tone(w.state)}`}>{STATE[w.state]}</UIBadge>
-                {w.error && <div className="small error">{w.error}</div>}</td>
+                <ErrorText>{w.error}</ErrorText></td>
               <td>{w.approved_by ? <Actor who={w.approved_by} /> : <span className="muted">{w.approver_role?.replace(/_/g, " ") ?? ""}</span>}</td>
               <td className="small">{w.state === "approved" && w.due_at ? when(w.due_at) : w.sent_at ? `sent ${when(w.sent_at)}` : ""}</td>
               <td>{w.item_id ? <a href={caseHref(w.item_id)}>case {w.item_id}</a> : ""}</td>

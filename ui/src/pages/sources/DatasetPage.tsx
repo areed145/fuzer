@@ -1,11 +1,12 @@
-import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty, ErrorText } from "../../ui";
+import { when, count } from "../../format";
 import { confirmDialog } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
  * matching and history. */
 import { useState } from "react";
 import { api, type DatasetDetail, type ImpactResult, type Json, type MappingVersion, type SourceLoad } from "../../api";
 import { Status, href, useAsync, useAction } from "../../lib";
-import { DRIFT_HELP, DUPLICATES_HELP, Diff, HealthBadge, LOAD_HELP, Loaded, SCHEDULES, TestSteps, cell, reviewer, scheduleText, when } from "./common";
+import { DRIFT_HELP, DUPLICATES_HELP, Diff, HealthBadge, LOAD_HELP, Loaded, SCHEDULES, TestSteps, cell, reviewer, scheduleText } from "./common";
 import { MappingEditor } from "./MappingEditor";
 import { person as personName } from "../../wording";
 
@@ -19,7 +20,7 @@ const TAB_LABEL: Record<Tab, string> = {
 export function DatasetPage({ name, tab }: { name: string; tab: Tab }) {
   const d = useAsync(() => api.dataset(name), [name]);
   if (!d.data) return <section><PageHeader>{name}</PageHeader>
-    <Status loading={d.loading} error={d.error} onRetry={d.reload} />
+    <Status of={d} />
     {d.error && <p>Dataset details are unavailable. <a href={href("/sources")}>Return to Sources</a> to inspect connections and recorded loads.</p>}
   </section>;
   const x = d.data;
@@ -110,8 +111,8 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
     ["Schedule", <>{scheduleText(ds.schedule)}{d.next_load && <span className="muted"> · next {when(d.next_load)}</span>}</>],
     ["Expected", ds.expected_hours ? `a delivery every ${ds.expected_hours} h` : <span className="muted">no expectation</span>],
     ["Owner", ds.owner ?? <span className="muted">none (alerts go to the system's owner, else data stewards)</span>],
-    ["Records", h?.rows?.toLocaleString() ?? "–"],
-    ["Last ingested (not event date)", <>{when(h?.last_loaded)}{last && <span className="muted"> · last run {last.status} ({last.trigger})</span>}</>],
+    ["Records", h?.rows != null ? count(h.rows) : "–"],
+    ["Last ingested (not event date)", <>{when(h?.last_loaded, "Time unknown")}{last && <span className="muted"> · last run {last.status} ({last.trigger})</span>}</>],
   ];
   return (
     <>
@@ -135,7 +136,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       <Table variant="keyValue">
         <tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody>
       </Table>
-      {h && h.problems.length > 0 && <p className="error small">Needs a look: {h.problems.join(", ")}.</p>}
+      {h && h.problems.length > 0 && <ErrorText>Needs a look: {h.problems.join(", ")}.</ErrorText>}
       {(d.work_items.length > 0 || d.reviews.length > 0) && (
         <>
           <h3>Open</h3>
@@ -260,7 +261,7 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         <Button variant="primary" disabled={!changed || !!a.busy} onClick={save}>Save</Button>
         {changed && <Button variant="secondary" onClick={() => setV(init)}>Undo</Button>}
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
       <Lifecycle d={d} reload={reload} />
     </>
   );
@@ -286,8 +287,8 @@ function Lifecycle({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           <Button variant="secondary" disabled={!!a.busy}
             onClick={async () => (await confirmDialog(`Retire ${ds.name} and remove its ${p.records} records?`)) &&
               a.run("retract", () => api.retireDataset(ds.name, true, reviewer()), reload)}>Retire and remove records</Button>
-          <span className="muted small">For a source you've stopped using: {p.records.toLocaleString()} records,
-            {" "}{p.entities_only_here.toLocaleString()} entities only it holds.</span>
+          <span className="muted small">For a source you've stopped using: {count(p.records)} records,
+            {" "}{count(p.entities_only_here)} entities only it holds.</span>
         </div>
       )}
       <div className="row">
@@ -297,7 +298,7 @@ function Lifecycle({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           Delete dataset</Button>
         <span className="muted small">Undo adding it (a mistake): everything about it goes; the history keeps the change.</span>
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </UICard>
   );
 }
@@ -348,7 +349,7 @@ function ReviewVersion({ v, current, reload, close }: { v: MappingVersion; curre
       <h3>Version {v.id} against version {current.id} (in use) <Button variant="link" className="small" onClick={close}>close</Button></h3>
       <Diff from={current.yaml} to={v.yaml} />
       <h3>What it would do</h3>
-      {impact.data ? <Impact r={impact.data} /> : <Status loading={impact.loading} error={impact.error} />}
+      {impact.data ? <Impact r={impact.data} /> : <Status of={impact} />}
       <div className="row">
         <Button variant="primary" disabled={!!a.busy || !impact.data}
           onClick={() => a.run("go", () => (draft ? api.approveMapping(v.id, reviewer()) : api.rollbackMapping(v.id, reviewer())),
@@ -358,7 +359,7 @@ function ReviewVersion({ v, current, reload, close }: { v: MappingVersion; curre
           onClick={() => a.run("discard", () => api.discardMapping(v.id, reviewer()), () => { close(); reload(); })}>Discard draft</Button>}
         <span className="muted small">It takes effect on the next load and rebuild.</span>
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </UICard>
   );
 }
@@ -370,13 +371,13 @@ function Impact({ r }: { r: ImpactResult }) {
   return (
     <div className="small">
       <p>
-        Over its {r.records.toLocaleString()} stored records{r.sampled ? " (a sample)" : ""}:{" "}
+        Over its {count(r.records)} stored records{r.sampled ? " (a sample)" : ""}:{" "}
         {none ? "nothing changes." : <>entities +{r.entities.added} / −{r.entities.removed}, links +{r.links.added} /
           −{r.links.removed}, {r.fields.changed} field values change, <strong>{r.golden_flips.count} chosen values would flip</strong>.</>}
       </p>
       <ul>{line("entities", r.entities.examples)}{line("links", r.links.examples)}{line("fields", r.fields.examples)}
         {line("chosen values", r.golden_flips.examples)}</ul>
-      {r.errors && <p className="error">{r.errors.length} records failed: {r.errors[0].error}</p>}
+      {r.errors && <ErrorText>{r.errors.length} records failed: {r.errors[0].error}</ErrorText>}
     </div>
   );
 }
@@ -404,7 +405,7 @@ function Runs({ d, reload }: { d: DatasetDetail; reload: () => void }) {
             <tr key={r.id}>
               <td>{r.id}</td><td className="muted">{when(r.finished_at ?? r.started_at)}</td><td>{r.trigger}</td>
               <td><UIBadge className={`badge ${r.status === "done" ? "ok" : ""}`}>{r.status}</UIBadge></td>
-              <td>{r.rows_read?.toLocaleString()}</td><td>{r.inserted}</td><td>{r.updated}</td><td>{r.unchanged}</td><td>{r.removed}</td>
+              <td>{r.rows_read != null && count(r.rows_read)}</td><td>{r.inserted}</td><td>{r.updated}</td><td>{r.unchanged}</td><td>{r.removed}</td>
               <td className="muted">{r.seconds}</td><td className="muted">{r.error ?? (r.detail ? <RunDetail detail={r.detail} /> : "")}</td>
             </tr>
           ))}
@@ -494,8 +495,8 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           <Button variant="primary" disabled={!!a.busy} onClick={add}>Add</Button>
         </div>
       </Disclosure>
-      {a.error && <p className="error small">{a.error}</p>}
-      <h3>Profile {p && <span className="muted small">{p.rows.toLocaleString()} rows{p.sampled ? " (sampled)" : ""}, {when(p.taken_at)}
+      <ErrorText>{a.error}</ErrorText>
+      <h3>Profile {p && <span className="muted small">{count(p.rows)} rows{p.sampled ? " (sampled)" : ""}, {when(p.taken_at)}
         {p.key && ` · key: ${p.key.duplicates} repeated, ${p.key.empty} empty`}</span>}</h3>
       {p?.drift?.length ? <p className="small">Since the profile before: {p.drift.map((x) => `${x.column} ${x.change}`).join("; ")}</p> : null}
       {p ? (
@@ -522,8 +523,8 @@ function Matching({ d }: { d: DatasetDetail }) {
   return (
     <div className="small">
       <p>
-        <code>{d.dataset.source}</code> after the rebuild of {when(d.matching[0].built_at)}: {s.records?.toLocaleString()} records
-        in {s.entities?.toLocaleString()} entities; {s.shared_pct}% join an entity another source also has; it supplies {s.golden_wins ?? 0} chosen
+        <code>{d.dataset.source}</code> after the rebuild of {when(d.matching[0].built_at)}: {s.records != null && count(s.records)} records
+        in {s.entities != null && count(s.entities)} entities; {s.shared_pct}% join an entity another source also has; it supplies {s.golden_wins ?? 0} chosen
         values; its links resolve {cov.pct ?? "–"}% ({cov.resolved ?? 0} of {cov.total ?? 0}).
       </p>
       <p>

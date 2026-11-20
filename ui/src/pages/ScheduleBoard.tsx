@@ -4,8 +4,9 @@
  * properties. Every change recalculates the schedule, so the pucks land where the logic and the crews allow. The
  * selected activity shows its logic as arrows; a resource's row carries a strip of its daily load against capacity. */
 import { type CSSProperties, type PointerEvent as RPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { when, whenDay } from "../format";
 import type { ScheduleAnalysis, ScheduleRow } from "../api";
-import { acronyms, dayStamp, stamp } from "../wording";
+import { acronyms } from "../wording";
 
 const HOUR = 3_600_000, DAY = 24 * HOUR;
 const PUCK = 24, GAP = 4, PAD = 5, STRIP = 6, HEAD = 28;
@@ -216,7 +217,7 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
   const dragHours = drag ? Math.round(drag.dx / pxPerMs / HOUR) : 0;
   const onto = drag?.row ? rows.find((r) => r.key === drag.row) : undefined;
   const hint = dragged && drag ? (drag.kind === "link" ? `Drop on the activity that follows ${dragged.code}`
-    : onto ? (onto.key === "none" ? `${dragged.code} needs no shared resource` : `${dragged.code} goes to ${onto.label}`) : drag.kind === "move" ? `${dragged.code} starts ${stamp(new Date(ms(dragged.start) + dragHours * HOUR))}`
+    : onto ? (onto.key === "none" ? `${dragged.code} needs no shared resource` : `${dragged.code} goes to ${onto.label}`) : drag.kind === "move" ? `${dragged.code} starts ${when(new Date(ms(dragged.start) + dragHours * HOUR))}`
     : `${dragged.code} takes ${num(Math.max(1, (dragged.duration_hours ?? 0) + dragHours))} h`) : null;
   const vars = { "--gb-label": `${labelW}px`, "--gb-track": `${trackW}px`, "--gb-day": ticks.grid } as CSSProperties;
   const ends = s.project.finish_by ? x(ms(s.project.finish_by)) : null;
@@ -231,7 +232,7 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
           <div className="gb-row gb-head" aria-hidden="true">
             <div className="gb-label" />
             <div className="gb-track gb-ticks">
-              {ticks.at.map((t) => <span key={t} className="gb-tick" style={line(x(t))}>{dayStamp(new Date(t).toISOString())}</span>)}
+              {ticks.at.map((t) => <span key={t} className="gb-tick" style={line(x(t))}>{whenDay(new Date(t).toISOString())}</span>)}
             </div>
           </div>
           <div className="gb-body" ref={body}>
@@ -268,8 +269,8 @@ export function ScheduleBoard({ s, rows: mode, zoom, selected, onSelect, onChang
                     const dot: CSSProperties = { left: left + w + 3, top: PAD + p.lane * (PUCK + GAP) + 5 };
                     const beside: CSSProperties = { left: left + w + (linkable ? 22 : 6), top: PAD + p.lane * (PUCK + GAP) };
                     return <span key={p.key} className="gb-cell"><span role="button" tabIndex={0} className={cls} style={style} data-act={a.id} aria-pressed={selected === a.id}
-                      aria-label={`${p.title}, ${stamp(a.start)} to ${stamp(a.finish)}${a.critical ? ", critical" : ""}`}
-                      title={`${p.title}\n${stamp(a.start)} to ${stamp(a.finish)}${p.qty ? `\nNeeds ${num(p.qty)}` : ""}`}
+                      aria-label={`${p.title}, ${when(a.start)} to ${when(a.finish)}${a.critical ? ", critical" : ""}`}
+                      title={`${p.title}\n${when(a.start)} to ${when(a.finish)}${p.qty ? `\nNeeds ${num(p.qty)}` : ""}`}
                       onClick={(e) => e.stopPropagation()}
                       onPointerDown={(e) => (editable(a) ? down(e, a, "move", r.key) : undefined)} onPointerMove={move}
                       onPointerUp={(e) => (press.current ? up(e, a) : onSelect(selected === a.id ? null : a.id))}

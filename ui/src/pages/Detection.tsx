@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { percent } from "../format";
+import { percent, when, whenDay } from "../format";
 import {
   api, type Closeouts, type DetectorCloseouts, type DetectorParam, type DetectorRow, type EquipmentClass, type PromotedRule,
   type ProviderRow, type Trust, type TuningProposal, type WatchPattern, type WatchProposal,
@@ -8,7 +8,6 @@ import { Status, errorMessage, notifyChanged, useAsync, useReasonedAction } from
 import { loadPerson } from "../work";
 import { ActionStatus, Badge, Button, Card, ConfirmAction, Empty, Field, Input, Select, Table } from "../ui";
 
-const when = (at: string | null | undefined) => (at ? at.slice(0, 16).replace("T", " ") : "");
 const show = (v: unknown) =>
   v === null || v === undefined || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
 const pct = (v: number | null) => (v === null ? "—" : percent(v));
@@ -89,7 +88,7 @@ export function Detection({ focus }: { focus?: string | null } = {}) {
     {(proposals.data?.length ?? 0) > 0 && <Card title="Tuning proposals">
       {proposals.data!.map((p) => <Proposal key={p.id} p={p} person={person} decided={decided} />)}
     </Card>}
-    <Status loading={list.loading && !list.data} error={list.error} empty={list.data && list.data.detectors.length === 0}>
+    <Status of={list} empty={list.data && list.data.detectors.length === 0}>
       No detectors are registered.
     </Status>
     {list.data && <Card>
@@ -177,7 +176,7 @@ function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; per
     `${classes.find((x) => x.code === p.class)?.name ?? p.class}: ${p.role.replace(/_/g, " ")} ${p.direction === "high" ? "rising" : "falling"}`;
   const d = got.data;
   return <Card title="Watch findings and promoted rules">
-    <Status loading={got.loading && !d} error={got.error} />
+    <Status of={got} />
     {d && <>
       <h3>Proposals{d.unreviewed ? ` (${d.unreviewed} to review)` : ""}</h3>
       {d.live && d.live.raised > 0 && <p>
@@ -249,7 +248,7 @@ function RuleLine({ r, name, person, saved }: { r: PromotedRule; name: string; p
       week before by {r.spec.z} × its spread · fitted on {r.examples.length} confirmed proposals</p>
     <p className="small">{s
       ? <>Replay: recall {pct(s.recall)} ({s.detected} of {s.events} events), precision {pct(s.precision)},
-        {" "}{s.false_alarms_per_week ?? "—"} false alarms a week <span className="muted">({s.since.slice(0, 10)} to {s.until.slice(0, 10)})</span></>
+        {" "}{s.false_alarms_per_week ?? "—"} false alarms a week <span className="muted">({whenDay(s.since)} to {whenDay(s.until)})</span></>
       : <span className="muted">Not replayed yet</span>}
       <span className="muted"> · drafted by {r.drafted_by}, {when(r.drafted_at)}
         {r.published_by && ` · published by ${r.published_by}, ${when(r.published_at)}`}

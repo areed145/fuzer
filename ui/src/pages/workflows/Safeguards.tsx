@@ -1,8 +1,8 @@
 import { api } from "../../api";
+import { when } from "../../format";
 import type { CaseSafeguards as CaseSafeguardsData } from "../../api/work";
 import { entityHref, useAsync } from "../../lib";
 import { Notice } from "../../ui";
-import { when } from "../../work";
 
 /** Safeguards out on this case's system (P3.9b): the bypasses in place on what the case is about, or the rest of its
  * train, and the open change records on it. It leads the evidence, so nobody reads a trend or acts on a trip without

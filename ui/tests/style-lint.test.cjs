@@ -58,6 +58,23 @@ const RULES = {
     pattern: /\$\$\{|>\$\{[^}]*(?:usd|cost|price|value)|\* 100\)\}?%|const (?:money|usd|dollars) = /g,
     hint: "Format money, percentages, quantities and counts with ui/src/format.ts so one value reads the same on every page.",
   },
+  "local-time-format": {
+    pattern: /\.slice\(0, 1[069]\)|toLocale(?:Date|Time)String\(|toLocaleString\((?:undefined|"en-US"), \{ *(?:month|day|hour|weekday)/g,
+    hint: "Show a time with when, whenDay or ago from ui/src/format.ts: one format, instants in the viewer's clock, plant-clock values as written.",
+  },
+  "local-count-format": {
+    pattern: /\.toLocaleString\(\)/g,
+    hint: "Format a plain number with count from ui/src/format.ts (and money or quantity where it has a currency or unit).",
+  },
+  "raw-error": {
+    skip: /^(?:ui\/|lib\.tsx$)/,
+    pattern: /className=(?:"[^"]*|\{`[^`]*)\berror\b/g,
+    hint: "Show a failure with ErrorText (or ActionStatus for a button's action) from ui/src/ui, not a paragraph with an error class.",
+  },
+  "read-state": {
+    pattern: /<Status loading=\{\w+\.loading\b/g,
+    hint: "Pass the useAsync result to Status as of={...}: loading shows until the first data, and a failed read offers Try again.",
+  },
   "local-action-state": {
     pattern: /setBusy\(|instanceof Error \? \w+\.message|as Error\)\.message/g,
     hint: "Run a button's async action with useAction (or useReasonedAction) from ui/src/lib.tsx and read failures with errorMessage; don't keep busy and error state by hand.",

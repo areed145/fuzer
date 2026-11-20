@@ -15,7 +15,7 @@ export function AllocationFactor() {
   const s = d?.summary;
   return (
     <Card className="allocation-factor" title="Allocated oil against well tests">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && s && <>
         <div className="small af-summary">
           {d.since} to {d.until}: allocated over tested oil {s.factor ?? "unknown"} (band {s.band[0]} to {s.band[1]})

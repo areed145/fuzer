@@ -2,10 +2,11 @@
  * across every field they hold roles in, with what changed since they last looked and what is coming. A row in
  * another field opens there in one click (the tab switches field and lands on the item). */
 import { useEffect } from "react";
+import { when } from "../format";
 import { api, type WorkHome, type WorkRow } from "../api";
 import { Badge, Button, Card, Empty } from "../ui";
 import { Status, href, useAsync } from "../lib";
-import { Actor, Due, holder, usePerson, when } from "../work";
+import { Actor, Due, holder, usePerson } from "../work";
 import { useAuth } from "../Auth";
 import { switchProject } from "../authState";
 import { GENERIC_STEP, StepBadges, byUrgency, caseHref, taskHref } from "./workflows/shared";

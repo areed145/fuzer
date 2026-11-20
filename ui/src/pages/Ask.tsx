@@ -1,6 +1,6 @@
 import "../styles/ask.css";
-import { money } from "../format";
-import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea } from "../ui";
+import { money, when } from "../format";
+import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea, ErrorText } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AskContext, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
@@ -184,7 +184,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
           ))}
         </div>
       )}
-      {openError && <div className="error small">{openError}</div>}
+      <ErrorText>{openError}</ErrorText>
       <Specialists catalog={catalog} />
       {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} demo={demo} caseId={context.data?.item_id ?? undefined} />)}
       <div ref={end} />
@@ -215,7 +215,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
             ))}
           </div>
         )}
-        {attachError && <div className="error small">{attachError}</div>}
+        <ErrorText>{attachError}</ErrorText>
         <div className="row">
           {demo ? <ConfirmAction label="paid question" disabled={!ai || !text.trim()} busy={busy}
             consequence="This sends the reviewed question and any attachments to the configured AI provider and may incur charges. The answer is stored in your account's conversation. Inspect any recorded job after a failure before a deliberate retry."
@@ -326,7 +326,7 @@ function TurnView({ turn, labels, demo = false, caseId }: { turn: Turn; labels: 
         )}
       </div>
       <UICard className="answer">
-        {turn.error && (demo ? <ActionStatus error={turn.error} /> : <div className="error small">{turn.error}</div>)}
+        {turn.error && (demo ? <ActionStatus error={turn.error} /> : <ErrorText>{turn.error}</ErrorText>)}
         {!turn.error && (!j || j.status === "running") && (
           <div className="working">
             <div className="small"><UIBadge className="badge updating">Working…</UIBadge>{" "}
@@ -341,7 +341,7 @@ function TurnView({ turn, labels, demo = false, caseId }: { turn: Turn; labels: 
             )}
           </div>
         )}
-        {j?.status === "error" && (demo ? <ActionStatus error={j.error} /> : <div className="error small">{j.error}</div>)}
+        {j?.status === "error" && (demo ? <ActionStatus error={j.error} /> : <ErrorText>{j.error}</ErrorText>)}
         {j?.status === "done" && j.answer && (
           <>
             <Markdown text={j.answer} />
@@ -384,7 +384,7 @@ function AttachToCase({ id, caseId }: { id: string; caseId: number }) {
           api.attachAnswer(id, caseId, asker()).then(() => setState("done"),
             (e) => { setError(errorMessage(e)); setState("idle"); });
         }}>{state === "busy" ? "Attaching…" : `Attach to case ${caseId}`}</Button>
-      {error && <span className="error" role="alert"> {error}</span>}
+      <ErrorText inline>{error}</ErrorText>
     </div>
   );
 }
@@ -476,7 +476,7 @@ function Conversations({ current, reload, busy, onOpen, onDeleted, readOnly = fa
       <ul className="plain small">
         {items.map((c) => (
           <li key={c.id}>
-            <span className="muted mono">{c.updated_at.slice(0, 16).replace("T", " ")}</span>{" "}
+            <span className="muted mono">{when(c.updated_at)}</span>{" "}
             {c.id === current ? <b>{c.title}</b> : (
               <Button variant="link" disabled={busy} onClick={() => onOpen(c.id)}>{c.title}</Button>
             )}{" "}
