@@ -150,6 +150,7 @@ export function ExceptionTypes({ person, queues }: { person: string | null; queu
 /** Open, and the field's latest report says done or could not do: their part is over and the case is back with the
  * IOC to decide what happens next. */
 export const backFromField = (r: ExceptionRow) => {
+  if (r.stage) return r.stage === "back";  // the server decides where an event stands (ops/exceptions.py stage)
   if (r.state !== "open" || r.case_state === "done" || r.case_state === "cancelled") return false;
   // the case's last hand-on returned it from the field, even to the person who went (one account doing both)
   if (r.back_from_field) return true;
@@ -166,11 +167,13 @@ export const plannedLater = (r: ExceptionRow) => {
 
 /** Open, raised and not yet given to anyone, nor planned for a later day: the IOC's to dispatch. Planned work comes
  * back here on the day it was planned for. */
-export const waitingToDispatch = (r: ExceptionRow) => r.state === "open" && !r.item_id && !plannedLater(r);
+export const waitingToDispatch = (r: ExceptionRow) =>
+  r.stage ? r.stage === "dispatch" : r.state === "open" && !r.item_id && !plannedLater(r);
 
 /** Open, its case held by a field operator (a person with the operator role, or the operator queue) or the field said
  * they are on site, and not yet back from the field. */
 export const withTheField = (r: ExceptionRow, operators: Set<string>) => {
+  if (r.stage) return r.stage === "field";
   if (r.state !== "open" || !r.item_id || backFromField(r)) return false;
   const last = r.evidence?.field?.[r.evidence.field.length - 1];
   return r.role === "operator" || (!!r.assignee && operators.has(r.assignee)) || last?.status === "on_site";

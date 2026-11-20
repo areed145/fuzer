@@ -20,6 +20,7 @@ case, so the IOC triages, dispatches and closes once. Exceptions lists the host 
 """
 
 import re
+from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
@@ -560,13 +561,63 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
         order by e.value_usd desc nulls last, e.priority desc nulls last, e.last_seen desc limit %(limit)s
         """, {"state": state, "type": type, "subject": subject, "all": audience is None, "types": names,
               "limit": limit, "closed_since": closed_since}).fetchall()
+    field_people = operators(conn)
     for r in rows:
         if r["joined"]:
             labels = {n: t.label for n, t in types(conn).items()}
             for j in r["joined"]:
                 j["label"] = labels.get(j["type"], j["type"].replace("_", " "))
             r["subjects"] = list(dict.fromkeys(r["subjects"] + [x for j in r["joined"] for x in j["subjects"]]))
+        r["stage"] = stage(r, field_people)
     return rows
+
+
+# ---- one definition of where an event stands: every page counts and filters by it ---------------------------------
+
+STAGES = ("dispatch", "planned", "field", "back", "desk", "closed")
+
+
+def operators(conn) -> set[str]:
+    """The people who work in the field: those holding the operator role."""
+    return set(work.role_holders(conn, "operator"))
+
+
+def stage(r: dict, field_people: set[str], now: datetime | None = None) -> str:
+    """Where an event stands, the one place it is decided; All work's views and Home's tiles count by it.
+    `dispatch`: open, raised and given to nobody, nor planned for a later day. `planned`: put on the plan for a later
+    day (it comes back to dispatch on its day). `back`: its case's last hand-on returned it from the field, or the
+    field's last report (done, could not do) came from someone other than who holds it now. `field`: its case is held
+    by a field operator or the operator queue, or the field said they are on site. `desk`: any other open case.
+    `closed`: no longer open."""
+    if r["state"] != OPEN:
+        return "closed"
+    if not r["item_id"]:
+        start = (r.get("planned") or {}).get("start_at")
+        if start:
+            day_end = datetime.combine(clock.today(), datetime.max.time(), tzinfo=clock.zone())
+            when = datetime.fromisoformat(start) if isinstance(start, str) else start
+            if clock.aware(when) > day_end:
+                return "planned"
+        return "dispatch"
+    reports = ((r.get("evidence") or {}).get("field") or []) if isinstance(r.get("evidence"), dict) else []
+    last = reports[-1] if reports else None
+    if r.get("case_state") not in ("done", "cancelled") and (
+            r.get("back_from_field") or (last and last.get("status") in ("done", "could_not_do")
+                                         and r.get("assignee") != last.get("by"))):
+        return "back"
+    if r.get("role") == "operator" or (r.get("assignee") in field_people) or (last and last.get("status") == "on_site"):
+        return "field"
+    return "desk"
+
+
+def counts(conn) -> dict:
+    """How many open events stand at each stage, counted over every open event (not a listed page)."""
+    rows = listing(conn, state=OPEN, limit=1_000_000)
+    out = {k: 0 for k in STAGES if k != "closed"}
+    for r in rows:
+        out[r["stage"]] = out.get(r["stage"], 0) + 1
+    return {"open": len(rows), "stages": out}
+
 
 
 # ---- the IOC dispatching and the field reporting back -------------------------------------------------------------

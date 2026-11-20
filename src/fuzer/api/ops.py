@@ -632,6 +632,21 @@ def exception_list(state: str | None = "open", type: str | None = None, subject:
     return attention.only_at(conn, rows, at)[:limit] if at else rows
 
 
+@router.get("/work/counts")
+def work_counts(person: str, conn=Depends(get_conn)):
+    """The headline work figures, each by its one definition: open and overdue cases, what waits on the person, and
+    open events by stage. Every page that shows one of these reads it here."""
+    from ..ops import exceptions
+    from ..workflow import engine as work
+    _loaded_types()
+    w = work.my_work(conn, person, limit=0)["counts"]
+    return {"cases": work.case_counts(conn),
+            "waiting_on_you": {"total": w["mine"]["total"] + w["queue"]["total"],
+                               "overdue": w["mine"]["overdue"] + w["queue"]["overdue"],
+                               "mine": w["mine"]["total"], "queue": w["queue"]["total"]},
+            "events": exceptions.counts(conn)}
+
+
 @router.get("/attention")
 def attention(conn=Depends(get_conn)):
     """Where attention is needed: open exceptions gathered at the located places they are about (platforms, pads,

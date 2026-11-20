@@ -3050,6 +3050,13 @@ const homePopulated = {
   "/sources/health": [],
   "/analytics/figures/production-efficiency": efficiency, "/analytics/figures/flow-capacity": capacity,
 };
+/** GET /work/counts: the headline figures every page reads, here with open events at the given stages. */
+const workCounts = (stages = {}) => {
+  const all = { dispatch: 0, planned: 0, field: 0, back: 0, desk: 0, ...stages };
+  return { cases: { open: 0, overdue: 0 }, waiting_on_you: { total: 0, overdue: 0, mine: 0, queue: 0 },
+    events: { open: Object.values(all).reduce((a, b) => a + b, 0), stages: all } };
+};
+
 async function homeFixture(fixtures, { fail = false } = {}) {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "Ada"));
   await page.route("**/*", (route) => {
@@ -3102,7 +3109,7 @@ test("Home's figures link to the views that show the same numbers (#556)", async
   await homeFixture({ ...homePopulated,
     "/work/inbox": { ...homePopulated["/work/inbox"], roles: ["ops_lead", "data_steward"] },
     "/attention": { places: [], open: 4, unplaced: 4, data_work: 0, truncated: false },
-    "/exceptions": open, "/work/people": [] });
+    "/exceptions": open, "/work/people": [], "/work/counts": workCounts({ dispatch: 2, field: 1, back: 1 }) });
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: open }));
   await page.goto(`${url}/#/`);
   for (const [name, to] of [["To dispatch 2", "#/exceptions"], ["With the field 1", "#/exceptions?list=field"],
@@ -3348,6 +3355,7 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
     { name: "engineer", kind: "person", members: [] }, { name: "maintenance-integrity", kind: "agent", members: [] }] }));
   await page.route("**/exceptions/refs", (route) => route.fulfill({ json: [{ form: "tag:<key>", example: "tag:20-K-2100B", entities: 812 }] }));
   await page.route("**/exceptions/7/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ dispatch: 1 }) }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/exceptions`);
   const views = page.getByRole("navigation", { name: "All work views", exact: true });
@@ -3404,6 +3412,7 @@ test("the field's report sits above the IOC's decision, and operators are only o
     evidence: { field: [{ at: "2026-11-09T09:00:00Z", by: "otto", status: "done", note: "seal replaced" }] } };
   const fresh = { ...base, id: 4, key: "d", title: "Compressor trip", item_id: null, assignee: null };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [back, fresh] }));
+  await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ dispatch: 1, back: 1 }) }));
   await page.route("**/exceptions/types", (route) => route.fulfill({ json: [] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [] }));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -3489,6 +3498,7 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
 });
 
 test("All work holds the Work board and Cases as views, and their old links land on the same view (#502)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));  // the counts are read for the person
   const exc = (id, extra) => ({ id, type: "upset", key: `k${id}`, source: "sre", state: "open", priority: null, value_usd: null,
     subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
     last_seen: "2026-11-08T07:00:00Z", item_id: null, assignee: null, evidence: {}, ...extra });
@@ -3501,6 +3511,7 @@ test("All work holds the Work board and Cases as views, and their old links land
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "otto", roles: ["operator"] }] }));
   await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [] }));
   await page.route("**/exceptions/types", (route) => route.fulfill({ json: [] }));
+  await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ dispatch: 1, field: 1, back: 1 }) }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/exceptions`);
   const views = page.getByRole("navigation", { name: "All work views", exact: true });
