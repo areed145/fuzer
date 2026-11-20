@@ -182,8 +182,13 @@ export function Line({ as: Tag = "div", spread, wrap, small, muted, ...props }: 
 }) {
   return <Tag {...props} className={classes({ row: true, spread, wrap, small, muted })} />;
 }
-export function Stat({ label, value, detail }: { label: ReactNode; value: ReactNode; detail?: ReactNode }) {
-  return <div className="ui-stat"><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>;
+/** A labelled figure. With `href` the whole figure links to the view that shows the same number; `tone="danger"` marks
+ * one that needs acting on (work waiting to dispatch). */
+export function Stat({ label, value, detail, href, tone }: { label: ReactNode; value: ReactNode; detail?: ReactNode; href?: string;
+                                                          tone?: "danger" }) {
+  const className = `ui-stat${href ? " ui-stat-link" : ""}${tone ? ` ui-stat-${tone}` : ""}`;
+  const body = <><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</>;
+  return href ? <a className={className} href={href}>{body}</a> : <div className={className}>{body}</div>;
 }
 /** Empty means one line and at most one action (docs/ui-style.md, rule 8): "No incidents in this window." */
 export function Empty({ children, className = "" }: { children: ReactNode; className?: string }) {

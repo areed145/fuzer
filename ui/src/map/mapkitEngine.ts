@@ -32,6 +32,7 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
   const coord = ([lat, lon]: LatLon) => new mapkit.Coordinate(lat, lon);
   let network: { overlays: unknown[]; annotations: unknown[] } = { overlays: [], annotations: [] };
   let spots: unknown[] = [];
+  let ring: unknown = null;
   let location: { overlays: unknown[]; annotations: unknown[] } = { overlays: [], annotations: [] };
   const unsubscribe = onMapKitFailure(() => events.onFatal?.());
 
@@ -178,11 +179,24 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
                                              Math.max((e - w) * grow(W), min.lon));
       map.setRegionAnimated(new mapkit.CoordinateRegion(new mapkit.Coordinate(lat, (e + w) / 2), span), false);
     },
+    setInset(inset) { map.padding = new mapkit.Padding(inset.top, inset.right, inset.bottom, inset.left); },
     reveal(at) {
       const r = map.region;
       const inside = Math.abs(at[0] - r.center.latitude) < r.span.latitudeDelta * 0.4
         && Math.abs(at[1] - r.center.longitude) < r.span.longitudeDelta * 0.4;
       if (!inside) map.setCenterAnimated(coord(at), true);
+    },
+    highlight(at, label) {
+      if (ring) map.removeAnnotation(ring);
+      ring = null;
+      if (!at) return;
+      const mark = document.createElement("div");
+      mark.className = "map-highlight";
+      mark.innerHTML = "<span></span>";
+      if (label) mark.title = label;
+      ring = new mapkit.Annotation(coord(at), () => anchored(mark, -32, -32), { calloutEnabled: false, animates: false, enabled: false });
+      map.addAnnotation(ring);
+      this.reveal(at);
     },
     showLocation(at, accuracy, colors) {
       clear(location);

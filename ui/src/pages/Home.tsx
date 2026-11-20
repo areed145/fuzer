@@ -1,41 +1,60 @@
-import { AttentionCard } from "./HomeAttention";
+/** Home is the field map (#1208): the map takes the page, layers on it carry open work, crews, incidents and the
+ * network, the figures the person's seat watches sit over its top, and Needs you lists what waits on them, ringing on
+ * the map the place each item is about. Home summarizes and links: every action stays on its owning page. */
+import "../styles/home.css";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { api, type AttentionPlace, type Stats } from "../api";
 import { openReviews } from "../figures";
-import { money, when, count } from "../format";
-import { alarm, plural, say } from "../wording";
-import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
-import { api, type Stats, type Upset } from "../api";
-import { caseHref } from "./workflows/shared";
-import { iocCounts, workHref } from "./AllWork";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { count } from "../format";
+import { Status, href, useAsync, useLive } from "../lib";
 import { usePerson } from "../work";
-import { PageHeader, Card as UICard, Empty, ErrorText, Line, Text } from "../ui";
+import { Button, Card as UICard, PageHeader, Stat } from "../ui";
 import { usePermission } from "../Auth";
+import { Sparkline, show } from "../analytics/Metric";
 import { LiveFigure } from "../analytics/LiveFigure";
-import { YourShift } from "./HomeShift";
+import type { HotspotSpec, Inset } from "../map/engine";
+import { iocCounts, workHref } from "./AllWork";
+import { FILTERS, PlaceDetail, keep, type Filter } from "./HomeAttention";
+import { NeedsYou, type Ring } from "./HomeFeed";
 
-type HeadlineFact = { text: string; cites: string[] };
-const HOME_FIGURES = [
-  { kind: "production-efficiency", title: "Production efficiency" },
-  { kind: "flow-capacity", title: "System capacity and bottleneck" },
-];
+const MapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));  // Leaflet loads with the map
 
-/** Whose Home this is (#1074): it leads with what that seat acts on first. A field operator gets their work, a
- * dispatcher (ops lead) the dispatch counts, a manager or engineer production; anyone else the map. Presentation
- * only: every card stays reachable, and none of this changes what a person may see or do. */
-export type Seat = "dispatcher" | "operator" | "manager" | "default";
+/** Whose Home this is (#1074): which figures lead. Presentation only: it changes nothing a person may see or do. */
+export type Seat = "dispatcher" | "operator" | "manager" | "steward" | "default";
 export function seatOf(roles: string[]): Seat {
   if (roles.includes("ops_lead")) return "dispatcher";
   if (roles.includes("operator")) return "operator";
   if (roles.some((r) => r === "production_engineer" || r === "engineer")) return "manager";
+  if (roles.includes("data_steward")) return "steward";
   return "default";
 }
-type Block = "lead" | "attention" | "charts" | "grid";
-const ORDER: Record<Seat, Block[]> = {
-  dispatcher: ["lead", "attention", "grid", "charts"],
-  operator: ["lead", "attention", "grid", "charts"],
-  manager: ["charts", "attention", "grid"],
-  default: ["attention", "charts", "grid"],
+/** The registered metrics each seat watches over the map, each read from /metrics as Metrics shows it. */
+const METRICS: Record<Seat, string[]> = {
+  dispatcher: ["work.sla_misses"],
+  operator: [],
+  manager: ["production.efficiency", "maintenance.urgent_overdue", "work.sla_misses"],
+  steward: ["sources.completeness", "context.completeness"],
+  default: ["production.efficiency", "work.sla_misses"],
 };
+
+type Layer = "work" | "crews" | "incidents" | "network" | "charts";
+const LAYERS: { key: Layer; label: string }[] = [
+  { key: "work", label: "Open work" }, { key: "crews", label: "Crews" },
+  { key: "incidents", label: "Incidents" }, { key: "network", label: "Network" }, { key: "charts", label: "Charts" },
+];
+/** The server-built production figures the Charts layer shows over the map. */
+const HOME_FIGURES = [
+  { kind: "production-efficiency", title: "Production efficiency" },
+  { kind: "flow-capacity", title: "System capacity and bottleneck" },
+];
+const LAYERS_KEY = "fuzer.home.layers";
+function savedLayers(): Set<Layer> {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAYERS_KEY) ?? "null");
+    if (Array.isArray(v)) return new Set(v.filter((k) => LAYERS.some((l) => l.key === k)));
+  } catch { /* storage blocked: the defaults */ }
+  return new Set(["work", "crews", "incidents", "network"]);
+}
 
 export function HomePage({ stats }: {
   stats?: Stats;
@@ -47,280 +66,177 @@ export function HomePage({ stats }: {
   const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(null), [person]);
   const roles = inbox.data?.roles ?? [];
   const seat = seatOf(roles);
-  const noRecords = stats?.records === 0;
-  // Shown while the counts load too: adding the cards once /stats answered pushed everything below them down (#1069).
-  const loaded = !noRecords;
-  // The seat sets the order, so the blocks wait for the inbox that names it rather than reorder under the reader.
-  const seated = !person || inbox.data !== undefined || !!inbox.error;
+  const dispatcher = roles.includes("ops_lead");
   const steward = roles.includes("data_steward") || configure;
-  // The seat's own card leads; the rest of the work cards sit in the grid with reports, incidents and health.
-  // The cards under it wait until it has drawn: it lands in one piece but grows from a loading line to several
-  // hundred px, and shoved the attention card below the fold (#1069, CLS 0.27 live).
-  const [leadReady, setLeadReady] = useState(false);
-  const ready = useCallback(() => setLeadReady(true), []);
-  const lead = seat === "operator" ? <YourShift key="shift" onReady={ready} />
-    : seat === "dispatcher" ? <AllWorkCard key="all" onReady={ready} /> : null;
-  // They mount at once so their reads start with the lead's, and are only kept out of sight (and out of the layout)
-  // until it has drawn: mounting them later held their reads back too (+4 s with five sessions, perf7).
-  const at = ORDER[seat].indexOf("lead") + 1;
-  const held = !!lead && !leadReady;
-  const blocks: Record<Block, ReactNode> = {
-    lead: lead && <div className="home-lead">{lead}</div>,
-    attention: loaded && <AttentionCard />,
-    charts: loaded && <div className="home-charts">
-      {HOME_FIGURES.map(({ kind, title }) => <LiveFigure key={kind} kind={kind} hideEmpty
-        frame={(body) => <UICard title={title} className="home-card">{body}</UICard>} />)}
-    </div>,
-    // With no records loaded, reports, priorities and incidents can only be empty: keep work and health.
-    grid: <div className="home-grid">
-      {seat !== "operator" && <YourShift />}
-      {seat !== "dispatcher" && roles.includes("ops_lead") && <AllWorkCard />}
-      {/* A field operator's Home is their shift: the register and the daily report are other seats' work, even when
-          the account could open them (acting as operator on an admin account). */}
-      {(seat === "operator" ? roles.includes("data_steward") : steward) && <MasterDataCard stats={stats} />}
-      {!noRecords && seat !== "operator" && <LatestReportCard />}
-      {!noRecords && <IncidentsCard />}
-      {configure && <HealthCard />}
-    </div>,
-  };
+  const noRecords = stats?.records === 0;
+
+  const spots = useAsync(() => api.attention(), []);
+  const geo = useAsync(() => api.map(), []);
+  const open = useAsync(() => (dispatcher ? api.exceptions({ state: "open" }) : Promise.resolve(null)), [dispatcher]);
+  useLive([inbox.reload, spots.reload, open.reload]);
+
+  const [layers, setLayers] = useState(savedLayers);
+  const toggle = (k: Layer) => setLayers((s) => {
+    const n = new Set(s);
+    if (n.has(k)) n.delete(k); else n.add(k);
+    try { localStorage.setItem(LAYERS_KEY, JSON.stringify([...n])); } catch { /* the choice lasts this visit */ }
+    return n;
+  });
+  const [filter, setFilter] = useState<Filter>("all");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [ring, setRing] = useState<Ring>(null);
+  const [sheet, setSheet] = useState(false);  // the feed as a phone's sheet: open, or only its header
+  const places = useMemo(() => layers.has("work") ? (spots.data?.places ?? []).filter((p) => keep(p, filter)) : [],
+                         [spots.data, filter, layers]);
+  const chosen = (spots.data?.places ?? []).find((p) => p.id === selected) ?? null;
+  const close = useCallback(() => setSelected(null), []);
+  useEffect(() => { if (chosen) setSheet(true); }, [chosen?.id]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const network = useMemo(() => geo.data && (layers.has("network") ? geo.data
+    : { ...geo.data, features: geo.data.features.filter((f) => f.geometry.type === "Point" && f.properties.kind !== "well") }),
+  [geo.data, layers]);
+  const incidents = useIncidents(layers.has("incidents"));
+  const stage = useRef<HTMLDivElement>(null);
+  const inset = useInset(stage);
+
   return (
-    <section className="home" data-seat={seat}>
-      <PageHeader>Home</PageHeader>
-      {noRecords && (
-        <UICard title="Connect data before exploring">
-          <p>No source records have been loaded. Add a source, map its fields and load it to build the facility register.</p>
-          {configure ? <a href={href("/sources", { view: "add" })}>Open source setup</a>
-            : <p>Ask an administrator to load the demonstration records.</p>}
-        </UICard>
-      )}
-      {seated ? <>
-        {ORDER[seat].slice(0, at).map((b) => <Fragment key={b}>{blocks[b]}</Fragment>)}
-        <div className={held ? "home-rest home-held" : "home-rest"} aria-hidden={held || undefined}>
-          {ORDER[seat].slice(at).map((b) => <Fragment key={b}>{blocks[b]}</Fragment>)}
+    <section className="home home-map" data-seat={seat}>
+      <PageHeader className="sr-only">Home</PageHeader>
+      <div className="home-stage" ref={stage}>
+        {network && (
+          <Suspense fallback={<div className="map" />}>
+            <MapView data={network} hotspots={places} selected={selected} onSelect={setSelected} crews={layers.has("crews")}
+                     legend={false} height="100%" marks={incidents} highlight={ring} inset={inset} />
+          </Suspense>
+        )}
+        <div className="home-over">
+          <Figures seat={seat} dispatcher={dispatcher} stats={stats} open={open.data ?? undefined}
+                   work={spots.data ? { open: spots.data.open, places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
+          <div className="home-layers chips" role="group" aria-label="Map layers">
+            {LAYERS.map((l) => (
+              <Button key={l.key} className={layers.has(l.key) ? "chip on" : "chip"} aria-pressed={layers.has(l.key)}
+                      onClick={() => toggle(l.key)}>{l.label}</Button>
+            ))}
+            {layers.has("work") && <span className="home-layer-filter" role="group" aria-label="Show places with">
+              {FILTERS.map((f) => (
+                <Button key={f.key} className={filter === f.key ? "chip on" : "chip"} aria-pressed={filter === f.key}
+                        onClick={() => setFilter(f.key)}>{f.label}</Button>
+              ))}
+            </span>}
+          </div>
+          {spots.error && <div className="home-notice"><Status error={spots.error} onRetry={spots.reload} /></div>}
+          {noRecords && <UICard className="home-notice" title="Connect data before exploring">
+            <p>No source records have been loaded. Add a source, map its fields and load it to build the facility register.</p>
+            {configure ? <a href={href("/sources", { view: "add" })}>Open source setup</a>
+              : <p>Ask an administrator to load the demonstration records.</p>}
+          </UICard>}
+          {layers.has("charts") && !noRecords && <div className="home-charts">
+            {HOME_FIGURES.map(({ kind, title }) => <LiveFigure key={kind} kind={kind} hideEmpty
+              frame={(body) => <UICard title={title} className="home-card">{body}</UICard>} />)}
+          </div>}
         </div>
-      </> : <Status loading />}
+        <NeedsYou inbox={inbox} exceptions={dispatcher ? (open.error ? [] : open.data ?? undefined) : null} steward={steward} configure={configure} onRing={setRing}
+                  open={sheet} onToggle={() => setSheet(!sheet)}
+                  top={chosen && <PlaceDetail place={chosen} onClose={close} />} />
+      </div>
     </section>
   );
 }
 
-function LatestReportCard() {
-  const latest = useAsync(async () => {
-    const days = await api.dailyReports();
-    if (!days.length) return null;
-    return { day: days[0], report: await api.dailyReport(days[0].day) };
-  }, []);
-  const facts = latest.data?.report.facts?.sections;
-  const headlines = (facts?.Headline ?? []) as HeadlineFact[];
-  const production = (facts?.["Production and deferment"] ?? []) as HeadlineFact[];
-  return (
-    <UICard className="home-card home-today" as="section">
-      <Line spread>
-        <h2>Latest daily report</h2>
-        {latest.data && (
-          <a className="small muted" href={href("/reports", { day: latest.data.day.day })}>
-            {latest.data.day.day} · {latest.data.report.checks.ok ? "checks passed" : "needs review"}
-          </a>
-        )}
-      </Line>
-      <Status of={latest} empty={latest.data === null}>
-        No daily report recorded. <a href={href("/reports")}>Open daily reports</a>.
-      </Status>
-      {latest.data && (
-        <>
-          <Text as="p" small>Report date {latest.data.day.day}</Text>
-          {headlines.length > 0 ? (
-            <ul className="home-list home-headline">
-              {headlines.map((fact, i) => <li key={i}>{say(fact.text)}</li>)}
-            </ul>
-          ) : <Empty className="small">This report has no headline facts.</Empty>}
-          {production.length > 0 && (
-            <Text as="p" small>
-              {production.filter((fact) => fact.text.includes("7-day average")).map((fact) => say(fact.text)).join(" · ")}
-            </Text>
-          )}
-          <a href={href("/reports", { day: latest.data.day.day })}>Read the daily report</a>
-        </>
-      )}
-    </UICard>
-  );
+/** How far the figures and the feed reach over the map's edges, so the map fits the work into the part left open. */
+function useInset(stage: RefObject<HTMLDivElement | null>): Inset | undefined {
+  const [inset, setInset] = useState<Inset>();
+  useEffect(() => {
+    const el = stage.current;
+    if (!el) return;
+    const measure = () => {
+      const s = el.getBoundingClientRect();
+      const over = el.querySelector(".home-over")?.getBoundingClientRect();
+      const feed = el.querySelector(".home-feed")?.getBoundingClientRect();
+      const sheet = !!feed && feed.left - s.left < 20;  // a phone's sheet across the bottom, else a panel down the right
+      const next = { top: over ? Math.round(over.bottom - s.top) : 0, left: 0,
+                     // beside the feed panel, else clear of the map's own buttons down the right edge
+                     right: feed && !sheet ? Math.round(s.right - feed.left) : 56,
+                     // an open sheet covers the map until it closes, so the map keeps clear of its header only
+                     bottom: feed && sheet ? (el.querySelector<HTMLElement>(".home-feed-head")?.offsetHeight ?? 0) : 0 };
+      setInset((was) => was && JSON.stringify(was) === JSON.stringify(next) ? was : next);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    el.querySelectorAll(".home-over, .home-feed").forEach((n) => ro.observe(n));
+    return () => ro.disconnect();
+  }, [stage]);
+  return inset;
 }
 
-/* Home summarizes and links (#508, #556): counts for the person's roles, each linking to the view that shows the
- * same number, and the next few titles. The rows themselves live on My work, All work and Master data. */
-
-/** One count linking to its view. `children` is "one|many" when the noun changes with the number. */
-function Count({ n, to, children, late }: { n: number; to: string; children: string; late?: boolean }) {
-  const [one, many = one] = children.split("|");
-  return <li><a href={to} className={late && n > 0 ? "late" : undefined}><strong>{n}</strong> {n === 1 ? one : many}</a></li>;
-}
-
-function AllWorkCard({ onReady }: { onReady?: () => void } = {}) {
-  const open = useAsync(() => api.exceptions({ state: "open" }), []);
-  const people = useAsync(() => api.workPeople(), []);
-  const board = useAsync(() => api.board({}, 1), []);
+/** The figures over the map: counts that link to the view showing the same number, and the seat's metrics with their
+ * trend. Each reads the field its owning page reads. */
+function Figures({ seat, dispatcher, stats, open, work }: {
+  seat: Seat; dispatcher: boolean; stats?: Stats;
+  open?: Parameters<typeof iocCounts>[0]; work?: { open: number; places: number; unplaced: number };
+}) {
+  const people = useAsync(() => (dispatcher ? api.workPeople() : Promise.resolve([])), [dispatcher]);
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
-  const c = open.data ? iocCounts(open.data, operators) : null;
-  const top = board.data?.cards.slice(0, 3) ?? [];
-  // The counts and the highest value together: drawn as each answered, the list growing under the counts pushed the
-  // rest of Home down (#1069). It leads a dispatcher's Home.
-  const ready = [open, people, board].every((r) => r.data !== undefined || !!r.error);
-  useEffect(() => { if (ready) onReady?.(); }, [ready, onReady]);
+  const c = dispatcher && open && people.data ? iocCounts(open, operators) : null;
+  const reviews = seat === "steward" && stats ? openReviews(stats) : null;
   return (
-    <UICard className="home-card" as="section">
-      <Line spread><h2>All work</h2><a href={workHref("dispatch")}>Open All work</a></Line>
-      <Status loading={!ready} error={open.error} onRetry={open.reload} />
-      {ready && c && <ul className="home-counts">
-        <Count n={c.dispatch} to={workHref("dispatch")} late>to dispatch</Count>
-        <Count n={c.field} to={workHref("field")}>with the field</Count>
-        <Count n={c.back} to={workHref("back")}>back from the field</Count>
-        <Count n={c.open} to={workHref("open")}>open</Count>
-      </ul>}
-      {ready && top.length > 0 && <>
-        <h3>Highest value</h3>
-        <ol className="home-list">{top.map((card) => <li key={card.key}>
-          <a href={card.item_id ? caseHref(card.item_id) : workHref("ranked")}>{card.title}</a>
-          <Text small muted>{card.effective_usd == null ? "not valued" : money(card.effective_usd)}</Text>
-        </li>)}</ol>
+    <div className="home-figures" aria-label="Key figures">
+      {c && <>
+        <Tile to={workHref("dispatch")} label="To dispatch" value={count(c.dispatch)} late={c.dispatch > 0} />
+        <Tile to={workHref("field")} label="With the field" value={count(c.field)} />
+        <Tile to={workHref("back")} label="Back from the field" value={count(c.back)} late={c.back > 0} />
       </>}
-    </UICard>
-  );
-}
-
-function MasterDataCard({ stats }: { stats?: Stats }) {
-  const unmatched = useAsync(() => api.unmatchedRefs(), []);
-  const reviews = stats ? openReviews(stats) : null;
-  return (
-    <UICard className="home-card" as="section">
-      <Line spread><h2>Master data</h2><a href={href("/masterdata")}>Open Master data</a></Line>
-      <Status of={unmatched} />
-      <ul className="home-counts">
-        {unmatched.data && <Count n={unmatched.data.length} to={href("/masterdata")} late>ref on open work matched nothing|refs on open work matched nothing</Count>}
-        {reviews !== null && <Count n={reviews} to={href("/masterdata", { tab: "questions" })}>record to review|records to review</Count>}
-      </ul>
-    </UICard>
-  );
-}
-
-function IncidentsCard() {
-  const incidents = useAsync(() => api.incidents(), []);
-  const upsets = useAsync(() => api.upsets("detected", "process", 20), []);
-  const openUpsets = upsets.data?.filter((upset) => !upset.end).slice(0, 3) ?? [];
-  const recentIncidents = incidents.data?.items.slice(0, 3) ?? [];
-  return (
-    <UICard className="home-card" as="section">
-      <Line spread>
-        <h2>Incidents and upsets</h2>
-        <a href={href("/incidents")}>All incidents</a>
-      </Line>
-      <h3>Latest incidents</h3>
-      <Status of={incidents} empty={incidents.data?.items.length === 0}>
-        No incidents recorded.
-      </Status>
-      {recentIncidents.length > 0 && (
-        <ul className="home-list">
-          {recentIncidents.map((incident) => (
-            <li key={incident.id}>
-              <a href={entityHref(incident.id)}>{say(incident.description)}</a>
-              <Text small muted>Started {incident.start}{incident.lost_oil_bbl > 0
-                && ` · ${count(Math.round(incident.lost_oil_bbl))} bbl lost oil`}</Text>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="home-subsection">
-        <Line spread>
-          <h3>Detections without a recorded end</h3>
-          <a href={href("/exceptions", { list: "ranked", view: "kind" })}>All work by type</a>
-        </Line>
-        <Status of={upsets}
-          empty={upsets.data !== undefined && openUpsets.length === 0}>
-          No upsets without a recorded end.
-        </Status>
-        {openUpsets.length > 0 && (
-          <><ul className="home-list">
-            {openUpsets.map((upset) => <UpsetItem key={upset.id} upset={upset} />)}
-          </ul></>
-        )}
-      </div>
-    </UICard>
-  );
-}
-
-function UpsetItem({ upset }: { upset: Upset }) {
-  return (
-    <li>
-      <a href={upset.work_item_id ? href(`/cases/${upset.work_item_id}`) : href("/exceptions", { list: "ranked", view: "kind" })}>
-        {upset.first_key ? `${alarm(upset.first_key)}${upset.first_unit ? ` on ${upset.first_unit}` : ""}`
-          : upset.first_point || `Upset ${upset.id}`}</a>
-      <Text small muted>From {when(upset.start, "Time unknown")} · {upset.first_key ? upset.first_point ?? "Unknown point"
-        : upset.first_unit ?? "Unknown unit"} · {plural(upset.detections, "detection")}</Text>
-    </li>
-  );
-}
-
-function HealthCard() {
-  return (
-    <UICard className="home-card" as="section">
-      <h2>Data and scheduler health</h2>
-      <SourceHealthPanel /><JobsHealthPanel />
-    </UICard>
-  );
-}
-
-function SourceHealthPanel() {
-  const sources = useAsync(() => api.sourceHealth(), []);
-  const rows = sources.data ?? [];
-  const checks = rows.flatMap((source) => source.failing_checks.map((check) => ({ source, check })));
-  const problems = rows.filter((source) => source.problems.length > 0);
-  return (
-    <div className="home-subsection">
-      <Line spread>
-        <strong>Sources</strong>
-        <a href={href("/sources")}>Source health</a>
-      </Line>
-      <Status of={sources} empty={sources.data?.length === 0}>
-        No source health data.
-      </Status>
-      {sources.data && rows.length > 0 && (
-        <>
-          <Text as="p" small>{rows.length} datasets · {problems.length} with reported problems · {checks.length} failed {checks.length === 1 ? "check" : "checks"}.</Text>
-          {rows.length > 0 && (
-            <ul className="home-list">
-              {rows.filter((source) => source.problems.length || source.failing_checks.length).slice(0, 3).map((source) => (
-                <li key={source.dataset}>
-                  <a href={href("/sources", { view: "dataset", name: source.dataset })}>{source.dataset}</a>
-                  <Text small muted>{source.state} · {source.last_loaded
-                    ? `Last ingested: ${when(source.last_loaded, "Time unknown")}` : "No recorded ingestion time"}</Text>
-                </li>
-              ))}
-              {checks.slice(0, 3).map(({ source, check }, i) => (
-                <li key={`${source.dataset}-${check.kind}-${i}`} className="error small">
-                  {source.dataset}: {check.kind}{check.column ? ` · ${check.column}` : ""}
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
+      {work && seat !== "operator" && <Tile to={workHref("open")} label="Open work" value={count(work.open)}
+        detail={`at ${count(work.places)} ${work.places === 1 ? "place" : "places"}${work.unplaced ? `, ${count(work.unplaced)} not located` : ""}`} />}
+      {reviews !== null && <Tile to={href("/masterdata", { tab: "questions" })} label="Records to review" value={count(reviews)} />}
+      {METRICS[seat].map((key) => <MetricTile key={key} metric={key} />)}
     </div>
   );
 }
 
-/** The scheduler's health in a line. The summary the sidebar already reads, not the full Jobs overview: that
- * builds every job's run history, took half a minute on a cold server and held the page's other requests. */
-function JobsHealthPanel() {
-  const jobs = useAsync(() => api.jobsHealth(), []);
+function Tile({ to, label, value, detail, late }: { to: string; label: string; value: string; detail?: string; late?: boolean }) {
+  return <div className="home-figure"><Stat href={to} label={label} value={value} detail={detail} tone={late ? "danger" : undefined} /></div>;
+}
+
+/** A registered metric with its last few periods; left out while it has no value (no reports loaded for it). */
+function MetricTile({ metric }: { metric: string }) {
+  const m = useAsync(() => api.metric(metric, null, true), [metric]);
+  const v = m.data;
+  if (!v || v.value == null) return null;
   return (
-    <div className="home-subsection">
-      <Line spread>
-        <strong>Jobs</strong>
-        <a href={href("/jobs")}>Job health</a>
-      </Line>
-      <Status of={jobs} />
-      {jobs.data && (!jobs.data.available ? <Empty className="small">Scheduler history unavailable.</Empty>
-        : jobs.data.failed_runs_24h > 0 || jobs.data.failing_checks > 0
-          ? <ErrorText>{jobs.data.summary}</ErrorText>
-          : <Empty className="small">No failures in recent runs or checks.</Empty>)}
+    <div className="home-figure">
+      <Stat href={href(`/metrics/${encodeURIComponent(metric)}`)} label={v.label} value={show(v.value, v.unit)}
+            detail={v.history && v.history.length > 1 ? <Sparkline points={v.history} target={v.target} label={v.label} /> : v.as_of ? `as of ${v.as_of}` : undefined} />
     </div>
   );
 }
+
+/** The incidents layer: recorded incidents gathered at the place each is about, numbered by how many, the
+ * title the latest. A tap opens the latest one. */
+function useIncidents(on: boolean): HotspotSpec[] | undefined {
+  const list = useAsync(() => (on ? api.incidents() : Promise.resolve(null)), [on]);
+  const ids = (list.data?.items ?? []).map((i) => i.id);
+  const where = useAsync(() => (ids.length ? api.attentionPlaces(ids) : Promise.resolve({})), [ids.join(",")]);
+  return useMemo(() => {
+    if (!on || !list.data || !where.data) return undefined;
+    const at = new Map<string, { place: { lat: number; lon: number; name: string }; items: typeof list.data.items }>();
+    for (const i of list.data.items) {
+      const p = (where.data as Record<string, { id: string; lat: number; lon: number; name: string | null; label: string }>)[i.id];
+      if (!p) continue;
+      const spot = at.get(p.id) ?? { place: { lat: p.lat, lon: p.lon, name: p.name ?? p.label }, items: [] };
+      spot.items.push(i);
+      at.set(p.id, spot);
+    }
+    return [...at.values()].map(({ place, items }) => {
+      const latest = [...items].sort((a, b) => b.start.localeCompare(a.start))[0];
+      return {
+        at: [place.lat, place.lon], className: "incident-mark", size: 22, selected: false, name: `${place.name}: incidents`,
+        html: `<span class="incident-dot"><b>${items.length}</b></span>`,
+        title: `${place.name}: ${items.length} ${items.length === 1 ? "incident" : "incidents"}. Latest ${latest.start}: ${latest.description}`,
+        onSelect: () => { window.location.hash = href(`/e/${encodeURIComponent(latest.id)}`).replace(/^#/, ""); },
+      } satisfies HotspotSpec;
+    });
+  }, [on, list.data, where.data]);
+}
+
+export type { AttentionPlace };

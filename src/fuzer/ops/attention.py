@@ -31,7 +31,7 @@ def band(priority: float | None) -> str:
 RANK = {"high": 0, "medium": 1, "low": 2}
 
 
-def _places(conn, ids: list[str]) -> dict[str, dict]:
+def _places(conn, ids: list[str], rels: tuple[str, ...] = RELS) -> dict[str, dict]:
     """Subject -> the place it sits at: {id, kind, label, lon, lat}. Subjects with no located ancestor are left out."""
     if not ids:
         return {}
@@ -50,8 +50,16 @@ def _places(conn, ids: list[str]) -> dict[str, dict]:
         left join golden n on n.fuzer_id = g.fuzer_id and n.field = 'gis_name'
         left join golden d on d.fuzer_id = g.fuzer_id and d.field = 'description'
         order by up.start, g.kind <> all(%(places)s), up.depth
-        """, {"ids": ids, "rels": list(RELS), "places": list(PLACE_KINDS)}).fetchall()
+        """, {"ids": ids, "rels": list(rels), "places": list(PLACE_KINDS)}).fetchall()
     return {r["start"]: dict(r) for r in rows}
+
+
+def locate(conn, ids: list[str]) -> dict[str, dict]:
+    """Each id -> the place it sits at, as `hotspots` places it: {id, label, name, kind, lon, lat}. Ids with no
+    located ancestor are left out. Home uses it to show where a feed item or an incident is; an incident or a
+    downtime record reaches its place through what it is `about`."""
+    return {s: {k: p[k] for k in ("id", "label", "name", "kind", "lon", "lat")}
+            for s, p in _places(conn, ids, (*RELS, "about", "caused_by")).items()}
 
 
 def _housekeeping(kinds: dict, r: dict) -> bool:

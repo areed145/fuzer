@@ -248,30 +248,14 @@ const investigation = {
   limitations: ["Historical synthetic data does not prove a root cause or the effectiveness of a repair."],
 };
 
-test("Core consistency Home separates historical reports, unavailable counts and scheduler history", async () => {
-  let failed = true, attempts = 0;
+test("Core consistency Home leaves out a figure it could not read rather than show it as zero", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "Ada"));
   await page.route("**/stats", route => route.fulfill({ status: 503, json: { detail: "Statistics unavailable" } }));
-  await page.route("**/reports/daily", route => {
-    attempts++;
-    return route.fulfill(failed ? { status: 503, json: { detail: "Reports unavailable" } }
-      : { json: [{ day: "2024-03-14" }] });
-  });
-  await page.route("**/reports/daily/2024-03-14", route => route.fulfill({ json: {
-    facts: { sections: { Headline: [{ text: "Historical report fact", cites: [] }] } }, checks: { ok: true },
-  } }));
+  await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "Ada", roles: ["data_steward"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
   await page.goto(url);
-  const report = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: "Latest daily report", exact: true }) });
-  await report.getByRole("alert").waitFor();
-  assert.equal(attempts, 1);
-  assert.equal(await page.getByRole("link", { name: "0 to review", exact: true }).count(), 0);
-  await page.getByText("Scheduler history unavailable.", { exact: false }).waitFor();
-  assert.equal(await page.getByText("No failed runs or checks.", { exact: true }).count(), 0);
-  failed = false;
-  await report.getByRole("button", { name: "Try again", exact: true }).click();
-  await report.getByText("Historical report fact", { exact: true }).waitFor();
-  await report.getByText("Report date", { exact: false }).waitFor();
-  assert.equal(attempts, 2);
-  assert.equal(await page.getByRole("heading", { name: "Today", exact: true }).count(), 0);
+  await page.getByRole("complementary", { name: "Needs you" }).getByText("Nothing waiting for you.").waitFor();
+  assert.equal(await page.getByRole("link", { name: /^Records to review/ }).count(), 0);
 });
 
 test("a report waiting on an agent no worker has claimed says the agent worker may not be running (#393)", async () => {
@@ -2893,6 +2877,7 @@ const capacity = panel("flow-capacity", "System capacity and bottleneck", {
 }, [{ type: "bar", name: "Approved", x: ["Wells", "Separators"], y: [130, 110], offsetgroup: "stage" }, { type: "bar", name: "System limit", x: ["Wells", "Separators"], y: [100, 100], offsetgroup: "system" }]);
 
 test("Home shows each server-built figure in its own card, with its tables on request", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.home.layers", JSON.stringify(["work", "charts"])));
   await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
   const calls = { efficiency: 0, capacity: 0 };
   await page.route("**/analytics/figures/production-efficiency*", (route) => { calls.efficiency++; return route.fulfill({ json: efficiency }); });
@@ -2945,6 +2930,7 @@ test("Home shows each server-built figure in its own card, with its tables on re
 });
 
 test("A failed home figure recovers by explicit retry, and Home leaves out a figure with nothing to plot (#1074)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.home.layers", JSON.stringify(["work", "charts"])));
   await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
   await page.route("**/analytics/figures/production-efficiency*", (route) => route.fulfill({ json: efficiency }));
   let fail = true;
@@ -2962,16 +2948,18 @@ test("A failed home figure recovers by explicit retry, and Home leaves out a fig
 });
 
 test("A malformed figure is contained to its card", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.home.layers", JSON.stringify(["work", "charts"])));
   await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
   await page.route("**/analytics/figures/production-efficiency*", (route) => route.fulfill({ json: { kind: "x", summary: {} } }));
   await page.route("**/analytics/figures/flow-capacity*", (route) => route.fulfill({ json: capacity }));
   await page.goto(`${url}/#/`);
   await page.locator(".home-charts .home-card").first().getByText("This chart could not be drawn from the data returned.", { exact: false }).waitFor();
-  await page.getByRole("heading", { name: "Latest daily report", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Needs you", exact: true }).waitFor();
   await page.locator(".home-charts .home-card").nth(1).getByText("Bottleneck not established", { exact: false }).waitFor();
 });
 
 test("Home mounts both charts and refreshes below default admission limits", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.home.layers", JSON.stringify(["work", "charts"])));
   const responses = { "/stats": homeStats, "/analytics/figures/production-efficiency": efficiency, "/analytics/figures/flow-capacity": capacity };
   let active = 0, maximum = 0;
   await page.route("**/*", async (route) => {
@@ -3021,36 +3009,69 @@ async function homeFixture(fixtures, { fail = false } = {}) {
   await page.route("**/*", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path in fixtures) return route.fulfill({ json: fixtures[path] });
-    if (fail && ["/reports/daily", "/work/inbox", "/board", "/incidents", "/upsets", "/sources/health", "/jobs"].includes(path)) {
+    if (fail && ["/work/inbox", "/attention", "/incidents", "/sources/health", "/jobs"].includes(path)) {
       return route.fulfill({ status: 503, json: { detail: "Service unavailable" } });
     }
     return route.fallback();
   });
 }
 
-test("Home has the app search at the top left, labels times and links each item to its owner", async () => {
-  await homeFixture(homePopulated);
-  for (const width of [1440, 390]) {
+const located = { "fz-tag-1": { id: "fz-j7", label: "J7", name: "Jacket 07", kind: "area", lon: 4.94, lat: 5.4 } };
+const homeMap = { type: "FeatureCollection", truncated: false, features: [
+  { type: "Feature", id: "fz-j7", geometry: { type: "Point", coordinates: [4.94, 5.4] }, properties: { id: "fz-j7", kind: "area", label: "J7" } },
+  { type: "Feature", id: "fz-s2", geometry: { type: "Point", coordinates: [4.99, 5.4] }, properties: { id: "fz-s2", kind: "area", label: "S2" } }] };
+
+test("Home is the map, with the app search in the shell and no horizontal scroll", async () => {
+  await homeFixture({ ...homePopulated, "/map": homeMap });
+  for (const width of [1440, 834, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${url}/#/`);
     await page.locator(width > 900 ? ".sidebar" : ".topbar").getByRole("button", { name: "Search", exact: true }).waitFor();
-    // Home is not a second menu: destinations live in the navigation, not a grid of link cards (docs/ui-style.md).
-    assert.equal(await page.locator(".home-guide-links").count(), 0);
-    // My work is counted, each count linking to the page that shows it; Home copies no work rows (#556).
-    assert.equal(await page.getByRole("link", { name: "1 assigned to you", exact: true }).getAttribute("href"), "#/inbox");
-    assert.equal(await page.getByRole("link", { name: "Check separator level 1", exact: true }).getAttribute("href"), "#/inbox/task/1");
-    assert.equal(await page.getByRole("button", { name: "Claim", exact: true }).count(), 0);
-    await page.getByText("Started 2025-03-11 · 1,450 bbl lost oil", { exact: true }).waitFor();
-    assert.equal(await page.getByRole("link", { name: "High alarm on 20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
-    assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/exceptions?list=ranked&view=kind");
-    await page.getByText(/From Dec 21(, 2025)?, 3:00 AM/).waitFor();
-    await page.getByText(/Dec 22(, 2025)?, 3:00 AM plant time/).waitFor();
+    await page.locator(".home-map .mapview").waitFor();
+    // The map fills the page under the shell: no card grid, no second menu.
+    const map = await page.locator(".home-map").boundingBox();
+    assert.ok(map.height >= 500, `the map takes the page, got ${map.height}px`);
+    assert.equal(await page.locator(".home-grid, .home-guide-links").count(), 0);
+    await page.getByRole("complementary", { name: "Needs you" }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    await waveScreenshot(`home-populated-${width}`);
+    await waveScreenshot(`home-map-${width}`);
   }
 });
 
-test("Home's map gathers open work at places, most urgent first, and each place opens its own work", async () => {
+test("Home's figures link to the views that show the same numbers (#556)", async () => {
+  const exception = (id, extra = {}) => ({ id, type: "upset", key: `k${id}`, title: `Exception ${id}`, source: "sre", state: "open",
+    priority: null, value_usd: null, subjects: [], unmatched: [], item_id: null, case_state: null, assignee: null, role: null,
+    raised_count: 1, first_seen: "2026-11-01T00:00:00Z", last_seen: "2026-11-01T00:00:00Z", ...extra });
+  const open = [exception(1), exception(2), exception(3, { item_id: 30, role: "operator" }),
+    exception(4, { item_id: 40, assignee: "ann", evidence: { field: [{ at: "2026-11-02T00:00:00Z", by: "bo", status: "done", note: null }] } })];
+  await homeFixture({ ...homePopulated,
+    "/work/inbox": { ...homePopulated["/work/inbox"], roles: ["ops_lead", "data_steward"] },
+    "/attention": { places: [], open: 4, unplaced: 4, data_work: 0, truncated: false },
+    "/exceptions": open, "/work/people": [] });
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: open }));
+  await page.goto(`${url}/#/`);
+  for (const [name, to] of [["To dispatch 2", "#/exceptions"], ["With the field 1", "#/exceptions?list=field"],
+    ["Back from the field 1", "#/exceptions?list=back"], ["Open work 4 at 0 places, 4 not located", "#/exceptions?list=open"]]) {
+    assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), to);
+  }
+  // A dispatcher's waiting work is in Needs you too, each opening dispatch.
+  const feed = page.getByRole("complementary", { name: "Needs you" });
+  assert.match(await feed.getByRole("link", { name: "Exception 1", exact: true }).getAttribute("href"), /^#\/exceptions\?q=Exception/);
+  await page.getByRole("link", { name: "To dispatch 2", exact: true }).click();
+  await page.getByRole("navigation", { name: "All work views" }).getByRole("link", { name: /To dispatch\s*2/ }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/`);
+  const target = await page.getByRole("link", { name: "To dispatch 2", exact: true }).boundingBox();
+  assert.ok(target.height >= 44, `a figure is a 44 px target on a phone, got ${target.height}`);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+  // A steward's Home counts the register questions, as Master data does.
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { ...homePopulated["/work/inbox"], roles: ["data_steward"] } }));
+  await page.reload();
+  assert.equal(await page.getByRole("link", { name: "Records to review 15", exact: true }).getAttribute("href"), "#/masterdata?tab=questions");
+});
+
+test("Home's open work layer gathers work at places, and a marker opens its place's work", async () => {
   const item = (id, title, band, extra = {}) => ({ id, title, type: "upset", label: "Process upset", source: "sre",
     priority: band === "high" ? 0.9 : 0.6, band, value_usd: null, assignee: null, role: null, item_id: null, due: null,
     overdue: false, first_seen: "2026-11-01T00:00:00Z", crew: null, ...extra });
@@ -3063,126 +3084,125 @@ test("Home's map gathers open work at places, most urgent first, and each place 
     item(2, "Wellhead seepage", "medium")]);
   const sat = place("fz-s2", "Satellite 2", 4.99, "medium", [item(3, "Dump valve passing", "medium")],
     { crews: [{ who: "instrument crew", status: "planned", at: null }] });
-  await homeFixture({ ...homePopulated,
-    "/attention": { places: [jacket, sat], open: 3, unplaced: 1, data_work: 4, truncated: false },
-    "/map": { type: "FeatureCollection", truncated: false, features: [
-      { type: "Feature", id: "fz-j7", geometry: { type: "Point", coordinates: [4.94, 5.4] }, properties: { id: "fz-j7", kind: "area", label: "J7" } },
-      { type: "Feature", id: "fz-s2", geometry: { type: "Point", coordinates: [4.99, 5.4] }, properties: { id: "fz-s2", kind: "area", label: "S2" } }] } });
+  await homeFixture({ ...homePopulated, "/map": homeMap,
+    "/attention": { places: [jacket, sat], open: 3, unplaced: 1, data_work: 4, truncated: false } });
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${url}/#/`);
     await page.reload();  // the same URL again would keep the last width's filter
-    const card = page.locator(".attention-card");
-    await card.getByText("3 open across 2 places · 1 not located").waitFor();
-    // One marker per place, and the list beside it in the same order: most urgent first.
-    await card.locator(".hotspot").nth(1).waitFor();
-    assert.deepEqual(await card.locator(".attention-list strong").allTextContents(), ["Jacket 07", "Satellite 2"]);
-    await card.getByText("instrument crew planned").waitFor();
-    await card.locator('.hotspot[title^="Satellite 2"]').click();  // a marker picks its place, as its row does
+    await page.locator(".hotspot").nth(1).waitFor();
+    assert.equal(await page.locator(".hotspot-crew").count(), 1);
+    // Crews is a layer of its own.
+    const crews = page.getByRole("group", { name: "Map layers" }).getByRole("button", { name: "Crews", exact: true });
+    await crews.click();
+    assert.equal(await crews.getAttribute("aria-pressed"), "false");
+    await page.locator(".hotspot-crew").waitFor({ state: "detached" });
+    await crews.click();
+    await page.locator('.hotspot[title^="Satellite 2"]').click();
     await page.getByRole("region", { name: "Satellite 2" }).waitFor();
-    await card.locator(".attention-row", { hasText: "Jacket 07" }).click();
+    await page.locator('.hotspot[title^="Jacket 07"]').click();
     const detail = page.getByRole("region", { name: "Jacket 07" });
     assert.equal(await detail.getByRole("link", { name: "W-73 shut in, lift gas short" }).getAttribute("href"), "#/cases/11");
     assert.equal(await detail.getByRole("link", { name: "Open 2 in All work" }).getAttribute("href"), "#/exceptions?list=open&at=fz-j7");
-    // The place closes from its X, from Escape and from a tap outside it.
+    // The place closes from its X and from Escape.
     await detail.getByRole("button", { name: "Close" }).click();
     await detail.waitFor({ state: "detached" });
-    await card.locator(".attention-row", { hasText: "Jacket 07" }).click();
+    await page.locator('.hotspot[title^="Jacket 07"]').click();
+    await detail.waitFor();
     await page.keyboard.press("Escape");
     await detail.waitFor({ state: "detached" });
-    await card.locator(".attention-row", { hasText: "Jacket 07" }).click();
-    await page.mouse.click(5, 5);
-    await detail.waitFor({ state: "detached" });
-    // Full screen, a marker still opens its place, over the map; Escape closes the place before the full screen.
-    await card.getByRole("button", { name: /full screen/i }).click();
-    await card.locator('.hotspot[title^="Jacket 07"]').click();
-    await card.locator(".map-overlay").getByRole("region", { name: "Jacket 07" }).waitFor();
-    assert.equal(await page.getByRole("region", { name: "Jacket 07" }).count(), 1);
-    await page.keyboard.press("Escape");
-    await detail.waitFor({ state: "detached" });
-    await card.getByRole("button", { name: /full screen/i }).click();
-    await card.getByRole("button", { name: "Overdue", exact: true }).click();
-    assert.deepEqual(await card.locator(".attention-list strong").allTextContents(), ["Jacket 07"]);
+    await page.getByRole("group", { name: "Show places with" }).getByRole("button", { name: "Overdue", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".hotspot").length === 1);
+    assert.match(await page.locator(".hotspot").getAttribute("title"), /^Jacket 07/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await waveScreenshot(`home-attention-${width}`);
   }
 });
 
-test("Home counts the ops lead's and steward's work, each number matching the view it opens (#556)", async () => {
-  const exception = (id, extra = {}) => ({ id, type: "upset", key: `k${id}`, title: `Exception ${id}`, source: "sre", state: "open",
-    priority: null, value_usd: null, subjects: [], unmatched: [], item_id: null, case_state: null, assignee: null, role: null,
-    raised_count: 1, first_seen: "2026-11-01T00:00:00Z", last_seen: "2026-11-01T00:00:00Z", ...extra });
-  const open = [exception(1), exception(2), exception(3, { item_id: 30, role: "operator" }),
-    exception(4, { item_id: 40, assignee: "ann", evidence: { field: [{ at: "2026-11-02T00:00:00Z", by: "bo", status: "done", note: null }] } })];
-  await homeFixture({ ...homePopulated,
-    "/work/inbox": { ...homePopulated["/work/inbox"], roles: ["ops_lead", "data_steward"] },
-    "/exceptions": open, "/work/people": [], "/stewardship/unmatched": [{ ref: "P-9", exceptions: 1, open: [], sources: ["sap"] }] });
-  await page.route("**/exceptions?*", (route) => route.fulfill({ json: open }));
-  await page.goto(`${url}/#/`);
-  for (const [name, to] of [["2 to dispatch", "#/exceptions"], ["1 with the field", "#/exceptions?list=field"],
-    ["1 back from the field", "#/exceptions?list=back"], ["4 open", "#/exceptions?list=open"], ["15 records to review", "#/masterdata?tab=questions"],
-    ["1 ref on open work matched nothing", "#/masterdata"]]) {
-    assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), to);
+test("Needs you lists what waits on the person, opens each record, and rings its place on the map", async () => {
+  const row = (i) => ({ ...homeRow(i), subjects: ["fz-tag-1"] });
+  await homeFixture({ ...homePopulated, "/map": homeMap, "/attention/places": located,
+    "/work/inbox": { ...homePopulated["/work/inbox"], mine: [row(1)], queue: [row(2)] } });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${url}/#/`);
+    const feed = page.getByRole("complementary", { name: "Needs you" });
+    if (width < 900) await feed.getByRole("button", { name: "Open Needs you" }).click();
+    assert.equal(await feed.getByRole("link", { name: "Check separator level 1", exact: true }).getAttribute("href"), "#/inbox/task/1");
+    assert.equal(await page.getByRole("button", { name: "Claim", exact: true }).count(), 0);
+    const show = feed.getByRole("button", { name: "Show Check separator level 1 on the map" });
+    if (width > 900) {
+      // Pointing at an item rings its place while the pointer is there.
+      await feed.getByRole("link", { name: "Check separator level 1", exact: true }).hover();
+      await page.locator(".map-highlight").waitFor();
+      await page.mouse.move(700, 450);
+      await page.locator(".map-highlight").waitFor({ state: "detached" });
+    }
+    // Show on the map keeps the ring; on a phone it closes the sheet so the map shows.
+    await show.click();
+    await page.locator(".map-highlight").waitFor();
+    if (width < 900) assert.equal(await feed.getByRole("button", { name: "Open Needs you" }).getAttribute("aria-expanded"), "false");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   }
-  await page.getByRole("heading", { name: "Highest value", exact: true }).waitFor();
-  assert.equal(await page.getByRole("link", { name: "Train B vibration", exact: true }).getAttribute("href"), "#/cases/7");
-  await page.getByRole("link", { name: "2 to dispatch", exact: true }).click();
-  await page.getByRole("navigation", { name: "All work views" }).getByRole("link", { name: /To dispatch\s*2/ }).waitFor();
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${url}/#/`);
-  const target = await page.getByRole("link", { name: "2 to dispatch", exact: true }).boundingBox();
-  assert.ok(target.height >= 44, `a count is a 44 px target on a phone, got ${target.height}`);
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
-test("Home with no records keeps only work and health, and readers see no administration", async () => {
+test("A new item in Needs you arrives marked new and rings its place for a few seconds", async () => {
+  await page.clock.install();
+  const inbox = { ...homePopulated["/work/inbox"], mine: [], queue: [homeRow(2)] };
+  await homeFixture({ ...homePopulated, "/map": homeMap, "/attention/places": located, "/work/inbox": inbox });
+  await page.goto(`${url}/#/`);
+  const feed = page.getByRole("complementary", { name: "Needs you" });
+  await feed.getByRole("link", { name: "Check separator level 2", exact: true }).waitFor();
+  assert.equal(await feed.locator(".feed-item.fresh").count(), 0);  // the first read is not an arrival
+  inbox.mine = [{ ...homeRow(5), title: "Gas lift short at J7", subjects: ["fz-tag-1"] }];
+  await page.clock.fastForward(31_000);
+  await feed.locator(".feed-item.fresh", { hasText: "Gas lift short at J7" }).waitFor();
+  await page.locator(".map-highlight").waitFor();
+  await page.clock.fastForward(9_000);
+  await page.locator(".map-highlight").waitFor({ state: "detached" });
+});
+
+test("Home with no records says how to load data over the map, and readers see no administration", async () => {
   await homeFixture({ ...homePopulated, "/stats": { ...homeStats, records: 0, open_reviews: {} } });
   await page.goto(`${url}/#/`);
   await page.getByRole("heading", { name: "Connect data before exploring", exact: true }).waitFor();
-  await page.getByRole("heading", { name: "My work", exact: true }).waitFor();
-  await page.getByRole("heading", { name: "Data and scheduler health", exact: true }).waitFor();
-  for (const absent of ["Latest daily report", "Incidents and upsets"]) {
-    assert.equal(await page.getByRole("heading", { name: absent, exact: true }).count(), 0, `${absent} hidden without records`);
-  }
+  await page.getByRole("heading", { name: "Needs you", exact: true }).waitFor();
   await waveScreenshot("home-empty-1440");
 
   const reader = await browser.newContext();
   const readerPage = await reader.newPage();
   const fixtures = { ...homePopulated, "/auth/me": { mode: "microsoft", configured: true, user: signedInUser }, "/demo/config": { enabled: true },
-    // the map card reads while the cards below load, so its reads answer in their own shape, not the catch-all list
     "/attention": { places: [], open: 0, unplaced: 0, data_work: 0, truncated: false },
     "/map": { type: "FeatureCollection", features: [], truncated: false } };
   const administrative = [];
   await readerPage.route("**/*", (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (["/sources/health", "/jobs"].includes(path)) administrative.push(path);
+    if (["/sources/health", "/jobs", "/jobs/health"].includes(path) && route.request().frame() === readerPage.mainFrame()) administrative.push(path);
     if (path.startsWith("/assets/") || path === "/" || path.endsWith(".svg") || path.endsWith(".png")) return route.continue();
     return route.fulfill({ json: fixtures[path] ?? [] });
   });
   await readerPage.goto(`${url}/#/`);
-  await readerPage.getByRole("heading", { name: "Incidents and upsets", exact: true }).waitFor();
-  assert.equal(await readerPage.getByRole("heading", { name: "Data and scheduler health", exact: true }).count(), 0);
+  await readerPage.getByRole("heading", { name: "Needs you", exact: true }).waitFor();
+  await readerPage.waitForTimeout(500);
   assert.equal(await readerPage.getByRole("link", { name: /Source readiness|Application settings/ }).count(), 0);
-  assert.deepEqual(administrative, []);
+  assert.deepEqual(administrative.filter((p) => p !== "/jobs/health"), []);
   await reader.close();
 });
 
-test("Home shows a failed read with its own retry instead of an empty card", async () => {
-  await homeFixture({ "/stats": homeStats }, { fail: true });
+test("Home shows a failed read with its own retry instead of an empty list", async () => {
+  await homeFixture({ "/stats": homeStats, "/map": homeMap }, { fail: true });
   await page.goto(`${url}/#/`);
-  for (const card of ["Latest daily report", "My work", "Incidents and upsets", "Data and scheduler health"]) {
-    const section = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: card, exact: true }) });
-    await section.getByRole("alert").first().waitFor();
-    assert.ok(await section.getByRole("button", { name: "Try again", exact: true }).count() >= 1, `${card} offers a retry`);
-  }
-  for (const zero of ["No incidents recorded.", "Nothing waiting for you.", "No daily report recorded."]) {
-    assert.equal(await page.getByText(zero, { exact: false }).count(), 0, `a failure is not shown as "${zero}"`);
-  }
+  const feed = page.getByRole("complementary", { name: "Needs you" });
+  await feed.getByRole("alert").first().waitFor();
+  assert.ok(await feed.getByRole("button", { name: "Try again", exact: true }).count() >= 1, "Needs you offers a retry");
+  await page.locator(".home-over").getByRole("button", { name: "Try again", exact: true }).waitFor();  // the open work layer
+  assert.equal(await feed.getByText("Nothing waiting for you.").count(), 0, "a failure is not shown as nothing waiting");
 });
 
 test("Home charts stack on a phone and redraw for the wider screen on rotation", async () => {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const mobile = await phone.newPage();
+  await mobile.addInitScript(() => localStorage.setItem("fuzer.home.layers", JSON.stringify(["work", "charts"])));
   for (const [path, json] of [["**/auth/me", { mode: "local", configured: true, user: null }], ["**/stats", homeStats], ["**/demo/config", { enabled: true }],
     ["**/analytics/figures/production-efficiency*", efficiency], ["**/analytics/figures/flow-capacity*", capacity]]) {
     await mobile.route(path, (route) => route.fulfill({ json }));
@@ -5471,21 +5491,21 @@ test("Home ranks an ops lead's work across both fields and opens one in the othe
     { project: "okan", roles: ["ops_lead"], mine: [], queue: [okan] },
     { project: "kestrel", roles: ["ops_lead"], mine: [], queue: [kestrel] },
   ] }));
-  let marked = null;
+  const marked = [];
   await page.route("**/work/home?*", (route) => {
-    marked = new URL(route.request().url()).searchParams.get("mark");
+    marked.push(new URL(route.request().url()).searchParams.get("mark"));
     return route.fulfill({ json: { person: "ines", seen_at: "2026-11-12T04:00:00Z", changes: [
       { id: 5, item_id: 3, kind: "commented", actor: "fred", at: "2026-11-12T05:30:00Z", data: { text: "gland weeping" },
         title: "Okan separator level", type: "upset", state: "open" }] } });
   });
   await page.route("**/work/tasks/77", (route) => route.fulfill({ json: demoTask }));
   await page.goto(`${url}/#/`);
-  const shift = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: "My work", exact: true }) });
-  await shift.getByText("1 more in your other field, ranked below").waitFor();
-  const titles = await shift.locator(".home-shift > li .work-title, .home-shift > li button").allInnerTexts();
+  const shift = page.getByRole("complementary", { name: "Needs you" });
+  await shift.getByRole("button", { name: "Kestrel compressor trip" }).waitFor();
+  const titles = await shift.getByRole("list", { name: "Waiting on you" }).locator(".feed-title").allInnerTexts();
   assert.deepEqual(titles, ["Kestrel compressor trip", "Okan separator level"]);  // overdue first, whichever field
   await shift.getByText("gland weeping", { exact: false }).waitFor();
-  assert.equal(marked, "true");  // this look is the new last look
+  assert.ok(marked.includes("true"));  // this look is the new last look
   await shift.getByRole("button", { name: "Kestrel compressor trip" }).click();
   await page.waitForURL(/#\/inbox\/task\/77$/);
   assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.project")), "kestrel");
@@ -5518,7 +5538,7 @@ test("watching a case shows its changes on Home under Watching, not as assigned 
       { id: 6, item_id: 7, kind: "commented", actor: "pat", at: "2026-11-12T05:30:00Z", data: { text: "parts ordered" },
         title: "Train B vibration", type: "upset", state: "open", watching: true }] } }));
   await page.goto(`${url}/#/`);
-  const shift = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: "My work", exact: true }) });
+  const shift = page.getByRole("complementary", { name: "Needs you" });
   await shift.getByRole("heading", { name: /^Watching/ }).waitFor();
   await shift.getByText("parts ordered", { exact: false }).waitFor();
   await shift.getByText("Nothing new on your work.").waitFor();  // watching is not her own work
