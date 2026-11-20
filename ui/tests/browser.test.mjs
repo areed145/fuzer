@@ -1361,6 +1361,8 @@ test("source load lifecycle confirms consequences, exposes progress and recovers
   await page.route("**/sources/datasets/sap_equipment/run*", (route) =>
     route.fulfill({ json: { loaded: [], held: ["sap_equipment"], unchanged: [], records: 0 } }));
   await page.reload();
+  // The page shows what it last read at once, then the fresh answer: Load now is enabled once that arrives.
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => b.textContent?.trim() === "Load now" && !b.disabled));
   await page.getByRole("button", { name: "Load now", exact: true }).press("Enter");
   await page.getByRole("button", { name: "Confirm Load now", exact: true }).press("Enter");
   await page.getByRole("status").filter({ hasText: "Load held" }).waitFor();
@@ -7688,13 +7690,49 @@ test("P5.14c Back returns to where the list was left, with its filter, and the i
   assert.equal(await filter.inputValue(), "pump");
   await page.waitForFunction(() => window.scrollY === 1500, null, { timeout: 3000 }).catch(() => assert.fail("scroll restored"));
 
-  // No reload button in the installed app, so the bar has one: it reloads this page, in place.
+  // No reload button in the installed app, so the bar has one: the page reads again in place, without reloading.
   const refresh = page.locator(".topbar").getByRole("button", { name: "Refresh this page", exact: true });
   assert.ok((await refresh.boundingBox()).height >= 44);
+  let reloaded = false;
+  page.once("load", () => { reloaded = true; });
   // Pressed in place (a pointer click would first scroll the button into view and move the page).
-  await Promise.all([page.waitForEvent("load"), refresh.evaluate((button) => button.click())]);
+  await Promise.all([page.waitForRequest("**/work/inbox?*"), refresh.evaluate((button) => button.click())]);
+  await page.waitForFunction(() => document.querySelector(".refresh-button")?.getAttribute("aria-busy") !== "true", null, { timeout: 5000 });
+  assert.equal(reloaded, false, "Refresh reads again without reloading the page");
   assert.match(page.url(), /#\/inbox\?q=pump$/);
-  await page.waitForFunction(() => window.scrollY === 1500, null, { timeout: 3000 }).catch(() => assert.fail("scroll kept over a reload"));
+  assert.equal(await filter.inputValue(), "pump");
+  await page.waitForFunction(() => window.scrollY === 1500, null, { timeout: 3000 }).catch(() => assert.fail("scroll kept over a refresh"));
+});
+
+test("A reload shows each page's last answers at once, and the fresh answers replace them together", async () => {
+  let label = "Export pump P-101", holdRelated = null, holdEntity = null;
+  await page.route("**/entities/fz-pump/map", route => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/related?*", async (route) => {
+    if (holdRelated) await holdRelated;
+    await route.fulfill({ json: { subjects: [], incidents: [], studies: [], lessons: [] } });
+  });
+  await page.route("**/entities/fz-pump", async (route) => {
+    const answer = { fuzer_id: "fz-pump", kind: "equipment", label, golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} };
+    if (holdEntity) await holdEntity;
+    await route.fulfill({ json: answer });
+  });
+  await page.goto(`${url}/#/e/fz-pump`);
+  await page.getByRole("heading", { name: "Export pump P-101" }).waitFor();
+  await page.waitForTimeout(700);  // the answers are written down shortly after they arrive
+
+  // The server now names it differently and is slow to say so: the page still opens at once with what it showed.
+  label = "Export pump P-101A";
+  let releaseRelated, releaseEntity;
+  holdRelated = new Promise((r) => { releaseRelated = r; });
+  holdEntity = new Promise((r) => { releaseEntity = r; });
+  await page.reload();
+  await page.getByRole("heading", { name: "Export pump P-101", exact: true }).waitFor({ timeout: 3000 });
+  // One fresh answer in, one still out: nothing changes yet, so the page never mixes old and new.
+  releaseEntity();
+  await page.waitForTimeout(400);
+  assert.equal(await page.getByRole("heading", { name: "Export pump P-101", exact: true }).count(), 1);
+  releaseRelated();
+  await page.getByRole("heading", { name: "Export pump P-101A", exact: true }).waitFor({ timeout: 3000 });
 });
 
 test("P5.14c In a browser tab the browser's own reload is there, so the bar draws none", async () => {

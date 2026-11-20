@@ -62,6 +62,9 @@
 .sync-status.off::before { content: ""; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--warn); }
 .sync-status.bad { color: var(--danger); }
 .sync-status ~ .share-button { margin-left: 0; }
+.refresh-button[aria-busy="true"] svg { animation: refresh-spin 0.9s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .refresh-button[aria-busy="true"] svg { animation: none; opacity: 0.5; } }
 .refresh-button svg, .share-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 @media (min-width: 901px) { .installed .page-back { display: inline-flex; margin: -8px 0 8px -4px; } }
 .skip-link { position: fixed; top: 8px; left: 8px; z-index: 1200; padding: 8px 12px; background: var(--panel); transform: translateY(-200%); }

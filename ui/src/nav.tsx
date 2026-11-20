@@ -1,7 +1,7 @@
 // The app's navigation: one list of pages, drawn as a sidebar (a drawer below 900 px).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
-import { href } from "./lib";
+import { href, refreshAll, useRefreshing } from "./lib";
 import { Button } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
@@ -273,6 +273,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
     };
   }, []);
 
+  const refreshing = useRefreshing();
   return (
     <>
       {/* Search at the top left, the mark in the middle, the account at the top right. */}
@@ -288,8 +289,9 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
         <div className="topbar-end">
           <SyncStatus />
           <ShareButton />
-          {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). It reloads this page, in place. */}
-          <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" onClick={() => location.reload()}>
+          {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). Every view reads again in place. */}
+          <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" aria-busy={refreshing}
+            onClick={() => void refreshAll()}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
           </Button>
           <AccountButton />

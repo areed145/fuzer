@@ -64,7 +64,7 @@ doesn't cover a case, extend the module, with a test, so every page gets the cha
 | Text styles and one-line layouts | `Text` (`small`, `muted`, `mono`) and `Line` (`spread`, `wrap`) from `ui/src/ui`, not class names | `style-lint` rule `raw-text-class` |
 | A checkbox | `Checkbox` from `ui/src/ui` | `style-lint` rule `raw-checkbox` |
 | A failure message | `ErrorText` from `ui/src/ui`; `ActionStatus` for a button's action | `style-lint` rule `raw-error` |
-| Loading data | `useAsync` in `ui/src/lib.tsx` over the `api` facade; never `fetch` in a page | `style-lint` rule `raw-fetch` |
+| Loading data | `useAsync` in `ui/src/lib.tsx` over the `api` facade; never `fetch` in a page. A read shows the tab's last answer at once while it asks again, and Refresh reads in place (`ui/src/snapshot.ts`) | `style-lint` rule `raw-fetch` |
 
 ### The kit is used, not edited
 

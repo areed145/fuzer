@@ -4,6 +4,8 @@
  * Fuzer's colours stay. The gestures stay phone-only. `?ios=0` turns the look off for this tab (and `?ios=1` back on),
  * for comparing against the old desktop look. Styles: styles/ios.css. */
 
+import { refreshAll, subscribeWave, waveOpen } from "./snapshot";
+
 const KEY = "fuzer.ios";
 
 function wanted(): boolean {
@@ -70,7 +72,8 @@ function edgeSwipe() {
   });
 }
 
-/** Pull down at the top of a page to reload it; the spinner sits under the top bar. */
+/** Pull down at the top of a page to refresh it in place; the spinner sits under the top bar until the new answers are
+ * in. */
 function pullToRefresh() {
   let y0: number | null = null;
   let pulled = 0;
@@ -92,8 +95,18 @@ function pullToRefresh() {
   window.addEventListener("touchend", () => {
     if (y0 == null) return;
     y0 = null;
-    if (pulled > 80) { spinner.classList.add("spinning"); location.reload(); }
-    else spinner.style.setProperty("--pull", "0px");
+    if (pulled > 80) {
+      spinner.classList.add("spinning");
+      void refreshAll();
+      const done = () => {
+        if (waveOpen()) return;
+        stop();
+        spinner.classList.remove("spinning", "armed");
+        spinner.style.setProperty("--pull", "0px");
+      };
+      const stop = subscribeWave(done);
+      done();
+    } else spinner.style.setProperty("--pull", "0px");
   });
 }
 
