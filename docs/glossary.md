@@ -4,9 +4,12 @@ This is the dictionary for everything people read in Fuzer. Each concept has one
 after "Not" are retired and `ui/tests/glossary.test.cjs` fails on the ones it checks. A new term is added here in
 the same change that puts it on screen.
 
-**All work.** The IOC's one list of routed work, one row per event, shown as a **List** or a **Board**. Its filters
-follow the work from **To dispatch** through **With the field** and **Back from the field** to **Closed**; each
-event's stage is decided once, on the server. See [where work goes](work-map.md).
+**All work.** Every event and every case in one set of rows (`GET /cases`), shown as the **List** or the **Board**,
+each its own menu entry. It is filtered and sorted on any dimension: kind, stage, who holds it, team, source, state,
+overdue, the entity it is about, the place on the map, words in the title. Each event's **stage** (To dispatch, With
+a desk, On the plan, With the field, Back from the field, Closed) is decided once, on the server. A **preset** is a
+named set of these filters (Waiting on me, To dispatch, Data questions); presets are added once they prove useful,
+and a role can save its own. See [where work goes](work-map.md).
 
 **Asset pack.** Asset-specific tag grammar, entity kinds, limits, source priorities and match thresholds that seed
 the source catalog's rules. Okan is the main demo; Kestrel Ridge (a gas plant) and Harrier (a pipeline and
@@ -18,8 +21,8 @@ stored). Golden records are chosen from assertions.
 **Back from the field.** A job the field reported Done or Could not do, waiting for the IOC to close it out or send
 it round again.
 
-**Board.** All work's view of the open work by stage, one column per view. **Ranked by value** is the list of
-everything outstanding by what it is worth: backlog, PMs, incidents, opportunities.
+**Board.** All work's rows in columns, by stage (the default), kind, holder, team or source, with the same filters as
+the List. Sorting by value ranks everything outstanding by what it is worth: backlog, PMs, incidents, opportunities.
 
 **Bundle.** A planned job due near a shutdown of its area that could be done in it. Shown as a flag on Plan.
 

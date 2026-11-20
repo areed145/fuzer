@@ -5,8 +5,8 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as Reac
 import { api } from "./api";
 import { usePermission } from "./Auth";
 import { KindBadge, entityHref, href, useAsync, useDebounced } from "./lib";
-import { NAV, useNavigationAccess, type NavGroup, type NavItem } from "./nav";
-import { MASTER_DATA_TABS, SETTINGS_VIEWS, SOURCES_VIEWS, WORK_LISTS, workHref } from "./pageTabs";
+import { NAV, isActive, useNavigationAccess, type NavGroup, type NavItem } from "./nav";
+import { MASTER_DATA_TABS, SETTINGS_VIEWS, SOURCES_VIEWS, WORK_PRESETS } from "./pageTabs";
 import { Button, ErrorText, Input, Heading } from "./ui";
 
 const OPEN = "fuzer:search";
@@ -42,7 +42,7 @@ const pageHref = (item: NavItem) => item.external ?? href(item.path ?? `/${item.
 
 /** Each page's tabs, by the section of the page that draws them. */
 const TABS: { section: string; tabs: { label: string; to: string }[] }[] = [
-  { section: "exceptions", tabs: WORK_LISTS.map((t) => ({ label: t.label, to: workHref(t.key) })) },
+  { section: "list", tabs: WORK_PRESETS.map((t) => ({ label: t.label, to: href("/list", t.filters) })) },
   { section: "masterdata", tabs: MASTER_DATA_TABS.map((t) => ({ label: t.label, to: href("/masterdata", { tab: t.key }) })) },
   { section: "sources", tabs: SOURCES_VIEWS.map((t) => ({ label: t.label, to: href("/sources", { view: t.key }) })) },
   { section: "settings", tabs: SETTINGS_VIEWS.map((t) => ({ label: t.label, to: href("/settings", { view: t.key || undefined }) })) },
@@ -54,7 +54,7 @@ function usePlaces() {
     const pages: { group: NavGroup; item: NavItem }[] = [];
     for (const group of NAV) if (allowed(group)) for (const item of group.items) if (allowed(item)) pages.push({ group, item });
     const tabs = TABS.flatMap(({ section, tabs }) => {
-      const page = pages.find(({ item }) => item.section === section && !item.view);
+      const page = pages.find(({ item }) => isActive(item, section) && !item.view);
       return page ? tabs.map((t) => ({ ...t, page: page.item.label })) : [];
     });
     return { pages, tabs };

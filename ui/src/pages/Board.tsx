@@ -34,7 +34,8 @@ const VIEWS: [View, string][] = [["ranked", "Ranked"], ["owner", "By owner"], ["
 
 const valued = (v: number | null) => (v === null ? "not valued" : money(v));
 
-/** The Ranked by value view of All work (#502), formerly the Work board page. */
+/** Backlog by value: everything outstanding (SAP backlog, PMs, incidents, opportunities) ranked by what it is worth,
+ * formerly All work's Ranked by value view. It ranks the backlog, not the routed work, so it sits under Plan. */
 export function BoardPage({ query, filters }: { query: URLSearchParams; filters?: { type?: string; who?: string; q?: string } }) {
   const embedded = !!filters;
   const view = (query.get("view") as View) || "ranked";
@@ -71,10 +72,10 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
 
   return (
     <section>
-      {!embedded && <PageHeader>Work board</PageHeader>}
+      {!embedded && <PageHeader>Backlog by value</PageHeader>}
       <Line>
         <Tabs label="Board views" items={VIEWS.map(([v, label]) => ({
-          key: v, label, current: view === v, href: href("/exceptions", { list: "ranked", view: v === "ranked" ? undefined : v, ...filters }),
+          key: v, label, current: view === v, href: href("/ranked", { view: v === "ranked" ? undefined : v }),
         }))} />
         {!embedded && <Input placeholder="Search titles and descriptions" value={text} onChange={(e) => setText(e.target.value)} />}
         {Object.keys(saved).length > 0 && (

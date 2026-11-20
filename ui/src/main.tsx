@@ -22,7 +22,9 @@ import { IncidentsPage } from "./pages/Incidents";
 import { LessonsPage } from "./pages/Lessons";
 import { Search } from "./pages/Search";
 import { InboxPage } from "./pages/workflows/Inbox";
-import { AllWorkPage, legacyWorkHref } from "./pages/AllWork";
+import { WorkListPage } from "./pages/WorkList";
+import { BoardPage } from "./pages/Board";
+import { workHref, type WorkList } from "./pageTabs";
 import { PerformancePage } from "./pages/Performance";
 import { MetricsPage } from "./pages/Metrics";
 import { ScorecardPage } from "./pages/Scorecard";
@@ -99,9 +101,14 @@ function App() {
       location.replace(href("/users", { view: "workflow" }));
       return;
     }
-    // The Work board and the Cases list are views of All work now (#502); their links land on the same view.
-    if (section === "board" || (section === "cases" && !path[1])) {
-      location.replace(legacyWorkHref(section, query));
+    // All work is one list now: Exceptions' views and the Cases list are its filters, and their links land on the
+    // same work. With no view an old Exceptions link opens all the open work.
+    if (section === "exceptions" || (section === "cases" && !path[1])) {
+      const { list, state, ...rest } = Object.fromEntries(query.entries());
+      const view = (section === "cases" ? (state === "closed" ? "closed" : "progress") : list || "open") as WorkList;
+      const kept = section === "exceptions" && state ? (["closed", "cleared"].includes(state) ? { state: "closed" }
+        : state === "any" || state === "" ? { state: "all" } : {}) : {};
+      location.replace(workHref(view, { ...rest, ...kept }));
       return;
     }
     // Turnaround is a window on the Plan now (#554): the revision opens beside the timeline.
@@ -204,8 +211,12 @@ function App() {
             <InboxPage />
           ) : section === "performance" ? (
             <PerformancePage query={query} />
-          ) : section === "exceptions" ? (
-            <AllWorkPage query={query} />
+          ) : section === "list" ? (
+            <WorkListPage query={query} />
+          ) : section === "board" ? (
+            <WorkListPage query={query} board />
+          ) : section === "ranked" ? (
+            <BoardPage query={query} />
           ) : section === "masterdata" ? (
             <MasterDataPage query={query} />
           ) : section === "handover" ? (
@@ -242,7 +253,7 @@ function App() {
             <UsersPage query={query} />
           ) : section === "routing" ? (
             <RoutingPage query={query} />
-          ) : section === "board" || section === "cases" || section === "field" || section === "turnaround" || section === "review" ? (
+          ) : section === "exceptions" || section === "cases" || section === "field" || section === "turnaround" || section === "review" ? (
             null  /* redirecting to All work, My work, Plan or Master data */
           ) : (
             <EmptyState title="Page not found"><a href={href("/")}>Return home</a> or use the navigation to choose a page.</EmptyState>

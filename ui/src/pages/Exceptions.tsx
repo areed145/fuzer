@@ -60,7 +60,7 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
           <div className="work-list-head small muted" aria-hidden="true">
             <span>Work</span><span>Entities</span><span>Age</span><span>With</span><span /></div>
           <ul className="work-list" aria-label={`${shown.length} ${shown.length === 1 ? "event" : "events"}`}>
-            {shown.map((r) => <Row key={r.id} r={r} person={person}
+            {shown.map((r) => <EventRow key={r.id} r={r} person={person}
               people={people.data ?? []} queues={queues} onChange={rows.reload} />)}</ul>
         </>}
         <SampleTeam onAdded={people.reload} />
@@ -76,7 +76,7 @@ const WINDOW: Record<string, string> = {
 
 /** What planned work, shutdowns and people's windows held back (P3.5b): counted, not lost. Nothing shows until
  * something was held back. */
-function Suppressed() {
+export function Suppressed() {
   const s = useAsync(() => api.exceptionsSuppressed(), []);
   const d = s.data;
   if (!d?.findings) return null;
@@ -235,7 +235,7 @@ type Panel = null | "dispatch" | "more" | "plan" | "shelve";
 
 /** One exception as a row on a desk and a card on a phone (#1070): what it is, where, how old, who has it, and one
  * main action. Dispatch opens who, what to do and readiness beneath the row; Plan and Shelve sit behind More. */
-function Row({ r, person, people, queues, onChange }: {
+export function EventRow({ r, person, people, queues, onChange }: {
   r: ExceptionRow; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
   const names = useEntityNames(r.subjects);

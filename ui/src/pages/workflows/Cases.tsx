@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Checkbox, Notice, Tabs } from "../../ui";
+import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Notice } from "../../ui";
 import { when } from "../../format";
 import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
@@ -6,11 +6,11 @@ import { OpportunityPanel } from "./OpportunityPanel";
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { cap, say } from "../../wording";
 import { Suspense, lazy, useMemo, useState } from "react";
-import { api, type CaseRow, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
+import { api, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
 import { Status, href, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, ENGINE_FIELDS, EntityLinks, describe, holder, usePerson } from "../../work";
-import { AgentIdle, AssignPicker, GENERIC_STEP, PriorityBadge, progressText, SendToField, StepBadges, byUrgency, caseHref, priorityLevel, processHref } from "./shared";
+import { AgentIdle, AssignPicker, GENERIC_STEP, PriorityBadge, SendToField, StepBadges, caseHref, priorityLevel, processHref } from "./shared";
 import { CaseChecklist } from "./Checklist";
 import { Markdown } from "../../Markdown";
 import { StepActions } from "./Task";
@@ -31,7 +31,7 @@ import { CaseCloseoutCard, RecheckCard } from "../Disposition";
 const BpmnView = lazy(() => import("../../BpmnView"));
 
 /** A plain piece of work for a person's queue, with no process behind it. */
-function NewWorkItem({ onCreated }: { onCreated: () => void }) {
+export function NewWorkItem({ onCreated }: { onCreated: () => void }) {
   const operate = usePermission("operate");
   const [person] = usePerson();
   const roles = useAsync(() => api.workRoles(), []);
@@ -65,92 +65,6 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
   </Disclosure>;
 }
 
-/** The In progress and Closed views of All work (#502), formerly the Cases list. With `fixedState` the view sets the
- * state and the page's own header and state tabs are left out. */
-export function CasesPage({ query, fixedState, filters }: {
-  query: URLSearchParams; fixedState?: "open" | "closed"; filters?: { type?: string; who?: string; q?: string };
-}) {
-  const [chosen, setState] = useState(query.get("state") ?? "open");
-  const state = fixedState ?? chosen;
-  const [ownType, setType] = useState(query.get("type") ?? "");
-  const [ownWho, setWho] = useState(query.get("who") ?? "");
-  const [overdue, setOverdue] = useState(query.get("overdue") === "1");
-  const [ownQ, setQ] = useState("");
-  // Under All work the shared filter bar decides kind, holder and words; on its own the page keeps its controls.
-  const type = filters ? filters.type ?? "" : ownType;
-  const who = filters ? filters.who ?? "" : ownWho;
-  const q = filters ? filters.q ?? "" : ownQ;
-  const [person] = usePerson();
-  const asked = { state, type: type || undefined, q: q || undefined, overdue: overdue ? true : undefined,
-                    assignee: who && !who.startsWith("role:") ? who : undefined, role: who.startsWith("role:") ? who.slice(5) : undefined };
-  const list = useAsync(() => api.cases(asked), [JSON.stringify(asked)]);
-  const all = useAsync(() => filters ? Promise.resolve(null) : api.cases({ state: "all", limit: 1000 }), [!!filters]);
-  const types = [...new Set((all.data?.items ?? []).map((r) => r.type))].sort();
-  const [picked, setPicked] = useState<Set<number>>(new Set());
-  const rows = [...(list.data?.items ?? [])].sort(state === "open" ? byUrgency : () => 0);
-  return (
-    <section>
-      {!fixedState && <PageHeader>Cases</PageHeader>}
-      {state !== "closed" && <NewWorkItem onCreated={list.reload} />}
-      <Line wrap>
-        {!fixedState && <Tabs label="Cases by state" items={["open", "closed", "all"].map((s) => ({ key: s, label: s, current: state === s, onSelect: () => setState(s) }))} />}
-        {!filters && <><Field inline label="Kind"><Select value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="">every kind</option>
-            {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-          </Select></Field>
-        <Field inline label="With"><AssignPicker value={who} onChange={setWho} placeholder="anyone" /></Field></>}
-        <Checkbox checked={overdue} onChange={setOverdue}>overdue</Checkbox>
-        {!filters && <Input aria-label="Search case titles" placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />}
-        {list.data && <Text small muted>{list.data.total} cases · {list.data.overdue} overdue · {list.data.due_soon} due soon</Text>}
-      </Line>
-      {picked.size > 0 && <BulkReassign ids={[...picked]} person={person} onDone={() => setPicked(new Set())} />}
-      <Status of={list} empty={!!list.data && rows.length === 0}>No cases match.</Status>
-      {rows.length > 0 && (
-        <Table variant="results">
-          <thead><tr><th /><th>Case</th><th>Kind</th><th>State / step</th><th>With</th><th>Due</th><th>Priority</th><th>Opened</th></tr></thead>
-          <tbody>
-            {rows.map((r) => <CaseLine key={r.id} r={r} picked={picked.has(r.id)}
-              toggle={() => setPicked((s) => { const n = new Set(s); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n; })} />)}
-          </tbody>
-        </Table>
-      )}
-    </section>
-  );
-}
-
-function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: () => void }) {
-  return (
-    <tr>
-      <td>{!r.closed_at && <Input type="checkbox" checked={picked} onChange={toggle} />}</td>
-      <td><a href={caseHref(r.id)}>{say(r.title)}</a>{r.escalated && <UIBadge tone="danger"> escalated</UIBadge>}</td>
-      <td className="small"><UIBadge>{r.type.replace(/_/g, " ")}</UIBadge>{/* the standard queue is how any plain case runs: only a process of its own is worth naming */}
-        {r.process_key && r.process_key !== "queue_item" && r.process_key !== r.type && <> <a className="muted" href={processHref(r.process_key)}>{r.process_key.replace(/_/g, " ")}</a></>}</td>
-      <td className="small">{r.closed_at ? <UIBadge tone="ok">{cap(r.state)}{r.outcome ? `: ${say(r.outcome)}` : ""}</UIBadge>
-        : r.checklist ? progressText(r.checklist) : r.step && !GENERIC_STEP.test(r.step) ? r.step : r.state}</td>
-      <td className="small">{r.closed_at ? "" : holder(r.assignee, r.role)}</td>
-      <td className="nowrap">{!r.closed_at && <Due at={r.due} />}</td>
-      <td className="small"><PriorityBadge p={r.priority} type={r.type} low /></td>
-      <td className="small muted">{when(r.created_at)}</td>
-    </tr>
-  );
-}
-
-function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; onDone: () => void }) {
-  const [to, setTo] = useState("");
-  const [reason, setReason] = useState("");
-  const a = useAction();
-  return (
-    <UICard className="bulk-bar actions">
-      <strong>{ids.length} selected</strong> give everything open on them to
-      <AssignPicker value={to} onChange={setTo} />
-      <Input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
-      <Button variant="primary" disabled={!to || !!a.busy}
-        onClick={() => a.run("go", async () => { for (const id of ids) await api.reassignCase(id, person, to, reason || undefined); }, onDone)}>
-        Reassign</Button>
-      <ErrorText inline>{a.error}</ErrorText>
-    </UICard>
-  );
-}
 
 export function CasePage({ id, demo = false, closing = false }: { id: number; demo?: boolean; closing?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
@@ -166,7 +80,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   if (!it || item.error) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
     <Status of={item} />
-    <a href={href("/exceptions", { list: "progress" })}>Return to All work</a></section>;
+    <a href={href("/list")}>Return to All work</a></section>;
   const closed = !!it.closed_at;
   const payload = (it as WorkItem & { payload?: Record<string, unknown> }).payload ?? {};
   // a process case (queue_item, #509) keeps what was raised under payload.start

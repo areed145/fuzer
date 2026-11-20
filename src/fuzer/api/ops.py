@@ -647,6 +647,22 @@ def work_counts(person: str, conn=Depends(get_conn)):
             "events": exceptions.counts(conn)}
 
 
+@router.get("/cases")
+def case_list(state: Literal["open", "closed", "all"] = "open", kind: str | None = None, stage: str | None = None,
+              holder: str | None = None, queue: str | None = None, waiting_on: str | None = None, overdue: bool | None = None,
+              subject: str | None = None, at: str | None = None, source: str | None = None, q: str | None = None,
+              sort: Literal["value", "due", "opened", "updated", "title"] = "value",
+              limit: int = Query(500, le=5000), conn=Depends(get_conn)):
+    """All the work as one list: every event and every case, filtered on any dimension (kind, stage, holder, queue,
+    source as comma lists; waiting_on a person; overdue; subject; at places; words) and sorted. The List and the Board read
+    it; a preset is only a set of these filters. With the rows: how many match, and per dimension how many match on
+    each value with that dimension's own filter left out."""
+    from ..ops import worklist
+    _loaded_types()
+    return worklist.rows(conn, state=state, kind=kind, stage=stage, holder=holder, queue=queue, waiting_on=waiting_on,
+                         overdue=overdue, subject=subject, at=at, source=source, q=q, sort=sort, limit=limit)
+
+
 @router.get("/attention")
 def attention(conn=Depends(get_conn)):
     """Where attention is needed: open exceptions gathered at the located places they are about (platforms, pads,

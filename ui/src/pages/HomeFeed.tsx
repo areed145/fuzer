@@ -12,7 +12,7 @@ import { useAuth } from "../Auth";
 import { switchProject } from "../authState";
 import { GENERIC_STEP, StepBadges, byUrgency, caseHref } from "./workflows/shared";
 import { waitingToDispatch } from "./Exceptions";
-import { workHref } from "./AllWork";
+import { workHref } from "../pageTabs";
 
 const TOP = 5;  // per section
 const SLOW = 300_000;  // load health is a heavy read: every five minutes, not every 30 s

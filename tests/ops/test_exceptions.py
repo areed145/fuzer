@@ -1279,3 +1279,43 @@ def test_where_an_event_stands_is_decided_once_and_counted_over_every_open_event
     assert after["open"] == before["open"] + 1 and after["stages"]["dispatch"] == before["stages"]["dispatch"] + 1
     assert engine.case_counts(conn)["open"] >= 2
     conn.commit()
+
+
+def test_all_the_work_is_one_list_filtered_and_sorted_on_any_dimension(conn, types):
+    """List and Board read one list (the simplification review): every event and every case no event raised, in one
+    row shape, filtered on any dimension with facet counts, and a preset such as My work is only a filter."""
+    from fuzer.ops import worklist
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    types("seep", audience=("ioc", "field"))
+    a = raise_exception(conn, "seep", "L-1", "Leak at L-1", "walk", refs=["tag:L-1"], value_usd=500)
+    b = raise_exception(conn, "seep", "L-2", "Leak at L-2", "walk", refs=["tag:L-2"], value_usd=900)
+    impl.dispatch(conn, b["id"], "ivy", "olly", reason="look at it")
+    task = work.open_case(conn, "tidy", "Tidy the store", "ivy", assignee="olly")
+    conn.commit()
+
+    out = worklist.rows(conn, kind="seep,tidy")
+    by_uid = {r["uid"]: r for r in out["rows"]}
+    assert {f"e{a['id']}", f"e{b['id']}", f"c{task['id']}"} <= set(by_uid)
+    assert by_uid[f"e{a['id']}"]["stage"] == "dispatch" and by_uid[f"e{b['id']}"]["stage"] == "field"
+    assert by_uid[f"c{task['id']}"]["holder"] == "olly" and by_uid[f"c{task['id']}"]["exception_id"] is None
+    leaks = [r["uid"] for r in worklist.rows(conn, kind="seep")["rows"]]
+    assert leaks.index(f"e{b['id']}") < leaks.index(f"e{a['id']}"), "most valuable first"
+    assert worklist.rows(conn, kind="seep", sort="title")["rows"][0]["title"] == "Leak at L-1"
+
+    mine = {r["uid"] for r in worklist.rows(conn, waiting_on="olly", kind="seep,tidy")["rows"]}
+    assert mine == {f"e{b['id']}", f"c{task['id']}"}, "My work is a filter: what waits on the person"
+    lead = {r["uid"] for r in worklist.rows(conn, waiting_on="ivy", kind="seep")["rows"]}
+    assert f"e{a['id']}" in lead, "the ops lead dispatches what nothing routed"
+
+    staged = worklist.rows(conn, kind="seep", stage="dispatch")
+    assert [r["uid"] for r in staged["rows"]] == [f"e{a['id']}"]
+    assert staged["facets"]["stage"]["field"] == 1, "a dimension's counts leave out its own filter"
+    assert staged["facets"]["kind"]["seep"] == 1
+    assert worklist.rows(conn, q="l1", kind="seep")["total"] == 1
+    with pytest.raises(ValueError):
+        worklist.rows(conn, sort="colour")
+    queues = {r["uid"]: r["queue"] for r in worklist.rows(conn, kind="seep")["rows"]}
+    assert queues[f"e{a['id']}"] == "none", "a seep's type names no team and nobody has it yet"
