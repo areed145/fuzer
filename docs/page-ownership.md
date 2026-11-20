@@ -17,7 +17,7 @@ Direct links select their owning primary destination.
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/3d`, `#/ask` | Assets and connected evidence, and the operations assistant that answers from them. Paid Ask remains AI-permission gated. All entity links reuse the existing entity viewer. An asset's kind links to it in the Ontology for configurers. |
 | Reports | `#/incidents`, `#/downtime`, `#/reports`, `#/metrics`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. |
-| Work | `#/exceptions` (All work, with compatible `#/board` and `#/cases` redirects into its views), `#/inbox` (My work, with `#/field` redirecting into it), `#/inbox/task/:id`, contextual `#/teams` and `#/handover`, `#/masterdata` (its Questions tab answers what `#/review` did, which redirects there), `#/cases/:id`, Workflows at `#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key` (the older `#/processes…` URLs open the same pages) | Human priorities, read-only team workload, review decisions, tasks, cases and workflow definitions. |
+| Work | `#/exceptions` (All work, with compatible `#/board` and `#/cases` redirects into its views), `#/inbox` (My work, with `#/field` redirecting into it), `#/inbox/task/:id` (opens its case, where the step is worked), contextual `#/teams` and `#/handover`, `#/masterdata` (its Questions tab answers what `#/review` did, which redirects there), `#/cases/:id`, Workflows at `#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key` (the older `#/processes…` URLs open the same pages) | Human priorities, read-only team workload, review decisions, tasks, cases and workflow definitions. |
 | Plan | `#/plan` (with `#/turnaround` redirecting into it), `#/plan?schedules=1` (Schedules), `#/plan?schedule=CODE`, `#/plan?resources=1` (Resources) | The days and weeks ahead: every source's planned work on one timeline, schedules, resources and their clashes. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views, configure-protected `#/ontology` (`?kind=…` opens on a kind) | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
@@ -113,7 +113,7 @@ Demo uses `GET /demo/config` for reader-safe effective visibility and the existi
 offer an exit and an explicit visibility recheck; the underlying authenticated tools remain available.
 `#/ask?demo=agents&q=…` prepares a question without sending it and confirms paid calls in Ask.
 Shared-memory learning and conversation deletion are outside the tour; normal Ask retains them.
-`#/cases/:id?demo=workflow` inspects the existing case read-only and links to its tasks.
-`#/inbox/task/:id?demo=workflow` confirms deliberate shared claim/release/handoff/completion actions,
+`#/cases/:id?demo=workflow` shows the existing case and its waiting step (`#/inbox/task/:id?demo=workflow` opens it
+there), and confirms deliberate shared take/give back/handoff/completion actions,
 preserving server authorization and workflow roles. Contextual return links retain the tour step.
 No private sandbox, new run model, automatic task assignment or completion certification is implied.

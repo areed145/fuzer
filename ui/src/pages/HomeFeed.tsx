@@ -10,7 +10,7 @@ import { Status, afterMap, href, useAsync, useLive } from "../lib";
 import { Actor, Due, holder, usePerson } from "../work";
 import { useAuth } from "../Auth";
 import { switchProject } from "../authState";
-import { GENERIC_STEP, StepBadges, byUrgency, caseHref, taskHref } from "./workflows/shared";
+import { GENERIC_STEP, StepBadges, byUrgency, caseHref } from "./workflows/shared";
 import { waitingToDispatch } from "./Exceptions";
 import { workHref } from "./AllWork";
 
@@ -91,7 +91,7 @@ export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, config
   const items = useMemo(() => {
     const out: FeedItem[] = [];
     const row = (r: WorkRow, project: string): FeedItem => ({
-      group: "work", key: `t-${project}-${r.task_id ?? "i"}-${r.item_id}`, title: r.title, to: r.task_id ? taskHref(r.task_id) : caseHref(r.item_id),
+      group: "work", key: `t-${project}-${r.task_id ?? "i"}-${r.item_id}`, title: r.title, to: caseHref(r.item_id),
       project: project === here ? undefined : project, due: r.due_at, late: !!r.overdue || !!r.escalated_at,
       subjects: r.subjects ?? [], at: r.created_at, priority: r.priority,
       meta: <>{!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}

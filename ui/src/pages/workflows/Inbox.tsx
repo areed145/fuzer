@@ -11,7 +11,7 @@ import { Status, href, useAsync, useRouteState, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
-import { SampleTeam, WorkLine, byUrgency, caseHref, taskHref } from "./shared";
+import { SampleTeam, WorkLine, byUrgency, caseHref } from "./shared";
 import { ComingUp, FieldJobCard, Outbox, RoundsThisShift } from "../Field";
 import { fieldJobs } from "../../fieldOffline";
 import { cap, person as personName } from "../../wording";
@@ -259,7 +259,7 @@ function Group({ title, rows, person, picked, toggle, hint }: {
 
 function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked: Set<number>; toggle: (id: number) => void }) {
   const a = useAction();
-  const open = r.task_id ? taskHref(r.task_id) : caseHref(r.item_id);
+  const open = caseHref(r.item_id);
   return (
     <tr>
       <td className="ui-table-select-cell">

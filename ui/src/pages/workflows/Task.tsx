@@ -1,18 +1,13 @@
-import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea, ErrorText, Line, Text, List, Notice, Heading } from "../../ui";
+/** The step a case waits on, worked on the case (#1222). A step's old address opens its case. */
+import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Textarea, ErrorText, Text, List, Notice, Heading } from "../../ui";
 import { when } from "../../format";
-/** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
- * the case's history. */
-import { person as personName, say } from "../../wording";
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { person as personName } from "../../wording";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { api, type WorkTaskView } from "../../api";
-import { CaseBrief } from "../../CaseBrief";
-import { CaseFindings } from "../../Finding";
-import { CaseAround } from "./Around";
-import { CaseSafeguards } from "./Safeguards";
 import { Status, href, useAsync, useAction } from "../../lib";
-import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson } from "../../work";
-import { CloseoutPanel, ProcessDiagram, Timeline } from "./Cases";
-import { AssignPicker, GENERIC_STEP, SendToField, StepBadges, caseHref } from "./shared";
+import { Actor, DataView, usePerson } from "../../work";
+import { CloseoutPanel } from "./Cases";
+import { AssignPicker, caseHref } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
 import { OpportunityPanel } from "./OpportunityPanel";
 import { DemoContext } from "../../DemoContext";
@@ -22,137 +17,103 @@ import { sendCompletion, useOutbox } from "../../fieldOffline";
 
 const TaskForm = lazy(() => import("../../TaskForm"));
 
+/** A step's old address (#/inbox/task/:id) opens its case, where the step is worked (#1222): one page per case. */
 export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
+  const view = useAsync(() => api.workTask(id), [id]);
+  const itemId = view.data?.item.id;
+  useEffect(() => {
+    if (itemId) location.replace(demo ? href(`/cases/${itemId}`, { demo: "workflow" }) : caseHref(itemId));
+  }, [itemId, demo]);
+  return <section><PageHeader>Case</PageHeader>
+    {demo && <DemoContext step="workflow" />}
+    <Status of={view} />
+    {view.error && <a href={href("/inbox")}>Return to My work</a>}</section>;
+}
+
+/** The step a case waits on, worked on the case itself (#1222): what the field reported, its form or note, take or
+ * give back, and sending it on. The case around it carries the evidence, the diagram and the history. */
+export function StepActions({ id, demo = false, send = true, onChanged }: {
+  id: number; demo?: boolean; /** offer sending the step on; the case page sends the whole case instead */ send?: boolean;
+  onChanged: () => void;
+}) {
   const operate = usePermission("operate");
   const view = useAsync(() => api.workTask(id), [id]);
   const v = view.data;
-  const item = useAsync(() => (v ? api.workItem(v.item.id) : Promise.resolve(null)), [v?.item.id]);
   const [person] = usePerson();
   const a = useAction();
   const [done, setDone] = useState<string | null>(null);
   const [completion, setCompletion] = useState<Record<string, unknown> | null>(null);
-  useEffect(() => { setCompletion(null); }, [v?.task.assignee, v?.task.state]);
+  useEffect(() => { setCompletion(null); }, [v?.task?.assignee, v?.task?.state]);
   // Closed out without signal (P5.17e): kept on the phone until the server has it, and shown as waiting, not done.
   const kept = useOutbox().waiting.some((w) => w.kind === "task_complete" && (w.payload as { task: number }).task === id);
-  if (!v || view.error) return <section><PageHeader>Task</PageHeader>
-    {demo && <DemoContext step="workflow" />}
-    <Status of={view} />
-    <a href={href("/inbox")}>Return to Inbox</a></section>;
+  if (!v?.task || view.error) return view.loading || view.error ? <Status of={view} /> : null;
   const t = v.task;
   const waiting = t.state === "waiting";
-  const generic = GENERIC_STEP.test(t.name ?? "");
   const others = !!t.assignee && t.assignee !== person;
+  const refresh = () => { view.reload(); onChanged(); };
   const complete = (data: Record<string, unknown>) => {
     if (demo) { setCompletion(data); return; }
-    return a.run("complete", () => sendCompletion({ task: id, by: person, data, item: v.item.id }), (how) => setDone(how === "queued"
-      ? `Done on this phone: "${t.name ?? t.element}" sends, with this time, when the signal returns.`
-      : `Done: "${t.name ?? t.element}" on ${v.item.title}.`));
+    return a.run("complete", () => sendCompletion({ task: id, by: person, data, item: v.item.id }), (how) => {
+      setDone(how === "queued" ? `Done on this phone: "${t.name ?? t.element}" sends, with this time, when the signal returns.`
+        : `Done: "${t.name ?? t.element}".`);
+      refresh();
+    });
   };
-  const refresh = () => { view.reload(); item.reload(); };
-  const proc = item.data?.processes.find((p) => p.id === t.process_id);
   return (
-    <section>
-      {demo && <DemoContext step="workflow" />}
-      <Line spread>
-        {/* A step named for the engine ("Do the task") says nothing (#1131): there the work is the title. */}
-        {generic ? <PageHeader record className={v.item.title.length > 48 ? "case-title-long" : undefined}>{say(v.item.title)}</PageHeader>
-          : <PageHeader record>{t.name ?? t.element}</PageHeader>}
-        <Due at={t.due_at} closed={!waiting} />
-      </Line>
-      <Text as="p" small muted>
-        {generic ? <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>Open the case</a>
-          : <>on <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>{say(v.item.title)}</a></>} · with {holder(t.assignee, t.role, t.kind)}
-        {t.escalated_at && <> · escalated {when(t.escalated_at)}</>}
-      </Text>
-      <Line small><StepBadges row={t} /></Line>
+    <div className="step-actions">
       <ErrorText>{t.error}</ErrorText>
-      {done && !demo && <Notice>{done} <a href={href("/inbox")}>Back to your inbox</a></Notice>}
-      <div className="task-layout">
-        <div>
-          {typeof v.data.change === "string" && <UICard className="notice" title="What to change">
-            <p>{v.data.change}</p>
-            <Text as="p" small muted>
-              {typeof v.data.from_case === "number" && <>From <a href={caseHref(v.data.from_case)}>case {v.data.from_case}</a>{" · "}</>}
-              {typeof v.data.decided_by === "string" && <>decided by {personName(v.data.decided_by)}</>}
-            </Text>
-            <Text as="p" small>When it is done, say what you set in the note so the case keeps it.</Text>
-          </UICard>}
-          <FromField v={v} />
-          {item.data && <CaseBrief it={item.data} person={person} readOnly={demo} reload={item.reload} />}
-          <CaseSafeguards id={v.item.id} />
-          <CaseFindings sources={v.sources} />
-          <CaseAround id={v.item.id} />
-          {typeof v.data.opportunity === "string" && <OpportunityPanel opportunityKey={v.data.opportunity} person={person}
-            readOnly={demo} onDecided={refresh} />}
-          {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
-            canMerge={waiting && operate && !demo} onMerged={refresh} />}
-          {kept && !demo ? <Notice>Done on this phone, waiting to send. The case moves on when the signal
-            returns and the server has it.</Notice> : demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
-            <Empty>This step is {t.state}{t.finished_by ? ` (by ${t.finished_by})` : ""}.</Empty>
-          ) : t.kind === "agent" ? (
-            <p>The {t.role} agent has this step{t.claimed_by ? ` (worker ${t.claimed_by})` : ""}. Hand it to a person to take it over.</p>
-          ) : (
-            <UICard>
-              <div className="actions">
-                {!t.assignee && (demo ? <ConfirmAction label="claim task" busy={!!a.busy} disabled={completion !== null}
-                  consequence="Claim this shared task for your account. It leaves the role queue and changes recorded ownership; this is not a private demonstration."
-                  onConfirm={() => a.run("claim", () => api.claim(id, person), refresh)} />
-                  : <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(id, person), view.reload)}>Claim it</Button>)}
-                {t.assignee === person && (demo ? <ConfirmAction label="release task" busy={!!a.busy} disabled={completion !== null}
-                  consequence="Return this shared task to its role queue so another eligible person can claim it."
-                  onConfirm={() => a.run("release", () => api.release(id, person), refresh)} />
-                  : <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("release", () => api.release(id, person), view.reload)}>Release back to the queue</Button>)}
-                {others && <Text small muted>{personName(t.assignee)} has it.</Text>}
-              </div>
-              {!t.assignee && !demo && t.kind !== "fix" && (
-                <Text as="p" small muted>Not claimed yet. Completing it now records it as done by you; claim it first to hold it
-                  while you work on it.</Text>
-              )}
-              {completion && demo ? <div><Heading level={3}>Review task response</Heading><DataView data={completion} />
-                <ConfirmAction label="task completion" busy={!!a.busy}
-                  consequence="Save this response and complete the shared task. This may advance the workflow or queue downstream agent work with configured AI costs. Completion is not proof that downstream work finished. After a failure, inspect the recorded task and case before retrying."
-                  onConfirm={() => a.run("complete", () => api.complete(id, person, completion), () => {
-                    setCompletion(null); setDone("Task response saved. Inspect the refreshed case for downstream progress."); refresh();
-                  })} />{" "}
-                <Button disabled={!!a.busy} onClick={() => setCompletion(null)}>Edit response</Button>
-              </div> : others ? null : typeof v.data.closeout_id === "number"
-                ? <CloseoutPanel id={v.data.closeout_id} person={person} readOnly={demo} reload={refresh} />
-                : t.kind === "fix" ? <FixForm busy={!!a.busy} onRetry={complete} />
-                : v.form?.schema ? (
-                  <Suspense fallback={<div className="status">Loading form…</div>}>
-                    <TaskForm schema={v.form.schema} data={v.data} busy={!!a.busy} onSubmit={complete} />
-                  </Suspense>
-                ) : <NoteForm element={t.element} missing={v.form?.key} busy={!!a.busy} onSubmit={complete} />}
-            </UICard>
-          )}
-          {waiting && (!demo || operate) && <HandOff id={id} person={person} demo={demo} action={a}
-            disabled={demo && completion !== null} requiresHuman={t.requires_human} onDone={() => {
-            setDone(`Handed off "${t.name ?? t.element}".`); if (demo) refresh();
-          }} />}
-          {waiting && !demo && t.process_key === "queue_item" && t.element === "work" && exceptionOf(item.data) != null &&
-            <SendToField exceptionId={exceptionOf(item.data)!} person={person} onDone={() => {
-              setDone("Sent to the field. Their report comes back here."); refresh();
-            }} />}
-          {demo ? <ActionStatus busy={a.busy} error={a.error}>
-            {done && <p>{done} <a href={href(`/cases/${v.item.id}`, { demo: "workflow" })}>Inspect recorded case</a></p>}
-          </ActionStatus> : a.error && <ErrorText>{a.error}</ErrorText>}
-          <Evidence v={v} />
-        </div>
-        <div>
-          {proc && <ProcessDiagram p={proc} focus={t.element} />}
-          <Status of={item} />
-          {item.data && <Timeline it={item.data} person={person} readOnly={demo} />}
-        </div>
-      </div>
-    </section>
+      {done && !demo && <Notice>{done}</Notice>}
+      {typeof v.data.change === "string" && <UICard className="notice" title="What to change">
+        <p>{v.data.change}</p>
+        <Text as="p" small muted>
+          {typeof v.data.from_case === "number" && <>From <a href={caseHref(v.data.from_case)}>case {v.data.from_case}</a>{" · "}</>}
+          {typeof v.data.decided_by === "string" && <>decided by {personName(v.data.decided_by)}</>}
+        </Text>
+        <Text as="p" small>When it is done, say what you set in the note so the case keeps it.</Text>
+      </UICard>}
+      <FromField v={v} />
+      {typeof v.data.opportunity === "string" && <OpportunityPanel opportunityKey={v.data.opportunity} person={person}
+        readOnly={demo} onDecided={refresh} />}
+      {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
+        canMerge={waiting && operate && !demo} onMerged={refresh} />}
+      {kept && !demo ? <Notice>Done on this phone, waiting to send. The case moves on when the signal
+        returns and the server has it.</Notice> : demo && !operate ? <Text as="p" small>Read-only. Changes need operate access and the step's workflow role.</Text> : !waiting ? null
+        : t.kind === "agent" ? <Text as="p" small>The {(t.role ?? "").replace(/_/g, " ")} agent has this step. Send it to a person to take it over.</Text>
+        : <>
+          <div className="actions">
+            {!t.assignee && (demo ? <ConfirmAction label="take this step" busy={!!a.busy} disabled={completion !== null}
+              consequence="Take this shared step for your account. It leaves the queue and changes recorded ownership; this is not a private demonstration."
+              onConfirm={() => a.run("take", () => api.claim(id, person), refresh)} />
+              : <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("take", () => api.claim(id, person), refresh)}>Take it</Button>)}
+            {t.assignee === person && (demo ? <ConfirmAction label="give it back" busy={!!a.busy} disabled={completion !== null}
+              consequence="Give this shared step back to its queue so someone else can take it."
+              onConfirm={() => a.run("release", () => api.release(id, person), refresh)} />
+              : <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("release", () => api.release(id, person), refresh)}>Give it back to the queue</Button>)}
+            {others && <Text small muted>{personName(t.assignee)} has it.</Text>}
+          </div>
+          {completion && demo ? <div><Heading level={3}>Review the response</Heading><DataView data={completion} />
+            <ConfirmAction label="step completion" busy={!!a.busy}
+              consequence="Save this response and complete the shared step. This may move the workflow on or queue agent work with configured AI costs. After a failure, look at the case before trying again."
+              onConfirm={() => a.run("complete", () => api.complete(id, person, completion), () => {
+                setCompletion(null); setDone("Saved."); refresh();
+              })} />{" "}
+            <Button disabled={!!a.busy} onClick={() => setCompletion(null)}>Edit response</Button>
+          </div> : others ? null : typeof v.data.closeout_id === "number"
+            ? <CloseoutPanel id={v.data.closeout_id} person={person} readOnly={demo} reload={refresh} />
+            : t.kind === "fix" ? <FixForm busy={!!a.busy} onRetry={complete} />
+            : v.form?.schema ? (
+              <Suspense fallback={<div className="status">Loading form…</div>}>
+                <TaskForm schema={v.form.schema} data={v.data} busy={!!a.busy} onSubmit={complete} />
+              </Suspense>
+            ) : <NoteForm element={t.element} missing={v.form?.key} busy={!!a.busy} onSubmit={complete} />}
+        </>}
+      {send && waiting && (!demo || operate) && <HandOff id={id} person={person} demo={demo} action={a}
+        disabled={demo && completion !== null} requiresHuman={t.requires_human} onDone={() => {
+        setDone(`Sent "${t.name ?? t.element}" on.`); refresh();
+      }} />}
+      {demo ? <ActionStatus busy={a.busy} error={a.error}>{null}</ActionStatus> : a.error && <ErrorText>{a.error}</ErrorText>}
+    </div>
   );
-}
-
-/** The incident a queue case was raised from, which is what goes to the field (#1145). */
-function exceptionOf(it: unknown): number | null {
-  const payload = ((it ?? {}) as { payload?: Record<string, unknown> }).payload ?? {};
-  const raised = (payload.start && typeof payload.start === "object" ? payload.start : payload) as Record<string, unknown>;
-  return typeof raised.exception_id === "number" ? raised.exception_id : null;
 }
 
 function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, disabled }: {
@@ -162,14 +123,14 @@ function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, d
   const [to, setTo] = useState("");
   const [reason, setReason] = useState("");
   return (
-    <Disclosure className="card small" label={<>Hand off to someone else</>}>
+    <Disclosure className="card small" label={<>Send to someone else</>}>
       <div className="actions">
         <AssignPicker value={to} onChange={setTo} agents={!requiresHuman} />
         <Input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
-        {demo ? <ConfirmAction label="task handoff" disabled={!to || disabled} busy={!!a.busy}
+        {demo ? <ConfirmAction label="send the step" disabled={!to || disabled} busy={!!a.busy}
           consequence={`Transfer this shared task to ${to}. This changes assignment and may queue agent execution with configured AI costs. Human-only steps cannot be assigned to agents. Inspect recorded state before a retry.`}
           onConfirm={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)} />
-          : <Button disabled={!to || !!a.busy} onClick={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)}>Hand off</Button>}
+          : <Button disabled={!to || !!a.busy} onClick={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)}>Send</Button>}
       </div>
       {requiresHuman && <Text as="p" small>This step needs a person: it can't go to an agent.</Text>}
     </Disclosure>
@@ -230,29 +191,3 @@ function FromField({ v }: { v: WorkTaskView }) {
 }
 
 
-function Evidence({ v }: { v: WorkTaskView }) {
-  const e = v.evidence;
-  const latest = useMemo(() => {
-    const seen = new Set<string>();  // newest result per step first; older tries fold away
-    return e.agents.map((a) => ({ a, old: seen.has(a.element ?? "") || !seen.add(a.element ?? "") }));
-  }, [e.agents]);
-  return (
-    <UICard className="evidence" title="Evidence">
-      {e.subjects.length > 0 && (
-        <Text as="p" small>About <EntityLinks ids={e.subjects.map((s) => s.fuzer_id)} /></Text>
-      )}
-      {latest.map(({ a, old }) => (
-        <Disclosure key={a.id} open={!old} className="evidence-item" label={<><Actor who={a.actor} /> on {a.data.step ?? a.element} · <Text muted>{when(a.at)}</Text>{old && " (earlier try)"}</>}>
-          <DataView data={a.data.data} />
-        </Disclosure>
-      ))}
-      {e.messages.map((m) => (
-        <Disclosure key={m.id} open className="evidence-item" label={<><Actor who={m.actor} /> sent {m.data.name} · <Text muted>{when(m.at)}</Text></>}>
-          <DataView data={m.data.payload} />
-        </Disclosure>
-      ))}
-      {!e.agents.length && !e.messages.length && <Text as="p" small muted>What started the workflow:</Text>}
-      {!e.agents.length && <DataView data={startedWith(v.data)} />}
-    </UICard>
-  );
-}

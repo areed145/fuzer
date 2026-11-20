@@ -2343,6 +2343,13 @@ const demoTask = {
   item: { id: 7, title: "Loaded shared case", type: "upset", state: "open", subjects: [], created_by: "agent:sre" },
   data: {}, form: null, bulk: [], evidence: { agents: [], messages: [], comments: [], subjects: [] },
 };
+/** The demo case as its page loads it, waiting on step 42: the step is worked on the case (#1222). */
+const demoCase = (state = "waiting") => ({ ...demoTask.item, events: [], processes: [{ id: 9, process_key: "upset", version: 1,
+  definition_id: 1, parent_token: null, state: "running", outcome: null, data: {}, started_by: "agent:sre",
+  started_at: "2024-03-14T12:00:00Z", path: [], open: state === "waiting" ? [{ id: 42, process_id: 9, element: "review",
+    name: "Review recorded evidence", kind: "user", state: "waiting", flow: null, role: "engineer", assignee: null,
+    requires_human: true, due_at: null, escalated_at: null, attempts: 0, error: null, created_at: "2024-03-14T12:00:00Z",
+    finished_at: null, finished_by: null }] : [] }] });
 
 test("Demo workflow uses loaded shared tasks, confirms changes and exposes ambiguous failure recovery", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
@@ -2354,7 +2361,7 @@ test("Demo workflow uses loaded shared tasks, confirms changes and exposes ambig
     counts: { mine: { total: 0 }, queue: { total: 1 } },
   } }));
   await page.route("**/work/tasks/42", route => route.fulfill({ json: demoTask }));
-  await page.route("**/work/items/7", route => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/items/7", route => route.fulfill({ json: demoCase() }));
   const writes = [];
   await page.route("**/work/tasks/42/*", route => {
     writes.push({ path: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
@@ -2365,17 +2372,19 @@ test("Demo workflow uses loaded shared tasks, confirms changes and exposes ambig
   await page.getByRole("heading", { name: "Loaded shared case", exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Reassign", exact: true }).count(), 0);
   await page.getByRole("link", { name: "Return to Demo", exact: true }).click();
+  // the step's old address opens its case, where the step is worked (#1222)
   await page.getByRole("link", { name: "Review recorded evidence", exact: true }).click();
-  await page.getByRole("heading", { name: "Review recorded evidence", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Loaded shared case", exact: true }).waitFor();
+  await page.locator(".case-next").getByText("Review recorded evidence", { exact: true }).waitFor();
   assert.deepEqual(writes, []);
-  await page.getByRole("button", { name: "claim task", exact: true }).click();
+  await page.getByRole("button", { name: "take this step", exact: true }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(writes, []);
   await page.getByRole("button", { name: "Complete", exact: true }).click();
-  await page.getByRole("heading", { name: "Review task response", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Review the response", exact: true }).waitFor();
   assert.deepEqual(writes, []);
-  await page.getByRole("button", { name: "task completion", exact: true }).click();
-  await page.getByRole("button", { name: "Confirm task completion", exact: true }).click();
+  await page.getByRole("button", { name: "step completion", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm step completion", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: "Task response uncertain" }).waitFor();
   await page.getByText("Check what was saved before trying again", { exact: false }).waitFor();
   assert.equal(writes.length, 1);
@@ -2387,15 +2396,15 @@ test("Demo workflow uses loaded shared tasks, confirms changes and exposes ambig
 test("Demo reader can inspect capabilities and task evidence without paid or workflow controls", async () => {
   await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
   await page.route("**/work/tasks/42", route => route.fulfill({ json: demoTask }));
-  await page.route("**/work/items/7", route => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/items/7", route => route.fulfill({ json: demoCase() }));
   const writes = [];
   page.on("request", request => { if (request.method() !== "GET") writes.push(request.url()); });
   await page.goto(`${url}/#/demo?step=agents`);
   await page.getByText("Paid questions require AI access", { exact: false }).waitFor();
   assert.equal(await page.getByRole("link", { name: "Prepare a cross-domain question", exact: true }).count(), 0);
   await page.goto(`${url}/#/inbox/task/42?demo=workflow`);
-  await page.getByText("Read-only task inspection.", { exact: false }).waitFor();
-  assert.equal(await page.getByRole("button", { name: /claim task|Complete|task handoff/ }).count(), 0);
+  await page.getByText("Read-only. Changes need operate access", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: /take this step|Complete|send the step/ }).count(), 0);
   assert.deepEqual(writes, []);
 });
 
@@ -2430,17 +2439,17 @@ test("Demo confirmed task completion refreshes recorded task state and prevents 
   await page.route("**/work/tasks/42", route => route.fulfill({ json: {
     ...demoTask, task: { ...demoTask.task, state, finished_by: state === "done" ? "ana" : null },
   } }));
-  await page.route("**/work/items/7", route => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/items/7", route => route.fulfill({ json: demoCase(state) }));
   await page.route("**/work/tasks/42/complete", route => {
     writes++; state = "done";
     return route.fulfill({ json: { process_state: "running" } });
   });
   await page.goto(`${url}/#/inbox/task/42?demo=workflow`);
   await page.getByRole("button", { name: "Complete", exact: true }).click();
-  await page.getByRole("button", { name: "task completion", exact: true }).click();
-  await page.getByRole("button", { name: "Confirm task completion", exact: true }).click();
-  await page.getByText("This step is done (by ana).", { exact: true }).waitFor();
-  await page.getByText("Task response saved.", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "step completion", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm step completion", exact: true }).click();
+  // the case reloads with no step open, so nothing is offered to complete again
+  await page.locator(".case-next").getByText("Review recorded evidence", { exact: true }).waitFor({ state: "detached" });
   assert.equal(await page.getByRole("button", { name: "Complete", exact: true }).count(), 0);
   assert.equal(writes, 1);
 });
@@ -3142,7 +3151,7 @@ test("Needs you lists what waits on the person, opens each record, and rings its
     await page.goto(`${url}/#/`);
     const feed = page.getByRole("complementary", { name: "Needs you" });
     if (width < 900) await feed.getByRole("button", { name: "Open Needs you" }).click();
-    assert.equal(await feed.getByRole("link", { name: "Check separator level 1", exact: true }).getAttribute("href"), "#/inbox/task/1");
+    assert.equal(await feed.getByRole("link", { name: "Check separator level 1", exact: true }).getAttribute("href"), "#/cases/101");
     assert.equal(await page.getByRole("button", { name: "Claim", exact: true }).count(), 0);
     const show = feed.getByRole("button", { name: "Show Check separator level 1 on the map" });
     if (width > 900) {
@@ -3337,7 +3346,7 @@ test("the field's report sits above the IOC's decision, and operators are only o
     data: { field_ask: "read the wellhead gauge", field_result: "done" },
     evidence: { ...demoTask.evidence, comments: [comment(5, "Field: Done: gauge reads 13 barg", "otto", "2026-11-09T09:00:00Z"),
       comment(4, "looks like a sticky valve", "erin", "2026-11-09T08:00:00Z")] } } }));
-  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: demoCase() }));
   await page.goto(`${url}/#/inbox/task/42`);
   const box = page.locator(".from-field");
   await box.getByRole("heading", { name: "From the field" }).waitFor();
@@ -4368,7 +4377,7 @@ test("an upset's triage shows how it spread and merges a knock-on into one case"
   await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
     task: { ...demoTask.task, element: "triage", name: "Triage", requires_human: false, assignee: "erin" },
     data: { upset_id: 13 } } }));
-  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase() } }));
   const related = (over) => ({ id: 14, signature: "a step change on OK-J12-01", start: "2024-11-05T12:00:00", end: null,
     lag_minutes: 20, hops: 5, seen_together: 2, role: "likely_knock_on", why: "", score: 0.4, status: "detected",
     detections: 4, units: 4, work_item_id: 8, case_title: "Step change on OK-J12-01", case_state: "open",
@@ -4492,7 +4501,7 @@ for (const [type, found] of Object.entries(FINDINGS)) {
       history: [], field: [], queued: false, sent: null };
     await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
     await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask, sources: [source] } }));
-    await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [], sources: [source] } }));
+    await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase(), sources: [source] } }));
     const read = async (path, width) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${url}/#${path}`);
@@ -4606,8 +4615,8 @@ for (const state of ["empty", "loading", "failed"]) {
 }
 
 // P5.3a (#641): the field's pages on a 390 px phone are rows and single-column forms, with every control a 44 px
-// tap target and nothing wider than the screen: My work, the job, the task and the case.
-test("My work, the job, the task and the case fit a 390 px phone with 44 px targets (#641)", async () => {
+// tap target and nothing wider than the screen: My work, the job and the case, where its step is worked.
+test("My work, the job and the case (where a step is worked) fit a 390 px phone with 44 px targets (#641)", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
   const source = { id: 7, type: "sap_notification", key: "k-1", title: "Pump P-101 vibration", source: "sap", state: "open",
     first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", joined_to: null, subjects: [], label: "SAP notification",
@@ -4625,7 +4634,7 @@ test("My work, the job, the task and the case fit a 390 px phone with 44 px targ
     queue: [{ ...row, item_id: 9, task_id: 43, title: "Another case in the queue", due_at: null }],
     counts: { mine: { total: 1 }, queue: { total: 1 } } } }));
   await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask, sources: [source] } }));
-  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [],
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase(),
     sources: [source], due: null, closed_at: null, created_at: "2026-11-12T05:00:00Z" } }));
   await page.setViewportSize({ width: 390, height: 844 });
   const small = async (path, ready) => {
@@ -4641,10 +4650,9 @@ test("My work, the job, the task and the case fit a 390 px phone with 44 px targ
   };
   const found = {
     "My work": await small("/inbox", "Pump P-101 vibration"),
-    task: await small("/inbox/task/42", "Review recorded evidence"),
     case: await small("/cases/7", "Loaded shared case"),
   };
-  assert.deepEqual(found, { "My work": [], task: [], case: [] });
+  assert.deepEqual(found, { "My work": [], case: [] });
 });
 
 // P5.3b (#642): Done with a reading and a photo from the phone; the IOC's "From the field" box shows both.
@@ -4679,7 +4687,7 @@ test("a reading and a photo taken on the phone reach the IOC's From the field bo
       attachments: [{ kind: "photo", exception_id: 7, photo_id: 3 }] } };
   await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
     evidence: { ...demoTask.evidence, comments: [said] } } }));
-  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [], sources: [] } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase(), sources: [] } }));
   await page.route("**/exceptions/7/photos/3", (route) => route.fulfill({ body: PNG, contentType: "image/png" }));
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${url}/#/inbox/task/42`);
@@ -5088,17 +5096,18 @@ test("P5.17e A task step closed out without signal waits on the phone and is com
       return route.fulfill({ json: { process_state: "running" } });
     }
     if (path === "/work/tasks/42") return route.fulfill({ json: view });
-    if (path === "/work/items/7") return route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } });
+    if (path === "/work/items/7") return route.fulfill({ json: { ...demoCase() } });
     return route.fallback();
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${url}/#/inbox/task/42`);
-  await page.getByRole("heading", { name: "Check the gland", exact: true }).waitFor();
+  await page.goto(`${url}/#/inbox/task/42`);  // the step's old address opens its case, where the step is worked
+  await page.waitForURL(/#\/cases\/7$/);
+  await page.getByPlaceholder("Note").waitFor();
   await page.waitForTimeout(300);  // kept as it was answered
 
   reachable = false;
   await page.reload();
-  await page.getByRole("heading", { name: "Check the gland", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Loaded shared case", exact: true }).waitFor();
   const before = Date.now();
   await page.getByPlaceholder("Note").fill("Gland repacked, no weep");
   await page.getByRole("button", { name: "Complete", exact: true }).click();
@@ -5206,7 +5215,7 @@ test("P5.17g Field mode: 56 px targets, 7:1 text, a job's actions in thumb reach
   await page.route("**/rounds", (route) => route.fulfill({ json: [run] }));
   await page.route("**/rounds/3", (route) => route.fulfill({ json: detail }));
   await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask, task: { ...demoTask.task, assignee: "fred" } } }));
-  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase() } }));
   await page.route("**/entities/fz-p-101/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
   await page.route("**/entities/fz-p-101", (route) => route.fulfill({ json: { fuzer_id: "fz-p-101", kind: "equipment",
     label: "P-101 export pump", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
@@ -5521,7 +5530,7 @@ test("Home ranks an ops lead's work across both fields and opens one in the othe
   await shift.getByText("gland weeping", { exact: false }).waitFor();
   assert.ok(marked.includes("true"));  // this look is the new last look
   await shift.getByRole("button", { name: "Kestrel compressor trip" }).click();
-  await page.waitForURL(/#\/inbox\/task\/77$/);
+  await page.waitForURL(/#\/cases\/21$/);
   assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.project")), "kestrel");
 });
 
@@ -5529,7 +5538,7 @@ test("Home ranks an ops lead's work across both fields and opens one in the othe
 // apart from their own work and never assigned to them.
 test("watching a case shows its changes on Home under Watching, not as assigned work (#650)", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
-  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase() } }));
   let watched = [];
   const posts = [];
   await page.route("**/work/watch*", (route) => {
@@ -8197,7 +8206,7 @@ test("My work never scrolls sideways on a phone, even holding every role (#1077)
   assert.deepEqual(errors, []);
 });
 
-test("P5.14e A dispatched job walked in the installed app at 390 px: My work, the step, its asset, the trend, and Back to the step", async () => {
+test("P5.14e A dispatched job walked in the installed app at 390 px: My work, the step on its case, its asset, the trend, and Back to the step", async () => {
   // Installed on a phone: standalone display, no browser back button, a gloved thumb.
   await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
@@ -8213,7 +8222,7 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
     counts: { mine: { total: 1 }, queue: { total: 0 } } } }));
   await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
     evidence: { ...demoTask.evidence, subjects: [{ fuzer_id: "fz-p-101" }] } } }));
-  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase(), subjects: ["fz-p-101"] } }));
   await page.route("**/entities/fz-p-101/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
   await page.route("**/entities/fz-p-101", (route) => route.fulfill({ json: { fuzer_id: "fz-p-101", kind: "equipment",
     label: "P-101 export pump", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
@@ -8239,12 +8248,12 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
   assert.ok((await page.locator("html").getAttribute("class")).split(" ").includes("installed"));
   await page.getByRole("heading", { name: /Pump P-101 vibration/ }).waitFor();
   await fits("My work");
-  // The step on that job.
+  // The step on that job, worked on its case (#1222).
   await page.getByRole("link", { name: "Open step: Review recorded evidence" }).click();
-  await page.waitForURL(/#\/inbox\/task\/42$/);
-  await page.getByRole("heading", { name: "Review recorded evidence" }).first().waitFor();
+  await page.waitForURL(/#\/cases\/7$/);
+  await page.locator(".case-next").getByText("Review recorded evidence", { exact: true }).waitFor();
   await fits("the step");
-  // Its asset, from the step's evidence.
+  // Its asset, from the case.
   await page.locator('#main-content a[title="fz-p-101"]').first().click();
   await page.waitForURL(/#\/e\/fz-p-101$/);
   await page.getByRole("heading", { name: "P-101 export pump" }).first().waitFor();
@@ -8262,8 +8271,8 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
   await page.waitForURL(/#\/e\/fz-p-101$/);
   await page.getByRole("heading", { name: "P-101 export pump" }).first().waitFor();
   await back.click();
-  await page.waitForURL(/#\/inbox\/task\/42$/);
-  await page.getByRole("heading", { name: "Review recorded evidence" }).first().waitFor();
+  await page.waitForURL(/#\/cases\/7$/);
+  await page.locator(".case-next").getByText("Review recorded evidence", { exact: true }).waitFor();
   await fits("the step, after Back");
   await back.click();
   await page.waitForURL(/#\/inbox$/);
@@ -8403,15 +8412,18 @@ test("a case opens on its decision: what it waits on, the next action, and a mis
     events: [{ id: 3, kind: "escalated", actor: "system", element: "triage", at: "2026-11-12T22:04:00Z", data: {
       why: "SLA PT4H on 'Triage' passed at 2026-11-12 22:04 UTC while it was with the engineer queue; moved to the ops_lead queue",
       from: "the engineer queue", to: "role:ops_lead", due: "2026-11-12T22:04:00Z" } }] } }));
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
+    task: { ...demoTask.task, element: "triage", name: "Triage", role: "ops_lead", item_id: 113 } } }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/cases/113`);
   const next = page.getByRole("region", { name: "Next step" }).or(page.locator(".case-next"));
   await next.getByText("Triage", { exact: true }).waitFor();
-  assert.equal(await next.getByRole("link", { name: "Open Triage" }).getAttribute("href"), "#/inbox/task/42");
-  // giving it to someone else is one tap away, not standing above the evidence
-  assert.equal(await next.getByLabel("Give it to").count(), 0);
-  await next.getByRole("button", { name: "Give it to someone else" }).click();
-  await next.getByLabel("Give it to").waitFor();
+  // the step is worked right here (#1222): no separate step page
+  await next.getByRole("button", { name: "Take it", exact: true }).waitFor();
+  // sending it to someone else is one tap away, not standing above the evidence
+  assert.equal(await next.getByLabel("Send to").count(), 0);
+  await next.getByRole("button", { name: "Send to someone else" }).click();
+  await next.getByLabel("Send to").waitFor();
   const history = page.locator(".timeline");
   await history.getByText("was due within 4 hours while it was with the engineer queue. It passed to the ops lead queue.", { exact: false }).waitFor();
   assert.equal(await history.getByText("SLA PT4H", { exact: false }).count(), 0);

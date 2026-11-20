@@ -16,7 +16,6 @@ import { useSignal } from "../useSignal";
 import { Status, entityHref, href, useAsync, useAction, errorMessage } from "../lib";
 import { Due, reportedBy } from "../work";
 import { FindingEvidence } from "../Finding";
-import { taskHref } from "./workflows/shared";
 
 /** Reports kept on this phone while there was no signal (P5.3c): the app's one sender (P5.17a) sends them as soon as
  * the signal returns, from whichever page is open; this card counts them and can send now by hand. One the server
@@ -448,7 +447,8 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         <Button disabled={!!busy || !note.trim()} title={note.trim() ? undefined : "Say why in the note first"}
           onClick={() => say("could_not_do")}>Could not do</Button>
         <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
-        {job.task_id && job.own_step && <ButtonLink href={taskHref(job.task_id)}>Open step: {job.task_name}</ButtonLink>}
+        {/* a step of their own is worked on its case (#1222) */}
+        {job.item_id && job.task_id && job.own_step && <ButtonLink href={href(`/cases/${job.item_id}`)}>Open step: {job.task_name}</ButtonLink>}
         {job.item_id && !job.task_id && <ButtonLink href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
       </div>
       {!job.handover && <HandOver job={job} person={person} onChange={onChange} />}</>}
