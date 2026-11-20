@@ -57,7 +57,10 @@ async function keptRead<T>(url: string, read: () => Promise<T>, file = false): P
  * known. */
 export const RESTART_RETRY_MS = [2_000, 4_000, 8_000, 15_000, 15_000, 15_000, 15_000, 15_000];
 export const RESTARTING = "Fuzer is restarting after an update. Try again in a minute.";
-const restarting = (status: number) => status === 502 || status === 503 || status === 504;
+/** The host's own 502, 503 or 504: an HTML or empty page. Fuzer's API answers its own errors in JSON with a detail
+ * (a 503 for a database it can't reach, say), and those are shown as they are. */
+const restarting = (res: Response) => [502, 503, 504].includes(res.status)
+  && !(res.headers?.get("content-type") ?? "").includes("json");
 const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
 
 type Params = Record<string, string | number | undefined | null>;
@@ -83,11 +86,11 @@ export async function request<T>(method: string, path: string, params?: Params, 
       body: body ? JSON.stringify(body) : undefined,
     }, deadline);
     let res = await send();
-    for (let i = 0; readOnly && restarting(res.status) && i < RESTART_RETRY_MS.length; i++) {
+    for (let i = 0; readOnly && restarting(res) && i < RESTART_RETRY_MS.length; i++) {
       await pause(RESTART_RETRY_MS[i]);
       res = await send();
     }
-    if (readOnly && restarting(res.status)) throw Object.assign(new Error(RESTARTING), { status: res.status });
+    if (readOnly && restarting(res)) throw Object.assign(new Error(RESTARTING), { status: res.status });
     if (!res.ok) {
       if (res.status === 401) window.dispatchEvent(new Event("fuzer:unauthorized"));
       const detail = await res.json().catch(() => null);

@@ -88,4 +88,9 @@ test("A read that meets a deploy's 502 waits for the new server; a write is not 
   assert.equal(sent("/entities/other"), 4);
   await assert.rejects(c.api.updateAccount("user/a", { enabled: true, owner: false, roles: [] }), /502/);
   assert.equal(sent("/auth/accounts/user%2Fa"), 1);
+  // Fuzer's own 503 (JSON with a detail) is the app answering, not the host restarting: shown at once.
+  c.respond({ ok: false, status: 503, headers: new Map([["content-type", "application/json"]]),
+    json: async () => ({ detail: "Database restarting" }) });
+  await assert.rejects(c.api.entity("db"), /Database restarting/);
+  assert.equal(sent("/entities/db"), 1);
 });
