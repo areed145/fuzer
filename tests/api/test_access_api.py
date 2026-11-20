@@ -593,14 +593,17 @@ def test_audit_record_is_owner_only_and_per_project(runtime, second_project):
 
 
 def _area_and_two_subjects(conn):
-    """An area of the register, something inside it, and something in another area."""
+    """An area of the register, something inside it, and something outside it. Okan nests one area inside another
+    (OKAN-25 is part of OKAN-20), and fuzer ids differ from run to run, so "part of another area" is not enough:
+    the outside subject must not reach the area by any containment path."""
     inside = conn.execute(
         "select e.src, e.dst from edge e join entity t on t.fuzer_id = e.dst where t.kind = 'area' "
         "and e.rel = 'part_of' order by e.dst, e.src limit 1").fetchone()
-    other = conn.execute(
+    others = conn.execute(
         "select e.src from edge e join entity t on t.fuzer_id = e.dst where t.kind = 'area' and e.rel = 'part_of' "
-        "and e.dst <> %s order by e.src limit 1", (inside["dst"],)).fetchone()
-    return inside["dst"], inside["src"], other["src"]
+        "and e.dst <> %s order by e.src", (inside["dst"],)).fetchall()
+    other = next(o["src"] for o in others if not access.within(conn, [o["src"]], [inside["dst"]]))
+    return inside["dst"], inside["src"], other
 
 
 def test_area_grants_narrow_what_a_person_acts_on_never_what_they_read(runtime):
