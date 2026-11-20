@@ -1,6 +1,6 @@
 import "../styles/events.css";
 import { percent, when, whenDay, count } from "../format";
-import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea, ErrorText, Line, Text, List } from "../ui";
+import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea, ErrorText, Line, Text, List, Heading } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -138,7 +138,7 @@ function IncidentPanels({ id }: { id: string }) {
       <UICard as="section">
         {reading.data && reading.data.length > 0 && (
           <>
-            <h2>Suggested reading</h2>
+            <Heading>Suggested reading</Heading>
             <List plain>
               {reading.data.map((r) => (
                 <li key={r.id} className="small">
@@ -150,7 +150,7 @@ function IncidentPanels({ id }: { id: string }) {
             </List>
           </>
         )}
-        <h2>Similar past incidents</h2>
+        <Heading>Similar past incidents</Heading>
         <Status loading={similar.loading && !similar.data} empty={similar.data?.length === 0}>
           None found.
         </Status>
@@ -177,7 +177,7 @@ function BriefCard({ id }: { id: string }) {
       {b && (
         <div className="grid">
           <div>
-            <h3>Suggested checks</h3>
+            <Heading level={3}>Suggested checks</Heading>
             {b.suggested_checks.length === 0 ? (
               <Empty className="small">No approved lessons or reading for this unit yet.</Empty>
             ) : (
@@ -197,7 +197,7 @@ function BriefCard({ id }: { id: string }) {
           <div>
             {b.measurements.length > 0 && (
               <>
-                <h3>Measurements <Text small muted>latest, not in PI</Text></h3>
+                <Heading level={3}>Measurements</Heading>
                 <List plain small>
                   {b.measurements.slice(0, 6).map((m) => (
                     <li key={`${m.quantity}|${m.location}|${m.of.id}`}>
@@ -214,7 +214,7 @@ function BriefCard({ id }: { id: string }) {
             )}
             {b.lessons.approved.length > 0 && (
               <>
-                <h3>Lessons</h3>
+                <Heading level={3}>Lessons</Heading>
                 <List plain small>
                   {b.lessons.approved.map((l) => <li key={l.id}><a href={href("/lessons")}>{l.title}</a></li>)}
                 </List>
@@ -222,7 +222,7 @@ function BriefCard({ id }: { id: string }) {
             )}
             {b.spares.length > 0 && (
               <>
-                <h3>Spares</h3>
+                <Heading level={3}>Spares</Heading>
                 <List plain small>
                   {b.spares.slice(0, 6).map((p) => (
                     <li key={p.fuzer_id}>
@@ -248,9 +248,7 @@ function Moved({ pv }: { pv: Brief["process_values"] }) {
     .sort((a, b) => Math.abs(b.lead_in!.change_pct!) - Math.abs(a.lead_in!.change_pct!));
   return (
     <>
-      <h3>
-        What moved <Text small muted>12 h before {pv.centre.replace("T", " ")} vs. before that</Text>
-      </h3>
+      <Heading level={3} detail={`12 h before ${pv.centre.replace("T", " ")} vs. before that`}>What moved</Heading>
       {moved.length === 0 ? (
         <Empty className="small">No point moved more than 10%.{pv.errors && ` ${pv.errors.length} points couldn't be read.`}</Empty>
       ) : (
@@ -281,7 +279,7 @@ function Rate({ target }: { target: string }) {
     api.feedback(target, useful, rater(), comment || undefined).then(() => setSent(useful), (e) => setError(String(e)));
   return (
     <div className="rate">
-      <h3>Would this brief have helped?</h3>
+      <Heading level={3}>Would this brief have helped?</Heading>
       {sent !== null ? (
         <Text as="p" small>Thanks: rated {sent ? "useful" : "not useful"}.</Text>
       ) : (

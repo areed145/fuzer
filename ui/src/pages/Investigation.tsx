@@ -3,7 +3,7 @@ import { when, count } from "../format";
 import { useEffect, useRef } from "react";
 import { api, type Investigation, type InvestigationRecord } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Badge, ButtonLink, Card, EmptyState, PageHeader, Stat, Stats, Empty, Facts, Text } from "../ui";
+import { Badge, ButtonLink, Card, EmptyState, PageHeader, Stat, Stats, Empty, Facts, Text, Heading } from "../ui";
 
 const STEPS = [
   { key: "issue", label: "Understand the issue" },
@@ -65,7 +65,7 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
           </nav>
           <Card className="investigation-stage">
             <Text as="p" small>Step {index + 1} of {STEPS.length}</Text>
-            <h2 id="investigation-step" tabIndex={-1} ref={heading}>{step.label}</h2>
+            <Heading id="investigation-step" tabIndex={-1} ref={heading}>{step.label}</Heading>
             {step.key === "issue" && <Issue data={result.data} />}
             {step.key === "asset" && <Asset data={result.data} />}
             {step.key === "evidence" && <EvidenceList data={result.data} selected={evidence} />}
@@ -95,7 +95,7 @@ function monthOf(day: string): string {
 function Issue({ data }: { data: Investigation }) {
   return (
     <>
-      <h3>{data.title}</h3>
+      <Heading level={3}>{data.title}</Heading>
       <p>Start with <strong>{data.asset_label}</strong>, the asset this scenario is about.
         What do the linked records say happened, what production loss was recorded, and what maintenance followed?</p>
       <Stats>
@@ -111,13 +111,13 @@ function Issue({ data }: { data: Investigation }) {
 function Asset({ data }: { data: Investigation }) {
   return (
     <>
-      <h3>{data.asset_label}</h3>
+      <Heading level={3}>{data.asset_label}</Heading>
       <p>Fuzer connects records from different systems to one asset. These are the register's selected
         values, with the source that supplied each value.</p>
       {data.asset_fields.length ? (
         <Facts grid items={data.asset_fields.map((f) => [f.name, <>{f.value} <Badge>{f.source}</Badge></>] as const)} />
       ) : <Empty>No descriptive asset fields are available.</Empty>}
-      <h3>Asset provenance</h3>
+      <Heading level={3}>Asset provenance</Heading>
       <Provenance records={data.asset_records} />
       <p>Next, compare the operator accounts, maintenance records and recorded downtime.
         They describe different parts of the same investigation; a link alone is not proof of cause.</p>
@@ -161,10 +161,10 @@ function EvidenceCard({ evidence: e, number, selected }: {
   useEffect(() => { if (selected) summary.current?.focus(); }, [selected]);
   return (
     <article className="investigation-evidence" aria-current={selected || undefined}>
-      <h3 ref={summary} tabIndex={-1}>
+      <Heading level={3} ref={summary} tabIndex={-1}>
         <span><strong>Evidence {number}</strong> · {kindLabel(e.kind)} · <time>{e.at ?? "Date unknown"}</time></span>
         <span>{e.text ?? e.label}</span>
-      </h3>
+      </Heading>
       {!e.text && <p className="section-text">No record text is available.</p>}
       {e.lost_oil_bbl !== null && <p><strong>{count(e.lost_oil_bbl)} bbl recorded lost oil</strong>
         {" "}(stock tank barrels, not bbl/d)</p>}
@@ -177,7 +177,7 @@ function EvidenceCard({ evidence: e, number, selected }: {
 function Findings({ data }: { data: Investigation }) {
   return (
     <>
-      <h3>What the loaded records establish</h3>
+      <Heading level={3}>What the loaded records establish</Heading>
       <p>This finding comes directly from the loaded evidence, without an AI-generated answer.</p>
       {data.findings.map((f, i) => (
         <div className="investigation-finding" key={i}>
@@ -190,7 +190,7 @@ function Findings({ data }: { data: Investigation }) {
           </div>
         </div>
       ))}
-      <h3>What this does not establish</h3>
+      <Heading level={3}>What this does not establish</Heading>
       <ul>{data.limitations.map((text) => <li key={text}>{text}</li>)}</ul>
       <p><strong>Investigation complete.</strong> You have traced an asset to its supporting records and a
         finding with explicit limits. An engineer would review the cited records and repair outcome before

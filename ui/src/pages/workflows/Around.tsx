@@ -4,7 +4,7 @@ import { api } from "../../api";
 import type { CaseAround as CaseAroundData } from "../../api/work";
 import { entityHref, href, useAsync } from "../../lib";
 import { TrendView } from "../../TrendView";
-import { Button, ButtonLink, Card, Disclosure, Table, Text, List } from "../../ui";
+import { ButtonLink, Card, Disclosure, Table, Text, List, Tabs } from "../../ui";
 
 const ALARM: Record<string, string> = { hihi: "High-high", hi: "High", lo: "Low", lolo: "Low-low" };
 
@@ -26,11 +26,7 @@ export function CaseAround({ id, data }: { id: number; data?: CaseAroundData }) 
   return (
     <>
       {units.length > 1 && (
-        <div className="chips" role="group" aria-label="Trend of">
-          {units.map((u) => (
-            <Button key={u.id} className="chip" aria-pressed={u.id === shown} onClick={() => setUnit(u.id)}>{u.label ?? u.id}</Button>
-          ))}
-        </div>
+        <Tabs label="Trend of" items={units.map((u) => ({ key: u.id, label: u.label ?? u.id, current: u.id === shown, onSelect: () => setUnit(u.id) }))} />
       )}
       {shown && <TrendView key={shown} id={shown} start={d.window.start} end={d.window.end} />}
       {shown && (

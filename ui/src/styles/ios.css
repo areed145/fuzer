@@ -384,6 +384,8 @@
   :root.ios :is(.tabs, .work-board-stages, .attention-bar .chips)::-webkit-scrollbar { display: none; }
   :root.ios :is(.area-navigation, .tabs, .work-board-stages, .attention-bar .chips) > * { flex: 1 0 auto; white-space: nowrap; }
 }
+/* A row of views inside a toolbar row sits in line with the other controls: as wide as its segments, no margin. */
+:root.ios :is(.row, .graph-toolbar) > .tabs { width: auto; flex: none; margin: 0; }
 
 /* Home's attention list: each place reads as a list row with the place name as its link, not a wall of link colour.
    Crews is a toggle of its own, beside the segmented filter rather than one of its segments. */
@@ -700,7 +702,6 @@
   :root.ios .account-sheet .identity > .ui-button { min-height: 44px; margin-top: 8px; padding: 0; justify-content: flex-start; border-radius: 0;
     background: none; color: var(--danger); font-size: var(--t-body); font-weight: 400; box-shadow: 0 calc(-1 * var(--hair)) 0 var(--line); }
 }
-:root.ios .trend-controls .chips.segmented.trend-windows { width: auto; flex: none; margin: 0; }
 
 /* ================= One empty state (#1131 item 9) =================
    "Nothing here" reads the same wherever it is: a grey line. Standing alone on a page it sits in an inset card like the

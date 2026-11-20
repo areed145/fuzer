@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty, ErrorText, Line, Text, Notice } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty, ErrorText, Line, Text, Notice, Heading } from "../../ui";
 import { count } from "../../format";
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
@@ -179,7 +179,7 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
               "dates in the export's local format"), () => p.reload())}>Set it</Button>
         </Notice>
       )}
-      <h3>Sample</h3>
+      <Heading level={3}>Sample</Heading>
       <div className="scroll-x">
         <Table variant="list" density="compact">
           <thead><tr>{cols.map((x) => <th key={x}>{x}{d.suggested.columns[x]?.meaning && (
@@ -188,7 +188,7 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
           <tbody>{d.sample.map((r, i) => <tr key={i}>{cols.map((x) => <td key={x}>{cell(r[x])}</td>)}</tr>)}</tbody>
         </Table>
       </div>
-      <h3>Mapping <Text small muted>suggested from the columns{d.suggested.key ? `; key ${d.suggested.key}` : "; no key found: name one"}</Text></h3>
+      <Heading level={3} detail={<>suggested from the columns{d.suggested.key ? `; key ${d.suggested.key}` : "; no key found: name one"}</>}>Mapping</Heading>
       <Line>
         <Input placeholder={`dataset name (${d.suggested.dataset})`} value={dataset} onChange={(e) => setDataset(e.target.value)} />
         <Input placeholder={`record type (${d.suggested.record_type})`} value={rtype} onChange={(e) => setRtype(e.target.value)} />

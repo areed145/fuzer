@@ -7,7 +7,7 @@ import { usePermission } from "./Auth";
 import { KindBadge, entityHref, href, useAsync, useDebounced } from "./lib";
 import { NAV, useNavigationAccess, type NavGroup, type NavItem } from "./nav";
 import { MASTER_DATA_TABS, SETTINGS_VIEWS, SOURCES_VIEWS, WORK_LISTS, workHref } from "./pageTabs";
-import { Button, ErrorText, Input } from "./ui";
+import { Button, ErrorText, Input, Heading } from "./ui";
 
 const OPEN = "fuzer:search";
 const ENTITY_LIMIT = 8;
@@ -161,7 +161,7 @@ export function AppSearch() {
         </div>
         <div id={listId} role="listbox" aria-label="Results" className="app-search-results">
           {groups.map((group) => <section key={group} role="group" aria-label={group}>
-            <h2>{group}</h2>
+            <Heading>{group}</Heading>
             {results.map((r, i) => r.group !== group ? null : (
               <a key={r.id} id={`${listId}-${i}`} data-index={i} role="option" aria-selected={i === current} href={r.to}
                 className={i === current ? "on" : undefined} onMouseMove={() => setActive(i)}

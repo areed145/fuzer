@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, ErrorText, Text, Field } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, ErrorText, Text, Field, Heading } from "../ui";
 import { percent } from "../format";
 import { useState } from "react";
 import { api } from "../api";
@@ -88,7 +88,7 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
       <Status of={s} />
       {d && (
         <>
-          <h2>study:{d.id} <Text small muted>{d.kind} · {d.status}</Text></h2>
+          <Heading detail={<>{d.kind} · {d.status}</>}>study:{d.id}</Heading>
           <Text as="p" small>{d.summary ?? d.error}</Text>
           <pre className="small">{JSON.stringify(d.params, null, 1)}</pre>
           <Button onClick={async () => { await api.rerunStudy(d.id, loadPerson() || "anonymous"); reload(); }}>Run again</Button>

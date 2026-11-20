@@ -1,5 +1,5 @@
 import { documentHref, openDocument } from "../DocumentViewer";
-import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice, Field } from "../ui";
+import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice, Field, Tabs } from "../ui";
 import { percent } from "../format";
 import "../styles/review.css";
 import "../styles/trends.css";
@@ -31,6 +31,13 @@ import { say } from "../wording";
 import { DrawingViewer } from "../DrawingViewer";
 
 /** Where a kind of question is listed: its tab on Master data (P2.3, #505). */
+/** The kinds of question, in the order their tabs show. */
+const QUESTION_KINDS: [ReviewKind, string][] = [
+  ["match", "Possible matches"], ["conflict", "Conflicting values"], ["schema", "Schema changes"], ["mapping", "New tables"],
+  ["curve", "Datasheet curves"], ["check", "Held loads"], ["pid_connection", "Drawing connections"],
+  ["pid_mismatch", "Drawing disagreements"], ["role", "Measurement roles"],
+];
+
 export const questionsHref = (kind?: string, item?: number) =>
   href("/masterdata", { tab: "questions", kind, item: item === undefined ? undefined : String(item) });
 
@@ -97,35 +104,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
   return (
     <section>
       <Line spread>
-        <div className="tabs">
-          <a className={kind === "match" ? "on" : ""} href={questionsHref("match")}>
-            Possible matches <Text muted>{stats?.open_reviews.match ?? 0}</Text>
-          </a>
-          <a className={kind === "conflict" ? "on" : ""} href={questionsHref("conflict")}>
-            Conflicting values <Text muted>{stats?.open_reviews.conflict ?? 0}</Text>
-          </a>
-          <a className={kind === "schema" ? "on" : ""} href={questionsHref("schema")}>
-            Schema changes <Text muted>{stats?.open_reviews.schema ?? 0}</Text>
-          </a>
-          <a className={kind === "mapping" ? "on" : ""} href={questionsHref("mapping")}>
-            New tables <Text muted>{stats?.open_reviews.mapping ?? 0}</Text>
-          </a>
-          <a className={kind === "curve" ? "on" : ""} href={questionsHref("curve")}>
-            Datasheet curves <Text muted>{stats?.open_reviews.curve ?? 0}</Text>
-          </a>
-          <a className={kind === "check" ? "on" : ""} href={questionsHref("check")}>
-            Held loads <Text muted>{stats?.open_reviews.check ?? 0}</Text>
-          </a>
-          <a className={kind === "pid_connection" ? "on" : ""} href={questionsHref("pid_connection")}>
-            Drawing connections <Text muted>{stats?.open_reviews.pid_connection ?? 0}</Text>
-          </a>
-          <a className={kind === "pid_mismatch" ? "on" : ""} href={questionsHref("pid_mismatch")}>
-            Drawing disagreements <Text muted>{stats?.open_reviews.pid_mismatch ?? 0}</Text>
-          </a>
-          <a className={kind === "role" ? "on" : ""} href={questionsHref("role")}>
-            Measurement roles <Text muted>{stats?.open_reviews.role ?? 0}</Text>
-          </a>
-        </div>
+        <Tabs label="Kinds of question" items={QUESTION_KINDS.map(([k, label]) => ({
+          key: k, label: <>{label} <Text muted>{stats?.open_reviews[k] ?? 0}</Text></>, current: kind === k, href: questionsHref(k),
+        }))} />
         {/* a signed-in account answers as itself: only a local, unsigned session types a name */}
         {!personSignedIn() && <label className="reviewer">
           Reviewer

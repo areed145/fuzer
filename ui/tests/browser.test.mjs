@@ -1750,7 +1750,7 @@ test("Data review is the Questions tab of Master data, old links land on the sam
   await page.goto(`${url}/#/review?kind=conflict`);
   await page.waitForURL(/#\/masterdata\?tab=questions&kind=conflict/);
   await page.getByRole("heading", { level: 1, name: "Master data" }).waitFor();
-  assert.equal(await page.getByRole("tab", { name: /Questions/ }).getAttribute("aria-selected"), "true");
+  assert.equal(await page.getByRole("link", { name: /Questions/ }).getAttribute("aria-current"), "page");
   await page.getByText("20-P-1001A").first().waitFor();
   // Opened from its case: that question comes first.
   await page.goto(`${url}/#/masterdata?tab=questions&kind=conflict&item=9`);

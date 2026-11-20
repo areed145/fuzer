@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Checkbox, Notice } from "../../ui";
+import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Checkbox, Notice, Tabs } from "../../ui";
 import { when } from "../../format";
 import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
@@ -85,9 +85,7 @@ export function CasesPage({ query, fixedState, filters }: {
       {!fixedState && <PageHeader>Cases</PageHeader>}
       {state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <Line wrap>
-        {!fixedState && <div className="tabs">
-          {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
-        </div>}
+        {!fixedState && <Tabs label="Cases by state" items={["open", "closed", "all"].map((s) => ({ key: s, label: s, current: state === s, onSelect: () => setState(s) }))} />}
         {!filters && <><Field inline label="Kind"><Select value={type} onChange={(e) => setType(e.target.value)}>
             <option value="">every kind</option>
             {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}

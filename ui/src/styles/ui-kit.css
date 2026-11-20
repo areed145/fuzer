@@ -166,3 +166,15 @@ html.ui-fullscreen-open .bottombar { display: none; }
 .ui-dialog p { margin: 0; overflow-wrap: anywhere; }
 .ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 @media (pointer: coarse) { .ui-dialog-actions .ui-button { min-height: 44px; flex: 1; } }
+/* A segmented control for views of one page. It scrolls sideways on a phone rather than clipping its last view. */
+.tabs { display: flex; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; border: 1px solid var(--line); border-radius: 6px; white-space: nowrap; }
+.tabs > *, .tabs > .ui-button {
+  flex-shrink: 0; border: none; border-radius: 0; padding: 6px 12px; background: var(--panel);
+  color: var(--muted); font: inherit; font-weight: 500; cursor: pointer;
+}
+.tabs > * + *, .tabs > .ui-button + .ui-button { border-left: 1px solid var(--line); }
+.tabs > .on, .tabs > .ui-button.on { background: var(--accent-soft); color: var(--text); }
+.tabs > :hover { text-decoration: none; color: var(--text); }
+/* A row of views standing on its own in a page or card has room above and below; in a toolbar it has none. */
+:is(section, .ui-card) > .tabs { margin: 4px 0 12px; }
+.tabs.small > *, .tabs.small > .ui-button { padding: 3px 10px; font-size: 13px; }

@@ -4,7 +4,7 @@
  * and nothing is restated. */
 import { api, type AccountingMonth } from "../api";
 import { quantity, count } from "../format";
-import { Badge, Disclosure, Empty, Table, Text, List } from "../ui";
+import { Badge, Disclosure, Empty, Table, Text, List, Heading } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 
 const TONE: Record<AccountingMonth["verdict"], "ok" | "danger" | "warn" | "muted"> = {
@@ -62,7 +62,7 @@ export function AgainstTheAccounts() {
         <Text as="div" small muted>{r.sources.operational} against {r.sources.accounting}. {r.note}</Text>
       </>}
       {u && u.months.length > 0 && <>
-        <h3>Operating cost per accounted bbl of oil</h3>
+        <Heading level={3}>Operating cost per accounted bbl of oil</Heading>
         <Text as="div" small>
           {Object.entries(u.window).map(([cur, w]) => (
             <div key={cur} data-currency={cur}><strong>{count(w.per_bbl)} {cur}/bbl</strong>{" "}

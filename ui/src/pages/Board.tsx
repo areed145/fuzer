@@ -1,5 +1,5 @@
 import "../styles/board.css";
-import { promptDialog, ErrorText, Line, Text } from "../ui";
+import { promptDialog, ErrorText, Line, Text, Tabs } from "../ui";
 import { money, whenDay, count } from "../format";
 import { Button, Input, PageHeader, Table, Select , Badge as UIBadge} from "../ui";
 import { useEffect, useState } from "react";
@@ -73,13 +73,9 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
     <section>
       {!embedded && <PageHeader>Work board</PageHeader>}
       <Line>
-        <div className="tabs">
-          {VIEWS.map(([v, label]) => (
-            <a key={v} className={view === v ? "on" : ""} href={href("/exceptions", { list: "ranked", view: v === "ranked" ? undefined : v, ...filters })}>
-              {label}
-            </a>
-          ))}
-        </div>
+        <Tabs label="Board views" items={VIEWS.map(([v, label]) => ({
+          key: v, label, current: view === v, href: href("/exceptions", { list: "ranked", view: v === "ranked" ? undefined : v, ...filters }),
+        }))} />
         {!embedded && <Input placeholder="Search titles and descriptions" value={text} onChange={(e) => setText(e.target.value)} />}
         {Object.keys(saved).length > 0 && (
           <Select value="" onChange={(e) => {

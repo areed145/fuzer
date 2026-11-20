@@ -1,4 +1,4 @@
-import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empty, Line, Text } from "../ui";
+import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empty, Line, Text, Heading } from "../ui";
 import { useMemo } from "react";
 import { api, type GraphNode, type RelationDef, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, REL_VIEWS, kindColor, relColor, subgraphElements } from "../graph";
@@ -228,7 +228,7 @@ function around(g: Subgraph, id: string): Subgraph {
 export function NodePanel({ node, onExpand, onFocus }: { node: GraphNode; onExpand?: () => void; onFocus?: () => void }) {
   return (
     <>
-      <h2 className="mono">{node.label ?? node.id}</h2>
+      <Heading mono>{node.label ?? node.id}</Heading>
       <Line>
         <KindBadge kind={node.kind} />
       </Line>

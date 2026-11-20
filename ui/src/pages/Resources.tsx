@@ -4,7 +4,7 @@
 import { type CSSProperties, useState } from "react";
 import { when, whenDay } from "../format";
 import { api, type ResourceLoad, type ResourceMove, type ResourceOverload } from "../api";
-import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select, ErrorText, Line, Text, List } from "../ui";
+import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select, ErrorText, Line, Text, List, Heading } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { acronyms } from "../wording";
 
@@ -74,7 +74,7 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
       {picked && <Text as="p" small>{whenDay(picked.day)}: {num(picked.demand)} needed at the busiest hour against {num(picked.capacity)}
         {Object.keys(picked.by_source).length ? ` (${Object.entries(picked.by_source).map(([s, q]) => `${s} ${num(q)}`).join(", ")})` : ""}.</Text>}
       {r.overloads.length > 0 && <>
-        <h3>Overloads</h3>
+        <Heading level={3}>Overloads</Heading>
         <ul className="plain load-overloads">{r.overloads.map((o) => <Overload key={o.from} o={o} unit={r.unit} person={person} onChange={onChange} />)}</ul>
       </>}
       <Capacity r={r} person={person} onChange={onChange} />
@@ -115,7 +115,7 @@ function Capacity({ r, person, onChange }: { r: ResourceLoad; person: string | n
     end: new Date(end).toISOString(), capacity: Number(qty), reason: reason || undefined }), () => { setStart(""); setEnd(""); setQty(""); setReason(""); onChange(); });
   return (
     <>
-      <h3>Capacity</h3>
+      <Heading level={3}>Capacity</Heading>
       {r.capacity_windows.length ? <List plain>{r.capacity_windows.map((w) => <li key={w.id} className="small">
         {when(w.start)} to {when(w.end)}: {num(w.capacity)}{w.reason ? ` (${w.reason})` : ""}{" "}
         {person && <Button size="sm" variant="link" disabled={!!busy} onClick={() => run("Removing", () => api.capacityWindowRemove(w.id, person), onChange)}>Remove</Button>}

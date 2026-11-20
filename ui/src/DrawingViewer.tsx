@@ -4,7 +4,7 @@ import { api, type DrawingMark, type MarkStatus } from "./api";
 import { projectUrl } from "./authState";
 import { KeptImage } from "./KeptImage";
 import { entityHref, useAsync } from "./lib";
-import { Button, Card as UICard, Disclosure, Empty, Text } from "./ui";
+import { Button, Card as UICard, Disclosure, Empty, Text, Tabs, Heading } from "./ui";
 import { connectedSheets, openDrawing } from "./DrawingFullscreen";
 
 export const MARK_STATUS: { key: MarkStatus; label: string; dashed?: boolean }[] = [
@@ -58,17 +58,11 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
   return (
     <UICard as="section" className="drawing-card">
       <div className="drawing-head">
-        <h2>{title ?? "Drawing"}</h2>
+        <Heading>{title ?? "Drawing"}</Heading>
         <div className="drawing-source muted small" title={g.read_by && g.read_by !== "smart file" ? `Read by ${g.read_by}` : undefined}>{source}</div>
       </div>
       <div className="row drawing-zoom">
-        <div className="tabs">
-          {ZOOMS.map((z) => (
-            <a key={z.key} className={zoom === z.key ? "on" : ""} onClick={() => setZoom(z.key)} role="button">
-              {z.label}
-            </a>
-          ))}
-        </div>
+        <Tabs label="Zoom" items={ZOOMS.map((z) => ({ key: z.key, label: z.label, current: zoom === z.key, onSelect: () => setZoom(z.key) }))} />
         <Button className="drawing-full-open" onClick={full}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
           Full screen
@@ -131,7 +125,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
       )}
       {!compact && <div className="drawing-lists">
         <div>
-          <h3>Read from the drawing</h3>
+          <Heading level={3}>Read from the drawing</Heading>
           {g.marks.length === 0 && <Empty className="small">Nothing read yet.</Empty>}
           <ul>
             {shown.map(({ m, i }) => (
@@ -156,7 +150,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
           </ul>
         </div>
         <div>
-          <h3>Piping</h3>
+          <Heading level={3}>Piping</Heading>
           {g.connections.length === 0 && <Empty className="small">No lines read.</Empty>}
           <ul>
             {g.connections.map((c, i) => (
@@ -170,7 +164,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
           </ul>
           {(g.offpage ?? []).length > 0 && (
             <>
-              <h3>Off-page</h3>
+              <Heading level={3}>Off-page</Heading>
               <ul>
                 {g.offpage!.map((o, i) => (
                   <li key={i}>
@@ -188,7 +182,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
           )}
           {(g.loops ?? []).length > 0 && (
             <>
-              <h3>Instrument loops</h3>
+              <Heading level={3}>Instrument loops</Heading>
               <ul>
                 {g.loops!.map((lp, i) => (
                   <li key={i} className="mono">{lp.members.join(" → ")}</li>
@@ -198,7 +192,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
           )}
           {(g.checks ?? []).length > 0 && (
             <>
-              <h3>Where other systems disagree with the drawing</h3>
+              <Heading level={3}>Where other systems disagree with the drawing</Heading>
               <ul>
                 {g.checks!.map((c, i) => (
                   <li key={i}>
@@ -211,7 +205,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
           )}
           {(g.notes ?? []).length > 0 && (
             <>
-              <h3>Notes</h3>
+              <Heading level={3}>Notes</Heading>
               <ol className="drawing-notes">
                 {g.notes!.map((n, i) => (
                   <li key={i} value={n.n}>
@@ -236,7 +230,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
           ))}
           {g.findings.length > 0 && (
             <>
-              <h3>Findings</h3>
+              <Heading level={3}>Findings</Heading>
               <ul>
                 {g.findings.map((f, i) => (
                   <li key={i}>

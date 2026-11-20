@@ -1,6 +1,6 @@
 import "../../styles/sources.css";
 import { count as countText, when } from "../../format";
-import { Button, ButtonLink, PageHeader, Table, Input, Badge as UIBadge, Line, Text, Checkbox } from "../../ui";
+import { Button, ButtonLink, PageHeader, Table, Input, Badge as UIBadge, Line, Text, Checkbox, Heading } from "../../ui";
 import { usePermission } from "../../Auth";
 /** The Sources page (#225): datasets, systems and connections, rules, a dataset's own page, and Add a source. */
 import { useState } from "react";
@@ -71,7 +71,7 @@ function Datasets() {
     (!problems || (d.health?.problems.length ?? 0) > 0));
   return (
     <>
-      <h2>Source readiness</h2>
+      <Heading>Source readiness</Heading>
       <Button disabled={cat.loading} onClick={cat.reload}>Refresh source readiness</Button>
       {cat.data && <p>{connections.length} connections · {rows.filter(({ d }) => d.loaded_at).length} datasets
         with a recorded load.</p>}

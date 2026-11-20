@@ -1,4 +1,4 @@
-import { Button, Card as UICard, Empty, Text } from "../ui";
+import { Button, Card as UICard, Empty, Text, Tabs } from "../ui";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, Legend, subgraphElements, type LayoutName } from "../graph";
@@ -43,13 +43,7 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
   return (
     <section>
       <div className="graph-toolbar">
-        <div className="tabs">
-          {[1, 2].map((d) => (
-            <Button key={d} className={depth === d ? "on" : ""} onClick={() => setDepth(d)}>
-              {d} {d === 1 ? "step" : "steps"}
-            </Button>
-          ))}
-        </div>
+        <Tabs label="How far" items={[1, 2].map((d) => ({ key: String(d), label: `${d} ${d === 1 ? "step" : "steps"}`, current: depth === d, onSelect: () => setDepth(d) }))} />
         <div className="chips">
           {ALL_RELS.map((r) => (
             <Button key={r} className={rels.includes(r) ? "chip on" : "chip"} onClick={() => toggleRel(r)}>
@@ -57,13 +51,9 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
             </Button>
           ))}
         </div>
-        <div className="tabs">
-          {(["force", "flow", "tree"] as const).map((l) => (
-            <Button key={l} className={layout === l ? "on" : ""} onClick={() => setLayout(l)}>
-              {l === "force" ? "Web" : l === "flow" ? "Left → right" : "Top ↓ down"}
-            </Button>
-          ))}
-        </div>
+        <Tabs label="Layout" items={(["force", "flow", "tree"] as const).map((l) => ({
+          key: l, label: l === "force" ? "Web" : l === "flow" ? "Left → right" : "Top ↓ down", current: layout === l, onSelect: () => setLayout(l),
+        }))} />
       </div>
       <Status of={graph} />
       {graph.data && (

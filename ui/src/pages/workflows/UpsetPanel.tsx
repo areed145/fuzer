@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { when } from "../../format";
-import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure, Text, Notice } from "../../ui";
+import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure, Text, Notice, Heading } from "../../ui";
 import { api, type RelatedUpset, type UpsetView } from "../../api";
 import { Status, useAsync, useAction } from "../../lib";
 import { PlotlyChart } from "../../analytics/PlotlyChart";
@@ -71,7 +71,7 @@ function Related({ v, upsetId, itemId, person, canMerge, onMerged }: {
   const rows = v.related.related.filter((r) => r.role !== "coincident" || r.work_item_id);
   return (
     <section>
-      <h3>Around the same time</h3>
+      <Heading level={3}>Around the same time</Heading>
       <Text as="p" small muted>Other upsets within {v.related.window_hours} h, most likely related first. {v.related.basis}</Text>
       {v.merged.length > 0 && <Text as="p" small>Merged into this case: {v.merged.map((m) => m.signature).join("; ")}.</Text>}
       {rows.length === 0 && <Text as="p" small muted>Nothing connected in the plant model or seen with it before.</Text>}

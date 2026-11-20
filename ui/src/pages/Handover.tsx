@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { when } from "../format";
 import { api, type Handover } from "../api";
-import { Badge, Button, Card, PageHeader, Table, Empty, Textarea, ErrorText, Line, Text, List } from "../ui";
+import { Badge, Button, Card, PageHeader, Table, Empty, Textarea, ErrorText, Line, Text, List, Heading } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { caseHref } from "./workflows/shared";
@@ -96,7 +96,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
         const open = shown.has(name);
         const visible = open ? lines : lines.slice(0, FIRST);
         return <div key={name}>
-          <h3>{name} <Text small muted>{total}</Text></h3>
+          <Heading level={3} detail={total}>{name}</Heading>
           <List small>
             {visible.map((l, i) => (
               <li key={i}>{l.text}{" "}
@@ -110,7 +110,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
         </div>;
       })}
       {quiet.length > 0 && <Text as="p" small muted>Nothing in {quiet.join(", ").toLowerCase()}.</Text>}
-      <h3>Outgoing notes</h3>
+      <Heading level={3}>Outgoing notes</Heading>
       {h.notes && notes === null && <p>{h.notes} <Text small muted>({personName(h.notes_by)}, {when(h.notes_at!)})</Text></p>}
       {!acked && canAct && (
         <>

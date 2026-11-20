@@ -5,7 +5,7 @@
  * S-curve shows progress against the baseline and the slip (#360). `#/turnaround` redirects to `#/plan?revision=…`. */
 import { api, type PlanItem, type TurnaroundScope } from "../api";
 import { whenDay, count } from "../format";
-import { Badge, Button, Card, Empty, ErrorText, Line, Text, List } from "../ui";
+import { Badge, Button, Card, Empty, ErrorText, Line, Text, List, Heading } from "../ui";
 import { entityHref, href, useAction } from "../lib";
 import { LiveFigure } from "../analytics/LiveFigure";
 
@@ -23,8 +23,8 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
   const unitDown = t.shutdown_outside.length + t.shutdown_plans_not_in_scope.length;
   return (
     <aside className="plan-panel" aria-labelledby="turnaround-heading">
-      <h2 id="turnaround-heading">Turnaround {t.revision ?? ""}{" "}
-        <a className="small" href={href("/plan")} aria-label="Close the turnaround">Close</a></h2>
+      <Heading id="turnaround-heading" actions={<a className="small" href={href("/plan")} aria-label="Close the turnaround">Close</a>}>
+        Turnaround {t.revision ?? ""}</Heading>
       {!t.revision ? <Empty>No work order names a revision.</Empty> : <>
         <Line as="p" small>
           {t.window ? <Badge>{day(t.window.start)} to {day(t.window.end)}</Badge> : <Badge tone="warn">not on the plan yet</Badge>}

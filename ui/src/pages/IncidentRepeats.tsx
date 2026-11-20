@@ -2,7 +2,7 @@
  * days between them, any that came back after linked work was recorded closed, and the age of open linked orders.
  * Linked work is a proxy, not an action register, and order status says what was recorded, not that it worked. */
 import { api, type LinkedOrder } from "../api";
-import { Badge, Disclosure, Empty, Table, Text, List } from "../ui";
+import { Badge, Disclosure, Empty, Table, Text, List, Heading } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 import { plural, say } from "../wording";
 
@@ -57,7 +57,7 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
               {u.items.map((i) => <span key={i.id}> · <a href={entityHref(i.id)}>{i.start}</a> {i.description}</span>)}</li>
           ))}</List>
         </Disclosure>}
-        <h3>Open linked work, by age at {d.as_of}</h3>
+        <Heading level={3}>Open linked work, by age at {d.as_of}</Heading>
         <Text as="div" small>
           {Object.entries(d.summary.open_by_age).map(([band, n]) => <span key={band} data-band={band}>{band}: {n}. </span>)}
         </Text>

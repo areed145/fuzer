@@ -2,7 +2,7 @@ import { useState } from "react";
 import { money, when } from "../format";
 import { api, type AiUsage as Usage, type UsageGroup } from "../api";
 import { href, Status, useAsync } from "../lib";
-import { Bar, Badge, Button, Card, Empty, Notice, Select, Stat, Stats, Table, Line, Text } from "../ui";
+import { Bar, Badge, Button, Card, Empty, Notice, Select, Stat, Stats, Table, Line, Text, Heading } from "../ui";
 
 const tokens = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(v));
 const BUDGET = href("/settings", { view: "configuration", filter: "llm.budget" });
@@ -14,7 +14,7 @@ export function AiUsage() {
   const u = useAsync(() => api.aiUsage(days), [days]);
   const d = u.data;
   return <div>
-    <h2>AI usage</h2>
+    <Heading>AI usage</Heading>
     <Line small>
       <Select aria-label="Window" value={days} onChange={(e) => setDays(Number(e.target.value))}>
         {[1, 7, 30, 90].map((n) => <option key={n} value={n}>Last {n === 1 ? "day" : `${n} days`}</option>)}

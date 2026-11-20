@@ -9,9 +9,6 @@
 label.choice-inline { display: inline-block; margin-right: 10px; white-space: nowrap; }
 .status.ok { color: var(--ok); }
 
-/* All work's views (#502): one row of tabs that scrolls sideways on a phone instead of widening the page. */
-.tabs.work-lists { display: flex; width: fit-content; max-width: 100%; overflow-x: auto; margin: 4px 0 12px; }
-.tabs.work-lists > a { flex-shrink: 0; white-space: nowrap; }
 details.exception-types { margin-top: 16px; }
 
 /* P5.6b: how a change goes live, with the step this version is at marked */

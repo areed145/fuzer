@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Stats, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty, ErrorText, Line, Text, Checkbox, List, Notice } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Stats, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty, ErrorText, Line, Text, Checkbox, List, Notice, Tabs, Heading } from "../../ui";
 import { when, count } from "../../format";
 import { confirmDialog } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
@@ -33,13 +33,10 @@ export function DatasetPage({ name, tab }: { name: string; tab: Tab }) {
         <Text small muted>{ds.source} · {ds.record_type ?? ds.reader} · {ds.status}</Text>
       </Line>
       <LastLoad d={x} reload={d.reload} />
-      <div className="tabs dataset-tabs">
-        {TABS.map((t) => (
-          <a key={t} className={tab === t ? "on" : ""} href={href("/sources", { view: "dataset", name, tab: t })}>
-            {TAB_LABEL[t]}{t === "quality" && x.suggested_checks.length ? <Text muted> · {x.suggested_checks.length} to add</Text> : null}
-          </a>
-        ))}
-      </div>
+      <Tabs label="Dataset views" items={TABS.map((t) => ({
+        key: t, current: tab === t, href: href("/sources", { view: "dataset", name, tab: t }),
+        label: <>{TAB_LABEL[t]}{t === "quality" && x.suggested_checks.length ? <Text muted> · {x.suggested_checks.length} to add</Text> : null}</>,
+      }))} />
       {tab === "overview" && <Overview d={x} reload={d.reload} />}
       {tab === "settings" && <Settings d={x} reload={d.reload} />}
       {tab === "mapping" && <MappingTab d={x} reload={d.reload} />}
@@ -139,7 +136,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       {h && h.problems.length > 0 && <ErrorText>Needs a look: {h.problems.join(", ")}.</ErrorText>}
       {(d.work_items.length > 0 || d.reviews.length > 0) && (
         <>
-          <h3>Open</h3>
+          <Heading level={3}>Open</Heading>
           <List small>
             {d.work_items.map((w) => (
               <li key={`w${w.id}`}><a href={href(`/cases/${w.id}`)}>work item {w.id}</a>: {w.title}{" "}
@@ -169,7 +166,7 @@ function Scorecard({ s }: { s: DatasetDetail["scorecard"] }) {
   const pct = (v: number | null) => (v == null ? "–" : `${Math.round(v)}%`);
   return (
     <section aria-label="Quality scorecard">
-      <h3>Quality</h3>
+      <Heading level={3}>Quality</Heading>
       <Stats>{s.measures.map((m) => (
         <Stat key={m.key} label={m.label} value={pct(m.now)} detail={m.now == null ? "can't be said yet"
           : <>{m.dropped && <UIBadge tone="warn">dropped</UIBadge>} {m.trend.filter((v) => v != null).slice(-6).map((v) => Math.round(v!)).join(" · ")}
@@ -314,10 +311,10 @@ function MappingTab({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           {drafts.map((m) => <Button key={m.id} variant="link" onClick={() => setReview(m)}>review version {m.id}</Button>)}</Notice>
       )}
       {review && <ReviewVersion v={review} current={current} reload={reload} close={() => setReview(null)} />}
-      <h3>Edit <Text small muted>changes become a draft; you see what it would do before approving it</Text></h3>
+      <Heading level={3}>Edit</Heading>
       <MappingEditor key={current.id} yaml={current.yaml} dataset={d.dataset.name}
         onSave={(text, note) => api.proposeMapping(text, reviewer(), note).then((v) => { reload(); setReview({ ...v, current: false }); })} />
-      <h3>Versions</h3>
+      <Heading level={3}>Versions</Heading>
       <Table variant="list" density="compact">
         <thead><tr><th>#</th><th>Mapping</th><th>Status</th><th>By</th><th>Note</th><th>When</th><th /></tr></thead>
         <tbody>
@@ -347,7 +344,7 @@ function ReviewVersion({ v, current, reload, close }: { v: MappingVersion; curre
     <UICard className="inset" title={<>Version {v.id} against version {current.id} (in use)</>}
       actions={<Button variant="link" className="small" onClick={close}>close</Button>}>
       <Diff from={current.yaml} to={v.yaml} />
-      <h3>What it would do</h3>
+      <Heading level={3}>What it would do</Heading>
       {impact.data ? <Impact r={impact.data} /> : <Status of={impact} />}
       <Line>
         <Button variant="primary" disabled={!!a.busy || !impact.data}
@@ -464,7 +461,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           </List>
         </UICard>
       )}
-      <h3>Checks <Text small muted>duplicate keys hold a load unless Settings says to keep the latest row</Text></h3>
+      <Heading level={3}>Checks</Heading>
       {d.checks.length > 0 ? (
         <Table variant="list" density="compact">
           <thead><tr><th>Check</th><th>Column</th><th>Params</th><th>Holds the load</th><th>Last</th><th>Value</th><th /></tr></thead>
@@ -494,8 +491,8 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         </Line>
       </Disclosure>
       <ErrorText>{a.error}</ErrorText>
-      <h3>Profile {p && <Text small muted>{count(p.rows)} rows{p.sampled ? " (sampled)" : ""}, {when(p.taken_at)}
-        {p.key && ` · key: ${p.key.duplicates} repeated, ${p.key.empty} empty`}</Text>}</h3>
+      <Heading level={3} detail={p && <>{count(p.rows)} rows{p.sampled ? " (sampled)" : ""}, {when(p.taken_at)}
+        {p.key && ` · key: ${p.key.duplicates} repeated, ${p.key.empty} empty`}</>}>Profile</Heading>
       {p?.drift?.length ? <Text as="p" small>Since the profile before: {p.drift.map((x) => `${x.column} ${x.change}`).join("; ")}</Text> : null}
       {p ? (
         <div className="scroll-x">
@@ -542,7 +539,7 @@ function Matching({ d }: { d: DatasetDetail }) {
       )}
       {cov.unresolved && (
         <>
-          <h3 className="small">Values that name nothing Fuzer knows</h3>
+          <Heading level={3} small>Values that name nothing Fuzer knows</Heading>
           <p>No link is guessed for these. Fix them in the export, or add the name to the asset pack's aliases.</p>
           <Table variant="list" density="compact">
             <thead><tr><th>Link</th><th>Value</th><th>Rows</th></tr></thead>

@@ -1,4 +1,4 @@
-import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea, ErrorText, Line, Text, List } from "../ui";
+import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea, ErrorText, Line, Text, List, Tabs } from "../ui";
 import { percent, when } from "../format";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
@@ -14,11 +14,9 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
         <div>
           <PageHeader>Lessons learned</PageHeader>
         </div>
-        <div className="tabs">
-          {["suggested", "approved", "rejected"].map((s) => (
-            <a key={s} className={status === s ? "on" : ""} href={href("/lessons", { status: s })}>{s[0].toUpperCase() + s.slice(1)}</a>
-          ))}
-        </div>
+        <Tabs label="Lessons by status" items={["suggested", "approved", "rejected"].map((s) => ({
+          key: s, label: s[0].toUpperCase() + s.slice(1), current: status === s, href: href("/lessons", { status: s }),
+        }))} />
       </Line>
       <Status of={list} empty={list.data?.length === 0}>
         Nothing {status}.
