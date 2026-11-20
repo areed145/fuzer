@@ -130,7 +130,8 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
 
                 # the outgoing lead writes the handover of the shift still running: it has no case until the shift
                 # change, which brings that same handover up to date, keeps the notes and opens it for the incoming lead
-                mid = later + timedelta(hours=30)
+                # (mid-way through the shift after the newest handover's, whatever the time of day the test runs)
+                mid = newest["shift_end"] + timedelta(hours=6)
                 running = handover.draft(conn, "lead-out", mid, force=True, current=True)
                 assert running["shift_start"] <= mid < running["shift_end"] and running["item_id"] is None
                 assert handover.draft(conn, "lead-out", mid, force=True) is None, "an ended shift isn't redrafted"
