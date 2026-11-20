@@ -1993,7 +1993,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   assert.deepEqual(await page.getByRole("navigation", { name: "Explore pages", exact: true }).locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
     ["#/browse", "#/map", "#/network", "#/3d", "#/ask"]);
   await page.goto(`${url}/#/work`);
-  await page.waitForURL(/#\/inbox$/);
+  await page.waitForURL(/#\/list\?waiting_on=me$/);
   // My work and Master data are presets on the list now; their pages keep their links and light List.
   await nav.locator('a[href="#/list"][aria-current="page"]').waitFor();
   assert.equal(await page.getByRole("navigation", { name: "List pages", exact: true }).count(), 0, "List is one entry");

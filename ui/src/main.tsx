@@ -136,7 +136,9 @@ function App() {
     const to = path[1] === "item" && path[2] ? `/cases/${path[2]}`
       : path[1] === "processes" ? `/workflows${path[2] ? `/${path[2]}` : ""}`
       : path[1] === "forms" && path[2] ? `/workflows/forms/${path[2]}`
-      : task ? `/inbox/task/${task}` : "/inbox";
+      : task ? `/inbox/task/${task}` : null;
+    // My work is a preset of the List: what waits on you.
+    if (!to) { location.replace(href("/list", { waiting_on: "me" })); return; }
     location.replace(href(to, Object.fromEntries([...query.entries()].filter(([k]) => k !== "task" && k !== "tab"))));
   }, [section, path, query]);
 
