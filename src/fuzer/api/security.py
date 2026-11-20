@@ -269,7 +269,6 @@ class AuthenticatedRoute(APIRoute):
 
     @staticmethod
     def _item(conn, person, item_id):
-        from ..workflow.definitions import roles_of
         try:
             item_id = int(item_id)
         except (ValueError, TypeError) as e:
@@ -279,7 +278,7 @@ class AuthenticatedRoute(APIRoute):
             raise HTTPException(403, AREA_REFUSAL)
         # a case given to someone by name is theirs to act on, whatever queue it last sat in: the field hands a job
         # back to the IOC person who sent it while the case still names the operator queue
-        if row and row["role"] and row["assignee"] != person.actor and row["role"] not in roles_of(conn, person.actor):
+        if row and row["role"] and row["assignee"] != person.actor and not _may_work(conn, person.actor, row["role"]):
             raise HTTPException(403, "This case needs its assigned workflow role")
         if row and row["assignee"] and row["assignee"] != person.actor and not person.allows("configure"):
             raise HTTPException(403, "This case is assigned to another person")
@@ -296,7 +295,6 @@ class AuthenticatedRoute(APIRoute):
 
     @staticmethod
     def _task(conn, person, task_id):
-        from ..workflow.definitions import roles_of
         try:
             task_id = int(task_id)
         except (ValueError, TypeError) as e:
@@ -306,10 +304,22 @@ class AuthenticatedRoute(APIRoute):
         if row and not access.may_act_on(conn, person, row["subjects"] or []):
             raise HTTPException(403, AREA_REFUSAL)
         if (row and row["kind"] != "agent" and row["role"] and row["assignee"] != person.actor
-                and row["role"] not in roles_of(conn, person.actor)):
+                and not _may_work(conn, person.actor, row["role"])):
             raise HTTPException(403, "This step needs its assigned workflow role")
         if row and row["kind"] == "agent" and not person.allows("configure"):
             raise HTTPException(403, "An administrator must hand off automated steps before a person takes over")
+
+
+def _may_work(conn, actor: str, role: str) -> bool:
+    """Whether someone may act on work in a role's queue: they hold the role, or the role its queue escalates to. The
+    IOC lead every queue escalates to can close a job that came back from the field whatever queue its step names."""
+    from ..workflow.definitions import roles_of
+
+    held = roles_of(conn, actor)
+    if role in held:
+        return True
+    up = conn.execute("select escalate_to from work_role where name = %s", (role,)).fetchone()
+    return bool(up and up["escalate_to"] and up["escalate_to"] in held)
 
 
 AREA_REFUSAL = ("This work is on plant outside your areas. You can still read it; ask an owner to add the area, "

@@ -214,7 +214,7 @@ function App() {
           ) : section === "plan" ? (
             <PlanPage query={query} />
           ) : section === "cases" && path[1] ? (
-            <CasePage key={path[1]} id={Number(path[1])} demo={query.get("demo") === "workflow"} />
+            <CasePage key={path[1]} id={Number(path[1])} demo={query.get("demo") === "workflow"} closing={query.get("close") === "1"} />
           ) : (section === "processes" || section === "workflows") && path[1] === "forms" && path[2] ? (
             <FormPage key={path[2]} formKey={path[2]} query={query} />
           ) : (section === "processes" || section === "workflows") && path[1] ? (

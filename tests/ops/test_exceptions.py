@@ -448,6 +448,28 @@ def test_a_queue_case_goes_to_the_field_through_its_own_field_check_and_comes_ba
     conn.commit()
 
 
+def test_handing_a_queue_case_to_another_desk_queue_does_not_send_it_to_the_field(conn, types):
+    """Only the field is sent out on a step's field route (#1222). The sample crew's lead "left it in the ops lead
+    queue to close out" by dispatching an engineer's case there, which completed Work the case into a Field check held
+    by the ops lead queue: the IOC then saw a field check where a close was due. Handing it to another desk queue hands
+    the step on, and the lead every queue escalates to may act on it whatever role it names."""
+    from fuzer.api.security import _may_work
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "ezra", ["engineer"])
+    types("lube_low", role="role:engineer", audience=("ioc", "field"))
+    e = raise_exception(conn, "lube_low", "GT-1-LUBE", "Lube oil pressure low on GT-1", "rotating", refs=["tag:P-101"])
+    ex.dispatch(conn, e["id"], "ezra", "role:ops_lead", reason="left in the ops lead queue to close out")
+    steps = conn.execute("select element, role from work_token where item_id = %s and kind = 'user' and state = 'waiting'",
+                         (e["item_id"],)).fetchall()
+    assert [s["element"] for s in steps] == ["work"]  # handed on, not sent to the field
+    assert _may_work(conn, "ivy", "engineer") and _may_work(conn, "ivy", "ops_lead")
+    assert not _may_work(conn, "ezra", "data_steward")
+    conn.commit()
+
+
 def test_a_queue_case_started_before_the_field_check_moves_onto_it_when_sent_out(conn, types):
     """A case running the earlier queue_item (one step, no field check) moves to the published version that has one
     when the IOC sends it to the field, so it goes out through the workflow too (#1145)."""

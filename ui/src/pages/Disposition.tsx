@@ -25,10 +25,10 @@ export function closeoutLine(r: CaseCloseout, v: CloseoutVocabulary): string {
   return [terms ? `${what}: ${terms}` : what, outcome].filter(Boolean).join("; ");
 }
 
-export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload }:
-  { itemId: number; person: string; closed: boolean; readOnly: boolean; reload: () => void }) {
+export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, startOpen = false }:
+  { itemId: number; person: string; closed: boolean; readOnly: boolean; reload: () => void; startOpen?: boolean }) {
   const form = useAsync(() => api.caseCloseout(itemId), [itemId]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen && !closed);
   if (!form.data) return form.error ? <Status error={form.error} onRetry={form.reload} /> : null;
   const { record, vocabulary: v } = form.data;
   if (record && !open) {

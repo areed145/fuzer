@@ -69,7 +69,7 @@ The same map as a table. Each row is one family of sources; each column is a sta
 
 | Work that starts as | Arrives on | Decided on | Done on | Closed on | Then |
 |---|---|---|---|---|---|
-| **An SAP notification** with no work order | All work > To dispatch | All work: Dispatch, Plan for a day or Shelve | My work: the field job, on a phone | All work > Back from the field, then Close out on the case | The SAP update is drafted for the planner on My work |
+| **An SAP notification** with no work order | All work > To dispatch | All work: Send to, Plan for a day or Shelve | My work: the field job, on a phone | All work > Back from the field: Close, Send again or Plan for a day | The SAP update is drafted for the planner on My work |
 | **A process upset** found by the detectors | My work: Triage, in the engineer queue | The Triage step: real, false alarm, or send someone to look | My work: Field check, Approve, Raise notification, Confirm resolved | All work > Closed, when the last step is done | A re-check six hours on; a notification drafted for SAP |
 | **An IOW breach** | My work: Review IOW breach, for the engineer | The review step | My work: Raise notification | All work > Closed | Never shelved and never held back by planned work |
 | **A trip or a machine health finding** | My work: the engineer queue | The case: work it, or Send to the field | My work: the field job, or the desk | All work > Closed | Held back while planned work covers the machine |
@@ -77,8 +77,8 @@ The same map as a table. Each row is one family of sources; each column is a sta
 | **Parts not ready** for a planned job | My work: the maintenance planner queue | The case | The desk: expedite, or move the job on Plan | By itself, when stock or an order in time covers every line | Ordering and expediting stay with supply chain |
 | **A permit lapsed** with plant still isolated | My work: the ops lead queue | The case: work it, or Send to the field | My work: the field job | By itself, when the permit is closed or back in date, or nothing on it is still isolated | |
 | **A bypass, proof test or temporary change overdue** | My work: the ops lead or engineer queue | The case | The desk | By itself, when the register shows it done | Active bypasses are on every handover |
-| **A round finding**: a reading out of limits or a failed check | My work: the ops lead queue; All work > All open | The case: work it, or Send to the field | My work: the field job | All work > Back from the field, then Close out | |
-| **A field report** | My work: the ops lead queue; All work > All open | The case | My work: the field job | All work > Back from the field, then Close out | |
+| **A round finding**: a reading out of limits or a failed check | My work: the ops lead queue; All work > All open | The case: work it, or Send to the field | My work: the field job | All work > Back from the field: Close, Send again or Plan for a day | |
+| **A field report** | My work: the ops lead queue; All work > All open | The case | My work: the field job | All work > Back from the field: Close, Send again or Plan for a day | |
 | **Alarm, flare, lab, well test and emissions findings** | My work: the engineer, production engineer or HSE queue | The case | The desk | All work > Closed | Regulatory reports are reviewed under Reports > Daily reports |
 | **The agentic watch** proposing something no detector raised | Kept and scored only (live mode is off by default); in live mode, My work: the engineer queue | The case | The desk, or the field | All work > Closed | After three confirmed proposals of one pattern, the watch drafts a rule for it |
 | **Another system's own type** (`POST /exceptions`, a source pack) | Wherever its type says: All work > To dispatch, a queue, or a workflow | As above | As above | As above | Its update goes back the way its system is set up on Sources |
@@ -145,7 +145,7 @@ flowchart TB
 ```
 
 The step has the role's SLA from the moment it arrives and escalates along the role's chain if nobody takes it.
-The IOC sees these on **All work > All open** too, and can hand one to a person from its row (**Hand to**) without
+The IOC sees these on **All work > All open** too, and can hand one to a person from its row (**Send to**) without
 waiting for the desk.
 Much of this work closes by itself: when the permit is closed, the part is covered or a later survey shows the
 wall is sound, the condition clears and its case closes with it.
