@@ -1,7 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { api, type LiveFigureData, type LiveFigureTable } from "../api";
 import { Status, useAsync } from "../lib";
-import { Disclosure, Table, ErrorText, Text } from "../ui";
+import { Disclosure, Stat, Stats, Table, ErrorText, Text } from "../ui";
 import { PlotlyChart } from "./PlotlyChart";
 import "./analytics.css";
 
@@ -44,9 +44,9 @@ function Body({ d }: { d: LiveFigureData }) {
   const s = d.summary;
   return <>
       {s.headline && <p role="status"><strong>{s.headline}</strong></p>}
-      {s.stats.length > 0 && <dl className="analytics-summary">
-        {s.stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}{stat.unit && <> <small>{stat.unit}</small></>}</dd></div>)}
-      </dl>}
+      {s.stats.length > 0 && <Stats>
+        {s.stats.map((stat) => <Stat key={stat.label} label={stat.label} value={<>{stat.value}{stat.unit && <> <small>{stat.unit}</small></>}</>} />)}
+      </Stats>}
       {d.spec.data.length > 0 && <PlotlyChart spec={d.spec} label={[d.title, s.headline, s.context].filter(Boolean).join(". ")} />}
       {s.tables.map((table) => <FigureTable key={table.title} table={table} />)}
       {s.warnings.length > 0 && <div className="analytics-warnings" role="status"><strong>Data notes</strong><ul>{s.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}

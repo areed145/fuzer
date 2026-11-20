@@ -33,10 +33,6 @@
 .evidence { border-top: 1px solid var(--line); margin-top: 12px; }
 .evidence h3 { font-size: 13px; }
 .evidence-item { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); }
-dl.data { margin: 6px 0; font-size: 13px; }
-dl.data > div { display: grid; grid-template-columns: minmax(90px, max-content) 1fr; gap: 8px; padding: 2px 0; }
-dl.data dt { color: var(--muted); }
-dl.data dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 pre.data { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; margin: 4px 0; }
 ol.timeline { list-style: none; padding: 0; margin: 0 0 12px; border-left: 2px solid var(--line); }
 ol.timeline > li { position: relative; padding: 4px 0 8px 14px; }

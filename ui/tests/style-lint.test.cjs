@@ -99,6 +99,11 @@ const RULES = {
     pattern: /<(?:UI)?Card\b(?!(?:[^<>{}]|\{[^{}]*\})*\btitle=)(?:[^<>{}]|\{[^{}]*\})*>\s*(?:<Line[^>]*>\s*)?<h[2-4]\b/g,
     hint: "Give the Card its title, detail and actions instead of writing a heading inside it.",
   },
+  "raw-facts": {
+    skip: /^ui\//,
+    pattern: /<dl\b/g,
+    hint: "Use Facts from ui/src/ui for names and values, and Stats with Stat for figures, instead of a hand-written dl.",
+  },
   "badge-class": {
     pattern: /<(?:UI)?Badge\b[^>]*? className=|className=(?:"|\{`)badge\b/g,
     hint: "A Badge is a word in its tone (ok, warn, danger, info, muted). Pick the tone; don't add a class name or a page colour.",

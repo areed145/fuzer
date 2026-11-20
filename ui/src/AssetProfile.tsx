@@ -7,7 +7,7 @@ import { api } from "./api";
 import { openDocument, documentHref } from "./DocumentViewer";
 import { openDrawing } from "./DrawingFullscreen";
 import { entityHref, useAsync } from "./lib";
-import { Card, Text } from "./ui";
+import { Card, Facts, Text } from "./ui";
 
 /** What the card reads, shared with the asset page so it can draw its overview at once (#1069). */
 export const readProfile = (id: string) =>
@@ -48,9 +48,7 @@ export function AssetProfile({ id, data }: { id: string; data?: Awaited<ReturnTy
   if (!rows.length) return null;
   return (
     <Card as="section" className="asset-profile" title="About this asset">
-      <dl className="profile-facts">
-        {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
-      </dl>
+      <Facts grid items={rows} />
     </Card>
   );
 }

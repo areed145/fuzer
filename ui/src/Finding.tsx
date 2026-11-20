@@ -2,7 +2,7 @@ import "./styles/finding.css";
 import { money, percent, when } from "./format";
 import type { CaseSource, Finding, FindingItem } from "./api";
 import { entityHref } from "./lib";
-import { Card, Disclosure, Text, List } from "./ui";
+import { Card, Disclosure, Facts, Text, List } from "./ui";
 import { reportedBy } from "./work";
 import { say, unit as wordUnit } from "./wording";
 
@@ -49,16 +49,16 @@ export function findingSentence(finding: Finding, title: string): string {
 export function FindingEvidence({ finding, checks = true }: { finding: Finding; checks?: boolean }) {
   return (
     <div className="finding">
-      <dl className="kv small">
-        <div><dt>Found by</dt><dd>{reporter(finding) ?? ORIGIN[finding.origin]}</dd></div>
-        {finding.method && <div><dt>Method</dt><dd>{finding.method}</dd></div>}
-        {finding.standard && <div><dt>Standard</dt><dd>{finding.standard}</dd></div>}
-        {finding.start && <div><dt>Window</dt><dd><time dateTime={finding.start}>{when(finding.start)}</time>
-          {finding.end ? <> to <time dateTime={finding.end}>{when(finding.end)}</time></> : null}</dd></div>}
-        {finding.confidence != null && <div><dt>Confidence</dt><dd>{percent(finding.confidence)}</dd></div>}
-        {finding.value_usd != null && <div><dt>Value at stake</dt><dd>{money(finding.value_usd)}</dd></div>}
-        {finding.items.filter((item) => !(item.label === "Reported by" && reporter(finding))).map((item) => <div key={item.label}><dt>{item.label}</dt><dd><Value item={item} /></dd></div>)}
-      </dl>
+      <Facts items={[
+        ["Found by", reporter(finding) ?? ORIGIN[finding.origin]],
+        finding.method && ["Method", finding.method],
+        finding.standard && ["Standard", finding.standard],
+        finding.start && ["Window", <><time dateTime={finding.start}>{when(finding.start)}</time>
+          {finding.end ? <> to <time dateTime={finding.end}>{when(finding.end)}</time></> : null}</>],
+        finding.confidence != null && ["Confidence", percent(finding.confidence)],
+        finding.value_usd != null && ["Value at stake", money(finding.value_usd)],
+        ...finding.items.filter((item) => !(item.label === "Reported by" && reporter(finding))).map((item) => [item.label, <Value item={item} />] as const),
+      ]} />
       {checks && finding.checks.length > 0 && <>
         <h4 className="small">Checks before the work</h4>
         <List as="ol" small>{finding.checks.map((c) => <li key={c}>{c}</li>)}</List>

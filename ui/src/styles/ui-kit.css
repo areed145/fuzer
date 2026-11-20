@@ -59,6 +59,18 @@
 .ui-stat-link { color: var(--text); }
 .ui-stat-link:hover { border-color: var(--accent); text-decoration: none; }
 .ui-stat-danger strong { color: var(--danger); }
+.ui-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
+.ui-stats > * { min-width: 0; }
+.ui-card .ui-stats { gap: 12px 20px; }
+.ui-card .ui-stats .ui-stat { padding: 0; border: 0; background: none; }
+.ui-facts { margin: 6px 0; }
+.ui-facts > div { display: grid; grid-template-columns: minmax(90px, max-content) 1fr; gap: 8px; padding: 2px 0; }
+.ui-facts dt { color: var(--muted); }
+.ui-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ui-facts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 24px; }
+.ui-facts-grid > div { display: block; padding: 0; min-width: 0; }
+.ui-facts-grid dt { font-size: 12px; }
+.ui-facts-grid dd { margin-top: 2px; }
 .ui-page-subtitle { color: var(--muted); }
 .ui-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-right: 12px; }
 .ui-error { color: var(--danger); font-size: 13px; }

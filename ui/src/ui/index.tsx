@@ -196,6 +196,19 @@ export function Stat({ label, value, detail, href, tone }: { label: ReactNode; v
   const body = <><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</>;
   return href ? <a className={className} href={href}>{body}</a> : <div className={className}>{body}</div>;
 }
+/** A row of figures: wrap `Stat`s in it. On the page each is a tile; inside a card they sit plain. */
+export function Stats({ children }: { children: ReactNode }) {
+  return <div className="ui-stats">{children}</div>;
+}
+/** Facts about one thing, each a name and its value. One per line by default; `grid` sets them side by side with the
+ * name over the value. A falsy item is left out, so `cond && ["Method", m]` works. */
+export function Facts({ items, grid }: { items: (readonly [ReactNode, ReactNode] | false | null | undefined | "")[]; grid?: boolean }) {
+  const shown = items.filter((item): item is readonly [ReactNode, ReactNode] => !!item);
+  if (!shown.length) return null;
+  return <dl className={grid ? "ui-facts ui-facts-grid" : "ui-facts"}>
+    {shown.map(([name, value], i) => <div key={i}><dt>{name}</dt><dd>{value}</dd></div>)}
+  </dl>;
+}
 /** Empty means one line and at most one action (docs/ui-style.md, rule 8): "No incidents in this window." */
 export function Empty({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <p className={`ui-empty-line ${className}`.trim()}>{children}</p>;
