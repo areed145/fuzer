@@ -46,6 +46,8 @@ export function InboxPage() {
   // Kept in the link, so Back from a job returns to My work filtered as it was (P5.14c).
   const [q, setQ] = useRouteState("q");
   const [type, setType] = useRouteState("type");
+  // One list (#1208 review): the chips pick what it holds, kept in the link like the filters.
+  const [show, setShow] = useRouteState("show");
   const [picked, setPicked] = useState<Set<number>>(new Set());
   useEffect(() => setPicked(new Set()), [person]);
   // What the field just reported, said here because its card leaves the list once the IOC has it.
@@ -76,9 +78,17 @@ export function InboxPage() {
   // A job's card carries its case's step, its instruction and the report buttons, so the same case isn't listed twice.
   const onCard = new Set([...sent, ...waitingJobs].map((j) => j.item_id).filter((id): id is number => id != null));
   const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
-  const escalated = all.filter((r) => r.escalated_at && keep(r)).sort(byUrgency);
-  const mine = d.mine.filter((r) => !onCard.has(r.item_id) && !r.escalated_at && keep(r)).sort(byUrgency);
-  const queue = d.queue.filter((r) => !onCard.has(r.item_id) && !r.escalated_at && keep(r)).sort(byUrgency);
+  const mineIds = new Set(d.mine.map((r) => r.task_id ?? -r.item_id));
+  const isMine = (r: WorkRow) => mineIds.has(r.task_id ?? -r.item_id);
+  // Escalated first, then the most urgent: one list, as Home's Needs you lists it.
+  const ranked = all.filter(keep).sort((a, b) => Number(!!b.escalated_at) - Number(!!a.escalated_at) || byUrgency(a, b));
+  const CHIPS: { key: string; label: string; rows: WorkRow[]; danger?: boolean }[] = [
+    { key: "", label: "All", rows: ranked },
+    { key: "mine", label: "Assigned to you", rows: ranked.filter(isMine) },
+    { key: "queue", label: "Unclaimed in your roles", rows: ranked.filter((r) => !isMine(r)) },
+    { key: "escalated", label: "Escalated", rows: ranked.filter((r) => r.escalated_at), danger: true },
+  ];
+  const chip = CHIPS.find((c) => c.key === (show ?? "")) ?? CHIPS[0];
   const counts = myWorkCounts(d, jobs);
   const undispatched = d.roles.includes("ops_lead")
     ? (exceptions.data ?? []).filter(waitingToDispatch).length : 0;
@@ -105,16 +115,17 @@ export function InboxPage() {
         <Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>}
       <FieldModeOffer />
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
-      {!offline && !fieldRole && <NewForYou person={person} told={told} />}
-      <Line as="p" small>
-        {counts.sent > 0 && <UIBadge>{counts.sent} sent to you</UIBadge>}
-        <UIBadge>{counts.mine} assigned to you</UIBadge>
-        <UIBadge>{counts.queue} unclaimed in your roles ({d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"})</UIBadge>
-        {counts.overdue > 0 && <UIBadge tone="danger">{counts.overdue} overdue</UIBadge>}
-        {counts.escalated > 0 && <UIBadge tone="danger">{counts.escalated} escalated</UIBadge>}
-        {undispatched > 0 && <a href={href("/exceptions")}><UIBadge tone="danger">{undispatched} exceptions waiting to be dispatched</UIBadge></a>}
-        {d.covering?.length ? <UIBadge>covering for {d.covering.join(", ")}</UIBadge> : null}
-      </Line>
+      {/* What changed on your work since you last looked is Home's Needs you; a field operator, whose Home is this
+          page, reads it beside their jobs below. */}
+      <nav className="chips work-views" aria-label="Show in my work">
+        {CHIPS.map((c) => <Button key={c.key} className="chip"
+          aria-pressed={c === chip} onClick={() => setShow(c.key)}>
+          {c.label} {c.danger && c.rows.length ? <UIBadge tone="danger">{c.rows.length}</UIBadge> : <Text muted>{c.rows.length}</Text>}</Button>)}
+        {undispatched > 0 && <a className="chip" href={href("/exceptions")}>To dispatch <UIBadge tone="danger">{undispatched}</UIBadge></a>}
+      </nav>
+      <Text as="p" small muted>Your roles: {d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"}
+        {d.covering?.length ? `. Covering for ${d.covering.join(", ")}` : ""}
+        {counts.overdue > 0 ? `. ${counts.overdue} overdue` : ""}.</Text>
       <Line>
         <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select aria-label="Filter my work by case type" value={type} onChange={(e) => setType(e.target.value)}>
@@ -125,16 +136,13 @@ export function InboxPage() {
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
       {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
-      <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
-        hint="past their SLA and moved to you or your role" />
       {sent.length > 0 && <section className="field-jobs" aria-labelledby="sent-to-you">
         <Heading id="sent-to-you" detail={sent.length}>Your field jobs</Heading>
         {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} onReported={setReported} />)}
       </section>}
       {!offline && fieldRole && <NewForYou person={person} told={told} />}
-      <Group title="Assigned to you" rows={mine} person={person} picked={picked} toggle={toggle} />
-      <Group title="Unclaimed in your roles" rows={queue} person={person} picked={picked} toggle={toggle}
-        hint="claim one to make it yours" />
+      <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
+        hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />
       {waitingJobs.length > 0 && <section className="field-jobs" aria-labelledby="waiting-jobs">
         <Heading id="waiting-jobs" detail={waitingJobs.length}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
         {waitingJobs.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}

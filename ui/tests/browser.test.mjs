@@ -3833,10 +3833,34 @@ test("My work opens in place: the banner, what is new and the counts don't push 
   await page.goto(`${url}/#/inbox`);
   await page.getByText("Check separator level 1", { exact: true }).waitFor();
   await page.getByText("Read and acknowledge", { exact: true }).waitFor();
-  await page.getByText("Escalated to you", { exact: true }).waitFor();
+  await page.getByRole("navigation", { name: "Show in my work" }).waitFor();
   await page.waitForTimeout(500);
   const cls = await page.evaluate(() => window.__cls);
   assert.ok(cls < 0.05, `My work moved as it loaded: CLS ${cls.toFixed(3)}`);
+});
+
+test("My work is one list, escalated first, and its chips pick what it holds", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const inbox = { person: "ann", roles: ["ops_lead"], mine: [{ ...homeRow(1), bulk: [] }],
+    queue: [{ ...homeRow(2), bulk: [] }, { ...homeRow(3), bulk: [], escalated_at: "2026-11-12T06:00:00Z" }],
+    counts: { mine: { total: 1 }, queue: { total: 2 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  await page.goto(`${url}/#/inbox`);
+  const chips = page.getByRole("navigation", { name: "Show in my work" });
+  await chips.waitFor();
+  assert.deepEqual((await chips.getByRole("button").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim()),
+    ["All 3", "Assigned to you 1", "Unclaimed in your roles 2", "Escalated 1"]);
+  const titles = () => page.locator("main .work-title").allInnerTexts();
+  await page.locator("main .work-title").first().waitFor();
+  const all = await titles();
+  assert.equal(all.length, 3);
+  assert.equal(all[0], "Check separator level 3", "the escalated row leads");
+  await chips.getByRole("button", { name: /^Assigned to you/ }).click();
+  await page.waitForURL(/show=mine/);
+  assert.deepEqual(await titles(), ["Check separator level 1"]);
+  await chips.getByRole("button", { name: /^Escalated/ }).click();
+  assert.deepEqual(await titles(), ["Check separator level 3"]);
+  assert.equal(await page.getByRole("heading", { name: "New for you", exact: false }).count(), 0, "what is new is Home's Needs you");
 });
 
 test("the incoming lead finds the shift handover from My work, not the nav (#504)", async () => {
@@ -8223,7 +8247,10 @@ test("on an iPhone a table stacks as labelled rows and the section tabs stay tab
 
 test("My work never scrolls sideways on a phone, even holding every role (#1077)", async () => {
   const roles = ["data_steward", "engineer", "field_operator", "ops_lead", "production_engineer", "planner", "maintenance_supervisor"];
-  await page.route("**/work/inbox*", (r) => r.fulfill({ json: { person: "demo", roles, mine: [], queue: [],
+  // A long escalated row with its kind and time: the time used to run off the right edge.
+  const long = { ...homeRow(1), bulk: [], escalated_at: "2026-11-14T08:23:00Z",
+    title: "High vibration on 1st stage compressor (notification 20000067), escalated: SLA PT4H on 'Work the case' passed while it was with sam" };
+  await page.route("**/work/inbox*", (r) => r.fulfill({ json: { person: "demo", roles, mine: [], queue: [long],
     counts: { mine: { total: 0 }, queue: { total: 138 } } } }));
   // A long escalation notice with its kind and time: the time used to run off the right edge.
   const notifications = [{ id: 1, kind: "escalated", item_id: 41, token_id: null, link: "#/cases/41", channel: "in_app", delivery: null,
@@ -8233,7 +8260,7 @@ test("My work never scrolls sideways on a phone, even holding every role (#1077)
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "demo"));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/?ios=1#/inbox`);
-  const badge = page.getByText(/unclaimed in your roles/);
+  const badge = page.getByText(/^Your roles:/);
   await badge.waitFor();
   assert.match(await badge.innerText(), /data steward, engineer/);
   await page.getByRole("link", { name: /High vibration/ }).waitFor();
