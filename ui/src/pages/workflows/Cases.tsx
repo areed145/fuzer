@@ -145,7 +145,7 @@ function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; 
   );
 }
 
-export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
+export function CasePage({ id, demo = false, closing = false }: { id: number; demo?: boolean; closing?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
   // Read beside the case, not after it, and shown with the rest of the evidence once they answer: arriving one by one,
   // each pushed down what was already on screen (#1069).
@@ -230,12 +230,18 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         reload={item.reload} />}
       {typeof raised.recheck_of === "number" && <RecheckCard firstId={raised.recheck_of} person={person} closed={closed}
         readOnly={demo} reload={item.reload} />}
-      {it.type !== "recheck" && (closed ? it.state === "done" : !it.processes.some((p) => p.state === "running")) &&
-        <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload} />}
+      {/* a case run by a standard one-step workflow (queue item, task) closes from here, whatever step it waits on:
+          the IOC closes a job back from the field without opening the step (#1222) */}
+      {it.type !== "recheck" && (closed ? it.state === "done"
+        : it.processes.every((p) => p.state !== "running" || CLOSES_WITH_CASE.has(p.process_key))) &&
+        <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload} startOpen={closing} />}
       {fieldOnly ? <Disclosure className="case-full" label={<>Full case</>}>{evidence}</Disclosure> : evidence}
     </section>
   );
 }
+
+/** The standard workflows that end with their case (fuzer:closeWithCase in queue_item.bpmn and task.bpmn). */
+const CLOSES_WITH_CASE = new Set(["queue_item", "task"]);
 
 const sameTime = (a?: string | null, b?: string | null) => !!a && !!b && Math.abs(Date.parse(a) - Date.parse(b)) < 60_000;
 

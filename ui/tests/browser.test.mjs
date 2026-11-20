@@ -3319,7 +3319,7 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await queue.getByRole("option", { name: "engineer queue" }).waitFor({ state: "attached" });
   assert.deepEqual(await queue.locator("option").allTextContents(), ["waits for the IOC to dispatch", "operator queue", "engineer queue"]);
   await page.goto(`${url}/#/exceptions`);
-  await page.getByRole("button", { name: "Dispatch", exact: true }).click();
+  await page.getByRole("button", { name: "Send to", exact: true }).click();
   await page.getByLabel("Dispatch to").getByRole("option", { name: "fred (operator)" }).waitFor({ state: "attached" });
   await page.getByLabel("Dispatch to").selectOption("fred");
   await page.getByLabel("What to do").fill("isolate and check the gland");
@@ -5753,7 +5753,7 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
   const sent = [];
   await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.goto(`${url}/#/exceptions`);
-  await page.getByRole("button", { name: "Dispatch", exact: true }).click();
+  await page.getByRole("button", { name: "Send to", exact: true }).click();
   await page.getByLabel("Dispatch to").selectOption("fred");
   await page.getByText("Rod packing set: 0 in stock, 2 needed; nothing on order", { exact: false }).waitFor();
   await page.getByText("not ready", { exact: true }).waitFor();
@@ -5788,7 +5788,7 @@ test("the dispatch card shows the crew's load, its permit, and a full crew block
       centers: [{ ...elec, busy: 1, full: true, jobs: [{ id: 3, title: "Look at the standby generator", assignee: "fred" }] }] }] } }));
   await page.goto(`${url}/#/exceptions`);
   await page.getByText("Generator batteries").waitFor();
-  for (const open of await page.getByRole("button", { name: "Dispatch", exact: true }).all()) await open.click();
+  for (const open of await page.getByRole("button", { name: "Send to", exact: true }).all()) await open.click();
   for (const sel of await page.getByLabel("Dispatch to").all()) await sel.selectOption("fred");
   await page.getByText("Electrical technicians: 0 of 1 busy.", { exact: false }).waitFor();
   await page.getByText("Permit PTW-24103 (electrical) valid to 2026-11-13 18:00.", { exact: false }).waitFor();
@@ -5843,7 +5843,7 @@ test("an open MOC on the equipment is a warning at dispatch and on the phone, ne
     checks: [{ check: "moc", label: "MOC", ready: true, checked: true, note: null, blockers: [], warnings: [warn] }] } }));
   await page.goto(`${url}/#/exceptions`);
   await page.getByText("HP separator level control").waitFor();
-  await page.getByRole("button", { name: "Dispatch", exact: true }).first().click();
+  await page.getByRole("button", { name: "Send to", exact: true }).first().click();
   await page.getByLabel("Dispatch to").first().selectOption("fred");
   await page.getByText(warn).waitFor();
   await page.getByText("ready", { exact: true }).waitFor();

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { money, when, whenDay, count } from "../format";
 import { api, type ExceptionRow, type Readiness } from "../api";
-import { Badge, Button, Card, Disclosure, Field, Input, Select, Table, Empty, ErrorText, Line, Text, Checkbox, List } from "../ui";
+import { Badge, Button, ButtonLink, Card, Disclosure, Field, Input, Select, Table, Empty, ErrorText, Line, Text, Checkbox, List } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../lib";
 import { holder, reportedBy, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -248,6 +248,7 @@ function Row({ r, person, people, queues, onChange }: {
   const event = happened(r);
   const reports = r.reports ?? r.raised_count;
   const done = () => { setPanel(null); onChange(); };
+  const back = !!r.item_id && backFromField(r);
   return (
     <li className={fieldSaid?.status === "could_not_do" ? "work-card work-row attention" : "work-card work-row"}>
       <div className="work-row-what">
@@ -279,8 +280,12 @@ function Row({ r, person, people, queues, onChange }: {
           {r.shelved_by ? ` · ${personName(r.shelved_by)}` : ""}</div>}
       </div>
       {canAct && <div className="row work-card-actions work-row-actions">
+        {/* back from the field (#1222): the IOC closes it, sends it again or plans it, in one tap from the row */}
+        {back && <ButtonLink size="sm" variant="primary" href={href(`/cases/${r.item_id}`, { close: "1" })}>Close</ButtonLink>}
         <Button size="sm" variant="secondary" className="work-lead" aria-expanded={panel === "dispatch"}
-          onClick={() => setPanel(panel === "dispatch" ? null : "dispatch")}>{r.item_id ? "Hand to" : "Dispatch"}</Button>
+          onClick={() => setPanel(panel === "dispatch" ? null : "dispatch")}>{back ? "Send again" : "Send to"}</Button>
+        {back && <Button size="sm" variant="secondary" aria-expanded={panel === "plan"}
+          onClick={() => setPanel(panel === "plan" ? null : "plan")}>Plan for a day</Button>}
         {shelved ? <Button size="sm" variant="secondary" disabled={!!busy}
           onClick={() => run("Unshelving", () => api.unshelveException(r.id, person!), onChange)}>Back on the list</Button>
           : <Button size="sm" variant="secondary" aria-expanded={panel === "more" || panel === "plan" || panel === "shelve"}
@@ -289,7 +294,7 @@ function Row({ r, person, people, queues, onChange }: {
       {canAct && panel && <div className="work-row-panel">
         {panel === "dispatch" && <DispatchControls r={r} person={person!} people={people} queues={queues} onDone={done} />}
         {panel === "more" && <Line wrap role="group" aria-label="More actions">
-          <Button size="sm" variant="secondary" onClick={() => setPanel("plan")}>Plan for a day</Button>
+          {!back && <Button size="sm" variant="secondary" onClick={() => setPanel("plan")}>Plan for a day</Button>}
           <Button size="sm" variant="secondary" onClick={() => setPanel("shelve")}>Shelve until a date</Button>
         </Line>}
         {panel === "plan" && <div className="row wrap work-row-form">

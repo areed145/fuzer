@@ -274,6 +274,16 @@ def _outside_role(conn, to: str, role: str | None) -> bool:
     return role not in roles_of(conn, to)
 
 
+def _to_field(conn, to: str) -> bool:
+    """Is `to` the field: the operator queue, or a person who works in it? Only the field is sent out on a step's
+    field route; handing a step to another desk queue (the ops lead's, say) just hands it on."""
+    from .definitions import roles_of
+
+    if to.startswith("role:"):
+        return to[5:] == "operator"
+    return not to.startswith("agent:") and "operator" in roles_of(conn, to)
+
+
 def _open_user_steps(conn, item_id: int, after: int = 0) -> list[dict]:
     return conn.execute("select id, element, role, assignee from work_token where item_id = %s and kind = 'user' "
                         "and state in ('ready', 'waiting') and id > %s order by id", (item_id, after)).fetchall()
@@ -301,13 +311,13 @@ def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = Non
         proc = conn.execute("select definition_id from work_process where id = %s", (step["process_id"],)).fetchone()
         node = _definition(conn, proc["definition_id"]).nodes.get(step["element"])
         data = _dispatch_data(node.attrs.get("dispatch")) if node else None
-        if not data and _outside_role(conn, to, step["role"]) and (newer := _field_version(conn, step)):
+        if not data and _outside_role(conn, to, step["role"]) and _to_field(conn, to) and (newer := _field_version(conn, step)):
             # a case started before its process could send it to the field (#1145): it moves to the version that can
             from .runtime import migrate
 
             migrate(conn, step["process_id"], newer["id"], by)
             data = _dispatch_data(newer["dispatch"])
-    if not (data and _outside_role(conn, to, step["role"])):
+    if not (data and _outside_role(conn, to, step["role"]) and _to_field(conn, to)):
         return hand_off(conn, step["id"], by, to, reason)
     if step["assignee"] and step["assignee"] != by:
         hand_off(conn, step["id"], by, by, f"to send it to {to.removeprefix('role:')}")
