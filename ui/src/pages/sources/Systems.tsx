@@ -1,4 +1,4 @@
-import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea, ErrorText, Line, Text, List } from "../../ui";
+import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea, ErrorText, Line, Text, List, Heading } from "../../ui";
 import { confirmDialog } from "../../ui";
 import { percent } from "../../format";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
@@ -117,7 +117,7 @@ export function PackInstalled({ report }: { report: PackReport }) {
     {["Sources", "Routing", "Detection"].map((page) => {
       const mine = rows.filter((r) => r[0] === page);
       return mine.length > 0 && <div key={page}>
-        <h4>On {page}</h4>
+        <Heading level={4}>On {page}</Heading>
         <Table variant="list" density="compact">
           <tbody>{mine.map(([, what, items]) => <tr key={what}><th scope="row">{what}</th><td>{items}</td></tr>)}</tbody>
         </Table>
@@ -137,7 +137,7 @@ function SystemWork({ system }: { system: string }) {
   const { types, rules, webhook } = w.data;
   return (
     <>
-      <h3>Work it brings</h3>
+      <Heading level={3}>Work it brings</Heading>
       {!types.length && !rules.length && <Empty className="small">No exception types or rules yet.</Empty>}
       {types.length > 0 && (
         <Table density="compact">
@@ -190,7 +190,7 @@ function SystemContext({ system }: { system: string }) {
   ];
   return (
     <>
-      <h3>How its records matched</h3>
+      <Heading level={3}>How its records matched</Heading>
       <Text as="p" small>{r.records} records: {auto} matched on their own, {r.decided.new} new
         {r.decided.pinned ? `, ${r.decided.pinned} decided by a steward` : ""}.{" "}
         <UIBadge tone={over ? "warn" : "ok"}>{r.needs_steward} need a steward ({pct(r.share ?? 0)})</UIBadge>
@@ -268,7 +268,7 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
       <SystemContext system={s.name} />
       <SystemWork system={s.name} />
       <SystemWritebacks system={s.name} />
-      <h3>Connections</h3>
+      <Heading level={3}>Connections</Heading>
       {s.connections.map((c) => <ConnectionRow key={c.id} c={c} system={s.name} reload={reload} />)}
       {adding ? (
         <ConnectionForm system={s.name} types={cat.types.connections} onDone={() => { setAdding(false); reload(); }} />

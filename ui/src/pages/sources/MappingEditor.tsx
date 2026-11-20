@@ -1,4 +1,4 @@
-import { Button, Input, Select, Table, Badge as UIBadge, Textarea, ErrorText, Line, Text } from "../../ui";
+import { Button, Input, Select, Table, Badge as UIBadge, Textarea, ErrorText, Line, Text, Tabs } from "../../ui";
 import { promptDialog } from "../../ui";
 /** Editing a mapping (#225): column by column (what each column means, which it links to, the key), or the YAML.
  * The form is written over the mapping on the server, so what it doesn't show is kept. */
@@ -23,10 +23,10 @@ export function MappingEditor({ yaml, dataset, columns, samples, onSave, onChang
   useEffect(() => { setText(yaml); }, [yaml]);
   return (
     <>
-      <div className="tabs small">
-        <a className={view === "columns" ? "on" : ""} onClick={() => setView("columns")}>Columns</a>
-        <a className={view === "yaml" ? "on" : ""} onClick={() => setView("yaml")}>YAML (advanced)</a>
-      </div>
+      <Tabs small label="Mapping views" items={[
+        { key: "columns", label: "Columns", current: view === "columns", onSelect: () => setView("columns") },
+        { key: "yaml", label: "YAML (advanced)", current: view === "yaml", onSelect: () => setView("yaml") },
+      ]} />
       {view === "columns"
         ? <ColumnForm text={text} dataset={dataset} columns={columns} samples={samples} onText={set} />
         : <Textarea className="yaml mono" rows={Math.min(30, text.split("\n").length + 1)} value={text}

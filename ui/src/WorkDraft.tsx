@@ -1,7 +1,7 @@
 import { api } from "./api";
 import { usePermission } from "./Auth";
 import { Status, entityHref, href, useAction, useAsync } from "./lib";
-import { ActionStatus, ConfirmAction, Card, Text } from "./ui";
+import { ActionStatus, ConfirmAction, Card, Text, Heading } from "./ui";
 import { usePerson } from "./work";
 import { Markdown } from "./Markdown";
 import { display } from "./entityRefs";
@@ -24,7 +24,7 @@ export function WorkDraftCard({ id }: { id: string }) {
     <Status of={draft} />
     {d && <>
       <Text as="p" small muted>{d.item_id ? "Work item" : "Draft from the assistant · not created yet"} · {queue(d.role)} queue</Text>
-      <h3>{say(d.title)}</h3>
+      <Heading level={3}>{say(d.title)}</Heading>
       {/* the assistant writes the summary in Markdown, diagrams in a mermaid fence */}
       <div className="md work-draft-summary"><Markdown text={d.summary} /></div>
       <Text as="p" small muted>Evidence: {d.evidence.map((ref, i) => <span key={ref}>{i > 0 && ", "}<a href={entityHref(ref)} title={ref}>{display(ref, names)}</a></span>)}</Text>

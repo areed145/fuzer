@@ -3,8 +3,8 @@
  * `#/board?view=…` opens Ranked by value, `#/cases?state=…` opens In progress or Closed. Case and task pages are
  * unchanged. Board lays the open work out by stage, one column per view. */
 import "../styles/all-work.css";
-import { useEffect, useRef, useState } from "react";
-import { Button, Input, PageHeader, Select, ErrorText, Line, Text } from "../ui";
+import { useEffect, useState } from "react";
+import { Button, Input, PageHeader, Select, ErrorText, Line, Text, Tabs } from "../ui";
 import { api, type ExceptionRow } from "../api";
 import { href, useAsync, useDebounced, errorMessage } from "../lib";
 import { AssignPicker } from "./workflows/shared";
@@ -55,24 +55,15 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
   const rows = open.data ?? [];
   const counts: Partial<Record<WorkList, number>> = open.data ? iocCounts(rows, operators) : {};
-  // On a phone the views scroll sideways; keep the open one in sight.
-  const tabs = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const on = tabs.current?.querySelector<HTMLElement>("a.on");
-    if (on && tabs.current) tabs.current.scrollLeft = on.offsetLeft - (tabs.current.clientWidth - on.offsetWidth) / 2;
-  }, [list]);
   return (
     <section>
       <PageHeader className="all-work-header"
         actions={<a href={href("/performance")}>How the work is running</a>}>
         All work</PageHeader>
-      <nav ref={tabs} className="tabs work-lists" aria-label="All work views">
-        {WORK_LISTS.map((l) => (
-          <a key={l.key} href={workHref(l.key, { ...filters })} className={l.key === list ? "on" : ""}
-            aria-current={l.key === list ? "page" : undefined}>
-            {l.label}{counts[l.key] ? <Text muted> {counts[l.key]}</Text> : null}</a>
-        ))}
-      </nav>
+      <Tabs label="All work views" items={WORK_LISTS.map((l) => ({
+        key: l.key, href: workHref(l.key, { ...filters }), current: l.key === list,
+        label: <>{l.label}{counts[l.key] ? <Text muted> {counts[l.key]}</Text> : null}</>,
+      }))} />
       <FilterBar list={list} query={query} filters={filters} />
       <SavedViews list={list} filters={filters} roles={(people.data ?? []).find((p) => p.name === person)?.roles ?? []} />
       {list === "ranked" ? <BoardPage query={query} filters={filters} />

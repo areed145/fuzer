@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { kindWord, person as personName } from "../wording";
-import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List } from "../ui";
+import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List, Heading } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
   sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
@@ -129,7 +129,7 @@ export function RoundsThisShift({ person }: { person: string }) {
   if (!list.length) return null;
   return (
     <section className="field-jobs" aria-labelledby="rounds-this-shift">
-      <h2 id="rounds-this-shift">Rounds this shift <Text small muted>{list.length} · until {when(list[0].shift_end)}</Text></h2>
+      <Heading id="rounds-this-shift" detail={<>{list.length} · until {when(list[0].shift_end)}</>}>Rounds this shift</Heading>
       <List plain>{list.map((r) => <li key={r.id}>
         <Button size="sm" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>
           {r.round}{r.area && !r.round.includes(r.area) ? ` (${r.area})` : ""}</Button>{" "}
@@ -266,16 +266,16 @@ function PermitPanel({ permit, inHand, onInHand }: { permit: FieldPermit; inHand
   const p = permit.permit;
   if (permit.unchecked) return (  // no permit records to check this against (#742): confirm one in hand, kept on the case
     <div className="field-permit">
-      <h3 className="small">Permit to work <Badge tone="warn">check permit</Badge></h3>
+      <Heading level={3} small>Permit to work <Badge tone="warn">check permit</Badge></Heading>
       <Text as="p" small>{permit.note}</Text>
       <Checkbox checked={inHand} onChange={onInHand}>Permit in hand</Checkbox>
     </div>
   );
   return (
     <div className="field-permit">
-      <h3 className="small">Permit to work {permit.blocked
+      <Heading level={3} small>Permit to work {permit.blocked
         ? <Badge tone="warn">blocked: no valid permit</Badge>
-        : p?.valid ? <Badge tone="ok">valid</Badge> : null}</h3>
+        : p?.valid ? <Badge tone="ok">valid</Badge> : null}</Heading>
       {p ? <Text as="p" small><strong>{p.label}</strong> {p.type ?? ""} · {p.state ?? "no state"}
         {p.valid_to ? ` · to ${p.valid_to}` : ""}{p.why_not ? <Text muted> · {p.why_not}</Text> : null}
         {p.work ? <><br />{p.work}</> : null}</Text>
@@ -364,7 +364,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
         {job.sent.by && <Text small muted> · sent by {job.sent.by.replace(/^agent:/, "")}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</Text>}</p>}
       {job.assets.length > 0 && <div>
-        <h3 className="small">Where</h3>
+        <Heading level={3} small>Where</Heading>
         <List plain>{job.assets.map((a) => <li key={a.fuzer_id}>
           <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <Text small muted>{kindWord(a.kind ?? "item").toLowerCase()}</Text></>}
           {!desk && a.offshore && a.site && <> · <Text small>on {a.site}</Text></>}
@@ -374,7 +374,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
       </div>}
       {job.unmatched.length > 0 && <Text as="p" small muted>Also named: {job.unmatched.join(", ")}</Text>}
       {job.sources?.length > 1 && <div>
-        <h3 className="small">{reportedBy(job.sources)}</h3>
+        <Heading level={3} small>{reportedBy(job.sources)}</Heading>
         <List plain small>{job.sources.map((x) => <li key={x.id}>
           <strong>{x.label}</strong>: {x.title} <Text muted>· {x.source ?? ""}</Text></li>)}</List>
       </div>}
@@ -382,22 +382,22 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         {job.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul>}
       {job.permit && !desk && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
       {(job.checklist?.length ?? 0) > 0 && <div>
-        <h3 className="small">Checks before restart</h3>
+        <Heading level={3} small>Checks before restart</Heading>
         <List as="ol" small>{job.checklist!.map((c) => <li key={c}>{c}</li>)}</List>
       </div>}
       {/* Waiting in a queue, a job is picked by what, where and how urgent: the evidence record and the asset's
           history come with it once taken, so a queue of three jobs is not twenty screens long on a phone. */}
       {!job.queued && <div>
-        <h3 className="small">What was found</h3>
+        <Heading level={3} small>What was found</Heading>
         <FindingEvidence finding={job.finding} checks={false} />
       </div>}
       {!job.queued && job.history.length > 0 && <div>
-        <h3 className="small">Lately at this asset</h3>
+        <Heading level={3} small>Lately at this asset</Heading>
         <List plain small>{job.history.map((h) => <li key={h.id}>
           {when(h.first_seen)} · {h.title} <Text muted>({h.state})</Text></li>)}</List>
       </div>}
       {job.field.length > 0 && <div>
-        <h3 className="small">Field log</h3>
+        <Heading level={3} small>Field log</Heading>
         <List plain small>{job.field.map((f, i) => <li key={i}>
           {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""}
           {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <Text muted>{personName(f.by)}</Text>

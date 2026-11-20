@@ -96,7 +96,7 @@ const RULES = {
   },
   "card-heading": {
     skip: /^ui\//,
-    pattern: /<(?:UI)?Card\b(?!(?:[^<>{}]|\{[^{}]*\})*\btitle=)(?:[^<>{}]|\{[^{}]*\})*>\s*(?:<Line[^>]*>\s*)?<h[2-4]\b/g,
+    pattern: /<(?:UI)?Card\b(?!(?:[^<>{}]|\{[^{}]*\})*\btitle=)(?:[^<>{}]|\{[^{}]*\})*>\s*(?:<Line[^>]*>\s*)?<(?:h[2-4]|Heading)\b/g,
     hint: "Give the Card its title, detail and actions instead of writing a heading inside it.",
   },
   "raw-facts": {
@@ -108,6 +108,16 @@ const RULES = {
     skip: /^ui\//,
     pattern: /<label(?: className="(?:small|small row|row small)")?>(?:[^<>{}]|\{" "\})*<[A-Z]/g,
     hint: "Use Field (inline for a filter beside its control) from ui/src/ui instead of a hand-written label around a control.",
+  },
+  "raw-tabs": {
+    skip: /^ui\//,
+    pattern: /className=(?:"|\{`)(?:tabs\b|chips segmented\b)/g,
+    hint: "Use Tabs from ui/src/ui for a row of views (href to link, onSelect to switch in place) instead of a hand-built tab row.",
+  },
+  "raw-heading": {
+    skip: /^ui\//,
+    pattern: /<h[2-4]\b/g,
+    hint: "Use Heading from ui/src/ui (level, small, detail, actions) for a heading that isn't a Card's title, instead of a hand-written h2-h4.",
   },
   "badge-class": {
     pattern: /<(?:UI)?Badge\b[^>]*? className=|className=(?:"|\{`)badge\b/g,

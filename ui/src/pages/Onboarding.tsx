@@ -1,6 +1,6 @@
 import { api, type OnboardingStep } from "../api";
 import { Status, useAsync } from "../lib";
-import { Badge, Button, Card, Text } from "../ui";
+import { Badge, Button, Card, Text, Heading } from "../ui";
 
 const TONE: Record<OnboardingStep["status"], "ok" | "danger" | "warn"> = { ready: "ok", blocked: "danger", "to do": "warn" };
 
@@ -9,7 +9,7 @@ const TONE: Record<OnboardingStep["status"], "ok" | "danger" | "warn"> = { ready
 export function Onboarding() {
   const j = useAsync(() => api.onboarding(), []);
   return <div>
-    <h2>Onboarding</h2>
+    <Heading>Onboarding</Heading>
     <p>Each step a new asset goes through, from its seed bundle to the loop eval. Viewing this page changes nothing.</p>
     <Button disabled={j.loading} onClick={j.reload}>Refresh</Button>
     <Status of={j} />

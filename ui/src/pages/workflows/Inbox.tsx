@@ -1,4 +1,4 @@
-import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text, Field } from "../../ui";
+import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text, Field, Heading } from "../../ui";
 import { when } from "../../format";
 import { openReviews } from "../../figures";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
@@ -132,7 +132,7 @@ export function InboxPage() {
       <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
         hint="past their SLA and moved to you or your role" />
       {sent.length > 0 && <section className="field-jobs" aria-labelledby="sent-to-you">
-        <h2 id="sent-to-you">Your field jobs <Text small muted>{sent.length} · sent to you or taken by you, most urgent first</Text></h2>
+        <Heading id="sent-to-you" detail={sent.length}>Your field jobs</Heading>
         {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} onReported={setReported} />)}
       </section>}
       {!offline && fieldRole && <NewForYou person={person} told={told} />}
@@ -140,7 +140,7 @@ export function InboxPage() {
       <Group title="Unclaimed in your roles" rows={queue} person={person} picked={picked} toggle={toggle}
         hint="claim one to make it yours" />
       {waitingJobs.length > 0 && <section className="field-jobs" aria-labelledby="waiting-jobs">
-        <h2 id="waiting-jobs">{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues <Text small muted>{waitingJobs.length} · take one to make it yours</Text></h2>
+        <Heading id="waiting-jobs" detail={waitingJobs.length}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
         {waitingJobs.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}
@@ -233,9 +233,8 @@ function OtherFields({ person }: { person: string }) {
   return (
     <UICard title="In your other fields" detail={<>{others.length} · you hold roles there too</>}>
       {others.map((f) => <div key={f.project}>
-        <h3 className="small">{f.project} <Text muted>· {f.mine.length} assigned to you · {f.queue.length} unclaimed
-          in {f.roles.join(", ").replace(/_/g, " ")}</Text>{" "}
-          <Button size="sm" variant="secondary" onClick={() => switchProject(f.project)}>Work in {f.project}</Button></h3>
+        <Heading level={3} small detail={`${f.mine.length} assigned to you · ${f.queue.length} unclaimed in ${f.roles.join(", ").replace(/_/g, " ")}`}
+          actions={<Button size="sm" variant="secondary" onClick={() => switchProject(f.project)}>Work in {f.project}</Button>}>{f.project}</Heading>
         <Table variant="results"><tbody>{[...f.mine, ...f.queue].sort(byUrgency).slice(0, 5).map((r) =>
           <tr key={`${f.project}-${r.task_id ?? "i"}-${r.item_id}`}>
             <td><WorkLine r={r} title={<span className="work-title">{r.title}</span>} /></td>

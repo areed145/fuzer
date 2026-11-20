@@ -1,4 +1,4 @@
-import { Button, Empty, Input, Table, Card as UICard, ErrorText, Line, Text, Checkbox } from "../../ui";
+import { Button, Empty, Input, Table, Card as UICard, ErrorText, Line, Text, Checkbox, Heading } from "../../ui";
 import { percent, when } from "../../format";
 /** Survivorship and match rules (#225): the systems' rank (the default priority) and field / match rules. */
 import { useState } from "react";
@@ -47,7 +47,7 @@ export function Rules() {
             ))}
           </tbody>
         </Table>
-        <h3>Set a field rule</h3>
+        <Heading level={3}>Set a field rule</Heading>
         <Line>
           <Input placeholder="field (manufacturer)" value={field} onChange={(e) => setField(e.target.value)} />
           <Input placeholder="priority: review, sap, maximo" value={prio} onChange={(e) => setPrio(e.target.value)} />

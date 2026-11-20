@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, type AccessAccount, type AccessAdministration, type AccessRole, type AuditCoverage, type DocumentGroups, type WorkRoleRow } from "../api";
 import { refreshAccess, useAuth, usePermission } from "../Auth";
 import { href, Status, useAction, useAsync } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure, Line, Text, Checkbox, List } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure, Line, Text, Checkbox, List, Tabs, Heading } from "../ui";
 import { TeamsPage, WorkflowAssignments } from "./workflows/Teams";
 
 export function UsersPage({ query }: { query: URLSearchParams }) {
@@ -16,10 +16,10 @@ export function UsersPage({ query }: { query: URLSearchParams }) {
   const workflow = query.get("view") === "workflow" || !owner;
   return <section>
     <PageHeader>Users</PageHeader>
-    <nav className="tabs users-tabs" aria-label="Users views">
-      {owner && <a href={href("/users")} className={!workflow ? "on" : ""} aria-current={!workflow ? "page" : undefined}>Accounts &amp; access</a>}
-      <a href={href("/users", { view: "workflow" })} className={workflow ? "on" : ""} aria-current={workflow ? "page" : undefined}>Workflow assignments &amp; routing</a>
-    </nav>
+    <Tabs label="Users views" items={[
+      ...(owner ? [{ key: "accounts", label: "Accounts & access", href: href("/users"), current: !workflow }] : []),
+      { key: "workflow", label: "Workflow assignments & routing", href: href("/users", { view: "workflow" }), current: workflow },
+    ]} />
     {!owner && <p>Configuration administrators can manage workflow assignments and routing, not application access.
       An owner approves accounts and grants application roles.</p>}
     {workflow ? <TeamsPage query={query} administration /> : <Administration query={query} />}
@@ -67,7 +67,7 @@ function Administration({ query }: { query: URLSearchParams }) {
       {project && <AuditRecord project={project} />}
       {project && <RestrictedDocuments key={JSON.stringify(documents.data?.restricted ?? {})} project={project}
         data={documents.data} loading={documents.loading} error={documents.error} reload={restricted} />}
-      <h2>Accounts</h2>
+      <Heading>Accounts</Heading>
       <div className="row account-filters">
         <Field label="Find accounts" width="full"><Input type="search" width="full" value={search}
           onChange={event => filter({ q: event.target.value || undefined }, true)} placeholder="Name, stable identity or application role" /></Field>
@@ -85,7 +85,7 @@ function Administration({ query }: { query: URLSearchParams }) {
         assigned={workflow.data?.people.find(p => p.name === account.actor)?.assigned_roles ?? []}
         groups={groups} reload={changed} />)}
       <Disclosure label={<>Application role definitions</>}>
-      <h2>Application roles</h2>
+      <Heading>Application roles</Heading>
       {data.data.roles.map((role) => <RoleCard key={role.name + role.permissions.join(",") + role.description}
         role={role} data={data.data!} reload={changed} />)}
       <RoleCard data={data.data} reload={changed} />

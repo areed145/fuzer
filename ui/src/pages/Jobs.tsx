@@ -1,6 +1,6 @@
 import { count, money, when, ago } from "../format";
 import "../styles/jobs.css";
-import { Button, ButtonLink, PageHeader, Table, Card as UICard, Badge as UIBadge, Disclosure, ErrorText, Line, Text, Notice } from "../ui";
+import { Button, ButtonLink, PageHeader, Table, Card as UICard, Badge as UIBadge, Disclosure, ErrorText, Line, Text, Notice, Heading } from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
 import { api, type DetectorTier, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
 import { Status, href, useAsync } from "../lib";
@@ -47,7 +47,7 @@ function Tiers() {
   const rows = (t.data?.tiers ?? []).filter((x) => x.detectors.length);
   if (!rows.length) return null;
   return <>
-    <h2>Detector tiers</h2>
+    <Heading>Detector tiers</Heading>
     <div className="scroll-x">
       <Table variant="list">
         <thead><tr><th>Tier</th><th>Detectors</th><th>Last run</th><th>Last day</th></tr></thead>
@@ -93,7 +93,7 @@ function Overview({ o }: { o: JobsOverview }) {
         </div>
       </div>
 
-      <h2>Jobs</h2>
+      <Heading>Jobs</Heading>
       <div className="scroll-x">
         <Table variant="results" className="first-column-wide">
           <thead>
@@ -122,7 +122,7 @@ function Overview({ o }: { o: JobsOverview }) {
         </Table>
       </div>
 
-      <h2>Data checks</h2>
+      <Heading>Data checks</Heading>
       <div className="scroll-x">
         <Table variant="list" density="compact">
           <thead><tr><th>Check</th><th>Result</th><th>Details</th><th>Checked</th></tr></thead>
@@ -132,7 +132,7 @@ function Overview({ o }: { o: JobsOverview }) {
         </Table>
       </div>
 
-      <h2>Sensors</h2>
+      <Heading>Sensors</Heading>
       <div className="scroll-x">
         <Table variant="list">
           <thead><tr><th>Sensor</th><th>State</th><th>Last evaluation</th><th>Outcome</th></tr></thead>
@@ -260,7 +260,7 @@ const fmtValue = (v: unknown) =>
 function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
   return (
     <>
-      <h2>Claude spend</h2>
+      <Heading>Claude spend</Heading>
       <UICard>
         <Text as="p" small>
           The nightly <code>claude_reading</code> job is <OnOff on={c.schedule === "on"} />
@@ -325,7 +325,7 @@ export function JobRunPage({ id }: { id: string }) {
 
       {d.errors.length > 0 && (
         <>
-          <h2>What went wrong</h2>
+          <Heading>What went wrong</Heading>
           {d.errors.map((e, i) => (
             <UICard key={i} className="error-card">
               <Text as="div" small muted>{e.step ? <>step <code>{e.step}</code></> : "run"}{e.error_class && <> · {e.error_class}</>}</Text>
@@ -342,7 +342,7 @@ export function JobRunPage({ id }: { id: string }) {
 
       {d.assets.length > 0 && (
         <>
-          <h2>Recorded asset results</h2>
+          <Heading>Recorded asset results</Heading>
           <div className="grid">
             {d.assets.map((a) => (
               <UICard key={a.asset} title={<code>{a.asset}</code>}>
@@ -362,14 +362,14 @@ export function JobRunPage({ id }: { id: string }) {
 
       {tags.length > 0 && (
         <>
-          <h2>Tags</h2>
+          <Heading>Tags</Heading>
           <Table variant="keyValue" density="compact" headingCase="verbatim">
             <tbody>{tags.map(([k, v]) => <tr key={k}><th>{k}</th><td><code>{v}</code></td></tr>)}</tbody>
           </Table>
         </>
       )}
 
-      <h2>Log (last {d.log_tail.length})</h2>
+      <Heading>Log (last {d.log_tail.length})</Heading>
       <div className="scroll-x">
         <Table variant="list" density="compact" className="wrap-last-column">
           <thead><tr><th>Time</th><th>Level</th><th>Step</th><th>Message</th></tr></thead>

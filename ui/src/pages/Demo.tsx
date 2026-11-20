@@ -5,7 +5,7 @@ import { api, type Stats } from "../api";
 import { href, Status, useAsync } from "../lib";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
-import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Disclosure, Text } from "../ui";
+import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Disclosure, Text, Heading } from "../ui";
 
 const STEPS = [
   { key: "start", label: "Get oriented" },
@@ -35,7 +35,7 @@ export function DemoPage({ query, stats }: {
     </ol></nav>
     <Card className="investigation-stage">
       <Text as="p" small>Step {index + 1} of {STEPS.length}</Text>
-      <h2 ref={heading} tabIndex={-1} id="demo-step">{step.label}</h2>
+      <Heading ref={heading} tabIndex={-1} id="demo-step">{step.label}</Heading>
       {step.key === "start" && <>
         <p>New to Fuzer? Start with one asset, inspect where its records came from, then compare
           specialist findings and see how work passes between agents and accountable people.</p>
@@ -46,7 +46,7 @@ export function DemoPage({ query, stats }: {
         <p>The evidence journey and workflow inspection work without an AI provider.</p>
       </>}
       {step.key === "evidence" && <>
-        <h3>New to Fuzer? Investigate an Okan issue</h3>
+        <Heading level={3}>New to Fuzer? Investigate an Okan issue</Heading>
         <p>Follow train B's compressor trips from the asset to source evidence and a finding.
           Fictional data, rolled forward each day. Read-only, with no setup or AI key needed.</p>
         {stats?.pack === "okan" && stats.records > 0
@@ -69,8 +69,8 @@ export function DemoPage({ query, stats }: {
         </ButtonLink>}
         <Status of={catalog} />
         {catalog.data && !catalog.error && (catalog.data.agents.length ? catalog.data.agents.map((agent) => <Disclosure className="investigation-evidence" key={agent.id} label={<><strong>{agent.label}</strong> · {agent.description}</>}>
-          <h3>Registered skills</h3><ul>{agent.skills.map((s) => <li key={s}>{s}</li>)}</ul>
-          <h3>Limitations and human decisions</h3>
+          <Heading level={3}>Registered skills</Heading><ul>{agent.skills.map((s) => <li key={s}>{s}</li>)}</ul>
+          <Heading level={3}>Limitations and human decisions</Heading>
           <ul>{[...agent.limits, ...agent.human_decisions].map((s) => <li key={s}>{s}</li>)}</ul>
           {ai && <ButtonLink href={href("/ask", { demo: "agents", q: `Review the loaded historical Okan evidence from the perspective of ${agent.label}. ${agent.description} Cite supporting records, dates and units; state missing prerequisites and leave decisions to accountable people.` })}>
             Prepare a question for {agent.label}
@@ -79,7 +79,7 @@ export function DemoPage({ query, stats }: {
           <p>Refresh the catalog or ask an administrator to check the server.</p>
           <Button onClick={catalog.reload}>Refresh catalog</Button>
         </EmptyState>)}
-        {catalog.data?.unavailable.length ? <><h3>Missing capability prerequisites</h3><ul>
+        {catalog.data?.unavailable.length ? <><Heading level={3}>Missing capability prerequisites</Heading><ul>
           {catalog.data.unavailable.map((u) => <li key={`${u.agent}:${u.capability}`}>{u.capability}: {u.needed}</li>)}
         </ul></> : null}
         {configure && <p><a href={href("/settings", { filter: "agents." })}>Inspect provider configuration</a>.
@@ -116,7 +116,7 @@ function Workflow() {
   return <>
     <p>Workflows connect evidence, agent steps, human review and a recorded outcome. These are actual shared
       cases, not a private sandbox and not necessarily part of the compressor scenario. No case is created by this tour.</p>
-    <h3>1. Inspect a loaded case</h3>
+    <Heading level={3}>1. Inspect a loaded case</Heading>
     <p>Open its workflow diagram, waiting steps and timeline. Agent steps and human-only decisions remain distinct.</p>
     <Status of={cases} />
     {cases.data && !cases.error && (cases.data.items.length ? <ul>{cases.data.items.map((c) => <li key={c.id}>
@@ -125,7 +125,7 @@ function Workflow() {
     </li>)}</ul> : <EmptyState title="No workflow cases loaded">
       The workflow demonstration is unavailable. Ask an administrator to inspect the existing Work and Jobs setup; nothing was seeded.
     </EmptyState>)}
-    <h3>2. Review your next task</h3>
+    <Heading level={3}>2. Review your next task</Heading>
     <p>{operate ? "Claim, complete or hand off only a task you intend to change. Confirmed actions are audited and may advance the shared workflow."
       : "You have read-only access. Task changes require operate access and applicable workflow roles; Demo grants neither."}</p>
     <Status of={inbox} />
@@ -133,7 +133,7 @@ function Workflow() {
     {inbox.data && !inbox.error && (tasks.length ? <ul>{tasks.map((t) => <li key={t.task_id}>
       <a href={href(`/inbox/task/${t.task_id}`, { demo: "workflow" })}>{t.name ?? t.title}</a> · {t.kind} · {t.role ?? "No role recorded"}
     </li>)}</ul> : <p>No tasks are assigned or available in your queues. A role assignment is not supplied by Demo.</p>)}
-    <h3>3. Verify the recorded result</h3>
+    <Heading level={3}>3. Verify the recorded result</Heading>
     <p>After a deliberate change, inspect the task and case history. After an ambiguous failure,
       inspect saved state before retrying; nothing is automatically replayed.</p>
     <ButtonLink href={href("/workflows")}>Inspect workflow definitions</ButtonLink>{" "}

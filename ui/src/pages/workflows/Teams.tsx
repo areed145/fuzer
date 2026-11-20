@@ -1,4 +1,4 @@
-import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select, Badge as UIBadge, Disclosure, Line, Text, Notice } from "../../ui";
+import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select, Badge as UIBadge, Disclosure, Line, Text, Notice, Heading } from "../../ui";
 import { when } from "../../format";
 /** Shared workflow administration in Users and contextual read-only team workload in Work. */
 import { useState } from "react";
@@ -38,7 +38,7 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
     <section>
       <ActionStatus>{message && <p>{message}</p>}</ActionStatus>
       <Status loading={false} error={roles.error ?? work.error} />
-      {administration ? <h2>Workflow assignments &amp; routing</h2> : <PageHeader>Team workload</PageHeader>}
+      {administration ? <Heading>Workflow assignments &amp; routing</Heading> : <PageHeader>Team workload</PageHeader>}
       {!administration && <p>This operational view shows coverage and workload, not account access.
         {configure && <> Manage roles, assignments and coverage in <a href={href("/users", { view: "workflow", role: focus ?? undefined })}>Users</a>.</>}
         {" "}<a href={href("/exceptions", { list: "progress" })}>Open work cases</a></p>}
@@ -55,14 +55,14 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
             heading?.scrollIntoView({ block: "start" });
           }}>{label}</a>)}
       </nav>}
-      <h2 id="workflow-roles" tabIndex={-1}>Roles</h2>
+      <Heading id="workflow-roles" tabIndex={-1}>Roles</Heading>
       {persons.map((r) => <RoleCard key={`${r.name}:${r.description}:${r.default_sla}:${r.assignment}:${r.escalate_to}`}
         r={r} roles={persons} person={person} open={focus === r.name} reload={reload} editable={administration && configure} />)}
       {administration && configure && <Disclosure label={<>Add a workflow role</>}><NewRole person={person} reload={reload} /></Disclosure>}
-      <h2 id="workflow-people" tabIndex={-1}>People</h2>
+      <Heading id="workflow-people" tabIndex={-1}>People</Heading>
       <People people={work.data.people} roles={persons} person={person} reload={reload}
         inspect={inspect} editable={administration && configure} focus={query.get("person")} />
-      <h2 id="workflow-agents" tabIndex={-1}>Agents</h2>
+      <Heading id="workflow-agents" tabIndex={-1}>Agents</Heading>
       <Table variant="list" density="compact">
         <thead><tr><th>Agent</th><th>What it does</th><th>Steps waiting</th><th>Retrying</th><th>Used in</th></tr></thead>
         <tbody>

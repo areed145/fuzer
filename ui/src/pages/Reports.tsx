@@ -10,7 +10,7 @@ import { readableCitations } from "../entityRefs";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { AgentIdle } from "./workflows/shared";
-import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Text, type Tone, List } from "../ui";
+import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Text, type Tone, List, Heading } from "../ui";
 import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
 const STATUS_TONE: Record<string, Tone> = { published: "ok", "sent back": "warn", drafting: "warn", "needs a fix": "warn" };
@@ -59,7 +59,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
         </nav>
       )}
       {day && <Report key={day} day={day} onChange={days.reload} />}
-      <h2>Regulatory reports</h2>
+      <Heading>Regulatory reports</Heading>
       <Status of={regulatory} />
       {regulatory.data && <RegulatoryList data={regulatory.data} selected={report} onChange={regulatory.reload} />}
       <ObligationsDue />
@@ -107,7 +107,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
               )}
               {d.changes && (
                 <>
-                  <h2>Changed since version {d.version - 1}</h2>
+                  <Heading>Changed since version {d.version - 1}</Heading>
                   {Object.entries(d.changes).map(([section, c]) => (
                     <div key={section} className="small">
                       <strong>{section}</strong>

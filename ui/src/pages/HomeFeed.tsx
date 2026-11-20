@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { when } from "../format";
 import { api, type ExceptionRow, type JobsHealth, type LocatedPlace, type WorkHome, type WorkInbox, type WorkRow } from "../api";
-import { Badge, Button, Empty, Text } from "../ui";
+import { Badge, Button, Empty, Text, Heading } from "../ui";
 import { Status, afterMap, href, useAsync, useLive } from "../lib";
 import { Actor, Due, holder, usePerson } from "../work";
 import { useAuth } from "../Auth";
@@ -202,7 +202,7 @@ export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, config
       {/* On a phone the header is the sheet's handle: a tap anywhere on it opens or closes the list. */}
       <div className="home-feed-head" onClick={onToggle}>
         <span className="home-feed-grab" aria-hidden="true" />
-        <h2>Needs you</h2>
+        <Heading>Needs you</Heading>
         <span className="home-feed-toggle">
           <Button variant="ghost" size="sm" aria-expanded={open} aria-label={open ? "Close Needs you" : "Open Needs you"}
                   onClick={(e) => { e.stopPropagation(); onToggle(); }}>
@@ -218,16 +218,16 @@ export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, config
           : <>
             <Status error={inbox.error} onRetry={inbox.reload} />
             {sections.map((g) => <section key={g.key} className="feed-group" aria-label={g.label}>
-              <h3>{g.label} <span className="count">{g.total}</span>
-                {g.key === "work" && elsewhere > 0 && <Text small muted>and {elsewhere} in other fields</Text>}</h3>
+              <Heading level={3} detail={g.key === "work" && elsewhere > 0 && `and ${elsewhere} in other fields`}>
+                {g.label} <span className="count">{g.total}</span></Heading>
               <ol className="feed" aria-label={g.label}>{g.rows.slice(0, TOP).map(feedRow)}</ol>
               {g.total > TOP && <a className="small" href={more[g.key]}>{g.key === "work" ? `All ${g.total} on My work` : `All ${g.total}`}</a>}
             </section>)}
             {!sections.length && !inbox.error && <Empty className="small">Nothing waiting for you.</Empty>}
-            <h3>Since you last looked <Text small muted>{since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}</Text></h3>
+            <Heading level={3} detail={since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}>Since you last looked</Heading>
             {own.length ? changeList(own, "Since you last looked") : <Empty className="small">Nothing new on your work.</Empty>}
             {(watched.length > 0 || (since.data?.watching?.length ?? 0) > 0) && <>
-              <h3>Watching <Text small muted>not assigned to you</Text></h3>
+              <Heading level={3}>Watching</Heading>
               {watched.length ? changeList(watched, "Watching") : <Empty className="small">Nothing new on what you watch.</Empty>}
             </>}
           </>}

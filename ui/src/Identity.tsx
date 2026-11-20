@@ -4,7 +4,7 @@ import { api } from "./api";
 import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { helpHref } from "./help";
 import { usePerson } from "./work";
-import { Button, Input, Select, ErrorText, Text } from "./ui";
+import { Button, Input, Select, ErrorText, Text, Heading } from "./ui";
 import { getProject, switchProject, type AuthSession } from "./authState";
 import { SignOut, useAuth, usePermission } from "./Auth";
 
@@ -65,7 +65,7 @@ export function AccountButton() {
       <div ref={sheet} className="account-sheet" role="dialog" aria-modal="true" aria-label="Account">
         <div className="account-sheet-head">
           <span className="account-badge" aria-hidden="true">{name ? initials(name) : "?"}</span>
-          <h2>{name || "Account"}</h2>
+          <Heading>{name || "Account"}</Heading>
           <Button type="button" variant="link" className="account-close" onClick={() => setOpen(false)}>Done</Button>
         </div>
         <Identity />

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type ModelRollout, type ModelVersion, type Standing, type StandingDeviation } from "../api";
 import { Status, useAsync, errorMessage } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea, Text, List } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea, Text, List, Heading } from "../ui";
 import { loadPerson, usePerson } from "../work";
 import { person as personName } from "../wording";
 
@@ -49,7 +49,7 @@ export function Standards() {
   };
 
   return <div>
-    <h2>Standards</h2>
+    <Heading>Standards</Heading>
     <Button disabled={c.loading} onClick={() => { c.reload(); v.reload(); }}>Refresh</Button>
     <Status of={c} />
     {d && <Text as="p" small>Current standard: {d.current.model} v{d.current.version}. Work in practice over the

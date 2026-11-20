@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { when } from "../../format";
 import { openReviews } from "../../figures";
-import { confirmDialog, ErrorText, Line, Text, Checkbox } from "../../ui";
+import { confirmDialog, ErrorText, Line, Text, Checkbox, Tabs } from "../../ui";
 import { api } from "../../api";
 import { Badge, Button, Card, Input, PageHeader, Table, Empty } from "../../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../../lib";
@@ -31,10 +31,10 @@ export function MasterDataPage({ query }: { query: URLSearchParams }) {
   return (
     <section>
       <PageHeader>Master data</PageHeader>
-      <div className="tabs" role="tablist">
-        {TABS.map(({ key: k, label }) => <a key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}
-          href={href("/masterdata", { tab: k })}>{label}{k === "questions" && questions ? ` (${questions})` : ""}</a>)}
-      </div>
+      <Tabs label="Master data views" items={TABS.map(({ key: k, label }) => ({
+        key: k, current: tab === k, href: href("/masterdata", { tab: k }),
+        label: <>{label}{k === "questions" && questions ? <Text muted> {questions}</Text> : null}</>,
+      }))} />
       {tab === "unmatched" ? <Unmatched /> : tab === "questions" ? <Review query={query} stats={stats.data ?? undefined} />
         : tab === "unresolved" ? <Unresolved /> : tab === "gaps" ? <Gaps /> : tab === "context" ? <ContextTab />
         : tab === "proposals" ? <ProposalsTab /> : <Decisions />}

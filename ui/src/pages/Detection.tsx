@@ -6,7 +6,7 @@ import {
 } from "../api";
 import { Status, errorMessage, notifyChanged, useAsync, useReasonedAction } from "../lib";
 import { loadPerson } from "../work";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Empty, Field, Input, Select, Table, Line, Text } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Empty, Field, Input, Select, Table, Line, Text, Heading } from "../ui";
 
 const show = (v: unknown) =>
   v === null || v === undefined || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
@@ -178,7 +178,7 @@ function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; per
   return <Card title="Watch findings and promoted rules">
     <Status of={got} />
     {d && <>
-      <h3>Proposals{d.unreviewed ? ` (${d.unreviewed} to review)` : ""}</h3>
+      <Heading level={3}>Proposals{d.unreviewed ? ` (${d.unreviewed} to review)` : ""}</Heading>
       {d.live && d.live.raised > 0 && <p>
         Live: {d.live.raised} raised for triage, {d.live.confirmed} confirmed, {d.live.false_alarms} false
         alarms{d.live.precision != null && ` (precision ${pct(d.live.precision)})`}
@@ -190,7 +190,7 @@ function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; per
             judge={(real) => act(real ? "Confirming" : "Rejecting", () => api.judgeProposal(p.id, real, person),
               real ? "Confirmed. It counts towards its pattern's rule." : "Rejected.")} />)}</tbody>
         </Table>}
-      <h3>Patterns</h3>
+      <Heading level={3}>Patterns</Heading>
       {d.patterns.length === 0 ? <Empty>No confirmed proposal yet.</Empty> :
         <Table variant="settings">
           <thead><tr><th>Pattern</th><th>Confirmed</th><th>Smallest shift</th><th>Rule</th></tr></thead>
@@ -199,7 +199,7 @@ function Promotions({ classes, person, saved }: { classes: EquipmentClass[]; per
               "Drafted. Review it below; it runs only once published.")} />)}</tbody>
         </Table>}
       <ActionStatus busy={busy} error={error}>{done}</ActionStatus>
-      <h3>Rules</h3>
+      <Heading level={3}>Rules</Heading>
       {d.rules.length === 0 ? <Empty>No rule drafted yet.</Empty> :
         d.rules.map((r) => <RuleLine key={r.id} r={r} name={label(r.spec)} person={person} saved={reload} />)}
     </>}

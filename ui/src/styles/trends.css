@@ -30,4 +30,3 @@
 .trend-controls { flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .trend-controls input { font: inherit; }
 .trend-controls .spacer { flex: 1; }
-.trend-controls .trend-windows { margin: 0; flex-wrap: nowrap; align-items: center; }

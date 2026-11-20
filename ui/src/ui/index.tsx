@@ -52,14 +52,42 @@ export function Notice({ tone = "info", className = "", ...props }: HTMLAttribut
   return <div {...props} className={`notice ui-notice-${tone} ${className}`.trim()} />;
 }
 
-/** Links that switch between views of one page (a segmented control). The current view carries aria-current. */
-export function Tabs({ items, label, className = "" }: {
-  items: { key: string; label: ReactNode; href: string; current?: boolean }[]; label: string; className?: string;
+/** One row of views of one page (a segmented control). An item with `href` is a link and the current one carries
+ * aria-current; an item with `onSelect` switches state in place and the current one is pressed. `small` is the compact
+ * row used inside a card. */
+export interface TabItem { key: string | number; label: ReactNode; current?: boolean; href?: string; onSelect?: () => void; title?: string }
+export function Tabs({ items, label, small, className = "" }: { items: TabItem[]; label: string; small?: boolean; className?: string }) {
+  const cls = `tabs${small ? " small" : ""} ${className}`.trim();
+  // A row too wide for the screen scrolls sideways; it opens with the current view in sight.
+  const row = useRef<HTMLElement & HTMLDivElement>(null);
+  const current = items.find((item) => item.current)?.key;
+  useEffect(() => {
+    const el = row.current, on = el?.querySelector<HTMLElement>(".on");
+    if (el && on && el.scrollWidth > el.clientWidth) el.scrollLeft = on.offsetLeft - (el.clientWidth - on.offsetWidth) / 2;
+  }, [current]);
+  const links = items.some((item) => item.href !== undefined);
+  const tabs = items.map((item) => item.href !== undefined
+    ? <a key={item.key} href={item.href} title={item.title} className={item.current ? "on" : undefined}
+        aria-current={item.current ? "page" : undefined} onClick={item.onSelect}>{item.label}</a>
+    : <Button key={item.key} type="button" variant="ghost" title={item.title} className={item.current ? "on" : undefined}
+        aria-pressed={!!item.current} onClick={item.onSelect}>{item.label}</Button>);
+  return links ? <nav ref={row} className={cls} aria-label={label}>{tabs}</nav>
+    : <div ref={row} className={cls} role="group" aria-label={label}>{tabs}</div>;
+}
+
+/** A heading for a part of a page or a group inside a card, where it isn't a Card's own title. `detail` is the grey
+ * fact after it (a count, a date, an id), `actions` the controls on its right, and `small` the compact heading of a
+ * group inside a card. */
+export function Heading({ level = 2, small, mono, detail, actions, id, tabIndex, ref, className = "", children }: {
+  level?: 2 | 3 | 4; small?: boolean; mono?: boolean; detail?: ReactNode; actions?: ReactNode; id?: string; tabIndex?: number;
+  ref?: Ref<HTMLHeadingElement>; className?: string; children: ReactNode;
 }) {
-  return <nav className={`tabs ${className}`.trim()} aria-label={label}>
-    {items.map((item) => <a key={item.key} href={item.href} className={item.current ? "on" : undefined}
-      aria-current={item.current ? "page" : undefined}>{item.label}</a>)}
-  </nav>;
+  const Tag = `h${level}` as "h2" | "h3" | "h4";
+  const cls = `${small ? "small" : ""} ${mono ? "mono" : ""} ${className}`.trim() || undefined;
+  const heading = <Tag ref={ref} id={id} tabIndex={tabIndex} className={cls}>
+    {children}{detail !== undefined && detail !== null && detail !== false && detail !== "" && <> <Text small muted>{detail}</Text></>}
+  </Tag>;
+  return actions ? <header className="ui-card-header">{heading}{actions}</header> : heading;
 }
 
 export function Button({ variant = "secondary", size = "md", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement>;

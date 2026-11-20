@@ -3,7 +3,7 @@
 import { queue } from "../wording";
 import { useEffect, useRef, useState, type TouchEvent } from "react";
 import { type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
-import { Badge, Button, ButtonLink, Line, Text } from "../ui";
+import { Badge, Button, ButtonLink, Line, Text, Heading } from "../ui";
 import { entityHref, href } from "../lib";
 import { ATTENTION_TONE } from "../kinds";
 import { workHref } from "./AllWork";
@@ -67,7 +67,7 @@ export function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose
       <div className="attention-detail-head" {...touch}>
         <span className="attention-grab" aria-hidden="true" />
         <div className="attention-detail-title">
-          <h3>{placeName(place)}</h3>
+          <Heading level={3}>{placeName(place)}</Heading>
           <Text small muted>
             {place.open} open · {place.overdue} overdue · {place.unassigned} unassigned · <Text mono>{place.label}</Text>
           </Text>

@@ -1,6 +1,6 @@
 import "../styles/entity.css";
 import { when, whenDay, count } from "../format";
-import { Bar, Button, ButtonLink, Notice, PageHeader, Table, Tabs, Input, Card as UICard, Badge as UIBadge, ErrorText, Line, Text, List } from "../ui";
+import { Bar, Button, ButtonLink, Notice, PageHeader, Table, Tabs, Input, Card as UICard, Badge as UIBadge, ErrorText, Line, Text, List, Heading } from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer, SheetThumb } from "../DrawingViewer";
@@ -416,17 +416,10 @@ function Links({ edges, counts, asOf }: { edges: Edge[]; counts: Record<string, 
       <Status empty={edges.length === 0}>No links{asOf ? " on this date" : ""}.</Status>
       {[...groups].map(([label, items]) => (
         <div key={label} className="link-group">
-          <h3>
-            {label}{" "}
-            <Text muted>
-              {(() => {
-                const total = counts[`${items[0].direction}:${items[0].rel}`] ?? items.length;
-                return total > items.length
-                  ? `showing ${items.length} of ${count(total)}`
-                  : count(items.length);
-              })()}
-            </Text>
-          </h3>
+          <Heading level={3} detail={(() => {
+            const total = counts[`${items[0].direction}:${items[0].rel}`] ?? items.length;
+            return total > items.length ? `showing ${items.length} of ${count(total)}` : count(items.length);
+          })()}>{label}</Heading>
           <LinkList items={items} />
         </div>
       ))}
@@ -590,7 +583,7 @@ function MaintenanceCard({ id }: { id: string }) {
     <UICard as="section" title="Maintenance" detail={<>{count(m.data.total)} SAP notifications</>}>
       <div className="maintenance-split">
         <div>
-          <h3>Failure modes (ISO 14224)</h3>
+          <Heading level={3}>Failure modes (ISO 14224)</Heading>
           {/* Name, a bar to compare and the count, in columns: the count read as a superscript stuck to the word (#1076). */}
           <ul className="plain failure-modes">
             {m.data.failure_modes.map((f) => (
@@ -603,7 +596,7 @@ function MaintenanceCard({ id }: { id: string }) {
           </ul>
         </div>
         <div>
-          <h3>Recent</h3>
+          <Heading level={3}>Recent</Heading>
           <ul className="timeline">
             {m.data.recent.slice(0, 8).map((n) => (
               <li key={n.id}>
@@ -750,7 +743,7 @@ function LineageCard({ id }: { id: string }) {
   const rules = Object.entries(d.rules).map(([r, n]) => `${n} ${RULE_SAYS[r] ?? r}`).join(", ");
   return (
     <UICard as="section" title="Where this came from">
-      <h3>Systems</h3>
+      <Heading level={3}>Systems</Heading>
       {!d.systems.length && <p>No source system's record is matched to this one.</p>}
       <Table headingCase="verbatim">
         <thead><tr><th>System</th><th>Records, and how each was matched</th><th>Values it supplies</th></tr></thead>
@@ -772,7 +765,7 @@ function LineageCard({ id }: { id: string }) {
       </Table>
       {rules && <Text as="p" small>Values chosen {rules}. {d.note}</Text>}
       {(d.reviewed.length > 0 || d.fixes.length > 0) && <>
-        <h3>Reviewer choices</h3>
+        <Heading level={3}>Reviewer choices</Heading>
         <List small>
           {d.reviewed.map((r) => (
             <li key={`r-${r.field}`}><b>{fieldLabel(r.field)}</b>: {fmt(r.value)}{" "}
@@ -785,7 +778,7 @@ function LineageCard({ id }: { id: string }) {
         </List>
       </>}
       {(d.identity.length > 0 || d.pins.length > 0) && <>
-        <h3>Merges and splits</h3>
+        <Heading level={3}>Merges and splits</Heading>
         <List small>
           {d.identity.map((x, i) => (
             <li key={`i-${i}`}>
@@ -803,7 +796,7 @@ function LineageCard({ id }: { id: string }) {
           ))}
         </List>
       </>}
-      <h3>Work and write-backs</h3>
+      <Heading level={3}>Work and write-backs</Heading>
       {!d.work.count && <Text as="p" small>No work has been about this record.</Text>}
       {d.work.count > 0 && (
         <List small>
@@ -919,7 +912,7 @@ function AlongCard({ id }: { id: string }) {
       )}
       {features.length > 0 && (
         <>
-          <h3>Found by in-line inspection</h3>
+          <Heading level={3}>Found by in-line inspection</Heading>
           <Table variant="list">
             <thead><tr><th>Feature</th><th>Station (MP, mi)</th><th>Clock</th><th>Segment</th><th>Depth (% of wall)</th><th>Length (in)</th><th>Run</th></tr></thead>
             <tbody>

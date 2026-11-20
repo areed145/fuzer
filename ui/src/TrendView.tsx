@@ -12,7 +12,7 @@ import { caseHref } from "./pages/workflows/shared";
 import { useTheme } from "./theme";
 import { buildFigure, fromQuery, LANE_SHORT, names, OTHER, reading, toQuery, valueAt, type Palette, type TimelineEvent,
   type TrendTrace } from "./trendFigure";
-import { Badge, Button, Card, Disclosure, Input, Table, ErrorText, Text, List } from "./ui";
+import { Badge, Button, Card, Disclosure, Input, Table, ErrorText, Text, List, Tabs } from "./ui";
 
 const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
 const local = (iso: string) => iso.slice(0, 16);
@@ -168,11 +168,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         {" "}every {shown?.step_minutes ?? d.step_minutes} min{d.upsets.length > 0 && " · shaded: the 12 h leading into each incident"}
       </>}>
       <div className="row trend-controls">
-        <div className="chips segmented trend-windows" role="group" aria-label="How much time the chart shows">
-          {WINDOWS.map((h) => (
-            <Button key={h} className="chip" aria-pressed={h === hours} onClick={() => setHours(h)}>{h / 24} d</Button>
-          ))}
-        </div>
+        <Tabs small label="How much time the chart shows" items={WINDOWS.map((h) => ({ key: String(h), label: `${h / 24} d`, current: h === hours, onSelect: () => setHours(h) }))} />
         <span className="spacer" />
         {zoom && <Button size="sm" onClick={() => { setZoom(null); setRedraw((r) => r + 1); }}>Reset zoom</Button>}
         <Button size="sm" onClick={() => shift(-1)} disabled={!d}>← Earlier</Button>

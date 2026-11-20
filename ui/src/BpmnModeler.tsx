@@ -11,7 +11,7 @@ import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 import { href } from "./lib";
 import { fuzerModdle, subsetModule } from "./bpmnSubset";
-import { Button, Input, Select as UISelect, Empty, Textarea, ErrorText, Line } from "./ui";
+import { Button, Input, Select as UISelect, Empty, Textarea, ErrorText, Line, Heading } from "./ui";
 import { workflowComponents } from "./workflowComponents";
 
 export interface ModelerContext {
@@ -238,7 +238,7 @@ function ProcessProps({ ed, ctx }: { ed: Editing; ctx: ModelerContext }) {
   };
   return (
     <>
-      <h3>Workflow</h3>
+      <Heading level={3}>Workflow</Heading>
       <Field label="Key" value={p.id} readOnly hint="Stays the same across versions; workflows and the API start it by this." />
       <Text label="Name" value={p.name} onCommit={(v) => ed.setOn(p, { name: v })} />
       <Text label="Work item type" value={p.workItemType} placeholder={p.id}
@@ -292,8 +292,8 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
   const supported = title !== bo.$type.replace("bpmn:", "") || is(bo, "bpmn:Association");
   return (
     <>
-      <h3>{workflowComponents.find((c) => "agent" in c && c.id === bo.component)?.name ?? title}
-        {bo.$type === "bpmn:EndEvent" && def ? " (terminate)" : ""}</h3>
+      <Heading level={3}>{workflowComponents.find((c) => "agent" in c && c.id === bo.component)?.name ?? title}
+        {bo.$type === "bpmn:EndEvent" && def ? " (terminate)" : ""}</Heading>
       {!supported && <ErrorText>The engine doesn't run a {bo.$type.replace("bpmn:", "")}; publishing will refuse it.</ErrorText>}
       <Field label="Id" value={bo.id} readOnly mono />
       {!is(bo, "bpmn:TextAnnotation") && <Text label="Name" value={bo.name} onCommit={(v) => ed.set(el, { name: v })} />}

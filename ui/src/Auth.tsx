@@ -5,7 +5,7 @@ import { setCsrf } from "./authState";
 import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
 import { useRoute, errorMessage } from "./lib";
-import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader, Line, Text, Notice } from "./ui";
+import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader, Line, Text, Notice, Heading } from "./ui";
 import { forgetKept, outboxSession, unreachable } from "./fieldOffline";
 import "./styles/auth.css";
 
@@ -174,7 +174,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               catch (failure) { setActionError(errorMessage(failure)); }
               finally { setBusy(false); }
             }}>
-              <h2>Deployment owner setup</h2>
+              <Heading>Deployment owner setup</Heading>
               <p>Only the deployment owner should use the setup code configured in the hosting provider's secret settings.
                 This binds owner access to this Microsoft account; it is not first-visitor registration.</p>
               <Field label="Owner setup code"><Input type="password" autoComplete="off" value={setupCode}

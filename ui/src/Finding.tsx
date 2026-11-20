@@ -2,7 +2,7 @@ import "./styles/finding.css";
 import { money, percent, when } from "./format";
 import type { CaseSource, Finding, FindingItem } from "./api";
 import { entityHref } from "./lib";
-import { Card, Disclosure, Facts, Text, List } from "./ui";
+import { Card, Disclosure, Facts, Text, List, Heading } from "./ui";
 import { reportedBy } from "./work";
 import { say, unit as wordUnit } from "./wording";
 
@@ -60,7 +60,7 @@ export function FindingEvidence({ finding, checks = true }: { finding: Finding; 
         ...finding.items.filter((item) => !(item.label === "Reported by" && reporter(finding))).map((item) => [item.label, <Value item={item} />] as const),
       ]} />
       {checks && finding.checks.length > 0 && <>
-        <h4 className="small">Checks before the work</h4>
+        <Heading level={4} small>Checks before the work</Heading>
         <List as="ol" small>{finding.checks.map((c) => <li key={c}>{c}</li>)}</List>
       </>}
     </div>

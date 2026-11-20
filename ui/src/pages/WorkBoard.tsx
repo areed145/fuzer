@@ -7,7 +7,7 @@ import { money, whenDay } from "../format";
 import "../styles/work-board.css";
 import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
-import { Badge, Button, ButtonLink, Empty, Field, Select, Text } from "../ui";
+import { Badge, Button, ButtonLink, Empty, Field, Select, Text, Heading } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync } from "../lib";
 import { holder, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -126,11 +126,11 @@ function Column({ stage, rows, lane, laneOf, shown, person, people, queues, kind
   return (
     <section className={["work-board-column", shown && "shown", !rows.length && "empty"].filter(Boolean).join(" ")}
       aria-label={stage.label}>
-      <h2><span>{stage.label}</span> <Text muted>{rows.length}</Text></h2>
+      <Heading detail={rows.length}><span>{stage.label}</span></Heading>
       {rows.length > 0 && <Text as="p" small muted>{[stage.note, value > 0 && !closed ? `${money(value)} at stake` : null,
         oldest ? `oldest ${age(oldest)}` : null].filter(Boolean).join(" · ")}</Text>}
       {!rows.length ? <Empty>Nothing here.</Empty> : sorted.map(([name, items]) => <div key={name || "all"}>
-        {laneOf && <h3 className="work-board-lane">{name}</h3>}
+        {laneOf && <Heading level={3} className="work-board-lane">{name}</Heading>}
         {items.map((r) => <WorkCard key={r.id} r={r} stage={stage.key} lane={lane} now={now} person={person} people={people}
           queues={queues} kind={kindLabel.get(r.type) ?? r.type.replace(/_/g, " ")} onChange={onChange} />)}
       </div>)}

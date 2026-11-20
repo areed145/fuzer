@@ -3,7 +3,7 @@
  * open case in the data steward's queue. */
 import { api, type AssetContext, type ContextRollup, type PlacementSuggestion } from "../../api";
 import { percent } from "../../format";
-import { Badge, Button, Card, Empty, Table, ErrorText, Text } from "../../ui";
+import { Badge, Button, Card, Empty, Table, ErrorText, Text, Heading } from "../../ui";
 import { Status, entityHref, useAsync, useAction } from "../../lib";
 import { caseHref } from "../workflows/shared";
 import { reviewer } from "../sources/common";
@@ -48,7 +48,7 @@ function Suggestions({ id, items, onDone }: { id: string; items: PlacementSugges
   const a = useAction();
   return (
     <>
-      <h3>Suggested</h3>
+      <Heading level={3}>Suggested</Heading>
       <Table density="compact">
         <thead><tr><th>For</th><th>Suggestion</th><th>Why</th><th>Confidence</th><th /></tr></thead>
         <tbody>{items.map((s) => {

@@ -1,4 +1,4 @@
-import { Bar, Button, PageHeader, Input, Table, Card as UICard, Text } from "../ui";
+import { Bar, PageHeader, Input, Table, Card as UICard, Text, Tabs } from "../ui";
 import { whenDay, count } from "../format";
 import { useState } from "react";
 import { api, type DowntimeMonth, type RankRow } from "../api";
@@ -51,11 +51,7 @@ export function DowntimePage() {
         </div>
       )}
       <Months rows={months.data} error={months.error} reload={months.reload} />
-      <div className="chips segmented downtime-scope" role="group" aria-label="Which downtime the rankings count">
-        {SCOPES.map(([key, label]) => (
-          <Button key={key} className="chip" aria-pressed={scope === key} onClick={() => setScope(key)}>{label}</Button>
-        ))}
-      </div>
+      <Tabs label="Which downtime the rankings count" items={SCOPES.map(([key, label]) => ({ key, label, current: scope === key, onSelect: () => setScope(key) }))} />
       <div className="downtime-rankings">
         <Ranking title="By equipment" rows={byTag.data} error={byTag.error} reload={byTag.reload} />
         <Ranking title="By equipment class" rows={byClass.data} error={byClass.error} reload={byClass.reload} named />

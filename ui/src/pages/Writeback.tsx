@@ -1,4 +1,4 @@
-import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea, ErrorText, Line, Text, List } from "../ui";
+import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea, ErrorText, Line, Text, List, Heading } from "../ui";
 import { when } from "../format";
 import { useState } from "react";
 import { api, type Writeback, type WritebackDetail } from "../api";
@@ -90,7 +90,7 @@ export function SystemWritebacks({ system }: { system: string }) {
   if (!list.data) return <Status of={list} />;
   return (
     <>
-      <h3>Changes written back</h3>
+      <Heading level={3}>Changes written back</Heading>
       {!rows.length ? <Empty className="small">Nothing proposed for {system} yet.</Empty> : (
         <Table density="compact">
           <thead><tr><th>Change</th><th>Record</th><th>State</th><th>Approved by</th><th>Goes at</th><th>Case</th></tr></thead>

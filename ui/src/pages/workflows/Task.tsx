@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea, ErrorText, Line, Text, List, Notice } from "../../ui";
+import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea, ErrorText, Line, Text, List, Notice, Heading } from "../../ui";
 import { when } from "../../format";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
@@ -108,7 +108,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
                 <Text as="p" small muted>Not claimed yet. Completing it now records it as done by you; claim it first to hold it
                   while you work on it.</Text>
               )}
-              {completion && demo ? <div><h3>Review task response</h3><DataView data={completion} />
+              {completion && demo ? <div><Heading level={3}>Review task response</Heading><DataView data={completion} />
                 <ConfirmAction label="task completion" busy={!!a.busy}
                   consequence="Save this response and complete the shared task. This may advance the workflow or queue downstream agent work with configured AI costs. Completion is not proof that downstream work finished. After a failure, inspect the recorded task and case before retrying."
                   onConfirm={() => a.run("complete", () => api.complete(id, person, completion), () => {

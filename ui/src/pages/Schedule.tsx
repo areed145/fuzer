@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { when, whenDay } from "../format";
 import { api, type ScheduleAnalysis, type ScheduleLinkRef, type ScheduleRow } from "../api";
-import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs, ErrorText, Line, Text, List } from "../ui";
+import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs, ErrorText, Line, Text, List, Heading } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { acronyms } from "../wording";
 import { type BoardChange, type BoardRows, ScheduleBoard } from "./ScheduleBoard";
@@ -139,7 +139,7 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
           <Button disabled={!!busy || !nb} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { not_before: new Date(nb).toISOString() }))}>Hold</Button>
           {a.not_before && <Button variant="ghost" disabled={!!busy} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { clear_not_before: true }))}>Release</Button>}
         </Line>
-        <h3>Predecessors</h3>
+        <Heading level={3}>Predecessors</Heading>
         {a.predecessors.length ? <List plain>{a.predecessors.map((p) => <li key={p.code}>
           {p.code} {TYPE_WORD[p.type]}{p.lag_hours ? `, lag ${hours(p.lag_hours)} h` : ""}{" "}
           <Button variant="link" size="sm" disabled={!!busy} onClick={() => {
@@ -158,7 +158,7 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
           <Field label="Lag (h)" width="xs"><Input type="number" step="any" value={lag} onChange={(e) => setLag(e.target.value)} /></Field>
           <Button disabled={!!busy || !pred} onClick={() => act("Linking", () => api.scheduleLink(person, Number(pred), a.id, type, Number(lag || 0)))}>Add link</Button>
         </Line>
-        <h3>Needs</h3>
+        <Heading level={3}>Needs</Heading>
         {Object.keys(a.needs).length ? <List plain>{Object.entries(a.needs).map(([r, q]) => <li key={r}>
           {s.resources.find((x) => x.code === r)?.name ?? r}: {hours(q)}{" "}
           <Button variant="link" size="sm" disabled={!!busy} onClick={() => act("Removing the need", () => api.scheduleDemand(a.id, person, r, null))}>Remove</Button>

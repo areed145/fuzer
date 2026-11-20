@@ -2,7 +2,7 @@
  * the open backlog at each month's end, and the days from a notification to the order raised for it. Orders with no
  * notification are counted and left out of the lag, never read as zero. */
 import { api } from "../api";
-import { Badge, Table, Text, List } from "../ui";
+import { Badge, Table, Text, List, Heading } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 
 const TONE = { growing: "danger", steady: "muted", shrinking: "ok" } as const;
@@ -31,7 +31,7 @@ export function BacklogBurn() {
             </tr>
           ))}</tbody>
         </Table>
-        <h3>Notification to order</h3>
+        <Heading level={3}>Notification to order</Heading>
         <Text as="div" small>
           {d.lag.median_days != null
             ? <>Median {d.lag.median_days} days, 90% within {d.lag.p90_days}, longest {d.lag.max_days}, over {d.lag.with_notification} orders

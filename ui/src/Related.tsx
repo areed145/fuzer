@@ -2,7 +2,7 @@
  * the asset reaches what is already known about it. Nothing shows when there is none. */
 import { api, type RelatedWork } from "./api";
 import { when } from "./format";
-import { Card, Text, List } from "./ui";
+import { Card, Text, List, Heading } from "./ui";
 import { Status, href, useAsync } from "./lib";
 import { IncidentList } from "./pages/Incidents";
 
@@ -15,18 +15,18 @@ export function Related({ about, incidents = true }: { about: { case?: number; s
   return (
     <Card as="section" className="related-work" title={title}>
       {incidents && d.incidents.length > 0 && <>
-        <h3 className="small">Incidents <a className="muted" href={href("/incidents")}>all incidents</a></h3>
+        <Heading level={3} small>Incidents <a className="muted" href={href("/incidents")}>all incidents</a></Heading>
         <IncidentList items={d.incidents.slice(0, 5)} />
       </>}
       {d.studies.length > 0 && <>
-        <h3 className="small">Studies</h3>
+        <Heading level={3} small>Studies</Heading>
         <List plain small>{d.studies.map((s) => <li key={s.id}>
           <a href={href("/studies", { id: String(s.id) })}>{s.summary || s.kind.replace(/_/g, " ")}</a>{" "}
           <Text muted>{s.kind.replace(/_/g, " ")} · {s.status} · {when(s.created_at)}</Text>
         </li>)}</List>
       </>}
       {d.lessons.length > 0 && <>
-        <h3 className="small">Lessons</h3>
+        <Heading level={3} small>Lessons</Heading>
         <List plain small>{d.lessons.map((l) => <li key={l.id}>
           <a href={href("/lessons", { status: l.status })}>{l.title}</a>{" "}
           <Text muted>{l.status === "approved" ? "approved" : "suggested, not yet reviewed"} · {l.failure_mode}

@@ -1,6 +1,6 @@
 import "../styles/ask.css";
 import { money, when } from "../format";
-import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, List } from "../ui";
+import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, List, Heading } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AskContext, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
@@ -299,7 +299,7 @@ function Specialists({ catalog }: { catalog: Catalog }) {
           </li>
         ))}
       </ul>
-      <h3>Not available yet</h3>
+      <Heading level={3}>Not available yet</Heading>
       <Text as="p" small>These need a source Fuzer doesn't have. Asking gets an explanation, not an estimate.</Text>
       <ul className="specialist-gaps">
         {catalog.data!.unavailable.map((u) => (

@@ -760,9 +760,7 @@ function RunningTab({ processKey }: { processKey: string }) {
   const a = useAction();
   return (
     <>
-      <div className="tabs small">
-        {["running", "completed", "cancelled", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
-      </div>
+      <Tabs small label="Cases by state" items={["running", "completed", "cancelled", "all"].map((s) => ({ key: s, label: s, current: state === s, onSelect: () => setState(s) }))} />
       <Status of={list} empty={!!list.data && !list.data.length}>None.</Status>
       {list.data && list.data.length > 0 && (
         <Table variant="results">

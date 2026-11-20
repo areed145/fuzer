@@ -3,7 +3,7 @@
 // under "Needs definition".
 import { useMemo, useState } from "react";
 import { when, count as countText } from "../format";
-import { confirmDialog, Textarea, ErrorText, Line, Text, List } from "../ui";
+import { confirmDialog, Textarea, ErrorText, Line, Text, List, Tabs, Heading } from "../ui";
 import {
   api, type KindDef, type KindIn, type Ontology as OntologyData, type OntologyKind, type RelationDef, type RelationIn,
 } from "../api";
@@ -53,10 +53,10 @@ export function Ontology({ query }: { query?: URLSearchParams }) {
 
       <NeedsDefinition o={o} edit={edit} relDef={relDef} />
 
-      <div className="tabs small">
-        <a className={tab === "graph" ? "on" : ""} onClick={() => setTab("graph")}>Graph</a>
-        <a className={tab === "model" ? "on" : ""} onClick={() => setTab("model")}>Kinds &amp; link types</a>
-      </div>
+      <Tabs small label="Ontology views" items={[
+        { key: "graph", label: "Graph", current: tab === "graph", onSelect: () => setTab("graph") },
+        { key: "model", label: "Kinds & link types", current: tab === "model", onSelect: () => setTab("model") },
+      ]} />
 
       {tab === "graph" ? (
         <>
@@ -185,9 +185,9 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
     const inc = o.relations.filter((r) => r.dst_kind === kind.kind && r.src_kind !== kind.kind);
     return (
       <>
-        <h2 className="row">
+        <Heading className="row">
           <i className="dot" style={{ background: kindColor(kind.kind) }} /> {kind.label ?? words(kind.kind)}
-        </h2>
+        </Heading>
         <Line as="p" small>
           <Text muted mono>{kind.kind}</Text> <StatusBadge status={def?.status} />
           {def?.group && <Text muted>{def.group}</Text>}
@@ -199,7 +199,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
         </Line>
         <Text as="p" small>{countText(kind.count)} entities</Text>
 
-        <h3>Fed by</h3>
+        <Heading level={3}>Fed by</Heading>
         <Line>
           {kind.sources.map((s) => (
             <span key={s.source} className="row small">
@@ -208,10 +208,10 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
           ))}
         </Line>
 
-        <h3>Fields</h3>
+        <Heading level={3}>Fields</Heading>
         <Coverage kind={kind} />
 
-        <h3>Links</h3>
+        <Heading level={3}>Links</Heading>
         <List plain>
           {out.map((r) => (
             <li key={relId(r)} className="small">
@@ -233,7 +233,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
     const def = relDef(rel.rel);
     return (
       <>
-        <h2>{rel.rel}</h2>
+        <Heading>{rel.rel}</Heading>
         <Line as="p" small><StatusBadge status={def?.status} />{def?.dated && <Text muted>dated</Text>}</Line>
         <Text as="p" small>{def?.description || <Text muted>No description yet.</Text>}</Text>
         <p>
@@ -253,7 +253,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
         <Text as="p" small>
           {countText(rel.n)} links{rel.dated > 0 && `, ${countText(rel.dated)} with start/end dates`}
         </Text>
-        <h3>From</h3>
+        <Heading level={3}>From</Heading>
         <Line>
           {rel.sources.map((s) => (
             <SourceBadge key={s} source={s} />
@@ -265,7 +265,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
 
   return (
     <>
-      <h2>Model</h2>
+      <Heading>Model</Heading>
       <Text as="p" small>
         {countText(o.kinds.reduce((a, k) => a + k.count, 0))} entities ·{" "}
         {countText(o.relations.reduce((a, r) => a + r.n, 0))} links
