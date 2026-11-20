@@ -52,10 +52,9 @@ export function WorkListPage({ query, board = false }: { query: URLSearchParams;
   const set = (next: Filters) => location.replace(listHref(board, { ...filters, ...next }));
   return (
     <section>
-      <PageHeader className="all-work-header" actions={<a href={href("/performance")}>How the work is running</a>}>
-        {board ? "Board" : "All work"}</PageHeader>
-      {mine?.roles.includes("operator") && <Text as="p" small><a href={href("/inbox")}>Your field jobs</a>, with their
-        report buttons and kept for no signal.</Text>}
+      <PageHeader className="all-work-header">{board ? "Board" : "All work"}</PageHeader>
+      <Text as="p" small>{mine?.roles.includes("operator") && <><a href={href("/inbox")}>Your field jobs</a>, with their
+        report buttons and kept for no signal. </>}<a href={href("/performance")}>How the work is running</a></Text>
       {filters.state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <Presets board={board} filters={filters} roles={mine?.roles ?? []} />
       <FilterBar board={board} filters={filters} facets={list.data?.facets} set={set} />

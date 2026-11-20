@@ -176,7 +176,7 @@ export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, config
     const rows = items.filter((i) => i.group === g.key);
     return { ...g, rows, total: g.key === "work" ? Math.max(hereTotal, rows.length - elsewhere) : rows.length };
   }).filter((g) => g.rows.length > 0 || g.total > 0);
-  const more: Record<Group, string> = { work: href("/inbox"), dispatch: workHref("dispatch"), data: href("/sources") };
+  const more: Record<Group, string> = { work: href("/list", { waiting_on: "me" }), dispatch: workHref("dispatch"), data: href("/sources") };
   const feedRow = (i: FeedItem) => (
     <li key={i.key} className={`feed-item${i.late ? " late" : ""}${fresh(i.key) ? " fresh" : ""}`} {...point(i.subjects, i.title)}>
       <span className="feed-line">
