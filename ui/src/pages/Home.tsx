@@ -132,7 +132,7 @@ export function HomePage({ stats, inbox, jobsHealth }: {
             <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} tally={tally.data ?? undefined}
                      work={spots.data ? { places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
             {/* One row: the layers, then which places the open work layer shows. */}
-            <div className="home-chips">
+            <Scroller className="home-chips">
               <div className="home-layers chips" role="group" aria-label="Map layers">
                 {LAYERS.map((l) => (
                   <Button key={l.key} className={layers.has(l.key) ? "chip on" : "chip"} aria-pressed={layers.has(l.key)}
@@ -145,7 +145,7 @@ export function HomePage({ stats, inbox, jobsHealth }: {
                           onClick={() => setFilter(f.key)}>{f.label}</Button>
                 ))}
               </div>}
-            </div>
+            </Scroller>
           </div>
           {spots.error && <div className="home-notice"><Status error={spots.error} onRetry={spots.reload} /></div>}
           {noRecords && <UICard className="home-notice" title="Connect data before exploring">

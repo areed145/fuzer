@@ -34,8 +34,7 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 .home-figures:empty { display: none; }
 .home-figure { flex: 1 0 auto; display: grid; min-width: 112px; white-space: nowrap; }
 /* The layers and the place filters share one row, which scrolls sideways rather than wrapping to a second. */
-.home-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
-.home-chips::-webkit-scrollbar { display: none; }
+.home-chips { align-items: center; gap: 6px; padding: 2px; }
 .home-layers { flex: none; display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; margin: 0; }
 .home-layers .chip { flex: none; white-space: nowrap; }
 .home-filters { padding-left: 8px; border-left: 1px solid var(--line); }
@@ -107,11 +106,10 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
   /* Two figures and half the next across a phone, so the row plainly goes on and each label keeps to one line. */
   .home-figure { flex: 0 0 calc((100% - 16px) / 2.5); min-width: 0; }
   .home-figure small { white-space: normal; }
-  /* The mark sits on the map, which is dark in both themes: it gets the glass the buttons beside it have. */
-  html:has(.home-map) .topbar .brand { display: inline-flex; align-items: center; height: 44px; padding: 0 14px; border-radius: 22px;
-    background: var(--glass, var(--panel)); background-image: var(--glass-sheen, none);
-    -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%);
-    border: var(--hair, 1px) solid var(--glass-edge, var(--line)); box-shadow: inset 0 1px 0 var(--glass-hi, transparent), var(--glass-shadow, none); }
+  /* The mark sits bare on the map, as on every other page, with a soft halo in the page colour so it reads on the
+     map in either theme (light ink on a light halo, light ink on a dark one). */
+  html:has(.home-map) .topbar .brand .logo {
+    filter: drop-shadow(0 0 1px var(--bg)) drop-shadow(0 0 4px var(--bg)) drop-shadow(0 1px 8px color-mix(in srgb, var(--bg) 70%, transparent)); }
   .home-charts { max-height: calc(100dvh - var(--bar-top, 0px) - var(--bar-bottom, 0px) - 260px); }
   .home-feed { top: auto; left: 0; right: 0; bottom: var(--bar-bottom, 0px); width: auto; max-height: 56px; border-radius: 16px 16px 0 0;
     border-bottom: 0; transition: max-height .2s ease; }
