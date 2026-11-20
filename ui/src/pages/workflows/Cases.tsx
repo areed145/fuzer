@@ -10,7 +10,8 @@ import { api, type CaseRow, type CaseSource, type ReviewKind, type WorkItem, typ
 import { CaseQuestion } from "../Review";
 import { Status, href, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson } from "../../work";
-import { AgentIdle, AssignPicker, PriorityBadge, SendToField, StepBadges, byUrgency, caseHref, priorityLevel, processHref, taskHref } from "./shared";
+import { AgentIdle, AssignPicker, PriorityBadge, SendToField, StepBadges, byUrgency, caseHref, priorityLevel, processHref } from "./shared";
+import { StepActions } from "./Task";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
@@ -263,7 +264,6 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
   const closed = !!it.closed_at;
   if (closed || (!open.length && demo)) return null;
   const next = open.find((s) => s.kind !== "agent" && (!s.assignee || s.assignee === person)) ?? open.find((s) => s.kind !== "agent");
-  const stepHref = (sid: number) => demo ? href(`/inbox/task/${sid}`, { demo: "workflow" }) : taskHref(sid);
   return (
     <UICard className="case-next" aria-label="Next step" title={open.length ? "Waiting on" : "Next step"}>
       {open.length > 0 ? <ul className="plain case-next-steps">
@@ -279,11 +279,10 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
                 api.handOff(s.id, person, person, "no agent worker picked it up; done by a person"), reload)} />
           </li>
         ))}
-      </ul> : <Text as="p" small>No step is open. Close it out below, or give it to someone.</Text>}
-      <div className="row wrap case-next-actions">
-        {next && !answered && <ButtonLink variant="primary" href={stepHref(next.id)} aria-label={`Open ${next.name ?? next.element}`}>Open the step</ButtonLink>}
-        {fieldOnly && <ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink>}
-      </div>
+      </ul> : <Text as="p" small>No step is open. Close it out below, or send it to someone.</Text>}
+      {/* the step is worked here (#1222): no separate step page */}
+      {next && !answered && <StepActions key={next.id} id={next.id} demo={demo} send={false} onChanged={reload} />}
+      {fieldOnly && <div className="row wrap case-next-actions"><ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink></div>}
       <ErrorText>{takeOver.error}</ErrorText>
       {/* the IOC sends it out through the case's workflow: not while the field already has it */}
       {!demo && !fieldOnly && exceptionId != null && !open.some((s) => s.role === "operator") && person &&
@@ -357,13 +356,13 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   const a = useAction();
   return (
     <div className="case-actions">
-      <Disclosure className="small" label={<>Give it to someone else</>}>
+      <Disclosure className="small" label={<>Send to someone else</>}>
       <Line wrap>
-        <Field label="Give it to" width="md"><AssignPicker value={to} onChange={setTo} /></Field>
+        <Field label="Send to" width="md"><AssignPicker value={to} onChange={setTo} /></Field>
         <Field label="Why (kept in its history)" width="md">
           <Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         <Button variant="secondary" disabled={!to || !!a.busy}
-          onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Reassign</Button>
+          onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Send</Button>
       </Line>
       </Disclosure>
       <Disclosure className="small" label={<>Change priority or due time</>}>

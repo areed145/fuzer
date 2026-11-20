@@ -8,7 +8,7 @@ import { confirmDialog } from "../ui";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type Modeler from "bpmn-js/lib/Modeler";
 import { api, type ProcessStats, type WorkChange, type WorkCompare, type WorkDefinition, type WorkProblem } from "../api";
-import { caseHref, taskHref } from "./workflows/shared";
+import { caseHref } from "./workflows/shared";
 import { Status, href, useAsync, useAction, errorMessage } from "../lib";
 import { Actor, Due, duration, holder, span, usePerson } from "../work";
 import { blankProcess, focusElement } from "../bpmnSubset";
@@ -772,7 +772,7 @@ function RunningTab({ processKey }: { processKey: string }) {
                 <td className="small">
                   {i.open_steps.map((t) => (
                     <div key={t.task_id}>
-                      {t.kind === "agent" ? t.step : <a href={taskHref(t.task_id)}>{t.step}</a>} <Text muted>with {holder(t.assignee, t.role, t.kind)}</Text>{" "}
+                      {t.kind === "agent" ? t.step : <a href={caseHref(i.item_id)}>{t.step}</a>} <Text muted>with {holder(t.assignee, t.role, t.kind)}</Text>{" "}
                       {t.escalated && <UIBadge tone="danger">escalated</UIBadge>} <Due at={t.due_at} />
                     </div>
                   ))}
