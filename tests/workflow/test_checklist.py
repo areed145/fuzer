@@ -86,3 +86,37 @@ def test_an_asked_case_closes_as_done_and_says_what_its_checklist_left(conn):
     assert any("1 of 3 checklist items done, 1 not needed, 1 left open" in str(e["data"]) for e in item["events"])
     with pytest.raises(work.WorkError, match="closed"):
         checklist.mark(conn, item_id, a["id"], "ana", "open")
+
+
+def test_an_item_sent_to_another_queue_is_its_own_case_and_done_when_that_case_is(conn):
+    item_id = look_ahead(conn)
+    _, _, pumps = checklist.items(conn, item_id)
+    sent = checklist.send(conn, item_id, pumps["id"], "ana", "role:production_engineer", "Before Saturday's outage")
+    child_id = sent["child"]["id"]
+    assert sent["state"] == "open" and sent["child"]["role"] == "production_engineer"
+    child = work.item(conn, child_id)
+    assert (child["parent"]["id"], child["subjects"], child["title"]) == (item_id, ["fz-pump"], pumps["text"])
+    assert child["processes"][0]["data"]["summary"] == "Before Saturday's outage"
+    with pytest.raises(work.WorkError, match="already case"):
+        checklist.send(conn, item_id, pumps["id"], "ana", "role:production_engineer")
+    with pytest.raises(work.WorkError, match="still open"):
+        checklist.remove(conn, item_id, pumps["id"], "ana")
+    listed = next(r for r in work.list_items(conn, limit=1000)["items"] if r["id"] == item_id)
+    assert listed["checklist"] == {"done": 0, "total": 3}
+    work.transition(conn, child_id, "done", "pat")
+    after = checklist.items(conn, item_id)[2]
+    assert after["state"] == "done" and after["child"]["state"] == "done"
+    listed = next(r for r in work.list_items(conn, limit=1000)["items"] if r["id"] == item_id)
+    assert listed["checklist"] == {"done": 1, "total": 3}
+
+
+def test_an_item_whose_case_was_cancelled_can_be_sent_again(conn):
+    item_id = look_ahead(conn)
+    first = checklist.items(conn, item_id)[0]
+    child_id = checklist.send(conn, item_id, first["id"], "ana", "role:production_engineer")["child"]["id"]
+    work.transition(conn, child_id, "cancelled", "ana")
+    assert checklist.items(conn, item_id)[0]["state"] == "open"
+    again = checklist.send(conn, item_id, first["id"], "ana", "role:maintenance_planner")
+    assert again["child"]["id"] != child_id
+    with pytest.raises(work.WorkError, match="not a person's queue"):
+        checklist.send(conn, item_id, checklist.items(conn, item_id)[1]["id"], "ana", "role:nobody")

@@ -143,6 +143,9 @@ create table if not exists work_check (
     created_at timestamptz not null default now()
 );
 create index if not exists work_check_item on work_check (item_id, position);
+-- An item sent to another queue as its own case (a child case): the item is done when that case is done.
+alter table work_check add column if not exists child_item_id bigint references work_item (id);
+alter table work_item add column if not exists parent_id bigint references work_item (id);  -- the case it is part of
 -- the steps the assistant proposed with a draft, each {text, subjects}: the case's checklist once confirmed
 alter table work_draft add column if not exists steps jsonb not null default '[]';
 

@@ -32,7 +32,8 @@ its evidence and its history. A case is what is dispatched, worked and closed.
 **Checklist.** What a case asks for, item by item, ticked off on the case as each is done or marked not needed
 with why. A multi-part ask (a weekly look-ahead: confirm a work order, raise three orders, check the standby pumps)
 keeps its parts here. Checklist items are not steps: the workflow does not wait on them, and the closed case keeps
-them as the record of what was done.
+them as the record of what was done. An item for another queue is sent as its own case, part of this one (a
+child case); the item is done when that case is.
 
 **Clash.** Two planned jobs on one asset at the same time, a person booked twice, or two jobs whose permits must
 not run side by side. Shown on Plan and checked again at dispatch; it is a flag, not a case.

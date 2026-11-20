@@ -2876,6 +2876,29 @@ test("a multi-part ask shows its checklist where it is taken, ticks items off an
   assert.ok(!text.includes("d_1") && !text.includes("draft:d_1"), "the engine's keys are not shown");
 });
 
+test("a checklist item for another queue is sent as its own case, part of this one", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const sent = [];
+  const base = { id: 7, position: 1, text: "Decide on spares MAT-100016", subjects: [], state: "open", note: null, done_by: null, done_at: null };
+  let child = null;
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "maintenance_planner", kind: "person" }] }));
+  await page.route("**/work/items/43", (route) => route.fulfill({ json: { id: 43, type: "task", title: "Look-ahead", subjects: [],
+    state: "open", outcome: null, priority: null, assignee: "ann", role: "production_engineer", due: null, source: "assistant",
+    created_by: "ann", created_at: "2026-11-20T07:00:00Z", closed_at: null, payload: { summary: "Three decisions." },
+    processes: [], events: [], parent: null, checklist: [{ ...base, child }] } }));
+  await page.route("**/work/items/43/checklist/7/send", (route) => { sent.push(route.request().postDataJSON());
+    child = { id: 44, title: base.text, state: "open", closed_at: null, assignee: null, role: "maintenance_planner" };
+    return route.fulfill({ json: { ...base, child } }); });
+  await page.goto(`${url}/#/cases/43`);
+  await page.getByRole("button", { name: "Send as a case" }).click();
+  await page.getByLabel("Send to").selectOption("role:maintenance_planner");
+  await page.getByLabel("What they should know").fill("Lead time 32 days");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("link", { name: "case 44" }).waitFor();
+  await page.getByText("with maintenance planner queue").waitFor();
+  assert.deepEqual({ to: sent[0].to, note: sent[0].note }, { to: "role:maintenance_planner", note: "Lead time 32 days" });
+});
+
 test("Mermaid loads only for an answer with a diagram", async () => {
   const chunks = [];
   page.on("request", (request) => { if (/mermaid/i.test(request.url())) chunks.push(request.url()); });

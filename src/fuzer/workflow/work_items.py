@@ -235,7 +235,9 @@ def item(conn, item_id: int) -> dict:
         p["open"] = [s for s in mine if s["state"] in ("ready", "waiting")]
     events = conn.execute("select id, kind, actor, element, data, at, process_id, token_id from work_event "
                           "where item_id = %s order by id", (item_id,)).fetchall()
-    return {**row, "processes": procs, "events": events, "checklist": checklist.items(conn, item_id)}
+    parent = conn.execute("select id, title, state, closed_at from work_item where id = %s",
+                          (row["parent_id"],)).fetchone() if row.get("parent_id") else None
+    return {**row, "processes": procs, "events": events, "checklist": checklist.items(conn, item_id), "parent": parent}
 
 def process(conn, process_id: int) -> dict:
     row = conn.execute("select item_id from work_process where id = %s", (process_id,)).fetchone()

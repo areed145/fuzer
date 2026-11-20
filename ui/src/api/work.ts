@@ -372,6 +372,8 @@ export interface ChecklistProgress { done: number; total: number }
 export interface CheckItem {
   id: number; position: number; text: string; subjects: string[];
   state: "open" | "done" | "skipped"; note: string | null; done_by: string | null; done_at: string | null;
+  /** The case it was sent as, part of this one: the item is done when that case is done. */
+  child: { id: number; title: string; state: string; closed_at: string | null; assignee: string | null; role: string | null } | null;
 }
 
 export interface WorkDraft {
@@ -599,6 +601,8 @@ export interface WorkItem {
   events: WorkEvent[];
   /** What the case asks for, ticked off as it is done. */
   checklist?: CheckItem[];
+  /** The case this one is part of: an item of its checklist sent here. */
+  parent?: { id: number; title: string; state: string; closed_at: string | null } | null;
 }
 
 export interface BulkAction {
@@ -1087,6 +1091,8 @@ export const workApi = {
     request<CheckItem[]>("POST", `/work/items/${itemId}/checklist`, undefined, { by, items }),
   changeChecklist: (itemId: number, checkId: number, by: string, change: { state?: CheckItem["state"]; note?: string; text?: string }) =>
     request<CheckItem>("POST", `/work/items/${itemId}/checklist/${checkId}`, undefined, { by, ...change }),
+  sendChecklist: (itemId: number, checkId: number, by: string, to: string, note?: string) =>
+    request<CheckItem>("POST", `/work/items/${itemId}/checklist/${checkId}/send`, undefined, { by, to, note }),
   removeChecklist: (itemId: number, checkId: number, by: string) =>
     request<unknown>("DELETE", `/work/items/${itemId}/checklist/${checkId}`, { by }),
   workDraft: (id: string) => request<WorkDraft>("GET", `/work/drafts/${encodeURIComponent(id)}`),

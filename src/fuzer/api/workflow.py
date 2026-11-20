@@ -355,6 +355,19 @@ def work_item_checklist_change(item_id: int, check_id: int, c: ChecklistChange, 
     return row
 
 
+class ChecklistSend(BaseModel):
+    by: str
+    to: str                   # role:<role> for a queue, or a person
+    note: str | None = None   # what the new case's holder should know
+
+
+@router.post("/work/items/{item_id}/checklist/{check_id}/send")
+def work_item_checklist_send(item_id: int, check_id: int, c: ChecklistSend, conn=Depends(get_conn)):
+    """Send an item as its own case, part of this one: the item is done when that case is done."""
+    from ..workflow import checklist
+    return checklist.send(conn, item_id, check_id, c.by, c.to, c.note)
+
+
 @router.delete("/work/items/{item_id}/checklist/{check_id}")
 def work_item_checklist_remove(item_id: int, check_id: int, by: str, conn=Depends(get_conn)):
     from ..workflow import checklist

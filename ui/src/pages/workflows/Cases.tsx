@@ -218,6 +218,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
             {!demo && canAsk && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
           </Line>
+          {it.parent && <Text as="p" small>Part of <a href={caseHref(it.parent.id)}>{say(it.parent.title)}</a></Text>}
           {(it.subjects.length > 0 || dataset) && (
             <Text as="p" small>About{" "}
               <EntityLinks ids={it.subjects} />
