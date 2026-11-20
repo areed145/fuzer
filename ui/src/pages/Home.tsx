@@ -3,11 +3,10 @@
  * the map the place each item is about. Home summarizes and links: every action stays on its owning page. */
 import "../styles/home.css";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { api, type AttentionPlace, type Stats } from "../api";
+import { api, type AttentionPlace, type JobsHealth, type Stats, type WorkInbox } from "../api";
 import { openReviews } from "../figures";
 import { count } from "../format";
-import { Status, href, useAsync, useLive } from "../lib";
-import { usePerson } from "../work";
+import { Status, afterMap, href, useAsync, useLive } from "../lib";
 import { Button, Card as UICard, PageHeader, Stat } from "../ui";
 import { usePermission } from "../Auth";
 import { Sparkline, show } from "../analytics/Metric";
@@ -56,23 +55,26 @@ function savedLayers(): Set<Layer> {
   return new Set(["work", "crews", "incidents", "network"]);
 }
 
-export function HomePage({ stats }: {
+export function HomePage({ stats, inbox, jobsHealth }: {
   stats?: Stats;
   statsLoading: boolean;
   statsError?: string;
+  /** The shell's reads, shared so Home doesn't ask again and the My work tab's count moves with Home's. */
+  inbox: { data?: WorkInbox | null; error?: string; reload: () => void };
+  jobsHealth: { data?: JobsHealth | null; error?: string };
 }) {
   const configure = usePermission("configure");
-  const [person] = usePerson();
-  const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(null), [person]);
   const roles = inbox.data?.roles ?? [];
   const seat = seatOf(roles);
   const dispatcher = roles.includes("ops_lead");
   const steward = roles.includes("data_steward") || configure;
   const noRecords = stats?.records === 0;
 
-  const spots = useAsync(() => api.attention(), []);
+  // The map and its open work first; the rest waits for the map, since the server answers reads largely one at a time.
   const geo = useAsync(() => api.map(), []);
-  const open = useAsync(() => (dispatcher ? api.exceptions({ state: "open" }) : Promise.resolve(null)), [dispatcher]);
+  const spots = useAsync(() => api.attention(), []);
+  const ready = geo.data !== undefined || !!geo.error;
+  const open = useAsync(() => (dispatcher ? afterMap(ready, () => api.exceptions({ state: "open" })) : Promise.resolve(null)), [dispatcher, ready]);
   useLive([inbox.reload, spots.reload, open.reload]);
 
   const [layers, setLayers] = useState(savedLayers);
@@ -94,7 +96,7 @@ export function HomePage({ stats }: {
   const network = useMemo(() => geo.data && (layers.has("network") ? geo.data
     : { ...geo.data, features: geo.data.features.filter((f) => f.geometry.type === "Point" && f.properties.kind !== "well") }),
   [geo.data, layers]);
-  const incidents = useIncidents(layers.has("incidents"));
+  const incidents = useIncidents(layers.has("incidents"), ready);
   const stage = useRef<HTMLDivElement>(null);
   const inset = useInset(stage);
 
@@ -109,7 +111,7 @@ export function HomePage({ stats }: {
           </Suspense>
         )}
         <div className="home-over">
-          <Figures seat={seat} dispatcher={dispatcher} stats={stats} open={open.data ?? undefined}
+          <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} open={open.data ?? undefined}
                    work={spots.data ? { open: spots.data.open, places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
           <div className="home-layers chips" role="group" aria-label="Map layers">
             {LAYERS.map((l) => (
@@ -134,7 +136,7 @@ export function HomePage({ stats }: {
               frame={(body) => <UICard title={title} className="home-card">{body}</UICard>} />)}
           </div>}
         </div>
-        <NeedsYou inbox={inbox} exceptions={dispatcher ? (open.error ? [] : open.data ?? undefined) : null} steward={steward} configure={configure} onRing={setRing}
+        <NeedsYou inbox={inbox} jobsHealth={jobsHealth} ready={ready} exceptions={dispatcher ? (open.error ? [] : open.data ?? undefined) : null} steward={steward} configure={configure} onRing={setRing}
                   open={sheet} onToggle={() => setSheet(!sheet)}
                   top={chosen && <PlaceDetail place={chosen} onClose={close} />} />
       </div>
@@ -149,6 +151,11 @@ function useInset(stage: RefObject<HTMLDivElement | null>): Inset | undefined {
     const el = stage.current;
     if (!el) return;
     const measure = () => {
+      // On a phone the map fills the screen under the shell's bars; the panels over it keep clear of them.
+      const top = document.querySelector(".topbar")?.getBoundingClientRect();
+      const tabs = document.querySelector(".bottombar")?.getBoundingClientRect();
+      el.style.setProperty("--bar-top", `${top?.height ? Math.round(top.bottom) : 0}px`);
+      el.style.setProperty("--bar-bottom", `${tabs?.height ? Math.round(window.innerHeight - tabs.top) : 0}px`);
       const s = el.getBoundingClientRect();
       const over = el.querySelector(".home-over")?.getBoundingClientRect();
       const feed = el.querySelector(".home-feed")?.getBoundingClientRect();
@@ -157,25 +164,27 @@ function useInset(stage: RefObject<HTMLDivElement | null>): Inset | undefined {
                      // beside the feed panel, else clear of the map's own buttons down the right edge
                      right: feed && !sheet ? Math.round(s.right - feed.left) : 56,
                      // an open sheet covers the map until it closes, so the map keeps clear of its header only
-                     bottom: feed && sheet ? (el.querySelector<HTMLElement>(".home-feed-head")?.offsetHeight ?? 0) : 0 };
+                     bottom: feed && sheet ? Math.round(s.bottom - feed.bottom) + (el.querySelector<HTMLElement>(".home-feed-head")?.offsetHeight ?? 0) : 0 };
       setInset((was) => was && JSON.stringify(was) === JSON.stringify(next) ? was : next);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     el.querySelectorAll(".home-over, .home-feed").forEach((n) => ro.observe(n));
-    return () => ro.disconnect();
+    document.querySelectorAll(".topbar, .bottombar").forEach((n) => ro.observe(n));
+    window.addEventListener("resize", measure);
+    return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
   }, [stage]);
   return inset;
 }
 
 /** The figures over the map: counts that link to the view showing the same number, and the seat's metrics with their
  * trend. Each reads the field its owning page reads. */
-function Figures({ seat, dispatcher, stats, open, work }: {
-  seat: Seat; dispatcher: boolean; stats?: Stats;
+function Figures({ seat, dispatcher, stats, open, work, ready }: {
+  seat: Seat; dispatcher: boolean; stats?: Stats; ready: boolean;
   open?: Parameters<typeof iocCounts>[0]; work?: { open: number; places: number; unplaced: number };
 }) {
-  const people = useAsync(() => (dispatcher ? api.workPeople() : Promise.resolve([])), [dispatcher]);
+  const people = useAsync(() => (dispatcher ? afterMap(ready, () => api.workPeople()) : Promise.resolve([])), [dispatcher, ready]);
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
   const c = dispatcher && open && people.data ? iocCounts(open, operators) : null;
   const reviews = seat === "steward" && stats ? openReviews(stats) : null;
@@ -189,7 +198,7 @@ function Figures({ seat, dispatcher, stats, open, work }: {
       {work && seat !== "operator" && <Tile to={workHref("open")} label="Open work" value={count(work.open)}
         detail={`at ${count(work.places)} ${work.places === 1 ? "place" : "places"}${work.unplaced ? `, ${count(work.unplaced)} not located` : ""}`} />}
       {reviews !== null && <Tile to={href("/masterdata", { tab: "questions" })} label="Records to review" value={count(reviews)} />}
-      {METRICS[seat].map((key) => <MetricTile key={key} metric={key} />)}
+      {METRICS[seat].map((key) => <MetricTile key={key} metric={key} ready={ready} />)}
     </div>
   );
 }
@@ -199,8 +208,8 @@ function Tile({ to, label, value, detail, late }: { to: string; label: string; v
 }
 
 /** A registered metric with its last few periods; left out while it has no value (no reports loaded for it). */
-function MetricTile({ metric }: { metric: string }) {
-  const m = useAsync(() => api.metric(metric, null, true), [metric]);
+function MetricTile({ metric, ready }: { metric: string; ready: boolean }) {
+  const m = useAsync(() => afterMap(ready, () => api.metric(metric, null, true)), [metric, ready]);
   const v = m.data;
   if (!v || v.value == null) return null;
   return (
@@ -213,8 +222,8 @@ function MetricTile({ metric }: { metric: string }) {
 
 /** The incidents layer: recorded incidents gathered at the place each is about, numbered by how many, the
  * title the latest. A tap opens the latest one. */
-function useIncidents(on: boolean): HotspotSpec[] | undefined {
-  const list = useAsync(() => (on ? api.incidents() : Promise.resolve(null)), [on]);
+function useIncidents(on: boolean, ready: boolean): HotspotSpec[] | undefined {
+  const list = useAsync(() => (on ? afterMap(ready, () => api.incidents()) : Promise.resolve(null)), [on, ready]);
   const ids = (list.data?.items ?? []).map((i) => i.id);
   const where = useAsync(() => (ids.length ? api.attentionPlaces(ids) : Promise.resolve({})), [ids.join(",")]);
   return useMemo(() => {

@@ -74,31 +74,43 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 /* An iPad: a narrower feed. */
 @media (max-width: 1180px) { .home-stage { --feed-w: 320px; } }
 
-/* A phone (and an iPad's narrow split): the page is the map between the top and bottom bars; Needs you is a sheet that
-   shows its header over the map and opens to most of the screen. */
+/* A phone (and an iPad's narrow split): the map fills the screen and stays put, under the shell's bars; only the map
+   pans and the sheet moves. Needs you is a sheet that shows its header above the tab bar and opens to most of the
+   screen. --bar-top and --bar-bottom are the bars' heights, measured by Home. */
 @media (max-width: 900px) {
-  .app > main:has(> .home-map) { padding-bottom: 0; }
-  .home-map { height: calc(100dvh - 61px - 57px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  :root:root .app > main:has(> .home-map) { padding: 0; }
+  html:has(.home-map), html:has(.home-map) body { overflow: hidden; overscroll-behavior: none; }
+  .home-map { position: fixed; inset: 0; z-index: 0; height: auto; }
   .home-stage { --gap: 8px; }
-  .home-over { right: var(--gap); }
+  .home-over { top: calc(var(--bar-top, 0px) + var(--gap)); right: var(--gap); }
   .home-layers { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: calc(100vw - 2 * var(--gap)); padding: 2px; }
   .home-layers::-webkit-scrollbar { display: none; }
   .home-layers .chip, .home-layer-filter { flex: none; white-space: nowrap; }
   .home-layer-filter { flex-wrap: nowrap; }
   .home-figure { min-width: 104px; }
-  .home-charts { max-height: calc(100dvh - 61px - 57px - 56px - 200px); }
-  .home-feed { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 56px; border-radius: 16px 16px 0 0; border-bottom: 0;
-    transition: max-height .2s ease; }
-  .home-feed.open { max-height: 78%; }
+  .home-charts { max-height: calc(100dvh - var(--bar-top, 0px) - var(--bar-bottom, 0px) - 260px); }
+  .home-feed { top: auto; left: 0; right: 0; bottom: var(--bar-bottom, 0px); width: auto; max-height: 56px; border-radius: 16px 16px 0 0;
+    border-bottom: 0; transition: max-height .2s ease; }
+  .home-feed.open { max-height: calc(100% - var(--bar-top, 0px) - var(--bar-bottom, 0px) - 48px); }
   .home-feed-head { cursor: pointer; padding-top: 12px; min-height: 56px; }
   .home-feed-toggle { display: inline-flex; }
   .home-feed-grab { display: block; position: absolute; top: 6px; left: calc(50% - 20px); width: 40px; height: 5px; border-radius: 3px;
     background: color-mix(in srgb, var(--muted) 45%, transparent); }
   .home-feed:not(.open) .home-feed-body { display: none; }
-  .home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { right: var(--gap); bottom: 68px; }
+  .home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { right: var(--gap); bottom: calc(var(--bar-bottom, 0px) + 68px); }
   .home-map .home-stage .map-frame:not(.map-fullscreen) .map-basemaps { display: none; }
-  .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left { bottom: 68px; }
+  .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left { bottom: calc(var(--bar-bottom, 0px) + 68px); }
+  /* The map's notice and credits sit above the sheet, not under the tab bar. */
+  .home-map .home-stage .map-frame:not(.map-fullscreen) .map-message { bottom: calc(var(--bar-bottom, 0px) + 72px); right: 64px; }
+  .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-bottom { bottom: calc(var(--bar-bottom, 0px) + 64px); }
   /* The chosen place shows in the sheet, not as a second sheet over it. */
   .home-feed .attention-detail { position: static; max-height: none; box-shadow: none; transform: none; }
 }
+/* The iPhone app's tab bar floats, so the sheet floats above it too, inset like its other sheets. */
+@media (max-width: 900px) {
+  :root.ios .home-feed { left: 8px; right: 8px; bottom: calc(var(--bar-bottom, 0px) + 8px); border-radius: 24px; border-bottom: 1px solid var(--line); }
+}
 @media (prefers-reduced-motion: reduce) { .home-feed { transition: none; } }
+.feed-group { display: grid; gap: 2px; }
+.feed-group > h3 { display: flex; align-items: center; gap: 6px; }
+.feed-group > a { justify-self: start; margin-top: 4px; }
