@@ -1,4 +1,4 @@
-/** Home is the field map (#1207): the map takes the page, layers on it carry open work, crews, incidents and the
+/** Home is the field map (#1208): the map takes the page, layers on it carry open work, crews, incidents and the
  * network, the figures the person's seat watches sit over its top, and Needs you lists what waits on them, ringing on
  * the map the place each item is about. Home summarizes and links: every action stays on its owning page. */
 import "../styles/home.css";

@@ -1,4 +1,4 @@
-/* Home is the map (#1207): the map fills the page; the figures and layer chips float over its top left, Needs you is a
+/* Home is the map (#1208): the map fills the page; the figures and layer chips float over its top left, Needs you is a
    panel down the right (a sheet from the bottom on a phone), and the map's own controls sit at its bottom right. */
 main:has(> .home-map) { max-width: none; padding: 0; }
 /* The account badge and its popover sit over the map's panels. */
