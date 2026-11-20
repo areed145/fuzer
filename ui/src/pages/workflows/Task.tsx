@@ -32,8 +32,10 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
 
 /** The step a case waits on, worked on the case itself (#1222): what the field reported, its form or note, take or
  * give back, and sending it on. The case around it carries the evidence, the diagram and the history. */
-export function StepActions({ id, demo = false, send = true, onChanged }: {
+export function StepActions({ id, demo = false, send = true, complete: completes = true, onChanged }: {
   id: number; demo?: boolean; /** offer sending the step on; the case page sends the whole case instead */ send?: boolean;
+  /** offer completing the step with a note; a task's one step ends with its case, finished on the case instead */
+  complete?: boolean;
   onChanged: () => void;
 }) {
   const operate = usePermission("operate");
@@ -105,7 +107,7 @@ export function StepActions({ id, demo = false, send = true, onChanged }: {
               <Suspense fallback={<div className="status">Loading form…</div>}>
                 <TaskForm schema={v.form.schema} data={v.data} busy={!!a.busy} onSubmit={complete} />
               </Suspense>
-            ) : <NoteForm element={t.element} missing={v.form?.key} busy={!!a.busy} onSubmit={complete} />}
+            ) : completes ? <NoteForm element={t.element} missing={v.form?.key} busy={!!a.busy} onSubmit={complete} /> : null}
         </>}
       {send && waiting && (!demo || operate) && <HandOff id={id} person={person} demo={demo} action={a}
         disabled={demo && completion !== null} requiresHuman={t.requires_human} onDone={() => {

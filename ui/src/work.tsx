@@ -1,6 +1,6 @@
 // Shared bits of the work pages (#97): who is acting, due dates, how history reads, evidence.
 
-import { Badge as UIBadge, Disclosure, ErrorText, Facts, Text } from "./ui";
+import { Badge as UIBadge, Disclosure, ErrorText, Facts, List, Text } from "./ui";
 import { when } from "./format";
 import { type ReactNode } from "react";
 import { type WorkEvent } from "./api";
@@ -106,15 +106,23 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "auto_assigned": return { text: <><strong>{step ?? e.element}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
     case "delegated": return { text: <><strong>{e.element ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
     case "item_changed": return { text: <>changed {[d.priority && `priority ${d.priority.from ?? "–"} → ${d.priority.to}`, d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
+    case "checklist_added": return { text: <>added to the checklist</>, body: <List small>{(d.items ?? []).map((t: string, i: number) => <li key={i}>{t}</li>)}</List> };
+    case "checked": return { text: <>{d.state === "done" ? "ticked off" : d.state === "skipped" ? "marked not needed" : "opened again"} <strong>{d.item}</strong></>,
+      body: d.note && <Text as="p" small>{d.note}</Text> };
+    case "checklist_edited": return { text: <>reworded <strong>{d.from}</strong> to <strong>{d.to}</strong></> };
+    case "checklist_removed": return { text: <>took <strong>{d.item}</strong> off the checklist</> };
     default: return { text: <>{e.kind.replace(/_/g, " ")}</> };
   }
 }
 
+/** The keys the engine keeps in a case's data to route and correlate it (#509): never something a person reads. */
+export const ENGINE_FIELDS = ["draft", "task_key", "case_type", "role", "source"] as const;
+
 /** Form data, agent results and message payloads: short values inline, long text as Markdown. */
-export function DataView({ data }: { data: unknown }) {
+export function DataView({ data, omit = [] }: { data: unknown; omit?: readonly string[] }) {
   if (data === null || data === undefined) return null;
   if (typeof data !== "object" || Array.isArray(data)) return <pre className="data">{fmt(data)}</pre>;
-  const entries = Object.entries(data as Record<string, unknown>);
+  const entries = Object.entries(data as Record<string, unknown>).filter(([k]) => !omit.includes(k));
   if (!entries.length) return null;
   return (
     <Facts items={entries.map(([k, v]) => [fieldLabel(k), <Value v={v} />] as const)} />

@@ -67,6 +67,23 @@ class WorkComment(BaseModel):
     attachments: list[dict[str, Any]] = []
 
 
+class CheckIn(BaseModel):
+    text: str
+    subjects: list[str] = []
+
+
+class ChecklistAdd(BaseModel):
+    by: str
+    items: list[CheckIn] = Field(min_length=1, max_length=30)
+
+
+class ChecklistChange(BaseModel):
+    by: str
+    state: Literal["open", "done", "skipped"] | None = None
+    note: str | None = None
+    text: str | None = None   # a new wording
+
+
 class WorkTransition(BaseModel):
     by: str
     state: str
@@ -84,6 +101,7 @@ class WorkItemIn(BaseModel):
     due: datetime | None = None
     source: str | None = None
     payload: dict[str, Any] = {}
+    checklist: list[str] = Field(default=[], max_length=30)   # what it asks for, one item per line
 
 
 class DraftConfirm(BaseModel):
@@ -149,9 +167,13 @@ def work_item_create(i: WorkItemIn, conn=Depends(get_conn)):
     import secrets
 
     from ..ops import routing
-    return routing.open_task(conn, i.type, i.title, i.by, key=f"api:{secrets.token_hex(8)}", role=i.role,
-                             assignee=i.assignee, data=i.payload, subjects=i.subjects, priority=i.priority, due=i.due,
-                             source=i.source)
+    from ..workflow import checklist
+    row = routing.open_task(conn, i.type, i.title, i.by, key=f"api:{secrets.token_hex(8)}", role=i.role,
+                            assignee=i.assignee, data=i.payload, subjects=i.subjects, priority=i.priority, due=i.due,
+                            source=i.source)
+    if lines := [t for t in i.checklist if t.strip()]:
+        checklist.add(conn, row["id"], i.by, [{"text": t} for t in lines])
+    return row
 
 
 @router.get("/work/drafts/{draft_id}")
@@ -312,6 +334,31 @@ def work_skills_due(conn=Depends(get_conn)):
 @router.post("/work/items/{item_id}/comment")
 def work_item_comment(item_id: int, c: WorkComment, conn=Depends(get_conn)):
     return work.comment(conn, item_id, c.by, c.text, c.attachments)
+
+
+@router.post("/work/items/{item_id}/checklist")
+def work_item_checklist_add(item_id: int, c: ChecklistAdd, conn=Depends(get_conn)):
+    """Add items to the end of a case's checklist: what it asks for, ticked off as it is done."""
+    from ..workflow import checklist
+    return checklist.add(conn, item_id, c.by, [i.model_dump() for i in c.items])
+
+
+@router.post("/work/items/{item_id}/checklist/{check_id}")
+def work_item_checklist_change(item_id: int, check_id: int, c: ChecklistChange, conn=Depends(get_conn)):
+    """Tick an item done, mark it not needed (with why), open it again, or reword it."""
+    from ..workflow import checklist
+    row = checklist.edit(conn, item_id, check_id, c.by, c.text) if c.text is not None else None
+    if c.state is not None:
+        row = checklist.mark(conn, item_id, check_id, c.by, c.state, c.note)
+    if row is None:
+        raise HTTPException(422, "Say what changes: a state or a new wording")
+    return row
+
+
+@router.delete("/work/items/{item_id}/checklist/{check_id}")
+def work_item_checklist_remove(item_id: int, check_id: int, by: str, conn=Depends(get_conn)):
+    from ..workflow import checklist
+    return checklist.remove(conn, item_id, check_id, by)
 
 
 @router.post("/work/items/{item_id}/transition")

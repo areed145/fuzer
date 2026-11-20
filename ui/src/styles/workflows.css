@@ -36,3 +36,12 @@ details.exception-types { margin-top: 16px; }
 .case-opened { white-space: nowrap; }
 :root.ios .field-jobs > h2 { margin-top: 20px; }
 .case-actions > .ui-disclosure + .ui-disclosure { margin-top: 4px; }
+/* A case's checklist: what it asks for, ticked off on the card where it is taken. */
+.case-asked { margin: 8px 0; }
+.case-checklist { margin: 8px 0; }
+.case-checklist-items { margin: 4px 0 8px; padding: 0; }
+.case-check { padding: 8px 0; border-top: 1px solid var(--line); }
+.case-check:first-child { border-top: 0; }
+.case-check.done .case-check-text, .case-check.skipped .case-check-text { color: var(--muted); text-decoration: line-through; }
+.case-check > div { margin-left: 26px; }
+.work-draft-steps { margin: 4px 0 8px; }

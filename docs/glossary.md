@@ -29,12 +29,18 @@ entity it is.
 **Case.** The piece of work that an exception (or several, about one event) opens: who holds it, what it waits on,
 its evidence and its history. A case is what is dispatched, worked and closed.
 
+**Checklist.** What a case asks for, item by item, ticked off on the case as each is done or marked not needed
+with why. A multi-part ask (a weekly look-ahead: confirm a work order, raise three orders, check the standby pumps)
+keeps its parts here. Checklist items are not steps: the workflow does not wait on them, and the closed case keeps
+them as the record of what was done.
+
 **Clash.** Two planned jobs on one asset at the same time, a person booked twice, or two jobs whose permits must
 not run side by side. Shown on Plan and checked again at dispatch; it is a flag, not a case.
 
 **Close-out.** Closing a case by saying what it was (a real problem, a false alarm, a duplicate, a data problem)
 and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
-that system is drafted for a planner to approve.
+that system is drafted for a planner to approve. Work someone asked for (a task) is **finished** instead: done as
+asked, or a duplicate.
 
 **Capability.** A tool an agent can call, declared once with the agents that use it. See [capabilities](capabilities.md).
 

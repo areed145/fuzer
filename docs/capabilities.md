@@ -365,7 +365,7 @@ Used by every agent or by several specialists.
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
 | `get_stats` | query |  | Counts of entities by kind, links, source records and open review items. |
-| `draft_work_item` | query | title, role, summary, evidence, subjects? | Propose work for a person's queue. |
+| `draft_work_item` | query | title, role, summary, evidence, subjects?, steps? | Propose work for a person's queue. |
 
 ## Production & Surveillance (2)
 

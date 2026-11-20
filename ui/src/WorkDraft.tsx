@@ -27,6 +27,8 @@ export function WorkDraftCard({ id }: { id: string }) {
       <Heading level={3}>{say(d.title)}</Heading>
       {/* the assistant writes the summary in Markdown, diagrams in a mermaid fence */}
       <div className="md work-draft-summary"><Markdown text={d.summary} /></div>
+      {/* what the case asks for: its checklist once opened */}
+      {(d.steps ?? []).length > 0 && <ol className="work-draft-steps">{d.steps.map((x, i) => <li key={i}>{x.text}</li>)}</ol>}
       <Text as="p" small muted>Evidence: {d.evidence.map((ref, i) => <span key={ref}>{i > 0 && ", "}<a href={entityHref(ref)} title={ref}>{display(ref, names)}</a></span>)}</Text>
       {d.item_id
         ? <p role="status">Created by {personName(d.confirmed_by)}. <a href={href(`/cases/${d.item_id}`)}>Open the case</a>.</p>

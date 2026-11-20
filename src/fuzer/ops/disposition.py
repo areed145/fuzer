@@ -5,6 +5,7 @@ what was done, in the ISO 14224 terms of `standards/iso14224.yaml`, so the close
     false_alarm   nothing was wrong
     duplicate     another case already covers it (named by `duplicate_of`)
     data_problem  the data was wrong, not the equipment
+    done          done as asked: only for work someone asked for (no exception opened it), such as a task
 
 The form is pre-filled from an agent's suggestion on the case (`payload.closeout_suggestion`), else from the case's
 own words: the failure-mode keywords of the taxonomy and pack, and the action words below. The person confirms it.
@@ -25,7 +26,7 @@ from ..core.taxonomy import failure_modes_in, load_standard
 from . import routing
 
 DISPOSITIONS = {"real": "A real problem", "false_alarm": "False alarm", "duplicate": "Duplicate",
-                "data_problem": "Data problem"}
+                "data_problem": "Data problem", "done": "Done as asked"}
 OUTCOMES = {"fixed": "Fixed", "contained": "Contained, follow-up planned", "not_fixed": "Not fixed",
             "monitoring": "Being monitored"}
 # words that name the maintenance activity (ISO 14224 Table B.5), first match wins
@@ -59,6 +60,8 @@ def suggest(conn, pack: Pack, item_id: int) -> dict:
     agent = (item["payload"] or {}).get("closeout_suggestion")
     if isinstance(agent, dict):
         return {**{k: v for k, v in agent.items() if k in FIELDS}, "from": "agent"}
+    if asked_case(conn, item_id):
+        return {"from": "words", "disposition": "done"}
     out: dict = {"from": "words"}
     if re.search(FALSE_WORDS, text, re.IGNORECASE):
         out["disposition"] = "false_alarm"
@@ -102,13 +105,23 @@ def equipment_case(conn, item_id: int) -> bool:
         """, {"id": item_id}).fetchone() is not None
 
 
+def asked_case(conn, item_id: int) -> bool:
+    """Work someone asked for (a task posted to a queue, a draft from the assistant), not a problem an exception or
+    the IOC opened: it closes as done as asked, with no failure terms."""
+    return conn.execute(
+        "select i.type = 'task' and not exists (select 1 from exception_record x where x.item_id = i.id) as x "
+        "from work_item i where i.id = %s",
+        (item_id,)).fetchone()["x"]
+
+
 def form(conn, pack: Pack, item_id: int) -> dict:
     """Everything the close-out form needs: the record if there is one, the pre-fill, the lists, and whether a real
     problem on it needs the equipment-failure terms."""
     _text(conn, item_id)
     repeats = conn.execute("select again, at from case_repeat where first = %s order by at", (item_id,)).fetchall()
     return {"item_id": item_id, "record": get(conn, item_id), "suggestion": suggest(conn, pack, item_id),
-            "vocabulary": vocabulary(pack), "repeats": repeats, "equipment": equipment_case(conn, item_id)}
+            "vocabulary": vocabulary(pack), "repeats": repeats, "equipment": equipment_case(conn, item_id),
+            "asked": asked_case(conn, item_id)}
 
 
 def record_known(conn, item_id: int, by: str, disposition: str, note: str | None = None) -> None:
@@ -131,6 +144,9 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     v = vocabulary(pack)
     if disposition not in DISPOSITIONS:
         raise ValueError(f"say what it was: {', '.join(DISPOSITIONS)}")
+    if disposition == "done" and not asked_case(conn, item_id):
+        raise ValueError("a case an exception opened says what it was: a real problem, a false alarm, a duplicate "
+                         "or a data problem")
     for name, value, allowed in (("failure mode", failure_mode, v["failure_modes"]), ("mechanism", mechanism, v["mechanisms"]),
                                  ("cause", cause, v["causes"]), ("action", activity, v["activities"]),
                                  ("outcome", outcome, OUTCOMES)):
@@ -167,15 +183,29 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     from . import watch  # a case raised from the watch's proposal: the verdict counts for or against it (P3.11d)
 
     watch.on_closeout(conn, item_id, disposition, by)
+    said = summary(row, v) + _checklist_said(conn, item_id)
     if item["closed_at"] is None:
-        work.close_case(conn, item_id, "done", by, reason=summary(row, v))
+        work.close_case(conn, item_id, "done", by, reason=said)
         conn.execute("update work_item set outcome = %s where id = %s and outcome is null", (summary(row, v), item_id))
         from . import exceptions
         exceptions.reconcile(conn)  # its exception leaves the open list now, not at the next work tick
     else:
-        work.comment(conn, item_id, by, f"Close-out: {summary(row, v)}")
+        work.comment(conn, item_id, by, f"Close-out: {said}")
     offer_feedback(conn, item_id, row, by)
     return row
+
+
+def _checklist_said(conn, item_id: int) -> str:
+    """The case's checklist as its close-out leaves it: what was done, not needed, or left open."""
+    c = conn.execute("select count(*) filter (where state = 'done') as done, count(*) filter (where state = 'skipped') "
+                     "as skipped, count(*) filter (where state = 'open') as open, count(*) as total from work_check "
+                     "where item_id = %s", (item_id,)).fetchone()
+    if not c["total"]:
+        return ""
+    parts = [f"{c['done']} of {c['total']} checklist items done"]
+    parts += [f"{c['skipped']} not needed"] if c["skipped"] else []
+    parts += [f"{c['open']} left open"] if c["open"] else []
+    return " (" + ", ".join(parts) + ")"
 
 
 def offer_feedback(conn, item_id: int, row: dict, by: str) -> list[dict]:

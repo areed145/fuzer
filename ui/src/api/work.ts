@@ -223,6 +223,8 @@ export interface WorkRow {
   covering_for?: string | null;
   /** Why it was last handed on, e.g. "Back from the field: done: gauge reads 190 psig". */
   handed_reason?: string | null;
+  /** Its case's checklist progress; null when the case has none. */
+  checklist?: ChecklistProgress | null;
 }
 
 export interface WorkRoleRow {
@@ -363,8 +365,18 @@ export interface ProcessInstance {
                 due_at: string | null; overdue: boolean | null; escalated: boolean }[];
 }
 
+/** How much of a case's checklist is ticked off (done or not needed). */
+export interface ChecklistProgress { done: number; total: number }
+
+/** One item on a case's checklist: what the case asks for, ticked off as it is done (not a workflow step). */
+export interface CheckItem {
+  id: number; position: number; text: string; subjects: string[];
+  state: "open" | "done" | "skipped"; note: string | null; done_by: string | null; done_at: string | null;
+}
+
 export interface WorkDraft {
   id: string; title: string; role: string; summary: string; evidence: string[]; subjects: string[];
+  steps: { text: string; subjects: string[] }[];
   item_id: number | null; item_state: string | null; confirmed_by: string | null; confirmed_at: string | null;
 }
 
@@ -372,7 +384,7 @@ export interface CaseRow {
   id: number; type: string; title: string; subjects: string[]; state: string; outcome: string | null; step: string | null;
   priority: number | null; assignee: string | null; role: string | null; due: string | null; created_by: string;
   source: string | null; created_at: string; updated_at: string; closed_at: string | null; overdue: boolean | null;
-  process_key: string | null; escalated: boolean;
+  process_key: string | null; escalated: boolean; checklist: ChecklistProgress | null;
 }
 
 /** Something a person was told (P5.2, #604): work sent, handed back, escalated or assigned to them, or coming due. */
@@ -585,6 +597,8 @@ export interface WorkItem {
   closed_at: string | null;
   processes: WorkProcess[];
   events: WorkEvent[];
+  /** What the case asks for, ticked off as it is done. */
+  checklist?: CheckItem[];
 }
 
 export interface BulkAction {
@@ -1067,8 +1081,14 @@ export const workApi = {
     request<{ xml: string; problems: WorkProblem[]; steps: number; connections: number }>(
       "POST", `/work/definitions/${id}/generate`, undefined, { description, by }),
   workRoles: () => request<{ person: string[]; agent: string[] }>("GET", "/work/roles"),
-  createWorkItem: (title: string, role: string, by: string) =>
-    request<{ id: number }>("POST", "/work/items", undefined, { type: "task", title, role, by }),
+  createWorkItem: (title: string, role: string, by: string, checklist: string[] = []) =>
+    request<{ id: number }>("POST", "/work/items", undefined, { type: "task", title, role, by, checklist }),
+  addChecklist: (itemId: number, by: string, items: { text: string; subjects?: string[] }[]) =>
+    request<CheckItem[]>("POST", `/work/items/${itemId}/checklist`, undefined, { by, items }),
+  changeChecklist: (itemId: number, checkId: number, by: string, change: { state?: CheckItem["state"]; note?: string; text?: string }) =>
+    request<CheckItem>("POST", `/work/items/${itemId}/checklist/${checkId}`, undefined, { by, ...change }),
+  removeChecklist: (itemId: number, checkId: number, by: string) =>
+    request<unknown>("DELETE", `/work/items/${itemId}/checklist/${checkId}`, { by }),
   workDraft: (id: string) => request<WorkDraft>("GET", `/work/drafts/${encodeURIComponent(id)}`),
   confirmWorkDraft: (id: string, by: string) =>
     request<{ item_id: number; created: boolean }>("POST", `/work/drafts/${encodeURIComponent(id)}/confirm`, undefined, { by }),
@@ -1101,7 +1121,8 @@ export const workApi = {
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
   caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null; suggestion: CloseoutSuggestion;
-    vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean }>("GET", `/work/items/${id}/closeout`),
+    vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean;
+    /** Work someone asked for: it closes as done as asked. */ asked?: boolean }>("GET", `/work/items/${id}/closeout`),
   answerRecheck: (id: number, by: string, held: boolean, note?: string) =>
     request<CaseCloseout>("POST", `/work/items/${id}/recheck`, undefined, { by, held, note }),
   recordCaseCloseout: (id: number, body: CloseoutInput) => request<CaseCloseout>("POST", `/work/items/${id}/closeout`, undefined, body),

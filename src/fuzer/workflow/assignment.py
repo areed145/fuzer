@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 from . import bpmn
+from .checklist import PROGRESS_SQL
 from .definitions import (
     DEFAULT_SLA,
     DUE_SOON,
@@ -284,7 +285,8 @@ _TASKS = """
            t.error, t.created_at, t.due_at < %(now)s as overdue, t.claimed_by, t.lease_until,
            (select data->>'reason' from work_event h where h.token_id = t.id and h.kind = 'handed_off'
             order by h.id desc limit 1) as handed_reason,
-           i.id as item_id, i.type, i.title, i.priority, i.subjects, p.id as process_id, p.process_key, p.definition_id
+           i.id as item_id, i.type, i.title, i.priority, i.subjects, p.id as process_id, p.process_key, p.definition_id,
+           {checklist}
     from work_token t join work_process p on p.id = t.process_id join work_item i on i.id = t.item_id
     where t.state = 'waiting' and t.kind = any(%(kinds)s) and {who}
     order by i.priority desc nulls last, t.due_at nulls last, t.id limit %(limit)s
@@ -296,7 +298,7 @@ _ITEMS = """
            i.due < %(now)s as overdue, null as claimed_by, null::timestamptz as lease_until,
            (select data->>'reason' from work_event h where h.item_id = i.id and h.token_id is null
             and h.kind = 'handed_off' order by h.id desc limit 1) as handed_reason, i.id as item_id, i.type, i.title, i.priority, i.subjects,
-           null::bigint as process_id, null as process_key, null::bigint as definition_id
+           null::bigint as process_id, null as process_key, null::bigint as definition_id, {checklist}
     from work_item i
     where i.closed_at is null and {who} and not exists (select 1 from work_process p where p.item_id = i.id)
     order by i.priority desc nulls last, i.due nulls last, i.id limit %(limit)s
@@ -317,10 +319,10 @@ def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200,
     # unclaimed" when the queue held more.
     args = {"person": person, "people": [person, *covering], "roles": roles, "now": now, "limit": ALL_ROWS,
             "kinds": ["user", "fix"]}
-    parts = {"mine": (conn.execute(_TASKS.format(who="t.assignee = any(%(people)s)"), args).fetchall(),
-                      conn.execute(_ITEMS.format(who="i.assignee = any(%(people)s)"), args).fetchall()),
-             "queue": (conn.execute(_TASKS.format(who="t.assignee is null and t.role = any(%(roles)s)"), args).fetchall(),
-                       conn.execute(_ITEMS.format(who="i.assignee is null and i.role = any(%(roles)s)"), args).fetchall())}
+    parts = {"mine": (conn.execute(_TASKS.format(checklist=PROGRESS_SQL, who="t.assignee = any(%(people)s)"), args).fetchall(),
+                      conn.execute(_ITEMS.format(checklist=PROGRESS_SQL, who="i.assignee = any(%(people)s)"), args).fetchall()),
+             "queue": (conn.execute(_TASKS.format(checklist=PROGRESS_SQL, who="t.assignee is null and t.role = any(%(roles)s)"), args).fetchall(),
+                       conn.execute(_ITEMS.format(checklist=PROGRESS_SQL, who="i.assignee is null and i.role = any(%(roles)s)"), args).fetchall())}
     mine, queue = (parts["mine"][0] + parts["mine"][1]), (parts["queue"][0] + parts["queue"][1])
     for r in mine:
         r["covering_for"] = r["assignee"] if r["assignee"] != person else None
@@ -367,7 +369,7 @@ def _bulk_labels(conn, rows: list[dict]) -> None:
 def agent_work(conn, role: str, limit: int = 50, now: datetime | None = None) -> list[dict]:
     """Agent steps waiting for an agent role, claimed or not."""
     now = now or utcnow()
-    return conn.execute(_TASKS.format(who="t.role = %(role)s"),
+    return conn.execute(_TASKS.format(checklist=PROGRESS_SQL, who="t.role = %(role)s"),
                         {"role": role, "now": now, "limit": limit, "kinds": ["agent"]}).fetchall()
 
 def agent_inbox(conn, role: str, limit: int = 50, now: datetime | None = None) -> dict:
@@ -376,8 +378,8 @@ def agent_inbox(conn, role: str, limit: int = 50, now: datetime | None = None) -
     now = now or utcnow()
     args = {"person": f"agent:{role}", "roles": [role], "now": now, "limit": limit, "kinds": ["user"]}
     return {"agent": role, "steps": agent_work(conn, role, limit, now),
-            "tasks": conn.execute(_TASKS.format(who="t.assignee = %(person)s"), args).fetchall(),
-            "items": conn.execute(_ITEMS.format(who="(i.assignee = %(person)s or (i.assignee is null and "
+            "tasks": conn.execute(_TASKS.format(checklist=PROGRESS_SQL, who="t.assignee = %(person)s"), args).fetchall(),
+            "items": conn.execute(_ITEMS.format(checklist=PROGRESS_SQL, who="(i.assignee = %(person)s or (i.assignee is null and "
                                                    "i.role = any(%(roles)s)))"), args).fetchall()}
 
 def _form_of(conn, t: dict) -> dict | None:
