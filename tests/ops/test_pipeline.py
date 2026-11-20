@@ -145,6 +145,12 @@ def test_search_lists_places_and_drawings_before_instrument_tags(api):
     assert browse[0] == "facility" and "tag" not in browse, "Browse opens on facilities and areas, not tags"
 
 
+def test_part_of_a_tag_finds_the_tag_before_records_named_after_it(api):
+    hits = api.get("/entities", params={"q": "20-K-2300", "limit": 9}).json()
+    assert hits[0]["label"].startswith("20-K-2300") and "@" not in hits[0]["label"], hits[:3]
+    assert len(hits[0]["label"]) <= min(len(h["label"] or "") for h in hits if (h["label"] or "").startswith("20-K-2300"))
+
+
 def test_api_lookup_text(api):
     out = api.get("/lookup", params={"text": "Train B down on OK_GGCP, lift gas short to OKA_ST2"}).json()
     assert {"OKAN-20", "OKAN-40"} <= {m["key"] for m in out}
