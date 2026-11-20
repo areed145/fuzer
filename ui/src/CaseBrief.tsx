@@ -3,10 +3,10 @@
  * decides says whether they followed the proposal; the brief never decides. Sits above the decision. */
 import { useState } from "react";
 import { useAction } from "./lib";
-import { money, percent } from "./format";
+import { money, percent, when } from "./format";
 import { api, type WorkItem } from "./api";
-import { Actor, when } from "./work";
-import { Badge, Button, Card, Disclosure, Input, Notice, Table } from "./ui";
+import { Actor } from "./work";
+import { Badge, Button, Card, Disclosure, Input, Notice, Table, ErrorText } from "./ui";
 
 const pct = (x: number | null | undefined) => (x == null ? "no confidence given" : `${percent(x)} confident`);
 const FOLLOWED = { yes: "Followed", partly: "Partly followed", no: "Not followed" } as const;
@@ -79,7 +79,7 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
               onClick={() => act.run(f, () => api.briefVerdict(it.id, person, f, note || undefined), reload)}>
               {FOLLOWED[f]}</Button>
           ))}
-          {act.error && <p role="alert" className="error small">{act.error}</p>}
+          <ErrorText>{act.error}</ErrorText>
         </div>
       ) : null}
     </Card>

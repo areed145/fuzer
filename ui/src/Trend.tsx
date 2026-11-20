@@ -1,4 +1,5 @@
 import "./styles/trends.css";
+import { when, whenDay } from "./format";
 // Small-multiple trend charts: one series per chart (the title names it, so no legend), 2px line,
 // recessive grid, shaded upset window, operating limits as labelled dashed lines, crosshair + tooltip on
 // hover, and a table view.
@@ -153,7 +154,7 @@ export function MeasurementsCard({ id }: { id: string }) {
     <UICard  as="section">
       {/* The trend above draws these over its window (P5.13d); this is their whole history, closed until asked for. */}
       <Disclosure label={<strong>Tests and samples, whole history ({series.length})</strong>}>
-        <Status loading={m.loading && !m.data} error={m.error} />
+        <Status of={m} />
         <div className="trend-grid">
           {series.map((s) => <MeasurementChart key={`${s.quantity}|${s.location}|${s.of.id}`} s={s} self={id} />)}
         </div>
@@ -189,7 +190,7 @@ function MeasurementChart({ s, self }: { s: MeasurementSeries; self: string }) {
         <b className="small">{quantityLabel(s.quantity)}</b>{" "}
         <span className="muted small">
           {s.location}{s.of.id !== self && <> on <a href={entityHref(s.of.id)}>{s.of.label ?? s.of.id}</a></>}
-          {" "}· latest {s.latest.qualifier ?? ""}{num(s.latest.value)} {s.unit} ({s.latest.at.slice(0, 10)})
+          {" "}· latest {s.latest.qualifier ?? ""}{num(s.latest.value)} {s.unit} ({whenDay(s.latest.at)})
           {s.per_year !== null && ` · ${s.per_year > 0 ? "+" : ""}${num(s.per_year)} ${s.unit}/year`}
         </span>
       </figcaption>
@@ -209,14 +210,14 @@ function MeasurementChart({ s, self }: { s: MeasurementSeries; self: string }) {
         {h && (
           <div className="trend-tip" style={{ left: `${(x(ts[hover!]) / W) * 100}%` }}>
             <b>{h.qualifier ?? ""}{num(h.value)}</b> {s.unit}{h.reported && <span className="muted"> (reported {h.reported})</span>}
-            <div className="muted">{h.at.slice(0, 16).replace("T", " ")}{h.method && ` · ${h.method}`}</div>
+            <div className="muted">{when(h.at)}{h.method && ` · ${h.method}`}</div>
           </div>
         )}
       </div>
       <div className="trend-x muted small">
-        <span>{s.first.slice(0, 10)}</span>
+        <span>{whenDay(s.first)}</span>
         <span>{s.count} readings</span>
-        <span>{s.latest.at.slice(0, 10)}</span>
+        <span>{whenDay(s.latest.at)}</span>
       </div>
     </figure>
   );

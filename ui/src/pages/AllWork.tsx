@@ -4,7 +4,7 @@
  * unchanged. Board lays the open work out by stage, one column per view. */
 import "../styles/all-work.css";
 import { useEffect, useRef, useState } from "react";
-import { Button, Input, PageHeader, Select } from "../ui";
+import { Button, Input, PageHeader, Select, ErrorText } from "../ui";
 import { api, type ExceptionRow } from "../api";
 import { href, useAsync, useDebounced, errorMessage } from "../lib";
 import { AssignPicker } from "./workflows/shared";
@@ -177,7 +177,7 @@ function SavedViews({ list, filters, roles }: { list: WorkList; filters: WorkFil
           Save for every {forRole.replace(/_/g, " ")}</Button>
         <Button variant="secondary" onClick={() => { setNaming(false); setError(null); }}>Cancel</Button>
       </>}
-      {error && <p role="alert" className="error small">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }

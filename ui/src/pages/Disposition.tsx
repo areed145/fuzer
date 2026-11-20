@@ -2,10 +2,11 @@
  * what was done, from the ISO 14224 lists. The form comes pre-filled from the case's own words or an agent's
  * suggestion, and the person confirms it. On a phone it is a handful of selects, one per line. */
 import { useState } from "react";
+import { when } from "../format";
 import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
-import { Button, Card, Disclosure, Field, Input, Select } from "../ui";
+import { Button, Card, Disclosure, Field, Input, Select, ErrorText } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
-import { Actor, when } from "../work";
+import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
 
 type Draft = Partial<Record<"disposition" | "failure_mode" | "mechanism" | "cause" | "activity" | "outcome" | "note", string>>
@@ -120,7 +121,7 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
         {onCancel && <Button variant="secondary" onClick={onCancel}>Cancel</Button>}
       </div>
       {hint && !a.busy && <p className="small muted">{hint}.</p>}
-      {a.error && <p role="alert" className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Card>
   );
 }
@@ -141,7 +142,7 @@ export function RecheckCard({ firstId, person, closed, readOnly, reload }:
           <Button variant="secondary" disabled={!person || !!a.busy} onClick={() => answer(false)}>No, it came back</Button>
         </div>
       </>}
-      {a.error && <p role="alert" className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Card>
   );
 }

@@ -3,13 +3,13 @@
  * elsewhere, shutdown-only maintenance plans, the worst bad actors), and what is missing (spares out of stock).
  * Planned work is pulled into the window with one button. When a planning system's schedule names the revision, its
  * S-curve shows progress against the baseline and the slip (#360). `#/turnaround` redirects to `#/plan?revision=…`. */
-import { dayStamp } from "../wording";
 import { api, type PlanItem, type TurnaroundScope } from "../api";
-import { Badge, Button, Card, Empty } from "../ui";
+import { whenDay, count } from "../format";
+import { Badge, Button, Card, Empty, ErrorText } from "../ui";
 import { entityHref, href, useAction } from "../lib";
 import { LiveFigure } from "../analytics/LiveFigure";
 
-const day = (at: string | null) => (at ? dayStamp(at) : "no date");
+const day = (at: string | null) => (at ? whenDay(at) : "no date");
 
 export function TurnaroundPanel({ scope: t, person, onChange }: {
   scope: TurnaroundScope; person: string | null; onChange: () => void;
@@ -34,7 +34,7 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
           {t.spares_out_of_stock.length > 0 && <Badge tone="danger">{t.spares_out_of_stock.length} spares out of stock</Badge>}
         </p>
         {busy && <p role="status">{busy}…</p>}
-        {error && <p role="alert" className="error">{error}</p>}
+        <ErrorText>{error}</ErrorText>
         {t.schedule && <Card title="Progress against the baseline">
           <LiveFigure kind="turnaround-progress" params={{ revision: t.revision }} /></Card>}
         {t.scoped_work.length > 0 && <Card title="In scope">
@@ -55,7 +55,7 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
         {t.bad_actors_not_in_scope.length > 0 && <Card title="Worst bad actors not in scope">
           <ul className="plain">{t.bad_actors_not_in_scope.map((a) => <li key={a.id}>
             <a href={entityHref(a.id)}>{a.tag ?? a.id}</a> <span className="muted small">{a.failures} failures
-              {a.lost_oil_bbl ? ` · ${Math.round(a.lost_oil_bbl).toLocaleString()} bbl lost` : ""}</span></li>)}</ul></Card>}
+              {a.lost_oil_bbl ? ` · ${count(Math.round(a.lost_oil_bbl))} bbl lost` : ""}</span></li>)}</ul></Card>}
         {t.spares_out_of_stock.length > 0 && <Card title="Spares out of stock">
           <ul className="plain">{t.spares_out_of_stock.map((p, n) => <li key={`${p.id}-${n}`}>
             <a href={entityHref(p.id)}>{p.material ?? p.id}</a> <span className="muted small">for {p.for} · {p.description}</span></li>)}</ul></Card>}

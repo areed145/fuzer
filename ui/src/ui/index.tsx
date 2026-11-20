@@ -152,6 +152,13 @@ export function Badge({ tone = "muted", className = "", ...props }: HTMLAttribut
 }) {
   return <span {...props} className={`ui-badge ui-badge-${tone} badge ${className}`.trim()} />;
 }
+/** What went wrong, in the one error style and announced to screen readers. Renders nothing without a message. Use it
+ * instead of a paragraph with an error class. */
+export function ErrorText({ children, inline = false }: { children?: ReactNode; inline?: boolean }) {
+  if (!children) return null;
+  const Tag = inline ? "span" : "p";
+  return <Tag role="alert" className="ui-error">{children}</Tag>;
+}
 export function Stat({ label, value, detail }: { label: ReactNode; value: ReactNode; detail?: ReactNode }) {
   return <div className="ui-stat"><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>;
 }

@@ -16,7 +16,7 @@ export function WorkExecution() {
   const repeats = d?.periods.flatMap((p) => p.repeats) ?? [];
   return (
     <Card className="work-execution" title="Does work finish when planned, and do repairs hold?">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && s && <>
         <div className="small we-summary">
           {d.since} to {d.until}: {s.on_time} of {s.finished_with_due_date} closed orders finished by their basic finish

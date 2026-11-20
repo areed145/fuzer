@@ -1,11 +1,11 @@
 /** The integrated plan (Turnaround is a window on it, #554): every planned activity from every source on one timeline, by area. SAP work orders,
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
-import { acronyms, dayStamp } from "../wording";
-import { money } from "../format";
+import { acronyms } from "../wording";
+import { money, whenDay, count } from "../format";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
+import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
@@ -18,7 +18,7 @@ import { commonName } from "../entityRefs";
 const DAY = 86_400_000;
 const STATUSES = ["proposed", "scheduled", "in_progress", "done", "cancelled"];
 const day = (d: Date) => d.toISOString().slice(0, 10);
-const short = (at: string) => dayStamp(at);
+const short = (at: string) => whenDay(at);
 
 export function PlanPage({ query }: { query: URLSearchParams }) {
   const [person] = usePerson();
@@ -69,7 +69,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
     const name = n ? commonName(n.label, n.description) : null;
     return name ? `${area} · ${name}` : area;
   };
-  if (!plan.data) return <Status loading={plan.loading} error={plan.error} />;
+  if (!plan.data) return <Status of={plan} />;
   const t0 = new Date(from).getTime(), t1 = new Date(to).getTime();
   const pos = (at: string) => Math.min(100, Math.max(0, ((new Date(at).getTime() - t0) / (t1 - t0)) * 100));
   const clashes = plan.data.filter((i) => i.clashes.some((c) => c.kind !== "bundle")).length;
@@ -106,7 +106,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
         {waiting > 0 && <Badge tone="warn">{waiting} waiting on parts</Badge>}
       </div>
       {busy && <p role="status">{busy}…</p>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
       <div className={revision !== null ? "plan-layout with-panel" : "plan-layout"}>
       <div>
       {/* The number a manager wants comes first: production at risk from the planned shutdowns (#1078). */}
@@ -146,7 +146,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
       ))}
       </div>
       {revision !== null && (turnaround ? <TurnaroundPanel scope={turnaround} person={person} onChange={changed} />
-        : <aside className="plan-panel"><Status loading={scope.loading} error={scope.error} onRetry={scope.reload} /></aside>)}
+        : <aside className="plan-panel"><Status of={scope} /></aside>)}
       </div>
     </section>
   );
@@ -178,14 +178,14 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </Select>
       </div> : <p className="small">Choose who you are to change the plan.</p>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }
 
 const QUANTITY: Record<string, string> = { oil_rate: "Oil", gas_rate: "Gas", condensate_rate: "Condensate" };
 const amount = (r: { quantity: string; value: number; unit: string | null }) =>
-  `${QUANTITY[r.quantity] ?? r.quantity.replace(/_/g, " ")} ${r.value.toLocaleString()}${r.unit ? ` ${r.unit}` : ""}`;
+  `${QUANTITY[r.quantity] ?? r.quantity.replace(/_/g, " ")} ${count(r.value)}${r.unit ? ` ${r.unit}` : ""}`;
 
 /** Production at risk from planned shutdowns over the next 90 days (P5.9a): an estimate for planners, each number
  * with the durations it used. */
@@ -195,7 +195,7 @@ function AtRiskCard({ from }: { from: string }) {
   const d: AtRisk | undefined = risk.data && Array.isArray(risk.data.windows) ? risk.data : undefined;
   return (
     <Card title="Production at risk from planned shutdowns" className="plan-at-risk">
-      <Status loading={risk.loading && !d} error={risk.error} onRetry={risk.reload} />
+      <Status of={risk} />
       {d && (d.windows.length ? <>
         <p className="small">The next {d.days} days. {d.basis} An estimate for planning, not a schedule.</p>
         <ul className="plain">{d.windows.map((w, n) => <li key={w.start} className="plan-risk-window">

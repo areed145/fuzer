@@ -1,7 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { api, type LiveFigureData, type LiveFigureTable } from "../api";
 import { Status, useAsync } from "../lib";
-import { Disclosure, Table } from "../ui";
+import { Disclosure, Table, ErrorText } from "../ui";
 import { PlotlyChart } from "./PlotlyChart";
 import "./analytics.css";
 
@@ -10,7 +10,7 @@ class FigureBoundary extends Component<{ children: ReactNode }, { failed: boolea
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
   render() {
-    return this.state.failed ? <p className="error" role="alert">This chart could not be drawn from the data returned.</p> : this.props.children;
+    return this.state.failed ? <ErrorText>This chart could not be drawn from the data returned.</ErrorText> : this.props.children;
   }
 }
 
@@ -34,7 +34,7 @@ function Figure({ kind, params, hideEmpty, frame = (body) => body }: { kind: str
   if (hideEmpty && Array.isArray(d?.spec?.data) && d.spec.data.length === 0) return null;
   // The boundary sits inside the frame, so a chart that can't be drawn fails inside its own card.
   return frame(<FigureBoundary>
-    <Status loading={result.loading && !d} error={result.error} onRetry={result.reload} />
+    <Status of={result} />
     {d && s && <Body d={d} />}
   </FigureBoundary>);
 }

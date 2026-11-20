@@ -1,12 +1,12 @@
 /** Work here: on an asset's page, the open exceptions about it (and who has each) and what is planned on it, so
  * whoever looks up an asset sees the work around it before adding to it. */
-import { dayStamp } from "./wording";
 import { api } from "./api";
+import { when, whenDay } from "./format";
 import { Badge, Card } from "./ui";
 import { href, planItemHref, useAsync } from "./lib";
-import { holder, when } from "./work";
+import { holder } from "./work";
 
-const day = (at: string) => dayStamp(at);
+const day = (at: string) => whenDay(at);
 
 /** What the card reads, shared with the asset page so it can draw its overview at once (#1069). */
 export const readWork = (id: string, area: boolean) =>
@@ -25,7 +25,7 @@ export function WorkHere({ id, area, data }: { id: string; area: boolean; data?:
         <ul className="plain small">{exceptions.map((x) => <li key={x.id}>
           <a href={href("/exceptions")}>{x.title}</a> <span className="muted">{x.type.replace(/_/g, " ")} · last {when(x.last_seen)}</span>{" "}
           {x.item_id ? <a href={href(`/cases/${x.item_id}`)}>with {holder(x.assignee, x.role)}</a>
-            : x.planned ? <a className="muted" href={planItemHref(x.planned)}>planned {dayStamp(x.planned.start_at)}</a> : <Badge tone="warn">not dispatched</Badge>}
+            : x.planned ? <a className="muted" href={planItemHref(x.planned)}>planned {whenDay(x.planned.start_at)}</a> : <Badge tone="warn">not dispatched</Badge>}
         </li>)}</ul>
       </>}
       {items.length > 0 && <>

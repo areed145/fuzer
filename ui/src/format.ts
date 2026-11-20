@@ -28,3 +28,51 @@ export function quantity(value: number, unit?: string | null): string {
 
 /** A count: "12,480". */
 export const count = (value: number): string => value.toLocaleString("en-US");
+
+type At = string | number | Date | null | undefined;
+const ZONED = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+const WRITTEN = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/;
+
+/** A value with an offset is an instant. A value without one is the plant's own clock, read as written. */
+function read(at: At): { date: Date; plant: boolean; dayOnly: boolean } | null {
+  if (at == null || at === "") return null;
+  if (typeof at === "string" && !ZONED.test(at)) {
+    const m = WRITTEN.exec(at);
+    return m && { date: new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0))), plant: true, dayOnly: m[4] === undefined };
+  }
+  const date = new Date(at);
+  return Number.isNaN(date.getTime()) ? null : { date, plant: false, dayOnly: false };
+}
+
+function shape(at: At, missing: string, clock: boolean, seconds: boolean): string {
+  const t = read(at);
+  if (!t) return typeof at === "string" && at ? at : missing;
+  const year = t.plant ? t.date.getUTCFullYear() : t.date.getFullYear();
+  const text = t.date.toLocaleString("en-US", {
+    month: "short", day: "numeric",
+    ...(clock && !t.dayOnly ? { hour: "numeric", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}) } : {}),
+    ...(year === new Date().getFullYear() ? {} : { year: "numeric" }),
+    ...(t.plant ? { timeZone: "UTC" } : {}),
+  });
+  return clock && t.plant && !t.dayOnly ? `${text} plant time` : text;
+}
+
+/** The app's one time format: "Nov 14, 2:11 PM", with the year only when it is not this year. An instant (a value
+ * with an offset) is shown in the viewer's clock. A value without an offset is the plant's own clock: it is shown as
+ * written and marked "plant time", never converted. A day alone ("2026-11-17") stays that day. `missing` is the text
+ * for no value. */
+export const when = (at: At, missing = "", seconds = false): string => shape(at, missing, true, seconds);
+
+/** The day alone, in the same format: "Nov 14", or "Dec 30, 2025" in another year. */
+export const whenDay = (at: At, missing = ""): string => shape(at, missing, false, false);
+
+/** How long ago or how soon, within a week: "3 min ago", "in 2 h". Beyond that, and for plant-clock values, `when`. */
+export function ago(at: At, missing = ""): string {
+  const t = read(at);
+  if (!t || t.plant) return when(at, missing);
+  const s = (t.date.getTime() - Date.now()) / 1000;
+  const a = Math.abs(s);
+  const span = a < 90 ? `${Math.round(a)} s` : a < 5400 ? `${Math.round(a / 60)} min` : a < 129600 ? `${Math.round(a / 3600)} h`
+    : a < 7 * 86400 ? `${Math.round(a / 86400)} d` : null;
+  return !span ? when(at, missing) : s < 0 ? `${span} ago` : `in ${span}`;
+}

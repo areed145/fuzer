@@ -13,7 +13,7 @@ export function BacklogBurn() {
   if (d && !d.months?.length) return null;
   return (
     <Card className="backlog-burn" title="Is the backlog under control?">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && <>
         <div className="small">
           {d.since} to {d.until}: {d.summary.created} orders created, {d.summary.closed} closed; open went from

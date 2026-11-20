@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { when } from "../../format";
 import { api } from "../../api";
 import type { CaseAround as CaseAroundData } from "../../api/work";
 import { entityHref, href, useAsync } from "../../lib";
 import { TrendView } from "../../TrendView";
 import { Button, ButtonLink, Card, Disclosure, Table } from "../../ui";
-import { when } from "../../work";
 
 const ALARM: Record<string, string> = { hihi: "High-high", hi: "High", lo: "Low", lolo: "Low-low" };
 

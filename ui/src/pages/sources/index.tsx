@@ -1,4 +1,5 @@
 import "../../styles/sources.css";
+import { count as countText, when } from "../../format";
 import { Button, ButtonLink, PageHeader, Table, Input , Badge as UIBadge} from "../../ui";
 import { usePermission } from "../../Auth";
 /** The Sources page (#225): datasets, systems and connections, rules, a dataset's own page, and Add a source. */
@@ -6,7 +7,7 @@ import { useState } from "react";
 import { api } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { AddWizard } from "./AddWizard";
-import { HealthBadge, RebuildBanner, STATE, scheduleText, when } from "./common";
+import { HealthBadge, RebuildBanner, STATE, scheduleText } from "./common";
 import { DatasetPage, type Tab } from "./DatasetPage";
 import { Rules } from "./Rules";
 import { Systems } from "./Systems";
@@ -73,7 +74,7 @@ function Datasets() {
       <Button disabled={cat.loading} onClick={cat.reload}>Refresh source readiness</Button>
       {cat.data && <p>{connections.length} connections · {rows.filter(({ d }) => d.loaded_at).length} datasets
         with a recorded load.</p>}
-      <Status loading={cat.loading && !cat.data} error={cat.error} empty={!!cat.data && rows.length === 0}>
+      <Status of={cat} empty={!!cat.data && rows.length === 0}>
         No datasets yet: <a href={href("/sources", { view: "add" })}>add a source</a>.
       </Status>
       {rows.length > 0 && (
@@ -105,8 +106,8 @@ function Datasets() {
                   <td>{d.last_run ? <UIBadge tone={d.last_run === "failed" ? "danger" : d.last_run === "held" ? "warn" : d.last_run === "done" ? "ok" : "muted"}>{d.last_run}</UIBadge> : "No recorded run"}</td>
                   <td className="small">{d.owner ?? <span className="muted">–</span>}</td>
                   <td className="muted small">{d.schedule ? scheduleText(d.schedule) : "daily"}</td>
-                  <td>{d.rows?.toLocaleString() ?? "Unknown"}</td>
-                  <td className="muted small" title={d.loaded_at ?? undefined}>{when(d.loaded_at)}</td>
+                  <td>{d.rows != null ? countText(d.rows) : "Unknown"}</td>
+                  <td className="muted small" title={d.loaded_at ?? undefined}>{when(d.loaded_at, "Time unknown")}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,4 +1,5 @@
-import { person as personName, stamp } from "../wording";
+import { person as personName } from "../wording";
+import { when } from "../format";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api, type Route, type RouteExplanation, type RouteStep, type WorkRoleRow } from "../api";
 import { href, Status, useAsync } from "../lib";
@@ -21,7 +22,7 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
   const byRole = new Map((roles.data ?? []).map((r) => [r.name, r]));
   return <section>
     <PageHeader>Routing</PageHeader>
-    {!routes.data ? <Status loading={routes.loading} error={routes.error} />
+    {!routes.data ? <Status of={routes} />
       : rows.length === 0 ? <EmptyState title="No types of work yet">Source packs and modules declare them.</EmptyState>
       : <Table variant="list" className="routing-table phone-rows">
         <thead><tr><th>Type</th><th>Goes to</th><th>Due</th><th>Also</th></tr></thead>
@@ -91,7 +92,7 @@ function RouteDetail({ route }: { route: Route }) {
       <Field label="Dispatch to" width="sm" hint="a person or role:name"><Input value={form.to} onChange={set("to")} /></Field>
       <Button type="submit">Try it</Button>
     </form>
-    {!x ? <Status loading={plan.loading} error={plan.error} /> : <Explanation x={x} />}
+    {!x ? <Status of={plan} /> : <Explanation x={x} />}
   </Card>;
 }
 
@@ -103,7 +104,7 @@ function Explanation({ x }: { x: RouteExplanation }) {
     {(x.matched.length > 0 || x.unmatched.length > 0) && <p className="small">
       {x.matched.length > 0 && <>Matches {x.matched.map((m) => m.label).join(", ")}. </>}
       {x.unmatched.length > 0 && <span className="muted">No match for {x.unmatched.join(", ")}.</span>}</p>}
-    {x.due && <p className="small">Due {stamp(x.due)}.</p>}
+    {x.due && <p className="small">Due {when(x.due)}.</p>}
     {nobody.length > 0 && <p role="alert" className="notice small">Nobody holds {nobody.map((s) => words(s.role)).join(", ")}:
       work there waits unseen. <a href={href("/users", { view: "workflow" })}>Assign someone</a>.</p>}
     {x.process?.published && <ProcessPicture processKey={x.process.key} steps={steps} />}

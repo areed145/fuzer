@@ -3,7 +3,7 @@ import type { FigureData } from "../api";
 import { themed } from "../Figure";
 import { PLOTLY_CONFIG, fullscreenLayout, roomIn } from "../plotlyConfig";
 import { useTheme } from "../theme";
-import { FullscreenButton, useFullscreen } from "../ui";
+import { FullscreenButton, useFullscreen, ErrorText } from "../ui";
 
 type Spec = FigureData["spec"];
 
@@ -84,7 +84,7 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, onTime }: {
     return () => { gone = true; dispose?.(); purge?.(); };
   }, [spec, theme, onPoint, onZoom, onTime, full.on]);
   return <>
-    {error && <p className="error" role="alert">Chart unavailable: {error}. Use the data table below.</p>}
+    {error && <ErrorText>Chart unavailable: {error}. Use the data table below.</ErrorText>}
     <div ref={full.ref} className={`chart-frame${full.on ? " ui-fullscreen" : ""}`}>
       <div ref={element} style={{ minHeight: spec.layout.height ?? 340 }} role="img" aria-label={label} />
       <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="chart-fullscreen" />

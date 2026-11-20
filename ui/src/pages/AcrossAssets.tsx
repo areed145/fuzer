@@ -15,7 +15,7 @@ export function AcrossAssets({ days }: { days: number }) {
   if (d && d.projects.length < 2 && !d.left_out.length) return null;
   return (
     <Card className="across-assets" title="Across assets">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && <>
         <Table density="compact" className="fleet-table phone-rows">
           <thead><tr><th>KPI</th>{d.projects.map((p) => <th key={p.project}>{p.project}

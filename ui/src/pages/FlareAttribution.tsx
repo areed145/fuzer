@@ -5,6 +5,7 @@
  * to each source. Evidence for the flaring report: not an emissions inventory or a
  * compliance finding, and no permit limit is loaded. */
 import { api, type FlareReview } from "../api";
+import { whenDay, count } from "../format";
 import { Badge, Card, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
@@ -19,18 +20,18 @@ export function FlareAttribution() {
   const s = d?.summary;
   return (
     <Card className="flare-attribution" title="What explains the flare?">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && s && <>
         <div className="small flare-summary">
-          {d.since} to {d.until}: {s.flare_mscf.toLocaleString()} Mscf flared, {s.episodes} episodes above the baseline
+          {d.since} to {d.until}: {count(s.flare_mscf)} Mscf flared, {s.episodes} episodes above the baseline
           {" "}({s.attributed} with records around them, {s.unknown} cause unknown)
           {s.explained_share_pct != null && <>; the records explain {s.explained_share_pct}% of the
-            {" "}{s.over_baseline_mscf.toLocaleString()} Mscf over the baseline</>}.
+            {" "}{count(s.over_baseline_mscf)} Mscf over the baseline</>}.
         </div>
         {d.episodes.length ? (
           <ul className="plain small flare-episodes">{d.episodes.map((e) => (
             <li key={`${e.label}|${e.start}`} data-start={e.start.slice(0, 10)}>
-              <b>{e.start.slice(0, 10)}</b> about {e.volume.toLocaleString()} {e.volume_unit ?? ""} over the baseline
+              <b>{whenDay(e.start)}</b> about {count(e.volume)} {e.volume_unit ?? ""} over the baseline
               {" "}{e.attributed
                 ? <Badge tone="muted" className="flare-cause">{e.causes.length} records</Badge>
                 : <Badge tone="warn" className="flare-cause">cause unknown</Badge>}
@@ -53,11 +54,11 @@ export function FlareAttribution() {
             <tbody>{d.allocation.sources.map((g) => (
               <tr key={g.source}>
                 <td><a href={entityHref(g.source)}>{g.name}</a></td>
-                <td>{g.mscf.toLocaleString()}</td>
+                <td>{count(g.mscf)}</td>
                 <td>{g.share_pct != null ? `${g.share_pct}%` : "-"}</td>
-                <td>{Object.entries(g.by_kind).filter(([k]) => k !== "routine")
-                  .reduce((t, [, v]) => t + v, 0).toLocaleString()}</td>
-                <td>{(g.by_basis.metered ?? 0).toLocaleString()}</td>
+                <td>{count(Object.entries(g.by_kind).filter(([k]) => k !== "routine")
+                  .reduce((t, [, v]) => t + v, 0))}</td>
+                <td>{count(g.by_basis.metered ?? 0)}</td>
               </tr>
             ))}</tbody>
           </Table>

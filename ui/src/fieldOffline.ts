@@ -8,8 +8,8 @@
  * the app returns to the foreground and every 30 s while it is on screen, from whichever page is open. iOS has no
  * background sync, so nothing is sent while the app is closed. Only writes that never reached the server are sent
  * again; one the server refused is not resent (AGENTS.md), and an expired session holds the outbox until sign-in. */
-import { stamp } from "./wording";
 import { errorMessage } from "./lib";
+import { when } from "./format";
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type FieldReading, type PlanItem } from "./api";
 import { getProject, projectUrl } from "./authState";
@@ -391,7 +391,7 @@ export async function discard(w: QueuedWrite): Promise<void> {
 /** What a refused write said, in a sentence a person can pass on. */
 export function describe(w: QueuedWrite): string {
   const p = w.payload as Record<string, unknown>;
-  const made = stamp(w.at);
+  const made = when(w.at);
   const reading = (p.reading as FieldReading | undefined);
   const said: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
   switch (w.kind) {
@@ -409,7 +409,7 @@ export function describe(w: QueuedWrite): string {
  * close-out as a note on its case. Either way the IOC still gets what was seen. Null when it can't. */
 export function asNote(w: QueuedWrite): (() => Promise<void>) | null {
   const p = w.payload as Record<string, unknown>;
-  const why = `Made on the phone ${stamp(w.at)}, not accepted: ${w.refused?.reason ?? ""}`;
+  const why = `Made on the phone ${when(w.at)}, not accepted: ${w.refused?.reason ?? ""}`;
   if (w.kind === "field_report") return async () => {
     const photos = await Promise.all((w.photos ?? []).map(store.photoUrl));
     await sendOrQueue("field_report", { exception_id: p.exception_id, by: p.by, status: "note", reading: p.reading,

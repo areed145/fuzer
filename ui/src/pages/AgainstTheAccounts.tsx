@@ -3,7 +3,7 @@
  * oil in each currency. The accounted volume is the authority: a difference is for production accounting to resolve,
  * and nothing is restated. */
 import { api, type AccountingMonth } from "../api";
-import { quantity } from "../format";
+import { quantity, count } from "../format";
 import { Badge, Card, Disclosure, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
@@ -25,7 +25,7 @@ export function AgainstTheAccounts() {
   if (d && !r?.months.length && !u?.months.length) return null;  // a site without an accounting export
   return (
     <Card className="against-accounts" title="Against the accounts">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {r && <>
         <div className="small">
           {r.since} to {r.until}: {r.summary.agrees} months agree within {r.tolerance_pct}%, {r.summary.differs} differ,
@@ -52,7 +52,7 @@ export function AgainstTheAccounts() {
                 <td data-label="Difference">
                   <Badge tone={TONE[m.verdict]} className="accounts-verdict">{SAY[m.verdict]}</Badge>
                   {m.difference_pct != null && <div className="small">
-                    {m.difference_pct > 0 ? "+" : ""}{m.difference_pct}% ({m.difference! > 0 ? "+" : ""}{m.difference!.toLocaleString()} {m.unit})
+                    {m.difference_pct > 0 ? "+" : ""}{m.difference_pct}% ({m.difference! > 0 ? "+" : ""}{count(m.difference!)} {m.unit})
                   </div>}
                   <div className="small muted">{m.why}</div>
                 </td>
@@ -66,8 +66,8 @@ export function AgainstTheAccounts() {
         <h3>Operating cost per accounted bbl of oil</h3>
         <div className="small accounts-unit-cost">
           {Object.entries(u.window).map(([cur, w]) => (
-            <div key={cur} data-currency={cur}><strong>{w.per_bbl.toLocaleString()} {cur}/bbl</strong>{" "}
-              <span className="muted">({w.cost.toLocaleString()} {cur} over {w.oil_bbl.toLocaleString()} bbl)</span></div>
+            <div key={cur} data-currency={cur}><strong>{count(w.per_bbl)} {cur}/bbl</strong>{" "}
+              <span className="muted">({count(w.cost)} {cur} over {count(w.oil_bbl)} bbl)</span></div>
           ))}
         </div>
         <Table density="compact" className="unit-cost-table phone-rows">
@@ -75,10 +75,10 @@ export function AgainstTheAccounts() {
           <tbody>{u.months.map((m) => (
             <tr key={`${m.period}-${m.currency}`}>
               <td>{m.period}</td>
-              <td data-label="Booked cost">{m.cost.toLocaleString()} {m.currency}
-                <div className="small muted">{Object.entries(m.by_element).map(([k, v]) => `${k} ${v.toLocaleString()}`).join(", ")}</div></td>
+              <td data-label="Booked cost">{count(m.cost)} {m.currency}
+                <div className="small muted">{Object.entries(m.by_element).map(([k, v]) => `${k} ${count(v)}`).join(", ")}</div></td>
               <td data-label="Accounted oil">{n(m.oil_bbl, "bbl")}{m.oil_status && <span className="small muted"> {m.oil_status}</span>}</td>
-              <td data-label="Per bbl">{m.per_bbl != null ? `${m.per_bbl.toLocaleString()} ${m.currency}` : "unknown"}
+              <td data-label="Per bbl">{m.per_bbl != null ? `${count(m.per_bbl)} ${m.currency}` : "unknown"}
                 {m.why_unknown && <div className="small muted">{m.why_unknown}</div>}</td>
             </tr>
           ))}</tbody>

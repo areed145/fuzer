@@ -1,13 +1,14 @@
 // Shared bits of the work pages (#97): who is acting, due dates, how history reads, evidence.
 
-import { Badge as UIBadge, Disclosure } from "./ui";
+import { Badge as UIBadge, Disclosure, ErrorText } from "./ui";
+import { when } from "./format";
 import { type ReactNode } from "react";
 import { type WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
 import { entityHref, fieldLabel, fmt } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
-import { person as personName, queue, say, stamp } from "./wording";
+import { person as personName, queue, say } from "./wording";
 
 export { loadPerson, usePerson } from "./identityStore";
 
@@ -34,10 +35,6 @@ export function reportedBy(sources: { source?: string | null }[]): string {
   if (systems.size === 1) return `Reported ${sources.length} times by ${[...systems][0]}`;
   return systems.size === sources.length ? `Reported by ${systems.size} systems`
     : `Reported ${sources.length} times by ${systems.size} systems`;
-}
-
-export function when(at: string): string {
-  return stamp(at);
 }
 
 export function Actor({ who }: { who: string }) {
@@ -95,8 +92,8 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "escalated": return { text: escalation(e) };
     case "timer_fired": return { text: <>timer <strong>{e.element}</strong> fired</> };
     case "message": return { text: <>sent {d.name} {d.delivered ? "and the workflow moved on" : "(kept as evidence)"}</>, body: <DataView data={d.payload} /> };
-    case "agent_failed": return { text: <>failed try {d.attempt} at <strong>{e.element}</strong>; retrying</>, body: <p className="small error">{d.error}</p> };
-    case "failed": return { text: <><strong>{e.element}</strong> couldn't go on; it is a task for {to(`role:${d.role}`)}</>, body: <p className="small error">{d.error}</p> };
+    case "agent_failed": return { text: <>failed try {d.attempt} at <strong>{e.element}</strong>; retrying</>, body: <ErrorText>{d.error}</ErrorText> };
+    case "failed": return { text: <><strong>{e.element}</strong> couldn't go on; it is a task for {to(`role:${d.role}`)}</>, body: <ErrorText>{d.error}</ErrorText> };
     case "step_cancelled": return { text: <><strong>{e.element}</strong> was cancelled</>, body: d.why && <p className="small">{d.why}</p> };
     case "completed_process": return { text: <>workflow {d.state}: <strong>{d.outcome}</strong></> };
     case "state_changed": return { text: <>item is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
@@ -137,7 +134,7 @@ const LIMIT_WORDS: Record<string, string> = { lo: "low", lolo: "low-low", hi: "h
  * timezone isn't known, so none is added; the recorded value stays in the tooltip), and a detection key
  * (`excursions:alarm:lo`) as words ("alarm low excursions"). Anything else is shown as recorded. */
 export function readable(v: string): string {
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(v)) return `${v.slice(0, 16).replace("T", " ")} (data time)`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(v)) return when(v);
   const agent = /^agent:([a-z_]+)$/.exec(v);
   if (agent) return `${agent[1].replace(/_/g, " ")} agent`;
   const m = /^([a-z]+):([a-z_]+):([a-z]+)$/.exec(v);

@@ -1,5 +1,5 @@
 import { documentHref, openDocument } from "../DocumentViewer";
-import { confirmDialog, Textarea } from "../ui";
+import { confirmDialog, Textarea, ErrorText } from "../ui";
 import { percent } from "../format";
 import "../styles/review.css";
 import "../styles/trends.css";
@@ -162,7 +162,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       )}
 
       <LikeQuestions kind={kind} name={name} onDone={() => { items.reload(); notifyChanged(); }} />
-      <Status loading={items.loading && !items.data} error={items.error} empty={items.data && open.length === 0}>
+      <Status of={items} empty={items.data && open.length === 0}>
         All done. Nothing left to review here.
       </Status>
       {open.map((item) => <QuestionCard key={item.id} item={item} onDecide={(d) => decide(item, d)} />)}
@@ -209,7 +209,7 @@ export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKin
   const [done, setDone] = useState<string>();
   const item = q.data?.find((i) => i.id === id);
   if (done) return <p role="status" className="notice">{done}</p>;
-  if (!item) return <Status loading={q.loading} error={q.error} onRetry={q.reload} />;
+  if (!item) return <Status of={q} />;
   const sheet = item.kind === "pid_mismatch" ? item.payload : null;
   return <div className="case-question">
     <QuestionCard item={item} onDecide={async (d) => {
@@ -254,7 +254,7 @@ function LikeQuestions({ kind, name, onDone }: { kind: ReviewKind; name: string;
         ))}</tbody>
       </Table>
       {result && <p role="status" className="small">{result}</p>}
-      {error && <p className="error small">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </UICard>
   );
 }

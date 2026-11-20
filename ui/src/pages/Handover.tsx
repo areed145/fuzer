@@ -2,10 +2,11 @@
  * every line citing its case or exception. The outgoing lead adds notes; the incoming lead acknowledges it, which
  * is kept with who and when. Past handovers stay readable. */
 import { useState } from "react";
+import { when } from "../format";
 import { api, type Handover } from "../api";
-import { Badge, Button, Card, PageHeader, Table, Empty, Textarea } from "../ui";
+import { Badge, Button, Card, PageHeader, Table, Empty, Textarea, ErrorText } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
-import { usePerson, when } from "../work";
+import { usePerson } from "../work";
 import { caseHref } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { person as personName } from "../wording";
@@ -44,7 +45,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
         Shift handover</PageHeader>
       {operate && <p className="small"><Button variant="secondary" disabled={!!a.busy} onClick={() =>
         a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the shift in progress, or brings it up to date">Draft the handover</Button>
-        {a.error && <span className="error"> {a.error}</span>}</p>}
+        <ErrorText inline>{a.error}</ErrorText></p>}
       {/* The handover shown leads and the past ones follow once it is in: drawn sooner, its lines filling in pushed the
           past handovers out of view (#1069). */}
       <Status loading={(list.loading && !list.data) || (!!id && h.data === undefined && !h.error)} error={list.error ?? h.error} />
@@ -124,7 +125,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
         </>
       )}
       {h.acknowledged_note && <p className="small">Incoming: {h.acknowledged_note}</p>}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Card>
   );
 }

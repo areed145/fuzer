@@ -2,6 +2,7 @@
  * against the decline the well was on before, so a well that kept declining gained nothing. Unknown where a side has
  * no test, never zero. Attribution is not proof; the accountable engineer decides on further work. */
 import { api, type InterventionGain } from "../api";
+import { whenDay } from "../format";
 import { Badge, Card, Empty, Table } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
@@ -15,7 +16,7 @@ export function InterventionGains() {
   const d = data.data;
   return (
     <Card className="intervention-gains" title="Did the well work pay off?">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && <>
         <div className="small">
           {d.since} to {d.until}: {d.summary.interventions} interventions, {d.summary.gained} gained, {d.summary.lost} lost,
@@ -26,7 +27,7 @@ export function InterventionGains() {
             <thead><tr><th>Well and work</th><th>Result</th><th>Oil after</th><th>Its decline said</th><th>Water cut</th></tr></thead>
             <tbody>{d.interventions.map((i) => (
               <tr key={i.id} data-intervention={`${i.well} ${i.start.slice(0, 10)}`}>
-                <td><a href={entityHref(i.well_id)}>{i.well}</a> <span className="small">{i.start.slice(0, 10)}</span>
+                <td><a href={entityHref(i.well_id)}>{i.well}</a> <span className="small">{whenDay(i.start)}</span>
                   <div className="small muted">{i.reason}</div></td>
                 <td data-label="Result"><Badge tone={TONE[i.verdict]} className="intervention-verdict">{SAY[i.verdict]}</Badge>
                   {i.gain_bbld != null && <div className="small">{i.gain_bbld > 0 ? "+" : ""}{i.gain_bbld} bbl/d net of decline</div>}

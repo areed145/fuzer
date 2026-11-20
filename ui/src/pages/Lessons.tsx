@@ -1,9 +1,9 @@
-import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea } from "../ui";
-import { percent } from "../format";
+import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea, ErrorText } from "../ui";
+import { percent, when } from "../format";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
 import { Status, entityHref, href, useAction, useAsync } from "../lib";
-import { Actor, usePerson, when } from "../work";
+import { Actor, usePerson } from "../work";
 
 export function LessonsPage({ query }: { query: URLSearchParams }) {
   const status = query.get("status") ?? "suggested";
@@ -20,7 +20,7 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
           ))}
         </div>
       </div>
-      <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.length === 0}>
+      <Status of={list} empty={list.data?.length === 0}>
         Nothing {status}.
       </Status>
       {list.data?.map((l) => <LessonCard key={l.id} lesson={l} />)}
@@ -56,7 +56,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
           {lesson.evidence.map((e) => (
             <li key={e.id}>
               <span className="muted mono">{e.start}</span> <a href={entityHref(e.id)}>{e.label}</a>
-              {e.recurred && <span className="error"> recurred</span>}
+              {e.recurred && <ErrorText inline> recurred</ErrorText>}
             </li>
           ))}
         </ul>
@@ -86,7 +86,7 @@ function LessonHistory({ id }: { id: number }) {
   const h = useAsync(() => api.lessonHistory(id), [id]);
   return (
     <>
-      <Status loading={h.loading && !h.data} error={h.error} empty={h.data?.length === 0}>
+      <Status of={h} empty={h.data?.length === 0}>
         No decisions or edits yet.
       </Status>
       <ul className="plain">

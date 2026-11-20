@@ -16,7 +16,7 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
     <p>Application-wide defaults, sign-in references and optional AI. For connecting, testing, loading and
       recovering source data, open <a href={href("/sources")}>Sources</a>. Viewing this page makes no changes or AI calls.</p>
     <Button disabled={list.loading} onClick={list.reload}>Refresh configuration</Button>
-    <Status loading={list.loading && !list.data} error={list.error} />
+    <Status of={list} />
     <p className="small">Scope: {list.data?.project ?? "global"}. Configured values; refresh after a change.</p>
     </Card>
     <Card title="Deployment and sign-in">

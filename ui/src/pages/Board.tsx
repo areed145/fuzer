@@ -1,6 +1,6 @@
 import "../styles/board.css";
-import { promptDialog } from "../ui";
-import { money } from "../format";
+import { promptDialog, ErrorText } from "../ui";
+import { money, whenDay, count } from "../format";
 import { Button, Input, PageHeader, Table, Select , Badge as UIBadge} from "../ui";
 import { useEffect, useState } from "react";
 import { api, type BoardCard, type BoardFilter } from "../api";
@@ -114,13 +114,13 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
               </Button>))}
         </div>
       )}
-      <Status loading={board.loading && !board.data} error={board.error} empty={board.data?.total === 0}>
+      <Status of={board} empty={board.data?.total === 0}>
         Nothing on the board{view === "new" ? " since your last visit" : ""}.
       </Status>
       {board.data && board.data.total > 0 && (
         <>
           <p className="small">
-            {board.data.total.toLocaleString()} cards · page {page} of {Math.ceil(board.data.total / board.data.per_page)}
+            {count(board.data.total)} cards · page {page} of {Math.ceil(board.data.total / board.data.per_page)}
           </p>
           <ol className="board">
             {board.data.cards.map((c) => <Card key={c.key} card={c} reload={board.reload} />)}
@@ -195,7 +195,7 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
       </p>
       {hist.data && hist.data.length > 1 && (
         <p className="small">
-          Rank: {hist.data.map((h) => `${h.rank} (${h.at.slice(0, 10)})`).join(" → ")}
+          Rank: {hist.data.map((h) => `${h.rank} (${whenDay(h.at)})`).join(" → ")}
         </p>
       )}
       <PinForm card={c} reload={reload} />
@@ -229,7 +229,7 @@ function PinForm({ card: c, reload }: { card: BoardCard; reload: () => void }) {
       <Input placeholder="Why (required)" value={reason} onChange={(e) => setReason(e.target.value)} />
       <Button disabled={!reason || (!rank && !value)} onClick={() => send()}>Pin</Button>
       {c.pinned && <Button onClick={() => send(true)}>Unpin</Button>}
-      {error && <span className="error">{error}</span>}
+      <ErrorText inline>{error}</ErrorText>
     </div>
   );
 }

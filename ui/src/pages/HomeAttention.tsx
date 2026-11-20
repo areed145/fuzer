@@ -2,6 +2,7 @@
  * the reading; the map says where. A plant with no located assets gets the list alone. Read only: dispatch and
  * every edit stay on All work and the case pages. */
 import { queue } from "../wording";
+import { count } from "../format";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { api, type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
 import { Badge, Button, ButtonLink, Card, Empty } from "../ui";
@@ -71,7 +72,7 @@ export function AttentionCard() {
                                onClick={() => setCrews(!crews)}>Crews</Button>}
           </div>
           <span className="small muted">
-            {open.toLocaleString()} open across {spots.data.places.length.toLocaleString()} {spots.data.places.length === 1 ? "place" : "places"}
+            {count(open)} open across {count(spots.data.places.length)} {spots.data.places.length === 1 ? "place" : "places"}
             {spots.data.unplaced ? <> · <a href={workHref("open", { at: UNPLACED })}>{spots.data.unplaced} not located</a></> : ""}
           </span>
         </div>

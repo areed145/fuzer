@@ -3,7 +3,7 @@
  * open case in the data steward's queue. */
 import { api, type AssetContext, type ContextRollup, type PlacementSuggestion } from "../../api";
 import { percent } from "../../format";
-import { Badge, Button, Card, Empty, Table } from "../../ui";
+import { Badge, Button, Card, Empty, Table, ErrorText } from "../../ui";
 import { Status, entityHref, useAsync, useAction } from "../../lib";
 import { caseHref } from "../workflows/shared";
 import { reviewer } from "../sources/common";
@@ -66,7 +66,7 @@ function Suggestions({ id, items, onDone }: { id: string; items: PlacementSugges
           );
         })}</tbody>
       </Table>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </>
   );
 }
@@ -74,7 +74,7 @@ function Suggestions({ id, items, onDone }: { id: string; items: PlacementSugges
 /** Master data's Asset context tab: the top gaps (open cases), then completeness by area and by class. */
 export function ContextTab() {
   const s = useAsync(() => api.contextSummary(), []);
-  if (!s.data) return <Status loading={s.loading} error={s.error} onRetry={s.reload} />;
+  if (!s.data) return <Status of={s} />;
   const label = Object.fromEntries(s.data.checks.map((c) => [c.check, c.label.toLowerCase()]));
   return <>
     <Card title="Gaps that hold back the most">

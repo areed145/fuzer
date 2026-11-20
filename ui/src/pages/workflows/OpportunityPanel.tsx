@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Card as UICard, Disclosure, Input, Table } from "../../ui";
+import { Button, Card as UICard, Disclosure, Input, Table, ErrorText } from "../../ui";
 import { api } from "../../api";
 import { Status, entityHref, useAction, useAsync } from "../../lib";
 import { usePermission } from "../../Auth";
@@ -27,7 +27,7 @@ export function OpportunityPanel({ opportunityKey, person, readOnly, onDecided }
     });
   return (
     <UICard title="The proposal">
-      <Status loading={view.loading && !o} error={view.error} onRetry={view.reload} />
+      <Status of={view} />
       {o && <>
         {w ? <p>Worth <strong>{money(w.usd, w.currency || "USD")}</strong>: {q(w.gain, w.gain_unit)} more oil
           for {q(w.days)} days ({quantity(w.oil_bbl, "bbl")}) at {money(w.price_bbl, w.currency || "USD")} a barrel.</p>
@@ -61,7 +61,7 @@ export function OpportunityPanel({ opportunityKey, person, readOnly, onDecided }
             <Input aria-label="Why reject it" placeholder="why reject it" value={why} onChange={(e) => setWhy(e.target.value)} />
             <Button disabled={!!a.busy || !why.trim()} onClick={() => decide("rejected")}>Reject</Button>
           </div>}
-        {a.error && <p className="error small">{a.error}</p>}
+        <ErrorText>{a.error}</ErrorText>
       </>}
     </UICard>
   );

@@ -3,7 +3,7 @@
  * reason and evidence; nothing changes until a person accepts it (or picks another option). Bulk accept appears only
  * once `stewardship.bulk_accept_at` is set. */
 import { useState } from "react";
-import { confirmDialog } from "../../ui";
+import { confirmDialog, ErrorText } from "../../ui";
 import { percent } from "../../format";
 import { api, type Proposal } from "../../api";
 import { Badge, Button, Card, Select, Table, Disclosure, Empty } from "../../ui";
@@ -46,8 +46,8 @@ export function ProposalsTab() {
             void a.run("bulk", () => api.acceptConfident(person), rows.reload);
           }}>Accept {confident.length} at ≥{percent(at)}</Button>}
       </div>
-      {a.error && <p role="alert" className="error small">{a.error}</p>}
-      <Status loading={rows.loading && !rows.data} error={rows.error} />
+      <ErrorText>{a.error}</ErrorText>
+      <Status of={rows} />
       {rows.data && !rows.data.proposals.length && <Empty>{status === "open"
         ? "No open proposals. Ask Claude to look at what is unmatched, unsure or inconsistent." : `No ${status} proposals.`}</Empty>}
       {rows.data && rows.data.proposals.length > 0 && <Table density="compact">
@@ -84,7 +84,7 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
             onClick={() => void a.run("accept", () => api.acceptProposal(p.id, person, choice), done)}>Accept</Button>
           <Button size="sm" variant="link" disabled={!!a.busy}
             onClick={() => void a.run("reject", () => api.rejectProposal(p.id, person), done)}>Reject</Button>
-          {a.error && <span className="error small">{a.error}</span>}
+          <ErrorText inline>{a.error}</ErrorText>
         </div>}</td>
     </tr>
   );

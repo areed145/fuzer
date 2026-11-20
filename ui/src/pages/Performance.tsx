@@ -1,11 +1,10 @@
 /** How the work is running (P7.2b, #661): one compact view, reached from All work. Per queue, whether it is keeping
  * up this week against the last four, and the measures behind that; every number opens the cases behind it. */
 import { useState } from "react";
-import { money, percent } from "../format";
+import { money, percent, when } from "../format";
 import { api, type DetectorEarning, type FindingOrigin, type PerfCell, type PerfRow, type SkillEarning } from "../api";
 import { Badge, Button, Card, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, href, useAsync } from "../lib";
-import { when } from "../work";
 
 const VERDICT: Record<PerfRow["keeping_up"], { text: string; tone: string }> = {
   keeping_up: { text: "keeping up", tone: "ok" },
@@ -47,7 +46,7 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
         { key: "skill", label: "By skill", href: href("/performance", { by: "skill" }), current: by === "skill" },
       ]} />
       {by === "detector" ? <Detectors /> : by === "skill" ? <Skills /> : <>
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && (rows.length ? (
         // The queue table is a card like the blocks under it, and every cell says what it is (#1078).
         <Card title={by === "type" ? "Work types this week" : "Queues this week"}>
@@ -127,7 +126,7 @@ function Detectors() {
   const [open, setOpen] = useState<{ label: string; ids: number[] } | null>(null);
   const d = data.data;
   return <>
-    <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+    <Status of={data} />
     {d && (d.detectors.length ? <>
       <p className="small">Confirmed cases found by {(Object.keys(ORIGIN) as FindingOrigin[])
         .filter((o) => d.by_origin[o].cases).map((o) => `${ORIGIN[o].toLowerCase()} ${pct(d.by_origin[o].share)}`)
@@ -181,7 +180,7 @@ function Skills() {
   const d = data.data;
   const active = d ? d.skills.filter((s) => s.briefs || s.verdicts || s.edits.published || s.edits.waiting) : [];
   return <>
-    <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+    <Status of={data} />
     {d && (active.length ? <Table density="compact" className="perf-table phone-rows">
       <thead><tr>
         <th>Skill</th><th>Verdict</th><th>Briefs</th><th>Followed</th><th>Answers useful</th><th>Cost per case</th>

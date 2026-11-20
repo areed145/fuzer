@@ -3,7 +3,7 @@
  * the decision log on the Master data page. */
 import { useState } from "react";
 import { api, type MergePreview, type SearchHit, type SplitPreview } from "../../api";
-import { Button, Input, Empty } from "../../ui";
+import { Button, Input, Empty, ErrorText } from "../../ui";
 import { entityHref, fmt, href, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -37,7 +37,7 @@ export function NotThisRecord({ fuzerId, refId, onDone }: { fuzerId: string; ref
             (r) => { setDone(r.batch); onDone?.(); })}>Split it off</Button>
         <Button size="sm" variant="link" onClick={() => setP(null)}>Cancel</Button>
       </div>
-      {a.error && <p role="alert" className="error">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </div>
   );
 }
@@ -88,7 +88,7 @@ export function SameAs({ fuzerId, kind, onDone }: { fuzerId: string; kind: strin
           <Button size="sm" variant="link" onClick={() => setP(null)}>Back</Button>
         </div>
       </>}
-      {a.error && <p role="alert" className="error">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </div>
   );
 }

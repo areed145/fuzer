@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { whenDay, count } from "../format";
 // The toolbar and legend styles come with the page, not with the lazy 3D chunk: arriving with it, they rewrapped the
 // toolbar after it drew and pushed the drawing down (#1069).
 import "../styles/scene3d.css";
@@ -27,7 +28,7 @@ const LEVEL: Record<Band, string> = {
   medium: "Alarm sounding, or medium-priority work",
   low: "Low-priority work",
 };
-const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 const quantity = (q: string) => words(q.replace(/_rate$/, ""));
 type ItemStatus = SceneStatus["status"][string];
 const named = (label: string, description: string | null | undefined) => {
@@ -168,7 +169,7 @@ export function NetworkScene({ query, set, relDef }: {
 
   return (
     <>
-      <Status loading={scene.loading && !s} error={scene.error} onRetry={scene.reload} />
+      <Status of={scene} />
       {s && !s.root && <Empty>{s.basis === "not in an area" ? "This record is in no area, so there is nothing to draw around it."
         : "No facility or area is loaded yet."}</Empty>}
       {s?.root && (
@@ -329,7 +330,7 @@ export function NetworkScene({ query, set, relDef }: {
 /** What an item's status says, in words, as its asset page's status card says it. */
 function describe(x: ItemStatus | undefined): string {
   if (!x) return "No downtime open, no open work and no alarm sounding.";
-  return [x.down ? `Down since ${x.down.start?.slice(0, 10) ?? "an unknown date"}${x.down.reason ? `: ${x.down.reason}` : ""}` : "No downtime open",
+  return [x.down ? `Down since ${whenDay(x.down.start, "an unknown date")}${x.down.reason ? `: ${x.down.reason}` : ""}` : "No downtime open",
     x.open_work ? plural(x.open_work, "open exception") : "no open work",
     x.alarms ? `${plural(x.alarms, "alarm")} sounding` : "no alarm sounding"].join(", ") + ".";
 }
@@ -337,7 +338,7 @@ function describe(x: ItemStatus | undefined): string {
 /** "If this trips": what goes down with it and the production at risk, labelled as the estimate it is. */
 function TripCard({ read }: { read: { data?: SceneTrip | null; loading: boolean; error?: string } }) {
   const t = read.data;
-  if (!t) return <Status loading={read.loading} error={read.error} />;
+  if (!t) return <Status of={read} />;
   const list = (xs: { label: string }[], n = 8) => xs.slice(0, n).map((x) => x.label).join(", ") + (xs.length > n ? ` and ${xs.length - n} more` : "");
   return (
     <div className="scene-scenario" data-testid="scene-trip">
@@ -348,7 +349,7 @@ function TripCard({ read }: { read: { data?: SceneTrip | null; loading: boolean;
           {t.behind.length > 0 && <li>Behind it, with nowhere to flow: {list(t.behind)}</li>}
           {t.starved.length > 0 && <li>Downstream, with nothing else feeding it: {list(t.starved)}</li>}
           <li>{plural(t.wells.length, "well")} behind it{t.wells.length ? `: ${list(t.wells, 6)}` : ""}</li>
-          <li>Production at risk: {t.at_risk.length ? t.at_risk.map((x) => `${quantity(x.quantity)} ${x.value.toLocaleString()}${x.unit ? ` ${x.unit}` : ""}`).join(", ") : "none measured"}</li>
+          <li>Production at risk: {t.at_risk.length ? t.at_risk.map((x) => `${quantity(x.quantity)} ${count(x.value)}${x.unit ? ` ${x.unit}` : ""}`).join(", ") : "none measured"}</li>
           {t.untested.length > 0 && <li>No well test for {list(t.untested.map((label) => ({ label })))}, so not counted</li>}
         </ul>
       )}

@@ -5,7 +5,7 @@ import "./styles/shell.css";
 import "./styles/shared.css";
 import "./styles/workflows.css";
 import "./styles/ios.css";
-import { Badge as UIBadge } from "./ui";
+import { Badge as UIBadge, ErrorText } from "./ui";
 import { StrictMode, Suspense, lazy, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { href, useAsync, useRoute } from "./lib";
@@ -151,7 +151,7 @@ function App() {
             )}
             {rebuilding && <UIBadge className="badge updating">Updating…</UIBadge>}
             <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />
-            {stats.error && <span className="error small">API not reachable</span>}
+            {stats.error && <ErrorText inline>API not reachable</ErrorText>}
             {demo.error && section !== "demo" && section !== "investigate" &&
               <Status error={`Demo availability: ${demo.error}`} onRetry={demo.reload} />}
           </>
@@ -171,7 +171,7 @@ function App() {
             <HomePage query={query} stats={s} statsLoading={stats.loading} statsError={stats.error} />
           ) : section === "demo" || (section === "investigate" && path[1] === "okan") ? (
             !demo.data || demo.error ? <section><PageHeader>Demo</PageHeader>
-              <Status loading={demo.loading && !demo.data} error={demo.error} onRetry={demo.reload} />
+              <Status of={demo} />
               <a href={href("/")}>Return home</a></section>
               : !demo.data.enabled ? <section><PageHeader>Demo</PageHeader>
                 <div role="status"><EmptyState title="Demo is disabled">An administrator has hidden onboarding for this application.

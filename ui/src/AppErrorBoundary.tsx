@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { Button, Card, PageHeader } from "./ui";
+import { Button, Card, PageHeader, ErrorText } from "./ui";
 
 export class AppErrorBoundary extends Component<{ children: ReactNode }, { error?: Error }> {
   state: { error?: Error } = {};
@@ -19,7 +19,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { error
         <PageHeader>This page could not be displayed</PageHeader>
         <Card>
           <p role="alert">An unexpected interface error occurred. Your saved facility data has not been cleared.</p>
-          <p className="error small">{this.state.error.message}</p>
+          <ErrorText>{this.state.error.message}</ErrorText>
           <Button onClick={() => window.location.reload()}>Reload page</Button>{" "}
           <Button onClick={() => { window.location.hash = "#/"; window.location.reload(); }}>Return home</Button>
         </Card>

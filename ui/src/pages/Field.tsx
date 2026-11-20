@@ -4,16 +4,17 @@
  * own page; it is part of My work now, so an engineer sent on a field check finds it in the same place as everything
  * else waiting on them. */
 import { useEffect, useRef, useState } from "react";
+import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { kindWord, person as personName } from "../wording";
-import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea } from "../ui";
+import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
   sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
 import { NEEDS_SIGNAL } from "../signal";
 import { useSignal } from "../useSignal";
 import { Status, entityHref, href, useAsync, useAction, errorMessage } from "../lib";
-import { Due, reportedBy, when } from "../work";
+import { Due, reportedBy } from "../work";
 import { FindingEvidence } from "../Finding";
 import { taskHref } from "./workflows/shared";
 
@@ -70,7 +71,7 @@ function Refused({ w, jobs }: { w: QueuedWrite; jobs: { id: number; title: strin
         consequence="Throw this away from the phone. The IOC never gets it, and it can't be brought back."
         onConfirm={() => void run("Discarding", () => discard(w))} />
     </div>
-    {error && <p role="alert" className="error small">{error}</p>}
+    <ErrorText>{error}</ErrorText>
   </div>;
 }
 
@@ -105,7 +106,7 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
         </div>}
       </li>)}</ul>
       {busy && <p role="status">{busy}…</p>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </Card>
   );
 }
@@ -158,7 +159,7 @@ const limits = (p: RoundPoint) => `${p.low ?? "…"} to ${p.high ?? "…"} ${p.u
 function RoundPoints({ id, person, canTake, onTaken, onPhone }: { id: number; person: string; canTake: boolean;
   onTaken: () => void; onPhone: QueuedTake[] }) {
   const r = useAsync(() => api.round(id), [id]);
-  if (!r.data || !Array.isArray(r.data.points)) return <Status loading={r.loading} error={r.error} onRetry={r.reload} />;
+  if (!r.data || !Array.isArray(r.data.points)) return <Status of={r} />;
   const taken = () => { r.reload(); onTaken(); };
   return <ol className="small">{r.data.points.map((p) => {
     const mine = onPhone.filter((t) => t.point === p.id).at(-1);
@@ -198,7 +199,7 @@ function TakePoint({ run, point, person, onTaken }: { run: number; point: RoundP
         value={value} onChange={(e) => setValue(e.target.value)} />
       <Button size="sm" disabled={value.trim() === "" || !Number.isFinite(n)} onClick={() => send({ value: n })}>
         {point.taken ? "Correct" : "Save"}</Button>
-      {error && <span className="error" role="alert">{error}</span>}
+      <ErrorText inline>{error}</ErrorText>
     </div>;
   }
   return <div className="toolbar">
@@ -208,7 +209,7 @@ function TakePoint({ run, point, person, onTaken }: { run: number; point: RoundP
       <Input aria-label={`What you found at ${label}`} value={note} onChange={(e) => setNote(e.target.value)} />
       <Button size="sm" disabled={!note.trim()} onClick={() => send({ passed: false, note: note.trim() })}>Send to the IOC</Button>
     </>}
-    {error && <span className="error" role="alert">{error}</span>}
+    <ErrorText inline>{error}</ErrorText>
   </div>;
 }
 
@@ -220,7 +221,7 @@ function HandoverNote({ h }: { h: FieldHandover }) {
         <span className="muted small"> · {when(h.at)}</span></p>
       <p className="small">Done: {h.done}</p>
       <p className="small">Left: {h.left}</p>
-      {h.unsafe && <p className="small error">Unsafe to leave: {h.unsafe}</p>}
+      {h.unsafe && <ErrorText>Unsafe to leave: {h.unsafe}</ErrorText>}
       {h.permit && <p className="small muted">Permit {h.permit.label} {h.permit.state ?? ""}{h.permit.why_not ? ` · ${h.permit.why_not}` : ""}</p>}
     </div>
   );
@@ -255,7 +256,7 @@ function HandOver({ job, person, onChange }: { job: FieldJob; person: string; on
       <Button variant="primary" disabled={!ready || !!busy} onClick={() => run("Handing over", () => api.fieldHandover(job.id,
         { by: person, to: to.trim(), done: done.trim(), left: left.trim(),
           unsafe: /^(none|nothing|no|n\/a)\.?$/i.test(unsafe.trim()) ? undefined : unsafe.trim() }), onChange)}>Hand over</Button>
-      {error && <p role="alert" className="error small">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </fieldset>
   );
 }
@@ -432,7 +433,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
           <Button size="sm" aria-label={`Remove photo ${i + 1}`} onClick={() => setPhotos((x) => x.filter((_, j) => j !== i))}>Remove</Button>
         </span>)}</div>}
       </fieldset>
-      {problem && <p role="alert" className="error small">{problem}</p>}
+      <ErrorText>{problem}</ErrorText>
       {kept && <p role="status" className="small">No signal: kept on this phone. It sends, with this time, when the signal returns.</p>}
       {blocked && <>
         <label className="small" htmlFor={`why-${job.id}`}>Why start without a valid permit</label>
@@ -453,7 +454,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
       </div>
       {!job.handover && <HandOver job={job} person={person} onChange={onChange} />}</>}
       {busy && <p role="status">{busy}…</p>}
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </Card>
   );
 }

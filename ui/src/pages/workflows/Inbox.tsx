@@ -1,4 +1,5 @@
-import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty } from "../../ui";
+import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText } from "../../ui";
+import { when } from "../../format";
 import { openReviews } from "../../figures";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
  * escalated to you, jobs the IOC sent you (with the field report buttons), steps assigned to you (and to anyone you're
@@ -7,7 +8,7 @@ import { openReviews } from "../../figures";
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync, useRouteState, useAction } from "../../lib";
-import { Due, holder, usePerson, when } from "../../work";
+import { Due, holder, usePerson } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityLevel, taskHref } from "./shared";
@@ -57,7 +58,7 @@ export function InboxPage() {
     <SampleTeam />
   </UICard></section>;
   const offline = field.data?.offline;
-  if (!inbox.data && !offline) return <Status loading={inbox.loading} error={inbox.error} />;
+  if (!inbox.data && !offline) return <Status of={inbox} />;
   // The handover banner, what is new, the counts and the jobs sent to them all sit above the lists: drawn as each
   // answered, every one pushed the lists down the page (#1069). The page waits for them, failures included.
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
@@ -217,7 +218,7 @@ function HowYouAreTold({ person }: { person: string }) {
         {external && <label>to{" "}
           <Input type="time" value={p.quiet_to?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_to: e.target.value || null })} /></label>}
         <Button variant="primary" disabled={!draft} onClick={save}>Save</Button>
-        {state.error && <span role="alert" className="error">{state.error}</span>}
+        <ErrorText inline>{state.error}</ErrorText>
         {state.saved && <span role="status">Saved.</span>}
       </div>
     </UICard>
@@ -288,7 +289,7 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
           <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(r.task_id!, person))}>Claim</Button>
         )}{" "}
         <ButtonLink href={open}>Open</ButtonLink>
-        {a.error && <div className="error small">{a.error}</div>}
+        <ErrorText>{a.error}</ErrorText>
       </td>
     </tr>
   );
@@ -308,7 +309,7 @@ function Bulk({ rows, person, onDone }: { rows: WorkRow[]; person: string; onDon
           (out) => { setMsg(`${l}: ${out.done.length} done${out.refused.length ? `, ${out.refused.length} refused` : ""}`); onDone(); })}>{l}</Button>
       )) : <span className="muted small">These steps share no bulk action.</span>}
       {msg && <span className="small">{msg}</span>}
-      {a.error && <span className="error small">{a.error}</span>}
+      <ErrorText inline>{a.error}</ErrorText>
     </UICard>
   );
 }

@@ -20,7 +20,7 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
   const once = (d?.units ?? []).filter((u) => !u.repeat);
   return (
     <Card className="incident-repeats" title="Do problems come back?">
-      <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+      <Status of={data} />
       {d && <>
         <div className="small">
           {d.since} to {d.until}: {d.summary.incidents} incidents on {d.summary.units} units, {d.summary.repeat_units} with

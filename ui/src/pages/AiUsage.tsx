@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { money } from "../format";
+import { money, when } from "../format";
 import { api, type AiUsage as Usage, type UsageGroup } from "../api";
 import { href, Status, useAsync } from "../lib";
 import { Bar, Badge, Button, Card, Empty, Notice, Select, Stat, Table } from "../ui";
 
 const tokens = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(v));
-const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "never");
 const BUDGET = href("/settings", { view: "configuration", filter: "llm.budget" });
 
 /** Every model call the application made (Claude or another provider), what it cost and which feature asked, against
@@ -22,7 +21,7 @@ export function AiUsage() {
       </Select>
       <Button disabled={u.loading} onClick={u.reload}>Refresh</Button>
     </div>
-    <Status loading={u.loading && !d} error={u.error} />
+    <Status of={u} />
     {d && <Summary d={d} />}
   </div>;
 }
@@ -41,7 +40,7 @@ function Summary({ d }: { d: Usage }) {
           <>no budget · <a href={BUDGET}>set one</a></>} />
       <Stat label={`Last ${d.days === 1 ? "day" : `${d.days} days`}`} value={money(d.total.cost_usd)}
         detail={`${d.total.calls} calls · ${tokens(d.total.input_tokens + d.total.cache_read_tokens + d.total.cache_write_tokens)} in, ${tokens(d.total.output_tokens)} out`} />
-      <Stat label="Last call" value={when(d.total.last_at)} detail={d.recent[0]?.feature ?? "none yet"} />
+      <Stat label="Last call" value={when(d.total.last_at, "never")} detail={d.recent[0]?.feature ?? "none yet"} />
     </div>
     {b.cap_usd > 0 && <Bar value={share} label="Share of the month's budget spent" />}
     <p className="small">Costs are estimates from token counts and list prices{d.total.unpriced ? "; some models have no listed price" : ""}.
@@ -54,7 +53,7 @@ function Summary({ d }: { d: Usage }) {
       {d.recent.length === 0 ? <Empty>No model calls yet.</Empty> : <Table density="compact">
         <thead><tr><th>When (UTC)</th><th>Feature</th><th>Project</th><th>Model</th><th>Tokens in / out</th><th>Cost</th></tr></thead>
         <tbody>{d.recent.map((r, i) => <tr key={i}>
-          <td>{when(r.at)}</td><td>{r.feature}</td><td>{r.project ?? "—"}</td>
+          <td>{when(r.at, "never")}</td><td>{r.feature}</td><td>{r.project ?? "—"}</td>
           <td>{r.model} {r.batch && <Badge>batch</Badge>}</td>
           <td>{tokens(r.input_tokens)} / {tokens(r.output_tokens)}</td><td>{money(r.cost_usd)}</td>
         </tr>)}</tbody>
@@ -90,7 +89,7 @@ function Groups({ title, rows }: { title: string; rows: UsageGroup[] }) {
       <thead><tr><th>{title.replace("By ", "")}</th><th>Calls</th><th>Tokens in</th><th>Tokens out</th><th>Cost</th><th>Last call (UTC)</th></tr></thead>
       <tbody>{rows.map((r) => <tr key={r.key}>
         <td>{r.key}</td><td>{r.calls}</td><td>{tokens(r.input_tokens)}</td><td>{tokens(r.output_tokens)}</td>
-        <td>{money(r.cost_usd)}</td><td>{when(r.last_at)}</td>
+        <td>{money(r.cost_usd)}</td><td>{when(r.last_at, "never")}</td>
       </tr>)}</tbody>
     </Table>}
   </Card>;

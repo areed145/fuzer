@@ -1,4 +1,4 @@
-import { Button, Input, Select, Table, Badge as UIBadge, Textarea } from "../../ui";
+import { Button, Input, Select, Table, Badge as UIBadge, Textarea, ErrorText } from "../../ui";
 import { promptDialog } from "../../ui";
 /** Editing a mapping (#225): column by column (what each column means, which it links to, the key), or the YAML.
  * The form is written over the mapping on the server, so what it doesn't show is kept. */
@@ -39,7 +39,7 @@ export function MappingEditor({ yaml, dataset, columns, samples, onSave, onChang
           {text !== yaml && <Button variant="secondary" onClick={() => set(yaml)}>Undo edits</Button>}
         </div>
       )}
-      {a.error && <p className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </>
   );
 }
@@ -60,7 +60,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
     api.mapperForm(text, { columns, dataset }).then((f) => { setForm(f); setWarnings(f.warnings ?? []); setError(null); },
       (e: Error) => setError(e.message));
   }, [text]);  // eslint-disable-line react-hooks/exhaustive-deps
-  if (error && !form) return <p className="error small">{error}: edit it as YAML.</p>;
+  if (error && !form) return <ErrorText>{error}: edit it as YAML.</ErrorText>;
   if (!form) return <Status loading />;
   const update = (f: MapperForm) => {
     setForm(f);
@@ -163,7 +163,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
       {form.kept.length > 0 && (
         <p className="small">Also in this mapping, kept as it is (edit under YAML): {form.kept.join("; ")}.</p>
       )}
-      {error && <p className="error small">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </>
   );
 }
@@ -199,7 +199,7 @@ function KindSelect({ model, value, onChange }: {
         )}
         <option value="+">new kind…</option>
       </Select>
-      {error && <span className="error"> {error}</span>}
+      <ErrorText inline>{error}</ErrorText>
     </>
   );
 }

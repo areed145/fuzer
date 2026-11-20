@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { errorMessage } from "../../lib";
 import { api, type SearchHit } from "../../api";
-import { Button, Input, Empty } from "../../ui";
+import { Button, Input, Empty, ErrorText } from "../../ui";
 
 export function MatchRef({ value, onPick, busy, remember: rememberDefault = true, label = "Match" }: {
   value: string; busy?: boolean; remember?: boolean; label?: string;
@@ -44,7 +44,7 @@ export function MatchRef({ value, onPick, busy, remember: rememberDefault = true
           remember “{bare}” as a name for it</label>
         <Button size="sm" variant="primary" disabled={!picked || busy} onClick={() => onPick(picked, remember)}>Use it</Button>
       </div>
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }

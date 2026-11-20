@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { whenDay } from "./format";
 import { api, type AssistantFact } from "./api";
 import { entityHref, useAsync } from "./lib";
-import { Button, Input, Card as UICard, Textarea } from "./ui";
+import { Button, Input, Card as UICard, Textarea, ErrorText } from "./ui";
 import { loadPerson } from "./work";
 
 /** Who is editing: the name the Review page remembers. */
@@ -23,7 +24,7 @@ export function MemoryCard({ id }: { id: string }) {
         What the assistant remembers{" "}
         <span className="muted small">learned from answers rated useful, not source records</span>
       </h2>
-      {error && <div className="error small">{error}</div>}
+      <ErrorText>{error}</ErrorText>
       <ul className="plain">
         {r.data.map((f) => <FactRow key={f.id} f={f} act={act} />)}
       </ul>
@@ -60,9 +61,9 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
       <span className="mono small">fact:{f.id}</span> {ended ? <s>{f.text}</s> : f.text}
       <div className="small muted">
         {period(f) && <span>{period(f)} · </span>}
-        {ended && <span>ended{f.ended_at ? ` ${f.ended_at.slice(0, 10)}` : ""} by {f.ended_by}
+        {ended && <span>ended{f.ended_at ? ` ${whenDay(f.ended_at)}` : ""} by {f.ended_by}
           {f.invalidated_by ? `, replaced by fact:${f.invalidated_by}` : ""} · </span>}
-        learned {f.learned_at.slice(0, 10)}
+        learned {whenDay(f.learned_at)}
         {f.episode_question ? <span title={f.episode_question}> from “{f.episode_question.slice(0, 60)}”</span> : ""}
         {f.edited_by && ` · edited by ${f.edited_by}`}
         {f.entities.length > 1 && <span> · about {f.entities.map((e, i) => (

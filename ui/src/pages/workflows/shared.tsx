@@ -1,6 +1,6 @@
 import "../../styles/work.css";
 import { count, money } from "../../format";
-import { Button, ConfirmAction, Disclosure, Field, Input, Select , Badge as UIBadge} from "../../ui";
+import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText } from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
 import { usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
@@ -161,7 +161,7 @@ export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
       <ConfirmAction label={fresh ? "Add the sample team" : "Add the rest of the sample team"} busy={!!busy}
         consequence={`Adds ${list} to this project's shared roster with the roles shown${fresh ? ", and sets you to riley if you haven't picked a name" : ""}. They are sample names for a demo field; remove them on Teams & routing.`} onConfirm={add} />
       {" "}<a href={href("/teams")}>Or add your own people on Teams &amp; routing</a>
-      {error && <p role="alert" className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }
@@ -198,7 +198,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
       <Button variant="primary" disabled={!to || !ask.trim() || !!a.busy || ((notReady || !!blocked) && !why.trim())}
         title={!ask.trim() ? "Say what to check or do first: they see it on their job" : undefined}
         onClick={send}>Send</Button>
-      {a.error && <p role="alert" className="error small">{a.error}</p>}
+      <ErrorText>{a.error}</ErrorText>
     </Disclosure>
   );
 }
