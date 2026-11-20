@@ -1,27 +1,38 @@
-/* Home is the map (#1208): the map fills the page; the figures and layer chips float over its top left, Needs you is a
-   panel down the right (a sheet from the bottom on a phone), and the map's own controls sit at its bottom right. */
-main:has(> .home-map) { max-width: none; padding: 0; }
+/* Home is the map (#1208): the map is the whole screen, fixed, under the shell's left menu (or its top and tab bars on a
+   phone), and everything else floats over it as panels that never overlap: the menu at the left, one top panel of
+   figures and layer chips beside it, and Needs you down the right (a sheet from the bottom on a phone). The map's own
+   controls sit at its bottom right, clear of Needs you. --bar-left, --bar-top and --bar-bottom are the shell's menu and
+   bars, measured by Home. */
+:root:root .app > main:has(> .home-map) { max-width: none; padding: 0; }
+.app:has(> main > .home-map) { background: none; }
+html:has(.home-map), html:has(.home-map) body { overflow: hidden; overscroll-behavior: none; }
+/* Home is where Back leads, so it has none: in the installed app it took a row over the map. */
+main:has(> .home-map) > .page-back { display: none; }
 /* The account badge and its popover sit over the map's panels. */
 main:has(> .home-map) > .page-account { z-index: 1003; }
-.home-map { position: relative; height: 100vh; height: 100dvh; overflow: hidden; }
+.home-map { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
 .home-stage { position: absolute; inset: 0; --feed-w: 380px; --gap: 12px; }
 .home-stage > .mapview, .home-stage > .mapview > .map-frame { height: 100%; }
 .home-stage .map { height: 100% !important; border: 0; border-radius: 0; }
 /* The map's controls at the bottom, clear of the feed; the zoom buttons under the figures. */
-.home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { top: auto; bottom: 24px; left: auto; right: calc(var(--feed-w) + 2 * var(--gap)); }
+.home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { top: auto; bottom: 56px; left: auto; right: calc(var(--feed-w) + 2 * var(--gap)); }
 .home-map .home-stage .map-frame:not(.map-fullscreen) .map-basemaps { position: static; }
 .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left { top: auto; bottom: 24px; }
-.home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left .leaflet-control { margin: 0 0 0 var(--gap); }
+.home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left .leaflet-control { margin: 0 0 0 calc(var(--bar-left, 0px) + var(--gap)); }
+/* The map's notice and credits stay in the open map, between the menu and Needs you. */
+.home-map .home-stage .map-frame:not(.map-fullscreen) .map-message { left: calc(var(--bar-left, 0px) + var(--gap) + 52px); }
+.home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-bottom.leaflet-right { right: calc(var(--feed-w) + 2 * var(--gap)); }
 
-.home-over { position: absolute; z-index: 1001; top: var(--gap); left: var(--gap); right: calc(var(--feed-w) + 2 * var(--gap));
-  display: grid; gap: 8px; justify-items: start; pointer-events: none; }
+.home-over { position: absolute; z-index: 1001; top: var(--gap); left: calc(var(--bar-left, 0px) + var(--gap));
+  right: calc(var(--feed-w) + 2 * var(--gap)); display: grid; gap: 8px; justify-items: start; pointer-events: none; }
 .home-over > * { pointer-events: auto; max-width: 100%; }
-.home-figures { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
-.home-figures::-webkit-scrollbar { display: none; }
-.home-figure { flex: none; display: grid; min-width: 128px; border-radius: var(--radius); box-shadow: 0 2px 10px rgb(0 0 0 / .14); white-space: nowrap; }
+/* The top panel: the figures, then the layer chips, in one box the width of the space between the menu and Needs you. */
+.home-top { justify-self: stretch; display: grid; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel); box-shadow: 0 6px 24px rgb(0 0 0 / .18); }
+.home-figures { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-figures:empty { display: none; }
+.home-figure { flex: 1 1 128px; display: grid; min-width: 0; white-space: nowrap; }
 .home-layers { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
-.home-layers .chip { box-shadow: 0 1px 6px rgb(0 0 0 / .14); background: var(--panel); }
-.home-layer-filter { display: inline-flex; flex-wrap: wrap; gap: 6px; padding-left: 10px; margin-left: 4px; border-left: 1px solid var(--line); }
 
 /* The Charts layer and the no-records notice: cards under the chips, scrolling within the map's height. */
 .home-charts, .home-notice { width: min(640px, 100%); }
@@ -74,31 +85,43 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 /* An iPad: a narrower feed. */
 @media (max-width: 1180px) { .home-stage { --feed-w: 320px; } }
 
-/* A phone (and an iPad's narrow split): the page is the map between the top and bottom bars; Needs you is a sheet that
-   shows its header over the map and opens to most of the screen. */
+/* A phone (and an iPad's narrow split): the map fills the screen and stays put, under the shell's bars; only the map
+   pans and the sheet moves. Needs you is a sheet that shows its header above the tab bar and opens to most of the
+   screen. --bar-top and --bar-bottom are the bars' heights, measured by Home. */
 @media (max-width: 900px) {
-  .app > main:has(> .home-map) { padding-bottom: 0; }
-  .home-map { height: calc(100dvh - 61px - 57px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
   .home-stage { --gap: 8px; }
-  .home-over { right: var(--gap); }
-  .home-layers { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: calc(100vw - 2 * var(--gap)); padding: 2px; }
+  .home-over { top: calc(var(--bar-top, 0px) + var(--gap)); right: var(--gap); }
+  .home-layers { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; padding: 2px; }
   .home-layers::-webkit-scrollbar { display: none; }
-  .home-layers .chip, .home-layer-filter { flex: none; white-space: nowrap; }
-  .home-layer-filter { flex-wrap: nowrap; }
-  .home-figure { min-width: 104px; }
-  .home-charts { max-height: calc(100dvh - 61px - 57px - 56px - 200px); }
-  .home-feed { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 56px; border-radius: 16px 16px 0 0; border-bottom: 0;
-    transition: max-height .2s ease; }
-  .home-feed.open { max-height: 78%; }
+  .home-layers .chip { flex: none; white-space: nowrap; }
+  .home-top { padding: 6px; }
+  .home-figures { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .home-figures::-webkit-scrollbar { display: none; }
+  .home-figure { flex: none; min-width: 104px; }
+  .home-charts { max-height: calc(100dvh - var(--bar-top, 0px) - var(--bar-bottom, 0px) - 260px); }
+  .home-feed { top: auto; left: 0; right: 0; bottom: var(--bar-bottom, 0px); width: auto; max-height: 56px; border-radius: 16px 16px 0 0;
+    border-bottom: 0; transition: max-height .2s ease; }
+  .home-feed.open { max-height: calc(100% - var(--bar-top, 0px) - var(--bar-bottom, 0px) - 48px); }
   .home-feed-head { cursor: pointer; padding-top: 12px; min-height: 56px; }
   .home-feed-toggle { display: inline-flex; }
   .home-feed-grab { display: block; position: absolute; top: 6px; left: calc(50% - 20px); width: 40px; height: 5px; border-radius: 3px;
     background: color-mix(in srgb, var(--muted) 45%, transparent); }
   .home-feed:not(.open) .home-feed-body { display: none; }
-  .home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { right: var(--gap); bottom: 68px; }
+  .home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { right: var(--gap); bottom: calc(var(--bar-bottom, 0px) + 68px); }
   .home-map .home-stage .map-frame:not(.map-fullscreen) .map-basemaps { display: none; }
-  .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left { bottom: 68px; }
+  .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left { bottom: calc(var(--bar-bottom, 0px) + 68px); }
+  /* The map's notice and credits sit above the sheet, not under the tab bar. */
+  .home-map .home-stage .map-frame:not(.map-fullscreen) .map-message { bottom: calc(var(--bar-bottom, 0px) + 72px); right: 64px; }
+  .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-bottom { bottom: calc(var(--bar-bottom, 0px) + 64px); }
+  .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-bottom.leaflet-right { right: 0; }
   /* The chosen place shows in the sheet, not as a second sheet over it. */
   .home-feed .attention-detail { position: static; max-height: none; box-shadow: none; transform: none; }
 }
+/* The iPhone app's tab bar floats, so the sheet floats above it too, inset like its other sheets. */
+@media (max-width: 900px) {
+  :root.ios .home-feed { left: 8px; right: 8px; bottom: calc(var(--bar-bottom, 0px) + 8px); border-radius: 24px; border-bottom: 1px solid var(--line); }
+}
 @media (prefers-reduced-motion: reduce) { .home-feed { transition: none; } }
+.feed-group { display: grid; gap: 2px; }
+.feed-group > h3 { display: flex; align-items: center; gap: 6px; }
+.feed-group > a { justify-self: start; margin-top: 4px; }

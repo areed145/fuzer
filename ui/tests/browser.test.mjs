@@ -3034,6 +3034,15 @@ test("Home is the map, with the app search in the shell and no horizontal scroll
     assert.equal(await page.locator(".home-grid, .home-guide-links").count(), 0);
     await page.getByRole("complementary", { name: "Needs you" }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    if (width <= 900) {
+      // On a phone the map is the screen: edge to edge, the page itself never scrolls, the sheet sits on the tab bar.
+      assert.deepEqual([map.x, map.width, map.height], [0, width, 900]);
+      await page.mouse.wheel(0, 800);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight && scrollY === 0), true);
+      const sheet = await page.getByRole("complementary", { name: "Needs you" }).boundingBox();
+      const tabs = await page.locator(".bottombar").boundingBox();
+      assert.ok(sheet.y + sheet.height <= tabs.y + 1, "the sheet sits above the tab bar");
+    }
     await waveScreenshot(`home-map-${width}`);
   }
 });
@@ -5502,7 +5511,7 @@ test("Home ranks an ops lead's work across both fields and opens one in the othe
   await page.goto(`${url}/#/`);
   const shift = page.getByRole("complementary", { name: "Needs you" });
   await shift.getByRole("button", { name: "Kestrel compressor trip" }).waitFor();
-  const titles = await shift.getByRole("list", { name: "Waiting on you" }).locator(".feed-title").allInnerTexts();
+  const titles = await shift.getByRole("list", { name: "My work" }).locator(".feed-title").allInnerTexts();
   assert.deepEqual(titles, ["Kestrel compressor trip", "Okan separator level"]);  // overdue first, whichever field
   await shift.getByText("gland weeping", { exact: false }).waitFor();
   assert.ok(marked.includes("true"));  // this look is the new last look
