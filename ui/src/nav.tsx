@@ -7,6 +7,7 @@ import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
 import { SyncStatus } from "./SyncStatus";
 import { AccountButton } from "./Identity";
+import { AppSearch, SearchButton } from "./AppSearch";
 
 export type Badge = "work" | "review";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -27,6 +28,9 @@ export interface NavItem {
   view?: string;
   /** A link out of the app (opens in a new tab) instead of a page. */
   external?: string;
+  /** Desk work a field operator doesn't do: its tab is left out of the phone's row for an account whose only role is
+   * operator. Presentation only; the page still opens and its own access rules still apply. */
+  desk?: boolean;
   permission?: string;
   ownerOnly?: boolean;
 }
@@ -51,8 +55,8 @@ export const NAV: NavGroup[] = [
       // Handover is reached from My work and Data review from Master data (#554).
       { label: "My work", section: "inbox", also: ["work", "teams", "field", "handover"], badge: "work" },
       // The playbooks the work follows, beside the work; #/processes keeps its URLs.
-      { label: "Workflows", section: "workflows", also: ["processes"] },
-      { label: "Master data", section: "masterdata", also: ["review"], badge: "review" },
+      { label: "Workflows", section: "workflows", also: ["processes"], desk: true },
+      { label: "Master data", section: "masterdata", also: ["review"], badge: "review", desk: true },
     ],
   },
   {
@@ -73,14 +77,14 @@ export const NAV: NavGroup[] = [
       { label: "Map", section: "map" },
       { label: "Network", section: "network" },
       { label: "3D", section: "3d" },
+      { label: "Ask", section: "ask", permission: "ai" },
     ],
   },
   {
-    label: "Investigate",
-    icon: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16.5 16.5L21 21",
+    label: "Reports",
+    icon: "M4 20h16M7 16v-5M12 16V7M17 16v-8",
     items: [
       { label: "Downtime", section: "downtime" },
-      { label: "Ask", section: "ask", permission: "ai" },
       { label: "Incidents", section: "incidents" },
       { label: "Daily reports", section: "reports" },
       { label: "Metrics", section: "metrics", also: ["scorecard"] },
@@ -107,7 +111,7 @@ export const NAV: NavGroup[] = [
 export const isActive = (item: NavItem, section: string) =>
   item.section === section || !!item.also?.includes(section);
 
-function useNavigationAccess() {
+export function useNavigationAccess() {
   const session = useAuth();
   const configure = usePermission("configure"), ai = usePermission("ai");
   return (item: { permission?: string; ownerOnly?: boolean }) =>
@@ -119,15 +123,21 @@ function useNavigationAccess() {
 export const currentItem = (items: NavItem[], section: string, query?: URLSearchParams) =>
   items.find((i) => i.view && isActive(i, section) && query?.has(i.view)) ?? items.find((i) => !i.view && isActive(i, section));
 
-export function AreaNavigation({ section, query, demoEnabled }: { section: string; query?: URLSearchParams; demoEnabled: boolean }) {
+export function AreaNavigation({ section, query, demoEnabled, roles }: {
+  section: string; query?: URLSearchParams; demoEnabled: boolean;
+  /** The person's workflow roles. An operator and nothing else is in the field: desk tabs leave the phone's row. */
+  roles?: string[];
+}) {
   const allowed = useNavigationAccess();
   const found = navItemFor(section);
   if (!found || !allowed(found.group) || (found.group.demo && !demoEnabled)) return null;
   const items = found.group.items.filter(allowed);
   if (items.length < 2) return null;
   const current = currentItem(items, section, query);
+  const field = roles?.length === 1 && roles[0] === "operator";
   return <nav className="area-navigation" aria-label={`${found.group.label} pages`}>
     {items.map((item) => <a key={item.label} href={item.external ?? href(item.path ?? `/${item.section}`)}
+      className={field && item.desk && item !== current ? "desk-tab" : undefined}
       aria-current={item === current ? "page" : undefined}
       {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}>{item.label}</a>)}
   </nav>;
@@ -195,7 +205,7 @@ export function BackButton({ path, className }: { path: string[]; className?: st
 /** The phone's bottom bar: the primary destinations a dispatched operator reaches for, in this order. Same pages and
  * access rules as the sidebar; the drawer behind Menu still holds all of them. */
 const BOTTOM: { group: string; tab?: string; section?: string }[] = [
-  { group: "Home" }, { group: "Work", tab: "My work", section: "inbox" }, { group: "Explore" }, { group: "Investigate" },
+  { group: "Home" }, { group: "Work", tab: "My work", section: "inbox" }, { group: "Explore" }, { group: "Reports" },
 ];
 
 /** True while the on-screen keyboard is up (the visual viewport shrinks well below the window), so the bottom bar
@@ -265,20 +275,27 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
 
   return (
     <>
+      {/* Search at the top left, the mark in the middle, the account at the top right. */}
       <header className="topbar">
-        <BackButton path={path} />
+        <div className="topbar-start">
+          <SearchButton />
+          <BackButton path={path} />
+        </div>
         <a className="brand" href={href("/")}>
           <Logo />
         </a>
         <span className="topbar-title" aria-hidden="true" />
-        <SyncStatus />
-        <ShareButton />
-        <AccountButton />
-        {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). It reloads this page, in place. */}
-        <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" onClick={() => location.reload()}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
-        </Button>
+        <div className="topbar-end">
+          <SyncStatus />
+          <ShareButton />
+          {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). It reloads this page, in place. */}
+          <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" onClick={() => location.reload()}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
+          </Button>
+          <AccountButton />
+        </div>
       </header>
+      <AppSearch />
       {/* On a phone the primary destinations sit at the bottom, within thumb reach (P5.14b); Menu opens the rest. */}
       <nav className={keyboard ? "bottombar keyboard-up" : "bottombar"} aria-label="Quick">
         {BOTTOM.map(({ group: label, tab, section: first }) => {
@@ -321,6 +338,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
         <a className="brand" href={href("/")}>
           <Logo />
         </a>
+        <SearchButton wide />
         <nav aria-label="Main">
           <section className="nav-group">
               <ul>

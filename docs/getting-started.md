@@ -81,13 +81,15 @@ Things to try:
   and **Resources** for demand against capacity.
 - **Explore > Browse**: find `20-K-2300A` or the well `OK-J12-02` and follow the links.
 - **Work > Master data**: resolve uncertain links, conflicting values and held source loads.
-- **Investigate > Ask**: the operations assistant. Try "Why does lift gas keep running short?"
-- **Investigate > Daily reports**: what the scheduled loop drafts for each production day.
+- **Explore > Ask**: the operations assistant. Try "Why does lift gas keep running short?"
+- **Reports > Daily reports**: what the scheduled loop drafts for each production day.
 - The [guides by role](guides/index.md) walk each role's jobs from start to finish.
 
 Choose **Settings -> Appearance** for System, Light or Dark mode. The choice is saved in your browser,
 not the facility database. System follows your device's appearance; charts, graphs and map layers
-follow the same choice. On a phone, the bottom bar holds Home, My work, Explore and Investigate, and **Menu** opens the rest.
+follow the same choice. On a phone, the bottom bar holds Home, My work, Explore and Reports, and **Menu** opens the rest.
+The magnifying glass at the top left (in the sidebar on a wider screen, or press `/`) searches pages, their tabs and
+the register's records in one box, and a question typed there goes to Ask.
 **Field mode**, in the same place, makes buttons larger for gloves and raises contrast for sunlight on that device.
 
 The planted stories to find are listed in the [README](https://github.com/areed145/fuzer#okan-field-demo).

@@ -403,7 +403,7 @@ def metrics_md() -> str:
            "Every KPI is declared once, with its definition, formula, unit, the standard it follows where there is one, "
            "the grains it can be cut by and the records behind it. Pages, the daily report and agents read the same "
            "registered metric (`GET /metrics/{key}`, the `get_metric` tool), so a number is the same wherever it "
-           "is shown, and every number drills to its cases or records. The Metrics page (under Investigate) lists them "
+           "is shown, and every number drills to its cases or records. The Metrics page (under Reports) lists them "
            "with their value now and opens each one by any of its grains. A dated metric also takes `at`, the day "
            "its period ends (`?at=YYYY-MM-DD`): the daily report reads it for its own day, so a report rebuilt later "
            "keeps its number. No page computes a KPI of its own (`tests/core/test_page_kpis.py`).", "",

@@ -15,25 +15,13 @@ import { ExceptionsPage, backFromField, waitingToDispatch, withTheField, type Ex
 import { BoardPage } from "./Board";
 import { CasesPage } from "./workflows/Cases";
 import { WorkBoardPage } from "./WorkBoard";
+import { WORK_LISTS, workHref } from "../pageTabs";
 
 export type WorkList = ExceptionView | "progress" | "ranked" | "closed" | "board";
 
-export const WORK_LISTS: { key: WorkList; label: string }[] = [
-  { key: "dispatch", label: "To dispatch" },
-  { key: "field", label: "With the field" },
-  { key: "back", label: "Back from the field" },
-  { key: "open", label: "All open" },
-  { key: "progress", label: "In progress" },
-  { key: "ranked", label: "Ranked by value" },
-  { key: "closed", label: "Closed" },
-  { key: "board", label: "Board" },
-];
+export { WORK_LISTS, workHref };
 
 const KEYS = new Set(WORK_LISTS.map((l) => l.key));
-
-/** A link to one view of All work, with that view's own filters. */
-export const workHref = (list: WorkList, query?: Record<string, string | undefined>) =>
-  href("/exceptions", { list: list === "dispatch" ? undefined : list, ...query });
 
 /** How many open exceptions each of the IOC's views holds. Home shows the same numbers (#556). */
 export const iocCounts = (rows: ExceptionRow[], operators: Set<string>) => ({

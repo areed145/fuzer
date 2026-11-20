@@ -313,7 +313,7 @@ export interface Lineage {
 export const exploreApi = {
   stats: () => request<Stats>("GET", "/stats"),
   entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`),
-  search: (q: string, kind?: string) => request<SearchHit[]>("GET", "/entities", { q, kind, limit: 200 }),
+  search: (q: string, kind?: string, limit = 200) => request<SearchHit[]>("GET", "/entities", { q, kind, limit }),
   entity: (id: string, asOf?: string) =>
     request<EntityDetail>("GET", `/entities/${encodeURIComponent(id)}`, { as_of: asOf }),
   trace: (id: string, direction: "up" | "down", asOf?: string, depth?: number, rel?: string) =>

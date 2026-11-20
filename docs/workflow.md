@@ -256,7 +256,7 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 
 A field operator adds Fuzer to the phone's home screen. It then opens on its own, without the browser's bar: an in-app
 Back walks the pages visited and never leaves the app, a cold launch resumes the last page from the last 12 hours, the
-bottom bar holds Home, My work, Explore and Investigate, and with no signal it opens to My work with the kept jobs
+bottom bar holds Home, My work, Explore and Reports, and with no signal it opens to My work with the kept jobs
 (P5.14). The browser tests walk this at 390 px in standalone display (`ui/tests/browser.test.mjs`, the P5.14 tests).
 They emulate a phone and can't prove a real one, so check a real device before a site starts using it:
 

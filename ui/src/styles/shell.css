@@ -76,14 +76,22 @@
 .area-navigation a:hover { color: var(--text); text-decoration: none; }
 .area-navigation a[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
 .area-navigation a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The id and doubled :root outrank the iOS tab-row rules, which set every tab's display. */
+@media (max-width: 900px) { :root:root #main-content .area-navigation > a.desk-tab { display: none; } }
 @media (max-width: 800px) { .area-navigation { gap: 18px; margin-inline: -16px; padding-inline: 16px; } }
 
 @media (max-width: 900px) {
   .app { grid-template-columns: minmax(0, 1fr); align-content: start; background: none; }
+  /* Search and Back at the left, the mark in the middle, the account at the right. The outer columns share the
+     width equally, so the mark stays centred whatever sits beside it. */
   .topbar {
-    position: sticky; top: 0; z-index: 1101; display: flex; align-items: center; gap: 8px;
-    padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 1101; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
   }
+  .topbar-start, .topbar-end { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .topbar-end { justify-content: flex-end; }
+  .topbar .brand { justify-self: center; padding: 0; }
+
   /* Bottom bar (P5.14b): five tabs, each the full height of the bar, clear of the iPhone home indicator. */
   .bottombar {
     position: fixed; inset: auto 0 0 0; z-index: 1100; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
@@ -174,3 +182,37 @@ main { width: 100%; max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; 
 .account-sheet .identity > strong:first-child { display: none; }  /* the sheet's heading already names the account */
 /* The section tabs leave room for the account badge beside them. */
 @media (min-width: 901px) { #main-content > .area-navigation { max-width: calc(100% - 52px); } }
+
+/* App search (AppSearch.tsx): the magnifying glass and the search sheet. */
+.topbar .search-button, .sidebar .search-button { align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px;
+  padding: 0; box-shadow: none; color: var(--text); }
+.search-button svg { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sidebar .search-button { display: flex; justify-content: flex-start; width: 100%; min-height: 38px; padding: 0 10px; border-radius: 8px;
+  background: var(--rail-hover); color: var(--rail-text); }
+.sidebar .search-button svg { width: 18px; height: 18px; stroke-width: 1.8; }
+.sidebar .search-button:hover { color: #ffffff; }
+.app-search-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(16 24 32 / .45); }
+.app-search { position: fixed; z-index: 1301; top: 72px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column;
+  width: min(640px, calc(100vw - 32px)); max-height: min(560px, calc(100dvh - 120px)); overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.app-search-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.app-search-bar input { flex: 1; min-width: 0; height: 40px; font-size: 16px; }
+.app-search-bar .app-search-close { flex: none; min-height: 44px; }
+.app-search-results { overflow-y: auto; padding: 4px 0 8px; overscroll-behavior: contain; }
+.app-search-results section + section { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
+.app-search-results h2 { margin: 8px 16px 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.app-search-results a { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 16px; color: var(--text); }
+.app-search-results a:hover { text-decoration: none; }
+.app-search-results a.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.app-search-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.app-search-detail { margin-left: auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
+.app-search-ask { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: var(--accent-text, #fff); font-size: 12px; font-weight: 600; }
+.app-search-note { margin: 8px 16px; color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) {
+  .topbar .search-button { display: inline-flex; }
+  .sidebar .search-button { display: none; }
+  /* On a phone the sheet is the whole screen, with the box at the top. */
+  .app-search { inset: 0; transform: none; width: 100%; max-height: none; border: 0; border-radius: 0; }
+  .app-search-bar { padding-top: max(10px, env(safe-area-inset-top)); }
+  .app-search-results { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+}

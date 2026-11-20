@@ -8,7 +8,7 @@ import { caseHref } from "./workflows/shared";
 import { iocCounts, workHref } from "./AllWork";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson } from "../work";
-import { Button, PageHeader, Input, Card as UICard, Empty, ErrorText, Line, Text } from "../ui";
+import { PageHeader, Card as UICard, Empty, ErrorText, Line, Text } from "../ui";
 import { usePermission } from "../Auth";
 import { LiveFigure } from "../analytics/LiveFigure";
 import { YourShift } from "./HomeShift";
@@ -37,8 +37,7 @@ const ORDER: Record<Seat, Block[]> = {
   default: ["attention", "charts", "grid"],
 };
 
-export function HomePage({ query, stats }: {
-  query: URLSearchParams;
+export function HomePage({ stats }: {
   stats?: Stats;
   statsLoading: boolean;
   statsError?: string;
@@ -87,7 +86,6 @@ export function HomePage({ query, stats }: {
   return (
     <section className="home" data-seat={seat}>
       <PageHeader>Home</PageHeader>
-      <HomeSearch query={query} />
       {noRecords && (
         <UICard title="Connect data before exploring">
           <p>No source records have been loaded. Add a source, map its fields and load it to build the facility register.</p>
@@ -102,22 +100,6 @@ export function HomePage({ query, stats }: {
         </div>
       </> : <Status loading />}
     </section>
-  );
-}
-
-function HomeSearch({ query }: { query: URLSearchParams }) {
-  const [value, setValue] = useState(query.get("q") ?? "");
-  const search = (q: string) => window.location.replace(href("/browse", { q }));
-  return (
-    <form className="home-search" role="search" onSubmit={(e) => { e.preventDefault(); search(value); }}>
-      <Input
-        aria-label="Search the facility"
-        placeholder="Search assets, tags and records"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-      />
-      <Button variant="primary" type="submit">Search</Button>
-    </form>
   );
 }
 
