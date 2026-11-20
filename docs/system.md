@@ -43,7 +43,7 @@ The operations layer never imports the work engine directly. It opens and feeds 
 
 ## What runs where
 
-One container image runs everything. On Render it is one web service with a persistent disk and a managed Postgres;
+One container image runs everything. On Render it is one web service (no disk, so deploys have no downtime) and a managed Postgres;
 it can be split into a web service and a background worker against the same database
 ([deployment](deployment.md#jobs-on-their-own-service-optional)).
 

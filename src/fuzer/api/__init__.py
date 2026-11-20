@@ -6,7 +6,6 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from psycopg.errors import QueryCanceled
 
 from ..core import access, db, kept_assets
@@ -78,10 +77,8 @@ app.include_router(auth.router)
 app.include_router(hooks.router)  # authenticated by each system's shared secret, not a session
 
 if (UI_DIST / "assets").is_dir():
-    assets = StaticFiles(directory=UI_DIST / "assets")
-    if kept := kept_assets.folder():  # earlier deploys' files, for pages opened before this one (P5.18a)
-        assets.all_directories.append(kept)
-    app.mount("/assets", assets, name="assets")
+    # the build's files, then earlier deploys' kept in Postgres, for pages opened before this one (P5.18a)
+    app.mount("/assets", kept_assets.Kept(directory=UI_DIST / "assets"), name="assets")
 
 for module in (home, investigation, entities, knowledge, ops, metrics, assistant, ontology, graph, workflow, settings, catalog, sources, stewardship, jobs, onboarding, standards):  # in this order: FastAPI matches routes in the order they were added
     app.include_router(module.router)

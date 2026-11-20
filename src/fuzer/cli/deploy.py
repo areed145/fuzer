@@ -59,7 +59,7 @@ MAX_CONCURRENT_RUNS = 2  # each run is a ~250 MB Python process; four with the r
 MAX_RUNTIME_SECONDS = 4 * 3600  # the nightly rebuild is the longest run
 DAGSTER_YAML = f"""\
 # Written by fuzer.cli.deploy on every start: Dagster's run, event and schedule storage lives in the
-# deployment's Postgres (schema {DAGSTER_SCHEMA}), not in SQLite on the persistent disk, which the API, webserver,
+# deployment's Postgres (schema {DAGSTER_SCHEMA}), not in SQLite on a disk, which the API, webserver,
 # daemon and every run process would otherwise share. Run output (compute logs) is not kept: it goes to the service log.
 compute_logs:
   module: dagster._core.storage.noop_compute_log_manager
@@ -113,7 +113,7 @@ def dagster_url(url: str) -> str:
 
 
 def clear_disk_storage(home: Path, now: float | None = None) -> None:
-    """Free the persistent disk of what Dagster kept there before its storage moved to Postgres: the SQLite run,
+    """Free the disk of what Dagster kept there before its storage moved to Postgres: the SQLite run,
     schedule and event databases (and any journals a killed process left), then run output older than
     COMPUTE_LOG_DAYS. The run history they held is not carried over."""
     cutoff = (now or time.time()) - COMPUTE_LOG_DAYS * 86400
@@ -143,8 +143,8 @@ def configure_dagster(home: Path, url: str) -> None:
 
 
 def end_orphaned_runs() -> None:
-    """End the runs the previous instance left behind, before this instance's daemon starts. Render stops the old
-    instance before starting a new one (the service has a disk), so no run process survives a deploy: a run still
+    """End the runs the previous instance left behind, before this instance's daemon starts and only once the previous
+    instance has stopped (take_over waits for its lock), so no run process of its survives: a run still
     marked starting or running is an orphan that would hold a run slot until it timed out, and a scheduled run still
     queued is a backlog its schedule will replace within minutes. Runs queued by hand stay queued. Runs in a separate
     process, so this supervisor does not keep Dagster loaded."""
@@ -170,17 +170,18 @@ def _end_orphaned_runs() -> None:
           "queued scheduled runs", flush=True)
 
 
-HELD_UNTIL_READ = frozenset({"Dagster daemon"})  # its catch-up runs and the startup register rebuild together OOM'd 2 GB
-READ_WAIT_SECONDS = 15 * 60
+READ_WAIT_SECONDS = 15 * 60  # the daemon's catch-up runs and the startup register rebuild together OOM'd 2 GB
+OWNER_LOCK = 7_709_002  # advisory lock held by the instance that runs the scheduled work, for as long as it lives
+OWNER_POLL_SECONDS = 5
 
 
-def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event, ready: threading.Event | None = None,
-              held: frozenset[str] = HELD_UNTIL_READ, wait: float = READ_WAIT_SECONDS) -> None:
-    """Run every task, restarting none: one exiting stops the deployment. Tasks in `held` start only once `ready`
-    is set (the startup readings finished) or `wait` seconds pass, so startup work doesn't all land at once."""
+def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event,
+              gates: dict[str, threading.Event] | None = None) -> None:
+    """Run every task, restarting none: one exiting stops the deployment. A task named in `gates` starts only once its
+    event is set, so this instance can answer requests before it takes over the scheduled work."""
     children: list[tuple[str, subprocess.Popen]] = []
-    later = [t for t in tasks if ready is not None and t[0] in held]
-    deadline = time.monotonic() + wait
+    gates = gates or {}
+    later = [t for t in tasks if t[0] in gates]
 
     def start(name: str, command: list[str]) -> None:
         print(f"Starting {name}", flush=True)
@@ -191,12 +192,12 @@ def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event, ready: 
             if (name, command) not in later:
                 start(name, command)
         if later:
-            print(f"Holding {', '.join(n for n, _ in later)} until the startup readings finish", flush=True)
+            print(f"Holding {', '.join(n for n, _ in later)} until this instance takes over the scheduled work",
+                  flush=True)
         while not stop.wait(1):
-            if later and (ready.is_set() or time.monotonic() >= deadline):
-                for name, command in later:
-                    start(name, command)
-                later = []
+            for name, command in [t for t in later if gates[t[0]].is_set()]:
+                start(name, command)
+                later.remove((name, command))
             for name, proc in children:
                 if proc.poll() is not None:
                     raise RuntimeError(f"{name} exited unexpectedly with code {proc.returncode}; "
@@ -216,6 +217,48 @@ def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event, ready: 
                 except ProcessLookupError:
                     pass
                 proc.wait()
+
+
+def wait_for_ownership(stop: threading.Event, poll: float = OWNER_POLL_SECONDS):
+    """Wait until no other instance runs the scheduled work, then hold the lock that says this one does, for as long
+    as this process lives (the returned connection must stay open). On a zero-downtime deploy Render starts this
+    instance while the previous one still serves and runs jobs; two Dagster daemons would start every schedule twice,
+    and ending "orphaned" runs would cancel the old instance's live ones. Render stops the old instance once this one
+    answers its health check, and its lock goes with it. None if told to stop first."""
+    conn = db.connect(autocommit=True)
+    said = False
+    while not stop.is_set():
+        if conn.execute("select pg_try_advisory_lock(%s) as got", (OWNER_LOCK,)).fetchone()["got"]:
+            return conn
+        if not said:
+            print("Waiting for the previous instance to stop before taking over the scheduled work", flush=True)
+            said = True
+        stop.wait(poll)
+    conn.close()
+    return None
+
+
+def take_over(added: list[str], stop: threading.Event, owned: threading.Event, read: threading.Event,
+              wait: float = READ_WAIT_SECONDS, holder: list | None = None) -> None:
+    """Become the instance that runs the scheduled work: wait for the previous one to stop, end the runs it left,
+    then set `owned` (the agent workers start), run the startup readings and set `read` when they finish or `wait`
+    seconds pass (the Dagster daemon starts), so startup work doesn't all land at once."""
+    try:
+        conn = wait_for_ownership(stop)
+    except Exception as e:
+        print(f"Could not take the scheduled-work lock ({e}); stopping so Render restarts this instance", flush=True)
+        stop.set()
+        return
+    if conn is None:
+        return
+    if holder is not None:
+        holder.append(conn)  # kept open: closing it releases the lock
+    end_orphaned_runs()
+    owned.set()
+    done = threading.Event()
+    threading.Thread(target=read_projects, args=(added, done), name="startup-readings", daemon=True).start()
+    done.wait(wait)
+    read.set()
 
 
 def read_projects(added: list[str], done: threading.Event | None = None) -> None:
@@ -241,18 +284,19 @@ def _read_projects(added: list[str]) -> None:
                   "Inspect recorded readings before a deliberate retry.", flush=True)
 
 
-def keep_assets(disk: Path) -> None:
-    """Keep this build's files beside earlier builds' on the persistent disk, so a page opened before this deploy can
-    still load the files it names (P5.18a). The API serves from the kept folder when the build lacks a name."""
+def keep_assets() -> None:
+    """Keep this build's files beside earlier builds' in Postgres, so a page opened before this deploy can still load
+    the files it names (P5.18a). The API serves from there when the build lacks a name."""
     from ..core import kept_assets
     from ..resources import UI_DIST
 
     if not (UI_DIST / "assets").is_dir():
         return
-    kept = Path(os.environ.setdefault(kept_assets.ENV, str(disk / "ui-assets")))
     try:
-        print(f"Built files kept for open pages: {kept_assets.keep(UI_DIST / 'assets', kept)}", flush=True)
-    except OSError as e:  # a full or read-only disk: pages opened before this deploy may need a reload, nothing worse
+        with db.connect() as conn:
+            print(f"Built files kept for open pages: {kept_assets.keep(conn, UI_DIST / 'assets')}", flush=True)
+        os.environ[kept_assets.ENV] = "1"
+    except Exception as e:  # pages opened before this deploy may need a reload, nothing worse
         os.environ.pop(kept_assets.ENV, None)
         print(f"Built files not kept for open pages ({e}); a page opened before this deploy may need a reload", flush=True)
 
@@ -269,13 +313,10 @@ def main(argv: list[str] | None = None) -> None:
     args = p.parse_args(argv)
     if not (url := os.environ.get("FUZER_DATABASE_URL")):
         raise SystemExit("Render runtime requires FUZER_DATABASE_URL; embedded Postgres is not used")
-    home = Path(os.environ.get("DAGSTER_HOME", "/var/lib/fuzer/dagster"))
+    home = Path(os.environ.get("DAGSTER_HOME", "/var/lib/fuzer/dagster"))  # instance settings only, rewritten here
     home.mkdir(parents=True, exist_ok=True)
     os.environ["DAGSTER_HOME"] = str(home.resolve())
     configure_dagster(home, url)
-    keep_assets(home.parent)
-    if args.role != "web":  # the runs died with the machine that ran them, which is the worker's
-        end_orphaned_runs()
     with db.connect(autocommit=True) as lock:
         lock.execute("select pg_advisory_lock(%s)", (SEED_LOCK,))  # released when this connection closes
         with db.connect() as conn:
@@ -285,10 +326,11 @@ def main(argv: list[str] | None = None) -> None:
         for name in added:
             with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
                 engine.load_defaults(scoped)
+    keep_assets()
     stop = threading.Event()
 
     def stopping(*_):  # recorded first, so the next instance knows the runs this stop interrupts (ops/stops.py)
-        stops.mark_stopped(home)
+        stops.mark_stopped()
         stop.set()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -297,9 +339,16 @@ def main(argv: list[str] | None = None) -> None:
         print("Role web: the Dagster daemon, its runs and the agent workers run on the worker service", flush=True)
         supervise(commands(added, "web"), stop)
         return
-    read = threading.Event()
-    threading.Thread(target=read_projects, args=(added, read), name="startup-readings", daemon=True).start()
-    supervise(commands(added, args.role), stop, read)
+    # The API answers at once (Render's health check, then traffic); the scheduled work waits for the previous
+    # instance to stop (take_over), since on a zero-downtime deploy both run for a while.
+    owned, read, holder = threading.Event(), threading.Event(), []
+    threading.Thread(target=take_over, args=(added, stop, owned, read), kwargs={"holder": holder},
+                     name="take-over", daemon=True).start()
+    tasks = commands(added, args.role)
+    gates = {name: (read if name == "Dagster daemon" else owned) for name, _ in tasks
+             if name == "Dagster daemon" or name.startswith("Agent worker")}
+    supervise(tasks, stop, gates)
+
 
 if __name__ == "__main__":
     main()

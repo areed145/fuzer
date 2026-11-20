@@ -157,6 +157,7 @@ def test_a_run_a_deploy_interrupted_is_not_reported_but_one_with_no_stop_beside_
     from fuzer.ops import stops
 
     monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
+    _no_stops()
     instance = dg.DagsterInstance.ephemeral()
     run, event, ended = _marked_failed(instance, {jobs.PROJECT_TAG: "okan", "dagster/schedule_name": "logs_schedule"})
     assert "marked as failed from outside the execution context" in event.dagster_event.message
@@ -173,18 +174,36 @@ def test_a_run_a_deploy_interrupted_is_not_reported_but_one_with_no_stop_beside_
     assert not stops.interrupted_by_stop("the export folder is empty", ended)  # a job's own error
 
 
-def test_stops_are_kept_and_bounded(tmp_path):
+def _no_stops():
+    from fuzer.core import db
     from fuzer.ops import stops
 
-    for t in range(stops.KEEP + 5):
-        stops.mark_stopped(tmp_path, now=1000.0 * t)
-    kept = stops.stops(tmp_path)
-    assert len(kept) == stops.KEEP and kept[-1] == 1000.0 * (stops.KEEP + 4)
+    with db.connect(autocommit=True) as conn:
+        conn.execute(f"drop table if exists {stops.TABLE}")
+
+
+def test_stops_are_kept_and_bounded():
+    """Stops are kept in Postgres, not on a disk, so a new instance started beside the old one reads them."""
+    from fuzer.ops import stops
+
+    _no_stops()
     msg = "Execution was interrupted unexpectedly. No user initiated termination request was found"
-    assert stops.interrupted_by_stop(msg, kept[-1] + 30, tmp_path)
-    assert stops.interrupted_by_stop(msg, kept[-1] - 60, tmp_path)  # the run monitor saw it a poll early
-    assert not stops.interrupted_by_stop(msg, kept[-1] + stops.AFTER_SECONDS + 1, tmp_path)
-    assert not stops.interrupted_by_stop(msg, 0.0, tmp_path / "none")  # nothing recorded
+    assert not stops.interrupted_by_stop(msg, 0.0)  # nothing recorded
+    for t in range(stops.KEEP + 5):
+        stops.mark_stopped(now=1000.0 * t)
+    kept = stops.stops()
+    assert len(kept) == stops.KEEP and kept[-1] == 1000.0 * (stops.KEEP + 4)
+    assert stops.interrupted_by_stop(msg, kept[-1] + 30)
+    assert stops.interrupted_by_stop(msg, kept[-1] - 60)  # the run monitor saw it a poll early
+    assert not stops.interrupted_by_stop(msg, kept[-1] + stops.AFTER_SECONDS + 1)
+    _no_stops()
+
+
+def test_a_stop_that_cannot_be_recorded_does_not_hold_up_shutdown():
+    from fuzer.ops import stops
+
+    stops.mark_stopped("postgresql://nobody@127.0.0.1:1/none?connect_timeout=1", now=1.0)
+    assert stops.stops("postgresql://nobody@127.0.0.1:1/none?connect_timeout=1") == []
 
 
 def test_a_sensor_refresh_a_deploy_interrupted_is_started_again_and_not_reported(webhook, tmp_path, monkeypatch):
@@ -193,6 +212,7 @@ def test_a_sensor_refresh_a_deploy_interrupted_is_started_again_and_not_reported
     from fuzer.ops import stops
 
     monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
+    _no_stops()
     instance = dg.DagsterInstance.ephemeral()
     run, event, ended = _marked_failed(instance, {jobs.PROJECT_TAG: "okan", "dagster/sensor_name": "new_exports",
                                                   "changed_exports": "wells"})
