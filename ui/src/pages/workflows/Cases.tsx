@@ -9,8 +9,10 @@ import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
 import { Status, href, useAsync, useAction } from "../../lib";
-import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson } from "../../work";
-import { AgentIdle, AssignPicker, PriorityBadge, SendToField, StepBadges, caseHref, priorityLevel, processHref } from "./shared";
+import { Actor, DataView, Due, ENGINE_FIELDS, EntityLinks, describe, holder, usePerson } from "../../work";
+import { AgentIdle, AssignPicker, GENERIC_STEP, PriorityBadge, SendToField, StepBadges, caseHref, priorityLevel, processHref } from "./shared";
+import { CaseChecklist } from "./Checklist";
+import { Markdown } from "../../Markdown";
 import { StepActions } from "./Task";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
@@ -35,12 +37,15 @@ export function NewWorkItem({ onCreated }: { onCreated: () => void }) {
   const roles = useAsync(() => api.workRoles(), []);
   const [title, setTitle] = useState("");
   const [role, setRole] = useState("");
+  const [items, setItems] = useState("");
   const { busy, error, run } = useAction();
   const [created, setCreated] = useState<number | null>(null);
   if (!operate) return null;
   const create = () => {
     setCreated(null);
-    return run("create", () => api.createWorkItem(title.trim(), role, person), (item) => { setCreated(item.id); setTitle(""); onCreated(); });
+    const checklist = items.split("\n").map((t) => t.trim()).filter(Boolean);
+    return run("create", () => api.createWorkItem(title.trim(), role, person, checklist),
+      (item) => { setCreated(item.id); setTitle(""); setItems(""); onCreated(); });
   };
   return <Disclosure className="new-work-item" label={<>New case</>}>
     <Line wrap>
@@ -52,6 +57,8 @@ export function NewWorkItem({ onCreated }: { onCreated: () => void }) {
       <ConfirmAction label="Open the case" busy={!!busy} disabled={!title.trim() || !role}
         consequence={`This adds shared work to the ${role.replace(/_/g, " ")} queue, with you recorded as its creator.`} onConfirm={create} />
     </Line>
+    <Field label="Checklist, one item per line" width="lg">
+      <Textarea rows={3} width="lg" aria-label="Checklist, one item per line" value={items} onChange={(e) => setItems(e.target.value)} /></Field>
     <ActionStatus busy={busy ? "Opening the case…" : null} error={error}>
       {created !== null && <>Created. <a href={caseHref(created)}>Open the case</a>.</>}
     </ActionStatus>
@@ -79,6 +86,8 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   // a process case (queue_item, #509) keeps what was raised under payload.start
   const raised = (payload.start && typeof payload.start === "object" ? payload.start : payload) as Record<string, unknown>;
   const dataset = typeof raised.dataset === "string" ? raised.dataset : null;
+  // what was asked and its evidence are shown under Waiting on, so Details leaves them out
+  const hidden: readonly string[] = typeof raised.summary === "string" ? HIDDEN_DETAILS : ENGINE_FIELDS;
   const level = priorityLevel(it.priority, it.type);
   // A field operator reading the case on a phone needs the job, not the IOC's evidence (#1071): for someone who only
   // works in the field, the evidence and history fold under Full case.
@@ -97,13 +106,14 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
       <AgentWork it={it} />
-      {it.processes.map((p) => p.process_key === "queue_item"
-        // The standard queue is one step, already named under Waiting on: its diagram stays a tap away.
+      {it.processes.map((p) => CLOSES_WITH_CASE.has(p.process_key)
+        // A standard one-step workflow (queue item, task) is already named under Waiting on: its diagram stays a tap away.
         ? <Disclosure key={p.id} className="card" label={<>How this case is routed</>}>
             <ProcessDiagram p={p} person={demo ? undefined : person} reload={item.reload} /></Disclosure>
         : <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
-      {Object.keys(payload).length > 0 && (
-        <Disclosure className="card" open={typeof raised.summary === "string"} label={<>Details</>}><DataView data={payload} /></Disclosure>
+      {/* what was asked is at the top, under Waiting on; the engine's routing keys are not for reading */}
+      {Object.keys(raised).some((k) => !hidden.includes(k)) && (
+        <Disclosure className="card" label={<>Details</>}><DataView data={raised} omit={hidden} /></Disclosure>
       )}
       <Timeline it={it} person={person} readOnly={demo} />
     </>}
@@ -135,7 +145,11 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
           evidence it is decided on. */}
       {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
-        exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null} />
+        exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null}
+        asked={typeof raised.summary === "string" ? raised.summary : null}
+        evidence={Array.isArray(raised.evidence) && typeof raised.summary === "string" ? raised.evidence.filter((x): x is string => typeof x === "string") : []} />
+      {closed && (it.checklist ?? []).length > 0 && <UICard title="Checklist">
+        <CaseChecklist it={it} person={person} readOnly reload={item.reload} /></UICard>}
       {typeof raised.opportunity === "string" && <OpportunityPanel opportunityKey={raised.opportunity} person={person}
         readOnly={demo} onDecided={item.reload} />}
       {typeof raised.handover_id === "number" && <Notice>This is a shift handover.{" "}
@@ -148,7 +162,8 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
           the IOC closes a job back from the field without opening the step (#1222) */}
       {it.type !== "recheck" && (closed ? it.state === "done"
         : it.processes.every((p) => p.state !== "running" || CLOSES_WITH_CASE.has(p.process_key))) &&
-        <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload} startOpen={closing} />}
+        <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload} startOpen={closing}
+          openItems={(it.checklist ?? []).filter((c) => c.state === "open").length} />}
       {fieldOnly ? <Disclosure className="case-full" label={<>Full case</>}>{evidence}</Disclosure> : evidence}
     </section>
   );
@@ -156,6 +171,8 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
 
 /** The standard workflows that end with their case (fuzer:closeWithCase in queue_item.bpmn and task.bpmn). */
 const CLOSES_WITH_CASE = new Set(["queue_item", "task"]);
+/** What a case's Details leave out: the engine's routing keys, and the summary, which is shown as what was asked. */
+const HIDDEN_DETAILS = [...ENGINE_FIELDS, "summary", "evidence"];
 
 const sameTime = (a?: string | null, b?: string | null) => !!a && !!b && Math.abs(Date.parse(a) - Date.parse(b)) < 60_000;
 
@@ -170,9 +187,10 @@ function questionOf(sources?: CaseSource[]): { id: number; kind: ReviewKind } | 
 
 /** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
  * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
-function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null }: {
+function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null, asked = null, evidence = [] }: {
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
-  exceptionId?: number | null;
+  exceptionId?: number | null; /** what was asked, in the asker's words (Markdown) */ asked?: string | null;
+  /** the records the ask cites */ evidence?: string[];
 }) {
   const takeOver = useAction();
   const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
@@ -184,8 +202,10 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
       {open.length > 0 ? <ul className="plain case-next-steps">
         {open.map((s) => (
           <li key={s.id} className="row wrap">
-            <strong>{s.name ?? s.element}</strong>
-            <Text small muted>with {holder(s.assignee, s.role, s.kind)}</Text>
+            {/* a standard one-step workflow's step ("Do the task") says nothing: who holds it does */}
+            {GENERIC_STEP.test(s.name ?? "") ? <strong>With {holder(s.assignee, s.role, s.kind)}</strong> : <>
+              <strong>{s.name ?? s.element}</strong>
+              <Text small muted>with {holder(s.assignee, s.role, s.kind)}</Text></>}
             <StepBadges row={s} />
             {/* the case's own due time is beside its title: a step says its own only when it differs */}
             {sameTime(s.due_at, it.due) ? null : <Due at={s.due_at} />}
@@ -195,8 +215,13 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
           </li>
         ))}
       </ul> : <Text as="p" small>No step is open. Close it out below, or send it to someone.</Text>}
-      {/* the step is worked here (#1222): no separate step page */}
-      {next && !answered && <StepActions key={next.id} id={next.id} demo={demo} send={false} onChanged={reload} />}
+      {asked && <div className="md case-asked"><Markdown text={asked} /></div>}
+      {evidence.length > 0 && <Text as="p" small muted>Evidence <EntityLinks ids={evidence} /></Text>}
+      <CaseChecklist it={it} person={person} readOnly={demo} reload={reload} />
+      {/* the step is worked here (#1222): no separate step page. A task's one step ends with its case, so it is
+          finished below, not completed here as well */}
+      {next && !answered && <StepActions key={next.id} id={next.id} demo={demo} send={false} onChanged={reload}
+        complete={!it.processes.some((p) => p.id === next.process_id && p.process_key === "task")} />}
       {fieldOnly && <div className="row wrap case-next-actions"><ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink></div>}
       <ErrorText>{takeOver.error}</ErrorText>
       {/* the IOC sends it out through the case's workflow: not while the field already has it */}

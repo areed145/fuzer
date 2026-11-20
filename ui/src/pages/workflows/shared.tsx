@@ -5,7 +5,7 @@ import { useAuth, usePermission } from "../../Auth";
 import { Due, holder, usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
 import { useState, type ReactNode } from "react";
-import { api, type WorkRow } from "../../api";
+import { api, type ChecklistProgress, type WorkRow } from "../../api";
 import { href, useAction, useAsync } from "../../lib";
 import { queue } from "../../wording";
 import { ATTENTION_TONE } from "../../kinds";
@@ -98,8 +98,12 @@ export function StepBadges({ row }: { row: Pick<WorkRow, "requires_human" | "kin
 /** One work item in a list: the title, when it is due, and one grey line that says the step, the kind, who holds it
  * and what it needs. Home, My work and work in other fields draw their rows with it. `title` is the link or button
  * that opens it; `extra` sits beside the title. */
+/** "3 of 9 done": how much of a case's checklist is ticked off, as its rows show it. */
+export const progressText = (c: ChecklistProgress) => `${c.done} of ${c.total} done`;
+
 export function WorkLine({ r, title, extra }: {
-  r: Pick<WorkRow, "name" | "type" | "assignee" | "role" | "kind" | "priority" | "due_at" | "requires_human" | "escalated_at" | "covering_for" | "handed_reason">;
+  r: Pick<WorkRow, "name" | "type" | "assignee" | "role" | "kind" | "priority" | "due_at" | "requires_human" | "escalated_at" | "covering_for" | "handed_reason">
+    & { checklist?: WorkRow["checklist"] };
   title: ReactNode; extra?: ReactNode;
 }) {
   const p = priorityLevel(r.priority, r.type);
@@ -107,7 +111,9 @@ export function WorkLine({ r, title, extra }: {
     <div className="work-line">
       <Line as="span">{title}{extra}<Due at={r.due_at} /></Line>
       <Text small muted>{/* a step named for the engine ("Work the case") says nothing a row needs */}
-        {!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}
+        {!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}
+        {r.checklist && <><strong>{progressText(r.checklist)}</strong> · </>}
+        {r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}
         {p && <> · <span title={p.why}>{p.level} priority</span></>}<StepBadges row={r} />
       </Text>
       {r.handed_reason && <Text small muted>{r.handed_reason}</Text>}

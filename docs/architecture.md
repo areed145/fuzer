@@ -495,6 +495,7 @@ BPMN processes that move work between agents and people. More in [workflow](work
     - `exception_kind`
     - `operating_model_applied`
     - `operating_model_deviation`
+    - `work_check`
     - `work_definition`
     - `work_draft`
     - `work_event`
@@ -515,6 +516,7 @@ BPMN processes that move work between agents and people. More in [workflow](work
     - `operating_model_deviation`
     - `operating_model_rollout`
     - `operating_model_version`
+    - `work_check`
     - `work_definition`
     - `work_draft`
     - `work_event`

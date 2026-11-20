@@ -370,6 +370,24 @@ What the assistant proposes: it never writes to a queue. A draft belongs to whoe
 | `confirmed_at` | timestamptz |  |
 | `created_at` | timestamptz |  |
 
+### `work_check`
+
+A case's checklist (workflow/checklist.py): what it asks for, ticked off as done. Not workflow steps.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `item_id` | bigint |  |
+| `position` | int |  |
+| `text` | text |  |
+| `subjects` | text[] | the entities the item is about |
+| `state` | text | open \| done \| skipped (not needed, with why in note) |
+| `note` | text |  |
+| `done_by` | text |  |
+| `done_at` | timestamptz |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+
 ### `work_process`
 
 | Column | Type | Note |

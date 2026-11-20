@@ -7,7 +7,9 @@ becomes one item at most, whatever is resent.
 
 import secrets
 
-from . import roles, work_items
+from psycopg.types.json import Jsonb
+
+from . import checklist, roles, work_items
 from .definitions import NotFound, WorkError, _op
 
 MAX_TITLE, MAX_SUMMARY = 160, 2000
@@ -17,7 +19,8 @@ TASK_PROCESS = "task"  # the standard process a confirmed draft runs as (definit
 
 @_op
 def create(conn, title: str, role: str, summary: str, evidence: list[str], by: str,
-           subjects: list[str] | None = None) -> dict:
+           subjects: list[str] | None = None, steps: list[dict] | None = None) -> dict:
+    """`steps` are what the case asks for, each {text, subjects}: its checklist once a person confirms it."""
     title, summary = title.strip(), summary.strip()
     if not title or len(title) > MAX_TITLE:
         raise WorkError(f"a title needs 1 to {MAX_TITLE} characters")
@@ -25,14 +28,17 @@ def create(conn, title: str, role: str, summary: str, evidence: list[str], by: s
         raise WorkError(f"a summary needs 1 to {MAX_SUMMARY} characters")
     if not evidence:
         raise WorkError("a draft must cite the evidence for it")
+    steps = [{"text": checklist.item_text(x.get("text", "")), "subjects": list(x.get("subjects") or [])} for x in steps or []]
+    if len(steps) > checklist.MAX_ITEMS:
+        raise WorkError(f"a case's checklist holds at most {checklist.MAX_ITEMS} items; propose separate cases")
     found = roles.role(conn, role)
     if found is None or found["kind"] != "person":
         people = sorted(r["name"] for r in conn.execute("select name from work_role where kind = 'person'"))
         raise WorkError(f"{role!r} is not a person's queue; use one of {', '.join(people)}")
     return conn.execute(
-        "insert into work_draft (id, title, role, summary, evidence, subjects, by_user) "
-        "values (%s, %s, %s, %s, %s, %s, %s) returning *",
-        ("d_" + secrets.token_hex(8), title, role, summary, evidence, subjects or [], by)).fetchone()
+        "insert into work_draft (id, title, role, summary, evidence, subjects, steps, by_user) "
+        "values (%s, %s, %s, %s, %s, %s, %s, %s) returning *",
+        ("d_" + secrets.token_hex(8), title, role, summary, evidence, subjects or [], Jsonb(steps), by)).fetchone()
 
 
 def get(conn, draft_id: str) -> dict:
@@ -68,6 +74,7 @@ def confirm(conn, draft_id: str, by: str) -> dict:
     else:
         item_id = work_items.create_item.__wrapped__(conn, TYPE, draft["title"], by, draft["subjects"],
                                                      role=draft["role"], source=SOURCE, payload=payload)["id"]
+    checklist.insert(conn, item_id, by, draft["steps"] or [])
     conn.execute("update work_draft set item_id = %s, confirmed_by = %s, confirmed_at = now() where id = %s",
                  (item_id, by, draft_id))
     return {"item_id": item_id, "created": True}

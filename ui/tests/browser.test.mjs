@@ -432,6 +432,7 @@ test("a case names the signed-in person who opened and started it, never their a
   await page.route("**/work/definitions/2/bpmn", route => route.fulfill({ body: xml, contentType: "application/xml" }));
   await page.goto(`${url}/#/cases/8`);
   await page.locator(".case-opened", { hasText: "Adam Reeder" }).waitFor();
+  await page.getByText("How this case is routed").click();  // a one-step task's diagram is folded
   await page.locator(".fz-node").first().waitFor();
   assert.ok(!(await page.locator("main").innerText()).includes("user:9abd"), "no account id on the case");
 });
@@ -2891,6 +2892,30 @@ test("A case names its subjects and evidence, with ids in the tooltip", async ()
   await page.getByRole("link", { name: "OKAN-20-PID-003", exact: true }).waitFor();
   await page.locator(".md-diagram svg").waitFor();
   assert.equal((await page.locator("main").innerText()).includes(doc), false, "Evidence shows names, not ids");
+});
+
+test("a multi-part ask shows its checklist where it is taken, ticks items off and counts them in the queue", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const ticked = [];
+  const item = (state) => ({ id: 1, position: 1, text: "Confirm WO 50000292 status", subjects: [], state, note: null,
+    done_by: state === "done" ? "ann" : null, done_at: state === "done" ? "2026-11-20T08:00:00Z" : null });
+  let first = "open";
+  await page.route("**/work/items/42", (route) => route.fulfill({ json: { id: 42, type: "task", title: "Okan PP look-ahead",
+    subjects: [], state: "open", outcome: null, priority: null, assignee: null, role: "maintenance_planner", due: null,
+    source: "assistant", created_by: "ann", created_at: "2026-11-20T07:00:00Z", closed_at: null,
+    payload: { summary: "The week needs three decisions.", draft: "d_1", task_key: "draft:d_1", case_type: "task" },
+    processes: [], events: [],
+    checklist: [item(first), { ...item("open"), id: 2, position: 2, text: "Raise orders for PM-30000004" }] } }));
+  await page.route("**/work/items/42/checklist/1", (route) => { ticked.push(route.request().postDataJSON()); first = "done";
+    return route.fulfill({ json: item("done") }); });
+  await page.goto(`${url}/#/cases/42`);
+  await page.getByText("The week needs three decisions.").waitFor();
+  await page.getByText("Checklist · 0 of 2 done").waitFor();
+  await page.getByText("Confirm WO 50000292 status").click();
+  await page.getByText("Checklist · 1 of 2 done").waitFor();
+  assert.equal(ticked[0].state, "done");
+  const text = await page.locator("main").innerText();
+  assert.ok(!text.includes("d_1") && !text.includes("draft:d_1"), "the engine's keys are not shown");
 });
 
 test("Mermaid loads only for an answer with a diagram", async () => {

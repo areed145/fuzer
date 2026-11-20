@@ -146,25 +146,31 @@ def my_work(agent: AgentRole, limit: int = 20) -> dict[str, Any]:
 
 @capability("orchestrator", kind="query")
 def draft_work_item(title: str, role: str, summary: str, evidence: list[str],
-                    subjects: list[str] | None = None) -> dict[str, Any]:
+                    subjects: list[str] | None = None, steps: list[str] | None = None) -> dict[str, Any]:
     """Propose work for a person's queue. This creates nothing: it returns a draft and a marker, and the
-    person asking sees it on the page and decides. `role` is a person role such as production_engineer,
-    `summary` is Markdown saying what is needed and why (a diagram goes in a ```mermaid fence, with one
-    statement per line), `evidence` lists the records behind it (refs, at least one)
-    and `subjects` the assets it is about."""
+    person asking sees it on the page and decides. `title` is short (under 60 characters: what and where, not
+    the list of asks). `role` is a person role such as production_engineer. `summary` is Markdown saying why the
+    work is needed, in at most three sentences: never the steps again, as a list or a diagram. `steps` is what
+    the person must do, one action per item (at most 30, each under 300 characters, naming its asset by tag):
+    the case shows them as a checklist they tick off. `evidence` lists the records behind it (refs, at least
+    one) and `subjects` the assets it is about. Work for another queue (a permit, a spares decision) is a
+    separate draft."""
     asker = ASKER.get()
     if asker is None:
         return {"error": "Only someone signed in and asking in the Ask page can receive a draft."}
     with db.connect() as conn:
         ids = {}
-        for ref in [*evidence, *(subjects or [])]:
+        for ref in dict.fromkeys([*evidence, *(subjects or [])]):
             fid, problem = _resolve(conn, ref)
             if problem:
                 return problem
             ids[ref] = fid
         try:
+            # each step is about the subjects it names (by the ref the assistant gave)
+            named = [{"text": t, "subjects": list(dict.fromkeys(ids[r] for r in subjects or [] if r in t))}
+                     for t in steps or []]
             draft = work_drafts.create(conn, title, role, summary, [ids[r] for r in evidence], asker,
-                                       [ids[r] for r in subjects or []])
+                                       [ids[r] for r in subjects or []], named)
         except work.WorkError as e:
             return {"error": str(e)}
     return {"draft": draft["id"], "marker": f"[[work-draft:{draft['id']}]]", "queue": role,
