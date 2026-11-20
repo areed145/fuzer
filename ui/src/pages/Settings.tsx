@@ -14,6 +14,7 @@ import { Onboarding } from "./Onboarding";
 import { Standards } from "./Standards";
 import { AiUsage } from "./AiUsage";
 import { person as personName } from "../wording";
+import { SETTINGS_VIEWS } from "../pageTabs";
 
 
 const show = (v: unknown) =>
@@ -55,12 +56,12 @@ function Configuration({ query }: { query: URLSearchParams }) {
     <section>
       <PageHeader>Application settings</PageHeader>
       <nav className="area-navigation" aria-label="Settings sections">
-        <a href={href("/settings", { project })} aria-current={readiness ? "page" : undefined}>Readiness</a>
-        <a href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
-        <a href={href("/settings", { view: "detection" })} aria-current={detection ? "page" : undefined}>Detection</a>
-        <a href={href("/settings", { view: "onboarding" })} aria-current={onboarding ? "page" : undefined}>Onboarding</a>
-        <a href={href("/settings", { view: "standards" })} aria-current={standards ? "page" : undefined}>Standards</a>
-        <a href={href("/settings", { view: "ai-usage" })} aria-current={aiUsage ? "page" : undefined}>AI usage</a>
+        {SETTINGS_VIEWS.map(({ key, label }) => {
+          const on = key === "" ? readiness : key === "configuration" ? configuration : query.get("view") === key;
+          // Readiness and All settings are per project; the other sections are facility-wide.
+          const linkProject = key === "" || key === "configuration" ? project : undefined;
+          return <a key={label} href={href("/settings", { project: linkProject, view: key || undefined })} aria-current={on ? "page" : undefined}>{label}</a>;
+        })}
       </nav>
       {readiness && <Appearance />}
       {detection ? <Detection focus={query.get("detector")} /> : onboarding ? <Onboarding /> : standards ? <Standards /> : aiUsage ? <AiUsage /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>

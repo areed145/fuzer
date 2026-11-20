@@ -79,14 +79,14 @@ The same map as a table. Each row is one family of sources; each column is a sta
 | **A bypass, proof test or temporary change overdue** | My work: the ops lead or engineer queue | The case | The desk | By itself, when the register shows it done | Active bypasses are on every handover |
 | **A round finding**: a reading out of limits or a failed check | My work: the ops lead queue; All work > All open | The case: work it, or Send to the field | My work: the field job | All work > Back from the field, then Close out | |
 | **A field report** | My work: the ops lead queue; All work > All open | The case | My work: the field job | All work > Back from the field, then Close out | |
-| **Alarm, flare, lab, well test and emissions findings** | My work: the engineer, production engineer or HSE queue | The case | The desk | All work > Closed | Regulatory reports are reviewed under Investigate > Daily reports |
+| **Alarm, flare, lab, well test and emissions findings** | My work: the engineer, production engineer or HSE queue | The case | The desk | All work > Closed | Regulatory reports are reviewed under Reports > Daily reports |
 | **The agentic watch** proposing something no detector raised | Kept and scored only (live mode is off by default); in live mode, My work: the engineer queue | The case | The desk, or the field | All work > Closed | After three confirmed proposals of one pattern, the watch drafts a rule for it |
 | **Another system's own type** (`POST /exceptions`, a source pack) | Wherever its type says: All work > To dispatch, a queue, or a workflow | As above | As above | As above | Its update goes back the way its system is set up on Sources |
 | **A register question**: a possible match, a conflict, a held load | Master data > Questions, and My work: the data steward queue | The question | Master data, or the dataset on Sources | By itself, when the question is answered | The answer is kept on every rebuild |
 | **An SAP work order or maintenance plan** | Plan | Plan: move it, bundle it with a shutdown, book a crew | My work > Coming up, once a person or a role is booked on it | Plan, when the crew says Done or SAP closes the order | Its work centre's crew counts on Plan > Resources |
 | **A P6 or turnaround schedule** | Plan > Schedules | The schedule's Gantt: logic, dates, resources | In the field, by the schedule | The Gantt, as each activity is progressed | A P6 schedule's progress follows its export; nothing is typed twice |
 | **A shift handover** | My work: a banner for the ops lead | | | When the incoming lead acknowledges it | Kept and readable under past handovers |
-| **A daily report** | My work: Review report, for the ops lead | | Investigate > Daily reports | When it is published | |
+| **A daily report** | My work: Review report, for the ops lead | | Reports > Daily reports | When it is published | |
 | **An opportunity** the scan found | My work: the engineer queue; All work > Ranked by value | The task on My work | The desk | All work > Closed | Not raised again unless the data changes |
 
 !!! note "Two things that are not a road of their own"

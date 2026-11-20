@@ -56,7 +56,6 @@
   }
   :root.ios .topbar .back-button { border: 0; background: none; color: var(--accent); font-size: var(--t-body); padding-left: 0; gap: 0; }
   :root.ios .topbar .back-button svg { width: 26px; height: 26px; stroke-width: 2.4; }
-  :root.ios .topbar:has(.back-button) .brand { display: none; }
   :root.ios .topbar .brand .logo { height: 24px; }
   :root.ios .topbar-title {
     position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 4px); max-width: 58%;
@@ -244,7 +243,7 @@
     -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent);
   }
   :root.ios.ios-scrolled .topbar::before { opacity: 1; }
-  :root.ios .topbar .back-button, :root.ios .topbar .share-button, :root.ios .topbar .refresh-button {
+  :root.ios .topbar .back-button, :root.ios .topbar .search-button, :root.ios .topbar .share-button, :root.ios .topbar .refresh-button {
     width: 44px; height: 44px; min-width: 44px; padding: 0; justify-content: center; border-radius: 50%; color: var(--text);
   }
   :root.ios .topbar .back-button > span { display: none; }
@@ -315,7 +314,7 @@
 :root.ios main h1, :root.ios .ui-page-header h1 { font-size: var(--t-large); line-height: 37px; text-wrap: balance; }
 
 /* The glass material, shared by bars, buttons, controls and sheets. */
-:root.ios :is(.topbar .back-button, .topbar .share-button, .bottombar, .leaflet-bar, .ui-fullscreen-button,
+:root.ios :is(.topbar .back-button, .topbar .search-button, .topbar .share-button, .bottombar, .leaflet-bar, .ui-fullscreen-button,
     .drawer-close, .map-popup, .ios-glass) {
   background: var(--glass); background-image: var(--glass-sheen);
   -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%);
