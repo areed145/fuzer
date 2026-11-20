@@ -11,7 +11,7 @@ main:has(> .home-map) > .page-back { display: none; }
 /* The account badge and its popover sit over the map's panels. */
 main:has(> .home-map) > .page-account { z-index: 1003; }
 .home-map { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
-.home-stage { position: absolute; inset: 0; --feed-w: 380px; --gap: 12px; }
+.home-stage { position: absolute; inset: 0; --feed-w: 340px; --gap: 12px; }
 .home-stage > .mapview, .home-stage > .mapview > .map-frame { height: 100%; }
 .home-stage .map { height: 100% !important; border: 0; border-radius: 0; }
 /* The map's controls at the bottom, clear of the feed; the zoom buttons under the figures. */
@@ -27,12 +27,18 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
   right: calc(var(--feed-w) + 2 * var(--gap)); display: grid; gap: 8px; justify-items: start; pointer-events: none; }
 .home-over > * { pointer-events: auto; max-width: 100%; }
 /* The top panel: the figures, then the layer chips, in one box the width of the space between the menu and Needs you. */
-.home-top { justify-self: stretch; display: grid; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius);
+.home-top { justify-self: stretch; display: grid; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--panel); box-shadow: 0 6px 24px rgb(0 0 0 / .18); }
-.home-top .home-figures { flex-wrap: wrap; gap: 8px; }
+.home-figures { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.home-figures::-webkit-scrollbar { display: none; }
 .home-figures:empty { display: none; }
-.home-figure { flex: 1 1 128px; display: grid; min-width: 0; white-space: nowrap; }
-.home-layers { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+.home-figure { flex: 1 0 auto; display: grid; min-width: 112px; white-space: nowrap; }
+/* The layers and the place filters share one row, which scrolls sideways rather than wrapping to a second. */
+.home-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.home-chips::-webkit-scrollbar { display: none; }
+.home-layers { flex: none; display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; margin: 0; }
+.home-layers .chip { flex: none; white-space: nowrap; }
+.home-filters { padding-left: 8px; border-left: 1px solid var(--line); }
 
 /* The Charts layer and the no-records notice: cards under the chips, scrolling within the map's height. */
 .home-charts, .home-notice { width: min(640px, 100%); }
@@ -46,7 +52,12 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 @media (min-width: 901px) { .home-feed { top: 68px; } }  /* under the account badge */
 .home-feed-head { position: relative; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 8px 6px 14px;
   border-bottom: 1px solid var(--line); }
-.home-feed-toggle { display: none; margin-left: auto; }
+.home-feed-toggle { display: inline-flex; margin-left: auto; }
+.home-feed-head { cursor: pointer; }
+/* Folded, Needs you is only its header and the map has the room. */
+@media (min-width: 901px) { .home-feed:not(.open) { bottom: auto; } }
+.home-feed:not(.open) .home-feed-head { border-bottom: 0; }
+.home-feed:not(.open) .home-feed-body { display: none; }
 .home-feed-head h2 { margin: 0; font-size: 16px; }
 .home-feed-grab { display: none; }
 .home-feed-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 14px 14px; display: grid; align-content: start; gap: 6px; }
@@ -83,7 +94,7 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 .incident-dot > b { transform: rotate(-45deg); font: inherit; }
 
 /* An iPad: a narrower feed. */
-@media (max-width: 1180px) { .home-stage { --feed-w: 320px; } }
+@media (max-width: 1180px) { .home-stage { --feed-w: 300px; } }
 
 /* A phone (and an iPad's narrow split): the map fills the screen and stays put, under the shell's bars; only the map
    pans and the sheet moves. Needs you is a sheet that shows its header above the tab bar and opens to most of the
@@ -91,9 +102,6 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 @media (max-width: 900px) {
   .home-stage { --gap: 8px; }
   .home-over { top: calc(var(--bar-top, 0px) + var(--gap)); right: var(--gap); }
-  .home-layers { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; padding: 2px; }
-  .home-layers::-webkit-scrollbar { display: none; }
-  .home-layers .chip { flex: none; white-space: nowrap; }
   .home-top { padding: 6px; }
   .home-top .home-figures { flex-wrap: nowrap; }
   /* Two figures and half the next across a phone, so the row plainly goes on and each label keeps to one line. */
@@ -108,11 +116,9 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
   .home-feed { top: auto; left: 0; right: 0; bottom: var(--bar-bottom, 0px); width: auto; max-height: 56px; border-radius: 16px 16px 0 0;
     border-bottom: 0; transition: max-height .2s ease; }
   .home-feed.open { max-height: calc(100% - var(--bar-top, 0px) - var(--bar-bottom, 0px) - 48px); }
-  .home-feed-head { cursor: pointer; padding-top: 12px; min-height: 56px; }
-  .home-feed-toggle { display: inline-flex; }
+  .home-feed-head { padding-top: 12px; min-height: 56px; }
   .home-feed-grab { display: block; position: absolute; top: 6px; left: calc(50% - 20px); width: 40px; height: 5px; border-radius: 3px;
     background: color-mix(in srgb, var(--muted) 45%, transparent); }
-  .home-feed:not(.open) .home-feed-body { display: none; }
   .home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { right: var(--gap); bottom: calc(var(--bar-bottom, 0px) + 68px); }
   .home-map .home-stage .map-frame:not(.map-fullscreen) .map-basemaps { display: none; }
   .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left { bottom: calc(var(--bar-bottom, 0px) + 68px); }
