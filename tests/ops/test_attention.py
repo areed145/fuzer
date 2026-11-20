@@ -121,3 +121,15 @@ def test_platforms_side_by_side_are_one_marker_naming_both(conn, raised):
 
 def test_bands():
     assert [attention.band(p) for p in (None, 0.2, 0.5, 0.79, 0.8, 1.0)] == ["low", "low", "medium", "medium", "high", "high"]
+
+
+def test_locate_names_the_place_a_feed_item_or_incident_sits_at(conn):
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-inc-1', 'incident') on conflict do nothing")
+    conn.execute("insert into edge (src, dst, rel, sources, confidence) values ('fz-inc-1', 'fz-tag-pt', 'about', '{test}', 1)")
+    out = attention.locate(conn, ["fz-tag-pt", "fz-pump", "fz-inc-1", "fz-nowhere"])
+    # A tag on a well on a jacket is at the jacket, as its open work is; an incident reaches it through what it is about.
+    assert out["fz-tag-pt"] == {"id": "fz-jkt-7", "label": "OKAN-67", "name": "Jacket 07", "kind": "area", "lon": 4.94, "lat": 5.41}
+    assert out["fz-inc-1"]["id"] == "fz-jkt-7"
+    assert out["fz-pump"]["id"] == "fz-plat"
+    assert "fz-nowhere" not in out
+    conn.rollback()

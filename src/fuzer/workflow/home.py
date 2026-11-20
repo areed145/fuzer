@@ -24,7 +24,7 @@ def changes(conn, person: str, since: str | None = None, limit: int = 30) -> lis
     roles = roles_of(conn, person)
     return conn.execute(
         """
-        select e.id, e.item_id, e.kind, e.actor, e.at, e.data, i.title, i.type, i.state,
+        select e.id, e.item_id, e.kind, e.actor, e.at, e.data, i.title, i.type, i.state, i.subjects,
                not coalesce(i.assignee = %(p)s or i.created_by = %(p)s or i.role = any(%(roles)s)
                     or i.role = any(select 'role:' || r from unnest(%(roles)s::text[]) r), false) as watching
         from work_event e join work_item i on i.id = e.item_id

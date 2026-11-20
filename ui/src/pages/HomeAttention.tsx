@@ -1,19 +1,15 @@
-/** Where attention is needed (Home): the places with open work, on the field map and as a ranked list. The list is
- * the reading; the map says where. A plant with no located assets gets the list alone. Read only: dispatch and
- * every edit stay on All work and the case pages. */
+/** Where attention is needed (Home's open work layer): the places with open work, how they are filtered, and one place
+ * opened to its most urgent items. Read only: dispatch and every edit stay on All work and the case pages. */
 import { queue } from "../wording";
-import { count } from "../format";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { api, type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
-import { Badge, Button, ButtonLink, Card, Empty, Line, Text } from "../ui";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
+import { Badge, Button, ButtonLink, Line, Text } from "../ui";
+import { entityHref, href } from "../lib";
 import { ATTENTION_TONE } from "../kinds";
 import { workHref } from "./AllWork";
 
-const MapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));  // Leaflet loads with the map
-
-type Filter = "all" | "high" | "overdue" | "unassigned";
-const FILTERS: { key: Filter; label: string }[] = [
+export type Filter = "all" | "high" | "overdue" | "unassigned";
+export const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All open" }, { key: "high", label: "High" },
   { key: "overdue", label: "Overdue" }, { key: "unassigned", label: "Unassigned" },
 ];
@@ -22,105 +18,16 @@ const BAND: Record<AttentionBand, { label: string; tone: "danger" | "warn" | "in
   high: { label: "High", tone: ATTENTION_TONE.high }, medium: { label: "Medium", tone: ATTENTION_TONE.medium },
   low: { label: "Low", tone: ATTENTION_TONE.low },
 };
-const keep = (p: AttentionPlace, f: Filter) =>
+export const keep = (p: AttentionPlace, f: Filter) =>
   f === "all" || (f === "high" ? p.counts.high > 0 : f === "overdue" ? p.overdue > 0 : p.unassigned > 0);
-const placeName = (p: AttentionPlace) => p.name ?? p.label;
+export const placeName = (p: AttentionPlace) => p.name ?? p.label;
 /** All work's place filter for the open work no place on the map holds (#1074). */
 export const UNPLACED = "unplaced";
 const holder = (i: AttentionItem) => i.assignee ?? (i.role ? queue(i.role) : "Unassigned");
 
-export function AttentionCard() {
-  const spots = useAsync(() => api.attention(), []);
-  const geo = useAsync(() => api.map(), []);
-  const [filter, setFilter] = useState<Filter>("all");
-  const [crews, setCrews] = useState(true);
-  const [selected, setSelected] = useState<string | null>(null);
-  const places = useMemo(() => (spots.data?.places ?? []).filter((p) => keep(p, filter)), [spots.data, filter]);
-  const chosen = places.find((p) => p.id === selected) ?? null;
-  const close = useCallback(() => setSelected(null), []);
-  const [fullscreen, setFullscreen] = useState(false);  // the map full screen carries the chosen place itself
-  useEffect(() => { if (selected && !chosen) setSelected(null); }, [selected, chosen]);
-  // One site (every place with work at one spot, as at Kestrel) gets the list and its 3D view, not a near-empty map
-  // with one marker on it (#1074).
-  const oneSite = useMemo(() => {
-    const pts = (geo.data?.features ?? []).filter((f) => f.geometry.type === "Point").map((f) => f.geometry.coordinates as number[]);
-    if (!pts.length) return false;
-    const span = (i: number) => Math.max(...pts.map((p) => p[i])) - Math.min(...pts.map((p) => p[i]));
-    return span(0) < 0.015 && span(1) < 0.015;  // every located point within about a mile: one site, not a field
-  }, [geo.data]);
-  const mapped = (geo.data?.features.length ?? 0) > 0 && !oneSite;
-  const ready = spots.data !== undefined && (geo.data !== undefined || !!geo.error);
-  const open = (spots.data?.places ?? []).reduce((n, p) => n + p.open, 0) ?? 0;
-  return (
-    <Card as="section" className="home-card attention-card" title="Where attention is needed"
-          actions={<a href={workHref("open")}>All work</a>}>
-      {/* The list and the map show together, in the space they take once loaded, so nothing below them jumps (#1069). */}
-      {!ready && <div className={spots.error ? undefined : "attention-pending"}>
-        <Status loading={!spots.error} error={spots.error} onRetry={spots.reload}>Loading open work.</Status>
-      </div>}
-      {ready && spots.data && <>
-        <div className="row spread wrap attention-bar">
-          <div className="row attention-filters">
-            <div className="chips" role="group" aria-label="Show places with">
-              {FILTERS.map((f) => (
-                <Button key={f.key} className={filter === f.key ? "chip on" : "chip"} aria-pressed={filter === f.key}
-                        onClick={() => setFilter(f.key)}>{f.label}</Button>
-              ))}
-            </div>
-            {/* Crews shows field crews on the map; it is a toggle of its own, not one of the place filters. */}
-            {mapped && <Button className={crews ? "chip on crews-toggle" : "chip crews-toggle"} aria-pressed={crews}
-                               onClick={() => setCrews(!crews)}>Crews</Button>}
-          </div>
-          <Text small muted>
-            {count(open)} open across {count(spots.data.places.length)} {spots.data.places.length === 1 ? "place" : "places"}
-            {spots.data.unplaced ? <> · <a href={workHref("open", { at: UNPLACED })}>{spots.data.unplaced} not located</a></> : ""}
-          </Text>
-        </div>
-        {spots.data.places.length === 0 ? <Empty>No open work at any place.</Empty> : (
-          <div className={mapped ? "attention-split" : ""}>
-            {mapped && geo.data && (
-              <Suspense fallback={<div className="map" />}>
-                <MapView data={geo.data} hotspots={places} selected={selected} onSelect={setSelected} crews={crews}
-                         compact height="460px" onFullscreen={setFullscreen}
-                         overlay={chosen && <PlaceDetail place={chosen} onClose={close} />} />
-              </Suspense>
-            )}
-            <div className="attention-side">
-              {chosen && !fullscreen && <PlaceDetail place={chosen} onClose={close} />}
-              {places.length === 0 ? <Empty>No places match this filter.</Empty> : (
-                <ol className="attention-list" aria-label="Places by urgency">
-                  {places.slice(0, 8).map((p) => (
-                    <li key={p.id} className={p.id === selected ? "selected" : ""}>
-                      <Button variant="ghost" className="attention-row" aria-pressed={p.id === selected}
-                              onClick={() => setSelected(p.id === selected ? null : p.id)}>
-                        <span className="attention-row-head">
-                          <strong>{placeName(p)}</strong>
-                          <Badge tone={BAND[p.band].tone}>{BAND[p.band].label}</Badge>
-                        </span>
-                        <Text small>{p.open} open · {p.top[0].title}</Text>
-                        <span className="small attention-flags">
-                          {p.overdue > 0 && <Badge tone="danger">{p.overdue} overdue</Badge>}
-                          {p.unassigned > 0 && <Badge>{p.unassigned} unassigned</Badge>}
-                          {p.crews[0] && <Badge tone="ok">{p.crews[0].who} {p.crews[0].status}</Badge>}
-                        </span>
-                      </Button>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {places.length > 8 && <a href={workHref("open")}>{places.length - 8} more places in All work</a>}
-              {oneSite && places[0] && <a href={href("/3d", { at: places[0].id })}>See {placeName(places[0])} in 3D</a>}
-            </div>
-          </div>
-        )}
-      </>}
-    </Card>
-  );
-}
-
 /** One place: its most urgent items and where to take them, a bottom sheet on a phone. It closes from its X, Escape, a
  * tap anywhere outside it (a drag of the map is not a tap) or, on a phone, a swipe down. */
-function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose: () => void }) {
+export function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose: () => void }) {
   const sheet = useRef<HTMLDivElement>(null);
   const swipe = useRef<number | null>(null);
   const [drag, setDrag] = useState(0);
@@ -137,7 +44,7 @@ function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose: () =>
       const tap = down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 8;
       down = null;
       // Another place's marker or row picks that place instead; anything else outside the sheet closes it.
-      if (!tap || !target || sheet.current?.contains(target) || target.closest(".hotspot, .attention-row")) return;
+      if (!tap || !target || sheet.current?.contains(target) || target.closest(".hotspot, .feed-item")) return;
       onClose();
     };
     document.addEventListener("keydown", onKey);
@@ -149,11 +56,6 @@ function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose: () =>
       document.removeEventListener("pointerup", onUp);
     };
   }, [onClose]);
-  useEffect(() => {  // on a phone the sheet covers the list, so bring the map up where the chosen place shows
-    if (matchMedia("(max-width: 600px)").matches && !sheet.current?.closest(".map-overlay")) {
-      sheet.current?.closest(".attention-card")?.querySelector(".mapview")?.scrollIntoView({ block: "start", behavior: "smooth" });
-    }
-  }, [place.id]);
   useEffect(() => { sheet.current?.style.setProperty("--drag", `${drag}px`); }, [drag]);  // the sheet follows the finger
   const touch = {
     onTouchStart: (e: TouchEvent<HTMLDivElement>) => { swipe.current = e.touches[0].clientY; },

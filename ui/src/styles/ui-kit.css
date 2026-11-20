@@ -55,7 +55,10 @@
 .ui-badge.ui-badge-info { color: var(--info); }
 .ui-stat { display: grid; gap: 2px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
 .ui-stat > span, .ui-stat small { color: var(--muted); font-size: 12px; }
-.ui-stat strong { font-size: 20px; font-weight: 600; }
+.ui-stat strong { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ui-stat-link { color: var(--text); }
+.ui-stat-link:hover { border-color: var(--accent); text-decoration: none; }
+.ui-stat-danger strong { color: var(--danger); }
 .ui-page-subtitle { color: var(--muted); }
 .ui-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-right: 12px; }
 .ui-error { color: var(--danger); font-size: 13px; }

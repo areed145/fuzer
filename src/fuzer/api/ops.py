@@ -640,6 +640,15 @@ def attention(conn=Depends(get_conn)):
     return at.hotspots(conn)
 
 
+@router.get("/attention/places")
+def attention_places(ids: str = Query(..., max_length=20000), conn=Depends(get_conn)):
+    """Where each entity (comma-separated ids, at most 200) sits on Home's map: the located platform, pad or
+    facility its chain leads to, else the nearest located thing. Ids with no location are left out. Read only."""
+    from ..ops import attention as at
+    wanted = [i for i in dict.fromkeys(ids.split(",")) if i][:200]
+    return at.locate(conn, wanted)
+
+
 class SuppressionIn(BaseModel):
     refs: list[str]
     start: str
