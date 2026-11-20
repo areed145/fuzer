@@ -45,8 +45,9 @@ def test_up_without_data_or_fake_plant_says_what_to_do(monkeypatch):
 
 
 def test_demo_picks_pack_and_folder(monkeypatch):
-    for k in ("FUZER_PROJECT", "FUZER_DATA_DIR"):
-        monkeypatch.delenv(k, raising=False)
+    for k in ("FUZER_PROJECT", "FUZER_DATA_DIR"):  # set first, so the values use_demo writes are undone afterwards
+        monkeypatch.setenv(k, "")
+        monkeypatch.delenv(k)
     pack = up.use_demo("okan")
     assert pack.facility == "OKAN" and os.environ["FUZER_PROJECT"] == "okan"
     assert os.environ["FUZER_DATA_DIR"].endswith("fakeplant/data/okan")

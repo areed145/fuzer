@@ -191,4 +191,5 @@ def save(conn, name: str, cfg: dict, by: str) -> dict:
     from . import db
 
     db.forget_zones()
+    _fields.clear()  # the next read sees what was just stored, not a config cached a moment ago
     return config(conn, name)
