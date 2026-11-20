@@ -32,7 +32,7 @@ export function DowntimePage() {
   return (
     <section className="downtime">
       {/* The date sits with Help at the header's right, as on other pages (#1078). */}
-      <PageHeader help="analyses" actions={
+      <PageHeader actions={
         <label className="asof">
           Since
           <Input type="date" value={since} onChange={(e) => setSince(e.target.value)} />

@@ -31,7 +31,6 @@ export function ConfirmAction({ label, consequence, busy, disabled, onConfirm }:
 
 type Width = "xs" | "sm" | "md" | "lg" | "full";
 
-const DOCS = "https://areed145.github.io/fuzer/";
 
 /** The page title and the page's actions. `detail` is a fact about the record the page shows (its description, its
  * dates, its version), never a line about what the page is for: a title needs no tagline. `help` names a docs page
@@ -40,17 +39,12 @@ const DOCS = "https://areed145.github.io/fuzer/";
  * under the title, so the title stays the first thing on the page. */
 export const PageNote = createContext<ReactNode>(null);
 
-export function PageHeader({ children, detail, actions, help, className = "" }: {
-  children: ReactNode; detail?: ReactNode; actions?: ReactNode; help?: string; className?: string;
+export function PageHeader({ children, detail, actions, className = "" }: {
+  children: ReactNode; detail?: ReactNode; actions?: ReactNode; className?: string;
 }) {
-  const tools = (actions || help) && <div className="ui-page-actions">{actions}{help && <HelpLink doc={help} />}</div>;
+  const tools = actions && <div className="ui-page-actions">{actions}</div>;
   const note = useContext(PageNote);
   return <><header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{detail && <p className="ui-page-subtitle">{detail}</p>}</div>{tools}</header>{note}</>;
-}
-
-/** A quiet link to the docs page that explains this screen. Use it instead of paragraphs of guidance on the page. */
-export function HelpLink({ doc, children = "Help" }: { doc: string; children?: ReactNode }) {
-  return <a className="ui-help" href={`${DOCS}${doc.replace(/^\//, "")}/`} target="_blank" rel="noreferrer">{children}</a>;
 }
 
 /** A message the user needs to act on. Not for explanations or disclaimers. */

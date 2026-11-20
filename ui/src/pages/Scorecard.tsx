@@ -46,7 +46,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
   return (
     <section className="plant-scorecard">
       <PageHeader
-        actions={<a href={href("/metrics")}>All metrics</a>} help="metrics">How the plant is running</PageHeader>
+        actions={<a href={href("/metrics")}>All metrics</a>}>How the plant is running</PageHeader>
       <Tabs label="Period" items={PERIODS.map((n) => ({
         key: String(n), label: `${n} days`, current: n === days,
         href: href("/scorecard", { days: String(n), ...(until ? { until } : {}) }),

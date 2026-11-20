@@ -67,7 +67,6 @@ p.ui-error { margin: 6px 0; }
 .ui-bar { display: inline-block; height: 7px; overflow: hidden; border-radius: 999px; background: var(--line); vertical-align: middle; }
 .ui-bar > span { display: block; height: 100%; background: var(--accent); }
 /* Help: the page's way to its explanation in the docs, so the page itself carries none. */
-.ui-help { font-size: 13px; }
 /* Notice: something to act on. Neutral by default; warn and danger only when that is the state. */
 .notice { background: var(--panel); border: 1px solid var(--line); padding: 10px 12px; border-radius: 6px; margin: 8px 0; }
 .notice > p:first-child { margin-top: 0; }

@@ -18,7 +18,7 @@ plain, conventional enterprise application for any asset type.
 
 1. **A title needs no tagline.** A page has a title and nothing under it that says what the page is for. `PageHeader`'s
    `detail` is for a fact about the record shown (its description, its dates, its version). How a page works belongs
-   in the docs: pass `help="workflow"` for a Help link. Cut any sentence that restates what the screen already shows.
+   in the docs: add the route to `ui/src/help.ts` so the account menu's Help opens it. Cut any sentence that restates what the screen already shows.
 2. **No standing disclaimers.** State a limit where the user acts on it: the confirm step, a disabled
    button's reason, an empty state. Data provenance (synthetic, historical) is one `Badge` in the page
    header or chart title, not a sentence per card. Error text says what failed and what to do next in
@@ -80,7 +80,7 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 
 ## Components
 
-- `PageHeader` is the page title, an optional `detail` (a fact about the record, never fixed text), actions and an optional `help` docs link. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
+- `PageHeader` is the page title, an optional `detail` (a fact about the record, never fixed text) and actions. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
 - `Button` uses `primary` for the main action, `secondary` for ordinary actions, `ghost` for low emphasis, `link` for inline actions, and `danger` for destructive actions. Use `sm` for compact table actions and `md` elsewhere. Use `ButtonLink` for navigation styled as a button and `ButtonLabel` for labels that open hidden file inputs.
 - `Card` (also exported as `Section`) groups related content. Supply `title` and `actions` when the group needs a heading or controls.
 - `Table` provides the shared scroll container and table base. Use it for data tables and choose a compact density for dense lists; use specialized classes only for domain-specific layout.
@@ -88,7 +88,7 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 - `Checkbox` is a checkbox with its label; `onChange` gets the new state.
 - `ErrorText` shows a failure message.
 - `Field`, `Input`, `Select` and `Textarea` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
-- `Tabs` switches between views of one page; `Notice` holds something the user must act on; `HelpLink` links a docs page.
+- `Tabs` switches between views of one page; `Notice` holds something the user must act on; Help is one entry in the account menu that opens the docs page for the current screen (`ui/src/help.ts` maps routes to pages); a page header carries no help link.
 - `Badge` is a status word in one of five tones (`ok`, `warn`, `danger`, `info`, `muted`), `mono` for an identifier. It takes no class name: a page picks a tone and never adds a badge colour of its own. `Table` labels each cell from its column heading, so type `data-label` only where the heading cannot say it.
 - `ReadCard` (in `ui/src/lib.tsx`) is the card for one read: pass the `useAsync` result as `of`, the content as children and the read's own note as `note`. It shows the loading and failed states itself. Analysis cards use it and carry no class names of their own inside.
 - `Stat` presents a summary number; `EmptyState` explains an empty result; `Bar` displays a percentage or other bounded value from 0 to 100.
@@ -130,7 +130,7 @@ Work context is presentation focus, not a workflow role or permission. No contex
 shown until supported presentation behavior exists; do not persist a cosmetic persona choice.
 
 Users account search and enabled/owner filters live in the URL. Account search starts in the first
-viewport on a phone; guidance about accounts lives in the docs, reached from the page's Help link. Counts and owner
+viewport on a phone; guidance about accounts lives in the docs, reached from Help in the account menu. Counts and owner
 recovery guidance come from the loaded account catalog, never filtered results.
 Typing replaces the current search URL so Back does not walk through each character.
 Account edits remain unsaved until confirmation; displayed effective access
@@ -180,7 +180,7 @@ The app follows iOS on every screen. When in doubt, do what iOS does. `ui/src/io
 - A record's header actions (its kind, Watch, Ask, Earlier date) are one line of small controls in one text size, and a work row's text starts at the card's own inset.
 - Tools on a canvas are one stack: the map, Network and 3D use the same 44-point rounded squares in the panel colour down the right edge, Full screen and zoom included. The base map picker is a segmented control at the top left. Apple Maps offers Standard and Satellite; the free tiles add Terrain.
 - The account sheet names the account in its heading with Done at the trailing edge, and Sign out is a plain red row. In the installed app Share sits beside the account badge.
-- Help is a round info button on every screen. On an iPhone a large title stops at two lines and the subtitle gives way. A table with headings and the `phone-rows` class stacks each row as a list row: the first column is its title and every other cell is labelled with its heading by `Table`, so give wide tables that class rather than phone-only markup.
+- Help is one row in the account sheet, not a button on the page. On an iPhone a large title stops at two lines and the subtitle gives way. A table with headings and the `phone-rows` class stacks each row as a list row: the first column is its title and every other cell is labelled with its heading by `Table`, so give wide tables that class rather than phone-only markup.
 - Filter chips (`.chips` > `.chip`) are compact 32-point chips. On an iPhone a row of them scrolls sideways on one line instead of wrapping; a row that holds a disclosure still wraps.
 - An iPad in landscape keeps the same look, with the sidebar as a floating panel. In portrait, Home's map and list sit side by side down to 768 px.
 - In the installed app, where Safari's own gestures are missing, you can swipe in from the left edge to go Back (this uses the app's Back button), and you can pull down to refresh.

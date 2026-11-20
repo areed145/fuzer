@@ -4,12 +4,12 @@
 import { useEffect } from "react";
 import { when } from "../format";
 import { api, type WorkHome, type WorkRow } from "../api";
-import { Badge, Button, Card, Empty, Line, Text } from "../ui";
+import { Badge, Button, Card, Empty, Text } from "../ui";
 import { Status, href, useAsync } from "../lib";
-import { Actor, Due, holder, usePerson } from "../work";
+import { Actor, usePerson } from "../work";
 import { useAuth } from "../Auth";
 import { switchProject } from "../authState";
-import { GENERIC_STEP, StepBadges, byUrgency, caseHref, taskHref } from "./workflows/shared";
+import { WorkLine, byUrgency, caseHref, taskHref } from "./workflows/shared";
 import { myWorkCounts } from "./workflows/Inbox";
 
 /** One count linking to its view. `children` is "one|many" when the noun changes with the number. */
@@ -100,16 +100,9 @@ function ShiftRow({ r, here, multi }: { r: Row; here: string; multi: boolean }) 
   const to = r.task_id ? taskHref(r.task_id) : caseHref(r.item_id);
   return (
     <li>
-      <Line as="span">
-        {r.project === here
-          ? <a href={to} className="work-title">{r.title}</a>
-          : <Button variant="link" onClick={() => switchProject(r.project, to)}>{r.title}</Button>}
-        {multi && <Badge>{r.project || "this field"}</Badge>}
-        <Due at={r.due_at} />
-      </Line>
-      <Text small muted>{/* a step named for the engine ("Work the case") says nothing a row needs */}
-        {!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}{" "}
-        <StepBadges row={r} /></Text>
+      <WorkLine r={r} extra={multi && <Badge>{r.project || "this field"}</Badge>} title={r.project === here
+        ? <a href={to} className="work-title">{r.title}</a>
+        : <Button variant="link" onClick={() => switchProject(r.project, to)}>{r.title}</Button>} />
     </li>
   );
 }

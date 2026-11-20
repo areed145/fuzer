@@ -63,7 +63,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   }, [list]);
   return (
     <section>
-      <PageHeader className="all-work-header" help="workflow"
+      <PageHeader className="all-work-header"
         actions={<a href={href("/performance")}>How the work is running</a>}>
         All work</PageHeader>
       <nav ref={tabs} className="tabs work-lists" aria-label="All work views">

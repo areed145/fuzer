@@ -2117,7 +2117,10 @@ test("pending account can bootstrap only with a setup code and then reach owner-
   await page.getByRole("button", { name: /^Account/ }).click();
   await page.getByRole("link", { name: "Manage users" }).click();
   await page.getByRole("heading", { name: "Users", exact: true }).waitFor();
-  await page.getByRole("link", { name: "Help" }).waitFor();  // how Users works is in the docs
+  // How Users works is in the docs: the account menu's one Help entry opens the page for this screen.
+  await page.getByRole("button", { name: /^Account/ }).click();
+  assert.equal(await page.getByRole("link", { name: "Help" }).getAttribute("href"), "https://areed145.github.io/fuzer/identity/");
+  await page.getByRole("button", { name: "Done" }).click();
   await page.getByRole("button", { name: "Application role definitions" }).click();
   await page.getByRole("heading", { name: "Add an application role", exact: true }).waitFor();
 });
