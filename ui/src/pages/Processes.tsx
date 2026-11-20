@@ -196,7 +196,7 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
 
   return (
     <section>
-      <PageHeader detail={chosen && <WhereYouAre chosen={chosen} published={published} draft={draft} />}
+      <PageHeader record detail={chosen && <WhereYouAre chosen={chosen} published={published} draft={draft} />}
         actions={<a href={href("/workflows")}>All workflows</a>}>
         {title} <Text small muted mono>{processKey}</Text></PageHeader>
       <Tabs label="Workflow views" items={PROCESS_TABS.map(([k, label]) => ({
@@ -682,7 +682,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
 
   return (
     <section>
-      <PageHeader actions={<a href={href("/workflows")}>All workflows and forms</a>}
+      <PageHeader record actions={<a href={href("/workflows")}>All workflows and forms</a>}
         detail={!isNew && version != null ? `v${version}` : undefined}>
         {isNew ? "New form" : <>Form <Text mono>{formKey}</Text></>}</PageHeader>
       <NeedName person={person} />

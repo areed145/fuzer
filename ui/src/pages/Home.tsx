@@ -102,7 +102,7 @@ export function HomePage({ stats, inbox, jobsHealth }: {
 
   return (
     <section className="home home-map" data-seat={seat}>
-      <PageHeader className="sr-only">Home</PageHeader>
+      <PageHeader>Home</PageHeader>
       <div className="home-stage" ref={stage}>
         {network && (
           <Suspense fallback={<div className="map" />}>

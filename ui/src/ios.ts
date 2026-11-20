@@ -30,7 +30,8 @@ function foldTitle() {
   const root = document.documentElement;
   const bar = document.querySelector<HTMLElement>(".topbar");
   const slot = bar?.querySelector<HTMLElement>(".topbar-title");
-  const title = document.querySelector<HTMLElement>("main h1");
+  // Only a title on screen folds: a page's name is hidden (the tab says it), and the bar keeps the Fuzer mark.
+  const title = document.querySelector<HTMLElement>("main h1:not(.sr-only)");
   if (!bar || !slot) return;
   const text = title?.textContent?.trim() ?? "";
   if (slot.textContent !== text) slot.textContent = text;
