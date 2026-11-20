@@ -858,14 +858,14 @@ def _assets(conn, ids: list[str]) -> list[dict]:
             select s, s, 0 from unnest(%s::text[]) s
             union all
             select up.start, e.dst, up.depth + 1 from up join edge e on e.src = up.fuzer_id and e.rel = 'part_of'
-            where up.depth < 3)
+            where up.depth < 5)
         select distinct on (s.id) s.id as fuzer_id, coalesce(t.label || coalesce(' ' || (d.value #>> '{}'), ''),
                l.label) as label, en.kind, g.cy as lat, g.cx as lon,
-               (select gn.value #>> '{}' from golden gn where gn.fuzer_id = up.fuzer_id and gn.field = 'gis_name')
-                 as site,
-               coalesce((select (w.value #>> '{}')::float > 0 from golden w where w.fuzer_id = up.fuzer_id
-                         and w.field in ('water_depth_ft', 'water_depth_m') and jsonb_typeof(w.value) = 'number'
-                         limit 1), false) as offshore
+               (select gn.value #>> '{}' from up u2 join golden gn on gn.fuzer_id = u2.fuzer_id
+                where u2.start = s.id and gn.field = 'gis_name' order by u2.depth limit 1) as site,
+               exists (select 1 from up u3 join golden w on w.fuzer_id = u3.fuzer_id
+                       where u3.start = s.id and w.field in ('water_depth_ft', 'water_depth_m')
+                         and jsonb_typeof(w.value) = 'number' and (w.value #>> '{}')::float > 0) as offshore
         from unnest(%s::text[]) with ordinality s (id, n)
         left join entity_label l on l.fuzer_id = s.id
         left join entity en on en.fuzer_id = s.id
