@@ -3,7 +3,7 @@
  * the decision log on the Master data page. */
 import { useState } from "react";
 import { api, type MergePreview, type SearchHit, type SplitPreview } from "../../api";
-import { Button, Input, Empty, ErrorText, Line, Text } from "../../ui";
+import { Button, Input, Empty, ErrorText, Line, Text, List } from "../../ui";
 import { entityHref, fmt, href, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -68,11 +68,11 @@ export function SameAs({ fuzerId, kind, onDone }: { fuzerId: string; kind: strin
           <Button size="sm" variant="link" onClick={() => { setOpen(false); setHits(null); }}>Cancel</Button>
         </Line>
         {hits && hits.length === 0 && <Empty>No other {kind} matches “{q}”.</Empty>}
-        {hits && hits.length > 0 && <ul className="plain">{hits.map((h) => (
+        {hits && hits.length > 0 && <List plain>{hits.map((h) => (
           <li key={h.fuzer_id}><Button size="sm" variant="link" disabled={!!a.busy}
             onClick={() => void a.run("preview", () => api.mergePreview(fuzerId, h.fuzer_id), setP)}>
             {h.label ?? h.fuzer_id}</Button> <Text muted>{h.description ?? ""}</Text></li>
-        ))}</ul>}
+        ))}</List>}
       </>}
       {p && <>
         <p>Make <a href={entityHref(p.b.fuzer_id)}>{p.b.label ?? p.b.fuzer_id}</a> and this one a single {kind}:

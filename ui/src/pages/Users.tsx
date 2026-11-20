@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, type AccessAccount, type AccessAdministration, type AccessRole, type AuditCoverage, type DocumentGroups, type WorkRoleRow } from "../api";
 import { refreshAccess, useAuth, usePermission } from "../Auth";
 import { href, Status, useAction, useAsync } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure, Line, Text, Checkbox } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure, Line, Text, Checkbox, List } from "../ui";
 import { TeamsPage, WorkflowAssignments } from "./workflows/Teams";
 
 export function UsersPage({ query }: { query: URLSearchParams }) {
@@ -248,11 +248,11 @@ function AuditRecord({ project }: { project: string }) {
     <Button disabled={busy || !since || !until || since > until} onClick={download}>Download audit record</Button>
     <ActionStatus busy={busy ? "Exporting the audit record..." : null} error={failure}>{done && <p>{done}</p>}</ActionStatus>
     <Status of={coverage} />
-    {c?.retention && <ul className="small">{Object.entries(c.retention).map(([k, v]) => <li key={k}>{v}</li>)}</ul>}
+    {c?.retention && <List small>{Object.entries(c.retention).map(([k, v]) => <li key={k}>{v}</li>)}</List>}
     {c && <Disclosure label={<>What the record covers ({every.length + latest.length} records, {(c.excluded ?? []).length} left out)</>}>
       <Text as="p" small><strong>Every change:</strong> {every.join(", ") || "none"}</Text>
       <Text as="p" small><strong>Latest only</strong> (overwritten when decided again): {latest.join(", ") || "none"}</Text>
-      <ul className="small">{(c.excluded ?? []).map(x => <li key={x.source}>{x.source}: {x.reason}</li>)}</ul>
+      <List small>{(c.excluded ?? []).map(x => <li key={x.source}>{x.source}: {x.reason}</li>)}</List>
     </Disclosure>}
   </Card>;
 }

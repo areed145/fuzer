@@ -2,7 +2,7 @@
  * days between them, any that came back after linked work was recorded closed, and the age of open linked orders.
  * Linked work is a proxy, not an action register, and order status says what was recorded, not that it worked. */
 import { api, type LinkedOrder } from "../api";
-import { Badge, Disclosure, Empty, Table, Text } from "../ui";
+import { Badge, Disclosure, Empty, Table, Text, List } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 import { plural, say } from "../wording";
 
@@ -34,9 +34,9 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
                 {u.repeat && <> <Badge tone="danger">repeat</Badge></>}</td>
               <td>{u.incidents}
                 <Disclosure label="Which">
-                  <ul className="plain small">{u.items.map((i) => (
+                  <List plain small>{u.items.map((i) => (
                     <li key={i.id}><a href={entityHref(i.id)}>{i.start}</a> {say(i.description)}</li>
-                  ))}</ul>
+                  ))}</List>
                 </Disclosure></td>
               <td>{u.days_between.length ? u.days_between.join(", ") : "once"}</td>
               <td>
@@ -52,20 +52,20 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
           ))}</tbody>
         </Table>
         {once.length > 0 && <Disclosure className="once-units" label={`${once.length} ${once.length === 1 ? "unit" : "units"} with one incident`}>
-          <ul className="plain small">{once.map((u) => (
+          <List plain small>{once.map((u) => (
             <li key={u.unit_id ?? u.unit}>{u.unit_id ? <a href={entityHref(u.unit_id)}>{u.unit}</a> : u.unit}
               {u.items.map((i) => <span key={i.id}> · <a href={entityHref(i.id)}>{i.start}</a> {i.description}</span>)}</li>
-          ))}</ul>
+          ))}</List>
         </Disclosure>}
         <h3>Open linked work, by age at {d.as_of}</h3>
         <Text as="div" small>
           {Object.entries(d.summary.open_by_age).map(([band, n]) => <span key={band} data-band={band}>{band}: {n}. </span>)}
         </Text>
         {d.open_work.length ? (
-          <ul className="plain small">{d.open_work.map((w) => (
+          <List plain small>{d.open_work.map((w) => (
             <li key={w.id}><a href={entityHref(w.id)}>{w.order}</a> {w.status}, {w.age_days} days old,
               {" "}{LINK[w.link]}: {w.description}</li>
-          ))}</ul>
+          ))}</List>
         ) : <Empty>No open order is linked to these incidents.</Empty>}
       </>}
     </ReadCard>

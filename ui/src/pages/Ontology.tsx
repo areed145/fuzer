@@ -3,7 +3,7 @@
 // under "Needs definition".
 import { useMemo, useState } from "react";
 import { when, count as countText } from "../format";
-import { confirmDialog, Textarea, ErrorText, Line, Text } from "../ui";
+import { confirmDialog, Textarea, ErrorText, Line, Text, List } from "../ui";
 import {
   api, type KindDef, type KindIn, type Ontology as OntologyData, type OntologyKind, type RelationDef, type RelationIn,
 } from "../api";
@@ -133,7 +133,7 @@ function NeedsDefinition({ o, edit, relDef }: {
   return (
     <UICard  as="section">
       <h2>Needs definition</h2>
-      <ul className="plain">
+      <List plain>
         {n.kinds.map((k) => (
           <li key={k} className="row small">
             <span>Kind <b className="mono">{k}</b> <Text muted>{countText(count(k))} entities</Text></span>
@@ -168,7 +168,7 @@ function NeedsDefinition({ o, edit, relDef }: {
             </li>
           );
         })}
-      </ul>
+      </List>
     </UICard>
   );
 }
@@ -213,7 +213,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
         <Coverage kind={kind} />
 
         <h3>Links</h3>
-        <ul className="plain">
+        <List plain>
           {out.map((r) => (
             <li key={relId(r)} className="small">
               → <b>{r.rel}</b> {words(r.dst_kind)} <Text muted>{countText(r.n)}</Text>
@@ -224,7 +224,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
               ← {words(r.src_kind)} <b>{r.rel}</b> <Text muted>{countText(r.n)}</Text>
             </li>
           ))}
-        </ul>
+        </List>
         <a href={href("/browse", { kind: kind.kind })}>Browse all {words(kind.kind)} →</a>
       </>
     );
@@ -365,7 +365,7 @@ function History({ object, name }: { object: "kind" | "relation"; name: string }
   if (!h.data?.length) return null;
   return (
     <Disclosure className="small" label={<>History ({h.data.length})</>}>
-      <ul className="plain">
+      <List plain>
         {h.data.map((c) => (
           <li key={c.id}>
             {when(c.at)} <b>{personName(c.by)}</b> {c.action}
@@ -373,7 +373,7 @@ function History({ object, name }: { object: "kind" | "relation"; name: string }
             {c.reason && <> · {c.reason}</>}
           </li>
         ))}
-      </ul>
+      </List>
     </Disclosure>
   );
 }

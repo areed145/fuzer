@@ -3,7 +3,7 @@
  * few tests are listed, never fitted. A gap is a lead for review; the reservoir cause stays unknown. */
 import { api } from "../api";
 import { whenDay, count } from "../format";
-import { Disclosure, Empty, Table, Text } from "../ui";
+import { Disclosure, Empty, Table, Text, List } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 
 const sm3 = (v: number | null | undefined) => (v == null ? "–" : `${count(v)} bbl/d`);
@@ -39,8 +39,8 @@ export function WellsAgainstForecast() {
           </Table>
         ) : <Empty>No well is under its forecast.</Empty>}
         {d.not_fitted.length > 0 && <Disclosure label={`${d.not_fitted.length} wells with too few tests to forecast`}>
-          <ul className="plain small">{d.not_fitted.map((w) => (
-            <li key={w.id}><a href={entityHref(w.id)}>{w.well}</a>: {w.reason}</li>))}</ul>
+          <List plain small>{d.not_fitted.map((w) => (
+            <li key={w.id}><a href={entityHref(w.id)}>{w.well}</a>: {w.reason}</li>))}</List>
         </Disclosure>}
       </>}
     </ReadCard>

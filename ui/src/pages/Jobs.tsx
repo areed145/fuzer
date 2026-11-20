@@ -1,6 +1,6 @@
 import { count, money, when, ago } from "../format";
 import "../styles/jobs.css";
-import { Button, ButtonLink, PageHeader, Table, Card as UICard, Badge as UIBadge, Disclosure, ErrorText, Line, Text } from "../ui";
+import { Button, ButtonLink, PageHeader, Table, Card as UICard, Badge as UIBadge, Disclosure, ErrorText, Line, Text, Notice } from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
 import { api, type DetectorTier, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
 import { Status, href, useAsync } from "../lib";
@@ -320,8 +320,8 @@ export function JobRunPage({ id }: { id: string }) {
       </Text>
       <Text as="p" small><a href={href("/jobs")}>Return to Jobs</a>{" · "}
         <a href={href("/sources")}>Inspect source Runs and Quality</a>. Scheduler times describe execution, not source event dates.</Text>
-      {["FAILURE", "CANCELED"].includes(d.status) && <p className="notice">This execution did not complete successfully.
-        Inspect errors and recorded source runs before deliberately retrying in Sources; some earlier steps may have completed.</p>}
+      {["FAILURE", "CANCELED"].includes(d.status) && <Notice>This execution did not complete successfully.
+        Inspect errors and recorded source runs before deliberately retrying in Sources; some earlier steps may have completed.</Notice>}
 
       {d.errors.length > 0 && (
         <>

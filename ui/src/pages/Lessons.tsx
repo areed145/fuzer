@@ -1,4 +1,4 @@
-import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea, ErrorText, Line, Text } from "../ui";
+import { ActionStatus, Badge, Button, PageHeader, Card as UICard, Disclosure, Textarea, ErrorText, Line, Text, List } from "../ui";
 import { percent, when } from "../format";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
@@ -52,14 +52,14 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
       )}
       <Textarea className="lesson-text" value={text} onChange={(e) => setText(e.target.value)} rows={6} />
       <Disclosure className="small" label={<>Evidence</>}>
-        <ul className="plain">
+        <List plain>
           {lesson.evidence.map((e) => (
             <li key={e.id}>
               <Text muted mono>{e.start}</Text> <a href={entityHref(e.id)}>{e.label}</a>
               {e.recurred && <ErrorText inline> recurred</ErrorText>}
             </li>
           ))}
-        </ul>
+        </List>
       </Disclosure>
       <Disclosure className="small" label={<>History</>}>
         <LessonHistory id={lesson.id} />
@@ -89,14 +89,14 @@ function LessonHistory({ id }: { id: number }) {
       <Status of={h} empty={h.data?.length === 0}>
         No decisions or edits yet.
       </Status>
-      <ul className="plain">
+      <List plain>
         {h.data?.map((v) => (
           <li key={v.version}>
             <Text muted mono>v{v.version}</Text> {ACTION[v.action]} by <Actor who={v.by} /> {when(v.at)}
             <Disclosure label={<>Wording</>}><Text as="p" small>{v.text}</Text></Disclosure>
           </li>
         ))}
-      </ul>
+      </List>
     </>
   );
 }

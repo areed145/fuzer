@@ -5,7 +5,7 @@ import { acronyms } from "../wording";
 import { money, whenDay, count } from "../format";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text } from "../ui";
+import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
@@ -198,7 +198,7 @@ function AtRiskCard({ from }: { from: string }) {
       <Status of={risk} />
       {d && (d.windows.length ? <>
         <Text as="p" small>The next {d.days} days. {d.basis} An estimate for planning, not a schedule.</Text>
-        <ul className="plain">{d.windows.map((w, n) => <li key={w.start} className="plan-risk-window">
+        <List plain>{d.windows.map((w, n) => <li key={w.start} className="plan-risk-window">
           <Button variant="link" className="plan-label" aria-expanded={open === n} onClick={() => setOpen(open === n ? null : n)}>
             <strong>{short(w.start)}–{short(w.end)}</strong>{" "}
             <span>{w.at_risk.length ? w.at_risk.map(amount).join(", ") : "no tested wells behind it"}</span>{" "}
@@ -212,7 +212,7 @@ function AtRiskCard({ from }: { from: string }) {
             {!!w.untested.length && <p>No test on record, so not counted: {w.untested.join(", ")}.</p>}
             <p>{w.wells.map((x) => `${x.label} ${x.hours} h`).join(" · ")}</p>
           </Text>}
-        </li>)}</ul>
+        </li>)}</List>
       </> : <Empty>No shutdowns planned in the next {d.days} days.</Empty>)}
     </Card>
   );

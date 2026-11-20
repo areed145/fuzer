@@ -20,5 +20,7 @@
   "raw-text-class": 7,
   "raw-checkbox": 15,
   "badge-class": 0,
-  "typed-cell-label": 16
+  "typed-cell-label": 16,
+  "raw-list-class": 0,
+  "raw-notice": 8
 }

@@ -5,7 +5,7 @@ import { setCsrf } from "./authState";
 import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
 import { useRoute, errorMessage } from "./lib";
-import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader, Line, Text } from "./ui";
+import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader, Line, Text, Notice } from "./ui";
 import { forgetKept, outboxSession, unreachable } from "./fieldOffline";
 import "./styles/auth.css";
 
@@ -116,8 +116,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (admitted) {
     return <AuthContext.Provider value={session}>
-      {error && <div role="alert" className="notice">Access could not be refreshed: {error}{" "}
-        <Button onClick={reload}>Reload access</Button></div>}
+      {error && <Notice role="alert">Access could not be refreshed: {error}{" "}
+        <Button onClick={reload}>Reload access</Button></Notice>}
       {offline && <div role="status" className="notice offline-notice">No signal. Showing what this phone kept; reports wait
         in the outbox and send when the signal returns.{" "}<Button onClick={reload} disabled={checking}>{checking ? "Checking..." : "Try again"}</Button></div>}
       {children}

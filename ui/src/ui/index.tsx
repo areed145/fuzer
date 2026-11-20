@@ -141,6 +141,12 @@ export function Textarea({ width, className = "", ...props }: TextareaHTMLAttrib
 export function Select({ width, className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement> & { width?: Width }) {
   return <select {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
 }
+/** A list. `plain` drops the bullets; `small` and `muted` are the kit's text styles. */
+export function List({ as: Tag = "ul", plain, small, muted, ...props }: Omit<HTMLAttributes<HTMLElement>, "className"> & {
+  as?: "ul" | "ol"; plain?: boolean; small?: boolean; muted?: boolean;
+}) {
+  return <Tag {...props} className={[plain && "plain", small && "small", muted && "muted"].filter(Boolean).join(" ") || undefined} />;
+}
 /** A checkbox with its label. `onChange` gets the new state. */
 export function Checkbox({ checked, onChange, disabled, children }: {
   checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; children: ReactNode;

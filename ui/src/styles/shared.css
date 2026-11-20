@@ -63,10 +63,6 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .home-counts { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; padding: 0; }
 .home-counts a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
 .home-counts a.late strong { color: var(--danger); }
-.home-list { list-style: none; display: grid; gap: 8px; margin: 10px 0 0; padding: 0; }
-.home-list li { display: grid; gap: 2px; min-width: 0; }
-.home-list li > a, .home-list li > div { min-width: 0; overflow-wrap: anywhere; }
-.home-list li > div { display: grid; gap: 2px; }
 .home-priorities li { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
 /* My work: what the person was told (P5.2). Each line is a 44px target that opens its case. */
 .notification-list { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }

@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea, ErrorText, Line, Text } from "../../ui";
+import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea, ErrorText, Line, Text, List, Notice } from "../../ui";
 import { when } from "../../format";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
@@ -66,7 +66,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       </Text>
       <Line small><StepBadges row={t} /></Line>
       <ErrorText>{t.error}</ErrorText>
-      {done && !demo && <p className="notice small">{done} <a href={href("/inbox")}>Back to your inbox</a></p>}
+      {done && !demo && <Notice>{done} <a href={href("/inbox")}>Back to your inbox</a></Notice>}
       <div className="task-layout">
         <div>
           {typeof v.data.change === "string" && <UICard className="notice" title="What to change">
@@ -86,8 +86,8 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
             readOnly={demo} onDecided={refresh} />}
           {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
             canMerge={waiting && operate && !demo} onMerged={refresh} />}
-          {kept && !demo ? <p className="notice small">Done on this phone, waiting to send. The case moves on when the signal
-            returns and the server has it.</p> : demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
+          {kept && !demo ? <Notice>Done on this phone, waiting to send. The case moves on when the signal
+            returns and the server has it.</Notice> : demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
             <Empty>This step is {t.state}{t.finished_by ? ` (by ${t.finished_by})` : ""}.</Empty>
           ) : t.kind === "agent" ? (
             <p>The {t.role} agent has this step{t.claimed_by ? ` (worker ${t.claimed_by})` : ""}. Hand it to a person to take it over.</p>
@@ -220,11 +220,11 @@ function FromField({ v }: { v: WorkTaskView }) {
   return (
     <UICard className="from-field" title="From the field">
       {asked && <Text as="p" small muted>You asked: {asked}</Text>}
-      <ul className="plain">{notes.map((c) => <li key={c.id}>
+      <List plain>{notes.map((c) => <li key={c.id}>
         <strong>{String(c.data.text).slice(7)}</strong> <Text small muted>· <Actor who={c.actor} /> {when(c.at)}</Text>
         {photosOf(c.data).length > 0 && <div className="field-photos">{photosOf(c.data).map((p) =>
           <FieldPhoto key={p.photo_id} exceptionId={p.exception_id} photoId={p.photo_id} />)}</div>}
-      </li>)}</ul>
+      </li>)}</List>
     </UICard>
   );
 }

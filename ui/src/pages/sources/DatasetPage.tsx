@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty, ErrorText, Line, Text, Checkbox } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty, ErrorText, Line, Text, Checkbox, List, Notice } from "../../ui";
 import { when, count } from "../../format";
 import { confirmDialog } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
@@ -62,7 +62,7 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const checks = (last?.detail as { checks?: { kind: string; value: number; detail?: { examples?: string[] } }[] } | null)?.checks;
   const dupes = !!checks?.some((c) => c.kind === "duplicate keys");
   return (
-    <div className="notice small">
+    <Notice>
       {stuck && last.status === "failed" && <p>The last load failed: {last.error}</p>}
       {stuck && last.status === "held" && (
         <p>
@@ -94,7 +94,7 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       <ActionStatus busy={a.busy ? "Loading source records; keep this page open for the result…" : null} error={a.error} />
       <p><a href={href("/sources", { view: "dataset", name: d.dataset.name, tab: "runs" })}>Inspect recorded source runs</a>{" · "}
         <a href={href("/jobs")}>Inspect scheduler execution</a></p>
-    </div>
+    </Notice>
   );
 }
 
@@ -140,7 +140,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       {(d.work_items.length > 0 || d.reviews.length > 0) && (
         <>
           <h3>Open</h3>
-          <ul className="small">
+          <List small>
             {d.work_items.map((w) => (
               <li key={`w${w.id}`}><a href={href(`/cases/${w.id}`)}>work item {w.id}</a>: {w.title}{" "}
                 <Text muted>({w.assignee ?? w.role ?? "unassigned"}, {when(w.created_at)})</Text></li>
@@ -149,7 +149,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
               <li key={`r${r.id}`}><a href={href("/masterdata", { tab: "questions", kind: r.kind, item: String(r.id) })}>question {r.id}</a>:{" "}
                 {r.kind === "check" ? "a held load" : "changed columns"} <Text muted>({when(r.created_at)})</Text></li>
             ))}
-          </ul>
+          </List>
         </>
       )}
       {d.suggested_checks.length > 0 && (
@@ -311,8 +311,8 @@ function MappingTab({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   return (
     <>
       {drafts.length > 0 && !review && (
-        <p className="notice small">{drafts.length} draft{drafts.length === 1 ? "" : "s"} waiting:{" "}
-          {drafts.map((m) => <Button key={m.id} variant="link" onClick={() => setReview(m)}>review version {m.id}</Button>)}</p>
+        <Notice>{drafts.length} draft{drafts.length === 1 ? "" : "s"} waiting:{" "}
+          {drafts.map((m) => <Button key={m.id} variant="link" onClick={() => setReview(m)}>review version {m.id}</Button>)}</Notice>
       )}
       {review && <ReviewVersion v={review} current={current} reload={reload} close={() => setReview(null)} />}
       <h3>Edit <Text small muted>changes become a draft; you see what it would do before approving it</Text></h3>
@@ -424,7 +424,7 @@ function RunDetail({ detail }: { detail: Json }) {
   if (!dropped) return <>{cell(detail)}</>;
   return (
     <Disclosure label={<>kept the latest row of {dropped.keys} repeated key{dropped.keys === 1 ? "" : "s"}; left out {dropped.rows}</>}>
-      <ul className="plain">{dropped.shown.map((x, i) => <li key={i}><code>{x.key}</code> {cell(x.row)}</li>)}</ul>
+      <List plain>{dropped.shown.map((x, i) => <li key={i}><code>{x.key}</code> {cell(x.row)}</li>)}</List>
       {dropped.rows > dropped.shown.length && <p>and {dropped.rows - dropped.shown.length} more</p>}
       {Object.keys(rest).length > 0 && cell(rest as Json)}
     </Disclosure>
@@ -452,7 +452,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       {d.suggested_checks.length > 0 && (
         <UICard className="inset">
           <h3>Suggested from its profile</h3>
-          <ul className="small plain">
+          <List plain small>
             {d.suggested_checks.map((s, i) => (
               <li key={i}>
                 <Button variant="secondary" disabled={!!a.busy}
@@ -463,7 +463,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
                 <Text muted> · {s.why}</Text>
               </li>
             ))}
-          </ul>
+          </List>
         </UICard>
       )}
       <h3>Checks <Text small muted>duplicate keys hold a load unless Settings says to keep the latest row</Text></h3>

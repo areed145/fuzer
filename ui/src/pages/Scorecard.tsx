@@ -19,7 +19,7 @@ import { GasLiftHeading } from "./GasLiftHeading";
 import { QualityTrend } from "./QualityTrend";
 import { AlarmPerformance } from "./AlarmPerformance";
 import { AcrossAssets } from "./AcrossAssets";
-import { Badge, Disclosure, Empty, PageHeader, Table, Tabs, Text } from "../ui";
+import { Badge, Disclosure, Empty, PageHeader, Table, Tabs, Text, List } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
 const PERIODS = [7, 30, 90];
@@ -32,7 +32,7 @@ function Side({ p, unit, label }: { p: KpiPeriod; unit: string; label: string })
     <strong className={p.value == null ? "kpi-unknown" : undefined}>{show(p.value, unit)}</strong>
     {p.note && <Text as="div" small muted>{p.note}</Text>}
     {p.records > 0 && <Disclosure label={`${p.records} ${p.records === 1 ? "record" : "records"}`}>
-      <ul className="plain small">{p.refs.map((r) => <li key={r}><a href={entityHref(r)}>{r}</a></li>)}</ul>
+      <List plain small>{p.refs.map((r) => <li key={r}><a href={entityHref(r)}>{r}</a></li>)}</List>
       {p.records > p.refs.length && <Text as="div" small muted>The first {p.refs.length} of {p.records} ({label}).</Text>}
     </Disclosure>}
   </>;

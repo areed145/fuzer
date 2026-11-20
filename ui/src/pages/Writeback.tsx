@@ -1,4 +1,4 @@
-import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea, ErrorText, Line, Text } from "../ui";
+import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea, ErrorText, Line, Text, List } from "../ui";
 import { when } from "../format";
 import { useState } from "react";
 import { api, type Writeback, type WritebackDetail } from "../api";
@@ -75,10 +75,10 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
         </Line>
       )}
       <ErrorText>{a.error}</ErrorText>
-      <ul className="plain small">{w.history.map((h) => (
+      <List plain small>{w.history.map((h) => (
         <li key={h.id}>{STATE[h.state as Writeback["state"]] ?? h.state} · <Actor who={h.by} /> · {when(h.at)}
           {h.note && <Text muted> · {h.note}</Text>}</li>
-      ))}</ul>
+      ))}</List>
     </UICard>
   );
 }

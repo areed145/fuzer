@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Card as UICard, Disclosure, Input, Table, ErrorText, Line, Text } from "../../ui";
+import { Button, Card as UICard, Disclosure, Input, Table, ErrorText, Line, Text, List } from "../../ui";
 import { api } from "../../api";
 import { Status, entityHref, useAction, useAsync } from "../../lib";
 import { usePermission } from "../../Auth";
@@ -52,7 +52,7 @@ export function OpportunityPanel({ opportunityKey, person, readOnly, onDecided }
           </Table>
         </Disclosure>}
         {tests > 0 && <Disclosure className="card" label={<>The records it rests on</>}>
-          <ul className="small">{o.evidence.records.map((r) => <li key={r}>{r.split(":").slice(1).join(" ").replace(/_/g, " ")}</li>)}</ul>
+          <List small>{o.evidence.records.map((r) => <li key={r}>{r.split(":").slice(1).join(" ").replace(/_/g, " ")}</li>)}</List>
         </Disclosure>}
         {o.status !== "open" ? <Text as="p" small muted>{o.status} by {o.decided_by ?? "?"}{o.reason ? `: ${o.reason}` : ""}.</Text>
           : operate && !readOnly && <Line wrap>

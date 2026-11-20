@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty, ErrorText, Line, Text } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty, ErrorText, Line, Text, Notice } from "../../ui";
 import { count } from "../../format";
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
@@ -174,13 +174,13 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
     <>
       <Text as="p" small muted>{d.connector} · {d.path}</Text>
       {d.date_hint && (
-        <p className="small notice">
+        <Notice>
           Its dates look like <code>{d.date_hint.example}</code>. Set <code>{d.system}</code>'s date format to{" "}
           <code>{d.date_hint.date_format}</code> so they are read as dates?{" "}
           <Button variant="secondary" disabled={!!a.busy}
             onClick={() => a.run("fmt", () => api.editSystem(d.system, { date_format: d.date_hint!.date_format }, reviewer(),
               "dates in the export's local format"), () => p.reload())}>Set it</Button>
-        </p>
+        </Notice>
       )}
       <h3>Sample</h3>
       <div className="scroll-x">

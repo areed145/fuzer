@@ -4,7 +4,7 @@
  * and nothing is restated. */
 import { api, type AccountingMonth } from "../api";
 import { quantity, count } from "../format";
-import { Badge, Disclosure, Empty, Table, Text } from "../ui";
+import { Badge, Disclosure, Empty, Table, Text, List } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 
 const TONE: Record<AccountingMonth["verdict"], "ok" | "danger" | "warn" | "muted"> = {
@@ -41,7 +41,7 @@ export function AgainstTheAccounts() {
                     {m.operational.since ? `${m.operational.since} to ${m.operational.through}, ${m.operational.days} days` : "none"}
                   </Text>
                   {m.operational.refs.length > 0 && <Disclosure label={`${m.operational.days} daily reports`}>
-                    <ul className="plain small">{m.operational.refs.map((x) => <li key={x}><a href={entityHref(x)}>{x}</a></li>)}</ul>
+                    <List plain small>{m.operational.refs.map((x) => <li key={x}><a href={entityHref(x)}>{x}</a></li>)}</List>
                   </Disclosure>}</td>
                 <td>{m.accounting ? <>
                   <a href={entityHref(m.accounting.record)}>{n(m.accounting.value, m.unit)}</a>

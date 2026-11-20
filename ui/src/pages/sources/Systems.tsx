@@ -1,4 +1,4 @@
-import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea, ErrorText, Line, Text } from "../../ui";
+import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty, Textarea, ErrorText, Line, Text, List } from "../../ui";
 import { confirmDialog } from "../../ui";
 import { percent } from "../../format";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
@@ -195,12 +195,12 @@ function SystemContext({ system }: { system: string }) {
         {r.decided.pinned ? `, ${r.decided.pinned} decided by a steward` : ""}.{" "}
         <UIBadge tone={over ? "warn" : "ok"}>{r.needs_steward} need a steward ({pct(r.share ?? 0)})</UIBadge>
         {r.links.pct != null && <> Links resolved: {r.links.pct}%.</>}</Text>
-      {(asks.some(([n]) => n) || r.unmatched.length > 0) && <ul className="small">
+      {(asks.some(([n]) => n) || r.unmatched.length > 0) && <List small>
         {asks.filter(([n]) => n).map(([n, what, to]) => <li key={what}><a href={to}>{n} {what}</a></li>)}
         {r.unmatched.length > 0 && <li>{r.steward.unmatched} matched nothing in the register:{" "}
           {r.unmatched.slice(0, 5).map((u, i) => <span key={u.fuzer_id}>{i ? ", " : ""}<a href={entityHref(u.fuzer_id)}>{u.label}</a></span>)}
           {r.unmatched.length > 5 && ` and ${r.steward.unmatched - 5} more`}</li>}
-      </ul>}
+      </List>}
       {r.unmatched.length > 0 && <ConfirmAction label="They are new items" busy={!!a.busy}
         consequence={`${r.steward.unmatched === 1 ? "The record stays" : `The ${r.steward.unmatched} records stay`} as new items and aren't asked about again. To match one instead, open it and use Same as….`}
         onConfirm={() => void a.run("new", () => api.systemRecordsAreNew(system, reviewer(), "new items, not ones the register has"), c.reload)} />}
@@ -335,7 +335,7 @@ function TableList({ tables, system, connection }: { tables: { table: string; da
                                                       connection: number }) {
   if (!tables.length) return <Empty className="small">It holds no tables Fuzer can read.</Empty>;
   return (
-    <ul className="small">
+    <List small>
       {tables.map((t) => (
         <li key={t.table}>
           <code>{t.table}</code>{" "}
@@ -343,7 +343,7 @@ function TableList({ tables, system, connection }: { tables: { table: string; da
             : <a href={href("/sources", { view: "add", system, connection: String(connection), table: t.table })}>add it</a>}
         </li>
       ))}
-    </ul>
+    </List>
   );
 }
 

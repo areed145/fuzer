@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { kindWord, person as personName } from "../wording";
-import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox } from "../ui";
+import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
   sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
@@ -90,7 +90,7 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
     run(status === "done" ? "Done" : "Started", () => sendPlanChange(i.id, person, status), (how) => { if (how === "sent") onChange(); });
   return (
     <Card className="field-coming" title="Coming up">
-      <ul className="plain">{items.map((i) => <li key={i.id}>
+      <List plain>{items.map((i) => <li key={i.id}>
         <strong>{day(i.start_at)}</strong>{day(i.end_at) !== day(i.start_at) ? `–${day(i.end_at)}` : ""} · {i.title}{" "}
         <Text small muted>{i.kind.replace(/_/g, " ")}{i.needs_shutdown ? " · in the shutdown" : ""}
           {i.crew?.startsWith("role:") ? ` · for ${i.crew.slice(5)}` : ""}</Text>
@@ -104,7 +104,7 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
           {i.status !== "in_progress" && <Button size="sm" disabled={!!busy} onClick={() => set(i, "in_progress")}>Started</Button>}
           <Button size="sm" variant="primary" disabled={!!busy} onClick={() => set(i, "done")}>Done</Button>
         </div>}
-      </li>)}</ul>
+      </li>)}</List>
       {busy && <p role="status">{busy}…</p>}
       <ErrorText>{error}</ErrorText>
     </Card>
@@ -130,13 +130,13 @@ export function RoundsThisShift({ person }: { person: string }) {
   return (
     <section className="field-jobs" aria-labelledby="rounds-this-shift">
       <h2 id="rounds-this-shift">Rounds this shift <Text small muted>{list.length} · until {when(list[0].shift_end)}</Text></h2>
-      <ul className="plain">{list.map((r) => <li key={r.id}>
+      <List plain>{list.map((r) => <li key={r.id}>
         <Button size="sm" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>
           {r.round}{r.area && !r.round.includes(r.area) ? ` (${r.area})` : ""}</Button>{" "}
         <RoundProgress run={r} onPhone={kept.filter((t) => t.run === r.id)} />
         {open === r.id && <RoundPoints key={sent} id={r.id} person={person} canTake={r.state === "open"} onTaken={runs.reload}
           onPhone={kept.filter((t) => t.run === r.id)} />}
-      </li>)}</ul>
+      </li>)}</List>
     </section>
   );
 }
@@ -161,7 +161,7 @@ function RoundPoints({ id, person, canTake, onTaken, onPhone }: { id: number; pe
   const r = useAsync(() => api.round(id), [id]);
   if (!r.data || !Array.isArray(r.data.points)) return <Status of={r} />;
   const taken = () => { r.reload(); onTaken(); };
-  return <ol className="small">{r.data.points.map((p) => {
+  return <List as="ol" small>{r.data.points.map((p) => {
     const mine = onPhone.filter((t) => t.point === p.id).at(-1);
     return <li key={p.id}>
       <strong>{p.what}</strong> <Text muted>{p.asset_label ?? ""}</Text>
@@ -177,7 +177,7 @@ function RoundPoints({ id, person, canTake, onTaken, onPhone }: { id: number; pe
         {p.taken.exception_id != null && <Text muted> · sent to the IOC</Text>}</>}
       {canTake && <TakePoint run={id} point={p} person={person} onTaken={taken} />}
     </li>;
-  })}</ol>;
+  })}</List>;
 }
 
 function TakePoint({ run, point, person, onTaken }: { run: number; point: RoundPoint; person: string; onTaken: () => void }) {
@@ -280,10 +280,10 @@ function PermitPanel({ permit, inHand, onInHand }: { permit: FieldPermit; inHand
         {p.valid_to ? ` · to ${p.valid_to}` : ""}{p.why_not ? <Text muted> · {p.why_not}</Text> : null}
         {p.work ? <><br />{p.work}</> : null}</Text>
         : <Text as="p" small muted>No permit covers this location.</Text>}
-      {p && p.isolations.length > 0 && <ul className="plain small">{p.isolations.map((i) => <li key={i.isolation}>
+      {p && p.isolations.length > 0 && <List plain small>{p.isolations.map((i) => <li key={i.isolation}>
         {i.isolation} · {i.point ?? ""} {i.method ? <Text muted>({i.method})</Text> : null}{" "}
         <Badge tone={["applied", "verified"].includes((i.state ?? "").toLowerCase()) ? "ok" : "warn"}>{i.state ?? "no state"}</Badge>
-      </li>)}</ul>}
+      </li>)}</List>}
       {permit.blocked && permit.blocker && <Text as="p" small role="status">{permit.blocker}</Text>}
     </div>
   );
@@ -365,25 +365,25 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         {job.sent.by && <Text small muted> · sent by {job.sent.by.replace(/^agent:/, "")}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</Text>}</p>}
       {job.assets.length > 0 && <div>
         <h3 className="small">Where</h3>
-        <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
+        <List plain>{job.assets.map((a) => <li key={a.fuzer_id}>
           <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <Text small muted>{kindWord(a.kind ?? "item").toLowerCase()}</Text></>}
           {!desk && a.offshore && a.site && <> · <Text small>on {a.site}</Text></>}
           {a.lat != null && a.lon != null && !desk && !a.offshore && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
             target="_blank" rel="noreferrer">directions</a></>}
-        </li>)}</ul>
+        </li>)}</List>
       </div>}
       {job.unmatched.length > 0 && <Text as="p" small muted>Also named: {job.unmatched.join(", ")}</Text>}
       {job.sources?.length > 1 && <div>
         <h3 className="small">{reportedBy(job.sources)}</h3>
-        <ul className="plain small">{job.sources.map((x) => <li key={x.id}>
-          <strong>{x.label}</strong>: {x.title} <Text muted>· {x.source ?? ""}</Text></li>)}</ul>
+        <List plain small>{job.sources.map((x) => <li key={x.id}>
+          <strong>{x.label}</strong>: {x.title} <Text muted>· {x.source ?? ""}</Text></li>)}</List>
       </div>}
       {!!job.warnings?.length && <ul className="plain small field-warnings" aria-label="Before you start">
         {job.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul>}
       {job.permit && !desk && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
       {(job.checklist?.length ?? 0) > 0 && <div>
         <h3 className="small">Checks before restart</h3>
-        <ol className="small">{job.checklist!.map((c) => <li key={c}>{c}</li>)}</ol>
+        <List as="ol" small>{job.checklist!.map((c) => <li key={c}>{c}</li>)}</List>
       </div>}
       {/* Waiting in a queue, a job is picked by what, where and how urgent: the evidence record and the asset's
           history come with it once taken, so a queue of three jobs is not twenty screens long on a phone. */}
@@ -393,16 +393,16 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
       </div>}
       {!job.queued && job.history.length > 0 && <div>
         <h3 className="small">Lately at this asset</h3>
-        <ul className="plain small">{job.history.map((h) => <li key={h.id}>
-          {when(h.first_seen)} · {h.title} <Text muted>({h.state})</Text></li>)}</ul>
+        <List plain small>{job.history.map((h) => <li key={h.id}>
+          {when(h.first_seen)} · {h.title} <Text muted>({h.state})</Text></li>)}</List>
       </div>}
       {job.field.length > 0 && <div>
         <h3 className="small">Field log</h3>
-        <ul className="plain small">{job.field.map((f, i) => <li key={i}>
+        <List plain small>{job.field.map((f, i) => <li key={i}>
           {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""}
           {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <Text muted>{personName(f.by)}</Text>
           {f.photos?.length ? <div className="field-photos">{f.photos.map((p) => <FieldPhoto key={p} exceptionId={job.id} photoId={p} />)}</div> : null}
-        </li>)}</ul>
+        </li>)}</List>
       </div>}
       {job.handover?.mine_to_accept ? null : job.queued ? <div className="row field-actions">
         <Text as="p" small>{last?.status === "on_site"

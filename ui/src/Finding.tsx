@@ -2,7 +2,7 @@ import "./styles/finding.css";
 import { money, percent, when } from "./format";
 import type { CaseSource, Finding, FindingItem } from "./api";
 import { entityHref } from "./lib";
-import { Card, Disclosure, Text } from "./ui";
+import { Card, Disclosure, Text, List } from "./ui";
 import { reportedBy } from "./work";
 import { say, unit as wordUnit } from "./wording";
 
@@ -61,7 +61,7 @@ export function FindingEvidence({ finding, checks = true }: { finding: Finding; 
       </dl>
       {checks && finding.checks.length > 0 && <>
         <h4 className="small">Checks before the work</h4>
-        <ol className="small">{finding.checks.map((c) => <li key={c}>{c}</li>)}</ol>
+        <List as="ol" small>{finding.checks.map((c) => <li key={c}>{c}</li>)}</List>
       </>}
     </div>
   );

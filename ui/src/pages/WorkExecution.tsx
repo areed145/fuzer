@@ -3,7 +3,7 @@
  * on the same equipment) per quarter. A quarter below the sample floor says too little data. Measures the records,
  * never people or crews. */
 import { api } from "../api";
-import { Table, Text } from "../ui";
+import { Table, Text, List } from "../ui";
 import { entityHref, ReadCard, useAsync } from "../lib";
 
 const pct = (v: number | null) => (v == null ? "too little data" : `${v}%`);
@@ -36,10 +36,10 @@ export function WorkExecution() {
         </Table>
         {repeats.length > 0 && <>
           <h3>Repeat repairs</h3>
-          <ul className="plain small">{repeats.slice(-8).reverse().map((r) => (
+          <List plain small>{repeats.slice(-8).reverse().map((r) => (
             <li key={r.id}><a href={entityHref(r.id)}>{r.order}</a> started {r.start}, after{" "}
               <a href={entityHref(r.after)}>a repair</a> finished {r.previous_finish}: {r.text}</li>
-          ))}</ul>
+          ))}</List>
         </>}
       </>}
     </ReadCard>

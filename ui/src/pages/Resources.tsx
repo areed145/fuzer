@@ -4,7 +4,7 @@
 import { type CSSProperties, useState } from "react";
 import { when, whenDay } from "../format";
 import { api, type ResourceLoad, type ResourceMove, type ResourceOverload } from "../api";
-import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select, ErrorText, Line, Text } from "../ui";
+import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select, ErrorText, Line, Text, List } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { acronyms } from "../wording";
 
@@ -90,14 +90,14 @@ function Overload({ o, unit, person, onChange }: { o: ResourceOverload; unit: st
       <strong>{when(o.from)} to {when(o.to)}</strong>{" "}
       <span>needs {num(o.peak)} against {num(o.capacity)}{unit ? ` ${unit}` : ""}</span> <Badge tone="danger">{num(o.over_by)} over</Badge>
       <Text as="p" small>In use by {o.jobs.map((j) => `${j.code ?? ""}${j.code ? " " : ""}${acronyms(j.title)} (${num(j.quantity)})`).join("; ")}.</Text>
-      {o.moves.length ? <ul className="plain">{o.moves.map((m) => <li key={m.item_id} className="small load-move">
+      {o.moves.length ? <List plain>{o.moves.map((m) => <li key={m.item_id} className="small load-move">
         Slip {m.code ? `${m.code} ` : ""}{acronyms(m.title)} {num(m.slip_hours)} h to {when(m.new_start)}
         {m.finish_later_days == null ? ", no schedule logic behind it" : m.finish_later_days > 0
           ? `, ${m.source} finishes ${num(m.finish_later_days)} days later` : `, within its float (${num(m.float_hours)} h)`}{" "}
         {m.source && m.finish_later_days != null
           ? <ButtonLink size="sm" variant="link" href={`#/plan?schedule=${encodeURIComponent(m.source)}`}>Open schedule</ButtonLink>
           : <Button size="sm" variant="link" disabled={!person || !!busy} onClick={() => move(m)}>Move</Button>}
-      </li>)}</ul> : <Text as="p" small>No single job clears it: raise capacity or split the work.</Text>}
+      </li>)}</List> : <Text as="p" small>No single job clears it: raise capacity or split the work.</Text>}
       <ErrorText>{error}</ErrorText>
     </li>
   );
@@ -116,10 +116,10 @@ function Capacity({ r, person, onChange }: { r: ResourceLoad; person: string | n
   return (
     <>
       <h3>Capacity</h3>
-      {r.capacity_windows.length ? <ul className="plain">{r.capacity_windows.map((w) => <li key={w.id} className="small">
+      {r.capacity_windows.length ? <List plain>{r.capacity_windows.map((w) => <li key={w.id} className="small">
         {when(w.start)} to {when(w.end)}: {num(w.capacity)}{w.reason ? ` (${w.reason})` : ""}{" "}
         {person && <Button size="sm" variant="link" disabled={!!busy} onClick={() => run("Removing", () => api.capacityWindowRemove(w.id, person), onChange)}>Remove</Button>}
-      </li>)}</ul> : <Empty>{`${num(r.capacity)} every day.`}</Empty>}
+      </li>)}</List> : <Empty>{`${num(r.capacity)} every day.`}</Empty>}
       {!person ? <Text as="p" small>Choose who you are to change capacity.</Text>
         : !editing ? <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>Change capacity</Button> : <>
         <Line>

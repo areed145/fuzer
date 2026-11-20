@@ -2,7 +2,7 @@ import { api } from "../../api";
 import { when } from "../../format";
 import type { CaseSafeguards as CaseSafeguardsData } from "../../api/work";
 import { entityHref, useAsync } from "../../lib";
-import { Notice, Text } from "../../ui";
+import { Notice, Text, List } from "../../ui";
 
 /** Safeguards out on this case's system (P3.9b): the bypasses in place on what the case is about, or the rest of its
  * train, and the open change records on it. It leads the evidence, so nobody reads a trend or acts on a trip without
@@ -18,7 +18,7 @@ export function CaseSafeguards({ id, data }: { id: number; data?: CaseSafeguards
       role="region" aria-label="Safeguards and changes">
       {d.bypasses.length > 0 && <>
         <strong>{d.bypasses.length === 1 ? "A safeguard is bypassed" : `${d.bypasses.length} safeguards are bypassed`} on this system</strong>
-        <ul className="plain">{d.bypasses.map((b) => (
+        <List plain>{d.bypasses.map((b) => (
           <li key={b.id}>
             <a href={entityHref(b.id)}>{b.label}</a>: {b.function ?? b.safeguard}
             {b.protects.length > 0 && <> on {b.protects.map((p, i) => <span key={p}>{i ? ", " : ""}<a href={entityHref(p)}>{b.protects_labels[i]}</a></span>)}</>}
@@ -26,16 +26,16 @@ export function CaseSafeguards({ id, data }: { id: number; data?: CaseSafeguards
             {b.moc ? <> under {b.moc}</> : <>, no change record</>}
             {b.reason && <Text as="div" small>{b.reason}{b.authorised_by ? ` (authorised by ${b.authorised_by})` : ""}</Text>}
           </li>))}
-        </ul>
+        </List>
       </>}
       {d.changes.length > 0 && <>
         <strong>{d.changes.length === 1 ? "An open change" : `${d.changes.length} open changes`} on this system</strong>
-        <ul className="plain">{d.changes.map((c) => (
+        <List plain>{d.changes.map((c) => (
           <li key={c.id}>
             <a href={entityHref(c.id)}>{c.label}</a>{c.change_type ? ` (${c.change_type}, ${c.state ?? "open"})` : ""}: {c.title ?? "Change"}
             {c.closes && <Text small> · closes {when(c.closes)}</Text>}
           </li>))}
-        </ul>
+        </List>
       </>}
     </Notice>
   );

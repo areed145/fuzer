@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { when } from "../format";
 import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
-import { Button, Card, Disclosure, Field, Input, Select, ErrorText, Line, Text } from "../ui";
+import { Button, Card, Disclosure, Field, Input, Select, ErrorText, Line, Text, Notice } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
@@ -41,8 +41,8 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload }:
           ? <Text as="p" small>{record.held ? "The fix held" : "The fix did not hold"}, said <Actor who={record.held_by ?? ""} />
             {record.held_note && <Text muted>: {record.held_note}</Text>}</Text>
           : record.recheck_at && <Text as="p" small muted>Re-check {when(record.recheck_at)}: did the fix hold?</Text>}
-        {(form.data.repeats ?? []).length > 0 && <p className="small notice">Came back:{" "}
-          {(form.data.repeats ?? []).map((r, i) => <span key={r.again}>{i > 0 && ", "}<a href={caseHref(r.again)}>case {r.again}</a></span>)}</p>}
+        {(form.data.repeats ?? []).length > 0 && <Notice>Came back:{" "}
+          {(form.data.repeats ?? []).map((r, i) => <span key={r.again}>{i > 0 && ", "}<a href={caseHref(r.again)}>case {r.again}</a></span>)}</Notice>}
       </Card>
     );
   }

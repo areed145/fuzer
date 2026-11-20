@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { when } from "../../format";
-import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure, Text } from "../../ui";
+import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure, Text, Notice } from "../../ui";
 import { api, type RelatedUpset, type UpsetView } from "../../api";
 import { Status, useAsync, useAction } from "../../lib";
 import { PlotlyChart } from "../../analytics/PlotlyChart";
@@ -108,7 +108,7 @@ function Related({ v, upsetId, itemId, person, canMerge, onMerged }: {
         })}
       </ul>
       <ActionStatus busy={a.busy} error={a.error}>
-        {done && <p className="notice small">{done.text} {done.moved && <a href={caseHref(done.moved)}>Open that case</a>}</p>}
+        {done && <Notice>{done.text} {done.moved && <a href={caseHref(done.moved)}>Open that case</a>}</Notice>}
       </ActionStatus>
     </section>
   );

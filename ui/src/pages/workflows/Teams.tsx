@@ -1,4 +1,4 @@
-import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select, Badge as UIBadge, Disclosure, Line, Text } from "../../ui";
+import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select, Badge as UIBadge, Disclosure, Line, Text, Notice } from "../../ui";
 import { when } from "../../format";
 /** Shared workflow administration in Users and contextual read-only team workload in Work. */
 import { useState } from "react";
@@ -43,8 +43,8 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
         {configure && <> Manage roles, assignments and coverage in <a href={href("/users", { view: "workflow", role: focus ?? undefined })}>Users</a>.</>}
         {" "}<a href={href("/exceptions", { list: "progress" })}>Open work cases</a></p>}
       {uncovered.length > 0 && (
-        <p className="notice small">No one available for {uncovered.map((r) => <strong key={r.name}>{words(r.name)} </strong>)}: their steps
-          will wait. {administration ? "Assign an available person below." : "Ask a configuration administrator to update coverage in Users."}</p>
+        <Notice>No one available for {uncovered.map((r) => <strong key={r.name}>{words(r.name)} </strong>)}: their steps
+          will wait. {administration ? "Assign an available person below." : "Ask a configuration administrator to update coverage in Users."}</Notice>
       )}
       {administration && <nav className="row" aria-label="Workflow administration sections">
         {[["workflow-roles", "Roles & routing"], ["workflow-people", "People"], ["workflow-agents", "Agents"]].map(([id, label]) =>

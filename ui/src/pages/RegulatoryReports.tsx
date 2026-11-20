@@ -6,7 +6,7 @@ import { quantity, when } from "../format";
 import { api, type RegulatoryListing, type RegulatoryReport, type ReportBasis, type ReportFigure, type ReportRow } from "../api";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
-import { Badge, Button, Card, ConfirmAction, Input, Table, ErrorText, Line, Text } from "../ui";
+import { Badge, Button, Card, ConfirmAction, Input, Table, ErrorText, Line, Text, Notice } from "../ui";
 import "../styles/reports.css";
 import { person as personName } from "../wording";
 
@@ -146,10 +146,10 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
               Drafted by {d.drafted_by} {when(d.created_at)}. Open a figure to see the records it is made of.
             </Text>
             {d.marked.length > 0 ? (
-              <div className="notice warn small">
+              <Notice tone="warn">
                 <strong>{d.marked.length} figure{d.marked.length > 1 ? "s" : ""} on estimated or missing data</strong>
                 <ul>{d.marked.map((m) => <li key={m.key}>{m.label}: {m.flags.join("; ") || m.basis}</li>)}</ul>
-              </div>
+              </Notice>
             ) : <Text as="p" small>Every figure rests on measured data.</Text>}
             <div className="actions">
               <Button disabled={!person || !!a.busy}

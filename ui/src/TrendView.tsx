@@ -12,7 +12,7 @@ import { caseHref } from "./pages/workflows/shared";
 import { useTheme } from "./theme";
 import { buildFigure, fromQuery, LANE_SHORT, names, OTHER, reading, toQuery, valueAt, type Palette, type TimelineEvent,
   type TrendTrace } from "./trendFigure";
-import { Badge, Button, Card, Disclosure, Input, Table, ErrorText, Line, Text } from "./ui";
+import { Badge, Button, Card, Disclosure, Input, Table, ErrorText, Line, Text, List } from "./ui";
 
 const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
 const local = (iso: string) => iso.slice(0, 16);
@@ -218,7 +218,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
             <span className="spacer" />
             <Button size="sm" variant="link" onClick={() => setChosen(null)}>Close</Button>
           </Line>
-          <ul className="plain">
+          <List plain>
             {selected.map((e, i) => {
               const h = recordHref(e);
               return (
@@ -230,7 +230,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
                 </li>
               );
             })}
-          </ul>
+          </List>
         </Card>
       )}
       {pins.length > 0 && shown && !shown.error && (

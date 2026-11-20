@@ -10,7 +10,7 @@ import { readableCitations } from "../entityRefs";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { AgentIdle } from "./workflows/shared";
-import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Line, Text, type Tone } from "../ui";
+import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Line, Text, type Tone, List } from "../ui";
 import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
 const STATUS_TONE: Record<string, Tone> = { published: "ok", "sent back": "warn", drafting: "warn", "needs a fix": "warn" };
@@ -97,11 +97,11 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
             <UICard  as="section">
               <h2>Checks</h2>
               {d.checks.ok ? <Text as="p" small>Every line cites its records and every number is in them.</Text> : (
-                <ul className="small">
+                <List small>
                   {d.checks.uncited_lines.map((l) => <li key={l}>No citation: {l}</li>)}
                   {d.checks.unknown_citations.map((c) => <li key={c}>Cites a record not in the day's facts: {c}</li>)}
                   {d.checks.unknown_numbers.map((n) => <li key={n}>A number not in the records: {n}</li>)}
-                </ul>
+                </List>
               )}
               {d.production_day && (
                 <Text as="p" small>The day's production figures: <a href={entityHref(d.production_day)}>EC DAY001 record</a>.</Text>

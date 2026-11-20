@@ -5,7 +5,7 @@
  * S-curve shows progress against the baseline and the slip (#360). `#/turnaround` redirects to `#/plan?revision=…`. */
 import { api, type PlanItem, type TurnaroundScope } from "../api";
 import { whenDay, count } from "../format";
-import { Badge, Button, Card, Empty, ErrorText, Line, Text } from "../ui";
+import { Badge, Button, Card, Empty, ErrorText, Line, Text, List } from "../ui";
 import { entityHref, href, useAction } from "../lib";
 import { LiveFigure } from "../analytics/LiveFigure";
 
@@ -16,10 +16,10 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
 }) {
   const { busy, error, run } = useAction();
   const bringIn = (i: PlanItem) => person && run("Bringing it in", () => api.turnaroundBringIn(i.id, person, t.revision), onChange);
-  const items = (list: PlanItem[], why: (i: PlanItem) => string) => <ul className="plain">{list.map((i) => <li key={i.id}>
+  const items = (list: PlanItem[], why: (i: PlanItem) => string) => <List plain>{list.map((i) => <li key={i.id}>
     <strong>{i.title}</strong> <Text small muted>{i.kind.replace(/_/g, " ")} · {day(i.start_at)} · {why(i)}</Text>{" "}
     {person && t.window && <Button size="sm" disabled={!!busy} aria-label={`Bring into ${t.revision}`} onClick={() => bringIn(i)}>Bring in</Button>}
-  </li>)}</ul>;
+  </li>)}</List>;
   const unitDown = t.shutdown_outside.length + t.shutdown_plans_not_in_scope.length;
   return (
     <aside className="plan-panel" aria-labelledby="turnaround-heading">
@@ -38,27 +38,27 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
         {t.schedule && <Card title="Progress against the baseline">
           <LiveFigure kind="turnaround-progress" params={{ revision: t.revision }} /></Card>}
         {t.scoped_work.length > 0 && <Card title="In scope">
-          <ul className="plain">{t.scoped_work.map((w) => <li key={w.id}>
+          <List plain>{t.scoped_work.map((w) => <li key={w.id}>
             <a href={entityHref(w.id)}>{w.order ?? w.id}</a> {w.text}{" "}
             <Text small muted>{w.tag_id ? <a href={entityHref(w.tag_id)}>{w.tag ?? w.tag_id}</a> : null}
               {w.tag_id ? " · " : ""}{day(w.planned_start)}{w.status ? ` · ${w.status}` : ""}</Text>
-          </li>)}</ul>
+          </li>)}</List>
         </Card>}
         {t.shutdown_outside.length > 0 && <Card title="Needs the unit down, planned outside it">
           {items(t.shutdown_outside, () => "only with the unit down")}</Card>}
         {t.ride_along.length > 0 && <Card title="Could ride along">
           {items(t.ride_along, (i) => i.area_label ? `same area (${i.area_label}), close in time` : "close in time")}</Card>}
         {t.shutdown_plans_not_in_scope.length > 0 && <Card title="Shutdown-only maintenance plans not in scope">
-          <ul className="plain">{t.shutdown_plans_not_in_scope.map((p) => <li key={p.id}>
+          <List plain>{t.shutdown_plans_not_in_scope.map((p) => <li key={p.id}>
             <a href={entityHref(p.id)}>{p.task ?? p.plan ?? p.id}</a> <Text small muted>{p.tag ?? ""} · due {day(p.next_due)}</Text>
-          </li>)}</ul></Card>}
+          </li>)}</List></Card>}
         {t.bad_actors_not_in_scope.length > 0 && <Card title="Worst bad actors not in scope">
-          <ul className="plain">{t.bad_actors_not_in_scope.map((a) => <li key={a.id}>
+          <List plain>{t.bad_actors_not_in_scope.map((a) => <li key={a.id}>
             <a href={entityHref(a.id)}>{a.tag ?? a.id}</a> <Text small muted>{a.failures} failures
-              {a.lost_oil_bbl ? ` · ${count(Math.round(a.lost_oil_bbl))} bbl lost` : ""}</Text></li>)}</ul></Card>}
+              {a.lost_oil_bbl ? ` · ${count(Math.round(a.lost_oil_bbl))} bbl lost` : ""}</Text></li>)}</List></Card>}
         {t.spares_out_of_stock.length > 0 && <Card title="Spares out of stock">
-          <ul className="plain">{t.spares_out_of_stock.map((p, n) => <li key={`${p.id}-${n}`}>
-            <a href={entityHref(p.id)}>{p.material ?? p.id}</a> <Text small muted>for {p.for} · {p.description}</Text></li>)}</ul></Card>}
+          <List plain>{t.spares_out_of_stock.map((p, n) => <li key={`${p.id}-${n}`}>
+            <a href={entityHref(p.id)}>{p.material ?? p.id}</a> <Text small muted>for {p.for} · {p.description}</Text></li>)}</List></Card>}
       </>}
     </aside>
   );
