@@ -3,7 +3,7 @@
  * that read zero meanwhile. A term the report doesn't carry is named, never taken as zero. Evidence only, not an
  * emissions inventory. */
 import { api } from "../api";
-import { Badge, Card, Table } from "../ui";
+import { Badge, Card, Table, Text } from "../ui";
 import { Status, useAsync } from "../lib";
 
 const SAY = { closes: "closes", closes_with_episodes: "closes, with open stretches", open: "doesn't close",
@@ -31,7 +31,7 @@ export function GasBalance() {
           <thead><tr><th>Open stretch</th><th>Gap</th><th>Reading zero</th></tr></thead>
           <tbody>{d.episodes.map((e) => (
             <tr key={e.start} data-start={e.start}>
-              <td>{e.start} to {e.end} <span className="muted">({e.days} days)</span></td>
+              <td>{e.start} to {e.end} <Text muted>({e.days} days)</Text></td>
               <td data-label="Gap">{e.median_gap_pct}% ({e.direction === "unaccounted" ? "gas unaccounted for" : "more out than in"})</td>
               <td data-label="Reading zero">{e.terms_reading_zero.length ? e.terms_reading_zero.join(", ") : "none"}</td>
             </tr>
@@ -49,7 +49,7 @@ export function GasBalance() {
             </tr>
           ))}</tbody>
         </Table>
-        <div className="small muted">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </>}
     </Card>
   );

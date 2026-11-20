@@ -3,7 +3,7 @@
  * works it. Measures and work for the alarm owner against ISA-18.2 and EEMUA 191: there is nothing here to
  * acknowledge, and no live alarm list. */
 import { api } from "../api";
-import { Badge, Card, Empty, Table } from "../ui";
+import { Badge, Card, Empty, Table, Text } from "../ui";
 import { Status, href, useAsync } from "../lib";
 
 const day = (s: string) => s.replace("T", " ");
@@ -30,7 +30,7 @@ export function AlarmPerformance() {
                 <td>{day(f.start)} to {day(f.end).slice(11)}</td>
                 <td data-label="Alarms">{f.alarms}, {f.peak_10_min} in 10 minutes</td>
                 <td data-label="Top contributors" className="small">{f.top.map((t) => `${t.point} (${t.alarms})`).join(", ")}</td>
-                <td data-label="Case">{f.case ? <a href={href(`/cases/${f.case}`)}>#{f.case}</a> : <span className="muted">none yet</span>}</td>
+                <td data-label="Case">{f.case ? <a href={href(`/cases/${f.case}`)}>#{f.case}</a> : <Text muted>none yet</Text>}</td>
               </tr>
             ))}</tbody>
           </Table>
@@ -47,12 +47,12 @@ export function AlarmPerformance() {
                   {b.kinds.length > 1 && "; "}
                   {b.kinds.includes("repeating") && <>{b.alarms} alarms in the window</>}
                 </td>
-                <td data-label="Case">{b.case ? <a href={href(`/cases/${b.case}`)}>#{b.case}</a> : <span className="muted">none yet</span>}</td>
+                <td data-label="Case">{b.case ? <a href={href(`/cases/${b.case}`)}>#{b.case}</a> : <Text muted>none yet</Text>}</td>
               </tr>
             ))}</tbody>
           </Table>
         ) : <Empty>No standing or repeating alarms in the window.</Empty>}
-        <div className="small muted">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </>}
     </Card>
   );

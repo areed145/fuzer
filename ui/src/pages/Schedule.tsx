@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { when, whenDay } from "../format";
 import { api, type ScheduleAnalysis, type ScheduleLinkRef, type ScheduleRow } from "../api";
-import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs, ErrorText } from "../ui";
+import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Tabs, ErrorText, Line, Text } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { acronyms } from "../wording";
 import { type BoardChange, type BoardRows, ScheduleBoard } from "./ScheduleBoard";
@@ -119,26 +119,26 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
   const act = (label: string, fn: () => Promise<unknown>) => person && run(label, fn, onChange);
   return (
     <div className="sched-editor">
-      <p className="small">{when(a.start)} to {when(a.finish)}{a.critical ? " · critical" : ` · ${hours(a.float_hours)} h float`}</p>
-      <p className="small">
+      <Text as="p" small>{when(a.start)} to {when(a.finish)}{a.critical ? " · critical" : ` · ${hours(a.float_hours)} h float`}</Text>
+      <Text as="p" small>
         {a.work_order && <>Order {a.work_order} · </>}{a.assets.filter((x) => x !== a.work_order).join(", ") || "No asset"}
         {" · "}Early {when(a.early_start)} to {when(a.early_finish)}, late {when(a.late_start)} to {when(a.late_finish)}
-      </p>
-      {a.held_back_by && <p className="small">Waits {hours(a.held_back_hours)} h for {a.held_back_by.resource}
-        {a.held_back_by.activities.length ? `, in use by ${a.held_back_by.activities.join(", ")}` : ""}.</p>}
-      {!person ? <p className="small">Choose who you are to change the schedule.</p> : <>
-        <div className="row">
+      </Text>
+      {a.held_back_by && <Text as="p" small>Waits {hours(a.held_back_hours)} h for {a.held_back_by.resource}
+        {a.held_back_by.activities.length ? `, in use by ${a.held_back_by.activities.join(", ")}` : ""}.</Text>}
+      {!person ? <Text as="p" small>Choose who you are to change the schedule.</Text> : <>
+        <Line>
           <Field label="Activity" width="lg"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <Field label="Hours" width="xs"><Input type="number" min="0" step="any" value={dur} onChange={(e) => setDur(e.target.value)} /></Field>
           <Field label="Done (%)" width="xs"><Input type="number" min="0" max="100" value={done} onChange={(e) => setDone(e.target.value)} /></Field>
           <Button disabled={!!busy || !name.trim() || dur === ""} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, {
             name: name.trim(), duration_hours: Number(dur), percent_complete: Number(done || 0) }))}>Save</Button>
-        </div>
-        <div className="row">
+        </Line>
+        <Line>
           <Field label="Start no earlier than" width="md"><Input type="datetime-local" value={nb} onChange={(e) => setNb(e.target.value)} /></Field>
           <Button disabled={!!busy || !nb} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { not_before: new Date(nb).toISOString() }))}>Hold</Button>
           {a.not_before && <Button variant="ghost" disabled={!!busy} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { clear_not_before: true }))}>Release</Button>}
-        </div>
+        </Line>
         <h3>Predecessors</h3>
         {a.predecessors.length ? <ul className="plain">{a.predecessors.map((p) => <li key={p.code}>
           {p.code} {TYPE_WORD[p.type]}{p.lag_hours ? `, lag ${hours(p.lag_hours)} h` : ""}{" "}
@@ -146,7 +146,7 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
             const id = byCode.get(p.code);
             if (id != null) act("Removing the link", () => api.scheduleUnlink(person, id, a.id));
           }}>Remove</Button></li>)}</ul> : <Empty>Starts when the schedule starts.</Empty>}
-        <div className="row">
+        <Line>
           <Field label="After" width="sm"><Select value={pred} onChange={(e) => setPred(e.target.value)}>
             <option value="">Choose</option>
             {s.activities.filter((x) => x.id !== a.id && !a.predecessors.some((p) => p.code === x.code))
@@ -157,27 +157,27 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
           </Select></Field>
           <Field label="Lag (h)" width="xs"><Input type="number" step="any" value={lag} onChange={(e) => setLag(e.target.value)} /></Field>
           <Button disabled={!!busy || !pred} onClick={() => act("Linking", () => api.scheduleLink(person, Number(pred), a.id, type, Number(lag || 0)))}>Add link</Button>
-        </div>
+        </Line>
         <h3>Needs</h3>
         {Object.keys(a.needs).length ? <ul className="plain">{Object.entries(a.needs).map(([r, q]) => <li key={r}>
           {s.resources.find((x) => x.code === r)?.name ?? r}: {hours(q)}{" "}
           <Button variant="link" size="sm" disabled={!!busy} onClick={() => act("Removing the need", () => api.scheduleDemand(a.id, person, r, null))}>Remove</Button>
         </li>)}</ul> : <Empty>Needs no shared resource.</Empty>}
-        <div className="row">
+        <Line>
           <Field label="Resource" width="sm"><Select value={res} onChange={(e) => setRes(e.target.value)}>
             <option value="">Choose</option>
             {s.resources.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
           </Select></Field>
           <Field label="Quantity" width="xs"><Input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} /></Field>
           <Button disabled={!!busy || !res || !Number(qty)} onClick={() => act("Saving the need", () => api.scheduleDemand(a.id, person, res, Number(qty)))}>Set need</Button>
-        </div>
-        <div className="row">
+        </Line>
+        <Line>
           {removing ? <>
-            <span className="small">Removes {a.code} and its links from the schedule.</span>
+            <Text small>Removes {a.code} and its links from the schedule.</Text>
             <Button variant="danger" disabled={!!busy} onClick={() => act("Removing", () => api.scheduleRemove(a.id, person))}>Confirm remove</Button>
             <Button variant="ghost" onClick={() => setRemoving(false)}>Cancel</Button>
           </> : <Button variant="ghost" onClick={() => setRemoving(true)}>Remove activity</Button>}
-        </div>
+        </Line>
       </>}
       {busy && <p role="status">{busy}…</p>}
       <ErrorText>{error}</ErrorText>
@@ -195,13 +195,13 @@ function AddActivity({ project, person, onChange, onClose }: { project: string; 
     after: after.split(",").map((x) => x.trim()).filter(Boolean) }), () => { setCode(""); setName(""); setDur(""); setAfter(""); onChange(); });
   return (
     <Card title="Add activity" actions={<Button size="sm" variant="ghost" onClick={onClose}>Close</Button>}>
-      <div className="row">
+      <Line>
         <Field label="Code" width="xs"><Input value={code} onChange={(e) => setCode(e.target.value)} /></Field>
         <Field label="Activity" width="lg"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Hours" width="xs"><Input type="number" min="0" step="any" value={dur} onChange={(e) => setDur(e.target.value)} /></Field>
         <Field label="After (codes)" width="sm"><Input value={after} placeholder="A0100, A0110 SS+4" onChange={(e) => setAfter(e.target.value)} /></Field>
         <Button disabled={!!busy || !code.trim() || !name.trim() || dur === ""} onClick={add}>Add</Button>
-      </div>
+      </Line>
       <ErrorText>{error}</ErrorText>
     </Card>
   );

@@ -2,7 +2,7 @@
  * the open backlog at each month's end, and the days from a notification to the order raised for it. Orders with no
  * notification are counted and left out of the lag, never read as zero. */
 import { api } from "../api";
-import { Badge, Card, Table } from "../ui";
+import { Badge, Card, Table, Text } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
 const TONE = { growing: "danger", steady: "muted", shrinking: "ok" } as const;
@@ -15,11 +15,11 @@ export function BacklogBurn() {
     <Card className="backlog-burn" title="Is the backlog under control?">
       <Status of={data} />
       {d && <>
-        <div className="small">
+        <Text as="div" small>
           {d.since} to {d.until}: {d.summary.created} orders created, {d.summary.closed} closed; open went from
           {" "}{d.summary.open_at_start} to {d.summary.open_at_end}{" "}
           <Badge tone={TONE[d.summary.trend]} className="burn-trend">{d.summary.trend}</Badge>
-        </div>
+        </Text>
         <Table density="compact" className="burn-table phone-rows">
           <thead><tr><th>Month</th><th>Created</th><th>Closed</th><th>Open at month end</th></tr></thead>
           <tbody>{d.months.map((m) => (
@@ -27,7 +27,7 @@ export function BacklogBurn() {
               <td>{m.month}</td>
               <td data-label="Created">{m.created}</td>
               <td data-label="Closed">{m.closed}{m.closed_without_finish > 0 &&
-                <div className="small muted">{m.closed_without_finish} closed with no finish date</div>}</td>
+                <Text as="div" small muted>{m.closed_without_finish} closed with no finish date</Text>}</td>
               <td data-label="Open at month end">{m.open_at_end}</td>
             </tr>
           ))}</tbody>
@@ -45,7 +45,7 @@ export function BacklogBurn() {
           <li key={l.order}><a href={entityHref(l.order)}>{l.label}</a>: {l.lag_days} days, notified {l.notified}, ordered {l.ordered}
             {l.priority && `, priority ${l.priority}`}</li>
         ))}</ul>}
-        <div className="small muted">{d.source}. {d.note}</div>
+        <Text as="div" small muted>{d.source}. {d.note}</Text>
       </>}
     </Card>
   );

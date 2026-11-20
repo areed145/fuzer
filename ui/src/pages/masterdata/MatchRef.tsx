@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { errorMessage } from "../../lib";
 import { api, type SearchHit } from "../../api";
-import { Button, Input, Empty, ErrorText } from "../../ui";
+import { Button, Input, Empty, ErrorText, Line, Text, Checkbox } from "../../ui";
 
 export function MatchRef({ value, onPick, busy, remember: rememberDefault = true, label = "Match" }: {
   value: string; busy?: boolean; remember?: boolean; label?: string;
@@ -24,26 +24,25 @@ export function MatchRef({ value, onPick, busy, remember: rememberDefault = true
     title={`Pick the asset ${value} meant`}>{label}…</Button>;
   return (
     <div className="match-ref small">
-      <div className="row">
+      <Line>
         <Input aria-label="Search the register" value={q} onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") void search(); }} style={{ width: "12rem" }} />
         <Button size="sm" onClick={() => void search()}>Search</Button>
         <Button size="sm" variant="link" onClick={() => setOpen(false)}>Cancel</Button>
-      </div>
+      </Line>
       {hits && hits.length === 0 && <Empty>Nothing in the register matches “{q}”. Try part of a tag or name.</Empty>}
       {hits && hits.length > 0 && (
         <ul className="plain">{hits.map((h) => (
           <li key={h.fuzer_id}><label>
             <input type="radio" name={`pick-${value}`} checked={picked === h.fuzer_id} onChange={() => setPicked(h.fuzer_id)} />{" "}
-            {h.label ?? h.fuzer_id} <span className="muted">{h.kind}{h.description ? ` · ${h.description}` : ""}</span>
+            {h.label ?? h.fuzer_id} <Text muted>{h.kind}{h.description ? ` · ${h.description}` : ""}</Text>
           </label></li>
         ))}</ul>
       )}
-      <div className="row">
-        <label><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />{" "}
-          remember “{bare}” as a name for it</label>
+      <Line>
+        <Checkbox checked={remember} onChange={setRemember}>remember “{bare}” as a name for it</Checkbox>
         <Button size="sm" variant="primary" disabled={!picked || busy} onClick={() => onPick(picked, remember)}>Use it</Button>
-      </div>
+      </Line>
       <ErrorText>{error}</ErrorText>
     </div>
   );

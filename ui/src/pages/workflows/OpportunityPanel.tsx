@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Card as UICard, Disclosure, Input, Table, ErrorText } from "../../ui";
+import { Button, Card as UICard, Disclosure, Input, Table, ErrorText, Line, Text } from "../../ui";
 import { api } from "../../api";
 import { Status, entityHref, useAction, useAsync } from "../../lib";
 import { usePermission } from "../../Auth";
@@ -31,15 +31,15 @@ export function OpportunityPanel({ opportunityKey, person, readOnly, onDecided }
       {o && <>
         {w ? <p>Worth <strong>{money(w.usd, w.currency || "USD")}</strong>: {q(w.gain, w.gain_unit)} more oil
           for {q(w.days)} days ({quantity(w.oil_bbl, "bbl")}) at {money(w.price_bbl, w.currency || "USD")} a barrel.</p>
-          : <p className="small">Not valued: the scan found no rate to gain.</p>}
-        {typeof o.detail.basis === "string" && <p className="small">How: {o.detail.basis}.</p>}
-        <p className="small">
+          : <Text as="p" small>Not valued: the scan found no rate to gain.</Text>}
+        {typeof o.detail.basis === "string" && <Text as="p" small>How: {o.detail.basis}.</Text>}
+        <Text as="p" small>
           {tests > 0 && <>Rests on {count(tests)} record{tests === 1 ? "" : "s"}
             {o.evidence.first && <>, tested {o.evidence.first}{o.evidence.last !== o.evidence.first ? ` to ${o.evidence.last}` : ""}</>}
             {ageDays != null && ageDays > 90 && <strong>: the newest is {Math.round(ageDays / 30)} months old</strong>}. </>}
           {typeof o.detail.confidence === "string" && <>Confidence {o.detail.confidence}. </>}
           {typeof o.detail.confirm_by === "string" && <>Confirm by {o.detail.confirm_by}.</>}
-        </p>
+        </Text>
         {o.moves.length > 0 && <Disclosure open className="card" label={<>{o.moves.length} move{o.moves.length === 1 ? "" : "s"}</>}>
           <Table density="compact">
             <thead><tr><th>From</th><th>To</th><th>Gas moved</th><th>Oil gained</th></tr></thead>
@@ -54,13 +54,13 @@ export function OpportunityPanel({ opportunityKey, person, readOnly, onDecided }
         {tests > 0 && <Disclosure className="card" label={<>The records it rests on</>}>
           <ul className="small">{o.evidence.records.map((r) => <li key={r}>{r.split(":").slice(1).join(" ").replace(/_/g, " ")}</li>)}</ul>
         </Disclosure>}
-        {o.status !== "open" ? <p className="small muted">{o.status} by {o.decided_by ?? "?"}{o.reason ? `: ${o.reason}` : ""}.</p>
-          : operate && !readOnly && <div className="row wrap">
+        {o.status !== "open" ? <Text as="p" small muted>{o.status} by {o.decided_by ?? "?"}{o.reason ? `: ${o.reason}` : ""}.</Text>
+          : operate && !readOnly && <Line wrap>
             <Button variant="primary" disabled={!!a.busy} onClick={() => decide("accepted")}>Accept</Button>
             <Button disabled={!!a.busy} onClick={() => decide("project")}>Make it a project</Button>
             <Input aria-label="Why reject it" placeholder="why reject it" value={why} onChange={(e) => setWhy(e.target.value)} />
             <Button disabled={!!a.busy || !why.trim()} onClick={() => decide("rejected")}>Reject</Button>
-          </div>}
+          </Line>}
         <ErrorText>{a.error}</ErrorText>
       </>}
     </UICard>

@@ -3,7 +3,7 @@
  * ignoring downtime and the age of the tests used. Off one, the tests or the allocation are suspect; which stays the
  * engineer's question. */
 import { api } from "../api";
-import { Badge, Card, Table } from "../ui";
+import { Badge, Card, Table, Text } from "../ui";
 import { Status, useAsync } from "../lib";
 
 const SAY = { low: "low", high: "high", drifting: "drifting" } as const;
@@ -32,12 +32,12 @@ export function AllocationFactor() {
               <td>{m.month}</td>
               <td data-label="Factor">{m.factor ?? "no test"}</td>
               <td data-label="Ignoring downtime">{m.factor_ignoring_downtime ?? "no test"}</td>
-              <td data-label="Days used">{m.days}{m.days_left_out > 0 && <span className="muted"> ({m.days_left_out} left out)</span>}</td>
+              <td data-label="Days used">{m.days}{m.days_left_out > 0 && <Text muted> ({m.days_left_out} left out)</Text>}</td>
               <td data-label="Median test age">{m.median_test_age_days != null ? `${m.median_test_age_days} days` : "none"}</td>
             </tr>
           ))}</tbody>
         </Table>
-        <div className="small muted">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </>}
     </Card>
   );

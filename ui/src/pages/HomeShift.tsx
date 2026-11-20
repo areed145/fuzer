@@ -4,7 +4,7 @@
 import { useEffect } from "react";
 import { when } from "../format";
 import { api, type WorkHome, type WorkRow } from "../api";
-import { Badge, Button, Card, Empty } from "../ui";
+import { Badge, Button, Card, Empty, Line, Text } from "../ui";
 import { Status, href, useAsync } from "../lib";
 import { Actor, Due, holder, usePerson } from "../work";
 import { useAuth } from "../Auth";
@@ -74,11 +74,11 @@ export function YourShift({ onReady }: { onReady?: () => void } = {}) {
       </ul>}
       {here_.data && (rows.length ? <ol className="home-list home-shift">{rows.slice(0, TOP).map((r) => <ShiftRow key={`${r.project}-${r.task_id ?? "i"}-${r.item_id}`}
         r={r} here={here} multi={projects.size > 1} />)}</ol> : <Empty className="small">Nothing waiting for you.</Empty>)}
-      {rows.length > TOP && <p className="small"><a href={href("/inbox")}>{rows.length - TOP} more on My work</a></p>}
-      <h3>Since you last looked <span className="muted small">{since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}</span></h3>
+      {rows.length > TOP && <Text as="p" small><a href={href("/inbox")}>{rows.length - TOP} more on My work</a></Text>}
+      <h3>Since you last looked <Text small muted>{since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}</Text></h3>
       {changes.length ? <Changes rows={changes} /> : <Empty className="small">Nothing new on your work.</Empty>}
       {(watched.length > 0 || (since.data?.watching?.length ?? 0) > 0) && <>
-        <h3>Watching <span className="muted small">not assigned to you</span></h3>
+        <h3>Watching <Text small muted>not assigned to you</Text></h3>
         {watched.length ? <Changes rows={watched} /> : <Empty className="small">Nothing new on what you watch.</Empty>}
       </>}
       {coming.length > 0 && <>
@@ -92,24 +92,24 @@ export function YourShift({ onReady }: { onReady?: () => void } = {}) {
 function Changes({ rows }: { rows: WorkHome["changes"] }) {
   return <ul className="plain small home-changes">{rows.slice(0, 8).map((c) => <li key={c.id}>
     <a href={caseHref(c.item_id)}>{c.title}</a> · {SAID[c.kind] ?? c.kind.replace(/_/g, " ")} by <Actor who={c.actor} />
-    {typeof c.data.text === "string" && c.data.text ? <span className="muted">: {c.data.text.slice(0, 100)}</span> : null}
-    <span className="muted"> · {when(c.at)}</span></li>)}</ul>;
+    {typeof c.data.text === "string" && c.data.text ? <Text muted>: {c.data.text.slice(0, 100)}</Text> : null}
+    <Text muted> · {when(c.at)}</Text></li>)}</ul>;
 }
 
 function ShiftRow({ r, here, multi }: { r: Row; here: string; multi: boolean }) {
   const to = r.task_id ? taskHref(r.task_id) : caseHref(r.item_id);
   return (
     <li>
-      <span className="row">
+      <Line as="span">
         {r.project === here
           ? <a href={to} className="work-title">{r.title}</a>
           : <Button variant="link" onClick={() => switchProject(r.project, to)}>{r.title}</Button>}
         {multi && <Badge>{r.project || "this field"}</Badge>}
         <Due at={r.due_at} />
-      </span>
-      <span className="small muted">{/* a step named for the engine ("Work the case") says nothing a row needs */}
+      </Line>
+      <Text small muted>{/* a step named for the engine ("Work the case") says nothing a row needs */}
         {!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}{" "}
-        <StepBadges row={r} /></span>
+        <StepBadges row={r} /></Text>
     </li>
   );
 }

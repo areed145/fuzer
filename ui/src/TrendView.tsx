@@ -12,7 +12,7 @@ import { caseHref } from "./pages/workflows/shared";
 import { useTheme } from "./theme";
 import { buildFigure, fromQuery, LANE_SHORT, names, OTHER, reading, toQuery, valueAt, type Palette, type TimelineEvent,
   type TrendTrace } from "./trendFigure";
-import { Badge, Button, Card, Disclosure, Input, Table, ErrorText } from "./ui";
+import { Badge, Button, Card, Disclosure, Input, Table, ErrorText, Line, Text } from "./ui";
 
 const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
 const local = (iso: string) => iso.slice(0, 16);
@@ -127,7 +127,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
                 {/* A group that is off says how many points it holds, so it doesn't read as empty (#1076). */}
                 <Button className="chip trend-view-group" aria-pressed={all} onClick={() => toggle(ids, !all)}
                         title={any ? undefined : `Show ${ids.length} point${ids.length === 1 ? "" : "s"}`}>
-                  {g.label}{!any && <span className="muted"> · {ids.length} hidden</span>}
+                  {g.label}{!any && <Text muted> · {ids.length} hidden</Text>}
                 </Button>
                 {/* a group that is off is one chip; its traces show once it is on */}
                 {any && g.traces.map((x, i) => (
@@ -145,13 +145,13 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
               {lanes.map((l) => (
                 <Button key={l.key} className="chip lane" aria-pressed={on.has(`lane:${l.key}`)} title={l.label}
                         onClick={() => toggle([`lane:${l.key}`], !on.has(`lane:${l.key}`))}>
-                  {LANE_SHORT[l.key] ?? l.label} <span className="muted">{l.events.length}</span>
+                  {LANE_SHORT[l.key] ?? l.label} <Text muted>{l.events.length}</Text>
                 </Button>
               ))}
             </div>
           )}
           {d.missing.length > 0 && (
-            <p className="small">Not on this unit: {d.missing.map((m) => m.role_label.toLowerCase()).join(", ")}.</p>
+            <Text as="p" small>Not on this unit: {d.missing.map((m) => m.role_label.toLowerCase()).join(", ")}.</Text>
           )}
         </div>
       );
@@ -164,13 +164,13 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
       <h2>
         {d?.unit_label ? `${d.unit_label} · ` : ""}{d?.template.title ?? "Trend"}{" "}
         {d && !d.error && (
-          <span className="muted small">
+          <Text small muted>
             {/* Generated values are labelled, as a chip rather than a sentence that read as a fault (#1076). */}
             {d.provider === "synthetic"
               ? <Badge title="Generated values: no PI or ADX historian is connected">Demo data</Badge>
               : `from ${d.provider.toUpperCase()}`}
             {" "}every {shown?.step_minutes ?? d.step_minutes} min{d.upsets.length > 0 && " · shaded: the 12 h leading into each incident"}
-          </span>
+          </Text>
         )}
       </h2>
       <div className="row trend-controls">
@@ -188,7 +188,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         {/* The window opens on the latest incident, else the latest values; once moved, one press returns there.
             A greyed button on the opening window gave no reason (#1076). */}
         {at === undefined
-          ? d && !d.error && <span className="muted small">{d.upsets.length ? "Latest incident" : "Latest values"}</span>
+          ? d && !d.error && <Text small muted>{d.upsets.length ? "Latest incident" : "Latest values"}</Text>
           : <Button variant="link" size="sm" onClick={() => setAt(undefined)}>{d?.upsets.length ? "Back to latest incident" : "Back to latest"}</Button>}
       </div>
       <Status loading={pending} error={v.error ?? d?.error} empty={!!d && !d.error && groups.every((g) => !g.traces.length)}>
@@ -213,18 +213,18 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
       )}
       {selected.length > 0 && (
         <Card as="section" className="trend-view-detail" aria-label="Selected events">
-          <div className="row">
+          <Line>
             <h3>{selected.length === 1 ? (KIND[selected[0].kind] ?? "Event") : `${selected.length} events`}</h3>
             <span className="spacer" />
             <Button size="sm" variant="link" onClick={() => setChosen(null)}>Close</Button>
-          </div>
+          </Line>
           <ul className="plain">
             {selected.map((e, i) => {
               const h = recordHref(e);
               return (
                 <li key={`${e.kind}-${e.id ?? e.item_id}-${i}`}>
                   <b>{minute(e.start)}{e.end && e.end !== e.start ? ` to ${minute(e.end)}` : ""}</b>{" "}
-                  {selected.length > 1 && <span className="muted">{KIND[e.kind] ?? e.kind} · </span>}
+                  {selected.length > 1 && <Text muted>{KIND[e.kind] ?? e.kind} · </Text>}
                   {[e.label, e.text, e.detail, e.status].filter(Boolean).join(" · ")}
                   {h && <> · <a href={h}>{e.kind === "case" ? "Open case" : "Open record"}</a></>}
                 </li>
@@ -235,11 +235,11 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
       )}
       {pins.length > 0 && shown && !shown.error && (
         <Card as="section" className="trend-view-pins" aria-label="Pinned times">
-          <div className="row">
+          <Line>
             <h3>{pins.length === 1 ? `At ${minute(pins[0])}` : `${minute(pins[0])} to ${minute(pins[1])}`}</h3>
             <span className="spacer" />
             <Button size="sm" variant="link" onClick={() => setPins([])}>Unpin</Button>
-          </div>
+          </Line>
           <Table variant="list" density="compact">
             <thead><tr><th>Trace</th><th>A</th>{pins.length > 1 && <><th>B</th><th>Change</th></>}</tr></thead>
             <tbody>

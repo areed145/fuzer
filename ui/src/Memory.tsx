@@ -2,7 +2,7 @@ import { useState } from "react";
 import { whenDay } from "./format";
 import { api, type AssistantFact } from "./api";
 import { entityHref, useAsync } from "./lib";
-import { Button, Input, Card as UICard, Textarea, ErrorText } from "./ui";
+import { Button, Input, Card as UICard, Textarea, ErrorText, Line, Text } from "./ui";
 import { loadPerson } from "./work";
 
 /** Who is editing: the name the Review page remembers. */
@@ -22,7 +22,7 @@ export function MemoryCard({ id }: { id: string }) {
     <UICard  as="section">
       <h2>
         What the assistant remembers{" "}
-        <span className="muted small">learned from answers rated useful, not source records</span>
+        <Text small muted>learned from answers rated useful, not source records</Text>
       </h2>
       <ErrorText>{error}</ErrorText>
       <ul className="plain">
@@ -42,7 +42,7 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
     return (
       <li className="fact">
         <Textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} aria-label="Fact" />
-        <div className="row small">
+        <Line small>
           <label>From <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
           <label>To <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
           <Button variant="primary" onClick={() => {
@@ -52,14 +52,14 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
             setEditing(false);
           }}>Save</Button>
           <Button variant="link" onClick={() => setEditing(false)}>Cancel</Button>
-        </div>
+        </Line>
       </li>
     );
   }
   return (
     <li className={ended ? "fact muted" : "fact"}>
-      <span className="mono small">fact:{f.id}</span> {ended ? <s>{f.text}</s> : f.text}
-      <div className="small muted">
+      <Text small mono>fact:{f.id}</Text> {ended ? <s>{f.text}</s> : f.text}
+      <Text as="div" small muted>
         {period(f) && <span>{period(f)} · </span>}
         {ended && <span>ended{f.ended_at ? ` ${whenDay(f.ended_at)}` : ""} by {f.ended_by}
           {f.invalidated_by ? `, replaced by fact:${f.invalidated_by}` : ""} · </span>}
@@ -73,7 +73,7 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
         {!ended && <Button variant="link" title="No longer true: kept, with today as its end date"
                            onClick={() => act(api.endFact(f.id, person()))}>end</Button>}
         <Button variant="link" title="Wrong from the start" onClick={() => act(api.deleteFact(f.id))}>delete</Button>
-      </div>
+      </Text>
     </li>
   );
 }

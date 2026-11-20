@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { when } from "../../format";
 import { openReviews } from "../../figures";
-import { confirmDialog, ErrorText } from "../../ui";
+import { confirmDialog, ErrorText, Line, Text, Checkbox } from "../../ui";
 import { api } from "../../api";
 import { Badge, Button, Card, Input, PageHeader, Table, Empty } from "../../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../../lib";
@@ -58,7 +58,7 @@ function Unmatched() {
           <tr key={u.ref}>
             <td><code>{u.ref}</code></td>
             <td>{u.open.slice(0, 3).map((e) => <div key={e.id}>{e.item_id ? <a href={caseHref(e.item_id)}>{e.title}</a> : e.title}</div>)}
-              {u.exceptions > 3 && <div className="muted">and {u.exceptions - 3} more</div>}</td>
+              {u.exceptions > 3 && <Text as="div" muted>and {u.exceptions - 3} more</Text>}</td>
             <td>{u.sources.join(", ")}</td>
             <td>{operate && person && <MatchRef value={u.ref} busy={!!a.busy} onPick={(fid, remember) => a.run("match", async () => {
               for (const e of u.open) await api.resolveRef(e.id, person, u.ref, fid, remember && e.id === u.open[0].id);
@@ -109,10 +109,10 @@ function Decisions() {
   const a = useAction();
   return (
     <Card title="Decisions">
-      <div className="row">
+      <Line>
         <Input placeholder="search a value, tag or ref" value={q} onChange={(e) => setQ(e.target.value)} />
-        <label className="small"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> include reversed</label>
-      </div>
+        <Checkbox checked={all} onChange={setAll}>include reversed</Checkbox>
+      </Line>
       <Status of={rows} />
       {rows.data && (
         <Table density="compact">
@@ -121,7 +121,7 @@ function Decisions() {
             <tr key={`${d.kind}:${d.id}`}>
               <td><Badge>{d.kind.replace("_", " ")}</Badge> {d.fuzer_id ? <a href={entityHref(d.fuzer_id)}>{d.what}</a> : d.what}</td>
               <td>{personName(d.by)}</td><td>{when(d.at)}</td><td>{d.reason ?? ""}</td>
-              <td>{d.reversed ? <span className="muted">reversed by {d.reversed_by} {d.reversed_at && when(d.reversed_at)}</span>
+              <td>{d.reversed ? <Text muted>reversed by {d.reversed_by} {d.reversed_at && when(d.reversed_at)}</Text>
                 : operate && person && <Button size="sm" variant="link" disabled={!!a.busy} onClick={async () => {
                   if (!(await confirmDialog(d.kind === "fix" ? `Reverse “${d.what}”? The values go back now.` : `Reverse “${d.what}”? It stops applying on the next rebuild.`))) return;
                   const undo = d.kind === "alias" ? () => api.retireAlias(Number(d.id), person, "reversed from the decision log")

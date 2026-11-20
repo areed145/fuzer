@@ -1,4 +1,4 @@
-import { Button, Input, Select, Table, Badge as UIBadge, Textarea, ErrorText } from "../../ui";
+import { Button, Input, Select, Table, Badge as UIBadge, Textarea, ErrorText, Line, Text } from "../../ui";
 import { promptDialog } from "../../ui";
 /** Editing a mapping (#225): column by column (what each column means, which it links to, the key), or the YAML.
  * The form is written over the mapping on the server, so what it doesn't show is kept. */
@@ -32,12 +32,12 @@ export function MappingEditor({ yaml, dataset, columns, samples, onSave, onChang
         : <Textarea className="yaml mono" rows={Math.min(30, text.split("\n").length + 1)} value={text}
             onChange={(e) => set(e.target.value)} spellCheck={false} />}
       {onSave && (
-        <div className="row">
+        <Line>
           <Input placeholder="what changed and why" value={note} onChange={(e) => setNote(e.target.value)} />
           <Button variant="primary" disabled={!!a.busy || text === yaml} onClick={() => a.run("save", () => onSave(text, note || undefined))}>
             Save as draft</Button>
           {text !== yaml && <Button variant="secondary" onClick={() => set(yaml)}>Undo edits</Button>}
-        </div>
+        </Line>
       )}
       <ErrorText>{a.error}</ErrorText>
     </>
@@ -84,7 +84,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
         <tbody>
           <tr><th>Each record is</th><td>
             <KindSelect model={model.data} value={form.kind} onChange={(kind) => { update({ ...form, kind }); model.reload(); }} />
-            <span className="muted"> record type </span>
+            <Text muted> record type </Text>
             <Input width="sm" value={form.record_type} onChange={(e) => update({ ...form, record_type: e.target.value })} />
           </td></tr>
           <tr><th>Record key</th><td>
@@ -97,7 +97,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
                 </label>
               ))}
             </div>
-            <span className="muted small">the column(s) that identify a row (several: joined by &gt; in column order)</span>
+            <Text small muted>the column(s) that identify a row (several: joined by &gt; in column order)</Text>
           </td></tr>
           {form.kind && (
             <tr><th>Matched on</th><td>
@@ -110,7 +110,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
                 update({ ...form, entity_key: { column: form.entity_key!.column, as: e.target.value || null } })}>
                 {Object.entries(form.choices.key_as).map(([k, v]) => <option key={k} value={k}>read as {v}</option>)}
               </Select>}
-              <span className="muted"> what makes two sources' records the same thing</span>
+              <Text muted> what makes two sources' records the same thing</Text>
             </td></tr>
           )}
         </tbody>
@@ -155,13 +155,13 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
         </Table>
       </div>
       {warnings.length > 0 && (
-        <div className="small">
+        <Text as="div" small>
           <b>Against the ontology</b> <a href={href("/ontology", { tab: "model" })}>(define kinds and link types)</a>
           <ul>{warnings.map((w) => <li key={w}>{w}</li>)}</ul>
-        </div>
+        </Text>
       )}
       {form.kept.length > 0 && (
-        <p className="small">Also in this mapping, kept as it is (edit under YAML): {form.kept.join("; ")}.</p>
+        <Text as="p" small>Also in this mapping, kept as it is (edit under YAML): {form.kept.join("; ")}.</Text>
       )}
       <ErrorText>{error}</ErrorText>
     </>

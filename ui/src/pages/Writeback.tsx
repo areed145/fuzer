@@ -1,4 +1,4 @@
-import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea, ErrorText } from "../ui";
+import { Badge as UIBadge, Button, Card as UICard, Empty, Input, Table, Textarea, ErrorText, Line, Text } from "../ui";
 import { when } from "../format";
 import { useState } from "react";
 import { api, type Writeback, type WritebackDetail } from "../api";
@@ -44,40 +44,40 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
   const payload = hasText && text !== null ? { ...w.payload, text } : undefined;
   return (
     <UICard className="" title={`${w.label} for ${system}${w.record ? ` ${w.record}` : ""}`}>
-      <p className="small">
+      <Text as="p" small>
         <UIBadge className={`badge ${tone(w.state)}`}>{STATE[w.state]}</UIBadge>{" "}
         {w.approvers?.length ? <>Approved by a {w.approvers.join(" or ").replace(/_/g, " ")}</> : null}
         {w.cadence && <>, then sent {w.cadence}</>}.
-        {w.adapter === "export" && <span className="muted"> {system} has no write API here: it goes into an export file for
-          its owner, who confirms once it is applied.</span>}
-      </p>
+        {w.adapter === "export" && <Text muted> {system} has no write API here: it goes into an export file for
+          its owner, who confirms once it is applied.</Text>}
+      </Text>
       <ErrorText>{w.error}</ErrorText>
       {hasText ? (
         <Textarea rows={3} className="lesson-text" aria-label="Change to write" disabled={!decide}
           value={text ?? String(w.payload.text)} onChange={(e) => setText(e.target.value)} />
       ) : <DataView data={w.payload} />}
       {decide && (
-        <div className="row wrap">
+        <Line wrap>
           <Button variant="primary" disabled={!!a.busy || !person} onClick={() => a.run("approve", () =>
             api.approveWriteback(id, person, payload), done)}>{w.state === "failed" ? "Approve it again" : `Approve for ${system}`}</Button>
           <Input placeholder="why not (kept in its history)" value={why} onChange={(e) => setWhy(e.target.value)} />
           <Button variant="secondary" disabled={!!a.busy || !person} onClick={() => a.run("reject", () =>
             api.rejectWriteback(id, person, why || "not sent"), done)}>Don't send</Button>
-        </div>
+        </Line>
       )}
       {owner && (
-        <div className="row wrap">
+        <Line wrap>
           <Button variant="primary" disabled={!!a.busy || !person} onClick={() => a.run("confirm", () =>
             api.confirmWriteback(id, person, why || undefined), done)}>Applied in {system}</Button>
           <Input placeholder="what went wrong, or a note" value={why} onChange={(e) => setWhy(e.target.value)} />
           <Button variant="secondary" disabled={!!a.busy || !person || !why} onClick={() => a.run("fail", () =>
             api.failWriteback(id, person, why), done)}>Couldn't apply it</Button>
-        </div>
+        </Line>
       )}
       <ErrorText>{a.error}</ErrorText>
       <ul className="plain small">{w.history.map((h) => (
         <li key={h.id}>{STATE[h.state as Writeback["state"]] ?? h.state} · <Actor who={h.by} /> · {when(h.at)}
-          {h.note && <span className="muted"> · {h.note}</span>}</li>
+          {h.note && <Text muted> · {h.note}</Text>}</li>
       ))}</ul>
     </UICard>
   );
@@ -100,7 +100,7 @@ export function SystemWritebacks({ system }: { system: string }) {
               <td>{w.record ?? ""}</td>
               <td><UIBadge className={`badge ${tone(w.state)}`}>{STATE[w.state]}</UIBadge>
                 <ErrorText>{w.error}</ErrorText></td>
-              <td>{w.approved_by ? <Actor who={w.approved_by} /> : <span className="muted">{w.approver_role?.replace(/_/g, " ") ?? ""}</span>}</td>
+              <td>{w.approved_by ? <Actor who={w.approved_by} /> : <Text muted>{w.approver_role?.replace(/_/g, " ") ?? ""}</Text>}</td>
               <td className="small">{w.state === "approved" && w.due_at ? when(w.due_at) : w.sent_at ? `sent ${when(w.sent_at)}` : ""}</td>
               <td>{w.item_id ? <a href={caseHref(w.item_id)}>case {w.item_id}</a> : ""}</td>
             </tr>

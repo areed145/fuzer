@@ -16,5 +16,7 @@
   "local-time-format": 25,
   "local-count-format": 0,
   "raw-error": 17,
-  "read-state": 2
+  "read-state": 2,
+  "raw-text-class": 7,
+  "raw-checkbox": 15
 }

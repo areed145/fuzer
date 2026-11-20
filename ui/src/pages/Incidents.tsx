@@ -1,6 +1,6 @@
 import "../styles/events.css";
 import { percent, when, whenDay, count } from "../format";
-import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea, ErrorText } from "../ui";
+import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty, Textarea, ErrorText, Line, Text } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -30,9 +30,9 @@ export function IncidentsPage() {
         <UICard as="section">
           <h2>
             Latest{" "}
-            <span className="muted small">
+            <Text small muted>
               {count(list.data.total)} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}
-            </span>
+            </Text>
           </h2>
           <IncidentList items={list.data.items.slice(0, LATEST)} all={list.data.items} />
           {list.data.items.length > LATEST && <Disclosure className="more-incidents" label={`Show ${list.data.items.length - LATEST} earlier incidents`}>
@@ -59,7 +59,7 @@ export function IncidentList({ items, all = items }: { items: Incident[]; all?: 
           <span className="when">{i.start}</span>
           <div className="what">
             <a href={entityHref(i.id)}>{say(i.description)}</a>
-            <div className="row small muted">
+            <Line small muted>
               {i.unit && <span>on {i.unit}</span>}
               {twins(i).length > 0 && <span>also on {twins(i).map((o, n) => <span key={o.id}>{n > 0 && ", "}
                 <a href={entityHref(o.id)}>{o.unit || "another unit"}</a></span>)}</span>}
@@ -69,7 +69,7 @@ export function IncidentList({ items, all = items }: { items: Incident[]; all?: 
               {i.lost_oil_bbl > 0 && <span>{count(Math.round(i.lost_oil_bbl))} bbl lost</span>}
               {i.failure_modes?.map((m) => <UIBadge key={m} className="badge" title={`ISO 14224 ${m}`}>
                 {i.failure_mode_words?.[m] ?? m}</UIBadge>)}
-            </div>
+            </Line>
           </div>
         </li>
       ))}
@@ -89,16 +89,16 @@ function RatingProgress() {
     <UICard  as="section">
       <h2>
         Rate the troubleshooting briefs{" "}
-        <span className="muted small">
+        <Text small muted>
           {r.data.rated} of {r.data.incidents} incidents rated
           {r.data.useful_share !== null && ` · ${percent(r.data.useful_share)} of ratings useful`}
-        </span>
+        </Text>
       </h2>
       {next.length > 0 && (
         <ul className="plain">
           {next.map((i) => (
             <li key={i.id} className="small">
-              <span className="muted mono">{i.start}</span> <a href={entityHref(i.id)}>{i.description}</a>
+              <Text muted mono>{i.start}</Text> <a href={entityHref(i.id)}>{i.description}</a>
             </li>
           ))}
         </ul>
@@ -116,9 +116,9 @@ export function IncidentDetail({ id }: { id: string }) {
       {values.data && values.data.series.length > 0 && (
         <UICard  as="section">
           <h2>
-            Process values <span className="muted small">48 h before to 24 h after {values.data.centre.replace("T", " ")};
+            Process values <Text small muted>48 h before to 24 h after {values.data.centre.replace("T", " ")};
             shaded: the 12 h leading into each incident · {values.data.provider === "synthetic"
-              ? "synthetic values: no PI / ADX connection configured" : `from ${values.data.provider.toUpperCase()}`}</span>
+              ? "synthetic values: no PI / ADX connection configured" : `from ${values.data.provider.toUpperCase()}`}</Text>
           </h2>
           <TrendGrid series={values.data.series} upsets={values.data.upsets} />
         </UICard>
@@ -141,10 +141,10 @@ function IncidentPanels({ id }: { id: string }) {
             <li key={t.id}>
               <span className="when">{when(t.at)}</span>
               <div className="what">
-                <div className="row">
+                <Line>
                   <KindBadge kind={t.kind} />
                   {t.detail && <UIBadge className="badge event-type">{t.detail.replace("_", " ")}</UIBadge>}
-                </div>
+                </Line>
                 <a href={entityHref(t.id)}>{t.text}</a>
               </div>
             </li>
@@ -159,7 +159,7 @@ function IncidentPanels({ id }: { id: string }) {
               {reading.data.map((r) => (
                 <li key={r.id} className="small">
                   <a href={entityHref(r.id)}>{r.document_label} · {r.heading}</a>
-                  {r.page && <span className="muted"> p. {r.page}</span>}{" "}
+                  {r.page && <Text muted> p. {r.page}</Text>}{" "}
                   {r.failure_modes.map((m) => <UIBadge key={m} className="badge">{m}</UIBadge>)}
                 </li>
               ))}
@@ -173,7 +173,7 @@ function IncidentPanels({ id }: { id: string }) {
         <ul className="plain">
           {similar.data?.map((s) => (
             <li key={s.id} className="small">
-              <span className="muted mono">{s.start}</span> <a href={entityHref(s.id)}>{s.description}</a>
+              <Text muted mono>{s.start}</Text> <a href={entityHref(s.id)}>{s.description}</a>
               {s.same_unit && <UIBadge className="badge">same unit</UIBadge>}
             </li>
           ))}
@@ -190,7 +190,7 @@ function BriefCard({ id }: { id: string }) {
   return (
     <UICard  as="section">
       <h2>
-        Troubleshooting brief <span className="muted small">what Fuzer would tell an engineer or an agent</span>
+        Troubleshooting brief <Text small muted>what Fuzer would tell an engineer or an agent</Text>
       </h2>
       <Status of={brief} />
       {b && (
@@ -204,9 +204,9 @@ function BriefCard({ id }: { id: string }) {
                 {b.suggested_checks.map((c, n) => (
                   <li key={n}>
                     {c.step}{" "}
-                    <span className="muted">
+                    <Text muted>
                       ({c.from.startsWith("fz-") ? <a href={entityHref(c.from)}>source</a> : c.from})
-                    </span>
+                    </Text>
                   </li>
                 ))}
               </ol>
@@ -216,16 +216,16 @@ function BriefCard({ id }: { id: string }) {
           <div>
             {b.measurements.length > 0 && (
               <>
-                <h3>Measurements <span className="muted small">latest, not in PI</span></h3>
+                <h3>Measurements <Text small muted>latest, not in PI</Text></h3>
                 <ul className="plain small">
                   {b.measurements.slice(0, 6).map((m) => (
                     <li key={`${m.quantity}|${m.location}|${m.of.id}`}>
-                      {m.quantity.replaceAll("_", " ")}{m.location && <span className="muted"> {m.location}</span>}:{" "}
-                      <span className="mono">{m.latest.qualifier ?? ""}{m.latest.value} {m.unit}</span>{" "}
-                      <span className="muted">
+                      {m.quantity.replaceAll("_", " ")}{m.location && <Text muted> {m.location}</Text>}:{" "}
+                      <Text mono>{m.latest.qualifier ?? ""}{m.latest.value} {m.unit}</Text>{" "}
+                      <Text muted>
                         {whenDay(m.latest.at)}
                         {m.per_year !== null && ` · ${m.per_year > 0 ? "+" : ""}${m.per_year}/year`}
-                      </span>
+                      </Text>
                     </li>
                   ))}
                 </ul>
@@ -268,7 +268,7 @@ function Moved({ pv }: { pv: Brief["process_values"] }) {
   return (
     <>
       <h3>
-        What moved <span className="muted small">12 h before {pv.centre.replace("T", " ")} vs. before that</span>
+        What moved <Text small muted>12 h before {pv.centre.replace("T", " ")} vs. before that</Text>
       </h3>
       {moved.length === 0 ? (
         <Empty className="small">No point moved more than 10%.{pv.errors && ` ${pv.errors.length} points couldn't be read.`}</Empty>
@@ -277,17 +277,17 @@ function Moved({ pv }: { pv: Brief["process_values"] }) {
           {moved.map((s) => (
             <li key={s.id}>
               <a href={entityHref(s.id)}>{s.description || s.point}</a>{" "}
-              <span className="mono">
+              <Text mono>
                 {s.lead_in!.change_pct! > 0 ? "+" : ""}{s.lead_in!.change_pct}%
-              </span>{" "}
-              <span className="muted">
+              </Text>{" "}
+              <Text muted>
                 ({s.lead_in!.baseline_mean} → {s.lead_in!.extreme} {s.uom})
-              </span>
+              </Text>
             </li>
           ))}
         </ul>
       )}
-      {pv.note && <p className="small">{pv.note}</p>}
+      {pv.note && <Text as="p" small>{pv.note}</Text>}
     </>
   );
 }
@@ -302,15 +302,15 @@ function Rate({ target }: { target: string }) {
     <div className="rate">
       <h3>Would this brief have helped?</h3>
       {sent !== null ? (
-        <p className="small">Thanks: rated {sent ? "useful" : "not useful"}.</p>
+        <Text as="p" small>Thanks: rated {sent ? "useful" : "not useful"}.</Text>
       ) : (
         <>
           <Textarea className="lesson-text" rows={2} placeholder="What was missing or wrong? (optional)"
                     value={comment} onChange={(e) => setComment(e.target.value)} />
-          <div className="row">
+          <Line>
             <Button variant="primary" onClick={() => send(true)}>Useful</Button>
             <Button onClick={() => send(false)}>Not useful</Button>
-          </div>
+          </Line>
         </>
       )}
       <ErrorText>{error}</ErrorText>

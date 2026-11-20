@@ -3,7 +3,7 @@
  * suggestions for the engineer; cumulative oil is estimated from tests. */
 import { percent, count } from "../format";
 import { api } from "../api";
-import { Badge, Card, Empty, Table } from "../ui";
+import { Badge, Card, Empty, Table, Text } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
 export function WellScreen() {
@@ -44,10 +44,10 @@ export function WellScreen() {
             ))}</tbody>
           </Table>
         ) : <Empty>No water cut step or GOR climb on any well.</Empty>}
-        <div className="small muted">
+        <Text as="div" small muted>
           A step is {d.thresholds.water_cut_step_points} water cut points over the tests before; a climb is GOR up
           {" "}{percent(d.thresholds.gor_rise - 1)} end to end. {d.note} {s.note}
-        </div>
+        </Text>
       </>}
     </Card>
   );

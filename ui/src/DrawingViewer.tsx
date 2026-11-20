@@ -4,7 +4,7 @@ import { api, type DrawingMark, type MarkStatus } from "./api";
 import { projectUrl } from "./authState";
 import { KeptImage } from "./KeptImage";
 import { entityHref, useAsync } from "./lib";
-import { Button, Card as UICard, Disclosure, Empty } from "./ui";
+import { Button, Card as UICard, Disclosure, Empty, Text } from "./ui";
 import { connectedSheets, openDrawing } from "./DrawingFullscreen";
 
 export const MARK_STATUS: { key: MarkStatus; label: string; dashed?: boolean }[] = [
@@ -114,7 +114,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
       </div>
       {links.length > 0 && (
         <p className="drawing-links small">
-          <span className="muted">Connected sheets</span>
+          <Text muted>Connected sheets</Text>
           {links.map((l) => (
             <a key={l.id} className="mono" href={entityHref(l.id)}>
               {l.direction === "from" ? "← " : l.direction === "to" ? "→ " : ""}{l.sheet}
@@ -123,11 +123,11 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
         </p>
       )}
       {highlight.length > 0 && (
-        <p className="small">
+        <Text as="p" small>
           {found
             ? "Ringed: where this is on the sheet."
             : "The drawing mentions this, but its position on the sheet wasn't read."}
-        </p>
+        </Text>
       )}
       {!compact && <div className="drawing-lists">
         <div>
@@ -147,10 +147,10 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
                     {m.text}
                   </a>
                 ) : (
-                  <span className="mono">{m.text}</span>
+                  <Text mono>{m.text}</Text>
                 )}
-                {m.key && m.key !== m.text && <span className="muted small mono">{m.key}</span>}
-                <span className="muted small">{MARK_STATUS.find((s) => s.key === m.status)?.label}</span>
+                {m.key && m.key !== m.text && <Text small muted mono>{m.key}</Text>}
+                <Text small muted>{MARK_STATUS.find((s) => s.key === m.status)?.label}</Text>
               </li>
             ))}
           </ul>
@@ -162,9 +162,9 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
             {g.connections.map((c, i) => (
               <li key={i}>
                 <End id={c.from_id} text={c.from} /> → <End id={c.to_id} text={c.to} />
-                {c.line && <span className="muted small mono">{c.line}</span>}
-                {c.stream && <span className="muted small">stream {c.stream}</span>}
-                {c.via && c.via.length > 0 && <span className="muted small"> via {c.via.join(", ")}</span>}
+                {c.line && <Text small muted mono>{c.line}</Text>}
+                {c.stream && <Text small muted>stream {c.stream}</Text>}
+                {c.via && c.via.length > 0 && <Text small muted> via {c.via.join(", ")}</Text>}
               </li>
             ))}
           </ul>
@@ -174,13 +174,13 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
               <ul>
                 {g.offpage!.map((o, i) => (
                   <li key={i}>
-                    <span className="mono">{o.tag ?? "?"}</span> {o.direction === "to" ? "→" : "←"}{" "}
-                    <span className="mono">{o.other ?? "?"}</span> on{" "}
+                    <Text mono>{o.tag ?? "?"}</Text> {o.direction === "to" ? "→" : "←"}{" "}
+                    <Text mono>{o.other ?? "?"}</Text> on{" "}
                     {o.sheet_id ? <a className="mono" href={entityHref(o.sheet_id)}>{o.sheet}</a>
-                      : <span className="mono">{o.sheet}</span>}
-                    <span className="muted small mono"> {o.line}</span>{" "}
-                    <span className="muted small">{o.status === "confirmed" ? "both sheets agree"
-                      : o.status === "one_sided" ? "only this sheet shows it: in review" : "other sheet not read yet"}</span>
+                      : <Text mono>{o.sheet}</Text>}
+                    <Text small muted mono> {o.line}</Text>{" "}
+                    <Text small muted>{o.status === "confirmed" ? "both sheets agree"
+                      : o.status === "one_sided" ? "only this sheet shows it: in review" : "other sheet not read yet"}</Text>
                   </li>
                 ))}
               </ul>
@@ -203,7 +203,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
                 {g.checks!.map((c, i) => (
                   <li key={i}>
                     <a className="mono" href={entityHref(c.point_id)}>{c.tag}</a>{" "}
-                    <span className="muted small">{c.detail}</span>
+                    <Text small muted>{c.detail}</Text>
                   </li>
                 ))}
               </ul>
@@ -216,14 +216,14 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
                 {g.notes!.map((n, i) => (
                   <li key={i} value={n.n}>
                     {n.text}
-                    {n.tags.length > 0 && <span className="muted small mono"> {n.tags.join(", ")}</span>}
+                    {n.tags.length > 0 && <Text small muted mono> {n.tags.join(", ")}</Text>}
                   </li>
                 ))}
               </ol>
             </>
           )}
           {(g.tables ?? []).map((t, i) => (
-            <Disclosure key={i} className="drawing-table" label={<>{t.title || "Table"} <span className="muted small">{t.rows.length} rows</span></>}>
+            <Disclosure key={i} className="drawing-table" label={<>{t.title || "Table"} <Text small muted>{t.rows.length} rows</Text></>}>
               <div className="table-scroll">
                 <table className="small">
                   <thead><tr>{t.columns.map((c, j) => <th key={j}>{c}</th>)}</tr></thead>
@@ -240,7 +240,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
               <ul>
                 {g.findings.map((f, i) => (
                   <li key={i}>
-                    <span className="mono">{f.text}</span> <span className="muted small">{f.issue}</span>
+                    <Text mono>{f.text}</Text> <Text small muted>{f.issue}</Text>
                   </li>
                 ))}
               </ul>
@@ -298,7 +298,7 @@ function End({ id, text }: { id: string | null; text: string }) {
       {text}
     </a>
   ) : (
-    <span className="mono">{text}</span>
+    <Text mono>{text}</Text>
   );
 }
 
@@ -317,10 +317,10 @@ export function SheetThumb({ id, label, title, highlight }: { id: string; label:
           <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
             {ringed.map((m, i) => <circle key={i} className="hl-ring" cx={m.x} cy={m.y} r={90} />)}
           </svg>
-        </> : <span className="muted small">{d.loading ? "Loading…" : "No image"}</span>}
+        </> : <Text small muted>{d.loading ? "Loading…" : "No image"}</Text>}
       </span>
-      <span className="sheet-thumb-cap"><span className="mono">{label}</span>
-        {title && <span className="muted small">{title}</span>}</span>
+      <span className="sheet-thumb-cap"><Text mono>{label}</Text>
+        {title && <Text small muted>{title}</Text>}</span>
     </a>
   );
 }

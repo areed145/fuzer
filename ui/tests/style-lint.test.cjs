@@ -25,7 +25,7 @@ const RULES = {
     hint: "No carets. Guidance goes in the docs (PageHeader help=); long data goes in Disclosure; everything else is shown.",
   },
   "muted-paragraph": {
-    pattern: /<p className="[^"]*\bmuted\b[^"]*"/g,
+    pattern: /<p className="[^"]*\bmuted\b[^"]*"|<Text as="p"[^>]*? muted\b/g,
     hint: "A grey paragraph is usually an explanation the page doesn't need. Cut it, or move it to the docs and link with PageHeader help=.",
   },
   "page-tagline": {
@@ -74,6 +74,16 @@ const RULES = {
   "read-state": {
     pattern: /<Status loading=\{\w+\.loading\b/g,
     hint: "Pass the useAsync result to Status as of={...}: loading shows until the first data, and a failed read offers Try again.",
+  },
+  "raw-text-class": {
+    skip: /^ui\//,
+    pattern: /<(?:span|p|div) className="(?:(?:small|muted|mono|row|spread|wrap)(?: |(?=")))+"/g,
+    hint: "Use Text (small, muted, mono) and Line (spread, wrap) from ui/src/ui instead of the class names, so pages share one set of text styles and gaps.",
+  },
+  "raw-checkbox": {
+    skip: /^ui\//,
+    pattern: /type="checkbox"/g,
+    hint: "Use Checkbox from ui/src/ui: it carries its label and hands onChange the new state.",
   },
   "local-action-state": {
     pattern: /setBusy\(|instanceof Error \? \w+\.message|as Error\)\.message/g,

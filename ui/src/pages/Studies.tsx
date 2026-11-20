@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, ErrorText } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, ErrorText, Text } from "../ui";
 import { percent } from "../format";
 import { useState } from "react";
 import { api } from "../api";
@@ -88,8 +88,8 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
       <Status of={s} />
       {d && (
         <>
-          <h2>study:{d.id} <span className="muted small">{d.kind} · {d.status}</span></h2>
-          <p className="small">{d.summary ?? d.error}</p>
+          <h2>study:{d.id} <Text small muted>{d.kind} · {d.status}</Text></h2>
+          <Text as="p" small>{d.summary ?? d.error}</Text>
           <pre className="small">{JSON.stringify(d.params, null, 1)}</pre>
           <Button onClick={async () => { await api.rerunStudy(d.id, loadPerson() || "anonymous"); reload(); }}>Run again</Button>
           {d.figure_id && <FigureView id={d.figure_id} />}
@@ -109,17 +109,17 @@ interface CascadeResult {
 
 /** Recurring cascades as the IOC reads them: this, then that, how often and how long after. */
 function CascadeTable({ result }: { result: CascadeResult }) {
-  if (!result.patterns?.length) return <p className="small muted">No cascade repeated in this window.</p>;
+  if (!result.patterns?.length) return <Text as="p" small muted>No cascade repeated in this window.</Text>;
   return <>
     <Table density="compact">
       <thead><tr><th>First</th><th>Then</th><th>Times</th><th>Share followed</th><th>Typical lag</th><th>Links</th></tr></thead>
       <tbody>{result.patterns.map((p) => (
         <tr key={`${p.first}|${p.then}`}><td>{p.first}</td><td>{p.then}</td><td>{p.support} of {p.first_seen}</td>
           <td>{percent(p.confidence)}</td>
-          <td>{p.median_lag_minutes} min <span className="muted small">({p.lag_range_minutes[0]}–{p.lag_range_minutes[1]})</span></td>
+          <td>{p.median_lag_minutes} min <Text small muted>({p.lag_range_minutes[0]}–{p.lag_range_minutes[1]})</Text></td>
           <td>{p.hops ?? "—"}</td></tr>
       ))}</tbody>
     </Table>
-    <p className="small muted">{result.method}</p>
+    <Text as="p" small muted>{result.method}</Text>
   </>;
 }

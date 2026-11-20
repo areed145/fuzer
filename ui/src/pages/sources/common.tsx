@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Badge as UIBadge, Empty } from "../../ui";
+import { ActionStatus, ConfirmAction, Badge as UIBadge, Empty, Text } from "../../ui";
 import { when, count } from "../../format";
 /** Shared by the Sources pages (#225): who is acting, small formatting helpers, async buttons, badges, a line diff
  * and the "rebuild needed" banner. */
@@ -65,7 +65,7 @@ export function TestSteps({ steps }: { steps: { step: string; ok: boolean; ms: n
     <ul className="small">
       {steps.map((s) => (
         <li key={s.step}><UIBadge className={`badge ${s.ok ? "ok" : ""}`}>{s.ok ? "ok" : "failed"}</UIBadge> {s.step}{" "}
-          <span className="muted">{s.ms} ms · {cell(s.detail)}</span></li>
+          <Text muted>{s.ms} ms · {cell(s.detail)}</Text></li>
       ))}
     </ul>
   );

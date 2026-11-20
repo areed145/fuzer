@@ -1,6 +1,6 @@
 // Shared bits of the work pages (#97): who is acting, due dates, how history reads, evidence.
 
-import { Badge as UIBadge, Disclosure, ErrorText } from "./ui";
+import { Badge as UIBadge, Disclosure, ErrorText, Text } from "./ui";
 import { when } from "./format";
 import { type ReactNode } from "react";
 import { type WorkEvent } from "./api";
@@ -20,12 +20,12 @@ export function span(ms: number): string {
 }
 
 export function Due({ at, closed }: { at: string | null; closed?: boolean }) {
-  if (!at) return <span className="muted small">no due date</span>;
+  if (!at) return <Text small muted>no due date</Text>;
   const left = new Date(at).getTime() - Date.now();
-  if (closed) return <span className="muted small">was due {when(at)}</span>;
+  if (closed) return <Text small muted>was due {when(at)}</Text>;
   if (left < 0) return <UIBadge className="badge late">overdue {span(left)}</UIBadge>;
   if (left < 24 * HOUR) return <UIBadge className="badge soon">due in {span(left)}</UIBadge>;
-  return <span className="muted small">due in {span(left)}</span>;
+  return <Text small muted>due in {span(left)}</Text>;
 }
 
 /** How many reports a case's sources are, and from how many systems: four upsets from one detector are one
@@ -81,31 +81,31 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
   const d = e.data;
   const step = d.step ?? e.element;
   switch (e.kind) {
-    case "created": return { text: <>created the item{d.assignee ? <> for {personName(d.assignee)}</> : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
+    case "created": return { text: <>created the item{d.assignee ? <> for {personName(d.assignee)}</> : ""}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
     case "started": return { text: <>started the {String(d.process_key ?? "").replace(/_/g, " ")} process</> };
     case "step_started": return { text: <><strong>{step}</strong> is waiting for {d.assignee ? personName(d.assignee) : (d.agent ? `the ${d.agent} agent` : to(`role:${d.role}`))}</> };
     case "claimed": return { text: <>took <strong>{e.element}</strong>{d.worker ? ` (worker ${d.worker}, try ${d.attempt})` : ""}</> };
     case "released": return { text: <>let go of <strong>{e.element}</strong></> };
     case "completed": return { text: <>completed <strong>{step}</strong></>, body: <DataView data={d.data} /> };
     case "agent_result": return { text: <>finished <strong>{step}</strong></>, body: <DataView data={d.data} /> };
-    case "handed_off": return { text: <>handed <strong>{e.element ?? "the item"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <p className="small">{d.reason}</p> };
+    case "handed_off": return { text: <>handed <strong>{e.element ?? "the item"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
     case "escalated": return { text: escalation(e) };
     case "timer_fired": return { text: <>timer <strong>{e.element}</strong> fired</> };
     case "message": return { text: <>sent {d.name} {d.delivered ? "and the workflow moved on" : "(kept as evidence)"}</>, body: <DataView data={d.payload} /> };
     case "agent_failed": return { text: <>failed try {d.attempt} at <strong>{e.element}</strong>; retrying</>, body: <ErrorText>{d.error}</ErrorText> };
     case "failed": return { text: <><strong>{e.element}</strong> couldn't go on; it is a task for {to(`role:${d.role}`)}</>, body: <ErrorText>{d.error}</ErrorText> };
-    case "step_cancelled": return { text: <><strong>{e.element}</strong> was cancelled</>, body: d.why && <p className="small">{d.why}</p> };
+    case "step_cancelled": return { text: <><strong>{e.element}</strong> was cancelled</>, body: d.why && <Text as="p" small>{d.why}</Text> };
     case "completed_process": return { text: <>workflow {d.state}: <strong>{d.outcome}</strong></> };
-    case "state_changed": return { text: <>item is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
+    case "state_changed": return { text: <>item is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
     case "commented": return { text: <>commented</>, body: <p className="section-text small">{d.text}</p> };
     case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">
-      <p className="small"><strong>{d.question}</strong></p><Markdown text={String(d.answer ?? "")} /></div> };
-    case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <p className="small">{d.reason}</p> };
+      <Text as="p" small><strong>{d.question}</strong></Text><Markdown text={String(d.answer ?? "")} /></div> };
+    case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
     case "migrated": return { text: <>picked up the current version of its workflow</> };
     case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
     case "auto_assigned": return { text: <><strong>{step ?? e.element}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
-    case "delegated": return { text: <><strong>{e.element ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <p className="small">{d.reason}</p> };
-    case "item_changed": return { text: <>changed {[d.priority && `priority ${d.priority.from ?? "–"} → ${d.priority.to}`, d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <p className="small">{d.reason}</p> };
+    case "delegated": return { text: <><strong>{e.element ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
+    case "item_changed": return { text: <>changed {[d.priority && `priority ${d.priority.from ?? "–"} → ${d.priority.to}`, d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
     default: return { text: <>{e.kind.replace(/_/g, " ")}</> };
   }
 }
@@ -174,9 +174,9 @@ function Value({ v }: { v: unknown }) {
     const words = v.map((x) => (typeof x === "string" ? readable(x) : fmt(x)));
     if (words.length <= LIST_SHOWN) return <>{words.join(", ")}</>;
     return <>{words.slice(0, LIST_SHOWN).join(", ")}
-      <Disclosure className="data-fold" label={<>and {words.length - LIST_SHOWN} more</>}><span className="small">{words.slice(LIST_SHOWN).join(", ")}</span></Disclosure></>;
+      <Disclosure className="data-fold" label={<>and {words.length - LIST_SHOWN} more</>}><Text small>{words.slice(LIST_SHOWN).join(", ")}</Text></Disclosure></>;
   }
-  return <span className="mono">{fmt(v)}</span>;
+  return <Text mono>{fmt(v)}</Text>;
 }
 
 /** The process data a case started with, as a person reads it (#496): without the keys and ids that only link

@@ -3,7 +3,7 @@
  * unknown currency is shown as unknown and never added. An operational estimate, not a financial figure. */
 import { api } from "../api";
 import { money } from "../format";
-import { Card, Empty, Table } from "../ui";
+import { Card, Empty, Table, Text } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
 
@@ -14,18 +14,18 @@ export function CostOfUnreliability() {
     <Card className="cost-unreliability" title="Cost of unreliability by unit">
       <Status of={data} />
       {d && <>
-        <div className="small">{d.since} to {d.until}. Lost oil at {d.price.oil_bbl} {d.price.currency} per bbl ({d.price.source}).</div>
+        <Text as="div" small>{d.since} to {d.until}. Lost oil at {d.price.oil_bbl} {d.price.currency} per bbl ({d.price.source}).</Text>
         {d.units.length ? (
           <Table density="compact" className="unreliability-table phone-rows">
             <thead><tr><th>Unit</th><th>Lost oil</th><th>Corrective orders</th><th>Total</th></tr></thead>
             <tbody>{d.units.map((u) => (
               <tr key={u.id} data-unit={u.unit}>
-                <td><a href={entityHref(u.id)}>{u.unit}</a>{u.description && <div className="small muted">{u.description}</div>}</td>
-                <td data-label="Lost oil">{money(u.lost_oil_value, d.price.currency)}<div className="small muted">{u.lost_oil_bbl} bbl</div></td>
+                <td><a href={entityHref(u.id)}>{u.unit}</a>{u.description && <Text as="div" small muted>{u.description}</Text>}</td>
+                <td data-label="Lost oil">{money(u.lost_oil_value, d.price.currency)}<Text as="div" small muted>{u.lost_oil_bbl} bbl</Text></td>
                 <td data-label="Corrective orders">{Object.keys(u.order_cost).length
                   ? Object.entries(u.order_cost).map(([cur, v]) => <div key={cur}>{money(v, cur)}</div>)
-                  : <span className="muted">none costed</span>}
-                  <div className="small muted">{u.orders} orders{u.orders_without_cost ? `, ${u.orders_without_cost} without a cost` : ""}</div></td>
+                  : <Text muted>none costed</Text>}
+                  <Text as="div" small muted>{u.orders} orders{u.orders_without_cost ? `, ${u.orders_without_cost} without a cost` : ""}</Text></td>
                 <td data-label="Total">{u.total != null && u.total_currency
                   ? <strong>{money(u.total, u.total_currency)}</strong>
                   : <span className="small muted unreliability-no-total">{u.why_no_total}</span>}</td>
@@ -33,7 +33,7 @@ export function CostOfUnreliability() {
             ))}</tbody>
           </Table>
         ) : <Empty>No unit caused downtime or had corrective orders in the window.</Empty>}
-        <div className="small muted">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </>}
     </Card>
   );

@@ -1,6 +1,6 @@
 import "../../styles/sources.css";
 import { count as countText, when } from "../../format";
-import { Button, ButtonLink, PageHeader, Table, Input , Badge as UIBadge} from "../../ui";
+import { Button, ButtonLink, PageHeader, Table, Input, Badge as UIBadge, Line, Text, Checkbox } from "../../ui";
 import { usePermission } from "../../Auth";
 /** The Sources page (#225): datasets, systems and connections, rules, a dataset's own page, and Add a source. */
 import { useState } from "react";
@@ -25,7 +25,7 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
   if (view === "add") {
     return (
       <section>
-        <p className="small"><a href={href("/sources")}>Sources</a> › Add a source</p>
+        <Text as="p" small><a href={href("/sources")}>Sources</a> › Add a source</Text>
         <PageHeader>Add a source</PageHeader>
         <AddWizard system={query.get("system")} connection={query.get("connection")} table={query.get("table")} />
       </section>
@@ -36,10 +36,10 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
   }
   return (
     <section>
-      <div className="row spread">
+      <Line spread>
         <PageHeader>Sources</PageHeader>
         <ButtonLink variant="primary" href={href("/sources", { view: "add" })}>+ Add a source</ButtonLink>
-      </div>
+      </Line>
       {/* Sources' own pages are section tabs under the title, as on Settings. */}
       <nav className="area-navigation" aria-label="Sources pages">
         {[["datasets", "Datasets"], ["systems", "Systems & connections"], ["rules", "Rules"]].map(([k, label]) => (
@@ -79,19 +79,19 @@ function Datasets() {
       </Status>
       {rows.length > 0 && (
         <>
-          <div className="row wrap">
-            <span className="small">
+          <Line wrap>
+            <Text small>
               {here.length} datasets:{" "}
               {["ok", "stale", "held", "failed", "checks failing", "profile drift", "not loaded"].map((st) =>
                 count(st) ? <UIBadge key={st} className={`badge ${STATE[st] ?? ""}`}>{count(st)} {st}</UIBadge> : null)}
-            </span>
+            </Text>
             <Input placeholder="filter by name, system or owner" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <label className="small"><Input type="checkbox" checked={problems} onChange={(e) => setProblems(e.target.checked)} /> problems only</label>
+            <Checkbox checked={problems} onChange={setProblems}>problems only</Checkbox>
             {rows.length > here.length && (
               <label className="small" title="datasets whose data isn't in this project's folders">
                 <Input type="checkbox" checked={absent} onChange={(e) => setAbsent(e.target.checked)} /> show {rows.length - here.length} with no data here</label>
             )}
-          </div>
+          </Line>
           <Table variant="results">
             <thead>
               <tr><th>Dataset</th><th>System</th><th>Health</th><th>Last run</th><th>Owner</th><th>Schedule</th><th>Records</th><th>Last ingested (not event date)</th></tr>
@@ -99,12 +99,12 @@ function Datasets() {
             <tbody>
               {shown.map(({ s, d }) => (
                 <tr key={d.name} className={d.present ? "static" : "static muted"}>
-                  <td><a href={href("/sources", { view: "dataset", name: d.name })}><code>{d.name}</code></a> <span className="muted small">{d.record_type ?? d.reader}</span>
+                  <td><a href={href("/sources", { view: "dataset", name: d.name })}><code>{d.name}</code></a> <Text small muted>{d.record_type ?? d.reader}</Text>
                     {d.status !== "active" && <UIBadge className="badge"> {d.status}</UIBadge>}</td>
                   <td><code>{s.name}</code></td>
-                  <td>{d.present ? <HealthBadge h={d.health} /> : <span className="muted small">no data here</span>}</td>
+                  <td>{d.present ? <HealthBadge h={d.health} /> : <Text small muted>no data here</Text>}</td>
                   <td>{d.last_run ? <UIBadge tone={d.last_run === "failed" ? "danger" : d.last_run === "held" ? "warn" : d.last_run === "done" ? "ok" : "muted"}>{d.last_run}</UIBadge> : "No recorded run"}</td>
-                  <td className="small">{d.owner ?? <span className="muted">–</span>}</td>
+                  <td className="small">{d.owner ?? <Text muted>–</Text>}</td>
                   <td className="muted small">{d.schedule ? scheduleText(d.schedule) : "daily"}</td>
                   <td>{d.rows != null ? countText(d.rows) : "Unknown"}</td>
                   <td className="muted small" title={d.loaded_at ?? undefined}>{when(d.loaded_at, "Time unknown")}</td>

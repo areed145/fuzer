@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { when } from "../format";
 import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
-import { Button, Card, Disclosure, Field, Input, Select, ErrorText } from "../ui";
+import { Button, Card, Disclosure, Field, Input, Select, ErrorText, Line, Text } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
@@ -34,19 +34,19 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload }:
   if (record && !open) {
     return (
       <Card className="closeout-done" title="Close-out">
-        <p className="small">{closeoutLine(record, v)}{record.note && <span className="muted"> · {record.note}</span>}</p>
-        <p className="small muted">by <Actor who={record.by} /> {when(record.at)}
-          {!readOnly && <> · <Button variant="link" onClick={() => setOpen(true)}>Correct it</Button></>}</p>
+        <Text as="p" small>{closeoutLine(record, v)}{record.note && <Text muted> · {record.note}</Text>}</Text>
+        <Text as="p" small muted>by <Actor who={record.by} /> {when(record.at)}
+          {!readOnly && <> · <Button variant="link" onClick={() => setOpen(true)}>Correct it</Button></>}</Text>
         {record.held != null
-          ? <p className="small">{record.held ? "The fix held" : "The fix did not hold"}, said <Actor who={record.held_by ?? ""} />
-            {record.held_note && <span className="muted">: {record.held_note}</span>}</p>
-          : record.recheck_at && <p className="small muted">Re-check {when(record.recheck_at)}: did the fix hold?</p>}
+          ? <Text as="p" small>{record.held ? "The fix held" : "The fix did not hold"}, said <Actor who={record.held_by ?? ""} />
+            {record.held_note && <Text muted>: {record.held_note}</Text>}</Text>
+          : record.recheck_at && <Text as="p" small muted>Re-check {when(record.recheck_at)}: did the fix hold?</Text>}
         {(form.data.repeats ?? []).length > 0 && <p className="small notice">Came back:{" "}
           {(form.data.repeats ?? []).map((r, i) => <span key={r.again}>{i > 0 && ", "}<a href={caseHref(r.again)}>case {r.again}</a></span>)}</p>}
       </Card>
     );
   }
-  if (readOnly) return closed ? <p className="small muted">Close-out missing.</p> : null;
+  if (readOnly) return closed ? <Text as="p" small muted>Close-out missing.</Text> : null;
   if (!closed && !open) return <Button variant="primary" onClick={() => setOpen(true)}>Close out</Button>;
   return <CloseoutForm itemId={itemId} person={person} data={form.data} missing={closed && !record}
     onDone={() => { setOpen(false); form.reload(); reload(); }} onCancel={closed && !record ? undefined : () => setOpen(false)} />;
@@ -91,9 +91,9 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
   }), onDone);
   return (
     <Card className="closeout-form" title={missing ? "Close-out missing" : "Close out"}>
-      {missing && <p className="small">This case closed without saying what it was. Fill it in so it counts.</p>}
-      {suggested && <p className="small muted">Filled in from {s.from === "agent" ? "the agent's suggestion" : "what the case says"}.
-        Check it before you save.</p>}
+      {missing && <Text as="p" small>This case closed without saying what it was. Fill it in so it counts.</Text>}
+      {suggested && <Text as="p" small muted>Filled in from {s.from === "agent" ? "the agent's suggestion" : "what the case says"}.
+        Check it before you save.</Text>}
       {list("disposition", "What it was", v.dispositions, true)}
       {needsTerms && <>
         {list("failure_mode", "Failure mode", v.failure_modes, true)}
@@ -115,12 +115,12 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel }: {
         <Input width="full" inputMode="numeric" aria-label="Duplicate of case" value={d.duplicate_of ?? ""}
           onChange={set("duplicate_of")} /></Field>}
       <Field label="Note" width="full"><Input width="full" aria-label="Note" value={d.note ?? ""} onChange={set("note")} /></Field>
-      <div className="row wrap">
+      <Line wrap>
         <Button variant="primary" disabled={!ready || !person || !!a.busy} onClick={save}>
           {missing || data.record ? "Save close-out" : "Close the case"}</Button>
         {onCancel && <Button variant="secondary" onClick={onCancel}>Cancel</Button>}
-      </div>
-      {hint && !a.busy && <p className="small muted">{hint}.</p>}
+      </Line>
+      {hint && !a.busy && <Text as="p" small muted>{hint}.</Text>}
       <ErrorText>{a.error}</ErrorText>
     </Card>
   );
@@ -134,13 +134,13 @@ export function RecheckCard({ firstId, person, closed, readOnly, reload }:
   const answer = (held: boolean) => a.run(held ? "held" : "not", () => api.answerRecheck(firstId, person, held, note || undefined), reload);
   return (
     <Card className="recheck" title="Did the fix hold?">
-      <p className="small">On <a href={caseHref(firstId)}>case {firstId}</a>. If the problem came back, that case opens again as a repeat.</p>
+      <Text as="p" small>On <a href={caseHref(firstId)}>case {firstId}</a>. If the problem came back, that case opens again as a repeat.</Text>
       {!closed && !readOnly && <>
         <Field label="Note" width="full"><Input width="full" aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
-        <div className="row wrap">
+        <Line wrap>
           <Button variant="primary" disabled={!person || !!a.busy} onClick={() => answer(true)}>Yes, it held</Button>
           <Button variant="secondary" disabled={!person || !!a.busy} onClick={() => answer(false)}>No, it came back</Button>
-        </div>
+        </Line>
       </>}
       <ErrorText>{a.error}</ErrorText>
     </Card>

@@ -19,7 +19,7 @@ import { GasLiftHeading } from "./GasLiftHeading";
 import { QualityTrend } from "./QualityTrend";
 import { AlarmPerformance } from "./AlarmPerformance";
 import { AcrossAssets } from "./AcrossAssets";
-import { Badge, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
+import { Badge, Disclosure, Empty, PageHeader, Table, Tabs, Text } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
 const PERIODS = [7, 30, 90];
@@ -30,10 +30,10 @@ const show = (v: number | null, unit: string) => (v == null ? "unknown" : quanti
 function Side({ p, unit, label }: { p: KpiPeriod; unit: string; label: string }) {
   return <>
     <strong className={p.value == null ? "kpi-unknown" : undefined}>{show(p.value, unit)}</strong>
-    {p.note && <div className="small muted">{p.note}</div>}
+    {p.note && <Text as="div" small muted>{p.note}</Text>}
     {p.records > 0 && <Disclosure label={`${p.records} ${p.records === 1 ? "record" : "records"}`}>
       <ul className="plain small">{p.refs.map((r) => <li key={r}><a href={entityHref(r)}>{r}</a></li>)}</ul>
-      {p.records > p.refs.length && <div className="small muted">The first {p.refs.length} of {p.records} ({label}).</div>}
+      {p.records > p.refs.length && <Text as="div" small muted>The first {p.refs.length} of {p.records} ({label}).</Text>}
     </Disclosure>}
   </>;
 }
@@ -60,13 +60,13 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
           </tr></thead>
           <tbody>{d.kpis.map((k) => (
             <tr key={k.key} data-kpi={k.key}>
-              <td><strong>{k.label}</strong><div className="small muted">{k.definition}</div></td>
+              <td><strong>{k.label}</strong><Text as="div" small muted>{k.definition}</Text></td>
               <td data-label="This period"><Side p={k.now} unit={k.unit} label="this period" /></td>
               <td data-label="The period before"><Side p={k.before} unit={k.unit} label="the period before" /></td>
               <td data-label="Change">
                 <Badge tone={TONE[k.verdict]} className="kpi-verdict">{k.verdict}</Badge>
-                {k.change != null && <div className="small">{k.change > 0 ? "+" : ""}{k.change}{k.unit === "%" ? " points" : ` ${k.unit}`}</div>}
-                <div className="small muted">{k.better} is better</div>
+                {k.change != null && <Text as="div" small>{k.change > 0 ? "+" : ""}{k.change}{k.unit === "%" ? " points" : ` ${k.unit}`}</Text>}
+                <Text as="div" small muted>{k.better} is better</Text>
               </td>
               <td data-label="Source" className="small">{k.source}</td>
             </tr>

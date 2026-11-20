@@ -1,4 +1,4 @@
-import { PageHeader } from "../ui";
+import { PageHeader, Line, Text } from "../ui";
 import { count } from "../format";
 import { api } from "../api";
 import { MapView } from "../MapView";
@@ -10,12 +10,12 @@ export function MapPage() {
   const n = m.data?.features.length ?? 0;
   return (
     <section>
-      <div className="row spread">
+      <Line spread>
         <PageHeader>Map</PageHeader>
-        <span className="muted small">
+        <Text small muted>
           {count(n)} located things{m.data?.truncated ? " (first 20,000)" : ""} · select one to open it
-        </span>
-      </div>
+        </Text>
+      </Line>
       <Status of={m} empty={m.data && n === 0}>
         Nothing has a location yet. GIS exports (GeoJSON) load like any other source.
       </Status>

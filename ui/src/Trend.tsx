@@ -7,7 +7,7 @@ import { when, whenDay } from "./format";
 import { useState } from "react";
 import { api, type MeasurementSeries } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
-import { Table, Card as UICard, Disclosure } from "./ui";
+import { Table, Card as UICard, Disclosure, Text } from "./ui";
 
 /** One operating limit on a point (#101): an alarm limit from its source, one side of an integrity
  * operating window, or the normal range learned from history when no source gives one. */
@@ -82,9 +82,9 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
   return (
     <figure className={wide ? "trend wide" : "trend"}>
       <figcaption>
-        <span className="mono small">{s.point}</span> <span className="muted small">{s.description} ({s.uom})</span>
+        <Text small mono>{s.point}</Text> <Text small muted>{s.description} ({s.uom})</Text>
         {far.length > 0 && (
-          <span className="muted small"> · off scale: {far.map((l) => `${limitName(l)} ${fmt(l.value)}`).join(", ")}</span>
+          <Text small muted> · off scale: {far.map((l) => `${limitName(l)} ${fmt(l.value)}`).join(", ")}</Text>
         )}
       </figcaption>
       <div className="trend-plot">
@@ -119,7 +119,7 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
         {hover !== null && (
           <div className="trend-tip" style={{ left: `${(hover / Math.max(1, n - 1)) * 100}%` }}>
             <b>{fmt(s.values[hover][1])}</b> {s.uom}
-            <div className="muted">{s.values[hover][0].replace("T", " ")}</div>
+            <Text as="div" muted>{s.values[hover][0].replace("T", " ")}</Text>
           </div>
         )}
       </div>
@@ -159,7 +159,7 @@ export function MeasurementsCard({ id }: { id: string }) {
           {series.map((s) => <MeasurementChart key={`${s.quantity}|${s.location}|${s.of.id}`} s={s} self={id} />)}
         </div>
       </Disclosure>
-      {m.data?.truncated && <p className="small">Showing the latest readings only.</p>}
+      {m.data?.truncated && <Text as="p" small>Showing the latest readings only.</Text>}
     </UICard>
   );
 }
@@ -188,11 +188,11 @@ function MeasurementChart({ s, self }: { s: MeasurementSeries; self: string }) {
     <figure className="trend">
       <figcaption>
         <b className="small">{quantityLabel(s.quantity)}</b>{" "}
-        <span className="muted small">
+        <Text small muted>
           {s.location}{s.of.id !== self && <> on <a href={entityHref(s.of.id)}>{s.of.label ?? s.of.id}</a></>}
           {" "}· latest {s.latest.qualifier ?? ""}{num(s.latest.value)} {s.unit} ({whenDay(s.latest.at)})
           {s.per_year !== null && ` · ${s.per_year > 0 ? "+" : ""}${num(s.per_year)} ${s.unit}/year`}
-        </span>
+        </Text>
       </figcaption>
       <div className="trend-plot">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" onMouseMove={onMove} onMouseLeave={() => setHover(null)}
@@ -209,8 +209,8 @@ function MeasurementChart({ s, self }: { s: MeasurementSeries; self: string }) {
         <span className="trend-axis bottom">{num(lo)}</span>
         {h && (
           <div className="trend-tip" style={{ left: `${(x(ts[hover!]) / W) * 100}%` }}>
-            <b>{h.qualifier ?? ""}{num(h.value)}</b> {s.unit}{h.reported && <span className="muted"> (reported {h.reported})</span>}
-            <div className="muted">{when(h.at)}{h.method && ` · ${h.method}`}</div>
+            <b>{h.qualifier ?? ""}{num(h.value)}</b> {s.unit}{h.reported && <Text muted> (reported {h.reported})</Text>}
+            <Text as="div" muted>{when(h.at)}{h.method && ` · ${h.method}`}</Text>
           </div>
         )}
       </div>

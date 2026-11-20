@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type ModelRollout, type ModelVersion, type Standing, type StandingDeviation } from "../api";
 import { Status, useAsync, errorMessage } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Disclosure, Field, Input, Select, Table, Textarea, Text } from "../ui";
 import { loadPerson, usePerson } from "../work";
 import { person as personName } from "../wording";
 
@@ -52,9 +52,9 @@ export function Standards() {
     <h2>Standards</h2>
     <Button disabled={c.loading} onClick={() => { c.reload(); v.reload(); }}>Refresh</Button>
     <Status of={c} />
-    {d && <p className="small">Current standard: {d.current.model} v{d.current.version}. Work in practice over the
-      last {d.days} days.</p>}
-    {!person && <p className="small">Say who you are in the sidebar (bottom left) to propose, review or roll out.</p>}
+    {d && <Text as="p" small>Current standard: {d.current.model} v{d.current.version}. Work in practice over the
+      last {d.days} days.</Text>}
+    {!person && <Text as="p" small>Say who you are in the sidebar (bottom left) to propose, review or roll out.</Text>}
     <ActionStatus busy={busy} error={error}>{done}</ActionStatus>
     {d?.projects.map((p) => <Card key={p.project}
       title={<>{p.project} {p.verdict && <Badge tone={TONE[p.verdict]}>{LABEL[p.verdict]}</Badge>}</>}>
@@ -85,8 +85,8 @@ export function Standards() {
         </ul>}
       </>}
     </Card>)}
-    {d && d.left_out.length > 0 && <p className="small">Not shown, because you aren't granted them:{" "}
-      {d.left_out.join(", ")}.</p>}
+    {d && d.left_out.length > 0 && <Text as="p" small>Not shown, because you aren't granted them:{" "}
+      {d.left_out.join(", ")}.</Text>}
 
     <Card title="Changes to the standard">
       <Status of={v} />
@@ -149,7 +149,7 @@ function Next({ version: x, person, admin, busy, act, projects, rollouts }: {
     return <>
       <Button disabled={busy} onClick={() => act("Test run", () => api.testRunModelChange(x.version),
         `v${x.version} was test-run on this project's closed cases.`)}>Test run</Button>
-      {why ? <p className="small">{why}</p> : <>
+      {why ? <Text as="p" small>{why}</Text> : <>
         <Field label="Review note"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         <Button variant="primary" disabled={busy || !note.trim() || !!x.test_run?.problems.length}
           onClick={() => act("Approve", () => api.reviewModelChange(x.version, true, note, loadPerson()), `v${x.version} approved.`)}>
@@ -164,17 +164,17 @@ function Next({ version: x, person, admin, busy, act, projects, rollouts }: {
     return admin ? <ConfirmAction label="Publish" busy={busy}
       consequence={`v${x.version} becomes a version every asset can be rolled out to. Nothing changes on an asset until it is rolled out.`}
       onConfirm={() => act("Publish", () => api.publishModelChange(x.version, loadPerson()), `v${x.version} published.`)} />
-      : <p className="small">Publishing needs the {ADMIN} role.</p>;
+      : <Text as="p" small>Publishing needs the {ADMIN} role.</Text>;
   }
   if (x.state === "published") {
-    if (!targets.length) return <span className="small">Every asset shown runs it.</span>;
+    if (!targets.length) return <Text small>Every asset shown runs it.</Text>;
     return <>
       <Field label="Asset" width="sm"><Select value={chosen} onChange={(e) => setTarget(e.target.value)}>
         {targets.map((p) => <option key={p}>{p}</option>)}</Select></Field>
       {admin ? <ConfirmAction label="Roll out" busy={busy} disabled={!chosen}
         consequence={`${chosen} starts running ${x.name} v${x.version}: its roles, settings, workflows and forms change to this version. Its named setting differences are kept, and it can be rolled back.`}
         onConfirm={() => act("Roll out", () => api.rolloutModel(chosen, x.version, loadPerson()), `${chosen} now runs v${x.version}.`)} />
-        : <p className="small">Rolling out needs the {ADMIN} role.</p>}
+        : <Text as="p" small>Rolling out needs the {ADMIN} role.</Text>}
     </>;
   }
   return null;
@@ -182,7 +182,7 @@ function Next({ version: x, person, admin, busy, act, projects, rollouts }: {
 
 function Rollback({ rollout: r, person, busy, act }: { rollout: ModelRollout; person: string; busy: boolean; act: Act }) {
   const [reason, setReason] = useState("");
-  if (!person) return <span className="small">Say who you are first.</span>;
+  if (!person) return <Text small>Say who you are first.</Text>;
   return <>
     <Field label="Why" width="sm"><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
     <ConfirmAction label="Roll back" busy={busy} disabled={!reason.trim()}
@@ -218,7 +218,7 @@ function Propose({ person, busy, act }: { person: string; busy: boolean; act: Ac
   if (value.trim()) {
     try { parsed = JSON.parse(value); } catch { bad = "The value isn't valid JSON."; }
   }
-  if (!person) return <p className="small">Say who you are first.</p>;
+  if (!person) return <Text as="p" small>Say who you are first.</Text>;
   return <div>
     <Field label="Part" width="sm"><Select value={part} onChange={(e) => setPart(e.target.value)}>
       {PARTS.map((p) => <option key={p} value={p}>{p.replace("_", " ")}</option>)}</Select></Field>

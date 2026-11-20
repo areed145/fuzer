@@ -5,7 +5,7 @@ import { queue } from "../wording";
 import { count } from "../format";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { api, type AttentionBand, type AttentionItem, type AttentionPlace } from "../api";
-import { Badge, Button, ButtonLink, Card, Empty } from "../ui";
+import { Badge, Button, ButtonLink, Card, Empty, Line, Text } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { ATTENTION_TONE } from "../kinds";
 import { workHref } from "./AllWork";
@@ -71,10 +71,10 @@ export function AttentionCard() {
             {mapped && <Button className={crews ? "chip on crews-toggle" : "chip crews-toggle"} aria-pressed={crews}
                                onClick={() => setCrews(!crews)}>Crews</Button>}
           </div>
-          <span className="small muted">
+          <Text small muted>
             {count(open)} open across {count(spots.data.places.length)} {spots.data.places.length === 1 ? "place" : "places"}
             {spots.data.unplaced ? <> · <a href={workHref("open", { at: UNPLACED })}>{spots.data.unplaced} not located</a></> : ""}
-          </span>
+          </Text>
         </div>
         {spots.data.places.length === 0 ? <Empty>No open work at any place.</Empty> : (
           <div className={mapped ? "attention-split" : ""}>
@@ -97,7 +97,7 @@ export function AttentionCard() {
                           <strong>{placeName(p)}</strong>
                           <Badge tone={BAND[p.band].tone}>{BAND[p.band].label}</Badge>
                         </span>
-                        <span className="small">{p.open} open · {p.top[0].title}</span>
+                        <Text small>{p.open} open · {p.top[0].title}</Text>
                         <span className="small attention-flags">
                           {p.overdue > 0 && <Badge tone="danger">{p.overdue} overdue</Badge>}
                           {p.unassigned > 0 && <Badge>{p.unassigned} unassigned</Badge>}
@@ -166,9 +166,9 @@ function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose: () =>
         <span className="attention-grab" aria-hidden="true" />
         <div className="attention-detail-title">
           <h3>{placeName(place)}</h3>
-          <span className="small muted">
-            {place.open} open · {place.overdue} overdue · {place.unassigned} unassigned · <span className="mono">{place.label}</span>
-          </span>
+          <Text small muted>
+            {place.open} open · {place.overdue} overdue · {place.unassigned} unassigned · <Text mono>{place.label}</Text>
+          </Text>
         </div>
         <Button variant="secondary" className="attention-close" onClick={onClose} aria-label="Close" title="Close">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -183,15 +183,15 @@ function PlaceDetail({ place, onClose }: { place: AttentionPlace; onClose: () =>
             <div>
               <a href={i.item_id ? href(`/cases/${i.item_id}`) : workHref("open", { q: i.title })}>{i.title}</a>
               {i.overdue && <> <Badge tone="danger">overdue</Badge></>}
-              <div className="small muted">{i.label} · {i.crew ? `${i.crew.who} ${i.crew.status}` : holder(i)}</div>
+              <Text as="div" small muted>{i.label} · {i.crew ? `${i.crew.who} ${i.crew.status}` : holder(i)}</Text>
             </div>
           </li>
         ))}
       </ul>
-      <div className="row wrap">
+      <Line wrap>
         <ButtonLink variant="primary" href={workHref("open", { at: place.places.join(",") })}>Open {place.open} in All work</ButtonLink>
         <a href={entityHref(place.id)}>Asset page</a>
-      </div>
+      </Line>
     </div>
   );
 }

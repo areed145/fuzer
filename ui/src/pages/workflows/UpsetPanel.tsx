@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { when } from "../../format";
-import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure } from "../../ui";
+import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure, Text } from "../../ui";
 import { api, type RelatedUpset, type UpsetView } from "../../api";
 import { Status, useAsync, useAction } from "../../lib";
 import { PlotlyChart } from "../../analytics/PlotlyChart";
@@ -36,12 +36,12 @@ export function UpsetPanel({ upsetId, itemId, person, canMerge, onMerged }: {
 
 function Spread({ v }: { v: UpsetView }) {
   const s = v.spread;
-  if (!s.spec || !s.summary) return <p className="small muted">{s.note ?? "It reached no unit in the plant model."}</p>;
+  if (!s.spec || !s.summary) return <Text as="p" small muted>{s.note ?? "It reached no unit in the plant model."}</Text>;
   const order = s.summary.order;
   return <>
-    <p className="small">Started with <strong>{v.signature}</strong> at {when(v.upset.start)} and reached {s.summary.units}{" "}
+    <Text as="p" small>Started with <strong>{v.signature}</strong> at {when(v.upset.start)} and reached {s.summary.units}{" "}
       {s.summary.units === 1 ? "unit" : "units"}{order.length > 1 && <>: {order.slice(1, 6).map((o) => `${o.unit} (+${o.minutes_after_first} min)`).join(", ")}
-      {order.length > 6 && `, and ${order.length - 6} more`}</>}.</p>
+      {order.length > 6 && `, and ${order.length - 6} more`}</>}.</Text>
     {order.length > 1 && <PlotlyChart spec={s.spec} label={`${s.title}. First cause ${s.summary.first_cause}.`} />}
   </>;
 }
@@ -49,8 +49,8 @@ function Spread({ v }: { v: UpsetView }) {
 function Detections({ v }: { v: UpsetView }) {
   const shown = v.timeline.slice(0, 25);
   return (
-    <Disclosure className="evidence-item" open={v.timeline.length <= 8} label={<><strong>Detections in time order</strong> <span className="muted small">· {v.upset.detections} in all,
-        the first is the likely first cause</span></>}>
+    <Disclosure className="evidence-item" open={v.timeline.length <= 8} label={<><strong>Detections in time order</strong> <Text small muted>· {v.upset.detections} in all,
+        the first is the likely first cause</Text></>}>
       <Table density="compact">
         <thead><tr><th>Started</th><th>Unit</th><th>Point</th><th>Finding</th></tr></thead>
         <tbody>{shown.map((d, i) => (
@@ -58,7 +58,7 @@ function Detections({ v }: { v: UpsetView }) {
             <td>{d.finding}{i === 0 && <> <Badge tone="danger">first</Badge></>}{d.end === null && <> <Badge tone="warn">still on</Badge></>}</td></tr>
         ))}</tbody>
       </Table>
-      {v.timeline.length > shown.length && <p className="small muted">The first {shown.length} of {v.detections_shown} shown.</p>}
+      {v.timeline.length > shown.length && <Text as="p" small muted>The first {shown.length} of {v.detections_shown} shown.</Text>}
     </Disclosure>
   );
 }
@@ -72,9 +72,9 @@ function Related({ v, upsetId, itemId, person, canMerge, onMerged }: {
   return (
     <section>
       <h3>Around the same time</h3>
-      <p className="small muted">Other upsets within {v.related.window_hours} h, most likely related first. {v.related.basis}</p>
-      {v.merged.length > 0 && <p className="small">Merged into this case: {v.merged.map((m) => m.signature).join("; ")}.</p>}
-      {rows.length === 0 && <p className="small muted">Nothing connected in the plant model or seen with it before.</p>}
+      <Text as="p" small muted>Other upsets within {v.related.window_hours} h, most likely related first. {v.related.basis}</Text>
+      {v.merged.length > 0 && <Text as="p" small>Merged into this case: {v.merged.map((m) => m.signature).join("; ")}.</Text>}
+      {rows.length === 0 && <Text as="p" small muted>Nothing connected in the plant model or seen with it before.</Text>}
       <ul className="related-upsets">
         {rows.map((r) => {
           const role = ROLE[r.role];
@@ -84,14 +84,14 @@ function Related({ v, upsetId, itemId, person, canMerge, onMerged }: {
           return (
             <li key={r.id} className="evidence-item">
               <div><Badge tone={role.tone}>{role.label}</Badge> <strong>{r.signature}</strong>{" "}
-                <span className="muted small">· {lag(r.lag_minutes)} · {r.hops === null ? "not linked in the plant model" :
+                <Text small muted>· {lag(r.lag_minutes)} · {r.hops === null ? "not linked in the plant model" :
                   r.hops === 0 ? "shares a unit" : `${r.hops} ${r.hops === 1 ? "link" : "links"} away`}
-                  {r.seen_together > 0 && ` · seen together ${r.seen_together}× in 90 days`}</span></div>
-              <div className="small">
+                  {r.seen_together > 0 && ` · seen together ${r.seen_together}× in 90 days`}</Text></div>
+              <Text as="div" small>
                 {r.same_case ? "Already on this case." : r.work_item_id
                   ? <>Case <a href={caseHref(r.work_item_id)}>{r.case_title ?? `#${r.work_item_id}`}</a>{r.case_state && r.case_state !== "open" && ` (${r.case_state})`}</>
-                  : <span className="muted">No case: too small to hand to the IOC on its own.</span>}
-              </div>
+                  : <Text muted>No case: too small to hand to the IOC on its own.</Text>}
+              </Text>
               {canMerge && other && (
                 <ConfirmAction busy={!!a.busy} label={up ? "Move this case under it" : "Bring into this case"}
                   consequence={up

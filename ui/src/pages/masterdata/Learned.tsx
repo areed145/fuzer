@@ -3,7 +3,7 @@
  * every like value after each rebuild; withdrawn, its answers are retired. */
 import { api, type LearnedProposal, type LearnedRule } from "../../api";
 import { whenDay } from "../../format";
-import { Button, Card, ConfirmAction, Disclosure, Table, ErrorText } from "../../ui";
+import { Button, Card, ConfirmAction, Disclosure, Table, ErrorText, Line, Text } from "../../ui";
 import { entityHref, useAsync, useAction } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -50,14 +50,14 @@ function Proposal({ p, busy, can, onAccept, onReject }: {
         <ul className="plain small">{p.values.map((v) => (
           <li key={v.value}><code>{v.value}</code> names <a href={entityHref(v.fuzer_id)}>{v.key}</a> ({v.rows} {v.rel.replace(/_/g, " ")})</li>
         ))}</ul>
-        {p.would_answer > p.values.length && <p className="small muted">The first {p.values.length} of {p.would_answer}.</p>}
+        {p.would_answer > p.values.length && <Text as="p" small muted>The first {p.values.length} of {p.would_answer}.</Text>}
       </Disclosure>
-      {can && <div className="row">
+      {can && <Line>
         <ConfirmAction label="Accept rule" busy={busy}
           consequence={`Records an alias for each of the ${p.would_answer} values now, and for every like ${p.source.toUpperCase()} value after each rebuild. Withdrawing it retires them.`}
           onConfirm={onAccept} />
         <Button disabled={busy} onClick={onReject}>Not a rule</Button>
-      </div>}
+      </Line>}
     </div>
   );
 }

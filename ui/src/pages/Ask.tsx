@@ -1,6 +1,6 @@
 import "../styles/ask.css";
 import { money, when } from "../format";
-import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea, ErrorText } from "../ui";
+import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AskContext, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
@@ -164,7 +164,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
         <div className="ask-examples">
           {EXAMPLES.map(([label, q]) => (
             <Button key={label} className="example" disabled={!ai} onClick={() => demo ? setText(q) : ask(q)}>
-              <span className="muted small">{label}</span>
+              <Text small muted>{label}</Text>
               <span>{q}</span>
             </Button>
           ))}
@@ -202,7 +202,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
           </div>
         )}
         <ErrorText>{attachError}</ErrorText>
-        <div className="row">
+        <Line>
           {demo ? <ConfirmAction label="paid question" disabled={!ai || !text.trim()} busy={busy}
             consequence="This sends the reviewed question and any attachments to the configured AI provider and may incur charges. The answer is stored in your account's conversation. Inspect any recorded job after a failure before a deliberate retry."
             onConfirm={() => ask(text)} />
@@ -221,8 +221,8 @@ export function AskPage({ query }: { query: URLSearchParams }) {
                     onClick={() => { setTurns([]); setConversation(undefined); setAbout(linked()); }}>New conversation</Button>
           )}
           <span className="spacer" />
-          <span className="muted small">Enter to send · Shift+Enter for a new line · paste images</span>
-        </div>
+          <Text small muted>Enter to send · Shift+Enter for a new line · paste images</Text>
+        </Line>
       </form>}
       <Conversations current={conversation} reload={listed} busy={busy} onOpen={reopen}
                      readOnly={demo}
@@ -243,14 +243,14 @@ function AboutBanner({ about, context }: { about: About; context: ReturnType<typ
   if (context.error) return <p className="error small" role="alert">The {about.case_id !== undefined ? "case" : "asset"} this
     question is about could not be loaded: {context.error}</p>;
   const c = context.data;
-  if (!c) return <p className="small" role="status">Loading what this conversation is about…</p>;
+  if (!c) return <Text as="p" small role="status">Loading what this conversation is about…</Text>;
   const back = c.item_id != null ? href(`/cases/${c.item_id}`) : entityHref(c.subject!);
   return (
     <UICard className="ask-about" role="note">
       Asking about <a href={back}>{c.label}</a>.{" "}
-      <span className="muted small">{c.item_id != null
+      <Text small muted>{c.item_id != null
         ? "Its subjects, what raised it and its brief go with your first question, so you don't need to name them."
-        : "It goes with your first question, so you don't need to name it."}</span>
+        : "It goes with your first question, so you don't need to name it."}</Text>
     </UICard>
   );
 }
@@ -263,13 +263,13 @@ const agentLabel = (labels: Record<string, string>, id: string) =>
 function Specialists({ catalog }: { catalog: Catalog }) {
   if (catalog.error) {
     return (
-      <p className="small" role="alert">
+      <Text as="p" small role="alert">
         The list of specialists could not be loaded. You can still ask a question.{" "}
         <Button variant="link" onClick={catalog.reload}>Try again</Button>
-      </p>
+      </Text>
     );
   }
-  if (catalog.loading && !catalog.data) return <p className="small" role="status">Loading specialists…</p>;
+  if (catalog.loading && !catalog.data) return <Text as="p" small role="status">Loading specialists…</Text>;
   const specialists = catalog.data?.agents?.filter((a) => a.personas.length > 0) ?? [];
   if (specialists.length === 0) return null;
   const labels = Object.fromEntries(catalog.data!.agents.map((a) => [a.id, a.label]));
@@ -280,16 +280,16 @@ function Specialists({ catalog }: { catalog: Catalog }) {
           <li key={a.id}>
             <b>{a.label}</b>
             <div>{a.description}</div>
-            <div className="muted small">For: {a.personas.join("; ")}</div>
-            <div className="muted small">People decide: {a.human_decisions.join(" ")}</div>
+            <Text as="div" small muted>For: {a.personas.join("; ")}</Text>
+            <Text as="div" small muted>People decide: {a.human_decisions.join(" ")}</Text>
           </li>
         ))}
       </ul>
       <h3>Not available yet</h3>
-      <p className="small">These need a source Fuzer doesn't have. Asking gets an explanation, not an estimate.</p>
+      <Text as="p" small>These need a source Fuzer doesn't have. Asking gets an explanation, not an estimate.</Text>
       <ul className="specialist-gaps">
         {catalog.data!.unavailable.map((u) => (
-          <li key={u.capability}>{u.capability} <span className="muted small">({agentLabel(labels, u.agent)}: {u.needed})</span></li>
+          <li key={u.capability}>{u.capability} <Text small muted>({agentLabel(labels, u.agent)}: {u.needed})</Text></li>
         ))}
       </ul>
     </Disclosure>
@@ -315,13 +315,13 @@ function TurnView({ turn, labels, demo = false, caseId }: { turn: Turn; labels: 
         {turn.error && (demo ? <ActionStatus error={turn.error} /> : <ErrorText>{turn.error}</ErrorText>)}
         {!turn.error && (!j || j.status === "running") && (
           <div className="working">
-            <div className="small"><UIBadge className="badge updating">Working…</UIBadge>{" "}
-              {j ? `${j.model_calls} model calls so far` : "starting"}</div>
+            <Text as="div" small><UIBadge className="badge updating">Working…</UIBadge>{" "}
+              {j ? `${j.model_calls} model calls so far` : "starting"}</Text>
             {steps.length > 0 && (
               <ul className="steps small muted">
                 {steps.slice(-6).map((s, i) => (
                   <li key={i}><b>{agentLabel(labels, s.agent)}</b> · {s.tool.replaceAll("_", " ")}
-                    {Object.keys(s.args).length > 0 && <span className="mono"> {JSON.stringify(s.args)}</span>}</li>
+                    {Object.keys(s.args).length > 0 && <Text mono> {JSON.stringify(s.args)}</Text>}</li>
                 ))}
               </ul>
             )}
@@ -361,9 +361,9 @@ function TurnView({ turn, labels, demo = false, caseId }: { turn: Turn; labels: 
 function AttachToCase({ id, caseId }: { id: string; caseId: number }) {
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [error, setError] = useState<string>();
-  if (state === "done") return <p className="small" role="status">Attached to <a href={href(`/cases/${caseId}`)}>case {caseId}</a>.</p>;
+  if (state === "done") return <Text as="p" small role="status">Attached to <a href={href(`/cases/${caseId}`)}>case {caseId}</a>.</Text>;
   return (
-    <div className="small">
+    <Text as="div" small>
       <Button disabled={state === "busy"} title="Adds this answer and its charts to the case's history; changes nothing else"
         onClick={() => {
           setState("busy"); setError(undefined);
@@ -371,7 +371,7 @@ function AttachToCase({ id, caseId }: { id: string; caseId: number }) {
             (e) => { setError(errorMessage(e)); setState("idle"); });
         }}>{state === "busy" ? "Attaching…" : `Attach to case ${caseId}`}</Button>
       <ErrorText inline>{error}</ErrorText>
-    </div>
+    </Text>
   );
 }
 
@@ -382,13 +382,13 @@ function Remember({ id }: { id: string }) {
   const [state, setState] = useState<string>();
   if (!open) {
     return (
-      <div className="small">
+      <Text as="div" small>
         <Button variant="link" onClick={() => {
           setText(window.getSelection()?.toString().trim() ?? "");
           setOpen(true);
         }} title="Select text to extract into shared facility memory (uses the configured AI provider)">Share in facility memory…</Button>
-        {state && <span className="muted"> {state}</span>}
-      </div>
+        {state && <Text muted> {state}</Text>}
+      </Text>
     );
   }
   const send = () => {
@@ -403,7 +403,7 @@ function Remember({ id }: { id: string }) {
              onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && text.trim() && send()} />
       <Button variant="primary" disabled={!text.trim()} onClick={send}>Remember</Button>
       <Button variant="link" onClick={() => setOpen(false)}>Cancel</Button>
-      {state && <span className="muted">{state}</span>}
+      {state && <Text muted>{state}</Text>}
     </div>
   );
 }
@@ -458,15 +458,15 @@ function Conversations({ current, reload, busy, onOpen, onDeleted, readOnly = fa
   const items = (r.data ?? []).filter((c) => c.turns > 0 && !gone.includes(c.id));
   if (items.length === 0) return null;
   return (
-    <Disclosure className="card recent" open label={<>Your conversations <span className="muted small">{items.length}</span></>}>
+    <Disclosure className="card recent" open label={<>Your conversations <Text small muted>{items.length}</Text></>}>
       <ul className="plain small">
         {items.map((c) => (
           <li key={c.id}>
-            <span className="muted mono">{when(c.updated_at)}</span>{" "}
+            <Text muted mono>{when(c.updated_at)}</Text>{" "}
             {c.id === current ? <b>{c.title}</b> : (
               <Button variant="link" disabled={busy} onClick={() => onOpen(c.id)}>{c.title}</Button>
             )}{" "}
-            <span className="muted">· {c.turns} question{c.turns === 1 ? "" : "s"}</span>{" "}
+            <Text muted>· {c.turns} question{c.turns === 1 ? "" : "s"}</Text>{" "}
             {!readOnly && <Button variant="link" className="muted" disabled={busy} title="Delete this conversation and its answers"
                     onClick={() => api.deleteConversation(c.id).then(() => { setGone((g) => [...g, c.id]); onDeleted(c.id); })}>
               delete

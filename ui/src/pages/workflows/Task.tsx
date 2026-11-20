@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea, ErrorText } from "../../ui";
+import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty, Textarea, ErrorText, Line, Text } from "../../ui";
 import { when } from "../../format";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
@@ -53,29 +53,29 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
   return (
     <section>
       {demo && <DemoContext step="workflow" />}
-      <div className="row spread">
+      <Line spread>
         {/* A step named for the engine ("Do the task") says nothing (#1131): there the work is the title. */}
         {generic ? <PageHeader className={v.item.title.length > 48 ? "case-title-long" : undefined}>{say(v.item.title)}</PageHeader>
           : <PageHeader>{t.name ?? t.element}</PageHeader>}
         <Due at={t.due_at} closed={!waiting} />
-      </div>
-      <p className="small muted">
+      </Line>
+      <Text as="p" small muted>
         {generic ? <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>Open the case</a>
           : <>on <a href={demo ? href(`/cases/${v.item.id}`, { demo: "workflow" }) : caseHref(v.item.id)}>{say(v.item.title)}</a></>} · with {holder(t.assignee, t.role, t.kind)}
         {t.escalated_at && <> · escalated {when(t.escalated_at)}</>}
-      </p>
-      <div className="row small"><StepBadges row={t} /></div>
+      </Text>
+      <Line small><StepBadges row={t} /></Line>
       <ErrorText>{t.error}</ErrorText>
       {done && !demo && <p className="notice small">{done} <a href={href("/inbox")}>Back to your inbox</a></p>}
       <div className="task-layout">
         <div>
           {typeof v.data.change === "string" && <UICard className="notice" title="What to change">
             <p>{v.data.change}</p>
-            <p className="small muted">
+            <Text as="p" small muted>
               {typeof v.data.from_case === "number" && <>From <a href={caseHref(v.data.from_case)}>case {v.data.from_case}</a>{" · "}</>}
               {typeof v.data.decided_by === "string" && <>decided by {personName(v.data.decided_by)}</>}
-            </p>
-            <p className="small">When it is done, say what you set in the note so the case keeps it.</p>
+            </Text>
+            <Text as="p" small>When it is done, say what you set in the note so the case keeps it.</Text>
           </UICard>}
           <FromField v={v} />
           {item.data && <CaseBrief it={item.data} person={person} readOnly={demo} reload={item.reload} />}
@@ -102,11 +102,11 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
                   consequence="Return this shared task to its role queue so another eligible person can claim it."
                   onConfirm={() => a.run("release", () => api.release(id, person), refresh)} />
                   : <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("release", () => api.release(id, person), view.reload)}>Release back to the queue</Button>)}
-                {others && <span className="small muted">{personName(t.assignee)} has it.</span>}
+                {others && <Text small muted>{personName(t.assignee)} has it.</Text>}
               </div>
               {!t.assignee && !demo && t.kind !== "fix" && (
-                <p className="small muted">Not claimed yet. Completing it now records it as done by you; claim it first to hold it
-                  while you work on it.</p>
+                <Text as="p" small muted>Not claimed yet. Completing it now records it as done by you; claim it first to hold it
+                  while you work on it.</Text>
               )}
               {completion && demo ? <div><h3>Review task response</h3><DataView data={completion} />
                 <ConfirmAction label="task completion" busy={!!a.busy}
@@ -171,7 +171,7 @@ function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, d
           onConfirm={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)} />
           : <Button disabled={!to || !!a.busy} onClick={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)}>Hand off</Button>}
       </div>
-      {requiresHuman && <p className="small">This step needs a person: it can't go to an agent.</p>}
+      {requiresHuman && <Text as="p" small>This step needs a person: it can't go to an agent.</Text>}
     </Disclosure>
   );
 }
@@ -186,7 +186,7 @@ function FixForm({ busy, onRetry }: { busy: boolean; onRetry: (data: Record<stri
   }
   return (
     <div className="task-form">
-      <p className="small">Correct the workflow data the step tripped on, then retry it.</p>
+      <Text as="p" small>Correct the workflow data the step tripped on, then retry it.</Text>
       <Textarea className="mono" rows={4} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="actions">
         <Button variant="primary" disabled={busy || !data} onClick={() => data && onRetry(data)}>Retry step</Button>
@@ -202,7 +202,7 @@ function NoteForm({ element, missing, busy, onSubmit }: {
   const [note, setNote] = useState("");
   return (
     <div className="task-form">
-      {missing && <p className="small muted">Form “{missing}” isn't loaded; completing with a note.</p>}
+      {missing && <Text as="p" small muted>Form “{missing}” isn't loaded; completing with a note.</Text>}
       <Textarea rows={3} placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="actions">
         <Button variant="primary" disabled={busy} onClick={() => onSubmit(note ? { [`${element}_note`]: note } : {})}>Complete</Button>
@@ -219,9 +219,9 @@ function FromField({ v }: { v: WorkTaskView }) {
   if (!notes.length) return null;
   return (
     <UICard className="from-field" title="From the field">
-      {asked && <p className="small muted">You asked: {asked}</p>}
+      {asked && <Text as="p" small muted>You asked: {asked}</Text>}
       <ul className="plain">{notes.map((c) => <li key={c.id}>
-        <strong>{String(c.data.text).slice(7)}</strong> <span className="muted small">· <Actor who={c.actor} /> {when(c.at)}</span>
+        <strong>{String(c.data.text).slice(7)}</strong> <Text small muted>· <Actor who={c.actor} /> {when(c.at)}</Text>
         {photosOf(c.data).length > 0 && <div className="field-photos">{photosOf(c.data).map((p) =>
           <FieldPhoto key={p.photo_id} exceptionId={p.exception_id} photoId={p.photo_id} />)}</div>}
       </li>)}</ul>
@@ -240,19 +240,19 @@ function Evidence({ v }: { v: WorkTaskView }) {
     <UICard className="evidence">
       <h3>Evidence</h3>
       {e.subjects.length > 0 && (
-        <p className="small">About <EntityLinks ids={e.subjects.map((s) => s.fuzer_id)} /></p>
+        <Text as="p" small>About <EntityLinks ids={e.subjects.map((s) => s.fuzer_id)} /></Text>
       )}
       {latest.map(({ a, old }) => (
-        <Disclosure key={a.id} open={!old} className="evidence-item" label={<><Actor who={a.actor} /> on {a.data.step ?? a.element} · <span className="muted">{when(a.at)}</span>{old && " (earlier try)"}</>}>
+        <Disclosure key={a.id} open={!old} className="evidence-item" label={<><Actor who={a.actor} /> on {a.data.step ?? a.element} · <Text muted>{when(a.at)}</Text>{old && " (earlier try)"}</>}>
           <DataView data={a.data.data} />
         </Disclosure>
       ))}
       {e.messages.map((m) => (
-        <Disclosure key={m.id} open className="evidence-item" label={<><Actor who={m.actor} /> sent {m.data.name} · <span className="muted">{when(m.at)}</span></>}>
+        <Disclosure key={m.id} open className="evidence-item" label={<><Actor who={m.actor} /> sent {m.data.name} · <Text muted>{when(m.at)}</Text></>}>
           <DataView data={m.data.payload} />
         </Disclosure>
       ))}
-      {!e.agents.length && !e.messages.length && <p className="small muted">What started the workflow:</p>}
+      {!e.agents.length && !e.messages.length && <Text as="p" small muted>What started the workflow:</Text>}
       {!e.agents.length && <DataView data={startedWith(v.data)} />}
     </UICard>
   );

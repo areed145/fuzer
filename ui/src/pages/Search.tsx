@@ -1,7 +1,7 @@
 import { api, type Stats } from "../api";
 import { count } from "../format";
 import { KindBadge, Status, entityHref, fmt, href, useAsync, useDebounced } from "../lib";
-import { Button, Disclosure, PageHeader, Table, Input } from "../ui";
+import { Button, Disclosure, PageHeader, Table, Input, Text } from "../ui";
 
 /** The kinds people look for by name, shown first; every other kind is one click away under "More kinds". */
 const FIRST_KINDS = ["equipment", "tag", "well", "facility", "area", "pipeline", "document", "work_order", "notification", "incident"];
@@ -19,7 +19,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
   const rest = kinds.filter(([k]) => !FIRST_KINDS.includes(k));
   const chip = ([k, n]: [string, number]) => (
     <Button key={k} aria-pressed={kind === k} className={kind === k ? "chip on" : "chip"} onClick={() => go({ kind: k })}>
-      {k.replace(/_/g, " ")} <span className="muted">{count(n)}</span>
+      {k.replace(/_/g, " ")} <Text muted>{count(n)}</Text>
     </Button>
   );
   return (
@@ -72,7 +72,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
           </tbody>
         </Table>
       )}
-      {hits.data?.length === 200 && <p className="small">Showing the first 200. Narrow your search.</p>}
+      {hits.data?.length === 200 && <Text as="p" small>Showing the first 200. Narrow your search.</Text>}
     </section>
   );
 }

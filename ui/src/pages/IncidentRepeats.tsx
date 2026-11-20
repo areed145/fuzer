@@ -2,7 +2,7 @@
  * days between them, any that came back after linked work was recorded closed, and the age of open linked orders.
  * Linked work is a proxy, not an action register, and order status says what was recorded, not that it worked. */
 import { api, type LinkedOrder } from "../api";
-import { Badge, Card, Disclosure, Empty, Table } from "../ui";
+import { Badge, Card, Disclosure, Empty, Table, Text } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 import { plural, say } from "../wording";
 
@@ -22,11 +22,11 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
     <Card className="incident-repeats" title="Do problems come back?">
       <Status of={data} />
       {d && <>
-        <div className="small">
+        <Text as="div" small>
           {d.since} to {d.until}: {d.summary.incidents} incidents on {d.summary.units} units, {d.summary.repeat_units} with
           {" "}more than one; {d.summary.came_back_after_closed_work} came back after linked work was closed;
           {" "}{d.summary.open_orders} linked orders still open.
-        </div>
+        </Text>
         <Table density="compact" className="repeats-table phone-rows">
           <thead><tr><th>Unit</th><th>Incidents</th><th>Days between</th><th>Linked work</th></tr></thead>
           <tbody>{d.units.filter((u) => u.repeat).map((u) => (
@@ -68,7 +68,7 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
               {" "}{LINK[w.link]}: {w.description}</li>
           ))}</ul>
         ) : <Empty>No open order is linked to these incidents.</Empty>}
-        <div className="small muted">{d.summary.incidents_without_linked_work} incidents have no linked work. {d.note}</div>
+        <Text as="div" small muted>{d.summary.incidents_without_linked_work} incidents have no linked work. {d.note}</Text>
       </>}
     </Card>
   );

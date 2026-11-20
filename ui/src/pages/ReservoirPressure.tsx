@@ -2,7 +2,7 @@
  * static pressure surveys against the reservoir volume taken out net of injection, and each surveyed well's
  * productivity index. Estimates: the assumptions each rests on are always listed. No surveys, no card. */
 import { api } from "../api";
-import { Badge, Card, Table } from "../ui";
+import { Badge, Card, Table, Text } from "../ui";
 import { Status, useAsync } from "../lib";
 
 export function ReservoirPressure() {
@@ -26,11 +26,11 @@ export function ReservoirPressure() {
           <tbody>{pi.wells.map((w) => (
             <tr key={w.well} data-well={w.well}>
               <td>{w.well}</td>
-              <td data-label="Productivity index">{w.latest_pi ?? "unknown"} {w.latest_pi != null && <span className="muted">{pi.unit}</span>}</td>
+              <td data-label="Productivity index">{w.latest_pi ?? "unknown"} {w.latest_pi != null && <Text muted>{pi.unit}</Text>}</td>
               <td data-label="Since the first survey">
                 <Badge tone={w.verdict === "fallen" ? "warn" : w.verdict === "holding" ? "ok" : "muted"}>
                   {w.verdict === "too_few_surveys" ? "too few surveys" : w.verdict}</Badge>
-                {w.ratio != null && <span className="muted"> {w.ratio} times the first</span>}
+                {w.ratio != null && <Text muted> {w.ratio} times the first</Text>}
               </td>
             </tr>
           ))}</tbody>

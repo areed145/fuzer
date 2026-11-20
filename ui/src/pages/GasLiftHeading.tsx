@@ -2,7 +2,7 @@
  * annulus filling and dumping through the valve), or whose lift gas or wellhead pressure cycles without it, over the
  * last days. Candidates for the engineer: the cause is theirs to find, and no gas or choke change is proposed. */
 import { api } from "../api";
-import { Badge, Card, Empty, Table } from "../ui";
+import { Badge, Card, Empty, Table, Text } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
 const SIGNAL: Record<string, string> = { casing_pressure: "casing", gas_lift_rate: "lift gas", wellhead_pressure: "wellhead" };
@@ -33,7 +33,7 @@ export function GasLiftHeading() {
             ))}</tbody>
           </Table>
         ) : <Empty>No gas lifted well heads or cycles in the window.</Empty>}
-        <div className="small muted">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </>}
     </Card>
   );

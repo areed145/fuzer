@@ -2,7 +2,7 @@
  * last year, its earlier level against its latest samples, gaps where sampling stopped, and the drifts the
  * quality_drift detector found. No on or off specification claim: no specification or discharge limit is loaded. */
 import { api } from "../api";
-import { Badge, Card, Table } from "../ui";
+import { Badge, Card, Table, Text } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
 export function QualityTrend() {
@@ -25,10 +25,10 @@ export function QualityTrend() {
               <td data-label="Analyte">{s.analyte}{s.drift && <> <Badge tone="warn" className="quality-drift">
                 drifting {s.drift.direction}</Badge></>}</td>
               <td data-label="Earlier, then latest">{s.first_half_median} to {s.latest_3_median} {s.unit}
-                {s.change_pct != null && <span className="muted"> ({s.change_pct > 0 ? "+" : ""}{s.change_pct}%)</span>}</td>
+                {s.change_pct != null && <Text muted> ({s.change_pct > 0 ? "+" : ""}{s.change_pct}%)</Text>}</td>
               <td data-label="Sampling">{s.samples} samples, every {s.usual_interval_days} days
                 {s.gaps.map((g) => <div key={g.from} className="small quality-gap">no sample {g.from} to {g.to} ({g.days} days)</div>)}
-                {s.below_detection > 0 && <div className="small muted">{s.below_detection} below detection</div>}</td>
+                {s.below_detection > 0 && <Text as="div" small muted>{s.below_detection} below detection</Text>}</td>
             </tr>
           ))}</tbody>
         </Table>

@@ -1,6 +1,6 @@
 import { count, money, when, ago } from "../format";
 import "../styles/jobs.css";
-import { Button, ButtonLink, PageHeader, Table, Card as UICard, Badge as UIBadge, Disclosure, ErrorText } from "../ui";
+import { Button, ButtonLink, PageHeader, Table, Card as UICard, Badge as UIBadge, Disclosure, ErrorText, Line, Text } from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
 import { api, type DetectorTier, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
 import { Status, href, useAsync } from "../lib";
@@ -29,8 +29,8 @@ export function JobsPage() {
       {o.data && !o.data.available && (
         <UICard className="">
           <p>Scheduler history is unavailable in this deployment. A deployment operator can check the scheduler service.</p>
-          <p className="small">Running Fuzer yourself? Start the scheduler with <code>fuzer up</code> (without{" "}
-            <code>--no-jobs</code>), or on its own with <code>fuzer jobs</code>.</p>
+          <Text as="p" small>Running Fuzer yourself? Start the scheduler with <code>fuzer up</code> (without{" "}
+            <code>--no-jobs</code>), or on its own with <code>fuzer jobs</code>.</Text>
           <p><a href={href("/sources")}>Inspect recorded source loads</a> or <a href={href("/browse")}>Explore loaded records</a>.</p>
           <Button disabled={o.loading} onClick={o.reload}>Refresh scheduler history</Button>
         </UICard>
@@ -62,9 +62,9 @@ function TierRow({ x }: { x: DetectorTier }) {
     <td>{x.label}</td>
     <td className="small">{x.detectors.length <= 3 ? x.detectors.map((d) => d.title).join(", ")
       : <Disclosure label={<>{x.detectors.length} detectors</>}><ul className="tier-detectors">{x.detectors.map((d) => <li key={d.title}>{d.title}</li>)}</ul></Disclosure>}</td>
-    <td className="small">{x.last_at ? ago(x.last_at, "Time unknown") : <span className="muted">never</span>}</td>
+    <td className="small">{x.last_at ? ago(x.last_at, "Time unknown") : <Text muted>never</Text>}</td>
     <td className="small">{x.runs ? <>{x.runs} runs, {duration(x.seconds)} in all ({duration(x.avg_seconds)} each), {x.found} found
-      {x.failures > 0 && <ErrorText inline>, {x.failures} failed</ErrorText>}</> : <span className="muted">no runs</span>}</td>
+      {x.failures > 0 && <ErrorText inline>, {x.failures} failed</ErrorText>}</> : <Text muted>no runs</Text>}</td>
   </tr>;
 }
 
@@ -72,7 +72,7 @@ function DagsterLink({ d }: { d: JobsOverview["dagster"] }) {
   return d.reachable ? (
     <ButtonLink href={d.url} target="_blank" rel="noreferrer">Open in Dagster ↗</ButtonLink>
   ) : (
-    <span className="muted small" title={d.url}>Dagster UI not reachable</span>
+    <Text small muted title={d.url}>Dagster UI not reachable</Text>
   );
 }
 
@@ -84,11 +84,11 @@ function Overview({ o }: { o: JobsOverview }) {
         <div>
           <strong>{o.health.summary}</strong>
           {!o.scheduler.running && (
-            <div className="small">
+            <Text as="div" small>
               The scheduler reports no running daemon, so schedules and sensors may not fire.
               {" "}Last recorded heartbeat: {when(o.scheduler.last_heartbeat, "Time unknown")}.
               Ask a deployment operator to inspect the scheduler service; retrying a source load does not repair it.
-            </div>
+            </Text>
           )}
         </div>
       </div>
@@ -105,16 +105,16 @@ function Overview({ o }: { o: JobsOverview }) {
                 <td>
                   {j.description ? <><div>{j.description}</div><code className="muted small">{j.name}</code></> : <code>{j.name}</code>}
                 </td>
-                <td>{j.triggers.length ? j.triggers.map((t) => <Trigger key={t.name} t={t} />) : <span className="muted small">manual only</span>}</td>
+                <td>{j.triggers.length ? j.triggers.map((t) => <Trigger key={t.name} t={t} />) : <Text small muted>manual only</Text>}</td>
                 <td>
                   {j.last_run ? (
                     <>
                       <a href={runHref(j.last_run.run_id)} aria-label={`Inspect ${j.name} last run`}><RunBadge status={j.last_run.status} /></a>
-                      <div className="muted small">{ago(j.last_run.start ?? j.last_run.end, "Time unknown")}{j.last_run.seconds != null && ` · ${duration(j.last_run.seconds)}`}</div>
+                      <Text as="div" small muted>{ago(j.last_run.start ?? j.last_run.end, "Time unknown")}{j.last_run.seconds != null && ` · ${duration(j.last_run.seconds)}`}</Text>
                     </>
-                  ) : <span className="muted small">never run</span>}
+                  ) : <Text small muted>never run</Text>}
                 </td>
-                <td className="small">{j.triggers.map((t) => t.next_tick).filter(Boolean).map((n) => ago(n, "Time unknown")).join(", ") || <span className="muted">—</span>}</td>
+                <td className="small">{j.triggers.map((t) => t.next_tick).filter(Boolean).map((n) => ago(n, "Time unknown")).join(", ") || <Text muted>—</Text>}</td>
                 <td><RunDots runs={j.recent_runs} /></td>
               </tr>
             ))}
@@ -139,12 +139,12 @@ function Overview({ o }: { o: JobsOverview }) {
           <tbody>
             {o.sensors.map((s) => (
               <tr key={s.name}>
-                <td><code>{s.name}</code>{s.description && <div className="muted small">{s.description}</div>}</td>
+                <td><code>{s.name}</code>{s.description && <Text as="div" small muted>{s.description}</Text>}</td>
                 <td><OnOff on={s.status === "on"} /></td>
-                <td className="small">{s.last_tick ? ago(s.last_tick.time, "Time unknown") : <span className="muted">never</span>}</td>
+                <td className="small">{s.last_tick ? ago(s.last_tick.time, "Time unknown") : <Text muted>never</Text>}</td>
                 <td className="small">
                   {s.last_tick?.error ? <ErrorText inline>{s.last_tick.error}</ErrorText>
-                    : s.last_tick?.skip_reason ? <span className="muted">Skipped: {s.last_tick.skip_reason}</span>
+                    : s.last_tick?.skip_reason ? <Text muted>Skipped: {s.last_tick.skip_reason}</Text>
                     : s.last_tick?.run_keys.length ? <>Started a run for {runKeyNames(s.last_tick.run_keys)}</>
                     : s.last_tick ? s.last_tick.status.toLowerCase() : ""}
                 </td>
@@ -203,7 +203,7 @@ function OnOff({ on }: { on: boolean }) {
 }
 
 function RunDots({ runs }: { runs: JobRunSummary[] }) {
-  if (!runs.length) return <span className="muted small">—</span>;
+  if (!runs.length) return <Text small muted>—</Text>;
   return (
     <span className="run-dots">
       {[...runs].reverse().map((r) => (
@@ -220,7 +220,7 @@ function CheckRow({ c }: { c: JobCheck }) {
   const rest = Object.entries(c.metadata).filter(([k]) => k !== "examples");
   return (
     <tr>
-      <td><code>{c.name}</code>{c.description && <div className="muted small">{c.description}</div>}</td>
+      <td><code>{c.name}</code>{c.description && <Text as="div" small muted>{c.description}</Text>}</td>
       <td><UIBadge tone={c.level === "pass" ? "ok" : c.level === "fail" ? "danger" : c.level === "warn" ? "warn" : "muted"}>{CHECK_LABEL[c.level] ?? "unknown"}</UIBadge></td>
       <td className="small">
         {c.note && <div className={c.level === "fail" ? "error" : "muted"}>{c.note}</div>}
@@ -231,12 +231,12 @@ function CheckRow({ c }: { c: JobCheck }) {
               const label = exampleLabel(ex);
               return label ? <a key={i} href={href("/browse", { q: label })}>{label}</a> : <code key={i}>{JSON.stringify(ex).slice(0, 60)}</code>;
             })}
-            {examples.length > 8 && <span className="muted">+{examples.length - 8} more</span>}
+            {examples.length > 8 && <Text muted>+{examples.length - 8} more</Text>}
           </div>
         )}
       </td>
       <td className="small">
-        {c.run_id ? <a href={runHref(c.run_id)}>{ago(c.time, "Time unknown")}</a> : <span className="muted">never</span>}
+        {c.run_id ? <a href={runHref(c.run_id)}>{ago(c.time, "Time unknown")}</a> : <Text muted>never</Text>}
       </td>
     </tr>
   );
@@ -262,15 +262,15 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
     <>
       <h2>Claude spend</h2>
       <UICard className="">
-        <p className="small">
+        <Text as="p" small>
           The nightly <code>claude_reading</code> job is <OnOff on={c.schedule === "on"} />
           {c.schedule !== "on" && " (off by default because it costs money; turn it on in Dagster)"}.
           {" "}Last 30 days: <strong>{money(c.usd_30d)}</strong> across {c.runs.length} run{c.runs.length === 1 ? "" : "s"}.
-        </p>
+        </Text>
         {Object.keys(c.limits).length > 0 && (
-          <p className="small">
+          <Text as="p" small>
             Limits per run: {Object.entries(c.limits).map(([k, v]) => limitText(k, v)).join(" · ")}
-          </p>
+          </Text>
         )}
         {c.runs.length > 0 && (
           <Table variant="list" density="compact">
@@ -309,17 +309,17 @@ export function JobRunPage({ id }: { id: string }) {
   const tags = Object.entries(d.tags).filter(([k]) => k !== "dagster/failure_reason");
   return (
     <section className="jobs">
-      <div className="row">
+      <Line>
         <PageHeader><code>{d.job}</code></PageHeader>
         <RunBadge status={d.status} />
-      </div>
-      <p className="small">
+      </Line>
+      <Text as="p" small>
         Run <code>{d.run_id.slice(0, 8)}</code> · started by {d.trigger}
         {" · Scheduler start: "}{when(d.start, "Time unknown")}
         {d.seconds != null && ` · took ${duration(d.seconds)}`}
-      </p>
-      <p className="small"><a href={href("/jobs")}>Return to Jobs</a>{" · "}
-        <a href={href("/sources")}>Inspect source Runs and Quality</a>. Scheduler times describe execution, not source event dates.</p>
+      </Text>
+      <Text as="p" small><a href={href("/jobs")}>Return to Jobs</a>{" · "}
+        <a href={href("/sources")}>Inspect source Runs and Quality</a>. Scheduler times describe execution, not source event dates.</Text>
       {["FAILURE", "CANCELED"].includes(d.status) && <p className="notice">This execution did not complete successfully.
         Inspect errors and recorded source runs before deliberately retrying in Sources; some earlier steps may have completed.</p>}
 
@@ -328,7 +328,7 @@ export function JobRunPage({ id }: { id: string }) {
           <h2>What went wrong</h2>
           {d.errors.map((e, i) => (
             <UICard key={i} className="error-card">
-              <div className="small muted">{e.step ? <>step <code>{e.step}</code></> : "run"}{e.error_class && <> · {e.error_class}</>}</div>
+              <Text as="div" small muted>{e.step ? <>step <code>{e.step}</code></> : "run"}{e.error_class && <> · {e.error_class}</>}</Text>
               <pre className="data">{e.message}</pre>
               {e.stack && (
                 <Disclosure label={<>Stack trace</>}>
@@ -347,7 +347,7 @@ export function JobRunPage({ id }: { id: string }) {
             {d.assets.map((a) => (
               <UICard key={a.asset} className="">
                 <h3><code>{a.asset}</code></h3>
-                <p className="small">Scheduler observation: {when(a.time, "Time unknown")}</p>
+                <Text as="p" small>Scheduler observation: {when(a.time, "Time unknown")}</Text>
                 <Table variant="keyValue" density="compact" headingCase="verbatim">
                   <tbody>
                     {Object.entries(a.metadata).map(([k, v]) => (

@@ -147,6 +147,12 @@ export function Textarea({ width, className = "", ...props }: TextareaHTMLAttrib
 export function Select({ width, className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement> & { width?: Width }) {
   return <select {...props} className={`ui-input ${width ? `ui-width-${width}` : ""} ${className}`.trim()} />;
 }
+/** A checkbox with its label. `onChange` gets the new state. */
+export function Checkbox({ checked, onChange, disabled, children }: {
+  checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; children: ReactNode;
+}) {
+  return <label className="ui-check"><input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} /> {children}</label>;
+}
 export function Badge({ tone = "muted", className = "", ...props }: HTMLAttributes<HTMLSpanElement> & {
   tone?: "ok" | "warn" | "danger" | "info" | "muted";
 }) {
@@ -158,6 +164,22 @@ export function ErrorText({ children, inline = false }: { children?: ReactNode; 
   if (!children) return null;
   const Tag = inline ? "span" : "p";
   return <Tag role="alert" className="ui-error">{children}</Tag>;
+}
+const classes = (flags: Record<string, boolean | undefined>) => Object.keys(flags).filter((name) => flags[name]).join(" ") || undefined;
+
+/** Text in one of the app's few text styles: `small`, `muted` (grey), `mono` (ids and codes), in any mix. A span unless
+ * `as` says a paragraph or a block. It takes no class name: a style that isn't here is added here, for every page. */
+export function Text({ as: Tag = "span", small, muted, mono, ...props }: Omit<HTMLAttributes<HTMLElement>, "className"> & {
+  as?: "span" | "p" | "div"; small?: boolean; muted?: boolean; mono?: boolean;
+}) {
+  return <Tag {...props} className={classes({ small, muted, mono })} />;
+}
+
+/** Things on one line with the app's gap: `spread` pushes them to the two ends, `wrap` lets them wrap. */
+export function Line({ as: Tag = "div", spread, wrap, small, muted, ...props }: Omit<HTMLAttributes<HTMLElement>, "className"> & {
+  as?: "div" | "span" | "p"; spread?: boolean; wrap?: boolean; small?: boolean; muted?: boolean;
+}) {
+  return <Tag {...props} className={classes({ row: true, spread, wrap, small, muted })} />;
 }
 export function Stat({ label, value, detail }: { label: ReactNode; value: ReactNode; detail?: ReactNode }) {
   return <div className="ui-stat"><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>;

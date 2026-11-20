@@ -1,6 +1,6 @@
 import "../styles/settings.css";
 import { when } from "../format";
-import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text } from "../ui";
 import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync, useReasonedAction } from "../lib";
@@ -77,8 +77,8 @@ function Configuration({ query }: { query: URLSearchParams }) {
         </label>
         <Input aria-label="Filter settings" placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </UICard>
-      <p className="small">Manage source endpoints and secret references in{" "}
-        <a href={href("/sources", { view: "systems" })}>Systems &amp; connections</a>, not legacy source-seeding settings.</p>
+      <Text as="p" small>Manage source endpoints and secret references in{" "}
+        <a href={href("/sources", { view: "systems" })}>Systems &amp; connections</a>, not legacy source-seeding settings.</Text>
       {!f && <p>Accounts, permissions and workflow assignments are managed in <a href={href("/users")}>Users</a>.</p>}
       <Status of={list} empty={list.data && rows.length === 0}>
         No settings match.
@@ -123,7 +123,7 @@ function SettingLine({ s, project, person, open, toggle, saved }: {
           <code>{s.key}</code>
           {s.restart && <UIBadge className="badge" title="takes effect when the process restarts">restart</UIBadge>}
           {!s.restart && <UIBadge>next use</UIBadge>}
-          <div className="muted small">{s.description}</div>
+          <Text as="div" small muted>{s.description}</Text>
         </td>
         <td>
           <b>{show(s.value)}</b>{" "}
@@ -131,8 +131,8 @@ function SettingLine({ s, project, person, open, toggle, saved }: {
           {s.type === "secret" && (
             <UIBadge className={`badge ${s.resolves ? "ok" : ""}`}>{s.resolves ? "resolves" : "not set"}</UIBadge>
           )}
-          {s.from === "project" && s.global !== null && <div className="muted small">global: {show(s.global)}</div>}
-          {s.from === "environment" && <div className="muted small">Legacy variable: <code>{s.environment}</code>. Save here to override it.</div>}
+          {s.from === "project" && s.global !== null && <Text as="div" small muted>global: {show(s.global)}</Text>}
+          {s.from === "environment" && <Text as="div" small muted>Legacy variable: <code>{s.environment}</code>. Save here to override it.</Text>}
         </td>
         <td className="muted">{show(s.default)}</td>
         <td className="muted small">{range(s)}</td>
@@ -166,7 +166,7 @@ function Editor({ s, project, person, saved }: {
   const save = () => run("save", (why) => api.setSetting(s.key, value, scope, project, person, why), after);
   const reset = () => run("reset", (why) => api.resetSetting(s.key, scope, project, person, why), after);
   return (
-    <div className="row small">
+    <Line small>
       <Select aria-label={`Scope for ${s.key}`} value={scope} onChange={(e) => {
         const next = e.target.value as SettingScope;
         setScope(next);
@@ -204,7 +204,7 @@ function Editor({ s, project, person, saved }: {
       </Button>
       <ErrorText inline>{error}</ErrorText>
       {message && <span role="status">{message}</span>}
-    </div>
+    </Line>
   );
 }
 

@@ -6,7 +6,7 @@
  * compliance finding, and no permit limit is loaded. */
 import { api, type FlareReview } from "../api";
 import { whenDay, count } from "../format";
-import { Badge, Card, Empty, Table } from "../ui";
+import { Badge, Card, Empty, Table, Text } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
 const KIND: Record<FlareReview["episodes"][number]["causes"][number]["kind"], string> = {
@@ -63,7 +63,7 @@ export function FlareAttribution() {
             ))}</tbody>
           </Table>
         )}
-        <div className="small muted">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </>}
     </Card>
   );

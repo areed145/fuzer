@@ -1,6 +1,6 @@
 import "../../styles/work.css";
 import { count, money } from "../../format";
-import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText } from "../../ui";
+import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line } from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
 import { usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
@@ -183,7 +183,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   const notReady = a.error?.startsWith("Not ready to dispatch") ?? false;
   return (
     <Disclosure className="small" label={<>Send to the field…</>}>
-      <div className="row wrap">
+      <Line wrap>
         <Field label="Send to" width="md"><Select value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="">choose a field operator</option>
           {field.map((p) => <option key={p.name} value={p.name}>{p.display_name || p.name}
@@ -192,7 +192,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
         </Select></Field>
         <Field label="What to check or do (they see this)" width="lg">
           <Input value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>
-      </div>
+      </Line>
       {(notReady || blocked) && <Field label="Why send it anyway (kept on the case)" width="lg">
         <Input value={why} onChange={(e) => { setWhy(e.target.value); setBlocked([a.error ?? ""]); }} /></Field>}
       <Button variant="primary" disabled={!to || !ask.trim() || !!a.busy || ((notReady || !!blocked) && !why.trim())}

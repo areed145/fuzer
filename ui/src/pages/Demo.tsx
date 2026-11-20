@@ -5,7 +5,7 @@ import { api, type Stats } from "../api";
 import { href, Status, useAsync } from "../lib";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
-import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Disclosure } from "../ui";
+import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Disclosure, Text } from "../ui";
 
 const STEPS = [
   { key: "start", label: "Get oriented" },
@@ -34,7 +34,7 @@ export function DemoPage({ query, stats }: {
         aria-current={s.key === step.key ? "step" : undefined}><span>{i + 1}</span>{s.label}</a></li>)}
     </ol></nav>
     <Card className="investigation-stage">
-      <p className="small">Step {index + 1} of {STEPS.length}</p>
+      <Text as="p" small>Step {index + 1} of {STEPS.length}</Text>
       <h2 ref={heading} tabIndex={-1} id="demo-step">{step.label}</h2>
       {step.key === "start" && <>
         <p>New to Fuzer? Start with one asset, inspect where its records came from, then compare
@@ -121,7 +121,7 @@ function Workflow() {
     <Status of={cases} />
     {cases.data && !cases.error && (cases.data.items.length ? <ul>{cases.data.items.map((c) => <li key={c.id}>
       <a href={href(`/cases/${c.id}`, { demo: "workflow" })}>{c.title}</a> · {c.state} · {c.process_key ?? "No process recorded"}
-      <span className="muted small"> · Opened: {when(c.created_at, "Time unknown")} (recorded workflow timestamp)</span>
+      <Text small muted> · Opened: {when(c.created_at, "Time unknown")} (recorded workflow timestamp)</Text>
     </li>)}</ul> : <EmptyState title="No workflow cases loaded">
       The workflow demonstration is unavailable. Ask an administrator to inspect the existing Work and Jobs setup; nothing was seeded.
     </EmptyState>)}

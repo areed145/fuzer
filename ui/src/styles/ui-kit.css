@@ -57,6 +57,7 @@
 .ui-stat > span, .ui-stat small { color: var(--muted); font-size: 12px; }
 .ui-stat strong { font-size: 20px; font-weight: 600; }
 .ui-page-subtitle { color: var(--muted); }
+.ui-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-right: 12px; }
 .ui-error { color: var(--danger); font-size: 13px; }
 p.ui-error { margin: 6px 0; }
 .ui-empty-line { color: var(--muted); margin: 8px 0; }

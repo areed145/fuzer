@@ -7,7 +7,7 @@ import { api } from "./api";
 import { openDocument, documentHref } from "./DocumentViewer";
 import { openDrawing } from "./DrawingFullscreen";
 import { entityHref, useAsync } from "./lib";
-import { Card } from "./ui";
+import { Card, Text } from "./ui";
 
 /** What the card reads, shared with the asset page so it can draw its overview at once (#1069). */
 export const readProfile = (id: string) =>
@@ -22,12 +22,12 @@ export function AssetProfile({ id, data }: { id: string; data?: Awaited<ReturnTy
   if (make) rows.push(["Make and model", p.equipment_model ? <a href={entityHref(p.equipment_model.id)}>{make}</a> : make]);
   if (p.serial || p.installed) rows.push(["Serial", <>
     {p.serial}
-    {p.installed && <span className="muted"> · <a href={entityHref(p.installed.id)}>unit {p.installed.label}</a>
-      {p.installed.since && <> installed {p.installed.since}</>}</span>}
+    {p.installed && <Text muted> · <a href={entityHref(p.installed.id)}>unit {p.installed.label}</a>
+      {p.installed.since && <> installed {p.installed.since}</>}</Text>}
   </>]);
   if (p.position) rows.push(["Installed at", <>
     <a href={entityHref(p.position.id)}>{p.position.label}</a>
-    {p.position.since && <span className="muted"> since {p.position.since}</span>}
+    {p.position.since && <Text muted> since {p.position.since}</Text>}
   </>]);
   if (p.equipment_class) rows.push(["Class", <a href={entityHref(p.equipment_class.id)}>
     {p.equipment_class.description ?? p.equipment_class.label}</a>]);

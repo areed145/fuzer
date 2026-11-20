@@ -84,6 +84,9 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 - `Button` uses `primary` for the main action, `secondary` for ordinary actions, `ghost` for low emphasis, `link` for inline actions, and `danger` for destructive actions. Use `sm` for compact table actions and `md` elsewhere. Use `ButtonLink` for navigation styled as a button and `ButtonLabel` for labels that open hidden file inputs.
 - `Card` (also exported as `Section`) groups related content. Supply `title` and `actions` when the group needs a heading or controls.
 - `Table` provides the shared scroll container and table base. Use it for data tables and choose a compact density for dense lists; use specialized classes only for domain-specific layout.
+- `Text` sets the text style (`small`, `muted`, `mono`) and `Line` puts things on one line (`spread`, `wrap`). Use them instead of the class names; a style that is missing is added to the kit, not to a page.
+- `Checkbox` is a checkbox with its label; `onChange` gets the new state.
+- `ErrorText` shows a failure message.
 - `Field`, `Input`, `Select` and `Textarea` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
 - `Tabs` switches between views of one page; `Notice` holds something the user must act on; `HelpLink` links a docs page.
 - `Badge` shows a compact status with `ok`, `warn`, `danger`, or `muted` tone.

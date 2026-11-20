@@ -3,7 +3,7 @@
  * on the same equipment) per quarter. A quarter below the sample floor says too little data. Measures the records,
  * never people or crews. */
 import { api } from "../api";
-import { Card, Table } from "../ui";
+import { Card, Table, Text } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 
 const pct = (v: number | null) => (v == null ? "too little data" : `${v}%`);
@@ -29,9 +29,9 @@ export function WorkExecution() {
             <tr key={p.period} data-period={p.period}>
               <td>{p.period}</td>
               <td data-label="Schedule compliance">{pct(p.schedule_compliance_pct)}
-                <span className="muted"> ({p.on_time} of {p.finished - p.no_due_date})</span></td>
+                <Text muted> ({p.on_time} of {p.finished - p.no_due_date})</Text></td>
               <td data-label="Repeat repairs">{pct(p.repeat_rate_pct)}
-                <span className="muted"> ({p.repeats.length} of {p.corrective})</span></td>
+                <Text muted> ({p.repeats.length} of {p.corrective})</Text></td>
             </tr>
           ))}</tbody>
         </Table>
@@ -42,7 +42,7 @@ export function WorkExecution() {
               <a href={entityHref(r.after)}>a repair</a> finished {r.previous_finish}: {r.text}</li>
           ))}</ul>
         </>}
-        <div className="small muted">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </>}
     </Card>
   );

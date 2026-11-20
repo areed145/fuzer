@@ -3,7 +3,7 @@
  * injection says so, never a ratio of zero. Screening only: the injection target stays with the engineers. */
 import { api } from "../api";
 import { count } from "../format";
-import { Badge, Card, Table } from "../ui";
+import { Badge, Card, Table, Text } from "../ui";
 import { Status, useAsync } from "../lib";
 
 const SAY = { under_replacing: "under-replacing", over_injecting: "over-injecting", balanced: "balanced",
@@ -33,7 +33,7 @@ export function WaterInjection() {
               <td>{i.well}</td>
               <td data-label="Hall slope">
                 <Badge tone={i.verdict === "rising" || i.verdict === "falling" ? "warn" : "ok"}>{HALL[i.verdict]}</Badge>
-                {i.slope_ratio != null && <span className="muted"> {i.slope_ratio} times earlier</span>}
+                {i.slope_ratio != null && <Text muted> {i.slope_ratio} times earlier</Text>}
               </td>
               <td data-label="Reads">{i.reads}</td>
             </tr>
@@ -51,7 +51,7 @@ export function WaterInjection() {
             </tr>
           ))}</tbody>
         </Table>
-        <div className="small muted">{v.note} {d.hall.note}</div>
+        <Text as="div" small muted>{v.note} {d.hall.note}</Text>
       </>}
     </Card>
   );

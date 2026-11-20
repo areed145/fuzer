@@ -1,4 +1,4 @@
-import { Button, Card as UICard, Empty } from "../ui";
+import { Button, Card as UICard, Empty, Text } from "../ui";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, Legend, subgraphElements, type LayoutName } from "../graph";
@@ -84,7 +84,7 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
                 <Empty className="small">Select a node to see what it is. Select it twice to pull in its own links.</Empty>
               )}
               {graph.data.truncated && (
-                <p className="small">Too many neighbours to draw them all; showing the first 250.</p>
+                <Text as="p" small>Too many neighbours to draw them all; showing the first 250.</Text>
               )}
             </UICard>
           </div>

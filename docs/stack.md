@@ -61,6 +61,8 @@ doesn't cover a case, extend the module, with a test, so every page gets the cha
 | Controls and tables | `Button`, `Input`, `Select`, `Textarea`, `Field`, `Table` and the rest of `ui/src/ui` | `style-lint` rule `raw-control` |
 | A figure worked out from API data (a total across kinds) | `ui/src/figures.ts`, or a field on the API. A page never adds up a list itself. | `style-lint` rule `computed-total` |
 | The state of a read (loading, failed, empty) | `<Status of={read} />` from `ui/src/lib.tsx`, given the `useAsync` result; a failed read always offers Try again | `style-lint` rule `read-state` |
+| Text styles and one-line layouts | `Text` (`small`, `muted`, `mono`) and `Line` (`spread`, `wrap`) from `ui/src/ui`, not class names | `style-lint` rule `raw-text-class` |
+| A checkbox | `Checkbox` from `ui/src/ui` | `style-lint` rule `raw-checkbox` |
 | A failure message | `ErrorText` from `ui/src/ui`; `ActionStatus` for a button's action | `style-lint` rule `raw-error` |
 | Loading data | `useAsync` in `ui/src/lib.tsx` over the `api` facade; never `fetch` in a page | `style-lint` rule `raw-fetch` |
 

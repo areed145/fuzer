@@ -1,7 +1,7 @@
 /** Register gaps (#476): fields most of a kind carry and some lack, one value written several ways, and open
  * conflicts between sources. Each says where it is fixed; spellings are fixed here, across every entity at once. */
 import { useState } from "react";
-import { confirmDialog, ErrorText } from "../../ui";
+import { confirmDialog, ErrorText, Line, Text } from "../../ui";
 import { percent } from "../../format";
 import { api, type SpellingGroup } from "../../api";
 import { Button, Card, Select, Table, Empty } from "../../ui";
@@ -41,8 +41,8 @@ function SpellingRow({ g, done }: { g: SpellingGroup; done: () => void }) {
   return (
     <tr>
       <td>{fieldLabel(g.field)}</td>
-      <td>{g.spellings.map((s) => <div key={s.value}><code>{s.value}</code> <span className="muted">({s.entities})</span></div>)}</td>
-      <td>{operate && person && <div className="row">
+      <td>{g.spellings.map((s) => <div key={s.value}><code>{s.value}</code> <Text muted>({s.entities})</Text></div>)}</td>
+      <td>{operate && person && <Line>
         <Select aria-label={`Spelling of ${g.field} to keep`} value={keep} onChange={(e) => setKeep(e.target.value)}>
           {g.spellings.map((s) => <option key={s.value} value={s.value}>{s.value}</option>)}
         </Select>
@@ -52,7 +52,7 @@ function SpellingRow({ g, done }: { g: SpellingGroup; done: () => void }) {
             `one spelling for ${g.field}`), done);
         }}>Use it on {n}</Button>
         <ErrorText inline>{a.error}</ErrorText>
-      </div>}</td>
+      </Line>}</td>
     </tr>
   );
 }
@@ -71,7 +71,7 @@ function Completeness() {
             <td>{g.have} of {g.total} ({percent(g.share)})</td>
             <td>{(g.examples ?? []).slice(0, 8).map((x, i) => <span key={x.fuzer_id}>{i > 0 && ", "}
               <a href={entityHref(x.fuzer_id)}>{x.label ?? x.fuzer_id}</a></span>)}
-              {g.missing > 8 && <span className="muted"> and {g.missing - 8} more</span>}</td>
+              {g.missing > 8 && <Text muted> and {g.missing - 8} more</Text>}</td>
           </tr>
         ))}</tbody>
       </Table>}
@@ -90,7 +90,7 @@ function Conflicts() {
         <tbody>{rows.data.map((c) => (
           <tr key={c.id}>
             <td><a href={entityHref(c.fuzer_id)}>{c.label ?? c.fuzer_id}</a></td><td>{fieldLabel(c.field)}</td>
-            <td>{c.values.map((v) => <div key={`${v.source}:${v.source_key}`}>{fmt(v.value)} <span className="muted">({v.source})</span></div>)}</td>
+            <td>{c.values.map((v) => <div key={`${v.source}:${v.source_key}`}>{fmt(v.value)} <Text muted>({v.source})</Text></div>)}</td>
           </tr>
         ))}</tbody>
       </Table>}

@@ -12,7 +12,7 @@ import { projectUrl } from "./authState";
 import { entityHref, useAsync } from "./lib";
 import { MARK_STATUS, MarkShape } from "./DrawingViewer";
 import { lockPageScroll } from "./scrollLock";
-import { Button } from "./ui";
+import { Button, Line, Text } from "./ui";
 
 type View = { s: number; x: number; y: number };
 type Pick = { kind: "mark"; i: number } | { kind: "off"; i: number };
@@ -231,8 +231,8 @@ function Sheet({ g, ring }: { g: Drawing; ring: string[] }) {
       <div className="drawing-full-bar df-ui">
         <Button variant="ghost" className="df-btn" aria-label="Close drawing" onClick={closeDrawing}>{CLOSE}</Button>
         <span className="df-title">
-          <span className="mono">{g.sheet}</span>
-          {g.title && <span className="muted"> · {g.title}</span>}
+          <Text mono>{g.sheet}</Text>
+          {g.title && <Text muted> · {g.title}</Text>}
         </span>
         <div className="df-zoom" role="group" aria-label="Zoom">
           <Button variant="ghost" className="df-btn" aria-label="Zoom out" onClick={() => step(1 / 1.4)}>−</Button>
@@ -263,13 +263,13 @@ function Sheet({ g, ring }: { g: Drawing; ring: string[] }) {
           {picked && <MarkPick m={picked} />}
           {pickedOff && (
             <>
-              <div><strong>{pickedOff.direction === "to" ? "To" : "From"} <span className="mono">{pickedOff.sheet}</span></strong></div>
-              <div className="muted small">
-                {pickedOff.tag && <span className="mono">{pickedOff.tag}</span>} {pickedOff.direction === "to" ? "→" : "←"}{" "}
-                {pickedOff.other && <span className="mono">{pickedOff.other}</span>} {pickedOff.line && <span className="mono">· {pickedOff.line}</span>}
-              </div>
+              <div><strong>{pickedOff.direction === "to" ? "To" : "From"} <Text mono>{pickedOff.sheet}</Text></strong></div>
+              <Text as="div" small muted>
+                {pickedOff.tag && <Text mono>{pickedOff.tag}</Text>} {pickedOff.direction === "to" ? "→" : "←"}{" "}
+                {pickedOff.other && <Text mono>{pickedOff.other}</Text>} {pickedOff.line && <Text mono>· {pickedOff.line}</Text>}
+              </Text>
               {pickedOff.sheet_id ? <SheetActions id={pickedOff.sheet_id} sheet={pickedOff.sheet} />
-                : <div className="muted small">That sheet isn't in the register.</div>}
+                : <Text as="div" small muted>That sheet isn't in the register.</Text>}
             </>
           )}
           <Button variant="ghost" className="df-btn df-dismiss" aria-label="Dismiss" onClick={() => setPick(undefined)}>{CLOSE}</Button>
@@ -278,7 +278,7 @@ function Sheet({ g, ring }: { g: Drawing; ring: string[] }) {
         <nav className="drawing-full-links df-ui" aria-label="Connected sheets">
           {links.map((l) => (
             <Button key={l.id} variant="ghost" className="df-chip" onClick={() => openDrawing(l.id)}>
-              {l.direction === "from" ? "← " : l.direction === "to" ? "→ " : ""}<span className="mono">{l.sheet}</span>
+              {l.direction === "from" ? "← " : l.direction === "to" ? "→ " : ""}<Text mono>{l.sheet}</Text>
             </Button>
           ))}
         </nav>
@@ -305,8 +305,8 @@ function MarkPick({ m }: { m: DrawingMark }) {
   const status = MARK_STATUS.find((s) => s.key === m.status)?.label;
   return (
     <>
-      <div><strong className="mono">{m.key ?? m.text}</strong>{m.key && m.key !== m.text && <span className="muted small mono"> drawn {m.text}</span>}</div>
-      <div className="muted small">{m.sheet_id ? `Names ${m.sheet}` : status}</div>
+      <div><strong className="mono">{m.key ?? m.text}</strong>{m.key && m.key !== m.text && <Text small muted mono> drawn {m.text}</Text>}</div>
+      <Text as="div" small muted>{m.sheet_id ? `Names ${m.sheet}` : status}</Text>
       {m.id && <a className="ui-button ui-button-primary ui-button-md" href={entityHref(m.id)}>Open {m.key ?? m.text}</a>}
       {m.sheet_id && <SheetActions id={m.sheet_id} sheet={m.sheet ?? m.text} />}
     </>
@@ -315,9 +315,9 @@ function MarkPick({ m }: { m: DrawingMark }) {
 
 function SheetActions({ id, sheet }: { id: string; sheet: string }) {
   return (
-    <div className="row">
+    <Line>
       <Button variant="primary" onClick={() => openDrawing(id)}>Go to {sheet}</Button>
       <a className="ui-button ui-button-secondary ui-button-md" href={entityHref(id)}>Sheet page</a>
-    </div>
+    </Line>
   );
 }

@@ -4,7 +4,7 @@
  * unchanged. Board lays the open work out by stage, one column per view. */
 import "../styles/all-work.css";
 import { useEffect, useRef, useState } from "react";
-import { Button, Input, PageHeader, Select, ErrorText } from "../ui";
+import { Button, Input, PageHeader, Select, ErrorText, Line, Text } from "../ui";
 import { api, type ExceptionRow } from "../api";
 import { href, useAsync, useDebounced, errorMessage } from "../lib";
 import { AssignPicker } from "./workflows/shared";
@@ -82,7 +82,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
         {WORK_LISTS.map((l) => (
           <a key={l.key} href={workHref(l.key, { ...filters })} className={l.key === list ? "on" : ""}
             aria-current={l.key === list ? "page" : undefined}>
-            {l.label}{counts[l.key] ? <span className="muted"> {counts[l.key]}</span> : null}</a>
+            {l.label}{counts[l.key] ? <Text muted> {counts[l.key]}</Text> : null}</a>
         ))}
       </nav>
       <FilterBar list={list} query={query} filters={filters} />
@@ -132,8 +132,8 @@ function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchP
 function AtPlace({ id, onClear }: { id: string; onClear: () => void }) {
   const ids = id.split(",");
   const names = useEntityNames(id === "unplaced" ? [] : ids);
-  return <span className="row">{id === "unplaced" ? "Not located on the map" : `At ${ids.map((x) => display(x, names)).join(" · ")}`}
-    <Button variant="ghost" size="sm" onClick={onClear}>Every place</Button></span>;
+  return <Line as="span">{id === "unplaced" ? "Not located on the map" : `At ${ids.map((x) => display(x, names)).join(" · ")}`}
+    <Button variant="ghost" size="sm" onClick={onClear}>Every place</Button></Line>;
 }
 
 /** Saved views per role (P5.1c, #651): pick one saved for your roles, or save the filters you have as a view for a

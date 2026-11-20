@@ -3,7 +3,7 @@
  * Evidence only, not an emissions inventory. */
 import { api } from "../api";
 import { count } from "../format";
-import { Badge, Card, Table } from "../ui";
+import { Badge, Card, Table, Text } from "../ui";
 import { Status, useAsync } from "../lib";
 
 export function LeakSurveys() {
@@ -28,7 +28,7 @@ export function LeakSurveys() {
             <tr key={`${r.tag}-${r.component}`} data-tag={r.tag}>
               <td>{r.tag}</td>
               <td data-label="Component">{r.component}</td>
-              <td data-label="Found leaking">{r.surveys.join(", ")} <span className="muted">(up to {count(r.max_ppm)} ppm)</span></td>
+              <td data-label="Found leaking">{r.surveys.join(", ")} <Text muted>(up to {count(r.max_ppm)} ppm)</Text></td>
             </tr>
           ))}</tbody>
         </Table>}
@@ -46,7 +46,7 @@ export function LeakSurveys() {
             </tr>
           ))}</tbody>
         </Table>
-        <div className="small muted">{d.note}</div>
+        <Text as="div" small muted>{d.note}</Text>
       </>}
     </Card>
   );

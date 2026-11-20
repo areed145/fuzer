@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText } from "../../ui";
+import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Checkbox } from "../../ui";
 import { when } from "../../format";
 import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
@@ -42,7 +42,7 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
     return run("create", () => api.createWorkItem(title.trim(), role, person), (item) => { setCreated(item.id); setTitle(""); onCreated(); });
   };
   return <Disclosure className="new-work-item" label={<>New work item</>}>
-    <div className="row wrap">
+    <Line wrap>
       <Input aria-label="Work item title" width="lg" placeholder="What needs doing" maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} />
       <Select aria-label="Queue" value={role} onChange={(e) => setRole(e.target.value)}>
         <option value="">choose a queue</option>
@@ -50,7 +50,7 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
       </Select>
       <ConfirmAction label="Create work item" busy={!!busy} disabled={!title.trim() || !role}
         consequence={`This adds shared work to the ${role.replace(/_/g, " ")} queue, with you recorded as its creator.`} onConfirm={create} />
-    </div>
+    </Line>
     <ActionStatus busy={busy ? "Creating the work item…" : null} error={error}>
       {created !== null && <>Created. <a href={caseHref(created)}>Open the case</a>.</>}
     </ActionStatus>
@@ -84,7 +84,7 @@ export function CasesPage({ query, fixedState, filters }: {
     <section>
       {!fixedState && <PageHeader>Cases</PageHeader>}
       {state !== "closed" && <NewWorkItem onCreated={list.reload} />}
-      <div className="row wrap">
+      <Line wrap>
         {!fixedState && <div className="tabs">
           {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
         </div>}
@@ -97,10 +97,10 @@ export function CasesPage({ query, fixedState, filters }: {
         <label className="small row">With {/* #409: who holds the case's open steps, a person or a role's queue */}
           <AssignPicker value={who} onChange={setWho} placeholder="anyone" />
         </label></>}
-        <label className="small"><Input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} /> overdue</label>
+        <Checkbox checked={overdue} onChange={setOverdue}>overdue</Checkbox>
         {!filters && <Input aria-label="Search case titles" placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />}
-        {list.data && <span className="small muted">{list.data.total} cases · {list.data.overdue} overdue · {list.data.due_soon} due soon</span>}
-      </div>
+        {list.data && <Text small muted>{list.data.total} cases · {list.data.overdue} overdue · {list.data.due_soon} due soon</Text>}
+      </Line>
       {picked.size > 0 && <BulkReassign ids={[...picked]} person={person} onDone={() => setPicked(new Set())} />}
       <Status of={list} empty={!!list.data && rows.length === 0}>No cases match.</Status>
       {rows.length > 0 && (
@@ -204,19 +204,19 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       <div className="entity-head">
         <div>
           <PageHeader className={it.title.length > 48 ? "case-title-long" : undefined}>{say(it.title)}</PageHeader>
-          <div className="row small">
+          <Line small>
             <UIBadge className="badge">{it.type.replace(/_/g, " ")}</UIBadge>
             <UIBadge className={`badge ${closed ? "ok" : ""}`}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
-            {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <span className="muted">priority, {level.why}</span></span>}
-            <span className="case-opened"><span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span></span>
+            {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority, {level.why}</Text></span>}
+            <span className="case-opened"><Text muted>opened by</Text> <Actor who={it.created_by} /> <Text muted>{when(it.created_at)}</Text></span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
             {!demo && canAsk && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
-          </div>
+          </Line>
           {(it.subjects.length > 0 || dataset) && (
-            <p className="small">About{" "}
+            <Text as="p" small>About{" "}
               <EntityLinks ids={it.subjects} />
               {dataset && <> source dataset <a href={href("/sources", { view: "dataset", name: dataset })}>{dataset}</a></>}
-            </p>
+            </Text>
           )}
         </div>
         {!closed && <Due at={it.due} />}
@@ -271,7 +271,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
         {open.map((s) => (
           <li key={s.id} className="row wrap">
             <strong>{s.name ?? s.element}</strong>
-            <span className="small muted">with {holder(s.assignee, s.role, s.kind)}</span>
+            <Text small muted>with {holder(s.assignee, s.role, s.kind)}</Text>
             <StepBadges row={s} />
             {/* the case's own due time is beside its title: a step says its own only when it differs */}
             {sameTime(s.due_at, it.due) ? null : <Due at={s.due_at} />}
@@ -280,7 +280,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
                 api.handOff(s.id, person, person, "no agent worker picked it up; done by a person"), reload)} />
           </li>
         ))}
-      </ul> : <p className="small">No step is open. Close it out below, or give it to someone.</p>}
+      </ul> : <Text as="p" small>No step is open. Close it out below, or give it to someone.</Text>}
       <div className="row wrap case-next-actions">
         {next && !answered && <ButtonLink variant="primary" href={stepHref(next.id)} aria-label={`Open ${next.name ?? next.element}`}>Open the step</ButtonLink>}
         {fieldOnly && <ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink>}
@@ -315,36 +315,36 @@ export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; pe
       <h3>{d.action === "complete" ? `Complete ${d.record} in ${system}` : `Raise a follow-up to ${d.record} in ${system}`}</h3>
       <p>{d.change ?? (d.action === "complete" ? `Close ${d.record} in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}.`
         : `Raise a new ${system} record for the work still needed.`)}</p>
-      <p className="small muted">{d.action === "complete"
+      <Text as="p" small muted>{d.action === "complete"
         ? `The field reported it done. Approved, it goes in ${system}'s next batch, so its record agrees and the IOC stops holding it.`
-        : `The field could not do it. Approved, the work stays on ${system}'s books.`} Nothing is written until you approve it.</p>
+        : `The field could not do it. Approved, the work stays on ${system}'s books.`} Nothing is written until you approve it.</Text>
       {d.state !== "draft" ? (
-        <p className="small"><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state === "approved" ? "approved, goes in the next batch"
+        <Text as="p" small><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state === "approved" ? "approved, goes in the next batch"
           : sentBack ? "sent back, not written" : d.state}</UIBadge>{" "}
           by <Actor who={d.decided_by ?? ""} /> {d.decided_at && when(d.decided_at)}
-          {d.applied_at && <span className="muted"> · applied to the demo's {system} data</span>}</p>
+          {d.applied_at && <Text muted> · applied to the demo's {system} data</Text>}</Text>
       ) : null}
       {d.action === "follow_up" && (
-        <p><span className="small">Short text</span>{" "}
+        <p><Text small>Short text</Text>{" "}
           <Input width="lg" disabled={d.state !== "draft" || readOnly} value={short ?? d.draft.short_text ?? ""}
             onChange={(e) => setShort(e.target.value)} /></p>
       )}
       <Textarea rows={4} width="full" disabled={d.state !== "draft" || readOnly} aria-label="Update text"
         value={text ?? d.draft.text} onChange={(e) => setText(e.target.value)} />
       {d.state === "draft" && !readOnly && (back === null ? (
-        <div className="row">
+        <Line>
           <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("send", () =>
             api.approveCloseout(id, person, text ?? undefined, short ?? undefined), done)}>Approve for {system}</Button>
           <Button variant="secondary" disabled={!!a.busy} onClick={() => setBack("")}>Send back</Button>
-        </div>
+        </Line>
       ) : (
-        <div className="row wrap">
+        <Line wrap>
           <Field label="Why it goes back (whoever holds the job reads this)" width="lg">
             <Input value={back} onChange={(e) => setBack(e.target.value)} /></Field>
           <Button variant="primary" disabled={!back.trim() || !!a.busy} onClick={() => a.run("back", () =>
             api.sendBackCloseout(id, person, back.trim()), () => { setBack(null); done(); })}>Send back</Button>
           <Button variant="secondary" onClick={() => setBack(null)}>Cancel</Button>
-        </div>
+        </Line>
       ))}
       <ErrorText>{a.error}</ErrorText>
     </UICard>
@@ -360,23 +360,23 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   return (
     <div className="case-actions">
       <Disclosure className="small" label={<>Give it to someone else</>}>
-      <div className="row wrap">
+      <Line wrap>
         <Field label="Give it to" width="md"><AssignPicker value={to} onChange={setTo} /></Field>
         <Field label="Why (kept in its history)" width="md">
           <Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         <Button variant="secondary" disabled={!to || !!a.busy}
           onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Reassign</Button>
-      </div>
+      </Line>
       </Disclosure>
       <Disclosure className="small" label={<>Change priority or due time</>}>
-        <div className="row wrap">
+        <Line wrap>
           <Field label="Priority" width="xs"><Input value={priority} onChange={(e) => setPriority(e.target.value)} /></Field>
           <Field label="Due" width="md"><Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
           <Button variant="secondary" disabled={!!a.busy || (!due && priority === (it.priority?.toString() ?? ""))}
             onClick={() => a.run("set", () => api.setCase(it.id, person, {
               ...(priority !== (it.priority?.toString() ?? "") && priority ? { priority: Number(priority) } : {}),
               ...(due ? { due: new Date(due).toISOString() } : {}), reason: reason || undefined }), () => { setDue(""); reload(); })}>Save</Button>
-        </div>
+        </Line>
       </Disclosure>
       <ErrorText>{a.error}</ErrorText>
     </div>
@@ -394,10 +394,10 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
   }), [p, focus]);
   return (
     <UICard className="">
-      <div className="row spread">
+      <Line spread>
         <h3>
           <a href={processHref(p.process_key)} title={`version ${p.version}`}>{p.process_key.replace(/_/g, " ")} workflow</a>{" "}
-          <span className="muted small">{cap(p.state)}{p.outcome ? `: ${say(p.outcome)}` : ""}</span>
+          <Text small muted>{cap(p.state)}{p.outcome ? `: ${say(p.outcome)}` : ""}</Text>
         </h3>
         <span className="small muted" title={p.correlation_key ? `key ${p.correlation_key}` : undefined}>
           started {when(p.started_at)} by <Actor who={p.started_by} />
@@ -407,7 +407,7 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
                 a.run("cancel", () => api.cancelProcess(p.id, person, "cancelled from the case page"), reload)}>cancel workflow</Button></>
           )}
         </span>
-      </div>
+      </Line>
       <Status of={xml} />
       {xml.data && <Suspense fallback={<div className="status">Loading diagram…</div>}><BpmnView xml={xml.data} marks={marks} /></Suspense>}
       <Disclosure className="small" label={<>Workflow data</>}><DataView data={p.data} /></Disclosure>
@@ -434,7 +434,7 @@ export function Timeline({ it, person, readOnly = false }: { it: WorkItem; perso
           const body = brief ? null : described.body;
           return (
             <li key={e.id} className={`ev-${e.kind}`}>
-              <div className="row small"><span className="muted mono">{when(e.at)}</span> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}</div>
+              <Line small><Text muted mono>{when(e.at)}</Text> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}</Line>
               {body}
               {photosOf(e.data).length > 0 && <div className="field-photos">{photosOf(e.data).map((p) =>
                 <FieldPhoto key={p.photo_id} exceptionId={p.exception_id} photoId={p.photo_id} />)}</div>}
