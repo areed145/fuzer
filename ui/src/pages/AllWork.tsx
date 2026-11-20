@@ -58,10 +58,19 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
       <PageHeader className="all-work-header"
         actions={<a href={href("/performance")}>How the work is running</a>}>
         All work</PageHeader>
-      <Tabs label="All work views" items={WORK_LISTS.map((l) => ({
-        key: l.key, href: workHref(l.key, { ...filters }), current: l.key === list,
-        label: <>{l.label}{counts[l.key] ? <Text muted> {counts[l.key]}</Text> : null}</>,
-      }))} />
+      {/* All the work, as a list or a board: the only switch. Every other view is a filter on it. */}
+      <Tabs label="Show all work as" items={[
+        { key: "list", label: "List", href: workHref(list === "board" ? "dispatch" : list, { ...filters }), current: list !== "board" },
+        { key: "board", label: "Board", href: workHref("board", { ...filters }), current: list === "board" },
+      ]} />
+      {list !== "board" && <nav className="chips work-views" aria-label="All work views">
+        {WORK_LISTS.filter((l) => l.key !== "board").map((l) => (
+          <a key={l.key} className={l.key === list ? "chip on" : "chip"} aria-current={l.key === list ? "page" : undefined}
+            href={workHref(l.key, { ...filters })}>{l.label}{counts[l.key] ? <Text muted> {counts[l.key]}</Text> : null}</a>
+        ))}
+        <a className="chip" href={href("/inbox")}>Waiting on me{tally.data?.waiting_on_you?.total
+          ? <Text muted> {tally.data.waiting_on_you.total}</Text> : null}</a>
+      </nav>}
       <FilterBar list={list} query={query} filters={filters} />
       <SavedViews list={list} filters={filters} roles={(people.data ?? []).find((p) => p.name === person)?.roles ?? []} />
       {list === "ranked" ? <BoardPage query={query} filters={filters} />

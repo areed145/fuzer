@@ -4,8 +4,9 @@ This is the dictionary for everything people read in Fuzer. Each concept has one
 after "Not" are retired and `ui/tests/glossary.test.cjs` fails on the ones it checks. A new term is added here in
 the same change that puts it on screen.
 
-**All work.** The IOC's one list of routed work, one row per event, with views that follow it from **To dispatch**
-through **With the field** and **Back from the field** to **Closed**. See [where work goes](work-map.md).
+**All work.** The IOC's one list of routed work, one row per event, shown as a **List** or a **Board**. Its filters
+follow the work from **To dispatch** through **With the field** and **Back from the field** to **Closed**; each
+event's stage is decided once, on the server. See [where work goes](work-map.md).
 
 **Asset pack.** Asset-specific tag grammar, entity kinds, limits, source priorities and match thresholds that seed
 the source catalog's rules. Okan is the main demo; Kestrel Ridge (a gas plant) and Harrier (a pipeline and
@@ -152,6 +153,6 @@ Its proposals are kept and scored; they are raised as work only in live mode, wh
 **Work item.** The engine's name for a case, kept in code and the API only. On screen it is a case.
 
 **Workflow.** A BPMN process: lanes for roles, steps for people and agents, timers and escalation. Listed under
-Work > Workflows (formerly Processes).
+Settings > Workflows (formerly Processes).
 
 **Write-back.** A change Fuzer proposes to a source system. It is only ever sent after a named person approves it.
