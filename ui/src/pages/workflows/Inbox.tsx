@@ -1,6 +1,5 @@
 import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty, ErrorText, Line, Text, Field, Heading } from "../../ui";
 import { when } from "../../format";
-import { openReviews } from "../../figures";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
  * escalated to you, jobs the IOC sent you (with the field report buttons), steps assigned to you (and to anyone you're
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
@@ -38,7 +37,6 @@ export function InboxPage() {
   // Jobs dispatched to them (or waiting in their queues) and what they are planned onto: the field side of their work.
   // Kept on the phone, so the jobs still read without signal (P5.3c).
   const field = useAsync(() => (person ? fieldJobs(person) : Promise.resolve(null)), [person]);
-  const stats = useAsync(() => api.stats(), []);
   // Exceptions nothing routes wait on Exceptions for the IOC to dispatch: say so here, where the ops lead looks.
   const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
   // The shift handover is reached from here, not the nav (#504): a banner until the incoming lead acknowledges it.
@@ -62,7 +60,7 @@ export function InboxPage() {
   // The handover banner, what is new, the counts and the jobs sent to them all sit above the lists: drawn as each
   // answered, every one pushed the lists down the page (#1069). The page waits for them, failures included.
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
-  if (!offline && ![field, handovers, told, stats, exceptions].every(settled)) return <Status loading />;
+  if (!offline && ![field, handovers, told, exceptions].every(settled)) return <Status loading />;
   const none = { total: 0, overdue: 0, due_soon: 0 };
   const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&
@@ -84,7 +82,6 @@ export function InboxPage() {
   const counts = myWorkCounts(d, jobs);
   const undispatched = d.roles.includes("ops_lead")
     ? (exceptions.data ?? []).filter(waitingToDispatch).length : 0;
-  const reviews = openReviews(stats.data);
   const types = [...new Set(all.map((r) => r.type))].sort();
   const pickedRows = all.filter((r) => r.task_id && picked.has(r.task_id));
   const lead = d.roles.includes("ops_lead");
@@ -116,7 +113,6 @@ export function InboxPage() {
         {counts.overdue > 0 && <UIBadge tone="danger">{counts.overdue} overdue</UIBadge>}
         {counts.escalated > 0 && <UIBadge tone="danger">{counts.escalated} escalated</UIBadge>}
         {undispatched > 0 && <a href={href("/exceptions")}><UIBadge tone="danger">{undispatched} exceptions waiting to be dispatched</UIBadge></a>}
-        {reviews > 0 && <a href={href("/masterdata", { tab: "questions" })}><UIBadge>{reviews} data questions to review</UIBadge></a>}
         {d.covering?.length ? <UIBadge>covering for {d.covering.join(", ")}</UIBadge> : null}
       </Line>
       <Line>

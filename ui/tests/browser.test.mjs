@@ -724,8 +724,8 @@ test("the Work badge says what it counts and the Cases filters are labelled (#39
   await page.goto(`${url}/#/cases`);
   const badge = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Work/ }).locator(".count");
   await page.waitForFunction(() => document.querySelector("nav[aria-label=Main] .count")?.getAttribute("title")
-    === "1 workflow step waiting on you, 14 data reviews");
-  assert.equal(await badge.locator("[aria-hidden=true]").innerText(), "15");
+    === "1 workflow step waiting on you");
+  assert.equal(await badge.locator("[aria-hidden=true]").innerText(), "1", "a data question is counted in the steward's queue, not again");
   // Under All work the shared filter bar labels them (#502).
   await page.getByRole("combobox", { name: "Held by", exact: true }).waitFor();
   assert.equal(await page.getByRole("combobox", { name: "Kind of work", exact: true }).count(), 1);
