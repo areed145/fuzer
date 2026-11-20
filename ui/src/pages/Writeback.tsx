@@ -15,7 +15,7 @@ const STATE: Record<Writeback["state"], string> = {
   failed: "failed: back with the approver",
   rejected: "not sent",
 };
-const tone = (s: Writeback["state"]) => (s === "confirmed" || s === "sent" ? "ok" : s === "failed" ? "late" : "");
+const tone = (s: Writeback["state"]) => (s === "confirmed" || s === "sent" ? "ok" : s === "failed" ? "danger" : "muted");
 const fromCloseout = (w: Writeback) => (w.source_ref ?? "").startsWith("closeout:");
 
 /** The changes proposed to source systems on this case (P5.7): nothing is written until a named person in the right
@@ -45,7 +45,7 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
   return (
     <UICard className="" title={`${w.label} for ${system}${w.record ? ` ${w.record}` : ""}`}>
       <Text as="p" small>
-        <UIBadge className={`badge ${tone(w.state)}`}>{STATE[w.state]}</UIBadge>{" "}
+        <UIBadge tone={tone(w.state)}>{STATE[w.state]}</UIBadge>{" "}
         {w.approvers?.length ? <>Approved by a {w.approvers.join(" or ").replace(/_/g, " ")}</> : null}
         {w.cadence && <>, then sent {w.cadence}</>}.
         {w.adapter === "export" && <Text muted> {system} has no write API here: it goes into an export file for
@@ -98,7 +98,7 @@ export function SystemWritebacks({ system }: { system: string }) {
             <tr key={w.id}>
               <td>{w.kind.replace(/_/g, " ")}</td>
               <td>{w.record ?? ""}</td>
-              <td><UIBadge className={`badge ${tone(w.state)}`}>{STATE[w.state]}</UIBadge>
+              <td><UIBadge tone={tone(w.state)}>{STATE[w.state]}</UIBadge>
                 <ErrorText>{w.error}</ErrorText></td>
               <td>{w.approved_by ? <Actor who={w.approved_by} /> : <Text muted>{w.approver_role?.replace(/_/g, " ") ?? ""}</Text>}</td>
               <td className="small">{w.state === "approved" && w.due_at ? when(w.due_at) : w.sent_at ? `sent ${when(w.sent_at)}` : ""}</td>

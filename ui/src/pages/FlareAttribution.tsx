@@ -33,8 +33,8 @@ export function FlareAttribution() {
             <li key={`${e.label}|${e.start}`} data-start={e.start.slice(0, 10)}>
               <b>{whenDay(e.start)}</b> about {count(e.volume)} {e.volume_unit ?? ""} over the baseline
               {" "}{e.attributed
-                ? <Badge tone="muted" className="flare-cause">{e.causes.length} records</Badge>
-                : <Badge tone="warn" className="flare-cause">cause unknown</Badge>}
+                ? <Badge tone="muted">{e.causes.length} records</Badge>
+                : <Badge tone="warn">cause unknown</Badge>}
               {e.causes.slice(0, 3).map((c) => (
                 <div key={c.id} className="muted">{KIND[c.kind]} {c.at.replace("T", " ")}:{" "}
                   {c.kind === "detection" ? c.text : <a href={entityHref(c.id)}>{c.text}</a>}</div>

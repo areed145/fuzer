@@ -23,8 +23,8 @@ export function Due({ at, closed }: { at: string | null; closed?: boolean }) {
   if (!at) return <Text small muted>no due date</Text>;
   const left = new Date(at).getTime() - Date.now();
   if (closed) return <Text small muted>was due {when(at)}</Text>;
-  if (left < 0) return <UIBadge className="badge late">overdue {span(left)}</UIBadge>;
-  if (left < 24 * HOUR) return <UIBadge className="badge soon">due in {span(left)}</UIBadge>;
+  if (left < 0) return <UIBadge tone="danger">overdue {span(left)}</UIBadge>;
+  if (left < 24 * HOUR) return <UIBadge tone="warn">due in {span(left)}</UIBadge>;
   return <Text small muted>due in {span(left)}</Text>;
 }
 
@@ -38,8 +38,8 @@ export function reportedBy(sources: { source?: string | null }[]): string {
 }
 
 export function Actor({ who }: { who: string }) {
-  if (who.startsWith("agent:")) return <UIBadge className="badge actor-agent">{who.slice(6).replace(/_/g, " ")} agent</UIBadge>;
-  if (who === "system") return <UIBadge className="badge actor-system">fuzer</UIBadge>;
+  if (who.startsWith("agent:")) return <UIBadge tone="info">{who.slice(6).replace(/_/g, " ")} agent</UIBadge>;
+  if (who === "system") return <UIBadge>fuzer</UIBadge>;
   return <strong>{personName(who)}</strong>;
 }
 

@@ -16,9 +16,9 @@ export function SchedulesPage() {
         <tbody>{list.data.map((x) => <tr key={x.code}>
           <td><a href={`#/plan?schedule=${encodeURIComponent(x.code)}`}><strong>{acronyms(x.title)}</strong></a>{" "}
             <Text small muted mono>{x.code}</Text></td>
-          <td data-label="Kind">{x.kind}</td>
-          <td data-label="Runs">{whenDay(x.first_start ?? x.start_at)}{x.last_finish || x.finish_by ? ` to ${whenDay((x.last_finish ?? x.finish_by)!)}` : ""}</td>
-          <td data-label="Activities">{x.activities}</td>
+          <td>{x.kind}</td>
+          <td>{whenDay(x.first_start ?? x.start_at)}{x.last_finish || x.finish_by ? ` to ${whenDay((x.last_finish ?? x.finish_by)!)}` : ""}</td>
+          <td>{x.activities}</td>
         </tr>)}</tbody>
       </Table> : <Empty>No schedules yet. A turnaround, project or campaign from the planning system appears here.</Empty>)}
     </section>

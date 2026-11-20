@@ -32,15 +32,15 @@ export function IncidentRepeats({ data }: { data: ReturnType<typeof useRepeats> 
           <tbody>{d.units.filter((u) => u.repeat).map((u) => (
             <tr key={u.unit_id ?? u.unit} data-unit={u.unit}>
               <td>{u.unit_id ? <a href={entityHref(u.unit_id)}>{u.unit}</a> : u.unit}
-                {u.repeat && <> <Badge tone="danger" className="repeat-badge">repeat</Badge></>}</td>
-              <td data-label="Incidents">{u.incidents}
+                {u.repeat && <> <Badge tone="danger">repeat</Badge></>}</td>
+              <td>{u.incidents}
                 <Disclosure label="Which">
                   <ul className="plain small">{u.items.map((i) => (
                     <li key={i.id}><a href={entityHref(i.id)}>{i.start}</a> {say(i.description)}</li>
                   ))}</ul>
                 </Disclosure></td>
-              <td data-label="Days between">{u.days_between.length ? u.days_between.join(", ") : "once"}</td>
-              <td data-label="Linked work">
+              <td>{u.days_between.length ? u.days_between.join(", ") : "once"}</td>
+              <td>
                 {plural(u.items.reduce((n, i) => n + i.linked_orders, 0), "order")}, {u.items.reduce((n, i) => n + i.open_orders, 0)} open
                 {u.came_back_after_closed_work.map((c) => (
                   <div key={c.incident} className="small came-back">

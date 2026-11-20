@@ -10,12 +10,10 @@ import { readableCitations } from "../entityRefs";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { AgentIdle } from "./workflows/shared";
-import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Line, Text } from "../ui";
+import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Line, Text, type Tone } from "../ui";
 import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
-const STATUS_CLASS: Record<string, string> = {
-  published: "ok", "awaiting review": "key", "sent back": "warn", drafting: "warn", "needs a fix": "warn",
-};
+const STATUS_TONE: Record<string, Tone> = { published: "ok", "sent back": "warn", drafting: "warn", "needs a fix": "warn" };
 const STATUS_HELP: Record<string, string> = {
   drafting: "the reporter agent is drafting it",
   "awaiting review": "drafted; waiting for the ops lead to publish it or send it back",
@@ -29,7 +27,7 @@ const weekday = (day: string) => new Date(`${day}T00:00Z`).toLocaleDateString(un
 const dayMonth = (day: string) => whenDay(day);
 
 export function StatusBadge({ status }: { status: DailyStatus }) {
-  return <UIBadge className={`badge ${STATUS_CLASS[status] ?? ""}`} title={STATUS_HELP[status]}>{status}</UIBadge>;
+  return <UIBadge tone={STATUS_TONE[status]} title={STATUS_HELP[status]}>{status}</UIBadge>;
 }
 
 export function ReportsPage({ query }: { query: URLSearchParams }) {

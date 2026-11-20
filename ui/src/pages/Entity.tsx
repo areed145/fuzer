@@ -165,7 +165,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
           <Line>
             {/* The kind links to where it is defined, for those who can see the ontology. */}
             {configure
-              ? <a className="kind-link" href={href("/ontology", { kind: e.kind })} title="See this kind in the ontology"><KindBadge kind={e.kind} label={kindName} /></a>
+              ? <a className="small" href={href("/ontology", { kind: e.kind })} title="See this kind in the ontology">{kindName}</a>
               : <KindBadge kind={e.kind} label={kindName} />}
             <WatchButton target={fid} label={operated ? "asset" : kindName.toLowerCase()} />
             <a className="small" href={href("/ask", { subject: fid })}>Ask about this {operated ? "asset" : kindName.toLowerCase()}</a>
@@ -328,7 +328,7 @@ function Why({ id, field }: { id: string; field: string }) {
       </Text>
       {w.data.assertions.map((a, i) => (
         <div key={i}>
-          <SourceBadge source={a.source} /> {fmt(a.value)} {a.wins && <UIBadge className="badge ok">chosen</UIBadge>}{" "}
+          <SourceBadge source={a.source} /> {fmt(a.value)} {a.wins && <UIBadge tone="ok">chosen</UIBadge>}{" "}
           <code className="muted">{a.record}</code>
           {a.mapping_version && <Text muted> · mapping v{a.mapping_version.id}</Text>}
           {a.run && <Text muted> · ingestion run {a.run.id} ({a.run.dataset}, {when(a.run.finished_at, "Time unknown")})</Text>}
@@ -359,7 +359,7 @@ function Fields({ e }: { e: EntityDetail }) {
                   <Line>
                     <span>{fmt(g.value)}</span>
                     <SourceBadge source={g.source} />
-                    {g.rule === "review" && <UIBadge className="badge ok">reviewed</UIBadge>}
+                    {g.rule === "review" && <UIBadge tone="ok">reviewed</UIBadge>}
                     {g.rule !== "derived" && (
                       <Button variant="link" className="small" onClick={() => setWhy(why === f ? null : f)}
                         title="the records, mapping versions and loads behind this value">why?</Button>
@@ -420,7 +420,7 @@ function Records({ e }: { e: EntityDetail }) {
       {e.records.length > 0 && <SameAs fuzerId={e.fuzer_id} kind={e.kind} />}
       <div className="keys">
         {e.keys.map((k) => (
-          <UIBadge key={`${k.kind}:${k.key}`} className="badge key mono" title={k.kind}>
+          <UIBadge key={`${k.kind}:${k.key}`} mono title={k.kind}>
             {k.key}
           </UIBadge>
         ))}
@@ -582,7 +582,7 @@ function Events({ id }: { id: string }) {
             <span className="when">{whenDay(ev.timestamp, "—")}</span>
             <div className="what">
               <Line>
-                <UIBadge className="badge event-type">{(ev.type ?? "event").replace("_", " ")}</UIBadge>
+                <UIBadge tone="danger">{(ev.type ?? "event").replace("_", " ")}</UIBadge>
                 <a href={entityHref(ev.id)}>{ev.summary}</a>
               </Line>
               {ev.involves.length > 0 && (
@@ -642,7 +642,7 @@ function MaintenanceCard({ id }: { id: string }) {
                 <div className="what">
                   {/* One line that wraps as text: a flex row put a long title under its code, alone (#1076). */}
                   <div>
-                    {n.failure_mode && <><UIBadge className="badge event-type" title={`ISO 14224 ${n.failure_mode}`}>
+                    {n.failure_mode && <><UIBadge tone="danger" title={`ISO 14224 ${n.failure_mode}`}>
                       {n.failure_mode_name ?? n.failure_mode}</UIBadge>{" "}</>}
                     <a href={entityHref(n.id)}>{n.text}</a>
                   </div>
@@ -678,7 +678,7 @@ function DowntimeCard({ id }: { id: string }) {
             <span className="when">{whenDay(r.start)}</span>
             <div className="what">
               <Line>
-                <UIBadge className="badge event-type">{r.reason ?? "downtime"}</UIBadge>
+                <UIBadge tone="danger">{r.reason ?? "downtime"}</UIBadge>
                 <a href={entityHref(r.id)}>{r.comment}</a>
               </Line>
               <Text as="div" small muted>
@@ -889,7 +889,7 @@ function HistoryCard({ id }: { id: string }) {
             <span className="when">{when(c.at)}</span>
             <div className="what">
               <Text small>
-                <UIBadge className="badge source">{c.record.split(":")[0]}</UIBadge> {c.record.split(":").slice(2).join(":")}{" "}
+                <UIBadge mono>{c.record.split(":")[0]}</UIBadge> {c.record.split(":").slice(2).join(":")}{" "}
                 <Text muted>{c.change}</Text>
               </Text>
               {Object.entries(c.fields).map(([f, v]) => (

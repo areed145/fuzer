@@ -80,6 +80,14 @@ const RULES = {
     pattern: /<(?:span|p|div) className="(?:(?:small|muted|mono|row|spread|wrap)(?: |(?=")))+"/g,
     hint: "Use Text (small, muted, mono) and Line (spread, wrap) from ui/src/ui instead of the class names, so pages share one set of text styles and gaps.",
   },
+  "typed-cell-label": {
+    pattern: / data-label="/g,
+    hint: "The kit Table labels each cell from its column heading for the phone layout. Type data-label only where the heading can't say it.",
+  },
+  "badge-class": {
+    pattern: /<(?:UI)?Badge\b[^>]*? className=|className=(?:"|\{`)badge\b/g,
+    hint: "A Badge is a word in its tone (ok, warn, danger, info, muted). Pick the tone; don't add a class name or a page colour.",
+  },
   "raw-checkbox": {
     skip: /^ui\//,
     pattern: /type="checkbox"/g,

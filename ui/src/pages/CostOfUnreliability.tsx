@@ -21,12 +21,12 @@ export function CostOfUnreliability() {
             <tbody>{d.units.map((u) => (
               <tr key={u.id} data-unit={u.unit}>
                 <td><a href={entityHref(u.id)}>{u.unit}</a>{u.description && <Text as="div" small muted>{u.description}</Text>}</td>
-                <td data-label="Lost oil">{money(u.lost_oil_value, d.price.currency)}<Text as="div" small muted>{u.lost_oil_bbl} bbl</Text></td>
-                <td data-label="Corrective orders">{Object.keys(u.order_cost).length
+                <td>{money(u.lost_oil_value, d.price.currency)}<Text as="div" small muted>{u.lost_oil_bbl} bbl</Text></td>
+                <td>{Object.keys(u.order_cost).length
                   ? Object.entries(u.order_cost).map(([cur, v]) => <div key={cur}>{money(v, cur)}</div>)
                   : <Text muted>none costed</Text>}
                   <Text as="div" small muted>{u.orders} orders{u.orders_without_cost ? `, ${u.orders_without_cost} without a cost` : ""}</Text></td>
-                <td data-label="Total">{u.total != null && u.total_currency
+                <td>{u.total != null && u.total_currency
                   ? <strong>{money(u.total, u.total_currency)}</strong>
                   : <span className="small muted unreliability-no-total">{u.why_no_total}</span>}</td>
               </tr>

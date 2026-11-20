@@ -192,9 +192,9 @@ export function RegulatoryList({ data, selected, onChange }: { data: RegulatoryL
       {reports.map((x) => {
         const id = `${x.template}:${x.period}`;
         return (
-          <a key={id} className={`badge${id === selected ? " on" : ""} ${x.marked ? "warn" : "ok"}`}
+          <a key={id} aria-current={id === selected ? "true" : undefined}
             href={href("/reports", { report: id })} title={`${x.title}; ${x.marked} figure(s) on estimated or missing data`}>
-            {x.title}, {x.coverage.label}{x.version > 1 ? ` v${x.version}` : ""}{x.marked ? " ⚠" : ""}
+            <Badge tone={id === selected ? "info" : x.marked ? "warn" : "ok"}><Badge tone={id === selected ? "info" : x.marked ? "warn" : "ok"}>{x.title}, {x.coverage.label}{x.version > 1 ? ` v${x.version}` : ""}{x.marked ? " ⚠" : ""}</Badge></Badge>
           </a>
         );
       })}

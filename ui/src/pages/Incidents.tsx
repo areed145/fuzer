@@ -63,11 +63,11 @@ export function IncidentList({ items, all = items }: { items: Incident[]; all?: 
               {i.unit && <span>on {i.unit}</span>}
               {twins(i).length > 0 && <span>also on {twins(i).map((o, n) => <span key={o.id}>{n > 0 && ", "}
                 <a href={entityHref(o.id)}>{o.unit || "another unit"}</a></span>)}</span>}
-              {i.downtime_records > 0 && <UIBadge className="badge event-type">downtime</UIBadge>}
+              {i.downtime_records > 0 && <UIBadge tone="danger">downtime</UIBadge>}
               {i.events > 0 && <span>{plural(i.events, "event")}</span>}
               {i.notifications > 0 && <span>{plural(i.notifications, "notification")}</span>}
               {i.lost_oil_bbl > 0 && <span>{count(Math.round(i.lost_oil_bbl))} bbl lost</span>}
-              {i.failure_modes?.map((m) => <UIBadge key={m} className="badge" title={`ISO 14224 ${m}`}>
+              {i.failure_modes?.map((m) => <UIBadge key={m} title={`ISO 14224 ${m}`}>
                 {i.failure_mode_words?.[m] ?? m}</UIBadge>)}
             </Line>
           </div>
@@ -143,7 +143,7 @@ function IncidentPanels({ id }: { id: string }) {
               <div className="what">
                 <Line>
                   <KindBadge kind={t.kind} />
-                  {t.detail && <UIBadge className="badge event-type">{t.detail.replace("_", " ")}</UIBadge>}
+                  {t.detail && <UIBadge tone="danger">{t.detail.replace("_", " ")}</UIBadge>}
                 </Line>
                 <a href={entityHref(t.id)}>{t.text}</a>
               </div>
@@ -160,7 +160,7 @@ function IncidentPanels({ id }: { id: string }) {
                 <li key={r.id} className="small">
                   <a href={entityHref(r.id)}>{r.document_label} · {r.heading}</a>
                   {r.page && <Text muted> p. {r.page}</Text>}{" "}
-                  {r.failure_modes.map((m) => <UIBadge key={m} className="badge">{m}</UIBadge>)}
+                  {r.failure_modes.map((m) => <UIBadge key={m}>{m}</UIBadge>)}
                 </li>
               ))}
             </ul>
@@ -174,7 +174,7 @@ function IncidentPanels({ id }: { id: string }) {
           {similar.data?.map((s) => (
             <li key={s.id} className="small">
               <Text muted mono>{s.start}</Text> <a href={entityHref(s.id)}>{s.description}</a>
-              {s.same_unit && <UIBadge className="badge">same unit</UIBadge>}
+              {s.same_unit && <UIBadge>same unit</UIBadge>}
             </li>
           ))}
         </ul>

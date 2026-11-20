@@ -3896,7 +3896,7 @@ test("an asset's kind links to it in the ontology, which sits beside Sources and
   } }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/e/fz-log-kind`);
-  const kind = page.locator(".entity-head a.kind-link");
+  const kind = page.locator(".entity-head").getByTitle("See this kind in the ontology");
   await kind.waitFor();
   assert.equal(await kind.getAttribute("href"), "#/ontology?kind=log_entry");
   await kind.click();
@@ -3909,8 +3909,8 @@ test("an asset's kind links to it in the ontology, which sits beside Sources and
   await me(["read"]);
   await page.goto(`${url}/#/e/fz-log-kind`);
   await page.reload();
-  await page.locator(".entity-head .badge.kind").waitFor();
-  assert.equal(await page.locator(".entity-head a.kind-link").count(), 0);
+  await page.locator(".entity-head .ui-badge[data-kind]").waitFor();
+  assert.equal(await page.locator(".entity-head").getByTitle("See this kind in the ontology").count(), 0);
 });
 
 test("sidebar and Jobs agree when the scheduler isn't running, and Jobs says how to start it (#325)", async () => {
@@ -6250,12 +6250,12 @@ test("How the plant is running compares each KPI with the period before and show
   const failures = page.locator('tr[data-kpi="failures"]');
   await failures.getByText("3 notifications", { exact: true }).waitFor();
   await failures.getByText("-3 notifications", { exact: true }).waitFor();
-  await failures.locator(".kpi-verdict").getByText("better").waitFor();
+  await failures.locator(".ui-badge").getByText("better").waitFor();
   await failures.getByText("SAP notifications on equipment").waitFor();
   const flare = page.locator('tr[data-kpi="flare"]');
   assert.equal(await flare.locator(".kpi-unknown").innerText(), "unknown");  // not 0
   await flare.getByText("no daily report in the period states flare").waitFor();
-  await flare.locator(".kpi-verdict").getByText("unknown").waitFor();
+  await flare.locator(".ui-badge").getByText("unknown").waitFor();
   await failures.getByRole("button", { name: "2 records" }).first().click();
   assert.equal(await failures.getByRole("link", { name: "fz-tag-1" }).first().getAttribute("href"), "#/e/fz-tag-1");
   await page.getByRole("link", { name: "90 days" }).click();
@@ -6411,7 +6411,7 @@ test("Interventions show their gain net of decline, and unknown where a side has
   await one.getByText("+20.7 bbl/d net of decline").waitFor();
   await one.getByText("90% range 29.2 to 69.7").waitFor();
   const unk = card.locator('tr[data-intervention="OK-J14-05 2024-01-07"]');
-  await unk.locator(".intervention-verdict").getByText("unknown").waitFor();
+  await unk.locator(".ui-badge").getByText("unknown").waitFor();
   await unk.getByText("too few tests before it", { exact: false }).waitFor();
   assert.equal(await unk.locator('td[data-label="Oil after"]').innerText().then((t) => t.startsWith("unknown")), true);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -6524,12 +6524,12 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
   const card = page.locator(".against-accounts");
   await card.getByText("1 months agree within 1%, 1 differ, 1 preliminary", { exact: false }).waitFor();
   const aug = card.locator('tr[data-month="2025-08 oil"]');
-  await aug.locator(".accounts-verdict").getByText("differs").waitFor();
+  await aug.locator(".ui-badge").getByText("differs").waitFor();
   await aug.getByText("2025-08-01 to 2025-08-31, 31 days").waitFor();
   await aug.getByText("2025-08-01 to 2025-08-31, final").waitFor();
   await aug.getByText("Export meter proved", { exact: false }).waitFor();
   const dec = card.locator('tr[data-month="2025-12 oil"]');
-  await dec.locator(".accounts-verdict").getByText("preliminary").waitFor();
+  await dec.locator(".ui-badge").getByText("preliminary").waitFor();
   await dec.getByText("30 of its 31 days", { exact: false }).waitFor();
   await card.locator('[data-currency="USD"]').getByText("21.06 USD/bbl").waitFor();
   await card.locator('[data-currency="NGN"]').getByText("1,689.68 NGN/bbl").waitFor();
@@ -6565,7 +6565,7 @@ test("Incidents show repeats per unit, work that closed before a repeat, and ope
   const card = page.locator(".incident-repeats");
   await card.getByText("4 incidents on 2 units, 1 with more than one", { exact: false }).waitFor();
   const unit = card.locator('tr[data-unit="20-K-2300A"]');
-  await unit.locator(".repeat-badge").waitFor();
+  await unit.locator(".ui-badge").waitFor();
   await unit.getByText("21, 335").waitFor();
   await unit.locator(".came-back").getByText("Came back on", { exact: false }).waitFor();
   await card.locator('[data-band="over 180 days"]').getByText("over 180 days: 1").waitFor();
@@ -6614,7 +6614,7 @@ test("The backlog burn shows created against closed and the lag, leaving out ord
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".backlog-burn");
   await card.getByText("17 orders created, 8 closed; open went from 23 to 32", { exact: false }).waitFor();
-  await card.locator(".burn-trend").getByText("growing").waitFor();
+  await card.locator(".ui-badge").getByText("growing").waitFor();
   await card.locator('tr[data-month="2025-12"] td[data-label="Open at month end"]').getByText("32").waitFor();
   await card.getByText("Median 1 days, 90% within 7, longest 16", { exact: false }).waitFor();
   await card.getByText("10 of 17 orders had no notification and are left out.", { exact: false }).waitFor();
@@ -6671,7 +6671,7 @@ test("The well screen shows water cut steps, GOR climbs and stale tests, with cu
   await card.locator(".well-staleness").getByText("1 of 3 wells tested within 90 days at 2025-12-30", { exact: false }).waitFor();
   await card.getByText("latest test 2025-09-01, 120 days old", { exact: false }).waitFor();
   await card.getByText("OK-NWP-G1").waitFor();
-  await card.locator('tr[data-well="OK-J03-02"] .well-pattern').getByText("water cut step").waitFor();
+  await card.locator('tr[data-well="OK-J03-02"] .ui-badge').getByText("water cut step").waitFor();
   await card.locator('tr[data-well="OK-J03-02"]').getByText("Water cut 25.2% to 72% on 2025-06-08", { exact: false }).waitFor();
   await card.locator('tr[data-well="OK-J03-02"]').getByText("(estimated from tests)", { exact: false }).waitFor();
   await card.locator('tr[data-well="OK-J05-01"]').getByText("GOR 110 to 160 scf/bbl (x1.45)", { exact: false }).waitFor();
@@ -6718,7 +6718,7 @@ test("Allocated oil against well tests shows the monthly factor, its flags and t
   const card = page.locator(".allocation-factor");
   await card.locator(".af-summary").getByText("allocated over tested oil 0.766 (band 0.9 to 1.1)", { exact: false }).waitFor();
   await card.locator(".af-summary").getByText("first 3 months 0.727, latest 0.795", { exact: false }).waitFor();
-  await card.locator(".af-flag").getByText("drifting").waitFor();
+  await card.locator(".ui-badge").getByText("drifting").waitFor();
   await card.locator('tr[data-month="2025-12"] td[data-label="Days used"]').getByText("(1 left out)", { exact: false }).waitFor();
   await card.locator('tr[data-month="2025-12"] td[data-label="Median test age"]').getByText("17 days").waitFor();
   await card.getByText("Well status history isn't loaded.", { exact: false }).waitFor();
@@ -6765,7 +6765,7 @@ test("Gas lift heading lists the heading wells with their cycle and the signals 
   const card = page.locator(".gas-lift-heading");
   await card.locator(".gl-summary").getByText("1 of 142 gas lifted wells heading, 0 unstable", { exact: false }).waitFor();
   const row = card.locator('tr[data-well="OK-J12-08"]');
-  await row.locator(".gl-verdict").getByText("heading").waitFor();
+  await row.locator(".ui-badge").getByText("heading").waitFor();
   await row.getByText("every 75 min, casing swings 2.6 (4.2% of level)", { exact: false }).waitFor();
   await row.getByText("casing, wellhead").waitFor();
   assert.equal(await card.locator('tr[data-well="OK-J19-04"]').count(), 0);  // steady wells aren't listed
@@ -6814,7 +6814,7 @@ test("Separator and export quality shows each analyte against itself, gaps and d
   const card = page.locator(".quality-trend");
   await card.locator(".quality-summary").getByText("2 analytes at 2 sample points, 1 drifting off their own level, 1 with gaps",
     { exact: false }).waitFor();
-  await card.locator('tr[data-series="HP separator water outlet|oil_in_water"] .quality-drift').getByText("drifting up").waitFor();
+  await card.locator('tr[data-series="HP separator water outlet|oil_in_water"] .ui-badge').getByText("drifting up").waitFor();
   await card.locator('tr[data-series="HP separator water outlet|oil_in_water"]').getByText("(+109.2%)", { exact: false }).waitFor();
   await card.locator('tr[data-series="Export oil|bsw"] .quality-gap').getByText("no sample 2025-07-01 to 2025-08-20 (50 days)").waitFor();
   await card.locator(".quality-limits").getByText("no on or off specification claim", { exact: false }).waitFor();
@@ -6852,7 +6852,7 @@ test("Incidents show flare episodes with the records around them, or the cause u
   await card.locator(".flare-summary").getByText("2 episodes above the baseline (1 with records around them, 1 cause unknown)",
     { exact: false }).waitFor();
   await card.locator(".flare-summary").getByText("the records explain 86.6% of the", { exact: false }).waitFor();
-  await card.locator('li[data-start="2025-11-08"] .flare-cause').getByText("cause unknown").waitFor();
+  await card.locator('li[data-start="2025-11-08"] .ui-badge').getByText("cause unknown").waitFor();
   await card.locator('li[data-start="2025-02-10"]').getByText("Downtime 2025-02-10 08:00:", { exact: false }).waitFor();
   await card.getByText("not an emissions inventory", { exact: false }).waitFor();
   await card.locator(".flare-system").getByText("13 relief, blowdown and control", { exact: false }).waitFor();
@@ -6901,13 +6901,13 @@ test("Alarm performance shows the rate, floods and bad actors with their cases, 
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".alarm-performance");
   await card.locator(".ap-summary").getByText("258 alarms, 5.38 an hour against a target of 6", { exact: false }).waitFor();
-  assert.equal(await card.locator(".ap-rate").count(), 0);  // under target
+  assert.equal(await card.getByText("over target").count(), 0);  // under target
   const flood = card.locator('tr[data-flood="2025-06-24T14:00"]');
   await flood.getByText("223, 173 in 10 minutes").waitFor();
   await flood.getByText("20-FT-2100A (2), 20-PT-2300A (2)").waitFor();
   assert.equal(await flood.locator('a[href="#/cases/41"]').count(), 1);
   const standing = card.locator('tr[data-point="OK_J07_05.CASP"]');
-  await standing.locator(".ap-kind").getByText("standing").waitFor();
+  await standing.locator(".ui-badge").getByText("standing").waitFor();
   await standing.getByText("lo 62.3 on since 2025-06-05 09:00").waitFor();
   await standing.getByText("none yet").waitFor();
   await card.locator('tr[data-point="10LT2004"]').getByText("15 alarms in the window").waitFor();
@@ -7009,7 +7009,7 @@ test("Water injection: voidage replacement and the Hall slope per injector, and 
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".water-injection");
   await card.locator(".wi-summary").getByText("0.62 over the latest 3 months, 0.5 since injection started", { exact: false }).waitFor();
-  await card.locator(".wi-verdict").getByText("under-replacing").waitFor();
+  await card.locator(".ui-badge").getByText("under-replacing").waitFor();
   await card.locator('tr[data-well="OK-NWP-W2"]').getByText("rising").waitFor();
   await card.locator('tr[data-well="OK-NWP-W2"]').getByText("plugging", { exact: false }).waitFor();
   assert.equal(await card.locator('tr[data-month="2024-06"]').count(), 0);  // a month with no injection has no ratio row
@@ -7062,7 +7062,7 @@ test("Gas balance: the closure gap always shown, the open stretch with its zero 
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".gas-balance");
   await card.locator(".gb-summary").getByText("median closure gap 0.1% of the gas handled, 25 of 365 days open past ±2%", { exact: false }).waitFor();
-  await card.locator(".gb-verdict").getByText("closes, with open stretches").waitFor();
+  await card.locator(".ui-badge").getByText("closes, with open stretches").waitFor();
   await card.locator('tr[data-start="2025-09-15"] td[data-label="Reading zero"]').getByText("fuel").waitFor();
   await card.locator('tr[data-start="2025-09-15"] td[data-label="Gap"]').getByText("6.05% (gas unaccounted for)").waitFor();
   await card.locator('tr[data-date="2025-12-30"] td[data-label="Gap"]').getByText("4 Mscf", { exact: false }).waitFor();
@@ -7155,7 +7155,7 @@ test("Leak surveys: the repeat leaker, the surveys and what they missed, and uns
   await page.goto(`${url}/#/scorecard`);
   const card = page.locator(".leak-surveys");
   await card.locator(".ls-summary").getByText("2 surveys 2024-01-01 to 2025-12-31; 39 of 45 tags screened in the last 365 days", { exact: false }).waitFor();
-  await card.locator(".ls-verdict").getByText("1 repeat leaker").waitFor();
+  await card.locator(".ui-badge").getByText("1 repeat leaker").waitFor();
   await card.locator('tr[data-tag="20-K-2300A"]').getByText("2025-05-14, 2025-08-13, 2025-11-12", { exact: false }).waitFor();
   await card.locator(".ls-unknown").getByText("Unknown, never surveyed: 30-V-2001, 50-V-2002.").waitFor();
   await card.locator('tr[data-date="2025-08-13"] td[data-label="Missed"]').getByText("2 tags usually screened").waitFor();

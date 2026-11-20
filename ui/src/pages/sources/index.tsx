@@ -83,7 +83,7 @@ function Datasets() {
             <Text small>
               {here.length} datasets:{" "}
               {["ok", "stale", "held", "failed", "checks failing", "profile drift", "not loaded"].map((st) =>
-                count(st) ? <UIBadge key={st} className={`badge ${STATE[st] ?? ""}`}>{count(st)} {st}</UIBadge> : null)}
+                count(st) ? <UIBadge key={st} tone={STATE[st]}>{count(st)} {st}</UIBadge> : null)}
             </Text>
             <Input placeholder="filter by name, system or owner" value={filter} onChange={(e) => setFilter(e.target.value)} />
             <Checkbox checked={problems} onChange={setProblems}>problems only</Checkbox>
@@ -100,7 +100,7 @@ function Datasets() {
               {shown.map(({ s, d }) => (
                 <tr key={d.name} className={d.present ? "static" : "static muted"}>
                   <td><a href={href("/sources", { view: "dataset", name: d.name })}><code>{d.name}</code></a> <Text small muted>{d.record_type ?? d.reader}</Text>
-                    {d.status !== "active" && <UIBadge className="badge"> {d.status}</UIBadge>}</td>
+                    {d.status !== "active" && <UIBadge> {d.status}</UIBadge>}</td>
                   <td><code>{s.name}</code></td>
                   <td>{d.present ? <HealthBadge h={d.health} /> : <Text small muted>no data here</Text>}</td>
                   <td>{d.last_run ? <UIBadge tone={d.last_run === "failed" ? "danger" : d.last_run === "held" ? "warn" : d.last_run === "done" ? "ok" : "muted"}>{d.last_run}</UIBadge> : "No recorded run"}</td>

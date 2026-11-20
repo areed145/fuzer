@@ -26,8 +26,8 @@ export function ReservoirPressure() {
           <tbody>{pi.wells.map((w) => (
             <tr key={w.well} data-well={w.well}>
               <td>{w.well}</td>
-              <td data-label="Productivity index">{w.latest_pi ?? "unknown"} {w.latest_pi != null && <Text muted>{pi.unit}</Text>}</td>
-              <td data-label="Since the first survey">
+              <td>{w.latest_pi ?? "unknown"} {w.latest_pi != null && <Text muted>{pi.unit}</Text>}</td>
+              <td>
                 <Badge tone={w.verdict === "fallen" ? "warn" : w.verdict === "holding" ? "ok" : "muted"}>
                   {w.verdict === "too_few_surveys" ? "too few surveys" : w.verdict}</Badge>
                 {w.ratio != null && <Text muted> {w.ratio} times the first</Text>}

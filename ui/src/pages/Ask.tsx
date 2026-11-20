@@ -315,7 +315,7 @@ function TurnView({ turn, labels, demo = false, caseId }: { turn: Turn; labels: 
         {turn.error && (demo ? <ActionStatus error={turn.error} /> : <ErrorText>{turn.error}</ErrorText>)}
         {!turn.error && (!j || j.status === "running") && (
           <div className="working">
-            <Text as="div" small><UIBadge className="badge updating">Working…</UIBadge>{" "}
+            <Text as="div" small><UIBadge tone="warn">Working…</UIBadge>{" "}
               {j ? `${j.model_calls} model calls so far` : "starting"}</Text>
             {steps.length > 0 && (
               <ul className="steps small muted">

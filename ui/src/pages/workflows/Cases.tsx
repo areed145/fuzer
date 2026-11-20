@@ -120,10 +120,10 @@ function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: 
   return (
     <tr>
       <td>{!r.closed_at && <Input type="checkbox" checked={picked} onChange={toggle} />}</td>
-      <td><a href={caseHref(r.id)}>{say(r.title)}</a>{r.escalated && <UIBadge className="badge late"> escalated</UIBadge>}</td>
-      <td className="small"><UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge>{/* the standard queue is how any plain case runs: only a process of its own is worth naming */}
+      <td><a href={caseHref(r.id)}>{say(r.title)}</a>{r.escalated && <UIBadge tone="danger"> escalated</UIBadge>}</td>
+      <td className="small"><UIBadge>{r.type.replace(/_/g, " ")}</UIBadge>{/* the standard queue is how any plain case runs: only a process of its own is worth naming */}
         {r.process_key && r.process_key !== "queue_item" && r.process_key !== r.type && <> <a className="muted" href={processHref(r.process_key)}>{r.process_key.replace(/_/g, " ")}</a></>}</td>
-      <td className="small">{r.closed_at ? <UIBadge className="badge ok">{cap(r.state)}{r.outcome ? `: ${say(r.outcome)}` : ""}</UIBadge> : r.step ?? r.state}</td>
+      <td className="small">{r.closed_at ? <UIBadge tone="ok">{cap(r.state)}{r.outcome ? `: ${say(r.outcome)}` : ""}</UIBadge> : r.step ?? r.state}</td>
       <td className="small">{r.closed_at ? "" : holder(r.assignee, r.role)}</td>
       <td className="nowrap">{!r.closed_at && <Due at={r.due} />}</td>
       <td className="small"><PriorityBadge p={r.priority} type={r.type} low /></td>
@@ -205,8 +205,8 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         <div>
           <PageHeader className={it.title.length > 48 ? "case-title-long" : undefined}>{say(it.title)}</PageHeader>
           <Line small>
-            <UIBadge className="badge">{it.type.replace(/_/g, " ")}</UIBadge>
-            <UIBadge className={`badge ${closed ? "ok" : ""}`}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
+            <UIBadge>{it.type.replace(/_/g, " ")}</UIBadge>
+            <UIBadge tone={closed ? "ok" : "muted"}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
             {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority, {level.why}</Text></span>}
             <span className="case-opened"><Text muted>opened by</Text> <Actor who={it.created_by} /> <Text muted>{when(it.created_at)}</Text></span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
@@ -319,7 +319,7 @@ export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; pe
         ? `The field reported it done. Approved, it goes in ${system}'s next batch, so its record agrees and the IOC stops holding it.`
         : `The field could not do it. Approved, the work stays on ${system}'s books.`} Nothing is written until you approve it.</Text>
       {d.state !== "draft" ? (
-        <Text as="p" small><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state === "approved" ? "approved, goes in the next batch"
+        <Text as="p" small><UIBadge tone={d.state === "sent" ? "ok" : "muted"}>{d.state === "approved" ? "approved, goes in the next batch"
           : sentBack ? "sent back, not written" : d.state}</UIBadge>{" "}
           by <Actor who={d.decided_by ?? ""} /> {d.decided_at && when(d.decided_at)}
           {d.applied_at && <Text muted> · applied to the demo's {system} data</Text>}</Text>

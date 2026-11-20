@@ -298,9 +298,9 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
         {c.class === "control_adjacent" ? "control-adjacent" : c.class}, {c.direction === "write" ? "reads and writes" : "read only"}
       </Text>}{" "}
       {Object.entries(c.secrets).map(([k, v]) => (
-        <UIBadge key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</UIBadge>
+        <UIBadge key={k} tone={v.resolves ? "ok" : "muted"} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</UIBadge>
       ))}{" "}
-      {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "last test passed" : "last test failed"}</UIBadge>}{" "}
+      {test && <UIBadge tone={test.ok ? "ok" : "muted"}>{test.ok ? "last test passed" : "last test failed"}</UIBadge>}{" "}
       {c.last_tested_at && <Text muted>recorded {c.last_tested_at} </Text>}
       <Button variant="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id))}>
         {a.busy === "test" ? "testing…" : "test"}</Button>

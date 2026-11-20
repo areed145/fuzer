@@ -142,8 +142,8 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
     <li className={`card board-card${c.pinned ? " pinned" : ""}`}>
       <Line>
         <span className="rank mono">{c.rank}</span>
-        {c.moved && <UIBadge className={`badge ${c.moved === "new" ? "ok" : up ? "ok" : ""}`} title={c.moved}>{c.moved.split(":")[0]}</UIBadge>}
-        <UIBadge className="badge">{c.kind.replace("_", " ")}</UIBadge>
+        {c.moved && <UIBadge tone={c.moved === "new" ? "ok" : up ? "ok" : "muted"} title={c.moved}>{c.moved.split(":")[0]}</UIBadge>}
+        <UIBadge>{c.kind.replace("_", " ")}</UIBadge>
         {c.item_id ? <a href={href(`/cases/${c.item_id}`)}>{c.title}</a> : <span>{c.title}</span>}
         <span className="spacer" />
         <strong title={c.reason ?? ""}>{valued(c.effective_usd)}</strong>
@@ -153,7 +153,7 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         {c.unit && c.unit_id && <a href={entityHref(c.unit_id)}>{c.unit}</a>}
         {c.area && <span>{c.area}</span>}
         {c.owner && c.owner !== "unassigned" && <span>{c.owner}</span>}
-        {c.pinned && <UIBadge className="badge key" title={c.pin_reason ?? ""}>pinned by {c.pinned_by}: {c.pin_reason}</UIBadge>}
+        {c.pinned && <UIBadge title={c.pin_reason ?? ""}>pinned by {c.pinned_by}: {c.pin_reason}</UIBadge>}
         {c.records.length > 1 && <span>{c.records.length} records</span>}
       </Line>
       {open && <Detail card={c} reload={reload} />}

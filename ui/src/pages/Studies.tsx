@@ -27,7 +27,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
             {list.data.map((s) => (
               <tr key={s.id}>
                 <td><a href={href("/studies", { id: String(s.id) })}>Study {s.id}</a></td>
-                <td>{KINDS.find(([k]) => k === s.kind)?.[1] ?? s.kind}</td><td><UIBadge className="badge">{s.status}</UIBadge></td>
+                <td>{KINDS.find(([k]) => k === s.kind)?.[1] ?? s.kind}</td><td><UIBadge>{s.status}</UIBadge></td>
                 <td className="small">{s.summary ?? s.error ?? ""}</td><td className="muted small">{personName(s.created_by)}</td>
               </tr>
             ))}

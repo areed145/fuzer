@@ -110,14 +110,14 @@ export function InboxPage() {
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
       {!offline && !fieldRole && <NewForYou person={person} told={told} />}
       <Line as="p" small>
-        {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
-        <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
-        <UIBadge className="badge">{counts.queue} unclaimed in your roles ({d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"})</UIBadge>
-        {counts.overdue > 0 && <UIBadge className="badge late">{counts.overdue} overdue</UIBadge>}
-        {counts.escalated > 0 && <UIBadge className="badge late">{counts.escalated} escalated</UIBadge>}
-        {undispatched > 0 && <a className="badge late" href={href("/exceptions")}>{undispatched} exceptions waiting to be dispatched</a>}
-        {reviews > 0 && <a className="badge" href={href("/masterdata", { tab: "questions" })}>{reviews} data items to review</a>}
-        {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
+        {counts.sent > 0 && <UIBadge>{counts.sent} sent to you</UIBadge>}
+        <UIBadge>{counts.mine} assigned to you</UIBadge>
+        <UIBadge>{counts.queue} unclaimed in your roles ({d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"})</UIBadge>
+        {counts.overdue > 0 && <UIBadge tone="danger">{counts.overdue} overdue</UIBadge>}
+        {counts.escalated > 0 && <UIBadge tone="danger">{counts.escalated} escalated</UIBadge>}
+        {undispatched > 0 && <a href={href("/exceptions")}><UIBadge tone="danger">{undispatched} exceptions waiting to be dispatched</UIBadge></a>}
+        {reviews > 0 && <a href={href("/masterdata", { tab: "questions" })}><UIBadge>{reviews} data items to review</UIBadge></a>}
+        {d.covering?.length ? <UIBadge>covering for {d.covering.join(", ")}</UIBadge> : null}
       </Line>
       <Line>
         <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -180,7 +180,7 @@ const KIND: Record<WorkNotification["kind"], string> = {
 function NotificationLine({ n, onOpen }: { n: WorkNotification; onOpen: () => void }) {
   return (
     <li>
-      <UIBadge className={`badge ${n.kind === "escalated" || n.kind === "due_soon" ? "late" : ""}`}>{KIND[n.kind]}</UIBadge>
+      <UIBadge tone={n.kind === "escalated" || n.kind === "due_soon" ? "danger" : "muted"}>{KIND[n.kind]}</UIBadge>
       <a href={n.link} onClick={onOpen}>{n.text}</a>
       <span className="small when">{when(n.created_at)}</span>
     </li>
@@ -276,7 +276,7 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
       <td>
         <a href={open} className="work-title">{r.title}</a>
         <Text as="div" small muted>
-          <strong>{r.name ?? "open"}</strong> · <UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge> · with {holder(r.assignee, r.role, r.kind)}
+          <strong>{r.name ?? "open"}</strong> · <UIBadge>{r.type.replace(/_/g, " ")}</UIBadge> · with {holder(r.assignee, r.role, r.kind)}
           {priorityLevel(r.priority, r.type) && <> · <span title={priorityLevel(r.priority, r.type)!.why}>{priorityLevel(r.priority, r.type)!.level} priority</span></>}
         </Text>
         {r.handed_reason && <div className={r.handed_reason.startsWith("Back from the field") ? "small field-back" : "small muted"}>

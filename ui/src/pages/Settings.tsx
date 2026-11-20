@@ -121,15 +121,15 @@ function SettingLine({ s, project, person, open, toggle, saved }: {
       <tr>
         <td>
           <code>{s.key}</code>
-          {s.restart && <UIBadge className="badge" title="takes effect when the process restarts">restart</UIBadge>}
+          {s.restart && <UIBadge title="takes effect when the process restarts">restart</UIBadge>}
           {!s.restart && <UIBadge>next use</UIBadge>}
           <Text as="div" small muted>{s.description}</Text>
         </td>
         <td>
           <b>{show(s.value)}</b>{" "}
-          <UIBadge className={`badge ${s.from === "default" ? "" : "key"}`}>{s.from}</UIBadge>
+          <UIBadge tone={s.from === "default" ? "muted" : "muted"}>{s.from}</UIBadge>
           {s.type === "secret" && (
-            <UIBadge className={`badge ${s.resolves ? "ok" : ""}`}>{s.resolves ? "resolves" : "not set"}</UIBadge>
+            <UIBadge tone={s.resolves ? "ok" : "muted"}>{s.resolves ? "resolves" : "not set"}</UIBadge>
           )}
           {s.from === "project" && s.global !== null && <Text as="div" small muted>global: {show(s.global)}</Text>}
           {s.from === "environment" && <Text as="div" small muted>Legacy variable: <code>{s.environment}</code>. Save here to override it.</Text>}

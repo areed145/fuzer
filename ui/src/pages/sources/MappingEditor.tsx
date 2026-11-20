@@ -121,7 +121,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
           <tbody>
             {form.columns.map((c, i) => (
               <tr key={c.name}>
-                <td><code>{c.name}</code>{form.key.includes(c.name) && <UIBadge className="badge key"> key</UIBadge>}</td>
+                <td><code>{c.name}</code>{form.key.includes(c.name) && <UIBadge> key</UIBadge>}</td>
                 <td className="muted">{sampleOf(c.name).slice(0, 60)}</td>
                 <td>
                   <Input type="checkbox" checked={!!c.field}

@@ -19,16 +19,16 @@ export function LeakSurveys() {
           {d.surveys.length} surveys {d.since} to {d.until}; {c.covered} of {c.in_scope} tags screened in the last
           {" "}{d.coverage_days} days.{" "}
           {d.repeat_leakers.length > 0
-            ? <Badge tone="warn" className="ls-verdict">{d.repeat_leakers.length} repeat leaker{d.repeat_leakers.length > 1 ? "s" : ""}</Badge>
-            : <Badge tone="ok" className="ls-verdict">no repeat leakers</Badge>}
+            ? <Badge tone="warn">{d.repeat_leakers.length} repeat leaker{d.repeat_leakers.length > 1 ? "s" : ""}</Badge>
+            : <Badge tone="ok">no repeat leakers</Badge>}
         </div>
         {d.repeat_leakers.length > 0 && <Table density="compact" className="ls-repeat phone-rows">
           <thead><tr><th>Tag</th><th>Component</th><th>Found leaking</th></tr></thead>
           <tbody>{d.repeat_leakers.map((r) => (
             <tr key={`${r.tag}-${r.component}`} data-tag={r.tag}>
               <td>{r.tag}</td>
-              <td data-label="Component">{r.component}</td>
-              <td data-label="Found leaking">{r.surveys.join(", ")} <Text muted>(up to {count(r.max_ppm)} ppm)</Text></td>
+              <td>{r.component}</td>
+              <td>{r.surveys.join(", ")} <Text muted>(up to {count(r.max_ppm)} ppm)</Text></td>
             </tr>
           ))}</tbody>
         </Table>}
@@ -40,9 +40,9 @@ export function LeakSurveys() {
           <tbody>{d.surveys.slice(-4).map((s) => (
             <tr key={s.date} data-date={s.date}>
               <td>{s.date}</td>
-              <td data-label="Components">{s.components} on {s.tags} tags</td>
-              <td data-label="Leaks">{s.leaks} ({s.leak_rate_pct}%)</td>
-              <td data-label="Missed">{s.missed.length ? `${s.missed.length} tags usually screened` : "none"}</td>
+              <td>{s.components} on {s.tags} tags</td>
+              <td>{s.leaks} ({s.leak_rate_pct}%)</td>
+              <td>{s.missed.length ? `${s.missed.length} tags usually screened` : "none"}</td>
             </tr>
           ))}</tbody>
         </Table>

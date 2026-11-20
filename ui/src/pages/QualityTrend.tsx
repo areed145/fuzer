@@ -22,11 +22,11 @@ export function QualityTrend() {
           <tbody>{d.series.map((s) => (
             <tr key={`${s.subject}|${s.sample_point}|${s.analyte}`} data-series={`${s.sample_point}|${s.analyte}`}>
               <td><a href={entityHref(s.subject)}>{s.label}</a> {s.sample_point}</td>
-              <td data-label="Analyte">{s.analyte}{s.drift && <> <Badge tone="warn" className="quality-drift">
+              <td>{s.analyte}{s.drift && <> <Badge tone="warn">
                 drifting {s.drift.direction}</Badge></>}</td>
-              <td data-label="Earlier, then latest">{s.first_half_median} to {s.latest_3_median} {s.unit}
+              <td>{s.first_half_median} to {s.latest_3_median} {s.unit}
                 {s.change_pct != null && <Text muted> ({s.change_pct > 0 ? "+" : ""}{s.change_pct}%)</Text>}</td>
-              <td data-label="Sampling">{s.samples} samples, every {s.usual_interval_days} days
+              <td>{s.samples} samples, every {s.usual_interval_days} days
                 {s.gaps.map((g) => <div key={g.from} className="small quality-gap">no sample {g.from} to {g.to} ({g.days} days)</div>)}
                 {s.below_detection > 0 && <Text as="div" small muted>{s.below_detection} below detection</Text>}</td>
             </tr>

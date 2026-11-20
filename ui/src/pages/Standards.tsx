@@ -67,11 +67,11 @@ export function Standards() {
           <thead><tr><th>Where</th><th>Change</th><th>Why</th><th>Owner</th><th>Review by</th><th>Standard</th></tr></thead>
           <tbody>{p.deviations.map((x) => <tr key={`${x.part}:${x.key}`}>
             <td data-label="Where">{x.part.replace("_", " ")}: {x.key}</td>
-            <td data-label="Change">{x.change}</td>
-            <td data-label="Why">{x.reason ?? <Badge tone="danger">no reason given</Badge>}</td>
-            <td data-label="Owner">{x.owner ?? "nobody"}</td>
-            <td data-label="Review by">{x.review_by ?? "not set"}{x.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
-            <td data-label="Standard"><Promote project={p.project} deviation={x} person={person} busy={!!busy} act={act} /></td>
+            <td>{x.change}</td>
+            <td>{x.reason ?? <Badge tone="danger">no reason given</Badge>}</td>
+            <td>{x.owner ?? "nobody"}</td>
+            <td>{x.review_by ?? "not set"}{x.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
+            <td><Promote project={p.project} deviation={x} person={person} busy={!!busy} act={act} /></td>
           </tr>)}</tbody>
         </Table>}
         {p.practice && <ul className="small">
@@ -94,12 +94,12 @@ export function Standards() {
         <thead><tr><th>Version</th><th>State</th><th>What</th><th>Proposed by</th><th>Test run</th><th>Review</th><th>Next</th></tr></thead>
         <tbody>{v.data.versions.map((x) => <tr key={`${x.name}:${x.version}`}>
           <td data-label="Version">{x.name} v{x.version}</td>
-          <td data-label="State"><Badge tone={STATE[x.state]}>{x.state}</Badge></td>
-          <td data-label="What">{x.summary}</td>
-          <td data-label="Proposed by">{x.proposed_by}</td>
-          <td data-label="Test run">{x.test_run ? <TestRun run={x.test_run} /> : "none"}</td>
-          <td data-label="Review">{x.reviewed_by ? `${x.reviewed_by}: ${x.review_note}` : "none"}</td>
-          <td data-label="Next"><Next version={x} person={person} admin={admin} busy={!!busy} act={act}
+          <td><Badge tone={STATE[x.state]}>{x.state}</Badge></td>
+          <td>{x.summary}</td>
+          <td>{x.proposed_by}</td>
+          <td>{x.test_run ? <TestRun run={x.test_run} /> : "none"}</td>
+          <td>{x.reviewed_by ? `${x.reviewed_by}: ${x.review_note}` : "none"}</td>
+          <td><Next version={x} person={person} admin={admin} busy={!!busy} act={act}
             projects={projects} rollouts={v.data!.rollouts} /></td>
         </tr>)}</tbody>
       </Table>}
@@ -113,11 +113,11 @@ export function Standards() {
         <thead><tr><th>Asset</th><th>Rolled out</th><th>From</th><th>State</th><th>By</th><th>Rollback</th></tr></thead>
         <tbody>{v.data.rollouts.map((r) => <tr key={r.id}>
           <td data-label="Asset">{r.project}</td>
-          <td data-label="Rolled out">{r.name} v{r.version}</td>
-          <td data-label="From">{r.from_name} v{r.from_version}</td>
-          <td data-label="State">{r.state.replace("_", " ")}{r.rollback_reason ? `: ${r.rollback_reason}` : ""}</td>
-          <td data-label="By">{personName(r.rolled_back_by ?? r.by)}</td>
-          <td data-label="Rollback">{r.state === "live" && <Rollback rollout={r} person={person} busy={!!busy} act={act} />}</td>
+          <td>{r.name} v{r.version}</td>
+          <td>{r.from_name} v{r.from_version}</td>
+          <td>{r.state.replace("_", " ")}{r.rollback_reason ? `: ${r.rollback_reason}` : ""}</td>
+          <td>{personName(r.rolled_back_by ?? r.by)}</td>
+          <td>{r.state === "live" && <Rollback rollout={r} person={person} busy={!!busy} act={act} />}</td>
         </tr>)}</tbody>
       </Table>
     </Card>}

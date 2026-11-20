@@ -28,9 +28,9 @@ export function WorkExecution() {
           <tbody>{d.periods.map((p) => (
             <tr key={p.period} data-period={p.period}>
               <td>{p.period}</td>
-              <td data-label="Schedule compliance">{pct(p.schedule_compliance_pct)}
+              <td>{pct(p.schedule_compliance_pct)}
                 <Text muted> ({p.on_time} of {p.finished - p.no_due_date})</Text></td>
-              <td data-label="Repeat repairs">{pct(p.repeat_rate_pct)}
+              <td>{pct(p.repeat_rate_pct)}
                 <Text muted> ({p.repeats.length} of {p.corrective})</Text></td>
             </tr>
           ))}</tbody>

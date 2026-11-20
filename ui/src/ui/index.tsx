@@ -153,10 +153,11 @@ export function Checkbox({ checked, onChange, disabled, children }: {
 }) {
   return <label className="ui-check"><input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} /> {children}</label>;
 }
-export function Badge({ tone = "muted", className = "", ...props }: HTMLAttributes<HTMLSpanElement> & {
-  tone?: "ok" | "warn" | "danger" | "info" | "muted";
-}) {
-  return <span {...props} className={`ui-badge ui-badge-${tone} badge ${className}`.trim()} />;
+export type Tone = "ok" | "warn" | "danger" | "info" | "muted";
+
+/** A status word in the colour of its state. No class names: the tone is the whole look. */
+export function Badge({ tone = "muted", mono, ...props }: Omit<HTMLAttributes<HTMLSpanElement>, "className"> & { tone?: Tone; mono?: boolean }) {
+  return <span {...props} className={`ui-badge ui-badge-${tone}${mono ? " mono" : ""}`} />;
 }
 /** What went wrong, in the one error style and announced to screen readers. Renders nothing without a message. Use it
  * instead of a paragraph with an error class. */

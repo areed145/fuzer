@@ -85,7 +85,7 @@ export function FigureView({ id }: { id: string }) {
             <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="chart-fullscreen" />
           </div>
           <figcaption className="row small muted">
-            {d.by_source === "assistant" && <UIBadge className="badge">assistant-entered data</UIBadge>}
+            {d.by_source === "assistant" && <UIBadge>assistant-entered data</UIBadge>}
             <span className="spacer" />
             <Button variant="link" onClick={() => setTable((t) => !t)}>{table ? "Hide data" : "Data"}</Button>
             <a href={projectUrl(`/figures/${encodeURIComponent(d.id)}.html`)} target="_blank" rel="noreferrer">Open full size</a>

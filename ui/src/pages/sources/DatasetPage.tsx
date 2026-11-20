@@ -125,7 +125,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("profile", () => api.profileDataset(ds.name), reload)}>
           Profile now</Button>
         {done && !a.busy && !a.error && <Loaded r={done} />}
-        {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "connection ok" : "connection failed"}</UIBadge>}
+        {test && <UIBadge tone={test.ok ? "ok" : "muted"}>{test.ok ? "connection ok" : "connection failed"}</UIBadge>}
       </Line>
       {test && !test.ok && <TestSteps steps={test.steps} />}
       {!ready && <p>Before loading, resume the dataset, enable its connection and resolve missing deployment-secret references.</p>}
@@ -325,7 +325,7 @@ function MappingTab({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           {d.mappings.map((m) => (
             <tr key={m.id}>
               <td>{m.id}</td><td><code>{m.source}/{m.record_type}</code></td>
-              <td>{m.current ? <UIBadge className="badge ok">in use</UIBadge> : m.status === "retired" ? <Text muted>discarded</Text> : m.status}</td>
+              <td>{m.current ? <UIBadge tone="ok">in use</UIBadge> : m.status === "retired" ? <Text muted>discarded</Text> : m.status}</td>
               <td>{m.author ?? m.approved_by}</td><td className="muted">{m.note}</td><td className="muted">{when(m.created_at)}</td>
               <td>{!m.current && m.status !== "retired" && <Button variant="link" onClick={() => setReview(m)}>
                 {m.status === "draft" ? "review" : "compare / roll back"}</Button>}</td>
@@ -404,7 +404,7 @@ function Runs({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           {d.runs.map((r) => (
             <tr key={r.id}>
               <td>{r.id}</td><td className="muted">{when(r.finished_at ?? r.started_at)}</td><td>{r.trigger}</td>
-              <td><UIBadge className={`badge ${r.status === "done" ? "ok" : ""}`}>{r.status}</UIBadge></td>
+              <td><UIBadge tone={r.status === "done" ? "ok" : "muted"}>{r.status}</UIBadge></td>
               <td>{r.rows_read != null && count(r.rows_read)}</td><td>{r.inserted}</td><td>{r.updated}</td><td>{r.unchanged}</td><td>{r.removed}</td>
               <td className="muted">{r.seconds}</td><td className="muted">{r.error ?? (r.detail ? <RunDetail detail={r.detail} /> : "")}</td>
             </tr>
@@ -476,7 +476,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
                 <td>{c.kind}</td><td><code>{c.column_name}</code></td><td className="muted">{JSON.stringify(c.params)}</td>
                 <td>{c.blocking ? "yes" : ""}</td>
                 <td>{c.last_ok === null ? <Text muted>not run</Text> :
-                  <UIBadge className={`badge ${c.last_ok ? "ok" : ""}`}>{c.last_ok ? "pass" : "fail"}</UIBadge>}</td>
+                  <UIBadge tone={c.last_ok ? "ok" : "muted"}>{c.last_ok ? "pass" : "fail"}</UIBadge>}</td>
                 <td>{c.last_value ?? ""}</td>
                 <td><Button variant="link" onClick={() => a.run("rm", () => api.removeCheck(c.id, reviewer()), reload)}>remove</Button></td>
               </tr>

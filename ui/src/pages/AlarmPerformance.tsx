@@ -18,7 +18,7 @@ export function AlarmPerformance() {
       {d && <>
         <div className="small ap-summary">
           Last {d.days} days: {d.alarms} alarms, {d.per_hour} an hour against a target of {d.target_per_hour}
-          {d.per_hour > d.target_per_hour && <> <Badge tone="warn" className="ap-rate">over target</Badge></>}.
+          {d.per_hour > d.target_per_hour && <> <Badge tone="warn">over target</Badge></>}.
           {" "}{d.floods.length} flood{d.floods.length === 1 ? "" : "s"}, {d.bad_actors.length} bad
           actor{d.bad_actors.length === 1 ? "" : "s"}{d.synthetic && <>, from the fake plant's synthetic values</>}.
         </div>
@@ -28,9 +28,9 @@ export function AlarmPerformance() {
             <tbody>{d.floods.map((f) => (
               <tr key={f.start} data-flood={f.start}>
                 <td>{day(f.start)} to {day(f.end).slice(11)}</td>
-                <td data-label="Alarms">{f.alarms}, {f.peak_10_min} in 10 minutes</td>
-                <td data-label="Top contributors" className="small">{f.top.map((t) => `${t.point} (${t.alarms})`).join(", ")}</td>
-                <td data-label="Case">{f.case ? <a href={href(`/cases/${f.case}`)}>#{f.case}</a> : <Text muted>none yet</Text>}</td>
+                <td>{f.alarms}, {f.peak_10_min} in 10 minutes</td>
+                <td className="small">{f.top.map((t) => `${t.point} (${t.alarms})`).join(", ")}</td>
+                <td>{f.case ? <a href={href(`/cases/${f.case}`)}>#{f.case}</a> : <Text muted>none yet</Text>}</td>
               </tr>
             ))}</tbody>
           </Table>
@@ -41,13 +41,13 @@ export function AlarmPerformance() {
             <tbody>{d.bad_actors.map((b) => (
               <tr key={b.point_id} data-point={b.point}>
                 <td>{b.point}</td>
-                <td data-label="Found">{b.kinds.map((k) => <Badge key={k} tone={k === "standing" ? "warn" : "danger"} className="ap-kind">{k}</Badge>)}</td>
-                <td data-label="Detail" className="small">
+                <td>{b.kinds.map((k) => <Badge key={k} tone={k === "standing" ? "warn" : "danger"}>{k}</Badge>)}</td>
+                <td className="small">
                   {b.kinds.includes("standing") && <>{b.limits.join(", ")} on since {day(b.since)}</>}
                   {b.kinds.length > 1 && "; "}
                   {b.kinds.includes("repeating") && <>{b.alarms} alarms in the window</>}
                 </td>
-                <td data-label="Case">{b.case ? <a href={href(`/cases/${b.case}`)}>#{b.case}</a> : <Text muted>none yet</Text>}</td>
+                <td>{b.case ? <a href={href(`/cases/${b.case}`)}>#{b.case}</a> : <Text muted>none yet</Text>}</td>
               </tr>
             ))}</tbody>
           </Table>

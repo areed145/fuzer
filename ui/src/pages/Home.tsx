@@ -135,7 +135,7 @@ function LatestReportCard() {
       <Line spread>
         <h2>Latest daily report</h2>
         {latest.data && (
-          <a className="badge" href={href("/reports", { day: latest.data.day.day })}>
+          <a className="small muted" href={href("/reports", { day: latest.data.day.day })}>
             {latest.data.day.day} · {latest.data.report.checks.ok ? "checks passed" : "needs review"}
           </a>
         )}

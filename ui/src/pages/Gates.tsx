@@ -22,7 +22,7 @@ export function CaseGates({ id }: { id: number }) {
 function GateLine({ d }: { d: GateDecision }) {
   return (
     <li>
-      <UIBadge className={`badge ${d.fired ? "late" : "ok"}`}>{d.fired ? "Stopped for a person" : "Went ahead"}</UIBadge>
+      <UIBadge tone={d.fired ? "danger" : "ok"}>{d.fired ? "Stopped for a person" : "Went ahead"}</UIBadge>
       <span>{d.reason}</span>
       <Text small>
         {d.confidence !== null && <>confidence {pct(d.confidence)} · </>}needs {pct(d.threshold)}

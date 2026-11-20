@@ -24,8 +24,7 @@ const isOpenDraft = (d: WorkDefinition, defs: WorkDefinition[]) =>
   d.version > Math.max(0, ...defs.filter((x) => x.state === "published" || x.state === "superseded").map((x) => x.version));
 
 function StateBadge({ state }: { state: string }) {
-  const cls = state === "published" ? "ok" : state === "checked" ? "soon" : state === "draft" ? "human" : "";
-  return <UIBadge className={`badge ${cls}`}>{state}</UIBadge>;
+  return <UIBadge tone={state === "published" ? "ok" : state === "checked" || state === "draft" ? "warn" : "muted"}>{state}</UIBadge>;
 }
 
 function useAdmin(person: string) {
@@ -124,14 +123,14 @@ export function ProcessesPage() {
               return (
                 <tr key={k}>
                   <td><a href={href(`/workflows/${k}`)}><strong>{label}</strong></a> <Text small muted mono>{k}</Text></td>
-                  <td data-label="Published">{pub ? <>v{pub.version} <Text small muted>{pub.published_at && when(pub.published_at)}</Text></> : <Text muted>not yet</Text>}</td>
-                  <td data-label="Draft">{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <Text muted>none</Text>}</td>
-                  <td data-label="Running"><a href={href(`/workflows/${k}`, { tab: "running" })} aria-label={`${label}: running cases`}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
-                  <td data-label="Steps waiting">{st?.waiting ?? "–"}</td>
-                  <td data-label="Overdue">{st?.overdue ? <UIBadge className="badge late">{st.overdue}</UIBadge> : st ? 0 : "–"}</td>
+                  <td>{pub ? <>v{pub.version} <Text small muted>{pub.published_at && when(pub.published_at)}</Text></> : <Text muted>not yet</Text>}</td>
+                  <td>{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <Text muted>none</Text>}</td>
+                  <td><a href={href(`/workflows/${k}`, { tab: "running" })} aria-label={`${label}: running cases`}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
+                  <td>{st?.waiting ?? "–"}</td>
+                  <td>{st?.overdue ? <UIBadge tone="danger">{st.overdue}</UIBadge> : st ? 0 : "–"}</td>
                   <td data-label="Cycle time" className="small">{st ? `${hours(st.median_h)} / ${hours(st.p90_h)}` : "–"}</td>
-                  <td data-label="SLA missed" className="small">{st?.sla_breach_pct != null ? `${st.sla_breach_pct}%` : "–"}</td>
-                  <td data-label="Open" className="small">
+                  <td className="small">{st?.sla_breach_pct != null ? `${st.sla_breach_pct}%` : "–"}</td>
+                  <td className="small">
                     <a href={href(`/workflows/${k}`, { tab: "model" })} aria-label={`${label}: model`}>Model</a> · <a href={href(`/workflows/${k}`, { tab: "monitor" })} aria-label={`${label}: monitor`}>Monitor</a>
                   </td>
                 </tr>
@@ -396,7 +395,7 @@ function ModelTab({ def, defs, draft, reload }: {
         <Versions defs={defs} current={def} />
         <StateBadge state={def.state} />
         <Text small muted>by <Actor who={def.created_by} /> {when(def.created_at)}</Text>
-        {dirty && <UIBadge className="badge soon">unsaved changes</UIBadge>}
+        {dirty && <UIBadge tone="warn">unsaved changes</UIBadge>}
         <span className="spacer" />
         {editable ? (
           <>
@@ -515,7 +514,7 @@ const show = (v: unknown) => (v === undefined || v === null ? "—" : String(v))
 function ChangeRow({ c, onPick }: { c: WorkChange; onPick: (id: string) => void }) {
   return (
     <li className="small">
-      <UIBadge className={`badge change-${c.change}`}>{c.change}</UIBadge>{" "}
+      <UIBadge tone={c.change === "added" ? "ok" : c.change === "removed" ? "danger" : "warn"}>{c.change}</UIBadge>{" "}
       {c.change === "removed" ? <Text mono>{c.element}</Text> : <a className="mono" onClick={() => onPick(c.element)}>{c.element}</a>}
       {c.name && <> {c.name}</>} <Text muted>({c.type})</Text>
       {c.fields && (
@@ -586,7 +585,7 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
                   <tr key={id}>
                     <td>{c.name ?? <Text mono>{id}</Text>}</td>
                     <td>{c.waiting || ""}</td>
-                    <td>{c.overdue ? <UIBadge className="badge late">{c.overdue}</UIBadge> : ""}</td>
+                    <td>{c.overdue ? <UIBadge tone="danger">{c.overdue}</UIBadge> : ""}</td>
                     <td>{c.oldest ? span(Date.now() - new Date(c.oldest).getTime()) : ""}</td>
                     <td>{c.done || ""}</td>
                     <td>{c.median_seconds != null ? span(c.median_seconds * 1000) : ""}</td>
@@ -715,7 +714,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
             <Button onClick={() => setTries((n) => n + 1)}>Try again</Button></div>)}
       {schema && <>
         <div className="work-toolbar">
-          {dirty && <UIBadge className="badge soon">unsaved changes</UIBadge>}
+          {dirty && <UIBadge tone="warn">unsaved changes</UIBadge>}
           <span className="spacer" />
           <Button aria-pressed={!!preview} onClick={showPreview}>{preview ? "Back to editing" : "Preview"}</Button>
           <Button variant="primary" disabled={!person || !keyOk || !!badBulk || saving} onClick={save}>
@@ -755,7 +754,7 @@ function OverviewTab({ processKey, defs, published }: { processKey: string; defs
     ["Published", published ? <>v{published.version} {published.published_at && <Text muted>{when(published.published_at)}</Text>}</> : "not yet"],
     ["Versions", defs.map((d) => `v${d.version} ${d.state}`).join(", ")],
     ["Running", s ? <a href={href(`/workflows/${processKey}`, { tab: "running" })}>{s.running} cases</a> : "–"],
-    ["Steps waiting", s ? <>{s.waiting}{s.overdue ? <> (<UIBadge className="badge late">{s.overdue} overdue</UIBadge>)</> : null}</> : "–"],
+    ["Steps waiting", s ? <>{s.waiting}{s.overdue ? <> (<UIBadge tone="danger">{s.overdue} overdue</UIBadge>)</> : null}</> : "–"],
     ["Finished (30 days)", s?.finished ?? "–"],
     ["Cycle time (30 days)", s ? `median ${hours(s.median_h)}, 90% within ${hours(s.p90_h)}` : "–"],
     ["SLA missed (30 days)", s?.sla_breach_pct != null ? `${s.sla_breach_pct}% of ${s.steps} person steps` : "no person steps yet"],
@@ -784,12 +783,12 @@ function RunningTab({ processKey }: { processKey: string }) {
           <tbody>
             {list.data.map((i) => (
               <tr key={i.id}>
-                <td><a href={caseHref(i.item_id)}>{i.title}</a>{i.state !== "running" && <UIBadge className="badge"> {i.state}{i.outcome ? `: ${i.outcome}` : ""}</UIBadge>}</td>
+                <td><a href={caseHref(i.item_id)}>{i.title}</a>{i.state !== "running" && <UIBadge> {i.state}{i.outcome ? `: ${i.outcome}` : ""}</UIBadge>}</td>
                 <td className="small">
                   {i.open_steps.map((t) => (
                     <div key={t.task_id}>
                       {t.kind === "agent" ? t.step : <a href={taskHref(t.task_id)}>{t.step}</a>} <Text muted>with {holder(t.assignee, t.role, t.kind)}</Text>{" "}
-                      {t.escalated && <UIBadge className="badge late">escalated</UIBadge>} <Due at={t.due_at} />
+                      {t.escalated && <UIBadge tone="danger">escalated</UIBadge>} <Due at={t.due_at} />
                     </div>
                   ))}
                 </td>
@@ -821,7 +820,7 @@ function RoutingTab({ def }: { def: WorkDefinition }) {
         <tbody>
           {r.data.map((s) => (
             <tr key={s.element}>
-              <td><strong>{s.step}</strong>{s.requires_human && <UIBadge className="badge human"> needs a person</UIBadge>}</td>
+              <td><strong>{s.step}</strong>{s.requires_human && <UIBadge tone="warn"> needs a person</UIBadge>}</td>
               <td>{s.kind === "agent" ? <>{s.role} agent{s.fallback_role && <Text small muted> (fails to {s.fallback_role})</Text>}</>
                 : <a href={href("/teams", { role: s.role ?? "" })}>{s.role}</a>}</td>
               <td className="small">{s.kind === "person" ? (s.assignment ?? "queue").replace("_", " ") : "agent worker"}</td>

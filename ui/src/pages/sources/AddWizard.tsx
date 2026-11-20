@@ -15,7 +15,7 @@ function Step({ n, title, done, open, summary, onEdit, children }: {
   return (
     <UICard className={` step${open ? " current" : ""}`}>
       <h2>
-        <UIBadge className={`badge ${done ? "ok" : "key"}`}>{done ? "✓" : n}</UIBadge> {title}{" "}
+        <UIBadge tone={done ? "ok" : "muted"}>{done ? "✓" : n}</UIBadge> {title}{" "}
         {done && !open && <Text small muted>{summary}</Text>}{" "}
         {done && !open && onEdit && <Button variant="link" className="small" onClick={onEdit}>change</Button>}
       </h2>
@@ -97,7 +97,7 @@ function PickConnection({ s, types, dataDir, onPick, suggest }: { s: CatalogSyst
           <Text small>{c.type} <Text muted>{c.display}</Text></Text>
           <Button variant="link" className="small" disabled={!!a.busy}
             onClick={() => a.run(`t${c.id}`, () => api.testConnection(c.id), (r) => setTested({ ...tested, [c.id]: r }))}>test</Button>
-          {tested[c.id] && <UIBadge className={`badge ${tested[c.id].ok ? "ok" : ""}`}>{tested[c.id].ok ? "ok" : "failed"}</UIBadge>}
+          {tested[c.id] && <UIBadge tone={tested[c.id].ok ? "ok" : "muted"}>{tested[c.id].ok ? "ok" : "failed"}</UIBadge>}
           {tested[c.id] && !tested[c.id].ok && <TestSteps steps={tested[c.id].steps} />}
         </div>
       ))}

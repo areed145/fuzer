@@ -89,7 +89,7 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 - `ErrorText` shows a failure message.
 - `Field`, `Input`, `Select` and `Textarea` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
 - `Tabs` switches between views of one page; `Notice` holds something the user must act on; `HelpLink` links a docs page.
-- `Badge` shows a compact status with `ok`, `warn`, `danger`, or `muted` tone.
+- `Badge` is a status word in one of five tones (`ok`, `warn`, `danger`, `info`, `muted`), `mono` for an identifier. It takes no class name: a page picks a tone and never adds a badge colour of its own. `Table` labels each cell from its column heading, so type `data-label` only where the heading cannot say it.
 - `Stat` presents a summary number; `EmptyState` explains an empty result; `Bar` displays a percentage or other bounded value from 0 to 100.
 - `LiveFigure` shows a server-built figure with all its wording in a `Card`, so a chart needs no page code. Never set colours or chart text in the UI: series follow the theme colorway by trace position. Put several charts in a grid of cards, not a carousel.
 - `FindingEvidence` (`ui/src/Finding.tsx`) is the one way to show what was found: how (rule, agent or another system, with method and standard), when, and the labelled values with units, local times and assets by name. `CaseFindings` wraps it for a case's sources. Never print a finding's fields, or evidence keys, another way.

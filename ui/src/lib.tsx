@@ -159,11 +159,11 @@ export function fieldLabel(key: string): string {
 }
 
 export function KindBadge({ kind, label }: { kind: string; label?: string }) {
-  return <UIBadge className={`badge kind kind-${kind}`}>{label ?? kind.replace("_", " ")}</UIBadge>;
+  return <UIBadge data-kind={kind}>{label ?? kind.replace("_", " ")}</UIBadge>;
 }
 
 export function SourceBadge({ source }: { source: string }) {
-  return <UIBadge className={`badge source source-${source}`}>{/^[a-z]{2,4}$/.test(source) ? source.toUpperCase() : source}</UIBadge>;
+  return <UIBadge mono>{/^[a-z]{2,4}$/.test(source) ? source.toUpperCase() : source}</UIBadge>;
 }
 
 export function Dates({ from, to }: { from: string | null; to: string | null }) {

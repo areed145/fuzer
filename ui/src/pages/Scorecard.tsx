@@ -63,12 +63,12 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
               <td><strong>{k.label}</strong><Text as="div" small muted>{k.definition}</Text></td>
               <td data-label="This period"><Side p={k.now} unit={k.unit} label="this period" /></td>
               <td data-label="The period before"><Side p={k.before} unit={k.unit} label="the period before" /></td>
-              <td data-label="Change">
-                <Badge tone={TONE[k.verdict]} className="kpi-verdict">{k.verdict}</Badge>
+              <td>
+                <Badge tone={TONE[k.verdict]}>{k.verdict}</Badge>
                 {k.change != null && <Text as="div" small>{k.change > 0 ? "+" : ""}{k.change}{k.unit === "%" ? " points" : ` ${k.unit}`}</Text>}
                 <Text as="div" small muted>{k.better} is better</Text>
               </td>
-              <td data-label="Source" className="small">{k.source}</td>
+              <td className="small">{k.source}</td>
             </tr>
           ))}</tbody>
         </Table>

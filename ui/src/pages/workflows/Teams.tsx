@@ -70,7 +70,7 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
             const q = work.data!.agents.find((x) => x.role === r.name);
             return (
               <tr key={r.name}><td><code>{r.name}</code></td><td>{r.description}</td><td>{q?.waiting ?? 0}</td>
-                <td>{q?.failing ? <UIBadge className="badge late">{q.failing}</UIBadge> : 0}</td>
+                <td>{q?.failing ? <UIBadge tone="danger">{q.failing}</UIBadge> : 0}</td>
                 <td>{r.processes.map((p) => <a key={p} href={processHref(p, "routing")}>{p} </a>)}</td></tr>
             );
           })}
@@ -97,9 +97,9 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
   return (
     <Disclosure className="card" open={open} label={<><strong>{words(r.name)}</strong> <Text small muted>{r.description}</Text>{" "}
         <Text small>· {r.members.filter((m) => !m.away).length} available{r.members.some((m) => m.away) && `, ${r.members.filter((m) => m.away).length} away`}
-          {" "}· {r.waiting} waiting{r.overdue ? <>, <UIBadge className="badge late">{r.overdue} overdue</UIBadge></> : null}
+          {" "}· {r.waiting} waiting{r.overdue ? <>, <UIBadge tone="danger">{r.overdue} overdue</UIBadge></> : null}
           {" "}· SLA {r.default_sla ? duration(r.default_sla) : "set per step"}{r.escalate_to && ` → ${words(r.escalate_to)}`}</Text>
-        {r.uncovered && <UIBadge className="badge late"> no one available</UIBadge>}</>}>
+        {r.uncovered && <UIBadge tone="danger"> no one available</UIBadge>}</>}>
       <fieldset className="workflow-routing-fields" disabled={!editable || !!a.busy} aria-label={`${r.name} routing configuration`}>
       <Table variant="keyValue" density="compact">
         <tbody>
@@ -116,7 +116,7 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
               {Object.entries(ASSIGN).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </Select></td></tr>
           <tr><th>Members</th><td>{r.members.length ? r.members.map((m) => (
-            <UIBadge key={m.name} className="badge">{m.name}{m.away && ` (away${m.delegate ? `, ${m.delegate} covers` : ""})`}</UIBadge>))
+            <UIBadge key={m.name}>{m.name}{m.away && ` (away${m.delegate ? `, ${m.delegate} covers` : ""})`}</UIBadge>))
             : <Text muted>none: give the role to someone under People</Text>}</td></tr>
           <tr><th>Used in</th><td>{r.processes.length ? r.processes.map((p) => <a key={p} href={processHref(p, "routing")}>{p} </a>)
             : <Text muted>no published process</Text>}</td></tr>

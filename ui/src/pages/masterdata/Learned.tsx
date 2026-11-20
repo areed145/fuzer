@@ -27,8 +27,8 @@ export function LearnedRules({ onChange }: { onChange?: () => void }) {
         <thead><tr><th>Accepted rule</th><th>Answers</th><th>By</th><th /></tr></thead>
         <tbody>{accepted.map((r: LearnedRule) => (
           <tr key={r.id}>
-            <td>{r.rule}</td><td data-label="Answers">{r.answers}</td>
-            <td data-label="By" className="small">{r.decided_by}, {whenDay(r.decided_at)}</td>
+            <td>{r.rule}</td><td>{r.answers}</td>
+            <td className="small">{r.decided_by}, {whenDay(r.decided_at)}</td>
             <td>{can && <Button variant="link" disabled={!!a.busy}
               onClick={() => a.run("withdraw", () => api.withdrawLearned(r.id, person), done)}>Withdraw</Button>}</td>
           </tr>

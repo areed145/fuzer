@@ -32,9 +32,9 @@ export function WellScreen() {
             <tbody>{d.patterns.map((p) => (
               <tr key={p.well_id} data-well={p.well}>
                 <td><a href={entityHref(p.well_id)}>{p.well}</a></td>
-                <td data-label="Pattern"><Badge tone={p.verdict === "water_cut_step" ? "danger" : "warn"} className="well-pattern">
+                <td><Badge tone={p.verdict === "water_cut_step" ? "danger" : "warn"}>
                   {p.verdict === "water_cut_step" ? "water cut step" : "GOR climb"}</Badge></td>
-                <td data-label="What the tests show">
+                <td>
                   {p.water_cut_step && <>Water cut {p.water_cut_step.water_cut_before_pct}% to {p.water_cut_step.water_cut_after_pct}% on
                     {" "}{p.water_cut_step.at}, oil {p.water_cut_step.oil_before_bbld} to {p.water_cut_step.oil_after_bbld} bbl/d,
                     {" "}at about {count(p.water_cut_step.cum_oil_bbl)} bbl cumulative (estimated from tests)</>}

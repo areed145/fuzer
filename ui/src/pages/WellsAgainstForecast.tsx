@@ -27,12 +27,12 @@ export function WellsAgainstForecast() {
             <tbody>{below.map((w) => (
               <tr key={w.id} data-well={w.well}>
                 <td><a href={entityHref(w.id)}>{w.well}</a></td>
-                <td data-label="Latest test">{sm3(w.latest?.actual_bbld)}<Text as="div" small muted>{w.latest?.at}</Text></td>
-                <td data-label="Forecast">{sm3(w.latest?.forecast_bbld)}
+                <td>{sm3(w.latest?.actual_bbld)}<Text as="div" small muted>{w.latest?.at}</Text></td>
+                <td>{sm3(w.latest?.forecast_bbld)}
                   {w.latest?.low_bbld != null && <Text as="div" small muted>90% range {w.latest.low_bbld} to {w.latest.high_bbld}</Text>}</td>
-                <td data-label="Gap"><strong>{w.gap_bbld} bbl/d</strong></td>
-                <td data-label="Under since">{w.below_since ?? "–"}</td>
-                <td data-label="Downtime" className="small">{w.downtime.length
+                <td><strong>{w.gap_bbld} bbl/d</strong></td>
+                <td>{w.below_since ?? "–"}</td>
+                <td className="small">{w.downtime.length
                   ? w.downtime.map((x) => <div key={x.id}><a href={entityHref(x.id)}>{whenDay(x.start)}</a> {x.reason}</div>)
                   : <Text muted>none recorded</Text>}</td>
               </tr>

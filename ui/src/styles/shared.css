@@ -17,13 +17,6 @@ img.drawing { width: 100%; height: auto; border: 1px solid var(--line); border-r
 .tabs > a { cursor: pointer; }
 .tabs.small > * { padding: 3px 10px; font-size: 13px; }
 /* Status text: a small word in the state's colour. No pills, no fills (docs/ui-style.md, Clean style). */
-.badge { display: inline; padding: 0; border-radius: 0; font-size: 12px; font-weight: 500; white-space: nowrap; background: none; color: var(--muted); }
-.badge.source { font-family: var(--mono); }
-.badge.updating { color: var(--warn); }
-.badge.ok { color: var(--ok); }
-.badge.warn { color: var(--warn); }
-.badge.on { color: var(--accent); }
-.badge.kind { color: var(--muted); font-weight: 400; }
 
 /* search */
 .search { width: 100%; padding: 12px 14px; font-size: 16px; border-radius: var(--radius); }

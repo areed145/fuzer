@@ -29,14 +29,14 @@ export function InterventionGains() {
               <tr key={i.id} data-intervention={`${i.well} ${i.start.slice(0, 10)}`}>
                 <td><a href={entityHref(i.well_id)}>{i.well}</a> <Text small>{whenDay(i.start)}</Text>
                   <Text as="div" small muted>{i.reason}</Text></td>
-                <td data-label="Result"><Badge tone={TONE[i.verdict]} className="intervention-verdict">{SAY[i.verdict]}</Badge>
+                <td><Badge tone={TONE[i.verdict]}>{SAY[i.verdict]}</Badge>
                   {i.gain_bbld != null && <Text as="div" small>{i.gain_bbld > 0 ? "+" : ""}{i.gain_bbld} bbl/d net of decline</Text>}
                   {i.why && <Text as="div" small muted>{i.why}</Text>}</td>
-                <td data-label="Oil after">{i.oil_after_bbld != null ? `${i.oil_after_bbld} bbl/d` : "unknown"}
+                <td>{i.oil_after_bbld != null ? `${i.oil_after_bbld} bbl/d` : "unknown"}
                   <Text as="div" small muted>{i.tests_after} tests after, {i.tests_before} before</Text></td>
-                <td data-label="Its decline said">{i.oil_expected_bbld != null ? `${i.oil_expected_bbld} bbl/d` : "–"}
+                <td>{i.oil_expected_bbld != null ? `${i.oil_expected_bbld} bbl/d` : "–"}
                   {i.oil_range_bbld && <Text as="div" small muted>90% range {i.oil_range_bbld[0]} to {i.oil_range_bbld[1]}</Text>}</td>
-                <td data-label="Water cut">{i.water_cut_change_pct != null ? `${i.water_cut_change_pct > 0 ? "+" : ""}${i.water_cut_change_pct} points` : "unknown"}</td>
+                <td>{i.water_cut_change_pct != null ? `${i.water_cut_change_pct > 0 ? "+" : ""}${i.water_cut_change_pct} points` : "unknown"}</td>
               </tr>
             ))}</tbody>
           </Table>

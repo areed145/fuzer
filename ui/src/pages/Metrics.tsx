@@ -126,7 +126,7 @@ function MetricDetail({ metricKey, grain }: { metricKey: string; grain: string |
               <tr key={r.key}>
                 <td>{r.label}</td>
                 <td data-label="Value">{show(r.value, m.unit)}</td>
-                <td data-label="Records">{r.refs.length ? <Refs refs={r.refs} /> : <Text muted>–</Text>}</td>
+                <td>{r.refs.length ? <Refs refs={r.refs} /> : <Text muted>–</Text>}</td>
               </tr>
             ))}</tbody>
           </Table>

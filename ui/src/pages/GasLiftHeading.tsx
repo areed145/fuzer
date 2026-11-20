@@ -26,9 +26,9 @@ export function GasLiftHeading() {
             <tbody>{found.map((w) => (
               <tr key={w.well_id} data-well={w.well}>
                 <td><a href={entityHref(w.well_id)}>{w.well}</a></td>
-                <td data-label="Pattern"><Badge tone={w.verdict === "heading" ? "danger" : "warn"} className="gl-verdict">{w.verdict}</Badge></td>
-                <td data-label="Cycle">every {w.period_min} min, casing swings {w.casing_swing_psi} ({w.casing_swing_pct}% of level)</td>
-                <td data-label="Cycling together">{(w.cycling_together ?? []).map((s) => SIGNAL[s] ?? s).join(", ") || "none"}</td>
+                <td><Badge tone={w.verdict === "heading" ? "danger" : "warn"}>{w.verdict}</Badge></td>
+                <td>every {w.period_min} min, casing swings {w.casing_swing_psi} ({w.casing_swing_pct}% of level)</td>
+                <td>{(w.cycling_together ?? []).map((s) => SIGNAL[s] ?? s).join(", ") || "none"}</td>
               </tr>
             ))}</tbody>
           </Table>

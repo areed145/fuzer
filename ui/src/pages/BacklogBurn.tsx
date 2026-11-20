@@ -18,17 +18,17 @@ export function BacklogBurn() {
         <Text as="div" small>
           {d.since} to {d.until}: {d.summary.created} orders created, {d.summary.closed} closed; open went from
           {" "}{d.summary.open_at_start} to {d.summary.open_at_end}{" "}
-          <Badge tone={TONE[d.summary.trend]} className="burn-trend">{d.summary.trend}</Badge>
+          <Badge tone={TONE[d.summary.trend]}>{d.summary.trend}</Badge>
         </Text>
         <Table density="compact" className="burn-table phone-rows">
           <thead><tr><th>Month</th><th>Created</th><th>Closed</th><th>Open at month end</th></tr></thead>
           <tbody>{d.months.map((m) => (
             <tr key={m.month} data-month={m.month}>
               <td>{m.month}</td>
-              <td data-label="Created">{m.created}</td>
-              <td data-label="Closed">{m.closed}{m.closed_without_finish > 0 &&
+              <td>{m.created}</td>
+              <td>{m.closed}{m.closed_without_finish > 0 &&
                 <Text as="div" small muted>{m.closed_without_finish} closed with no finish date</Text>}</td>
-              <td data-label="Open at month end">{m.open_at_end}</td>
+              <td>{m.open_at_end}</td>
             </tr>
           ))}</tbody>
         </Table>

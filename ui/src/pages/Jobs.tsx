@@ -199,7 +199,7 @@ function Trigger({ t }: { t: JobTrigger }) {
 }
 
 function OnOff({ on }: { on: boolean }) {
-  return <UIBadge className={`badge ${on ? "ok" : "key"}`}>{on ? "on" : "off"}</UIBadge>;
+  return <UIBadge tone={on ? "ok" : "muted"}>{on ? "on" : "off"}</UIBadge>;
 }
 
 function RunDots({ runs }: { runs: JobRunSummary[] }) {

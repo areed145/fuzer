@@ -75,7 +75,7 @@ export function priorityLevel(p: number | null | undefined, type?: string | null
 export function PriorityBadge({ p, type, low = false }: { p: number | null | undefined; type?: string | null; low?: boolean }) {
   const l = priorityLevel(p, type);
   if (!l || (l.level === "Low" && !low)) return null;
-  return <UIBadge tone={l.tone} title={l.why} className="priority">{l.level}</UIBadge>;
+  return <UIBadge tone={l.tone} title={l.why}>{l.level}</UIBadge>;
 }
 
 /** Most urgent first: overdue (longest first), then due soonest, then highest priority. */
@@ -87,10 +87,10 @@ export function byUrgency<T extends { due_at?: string | null; due?: string | nul
 export function StepBadges({ row }: { row: Pick<WorkRow, "requires_human" | "kind" | "escalated_at"> & { covering_for?: string | null } }) {
   return (
     <>
-      {row.requires_human && <UIBadge className="badge human">needs a person</UIBadge>}
-      {row.kind === "fix" && <UIBadge className="badge late">failed: fix and retry</UIBadge>}
-      {row.escalated_at && <UIBadge className="badge late">escalated</UIBadge>}
-      {row.covering_for && <UIBadge className="badge">covering for {row.covering_for}</UIBadge>}
+      {row.requires_human && <UIBadge tone="warn">needs a person</UIBadge>}
+      {row.kind === "fix" && <UIBadge tone="danger">failed: fix and retry</UIBadge>}
+      {row.escalated_at && <UIBadge tone="danger">escalated</UIBadge>}
+      {row.covering_for && <UIBadge>covering for {row.covering_for}</UIBadge>}
     </>
   );
 }

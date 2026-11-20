@@ -37,20 +37,20 @@ export function AgainstTheAccounts() {
             <tbody>{r.months.map((m) => (
               <tr key={`${m.period}-${m.product}`} data-month={`${m.period} ${m.product}`}>
                 <td><strong>{m.period}</strong> {m.product}</td>
-                <td data-label="Daily reports">{n(m.operational.value, m.unit)}
+                <td>{n(m.operational.value, m.unit)}
                   <Text as="div" small muted>
                     {m.operational.since ? `${m.operational.since} to ${m.operational.through}, ${m.operational.days} days` : "none"}
                   </Text>
                   {m.operational.refs.length > 0 && <Disclosure label={`${m.operational.days} daily reports`}>
                     <ul className="plain small">{m.operational.refs.map((x) => <li key={x}><a href={entityHref(x)}>{x}</a></li>)}</ul>
                   </Disclosure>}</td>
-                <td data-label="Accounting">{m.accounting ? <>
+                <td>{m.accounting ? <>
                   <a href={entityHref(m.accounting.record)}>{n(m.accounting.value, m.unit)}</a>
                   <Text as="div" small muted>{m.accounting.since} to {m.accounting.through}, {m.accounting.status}</Text>
                   {m.accounting.comment && <Text as="div" small>{m.accounting.comment}</Text>}
                 </> : "none"}</td>
-                <td data-label="Difference">
-                  <Badge tone={TONE[m.verdict]} className="accounts-verdict">{SAY[m.verdict]}</Badge>
+                <td>
+                  <Badge tone={TONE[m.verdict]}>{SAY[m.verdict]}</Badge>
                   {m.difference_pct != null && <Text as="div" small>
                     {m.difference_pct > 0 ? "+" : ""}{m.difference_pct}% ({m.difference! > 0 ? "+" : ""}{count(m.difference!)} {m.unit})
                   </Text>}
@@ -75,10 +75,10 @@ export function AgainstTheAccounts() {
           <tbody>{u.months.map((m) => (
             <tr key={`${m.period}-${m.currency}`}>
               <td>{m.period}</td>
-              <td data-label="Booked cost">{count(m.cost)} {m.currency}
+              <td>{count(m.cost)} {m.currency}
                 <Text as="div" small muted>{Object.entries(m.by_element).map(([k, v]) => `${k} ${count(v)}`).join(", ")}</Text></td>
-              <td data-label="Accounted oil">{n(m.oil_bbl, "bbl")}{m.oil_status && <Text small muted> {m.oil_status}</Text>}</td>
-              <td data-label="Per bbl">{m.per_bbl != null ? `${count(m.per_bbl)} ${m.currency}` : "unknown"}
+              <td>{n(m.oil_bbl, "bbl")}{m.oil_status && <Text small muted> {m.oil_status}</Text>}</td>
+              <td>{m.per_bbl != null ? `${count(m.per_bbl)} ${m.currency}` : "unknown"}
                 {m.why_unknown && <Text as="div" small muted>{m.why_unknown}</Text>}</td>
             </tr>
           ))}</tbody>

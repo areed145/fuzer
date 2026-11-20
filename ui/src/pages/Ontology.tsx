@@ -113,8 +113,8 @@ function ontologyElements(o: OntologyData, view: string): ElementDefinition[] {
 }
 
 function StatusBadge({ status }: { status?: string }) {
-  if (!status) return <UIBadge className="badge">not defined</UIBadge>;
-  return <UIBadge className={`badge${status === "core" ? "" : status === "custom" ? " ok" : " key"}`}
+  if (!status) return <UIBadge>not defined</UIBadge>;
+  return <UIBadge tone={status === "custom" ? "ok" : "muted"}
     title={status === "core" ? "comes with Fuzer" : status === "custom" ? "added for this asset" : "made with a mapping, not described yet"}>
     {status}</UIBadge>;
 }
@@ -311,7 +311,7 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
                   <td><Line as="span"><i className="dot" style={{ background: kindColor(k.name) }} />
                     <span>{k.label}<br /><Text small muted mono>{k.name}</Text></span></Line></td>
                   <td className="small wide">{k.description || <Text muted>no description</Text>}</td>
-                  <td className="small" data-label="Entities">{countText((k.count ?? 0))}</td>
+                  <td className="small">{countText((k.count ?? 0))}</td>
                   <td><StatusBadge status={k.status} /></td>
                   <td><Button onClick={() => edit({ what: "kind", def: k })}>Edit</Button></td>
                 </tr>
@@ -332,7 +332,7 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
                   <td><Text mono>{r.name}</Text>{r.dated && <Text small muted> dated</Text>}</td>
                   <td className="small wide">{r.from_kinds.map(words).join(", ") || "any"} → {r.to_kinds.map(words).join(", ") || "any"}</td>
                   <td className="small wide">{r.description || <Text muted>no description</Text>}</td>
-                  <td className="small" data-label="Links">{countText((r.count ?? 0))}</td>
+                  <td className="small">{countText((r.count ?? 0))}</td>
                   <td><StatusBadge status={r.status} /></td>
                   <td><Button onClick={() => edit({ what: "relation", def: r })}>Edit</Button></td>
                 </tr>
