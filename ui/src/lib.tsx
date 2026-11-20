@@ -1,6 +1,7 @@
 // Small shared hooks and components.
 
 import { Badge as UIBadge, Button, Card, Text } from "./ui";
+import { kindWord } from "./wording";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { getProject } from "./authState";
 import { getScope } from "./fieldStore";
@@ -196,7 +197,7 @@ export function fieldLabel(key: string): string {
 }
 
 export function KindBadge({ kind, label }: { kind: string; label?: string }) {
-  return <UIBadge data-kind={kind}>{label ?? kind.replace("_", " ")}</UIBadge>;
+  return <UIBadge data-kind={kind}>{label ?? kindWord(kind)}</UIBadge>;
 }
 
 export function SourceBadge({ source }: { source: string }) {

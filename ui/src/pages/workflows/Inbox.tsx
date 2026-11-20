@@ -116,7 +116,7 @@ export function InboxPage() {
         {counts.overdue > 0 && <UIBadge tone="danger">{counts.overdue} overdue</UIBadge>}
         {counts.escalated > 0 && <UIBadge tone="danger">{counts.escalated} escalated</UIBadge>}
         {undispatched > 0 && <a href={href("/exceptions")}><UIBadge tone="danger">{undispatched} exceptions waiting to be dispatched</UIBadge></a>}
-        {reviews > 0 && <a href={href("/masterdata", { tab: "questions" })}><UIBadge>{reviews} data items to review</UIBadge></a>}
+        {reviews > 0 && <a href={href("/masterdata", { tab: "questions" })}><UIBadge>{reviews} data questions to review</UIBadge></a>}
         {d.covering?.length ? <UIBadge>covering for {d.covering.join(", ")}</UIBadge> : null}
       </Line>
       <Line>

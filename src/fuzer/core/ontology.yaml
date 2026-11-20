@@ -186,7 +186,7 @@ kinds:
     colour: "#6c5ce7"
     description: A well test result.
   timeseries:
-    label: Time series
+    label: Historian point
     group: Data
     colour: "#2a9d5c"
     description: A PI point.

@@ -28,8 +28,8 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
       <Input
         className="search"
         autoFocus
-        aria-label="Search facility records"
-        placeholder="Search assets, tags and records"
+        aria-label="Search entities"
+        placeholder="Search entities: tags, wells, equipment, documents and more"
         value={q}
         onChange={(e) => go({ q: e.target.value })}
       />
