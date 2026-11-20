@@ -82,7 +82,7 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 
 - `PageHeader` is the page title, an optional `detail` (a fact about the record, never fixed text) and actions. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
 - `Button` uses `primary` for the main action, `secondary` for ordinary actions, `ghost` for low emphasis, `link` for inline actions, and `danger` for destructive actions. Use `sm` for compact table actions and `md` elsewhere. Use `ButtonLink` for navigation styled as a button and `ButtonLabel` for labels that open hidden file inputs.
-- `Card` (also exported as `Section`) groups related content. Supply `title` and `actions` when the group needs a heading or controls.
+- `Card` (also exported as `Section`) groups related content. Its heading is `title`, a fact after it (a count, a date, an id) is `detail`, and its controls are `actions`. Never write a heading as the card's first child; fixed words about the card are not a `detail`.
 - `Table` provides the shared scroll container and table base. Use it for data tables and choose a compact density for dense lists; use specialized classes only for domain-specific layout.
 - `Text` sets the text style (`small`, `muted`, `mono`) and `Line` puts things on one line (`spread`, `wrap`). Use them instead of the class names; a style that is missing is added to the kit, not to a page.
 - `Checkbox` is a checkbox with its label; `onChange` gets the new state.

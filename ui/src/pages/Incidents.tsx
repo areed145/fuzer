@@ -27,13 +27,8 @@ export function IncidentsPage() {
         No incidents yet.
       </Status>
       {ready && list.data && list.data.total > 0 && (
-        <UICard as="section">
-          <h2>
-            Latest{" "}
-            <Text small muted>
-              {count(list.data.total)} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}
-            </Text>
-          </h2>
+        <UICard as="section" title="Latest"
+          detail={<>{count(list.data.total)} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}</>}>
           <IncidentList items={list.data.items.slice(0, LATEST)} all={list.data.items} />
           {list.data.items.length > LATEST && <Disclosure className="more-incidents" label={`Show ${list.data.items.length - LATEST} earlier incidents`}>
             <IncidentList items={list.data.items.slice(LATEST)} all={list.data.items} />
@@ -86,14 +81,8 @@ function RatingProgress() {
   if (!r.data || r.data.incidents === 0) return null;
   const next = r.data.items.filter((i) => i.ratings === 0).slice(0, 5);
   return (
-    <UICard  as="section">
-      <h2>
-        Rate the troubleshooting briefs{" "}
-        <Text small muted>
-          {r.data.rated} of {r.data.incidents} incidents rated
-          {r.data.useful_share !== null && ` · ${percent(r.data.useful_share)} of ratings useful`}
-        </Text>
-      </h2>
+    <UICard as="section" title="Rate the troubleshooting briefs"
+      detail={<>{r.data.rated} of {r.data.incidents} incidents rated {r.data.useful_share !== null && ` · ${percent(r.data.useful_share)} of ratings useful`}</>}>
       {next.length > 0 && (
         <List plain>
           {next.map((i) => (
@@ -114,12 +103,8 @@ export function IncidentDetail({ id }: { id: string }) {
       <BriefCard id={id} />
       <IncidentPanels id={id} />
       {values.data && values.data.series.length > 0 && (
-        <UICard  as="section">
-          <h2>
-            Process values <Text small muted>48 h before to 24 h after {values.data.centre.replace("T", " ")};
-            shaded: the 12 h leading into each incident · {values.data.provider === "synthetic"
-              ? "synthetic values: no PI / ADX connection configured" : `from ${values.data.provider.toUpperCase()}`}</Text>
-          </h2>
+        <UICard as="section" title="Process values"
+          detail={<>48 h before to 24 h after {values.data.centre.replace("T", " ")}; shaded: the 12 h leading into each incident · {values.data.provider === "synthetic" ? "synthetic values: no PI / ADX connection configured" : `from ${values.data.provider.toUpperCase()}`}</>}>
           <TrendGrid series={values.data.series} upsets={values.data.upsets} />
         </UICard>
       )}
@@ -133,8 +118,7 @@ function IncidentPanels({ id }: { id: string }) {
   const reading = useAsync(() => api.incidentReading(id), [id]);
   return (
     <div className="grid">
-      <UICard  as="section">
-        <h2>Timeline</h2>
+      <UICard as="section" title="Timeline">
         <Status of={timeline} />
         <ul className="timeline">
           {timeline.data?.map((t) => (
@@ -151,7 +135,7 @@ function IncidentPanels({ id }: { id: string }) {
           ))}
         </ul>
       </UICard>
-      <UICard  as="section">
+      <UICard as="section">
         {reading.data && reading.data.length > 0 && (
           <>
             <h2>Suggested reading</h2>
@@ -188,10 +172,7 @@ function BriefCard({ id }: { id: string }) {
   const brief = useAsync(() => api.brief(id), [id]);
   const b = brief.data;
   return (
-    <UICard  as="section">
-      <h2>
-        Troubleshooting brief <Text small muted>what Fuzer would tell an engineer or an agent</Text>
-      </h2>
+    <UICard as="section" title="Troubleshooting brief">
       <Status of={brief} />
       {b && (
         <div className="grid">

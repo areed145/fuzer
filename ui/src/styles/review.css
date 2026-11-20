@@ -1,7 +1,6 @@
 /* review */
 .reviewer { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .reviewer input { width: 160px; }
-.card.review h3 { font-size: 15px; }
 table.ui-table--compare { margin: 8px 0 12px; }
 table.ui-table--compare th:first-child { width: 120px; }
 table.ui-table--compare tr.diff td { background: var(--warn-soft); }

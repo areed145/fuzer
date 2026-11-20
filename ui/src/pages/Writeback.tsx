@@ -43,7 +43,7 @@ function WritebackPanel({ id, person, readOnly, reload }: { id: number; person: 
   const owner = !readOnly && w.state === "sent" && w.adapter === "export";
   const payload = hasText && text !== null ? { ...w.payload, text } : undefined;
   return (
-    <UICard className="" title={`${w.label} for ${system}${w.record ? ` ${w.record}` : ""}`}>
+    <UICard title={`${w.label} for ${system}${w.record ? ` ${w.record}` : ""}`}>
       <Text as="p" small>
         <UIBadge tone={tone(w.state)}>{STATE[w.state]}</UIBadge>{" "}
         {w.approvers?.length ? <>Approved by a {w.approvers.join(" or ").replace(/_/g, " ")}</> : null}

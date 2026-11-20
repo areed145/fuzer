@@ -18,13 +18,7 @@ function EntityMap({ id }: { id: string }) {
   if (!m.data?.features.length) return null;
   const own = m.data.focus === id;
   return (
-    <UICard  as="section">
-      <h2>
-        Map{" "}
-        <Text small muted>
-          {own ? "its location and what connects to it" : "where it sits, and what connects there"}
-        </Text>
-      </h2>
+    <UICard as="section" title="Map" detail={own ? "its location and what connects to it" : "where it sits, and what connects there"}>
       <EntityMapView data={m.data} focus={m.data.focus} height="380px" />
     </UICard>
   );
@@ -204,18 +198,10 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
           {e.kind === "incident" && <IncidentDetail id={fid} />}
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
           {e.kind === "document" && e.golden.doc_type && (
-            <UICard  as="section">
-              <Line spread>
-                <h2>
-                  {fmt(e.golden.title?.value)}{" "}
-                  <Text small muted>
-                    {fmt(e.golden.doc_type.value).replace("_", " ")} · rev {fmt(e.golden.revision?.value)} ·{" "}
-                    {fmt(e.golden.status?.value)}
-                  </Text>
-                </h2>
-                <ButtonLink href={documentHref(fid)} onClick={(ev) => { ev.preventDefault(); openDocument(fid); }}>
-                  Read full screen</ButtonLink>
-              </Line>
+            <UICard as="section" title={fmt(e.golden.title?.value)}
+              detail={<>{fmt(e.golden.doc_type.value).replace("_", " ")} · rev {fmt(e.golden.revision?.value)} ·{" "} {fmt(e.golden.status?.value)}</>}
+              actions={<ButtonLink href={documentHref(fid)} onClick={(ev) => { ev.preventDefault(); openDocument(fid); }}>
+                  Read full screen</ButtonLink>}>
               {e.golden.status?.value === "superseded" && (
                 <ErrorText>This revision is superseded; see "Superseded by" under Data.</ErrorText>
               )}
@@ -223,11 +209,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             </UICard>
           )}
           {e.kind === "document_section" && (
-            <UICard  as="section">
-              <h2>
-                {fmt(e.golden.heading?.value)}{" "}
-                {e.golden.page && <Text small muted>page {fmt(e.golden.page.value)}</Text>}
-              </h2>
+            <UICard as="section" title={fmt(e.golden.heading?.value)} detail={e.golden.page && <>page {fmt(e.golden.page.value)}</>}>
               <p className="section-text">{fmt(e.golden.text?.value)}</p>
             </UICard>
           )}
@@ -307,8 +289,7 @@ function LinkedDrawings({ id, fallback = null }: { id: string; fallback?: ReactN
   if (d.loading) return null;
   if (sheets.length === 0) return <>{fallback}</>;
   return (
-    <UICard as="section">
-      <h2>On P&ID <Text small muted>{sheets.length === 1 ? "one sheet" : `${sheets.length} sheets`}, ringed where this is</Text></h2>
+    <UICard as="section" title="On P&ID" detail={<>{sheets.length === 1 ? "one sheet" : `${sheets.length} sheets`}, ringed where this is</>}>
       <div className="sheet-thumbs">
         {sheets.map((x) => <SheetThumb key={x.id} id={x.id} label={x.label ?? x.id} title={x.title} highlight={d.data!.highlight} />)}
       </div>
@@ -344,8 +325,7 @@ function Fields({ e }: { e: EntityDetail }) {
   const fields = Object.keys(e.golden).filter((f) => !(located && f === "geometry")).sort();
   const [why, setWhy] = useState<string | null>(null);
   return (
-    <UICard  as="section">
-      <h2>Values</h2>
+    <UICard as="section" title="Values">
       <Table variant="keyValue" headingCase="verbatim">
         <tbody>
           {fields.map((f) => {
@@ -394,8 +374,7 @@ function sourceKey(source: string, key: string): string {
 
 function Records({ e }: { e: EntityDetail }) {
   return (
-    <UICard  as="section">
-      <h2>Source records</h2>
+    <UICard as="section" title="Source records">
       <Text as="div" small mono>Register ID {e.fuzer_id}</Text>
       {!e.records.length && <p>No direct source records are linked. This may be a derived record; inspect Values and Links for supporting provenance.</p>}
       <Table variant="list">
@@ -433,8 +412,7 @@ function Links({ edges, counts, asOf }: { edges: Edge[]; counts: Record<string, 
   const groups = new Map<string, Edge[]>();
   for (const e of edges) groups.set(relLabel(e), [...(groups.get(relLabel(e)) ?? []), e]);
   return (
-    <UICard  as="section">
-      <h2>Links {asOf && <Text small muted>on {asOf}</Text>}</h2>
+    <UICard as="section" title="Links" detail={asOf && <>on {asOf}</>}>
       <Status empty={edges.length === 0}>No links{asOf ? " on this date" : ""}.</Status>
       {[...groups].map(([label, items]) => (
         <div key={label} className="link-group">
@@ -537,14 +515,11 @@ function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: str
   const none = !!flow.data && !has(0) && !has(1);
   const both = has(0) && has(1);
   return (
-    <UICard  as="section">
-      <Line spread>
-        <h2>Flow {asOf && <Text small muted>on {asOf}</Text>}</h2>
-        <Line as="span">
+    <UICard as="section" title="Flow" detail={asOf && <>on {asOf}</>}
+      actions={<Line as="span">
           <Button variant="link" onClick={() => setAll(!all)}>{all ? "Show nearest only" : "Show whole network"}</Button>
           <ButtonLink variant="link" href={href("/3d", { at: id })}>See its area in 3D</ButtonLink>
-        </Line>
-      </Line>
+        </Line>}>
       <Status of={flow} empty={none}>
         Nothing flows in or out{asOf ? " on this date" : ""}.
       </Status>
@@ -572,10 +547,7 @@ function Events({ id }: { id: string }) {
   const evs = useAsync(() => api.events(id), [id]);
   if (!evs.data?.length) return null;
   return (
-    <UICard  as="section">
-      <h2>
-        Events <Text small muted>{evs.data.length} from operator logs, read by Claude</Text>
-      </h2>
+    <UICard as="section" title="Events" detail={<>{evs.data.length} from operator logs, read by Claude</>}>
       <ul className="timeline">
         {evs.data.map((ev) => (
           <li key={ev.id}>
@@ -615,10 +587,7 @@ function MaintenanceCard({ id }: { id: string }) {
   if (!m.data?.total) return null;
   const top = Math.max(...m.data.failure_modes.map((f) => f.count));
   return (
-    <UICard  as="section">
-      <h2>
-        Maintenance <Text small muted>{count(m.data.total)} SAP notifications</Text>
-      </h2>
+    <UICard as="section" title="Maintenance" detail={<>{count(m.data.total)} SAP notifications</>}>
       <div className="maintenance-split">
         <div>
           <h3>Failure modes (ISO 14224)</h3>
@@ -665,13 +634,7 @@ function DowntimeCard({ id }: { id: string }) {
   const d = useAsync(() => api.downtime(id), [id]);
   if (!d.data?.events) return null;
   return (
-    <UICard  as="section">
-      <h2>
-        Downtime{" "}
-        <Text small muted>
-          {count(Math.round(d.data.lost_oil_bbl))} bbl oil lost over {d.data.events} events
-        </Text>
-      </h2>
+    <UICard as="section" title="Downtime" detail={<>{count(Math.round(d.data.lost_oil_bbl))} bbl oil lost over {d.data.events} events</>}>
       <ul className="timeline">
         {d.data.recent.slice(0, 8).map((r) => (
           <li key={r.id}>
@@ -697,10 +660,7 @@ function IncidentsCard({ id }: { id: string }) {
   const d = useAsync(() => api.incidents(id), [id]);
   if (!d.data?.total) return null;
   return (
-    <UICard as="section">
-      <h2>
-        Incidents <Text small muted>{count(d.data.total)}</Text>
-      </h2>
+    <UICard as="section" title="Incidents" detail={count(d.data.total)}>
       <IncidentList items={d.data.items.slice(0, 8)} />
     </UICard>
   );
@@ -742,10 +702,7 @@ function KnowledgeCard({ id }: { id: string }) {
   const results = useAsync(() => (asked ? api.knowledgeSearch(asked, id) : Promise.resolve([])), [asked, id]);
   if (!docs.data?.length) return null;
   return (
-    <UICard  as="section">
-      <h2>
-        Documents <Text small muted>manuals, procedures and guides that apply here</Text>
-      </h2>
+    <UICard as="section" title="Documents">
       <List plain>
         {docs.data.map((d) => (
           <li key={d.id} className="small">
@@ -792,8 +749,7 @@ function LineageCard({ id }: { id: string }) {
   const d = l.data;
   const rules = Object.entries(d.rules).map(([r, n]) => `${n} ${RULE_SAYS[r] ?? r}`).join(", ");
   return (
-    <UICard as="section">
-      <h2>Where this came from <Text small muted>the systems, choices and work behind this record</Text></h2>
+    <UICard as="section" title="Where this came from">
       <h3>Systems</h3>
       {!d.systems.length && <p>No source system's record is matched to this one.</p>}
       <Table headingCase="verbatim">
@@ -879,10 +835,7 @@ function HistoryCard({ id }: { id: string }) {
   const h = useAsync(() => api.history(id), [id]);
   if (!h.data?.length) return null;
   return (
-    <UICard  as="section">
-      <h2>
-        Change history <Text small muted>how the source records behind this changed</Text>
-      </h2>
+    <UICard as="section" title="Change history">
       <ul className="timeline">
         {h.data.map((c, i) => (
           <li key={i}>
@@ -909,8 +862,7 @@ function SparesCard({ id }: { id: string }) {
   const parts = useAsync(() => api.spares(id), [id]);
   if (!parts.data?.length) return null;
   return (
-    <UICard  as="section">
-      <h2>Spare parts</h2>
+    <UICard as="section" title="Spare parts">
       <Table variant="list">
         <tbody>
           {parts.data.map((p) => (
@@ -933,8 +885,7 @@ function DepthCard({ id }: { id: string }) {
   const d = useAsync(() => api.depths(id), [id]);
   if (!d.data?.trajectory?.length && !d.data?.components?.length) return null;
   return (
-    <UICard as="section">
-      <h2>Trajectory and completion <Text small muted>by measured and true vertical depth</Text></h2>
+    <UICard as="section" title="Trajectory and completion">
       <Suspense fallback={null}><LiveFigure kind="well-trajectory" params={{ well: id }} /></Suspense>
     </UICard>
   );
@@ -949,8 +900,7 @@ function AlongCard({ id }: { id: string }) {
   const { segments = [], features = [] } = a.data ?? {};
   const seg = Object.fromEntries(segments.map((s) => [s.id, s.label]));
   return (
-    <UICard as="section">
-      <h2>Along the line <Text small muted>by station, distance from the line's start</Text></h2>
+    <UICard as="section" title="Along the line">
       {segments.length > 0 && (
         <Table variant="list">
           <thead><tr><th>Segment</th><th>From (MP, mi)</th><th>To (MP, mi)</th><th>Wall (in)</th><th>Class location</th></tr></thead>

@@ -13,7 +13,7 @@ export function CaseGates({ id }: { id: number }) {
   const rows = Array.isArray(gates.data) ? gates.data : [];
   if (!rows.length) return null;
   return (
-    <UICard className="" title="Gates">
+    <UICard title="Gates">
       <ul className="plain gate-list">{rows.map((d) => <GateLine key={d.id} d={d} />)}</ul>
     </UICard>
   );
@@ -40,7 +40,7 @@ export function HumanGates() {
   const p = policy.data;
   if (!Array.isArray(p.fixed) || !Array.isArray(p.confidence)) return null;  // an older server without gates
   return (
-    <UICard className="" title="Human gates">
+    <UICard title="Human gates">
       <p>Always a person, whatever the confidence: {p.fixed.map((f) => f.label.toLowerCase()).join("; ")}.
         Safety and environmental case types: {p.safety_case_types.join(", ")}.</p>
       <Table variant="settings">

@@ -271,8 +271,7 @@ function Lifecycle({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const a = useAction();
   const ds = d.dataset, p = d.retire_preview;
   return (
-    <UICard className="danger">
-      <h3>Stop or remove</h3>
+    <UICard className="danger" title="Stop or remove">
       <Line>
         {ds.status === "active" && <Button variant="secondary" disabled={!!a.busy}
           onClick={() => a.run("pause", () => api.datasetAction(ds.name, "pause", reviewer()), reload)}>Pause loading</Button>}
@@ -345,8 +344,8 @@ function ReviewVersion({ v, current, reload, close }: { v: MappingVersion; curre
   const a = useAction();
   const draft = v.status === "draft";
   return (
-    <UICard className="inset">
-      <h3>Version {v.id} against version {current.id} (in use) <Button variant="link" className="small" onClick={close}>close</Button></h3>
+    <UICard className="inset" title={<>Version {v.id} against version {current.id} (in use)</>}
+      actions={<Button variant="link" className="small" onClick={close}>close</Button>}>
       <Diff from={current.yaml} to={v.yaml} />
       <h3>What it would do</h3>
       {impact.data ? <Impact r={impact.data} /> : <Status of={impact} />}
@@ -450,8 +449,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   return (
     <>
       {d.suggested_checks.length > 0 && (
-        <UICard className="inset">
-          <h3>Suggested from its profile</h3>
+        <UICard className="inset" title="Suggested from its profile">
           <List plain small>
             {d.suggested_checks.map((s, i) => (
               <li key={i}>

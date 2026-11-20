@@ -27,7 +27,7 @@ export function JobsPage() {
       <PageHeader actions={o.data && <DagsterLink d={o.data.dagster} />}>Jobs</PageHeader>
       <Status of={o} />
       {o.data && !o.data.available && (
-        <UICard className="">
+        <UICard>
           <p>Scheduler history is unavailable in this deployment. A deployment operator can check the scheduler service.</p>
           <Text as="p" small>Running Fuzer yourself? Start the scheduler with <code>fuzer up</code> (without{" "}
             <code>--no-jobs</code>), or on its own with <code>fuzer jobs</code>.</Text>
@@ -261,7 +261,7 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
   return (
     <>
       <h2>Claude spend</h2>
-      <UICard className="">
+      <UICard>
         <Text as="p" small>
           The nightly <code>claude_reading</code> job is <OnOff on={c.schedule === "on"} />
           {c.schedule !== "on" && " (off by default because it costs money; turn it on in Dagster)"}.
@@ -345,8 +345,7 @@ export function JobRunPage({ id }: { id: string }) {
           <h2>Recorded asset results</h2>
           <div className="grid">
             {d.assets.map((a) => (
-              <UICard key={a.asset} className="">
-                <h3><code>{a.asset}</code></h3>
+              <UICard key={a.asset} title={<code>{a.asset}</code>}>
                 <Text as="p" small>Scheduler observation: {when(a.time, "Time unknown")}</Text>
                 <Table variant="keyValue" density="compact" headingCase="verbatim">
                   <tbody>

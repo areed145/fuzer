@@ -85,8 +85,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
         No settings match.
       </Status>
       {groups.map((g) => (
-        <UICard className="" key={g}>
-          <h2>{g}</h2>
+        <UICard key={g} title={g}>
           <Table variant="settings">
             <thead>
               <tr>

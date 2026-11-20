@@ -62,8 +62,8 @@ export function DowntimePage() {
         <Ranking title="By reason" rows={byReason.data} error={byReason.error} reload={byReason.reload} />
       </div>
       {t && (
-        <UICard as="section" className="downtime-events">
-          <h2>Events <Text small muted>{events.length}{(t.recent?.length ?? 0) < t.events && scope === "all" ? ` newest of ${t.events}` : ""}</Text></h2>
+        <UICard as="section" className="downtime-events" title="Events"
+          detail={<>{events.length}{(t.recent?.length ?? 0) < t.events && scope === "all" ? ` newest of ${t.events}` : ""}</>}>
           <Table variant="list" density="compact">
             <thead><tr><th>Start</th><th>Hours</th><th>Reason</th><th>Equipment or well</th><th>Oil lost (bbl)</th></tr></thead>
             <tbody>
@@ -83,10 +83,7 @@ export function DowntimePage() {
       )}
       <Status of={checks} />
       {checks.data && checks.data.length > 0 && (
-        <UICard  as="section">
-          <h2>
-            Reason code doesn't match the comment <Text small muted>{checks.data.length}</Text>
-          </h2>
+        <UICard as="section" title="Reason code doesn't match the comment" detail={checks.data.length}>
           <ul className="timeline">
             {checks.data.map((c) => (
               <li key={c.fuzer_id}>
@@ -130,8 +127,7 @@ function Months({ rows, error, reload }: { rows?: DowntimeMonth[]; error?: strin
   const months = allMonths(rows ?? []);
   const top = Math.max(1, ...months.map((r) => r.unplanned_bbl));
   return (
-    <UICard as="section" className="downtime-months">
-      <h2>Unplanned loss by month <Text small muted>oil lost (bbl), by the month each downtime started</Text></h2>
+    <UICard as="section" className="downtime-months" title="Unplanned oil loss by month, bbl">
       <Status error={error} onRetry={reload} empty={rows?.length === 0}>Nothing recorded.</Status>
       {months.length > 0 && (
         <ol className="month-bars" aria-label="Unplanned oil lost by month">
@@ -156,8 +152,7 @@ function Ranking({ title, rows, error, reload, named }: {
 }) {
   const top = Math.max(1, ...(rows ?? []).map((r) => r.lost_oil_bbl));
   return (
-    <UICard  as="section">
-      <h2>{title}</h2>
+    <UICard as="section" title={title}>
       <Status loading={!rows && !error} error={error} onRetry={reload} empty={rows?.length === 0}>
         Nothing recorded.
       </Status>

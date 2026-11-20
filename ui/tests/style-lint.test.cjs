@@ -26,7 +26,7 @@ const RULES = {
   },
   "muted-paragraph": {
     pattern: /<p className="[^"]*\bmuted\b[^"]*"|<Text as="p"[^>]*? muted\b/g,
-    hint: "A grey paragraph is usually an explanation the page doesn't need. Cut it, or move it to the docs and link with PageHeader help=.",
+    hint: "A grey paragraph is usually an explanation the page doesn't need. Cut it, or move it to the docs.",
   },
   "page-tagline": {
     pattern: /\b(?:subtitle|detail)=(?:"|\{"|\{`[^$`]*`\})/g,
@@ -93,6 +93,11 @@ const RULES = {
     skip: /^ui\//,
     pattern: /<(?:p|div|span)[^>]*? className="(?:[^"]* )?(?:notice|status error|error small|small error)\b/g,
     hint: "Use Notice for something to act on and ErrorText for a failure, from ui/src/ui, instead of the class names.",
+  },
+  "card-heading": {
+    skip: /^ui\//,
+    pattern: /<(?:UI)?Card\b(?!(?:[^<>{}]|\{[^{}]*\})*\btitle=)(?:[^<>{}]|\{[^{}]*\})*>\s*(?:<Line[^>]*>\s*)?<h[2-4]\b/g,
+    hint: "Give the Card its title, detail and actions instead of writing a heading inside it.",
   },
   "badge-class": {
     pattern: /<(?:UI)?Badge\b[^>]*? className=|className=(?:"|\{`)badge\b/g,

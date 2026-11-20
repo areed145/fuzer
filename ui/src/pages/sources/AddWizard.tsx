@@ -13,12 +13,9 @@ function Step({ n, title, done, open, summary, onEdit, children }: {
   children?: ReactNode;
 }) {
   return (
-    <UICard className={` step${open ? " current" : ""}`}>
-      <h2>
-        <UIBadge tone={done ? "ok" : "muted"}>{done ? "✓" : n}</UIBadge> {title}{" "}
-        {done && !open && <Text small muted>{summary}</Text>}{" "}
-        {done && !open && onEdit && <Button variant="link" className="small" onClick={onEdit}>change</Button>}
-      </h2>
+    <UICard className={`step${open ? " current" : ""}`} title={<><UIBadge tone={done ? "ok" : "muted"}>{done ? "✓" : n}</UIBadge> {title}</>}
+      detail={done && !open && summary}
+      actions={done && !open && onEdit && <Button variant="link" className="small" onClick={onEdit}>change</Button>}>
       {open && children}
     </UICard>
   );
@@ -256,8 +253,7 @@ function AddResult({ r }: { r: AddTableResult }) {
   const checks = (r.run?.detail as { checks?: { kind: string; value: number; detail?: { examples?: string[] } }[] } | null)?.checks;
   const open = (tab: string) => href("/sources", { view: "dataset", name: r.dataset, tab });
   return (
-    <UICard className={` ${held ? "warn" : ""}`}>
-      <h2>{held ? "Saved, but the first load is held" : "Added and loaded"}</h2>
+    <UICard className={held ? "warn" : ""} title={held ? "Saved, but the first load is held" : "Added and loaded"}>
       {!held && r.load && (
         <div>
           <code>{r.dataset}</code>: {count(r.load.records)} records ({r.load.inserted} new). They become entities on

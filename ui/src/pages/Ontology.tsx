@@ -131,8 +131,7 @@ function NeedsDefinition({ o, edit, relDef }: {
     return { from_kinds: [...new Set(rs.map((r) => r.src_kind))], to_kinds: [...new Set(rs.map((r) => r.dst_kind))] };
   };
   return (
-    <UICard  as="section">
-      <h2>Needs definition</h2>
+    <UICard as="section" title="Needs definition">
       <List plain>
         {n.kinds.map((k) => (
           <li key={k} className="row small">
@@ -299,8 +298,7 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
     .sort((a, b) => o.views.findIndex((v) => v.id === a) - o.views.findIndex((v) => v.id === b));
   return (
     <>
-      <UICard  as="section">
-        <h2>Kinds</h2>
+      <UICard as="section" title="Kinds">
         <Table variant="results" className="model-table">
           <thead><tr><th>Kind</th><th>Description</th><th>Entities</th><th>Status</th><th /></tr></thead>
           {groups.map((g) => (
@@ -320,8 +318,7 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
           ))}
         </Table>
       </UICard>
-      <UICard  as="section">
-        <h2>Link types</h2>
+      <UICard as="section" title="Link types">
         <Table variant="results" className="model-table">
           <thead><tr><th>Link type</th><th>From → to</th><th>Description</th><th>Links</th><th>Status</th><th /></tr></thead>
           {views.map((v) => (
@@ -394,8 +391,7 @@ function KindForm({ o, def, draft, onDone, onCancel }: {
     ? api.kindUpdate(def.name, changed(def, k), reviewer(), reason || undefined)
     : api.kindAdd(k, reviewer(), reason || undefined), onDone);
   return (
-    <UICard  as="section">
-      <h2>{def ? `Edit kind: ${def.label}` : "Add a kind"}</h2>
+    <UICard as="section" title={def ? `Edit kind: ${def.label}` : "Add a kind"}>
       <Table variant="keyValue" density="compact" className="model-form">
         <tbody>
           <tr><th>Name</th><td>
@@ -462,8 +458,7 @@ function RelationForm({ o, def, draft, onDone, onCancel }: {
     ? api.relationUpdate(def.name, changed(def, r, ["name"]), reviewer(), reason || undefined)
     : api.relationAdd({ ...r, label: r.label || words(r.name ?? "") }, reviewer(), reason || undefined), onDone);
   return (
-    <UICard  as="section">
-      <h2>{def ? `Edit link type: ${def.name}` : "Add a link type"}</h2>
+    <UICard as="section" title={def ? `Edit link type: ${def.name}` : "Add a link type"}>
       <Table variant="keyValue" density="compact" className="model-form">
         <tbody>
           <tr><th>Name</th><td>

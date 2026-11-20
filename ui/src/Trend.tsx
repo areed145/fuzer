@@ -151,7 +151,7 @@ export function MeasurementsCard({ id }: { id: string }) {
   const series = m.data?.series ?? [];
   if (!m.loading && !m.error && series.length === 0) return null;
   return (
-    <UICard  as="section">
+    <UICard as="section">
       {/* The trend above draws these over its window (P5.13d); this is their whole history, closed until asked for. */}
       <Disclosure label={<strong>Tests and samples, whole history ({series.length})</strong>}>
         <Status of={m} />

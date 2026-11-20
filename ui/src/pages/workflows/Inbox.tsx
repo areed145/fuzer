@@ -203,7 +203,7 @@ function HowYouAreTold({ person }: { person: string }) {
     .then(() => { setDraft(null); setState({ saved: true }); pref.reload(); }, (e: Error) => setState({ error: e.message }));
   const external = p.channel !== "in_app";
   return (
-    <UICard className="" title="How you are told">
+    <UICard title="How you are told">
       <Line small>
         <label>Also send to{" "}
           <Select value={p.channel} onChange={(e) => change({ channel: e.target.value as NotifyPreference["channel"] })}>
@@ -235,8 +235,7 @@ function OtherFields({ person }: { person: string }) {
   const others = (fields.data ?? []).filter((f) => f.project !== here && f.mine.length + f.queue.length > 0);
   if (!others.length) return null;
   return (
-    <UICard className="">
-      <h2>In your other fields <Text small muted>{others.length} · you hold roles there too</Text></h2>
+    <UICard title="In your other fields" detail={<>{others.length} · you hold roles there too</>}>
       {others.map((f) => <div key={f.project}>
         <h3 className="small">{f.project} <Text muted>· {f.mine.length} assigned to you · {f.queue.length} unclaimed
           in {f.roles.join(", ").replace(/_/g, " ")}</Text>{" "}
@@ -255,8 +254,7 @@ function Group({ title, rows, person, picked, toggle, hint }: {
 }) {
   if (!rows.length) return null;
   return (
-    <UICard className="">
-      <h2>{title} <Text small muted>{rows.length}{hint ? ` · ${hint}` : ""}</Text></h2>
+    <UICard title={title} detail={<>{rows.length}{hint ? ` · ${hint}` : ""}</>}>
       <Table variant="results" className="phone-rows">
         <tbody>{rows.map((r) => <Row key={`${r.task_id ?? "i"}-${r.item_id}`} r={r} person={person} picked={picked} toggle={toggle} />)}</tbody>
       </Table>

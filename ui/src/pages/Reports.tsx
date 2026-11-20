@@ -10,7 +10,7 @@ import { readableCitations } from "../entityRefs";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { AgentIdle } from "./workflows/shared";
-import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Line, Text, type Tone, List } from "../ui";
+import { Button, PageHeader, Card as UICard, Badge as UIBadge, Textarea, ErrorText, Text, type Tone, List } from "../ui";
 import { ObligationsDue, RegulatoryList, RegulatoryReportView } from "./RegulatoryReports";
 
 const STATUS_TONE: Record<string, Tone> = { published: "ok", "sent back": "warn", drafting: "warn", "needs a fix": "warn" };
@@ -81,7 +81,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
         <>
           <Review d={d} onDone={() => { r.reload(); onChange(); }} />
           <div className="grid">
-            <UICard  as="section">
+            <UICard as="section">
               {/* The day's headline leads; how it was drafted and its versions follow it (#1078). */}
               <Markdown text={units(readableCitations(d.markdown))} />
               <div className="row small muted report-versions">
@@ -94,8 +94,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
                 {d.seconds !== null && <span>{d.seconds} s</span>}
               </div>
             </UICard>
-            <UICard  as="section">
-              <h2>Checks</h2>
+            <UICard as="section" title="Checks">
               {d.checks.ok ? <Text as="p" small>Every line cites its records and every number is in them.</Text> : (
                 <List small>
                   {d.checks.uncited_lines.map((l) => <li key={l}>No citation: {l}</li>)}
@@ -154,12 +153,9 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
     return api.complete(step.id, person, data);
   }, () => { setRevising(false); setComments(""); onDone(); });
   return (
-    <UICard  as="section">
-      <Line spread>
-        <h2>Review this report</h2>
-        <span className="small row"><StatusBadge status={rv.status} />
-          {step.due_at && <Text muted>due {when(step.due_at)}</Text>} {caseLink}</span>
-      </Line>
+    <UICard as="section" title="Review this report"
+      actions={<span className="small row"><StatusBadge status={rv.status} />
+          {step.due_at && <Text muted>due {when(step.due_at)}</Text>} {caseLink}</span>}>
       {!person ? (
         <Text as="p" small>Say who you are in the sidebar (bottom left) to review it.</Text>
       ) : held ? (

@@ -80,10 +80,16 @@ export function ButtonLabel({ variant = "secondary", size = "md", className = ""
   return <label {...props} className={`ui-button ui-button-${variant} ui-button-${size} ${className}`.trim()} />;
 }
 
-export function Card({ as: Component = "div", title, actions, children, className = "", ...props }: Omit<HTMLAttributes<HTMLDivElement>, "title"> & {
-  as?: "div" | "section" | "aside" | "figure"; title?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string;
+/** A card. `title` is its heading, `detail` the grey words after it, `actions` the controls on the heading's right. */
+export function Card({ as: Component = "div", title, detail, actions, children, className = "", ...props }: Omit<HTMLAttributes<HTMLDivElement>, "title"> & {
+  as?: "div" | "section" | "aside" | "figure"; title?: ReactNode; detail?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string;
 }) {
-  return <Component {...props} className={`ui-card card ${className}`.trim()}>{(title || actions) && <header className="ui-card-header">{title && <h2>{title}</h2>}{actions}</header>}{children}</Component>;
+  return <Component {...props} className={`ui-card card ${className}`.trim()}>
+    {(title || actions) && <header className="ui-card-header">
+      {title && <h2>{title}{detail !== undefined && detail !== null && detail !== false && detail !== "" && <> <Text small muted>{detail}</Text></>}</h2>}{actions}
+    </header>}
+    {children}
+  </Component>;
 }
 export const Section = Card;
 

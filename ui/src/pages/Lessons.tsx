@@ -35,14 +35,11 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
   const by = person || "anonymous";
   const decide = (d: "approve" | "reject" | "edit") => run(d, () => api.decideLesson(lesson.id, d, by, text));
   return (
-    <UICard className="review">
-      <Line spread>
-        <h3>{lesson.title}</h3>
-        <Text small muted>
+    <UICard className="review" title={lesson.title}
+      actions={<Text small muted>
           {lesson.stats.incidents} incidents · held {percent(lesson.stats.fix_rate)} · {lesson.failure_mode}
           {" "}· version {lesson.version}
-        </Text>
-      </Line>
+        </Text>}>
       {lesson.status === "approved" && (
         <Text as="p" small>
           {lesson.owner ? <>Owned by <Actor who={lesson.owner} /></> : <>No owner yet</>}

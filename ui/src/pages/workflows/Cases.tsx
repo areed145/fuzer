@@ -265,8 +265,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
   const next = open.find((s) => s.kind !== "agent" && (!s.assignee || s.assignee === person)) ?? open.find((s) => s.kind !== "agent");
   const stepHref = (sid: number) => demo ? href(`/inbox/task/${sid}`, { demo: "workflow" }) : taskHref(sid);
   return (
-    <UICard className="case-next" aria-label="Next step">
-      <h2>{open.length ? "Waiting on" : "Next step"}</h2>
+    <UICard className="case-next" aria-label="Next step" title={open.length ? "Waiting on" : "Next step"}>
       {open.length > 0 ? <ul className="plain case-next-steps">
         {open.map((s) => (
           <li key={s.id} className="row wrap">
@@ -311,8 +310,7 @@ export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; pe
   const done = () => { c.reload(); reload(); };
   const sentBack = d.state === "discarded";
   return (
-    <UICard className="">
-      <h3>{d.action === "complete" ? `Complete ${d.record} in ${system}` : `Raise a follow-up to ${d.record} in ${system}`}</h3>
+    <UICard title={d.action === "complete" ? `Complete ${d.record} in ${system}` : `Raise a follow-up to ${d.record} in ${system}`}>
       <p>{d.change ?? (d.action === "complete" ? `Close ${d.record} in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}.`
         : `Raise a new ${system} record for the work still needed.`)}</p>
       <Text as="p" small muted>{d.action === "complete"
@@ -393,21 +391,16 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
     flows: [...p.path, ...p.open].map((s) => s.flow).filter((f): f is string => !!f),
   }), [p, focus]);
   return (
-    <UICard className="">
-      <Line spread>
-        <h3>
-          <a href={processHref(p.process_key)} title={`version ${p.version}`}>{p.process_key.replace(/_/g, " ")} workflow</a>{" "}
-          <Text small muted>{cap(p.state)}{p.outcome ? `: ${say(p.outcome)}` : ""}</Text>
-        </h3>
-        <span className="small muted" title={p.correlation_key ? `key ${p.correlation_key}` : undefined}>
+    <UICard title={<a href={processHref(p.process_key)} title={`version ${p.version}`}>{p.process_key.replace(/_/g, " ")} workflow</a>}
+      detail={<>{cap(p.state)}{p.outcome ? `: ${say(p.outcome)}` : ""}</>}
+      actions={<span className="small muted" title={p.correlation_key ? `key ${p.correlation_key}` : undefined}>
           started {when(p.started_at)} by <Actor who={p.started_by} />
           {p.state === "running" && person && reload && (
             <> · <Button variant="link" disabled={!!a.busy}
               onClick={async () => (await confirmDialog("Cancel this workflow? Its open steps are cancelled.")) &&
                 a.run("cancel", () => api.cancelProcess(p.id, person, "cancelled from the case page"), reload)}>cancel workflow</Button></>
           )}
-        </span>
-      </Line>
+        </span>}>
       <Status of={xml} />
       {xml.data && <Suspense fallback={<div className="status">Loading diagram…</div>}><BpmnView xml={xml.data} marks={marks} /></Suspense>}
       <Disclosure className="small" label={<>Workflow data</>}><DataView data={p.data} /></Disclosure>
@@ -420,8 +413,7 @@ export function Timeline({ it, person, readOnly = false }: { it: WorkItem; perso
   const [text, setText] = useState("");
   const a = useAction();
   return (
-    <UICard className="">
-      <h3>History</h3>
+    <UICard title="History">
       <ol className="timeline">
         {it.events.map((e) => {
           const described = describe(e);

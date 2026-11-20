@@ -297,11 +297,7 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
   const { busy, feedback, run } = useBusy(onDecide);
   const fields = [...new Set([...Object.keys(p.left.fields), ...Object.keys(p.right.fields)])].sort();
   return (
-    <UICard className="review">
-      <Line spread>
-        <h3>Same item? <Text small muted>#{id}</Text></h3>
-        <Score value={p.score} />
-      </Line>
+    <UICard className="review" title="Same item?" detail={<>#{id}</>} actions={<Score value={p.score} />}>
       <Text as="p" small>{p.why.charAt(0).toUpperCase() + p.why.slice(1)}.{" "}
         Match score {p.score.toFixed(2)}
         {p.review_min != null && p.auto_accept != null
@@ -350,16 +346,11 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
   const [text, setText] = useState(p.yaml);
   const s = p.suggestion;
   return (
-    <UICard className="review">
-      <Line spread>
-        <h3>
-          <Text mono>{p.dataset}</Text> <Text small muted>#{id}</Text>
-        </h3>
-        <Text small muted>
+    <UICard className="review" title={<Text mono>{p.dataset}</Text>} detail={<>#{id}</>}
+      actions={<Text small muted>
           {s.shape}
           {s.kind ? ` of ${s.kind}` : ""} · key {s.key ? <Text mono>{s.key}</Text> : "none found"} · {p.connector}
-        </Text>
-      </Line>
+        </Text>}>
       <Text as="p" small mono>{p.path}</Text>
       <Table variant="compare">
         <thead>
@@ -423,13 +414,8 @@ function SchemaCard({ id, p, onDecide }: { id: number; p: SchemaPayload; onDecid
   const now = new Map(p.new);
   const columns = [...new Set([...was.keys(), ...now.keys()])];
   return (
-    <UICard className="review">
-      <Line spread>
-        <h3>
-          <Text mono>{p.dataset}</Text> changed columns <Text small muted>#{id}</Text>
-        </h3>
-        <Text small muted>{p.connector}</Text>
-      </Line>
+    <UICard className="review" title={<><Text mono>{p.dataset}</Text> changed columns</>} detail={<>#{id}</>}
+      actions={<Text small muted>{p.connector}</Text>}>
       <Text as="p" small mono>{p.path}</Text>
       <Table variant="compare">
         <thead>
@@ -473,15 +459,8 @@ function ConflictCard({ id, label, description, p, onDecide }: {
   const [custom, setCustom] = useState("");
   const distinct = [...new Map(p.values.map((v) => [fmt(v.value), v])).values()];
   return (
-    <UICard className="review">
-      <Line spread>
-        <h3>
-          <a href={entityHref(p.fuzer_id)} className="mono">
-            {label ?? p.fuzer_id}
-          </a>{" "}
-          · {p.field} <Text small muted>#{id}</Text>
-        </h3>
-      </Line>
+    <UICard className="review" title={<><a href={entityHref(p.fuzer_id)} className="mono"> {label ?? p.fuzer_id} </a>{" "} · {p.field}</>}
+      detail={<>#{id}</>}>
       {description && <Text as="p" small>{description}</Text>}
       {p.returned && <p className="small returned">{p.returned.why}</p>}
       <ul className="choices">
@@ -556,16 +535,11 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
   const [text, setText] = useState(() => JSON.stringify(p.reading, null, 1));
   const r = p.reading;
   return (
-    <UICard className="review">
-      <Line spread>
-        <h3>
-          {p.manufacturer} {p.model} <Text small muted>#{id}</Text>
-        </h3>
-        <Text small muted>
+    <UICard className="review" title={<>{p.manufacturer} {p.model}</>} detail={<>#{id}</>}
+      actions={<Text small muted>
           {p.document ? <a href={documentHref(p.document)} onClick={(ev) => { ev.preventDefault(); openDocument(p.document!); }}>
             {p.doc_number}</a> : p.doc_number} · read from the {r.read_from === "curve" ? "drawn curve" : r.read_from}
-        </Text>
-      </Line>
+        </Text>}>
       <Text as="p" small>{p.title}{r.notes && ` · ${r.notes}`}</Text>
       <div className="mini-curves">
         {Object.entries(r.series).map(([name, pts]) => (
@@ -603,8 +577,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
 function PidConnectionCard({ id, p, onDecide }: { id: number; p: PidConnectionPayload; onDecide: OnDecide }) {
   const { busy, feedback, run } = useBusy(onDecide, "Accept adds a piping link between the two items on the next rebuild.");
   return (
-    <UICard className="review">
-      <h3>Connected across drawings? <Text small muted>#{id}</Text></h3>
+    <UICard className="review" title="Connected across drawings?" detail={<>#{id}</>}>
       <p>{p.question}</p>
       <Text as="p" small>Line {p.line}: {p.sheet} shows it {p.direction === "to" ? "leaving for" : "arriving from"}{" "}
         {p.other_sheet}.</Text>
@@ -635,11 +608,8 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
     "It drafts the correction for the owner of the side that is wrong. Nothing changes there until they approve it.");
   const system = p.check === "alarm" || p.check === "alarm_unset" ? "the alarm" : mismatchSystem(p);
   return (
-    <UICard className="review">
-      <Line spread>
-        <h3>{MISMATCH_TITLE[p.check] ?? "Drawing disagreement"} <Text small muted>#{id}</Text></h3>
-        <Text small muted>{p.sheet}</Text>
-      </Line>
+    <UICard className="review" title={MISMATCH_TITLE[p.check] ?? "Drawing disagreement"} detail={<>#{id}</>}
+      actions={<Text small muted>{p.sheet}</Text>}>
       <p>{say(p.question)}</p>
       {p.returned && <p className="small returned">{p.returned.why}</p>}
       {p.check === "flow" ? (
@@ -673,11 +643,8 @@ function RoleCard({ id, p, onDecide }: { id: number; p: RolePayload; onDecide: O
   const { busy, feedback, run } = useBusy(onDecide, "It sets this point's role only. No values or tags change.");
   const [chosen, setChosen] = useState(p.proposed ?? "");
   return (
-    <UICard className="review">
-      <Line spread>
-        <h3>{p.description ?? p.point} <Text small muted>#{id}</Text></h3>
-        <Text small muted>{percent(p.confidence)} sure</Text>
-      </Line>
+    <UICard className="review" title={p.description ?? p.point} detail={<>#{id}</>}
+      actions={<Text small muted>{percent(p.confidence)} sure</Text>}>
       <Text as="p" small>
         <Text mono>{p.point}</Text>{p.uom ? ` in ${p.uom}` : ""}
         {p.asset && <> on <a href={entityHref(p.asset)}>{p.asset_label ?? "its equipment"}</a></>}
@@ -708,8 +675,7 @@ function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onD
     "Seen acknowledges this notice only. It does not fix the source, change the checks or retry ingestion.");
   const failed = p.failed ?? [];
   return (
-    <UICard className="">
-      <h2>#{id} <code>{p.dataset}</code> <Text small muted>held load</Text></h2>
+    <UICard title={<>Held load <code>{p.dataset}</code></>} detail={<>#{id}</>}>
       <List small>
         {failed.map((f, i) => (
           <li key={i}>{f.kind === "duplicate keys" ? `repeats ${f.value} key${f.value === 1 ? "" : "s"}` : `${f.kind} failed (${f.value})`}
