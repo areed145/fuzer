@@ -4,9 +4,9 @@
  * Read only; it reads again every 30 s while the page is in view. */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { when } from "../format";
-import { api, type ExceptionRow, type LocatedPlace, type WorkHome, type WorkInbox, type WorkRow } from "../api";
+import { api, type ExceptionRow, type JobsHealth, type LocatedPlace, type WorkHome, type WorkInbox, type WorkRow } from "../api";
 import { Badge, Button, Empty, Text } from "../ui";
-import { Status, href, useAsync, useLive } from "../lib";
+import { Status, afterMap, href, useAsync, useLive } from "../lib";
 import { Actor, Due, holder, usePerson } from "../work";
 import { useAuth } from "../Auth";
 import { switchProject } from "../authState";
@@ -14,7 +14,8 @@ import { GENERIC_STEP, StepBadges, byUrgency, caseHref, taskHref } from "./workf
 import { waitingToDispatch } from "./Exceptions";
 import { workHref } from "./AllWork";
 
-const TOP = 12;
+const TOP = 5;  // per section
+const SLOW = 300_000;  // load health is a heavy read: every five minutes, not every 30 s
 const CHANGES = 10;
 const NEW_FOR = 120_000;   // an arrival reads as new for two minutes
 const RING_FOR = 8_000;    // and the map rings its place for eight seconds
@@ -24,8 +25,14 @@ const SAID: Record<string, string> = {
   agent_failed: "an agent step failed", delegated: "delegated", item_changed: "changed",
 };
 
+/** Where an item comes from: each is its own section with its own count. My work ranks every field's rows together
+ * (#649); its count is this field's, the My work tab's, with the other fields' named beside it. */
+type Group = "work" | "dispatch" | "data";
+const GROUPS: { key: Group; label: string }[] = [
+  { key: "work", label: "My work" }, { key: "dispatch", label: "To dispatch" }, { key: "data", label: "Loads and jobs" },
+];
 export interface FeedItem {
-  key: string; title: string; to: string; project?: string; meta: ReactNode; due?: string | null; late: boolean;
+  key: string; group: Group; title: string; to: string; project?: string; meta: ReactNode; due?: string | null; late: boolean;
   subjects: string[]; at: string; priority: number | null;
 }
 type Change = WorkHome["changes"][number];
@@ -50,9 +57,13 @@ function useArrivals(keys: string[] | null): Map<string, number> {
   return arrived;
 }
 
-export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, open, onToggle }: {
+export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, configure, onRing, top, open, onToggle }: {
   /** The person's own work here, read (and kept live) by Home, which takes their roles from it. */
   inbox: { data?: WorkInbox | null; error?: string; reload: () => void };
+  /** The scheduled jobs' health, read (and kept live) by the shell for its status light. */
+  jobsHealth: { data?: JobsHealth | null; error?: string };
+  /** False until the map has its data: the feed's other reads wait, so the map comes first on a busy server. */
+  ready: boolean;
   /** The open exceptions for a dispatcher (those waiting to dispatch join the list), undefined while they load, null
    * for anyone else. Home reads them for its counts too. */
   exceptions: ExceptionRow[] | null | undefined; steward: boolean; configure: boolean; onRing: (ring: Ring) => void;
@@ -64,12 +75,15 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
   const [person] = usePerson();
   const session = useAuth();
   const here = session?.project ?? "";
-  const fields = useAsync(() => (person ? api.inboxFields(person) : Promise.resolve(null)), [person]);
-  const since = useAsync(() => (person ? api.workHome(person, true) : Promise.resolve(null)), [person]);
-  const later = useAsync(() => (person ? api.workHome(person, false) : Promise.resolve(null)), [person]);
-  const loads = useAsync(() => (steward ? api.sourceHealth() : Promise.resolve([])), [steward]);
-  const jobs = useAsync(() => (configure ? api.jobsHealth() : Promise.resolve(null)), [configure]);
-  useLive([fields.reload, later.reload, loads.reload, jobs.reload]);
+  const fields = useAsync(() => (person ? afterMap(ready, () => api.inboxFields(person)) : Promise.resolve(null)), [person, ready]);
+  const since = useAsync(() => (person ? afterMap(ready, () => api.workHome(person, true)) : Promise.resolve(null)), [person, ready]);
+  // Later reads only: the first look is `since`, so the two don't both run on load.
+  const [polls, setPolls] = useState(0);
+  const later = useAsync(() => (person && polls ? api.workHome(person, false) : Promise.resolve(null)), [person, polls]);
+  const loads = useAsync(() => (steward ? afterMap(ready, () => api.sourceHealth()) : Promise.resolve([])), [steward, ready]);
+  const jobs = configure ? jobsHealth : { data: null };
+  useLive([fields.reload, () => setPolls((n) => n + 1)]);
+  useLive([loads.reload], SLOW);
 
   const settled = !person || [inbox, fields, since].every((r) => r.data !== undefined || !!r.error);
   // Everything that can add an item has answered, so what comes after is an arrival, not the first load.
@@ -77,7 +91,7 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
   const items = useMemo(() => {
     const out: FeedItem[] = [];
     const row = (r: WorkRow, project: string): FeedItem => ({
-      key: `t-${project}-${r.task_id ?? "i"}-${r.item_id}`, title: r.title, to: r.task_id ? taskHref(r.task_id) : caseHref(r.item_id),
+      group: "work", key: `t-${project}-${r.task_id ?? "i"}-${r.item_id}`, title: r.title, to: r.task_id ? taskHref(r.task_id) : caseHref(r.item_id),
       project: project === here ? undefined : project, due: r.due_at, late: !!r.overdue || !!r.escalated_at,
       subjects: r.subjects ?? [], at: r.created_at, priority: r.priority,
       meta: <>{!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}
@@ -86,17 +100,17 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
     if (inbox.data) out.push(...[...inbox.data.mine, ...inbox.data.queue].map((r) => row(r, here)));
     for (const f of fields.data ?? []) if (f.project !== here) out.push(...[...f.mine, ...f.queue].map((r) => row(r, f.project)));
     for (const x of (exceptions ?? []).filter(waitingToDispatch)) {
-      out.push({ key: `x-${x.id}`, title: x.title, to: workHref("dispatch", { q: x.title }), late: false, subjects: x.subjects ?? [],
+      out.push({ group: "dispatch", key: `x-${x.id}`, title: x.title, to: workHref("dispatch", { q: x.title }), late: false, subjects: x.subjects ?? [],
                  at: x.first_seen, priority: x.priority, meta: <><strong>To dispatch</strong> · {x.source ?? "unknown source"} · since {when(x.first_seen)}</> });
     }
     for (const d of (loads.data ?? []).filter((d) => d.problems.includes("held") || d.problems.includes("failed"))) {
       const held = d.problems.includes("held");
-      out.push({ key: `l-${d.dataset}`, title: `${d.dataset}: load ${held ? "held" : "failed"}`, late: !held, subjects: [], priority: null,
+      out.push({ group: "data", key: `l-${d.dataset}`, title: `${d.dataset}: load ${held ? "held" : "failed"}`, late: !held, subjects: [], priority: null,
                  to: href("/sources", { view: "dataset", name: d.dataset }), at: d.last_loaded ?? "",
                  meta: <><strong>{held ? "Fix the held load" : "Look at the failed run"}</strong> · {d.system} · {d.last_loaded ? `last ingested ${when(d.last_loaded)}` : "never ingested"}</> });
     }
     if (jobs.data?.available && (jobs.data.failed_runs_24h > 0 || jobs.data.failing_checks > 0)) {
-      out.push({ key: "jobs", title: jobs.data.summary, to: href("/jobs"), late: true, subjects: [], at: "", priority: null,
+      out.push({ group: "data", key: "jobs", title: jobs.data.summary, to: href("/jobs"), late: true, subjects: [], at: "", priority: null,
                  meta: <><strong>Scheduled jobs</strong> · Jobs</> });
     }
     return out.sort(rank);
@@ -115,8 +129,9 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
   // Where each item's subjects sit, so the map can ring them.
   const subjects = useMemo(() => [...new Set([...items.flatMap((i) => i.subjects), ...changes.flatMap((c) => c.subjects ?? [])])].sort().slice(0, 200),
                            [items, changes]);
-  const located = useAsync(() => (subjects.length ? api.attentionPlaces(subjects) : Promise.resolve({} as Record<string, LocatedPlace>)),
-                           [subjects.join(",")]);
+  // Once everything has answered, so the first look asks once rather than once per source.
+  const located = useAsync(() => (complete && subjects.length ? api.attentionPlaces(subjects) : Promise.resolve({} as Record<string, LocatedPlace>)),
+                           [complete, subjects.join(",")]);
   const placeOf = (ids: string[]) => ids.map((s) => located.data?.[s]).find(Boolean) ?? null;
   const ringOf = (ids: string[], title: string): Ring => {
     const p = placeOf(ids);
@@ -154,7 +169,25 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
     if (open) onToggle();
   };
 
-  const shown = items.slice(0, TOP);
+  // My work's count is the My work tab's: the inbox's own totals, which also count rows past the page the list holds.
+  const hereTotal = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
+  const elsewhere = items.filter((i) => i.group === "work" && i.project).length;
+  const sections = GROUPS.map((g) => {
+    const rows = items.filter((i) => i.group === g.key);
+    return { ...g, rows, total: g.key === "work" ? Math.max(hereTotal, rows.length - elsewhere) : rows.length };
+  }).filter((g) => g.rows.length > 0 || g.total > 0);
+  const more: Record<Group, string> = { work: href("/inbox"), dispatch: workHref("dispatch"), data: href("/sources") };
+  const feedRow = (i: FeedItem) => (
+    <li key={i.key} className={`feed-item${i.late ? " late" : ""}${fresh(i.key) ? " fresh" : ""}`} {...point(i.subjects, i.title)}>
+      <span className="feed-line">
+        {i.project ? <Button variant="link" className="feed-title" onClick={() => switchProject(i.project!, i.to)}>{i.title}</Button>
+          : <a href={i.to} className="feed-title">{i.title}</a>}
+        {i.due !== undefined && <Due at={i.due ?? null} />}
+      </span>
+      <Text small muted>{i.meta}</Text>
+      {placeOf(i.subjects) && <span className="feed-locate"><Button variant="ghost" size="sm" aria-label={`Show ${i.title} on the map`}
+        title="Show on the map" onClick={() => showOnMap(i.subjects, i.title)}><Pin /></Button></span>}
+    </li>);
   const own = changes.filter((c) => !c.watching);
   const watched = changes.filter((c) => c.watching);
   const changeList = (rows: Change[], label: string) => (
@@ -170,7 +203,6 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
       <div className="home-feed-head" onClick={onToggle}>
         <span className="home-feed-grab" aria-hidden="true" />
         <h2>Needs you</h2>
-        {settled && <span className="count">{items.length}</span>}
         <span className="home-feed-toggle">
           <Button variant="ghost" size="sm" aria-expanded={open} aria-label={open ? "Close Needs you" : "Open Needs you"}
                   onClick={(e) => { e.stopPropagation(); onToggle(); }}>
@@ -185,19 +217,13 @@ export function NeedsYou({ inbox, exceptions, steward, configure, onRing, top, o
           : !settled ? <Status loading />
           : <>
             <Status error={inbox.error} onRetry={inbox.reload} />
-            {shown.length ? <ol className="feed" aria-label="Waiting on you">{shown.map((i) => (
-              <li key={i.key} className={`feed-item${i.late ? " late" : ""}${fresh(i.key) ? " fresh" : ""}`} {...point(i.subjects, i.title)}>
-                <span className="feed-line">
-                  {i.project ? <Button variant="link" className="feed-title" onClick={() => switchProject(i.project!, i.to)}>{i.title}</Button>
-                    : <a href={i.to} className="feed-title">{i.title}</a>}
-                  {i.due !== undefined && <Due at={i.due ?? null} />}
-                </span>
-                <Text small muted>{i.meta}</Text>
-                {placeOf(i.subjects) && <span className="feed-locate"><Button variant="ghost" size="sm" aria-label={`Show ${i.title} on the map`}
-                  title="Show on the map" onClick={() => showOnMap(i.subjects, i.title)}><Pin /></Button></span>}
-              </li>))}</ol>
-              : !inbox.error && <Empty className="small">Nothing waiting for you.</Empty>}
-            {items.length > TOP && <a className="small" href={href("/inbox")}>{items.length - TOP} more on My work</a>}
+            {sections.map((g) => <section key={g.key} className="feed-group" aria-label={g.label}>
+              <h3>{g.label} <span className="count">{g.total}</span>
+                {g.key === "work" && elsewhere > 0 && <Text small muted>and {elsewhere} in other fields</Text>}</h3>
+              <ol className="feed" aria-label={g.label}>{g.rows.slice(0, TOP).map(feedRow)}</ol>
+              {g.total > TOP && <a className="small" href={more[g.key]}>{g.key === "work" ? `All ${g.total} on My work` : `All ${g.total}`}</a>}
+            </section>)}
+            {!sections.length && !inbox.error && <Empty className="small">Nothing waiting for you.</Empty>}
             <h3>Since you last looked <Text small muted>{since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}</Text></h3>
             {own.length ? changeList(own, "Since you last looked") : <Empty className="small">Nothing new on your work.</Empty>}
             {(watched.length > 0 || (since.data?.watching?.length ?? 0) > 0) && <>

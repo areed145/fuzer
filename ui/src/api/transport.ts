@@ -50,6 +50,19 @@ async function keptRead<T>(url: string, read: () => Promise<T>, file = false): P
   }
 }
 
+/** The live deployment keeps its job state on a disk only one server can hold, so each deploy stops the old server
+ * before the new one starts, and for about a minute the host answers 502, 503 or 504 for every request. A read that
+ * meets one waits and asks again on these delays (about 90 s in all), so a page opened mid-deploy loads once the new
+ * server is up instead of showing a bare status code. Writes are never retried here: whether they arrived can't be
+ * known. */
+export const RESTART_RETRY_MS = [2_000, 4_000, 8_000, 15_000, 15_000, 15_000, 15_000, 15_000];
+export const RESTARTING = "Fuzer is restarting after an update. Try again in a minute.";
+/** The host's own 502, 503 or 504: an HTML or empty page. Fuzer's API answers its own errors in JSON with a detail
+ * (a 503 for a database it can't reach, say), and those are shown as they are. */
+const restarting = (res: Response) => [502, 503, 504].includes(res.status)
+  && !(res.headers?.get("content-type") ?? "").includes("json");
+const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
+
 type Params = Record<string, string | number | undefined | null>;
 
 /** `project` overrides the picked project, for a write kept on the phone that must go to the project it was made in. */
@@ -65,13 +78,19 @@ export async function request<T>(method: string, path: string, params?: Params, 
   const deadline = readOnly ? (inPack(url) ? KEPT_READ_DEADLINE_MS : READ_DEADLINE_MS)
     : carriesClientId(body) ? KEPT_WRITE_DEADLINE_MS : undefined;
   const run = async (): Promise<T> => {
-    const res = await reach(url, {
+    const send = () => reach(url, {
       method,
       headers: { ...(body ? { "Content-Type": "application/json" } : {}),
         ...(csrf ? { "X-Fuzer-CSRF": csrf } : {}),
         ...(project ? { "X-Fuzer-Project": project } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     }, deadline);
+    let res = await send();
+    for (let i = 0; readOnly && restarting(res) && i < RESTART_RETRY_MS.length; i++) {
+      await pause(RESTART_RETRY_MS[i]);
+      res = await send();
+    }
+    if (readOnly && restarting(res)) throw Object.assign(new Error(RESTARTING), { status: res.status });
     if (!res.ok) {
       if (res.status === 401) window.dispatchEvent(new Event("fuzer:unauthorized"));
       const detail = await res.json().catch(() => null);

@@ -19,7 +19,7 @@ function client(stored = {}) {
     }).outputText;
     runInNewContext(code, {
       exports, window, Event, localStorage, console, URLSearchParams, setTimeout, clearTimeout,
-      fetch: async (url, options) => { calls.push({ url, options }); return reply; },
+      fetch: async (url, options) => { calls.push({ url, options }); return typeof reply === "function" ? reply(url) : reply; },
       require: (name) => load(resolve(dirname(path), `${name}.ts`)),
     });
     return exports;
@@ -72,4 +72,25 @@ test("Requests carry the picked project, and links the browser opens name it in 
   const plain = client();
   await plain.api.entity("asset");
   assert.equal(plain.calls[0].options.headers["X-Fuzer-Project"], undefined);
+});
+
+test("A read that meets a deploy's 502 waits for the new server; a write is not retried", async () => {
+  const c = client();
+  c.load(resolve(__dirname, "../src/api/transport.ts")).RESTART_RETRY_MS.splice(0, Infinity, 0, 0, 0);
+  const down = { ok: false, status: 502, json: async () => { throw new Error("an HTML error page"); } };
+  const up = { ok: true, status: 200, json: async () => ({ items: [] }) };
+  let answers = [down, down, up];
+  c.respond(() => answers.shift() ?? down);
+  const sent = (url) => c.calls.filter(call => call.url === url).length;
+  assert.deepEqual(await c.api.entity("asset"), { items: [] });
+  assert.equal(sent("/entities/asset"), 3);
+  await assert.rejects(c.api.entity("other"), /restarting after an update/);
+  assert.equal(sent("/entities/other"), 4);
+  await assert.rejects(c.api.updateAccount("user/a", { enabled: true, owner: false, roles: [] }), /502/);
+  assert.equal(sent("/auth/accounts/user%2Fa"), 1);
+  // Fuzer's own 503 (JSON with a detail) is the app answering, not the host restarting: shown at once.
+  c.respond({ ok: false, status: 503, headers: new Map([["content-type", "application/json"]]),
+    json: async () => ({ detail: "Database restarting" }) });
+  await assert.rejects(c.api.entity("db"), /Database restarting/);
+  assert.equal(sent("/entities/db"), 1);
 });
