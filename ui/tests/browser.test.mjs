@@ -1957,13 +1957,13 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "My work", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/exceptions", "#/inbox", "#/workflows", "#/masterdata"]);
+    ["#/exceptions", "#/inbox", "#/masterdata"]);
   // The pages that left Work's nav still open, under the entry that owns them now (#554).
   await page.route("**/plan/schedules", (route) => route.fulfill({ json: [] }));
   await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: "2026-11-01", end: "2026-12-01", days: 30, resources: [] } }));
   await page.route("**/plan/resources", (route) => route.fulfill({ json: [] }));
   for (const [route, owner, area] of [["#/handover", "My work", "Work pages"], ["#/review", "Master data", "Work pages"],
-    ["#/processes", "Workflows", "Work pages"],
+    ["#/processes", "Workflows", "Settings pages"],
     ["#/plan?resources=1", "Resources", "Plan pages"], ["#/plan?schedules=1", "Schedules", "Plan pages"]]) {
     await page.goto(`${url}/${route}`);
     await page.getByRole("navigation", { name: area, exact: true }).locator(`a[aria-current="page"]`, { hasText: owner }).waitFor();
@@ -3518,7 +3518,7 @@ test("All work holds the Work board and Cases as views, and their old links land
   await views.getByRole("link", { name: "All open 3", exact: true }).waitFor();
   await page.getByText("Compressor trip").waitFor();
   assert.deepEqual((await views.locator("a").allTextContents()).map((t) => t.trim()),
-    ["To dispatch 1", "With the field 1", "Back from the field 1", "All open 3", "In progress", "Ranked by value", "Closed", "Board"]);
+    ["To dispatch 1", "With the field 1", "Back from the field 1", "All open 3", "In progress", "Ranked by value", "Closed", "Waiting on me"]);
   await page.getByText("Compressor trip").waitFor();
   assert.equal(await page.getByText("Packing leak").count(), 0);
   await views.getByRole("link", { name: "With the field 1" }).click();
@@ -7654,7 +7654,7 @@ test("App search at the top left finds pages, tabs and records, and sends a ques
   assert.equal(asked?.question, "why did P-101 trip?");
 });
 
-test("A field operator's phone leaves Workflows and Master data out of Work's tabs; the desk and other roles keep them", async () => {
+test("A field operator's phone leaves Master data out of Work's tabs; the desk and other roles keep it", async () => {
   let roles = ["operator"];
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
   await page.route("**/work/inbox*", (route) => route.fulfill({ json: { person: "fred", roles, mine: [], queue: [],
@@ -7662,8 +7662,8 @@ test("A field operator's phone leaves Workflows and Master data out of Work's ta
   const tabs = () => page.getByRole("navigation", { name: "Work pages", exact: true }).locator("a:visible").allTextContents();
   for (const [who, width, expected] of [
     [["operator"], 390, ["All work", "My work"]],
-    [["operator"], 1440, ["All work", "My work", "Workflows", "Master data"]],
-    [["operator", "data_steward"], 390, ["All work", "My work", "Workflows", "Master data"]],
+    [["operator"], 1440, ["All work", "My work", "Master data"]],
+    [["operator", "data_steward"], 390, ["All work", "My work", "Master data"]],
   ]) {
     roles = who;
     await page.setViewportSize({ width, height: 844 });

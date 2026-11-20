@@ -54,8 +54,6 @@ export const NAV: NavGroup[] = [
       { label: "All work", section: "exceptions", also: ["board", "cases", "performance"] },
       // Handover is reached from My work and Data review from Master data (#554).
       { label: "My work", section: "inbox", also: ["work", "teams", "field", "handover"], badge: "work" },
-      // The playbooks the work follows, beside the work; #/processes keeps its URLs.
-      { label: "Workflows", section: "workflows", also: ["processes"], desk: true },
       { label: "Master data", section: "masterdata", also: ["review"], badge: "review", desk: true },
     ],
   },
@@ -103,6 +101,8 @@ export const NAV: NavGroup[] = [
       { label: "Application settings", section: "settings" },
       { label: "Users", section: "users", also: ["access"], permission: "configure" },
       { label: "Routing", section: "routing" },
+      // The playbooks the work follows are configuration, beside who gets what; #/processes keeps its URLs.
+      { label: "Workflows", section: "workflows", also: ["processes"], desk: true },
       { label: "Docs", section: "docs", external: "https://areed145.github.io/fuzer/" },
     ],
   },

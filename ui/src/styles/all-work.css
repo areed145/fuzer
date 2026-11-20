@@ -59,3 +59,5 @@
   .work-row-panel .ui-field, .work-row-panel .ui-field .ui-input { width: 100%; }
   .work-row-panel .ui-button { min-height: 44px; }
 }
+/* All work's views are filters on the one list: facets, not a second row of tabs. */
+.work-views a.chip { text-decoration: none; }

@@ -17,7 +17,7 @@ Direct links select their owning primary destination.
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/3d`, `#/ask` | Assets and connected evidence, and the operations assistant that answers from them. Paid Ask remains AI-permission gated. All entity links reuse the existing entity viewer. An asset's kind links to it in the Ontology for configurers. |
 | Reports | `#/incidents`, `#/downtime`, `#/reports`, `#/metrics`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. |
-| Work | `#/exceptions` (All work, with compatible `#/board` and `#/cases` redirects into its views), `#/inbox` (My work, with `#/field` redirecting into it), `#/inbox/task/:id` (opens its case, where the step is worked), contextual `#/teams` and `#/handover`, `#/masterdata` (its Questions tab answers what `#/review` did, which redirects there), `#/cases/:id`, Workflows at `#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key` (the older `#/processes…` URLs open the same pages) | Human priorities, read-only team workload, review decisions, tasks, cases and workflow definitions. |
+| Work | `#/exceptions` (All work, with compatible `#/board` and `#/cases` redirects into its views), `#/inbox` (My work, with `#/field` redirecting into it), `#/inbox/task/:id` (opens its case, where the step is worked), contextual `#/teams` and `#/handover`, `#/masterdata` (its Questions tab answers what `#/review` did, which redirects there), `#/cases/:id` | Human priorities, read-only team workload, review decisions, tasks and cases. Workflows (`#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key`; the older `#/processes…` URLs open the same pages) are in Settings. |
 | Plan | `#/plan` (with `#/turnaround` redirecting into it), `#/plan?schedules=1` (Schedules), `#/plan?schedule=CODE`, `#/plan?resources=1` (Resources) | The days and weeks ahead: every source's planned work on one timeline, schedules, resources and their clashes. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views, configure-protected `#/ontology` (`?kind=…` opens on a kind) | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
@@ -43,8 +43,10 @@ the menu, the tabs pages declare in `ui/src/pageTabs.ts`, and records through th
 uses; a question opens Ask with it and asks it once. It is a way in, not an owner: each result opens its owning page. Sources secondary pages are Sources and configure-protected
 Ontology, the model each source maps onto.
 Demo is one route outside the menu, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Reports contains Downtime, Incidents, Daily reports, Metrics,
-Lessons and Studies. Work contains four entries: All work, My work, Workflows and Master data (#554). Workflows (formerly Processes;
-"process" means the plant in oil and gas) are the playbooks the work follows; a case or task links to the workflow it
+Lessons and Studies. Work contains three entries: All work, My work and Master data. All work shows all the work as a List or a
+Board; To dispatch, With the field, Back from the field, All open, In progress, Ranked by value and Closed are filters
+on the list. Workflows (formerly Processes; "process" means the plant in oil and gas) sit in Settings beside Routing:
+they are the playbooks the work follows; a case or task links to the workflow it
 is following. Plan contains Plan (the timeline), Schedules and Resources. A work item planned for a day links to its
 bar (`#/plan?item=ID&from=DATE` opens it), and a bar planned from work links back to it in All work. Shift handover is
 reached from My work, which shows a banner from shift change until the incoming lead acknowledges it; `#/handover`
