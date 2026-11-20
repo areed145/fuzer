@@ -87,7 +87,7 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 - `Text` sets the text style (`small`, `muted`, `mono`) and `Line` puts things on one line (`spread`, `wrap`). Use them instead of the class names; a style that is missing is added to the kit, not to a page.
 - `Checkbox` is a checkbox with its label; `onChange` gets the new state.
 - `ErrorText` shows a failure message.
-- `Field`, `Input`, `Select` and `Textarea` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
+- `Field`, `Input`, `Select` and `Textarea` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values. A filter beside its control is `Field inline`; don't write a `label` around a control by hand.
 - `Tabs` switches between views of one page; `Notice` holds something the user must act on; Help is one entry in the account menu that opens the docs page for the current screen (`ui/src/help.ts` maps routes to pages); a page header carries no help link.
 - `Badge` is a status word in one of five tones (`ok`, `warn`, `danger`, `info`, `muted`), `mono` for an identifier. It takes no class name: a page picks a tone and never adds a badge colour of its own. `Table` labels each cell from its column heading, so type `data-label` only where the heading cannot say it.
 - `List` is a list with `plain` (no bullets), `small` and `muted`; `Notice` and `ErrorText` replace the `notice` and `error` class names. None takes a class name for these.

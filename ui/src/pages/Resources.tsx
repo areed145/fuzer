@@ -22,14 +22,14 @@ export function ResourcesPage({ query, person }: { query: URLSearchParams; perso
     <section>
       <PageHeader>Resources</PageHeader>
       <Line>
-        <label className="small">Resource <Select aria-label="Resource" value={pick} onChange={(e) => go(e.target.value)}>
+        <Field inline label="Resource"><Select aria-label="Resource" value={pick} onChange={(e) => go(e.target.value)}>
           <option value="">All</option>
           {(all.data ?? []).map((r) => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
-        </Select></label>
-        <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
-        <label className="small">Showing <Select aria-label="Days shown" value={String(days)} onChange={(e) => setDays(Number(e.target.value))}>
+        </Select></Field>
+        <Field inline label="From"><Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></Field>
+        <Field inline label="Showing"><Select aria-label="Days shown" value={String(days)} onChange={(e) => setDays(Number(e.target.value))}>
           {[14, 28, 42, 90].map((d) => <option key={d} value={d}>{d} days</option>)}
-        </Select></label>
+        </Select></Field>
       </Line>
       {!load.data ? <Status of={load} /> : <>
         {!load.data.resources.length && <Empty>No shared resources yet.</Empty>}

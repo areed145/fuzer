@@ -88,15 +88,11 @@ export function CasesPage({ query, fixedState, filters }: {
         {!fixedState && <div className="tabs">
           {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
         </div>}
-        {!filters && <><label className="small row">Kind
-          <Select value={type} onChange={(e) => setType(e.target.value)}>
+        {!filters && <><Field inline label="Kind"><Select value={type} onChange={(e) => setType(e.target.value)}>
             <option value="">every kind</option>
             {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-          </Select>
-        </label>
-        <label className="small row">With {/* #409: who holds the case's open steps, a person or a role's queue */}
-          <AssignPicker value={who} onChange={setWho} placeholder="anyone" />
-        </label></>}
+          </Select></Field>
+        <Field inline label="With"><AssignPicker value={who} onChange={setWho} placeholder="anyone" /></Field></>}
         <Checkbox checked={overdue} onChange={setOverdue}>overdue</Checkbox>
         {!filters && <Input aria-label="Search case titles" placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />}
         {list.data && <Text small muted>{list.data.total} cases · {list.data.overdue} overdue · {list.data.due_soon} due soon</Text>}

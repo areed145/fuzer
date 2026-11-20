@@ -1,5 +1,5 @@
 import { documentHref, openDocument } from "../DocumentViewer";
-import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice } from "../ui";
+import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice, Field } from "../ui";
 import { percent } from "../format";
 import "../styles/review.css";
 import "../styles/trends.css";
@@ -655,13 +655,10 @@ function RoleCard({ id, p, onDecide }: { id: number; p: RolePayload; onDecide: O
         {p.proposed && <Button variant="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
           Confirm {p.proposed_label?.toLowerCase()}
         </Button>}
-        <label className="row small">
-          Or
-          <Select aria-label="Role" value={chosen} onChange={(e) => setChosen(e.target.value)}>
+        <Field inline label="Or"><Select aria-label="Role" value={chosen} onChange={(e) => setChosen(e.target.value)}>
             <option value="">pick a role</option>
             {p.choices.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-          </Select>
-        </label>
+          </Select></Field>
         <Button disabled={busy || !chosen || chosen === p.proposed}
           onClick={() => run({ decision: "choose", value: chosen })}>Use this role</Button>
       </Line>

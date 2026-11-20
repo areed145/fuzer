@@ -73,13 +73,13 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
       <div className="row gb-bar">
         <Tabs label="Rows" items={[{ key: "activities", label: "Activities", href: here("activities"), current: rows === "activities" },
           { key: "resources", label: "Resources", href: here("resources"), current: rows === "resources" }]} />
-        {(list.data?.length ?? 0) > 1 && <label className="small">Schedule <Select aria-label="Schedule" value={p.code}
+        {(list.data?.length ?? 0) > 1 && <Field inline label="Schedule"><Select aria-label="Schedule" value={p.code}
           onChange={(e) => { location.hash = `#/plan?schedule=${encodeURIComponent(e.target.value)}`; }}>
           {list.data!.map((x) => <option key={x.code} value={x.code}>{x.code} {acronyms(x.title).slice(0, 40)}</option>)}
-        </Select></label>}
-        <label className="small">Zoom <Select aria-label="Zoom" value={String(zoom)} onChange={(e) => setZoom(Number(e.target.value))}>
+        </Select></Field>}
+        <Field inline label="Zoom"><Select aria-label="Zoom" value={String(zoom)} onChange={(e) => setZoom(Number(e.target.value))}>
           <option value="1">Fit</option><option value="2">2×</option><option value="4">4×</option>
-        </Select></label>
+        </Select></Field>
         {person && <Button size="sm" onClick={() => { setAdding(true); setSelected(null); }}>Add activity</Button>}
         {undo.length > 0 && <Button size="sm" disabled={!!busy} onClick={undoLast}>Undo</Button>}
         <Badge tone={over ? "danger" : "ok"}>Finishes {when(s.levelled_finish)}</Badge>

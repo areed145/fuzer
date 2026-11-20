@@ -2,7 +2,7 @@ import { useState } from "react";
 import { whenDay } from "./format";
 import { api, type AssistantFact } from "./api";
 import { entityHref, useAsync } from "./lib";
-import { Button, Input, Card as UICard, Textarea, ErrorText, Line, Text, List } from "./ui";
+import { Button, Input, Card as UICard, Textarea, ErrorText, Line, Text, List, Field } from "./ui";
 import { loadPerson } from "./work";
 
 /** Who is editing: the name the Review page remembers. */
@@ -39,8 +39,8 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
       <li className="fact">
         <Textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} aria-label="Fact" />
         <Line small>
-          <label>From <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label>To <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+          <Field inline label="From"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
+          <Field inline label="To"><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
           <Button variant="primary" onClick={() => {
             const clear = [...(!from && f.valid_from ? ["valid_from" as const] : []),
                            ...(!to && f.valid_to ? ["valid_to" as const] : [])];

@@ -104,6 +104,11 @@ const RULES = {
     pattern: /<dl\b/g,
     hint: "Use Facts from ui/src/ui for names and values, and Stats with Stat for figures, instead of a hand-written dl.",
   },
+  "raw-label": {
+    skip: /^ui\//,
+    pattern: /<label(?: className="(?:small|small row|row small)")?>(?:[^<>{}]|\{" "\})*<[A-Z]/g,
+    hint: "Use Field (inline for a filter beside its control) from ui/src/ui instead of a hand-written label around a control.",
+  },
   "badge-class": {
     pattern: /<(?:UI)?Badge\b[^>]*? className=|className=(?:"|\{`)badge\b/g,
     hint: "A Badge is a word in its tone (ok, warn, danger, info, muted). Pick the tone; don't add a class name or a page colour.",

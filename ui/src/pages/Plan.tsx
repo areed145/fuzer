@@ -5,7 +5,7 @@ import { acronyms } from "../wording";
 import { money, whenDay, count } from "../format";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List } from "../ui";
+import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
@@ -92,14 +92,14 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
         actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
         Plan</PageHeader>
       <Line>
-        <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
-        <label className="small">Showing <Select aria-label="Weeks shown" value={String(weeks)} onChange={(e) => setWeeks(Number(e.target.value))}>
+        <Field inline label="From"><Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></Field>
+        <Field inline label="Showing"><Select aria-label="Weeks shown" value={String(weeks)} onChange={(e) => setWeeks(Number(e.target.value))}>
           {[2, 4, 8, 12, 26].map((w) => <option key={w} value={w}>{w} weeks</option>)}
-        </Select></label>
-        {!!scope.data?.revisions?.length && <label className="small">Turnaround <Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
+        </Select></Field>
+        {!!scope.data?.revisions?.length && <Field inline label="Turnaround"><Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
           <option value="">None shown</option>
           {scope.data.revisions.map((r) => <option key={r} value={r}>{r}</option>)}
-        </Select></label>}
+        </Select></Field>}
         <Badge>{plan.data.length} items</Badge>
         {clashes > 0 && <Badge tone="danger">{clashes} with a clash</Badge>}
         {bundles > 0 && <Badge tone="ok">{bundles} could ride along with a shutdown</Badge>}
@@ -170,9 +170,9 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       <Text as="p" small muted>{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
         {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</Text>
       {person ? <Line>
-        <label className="small">Start <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
-        <label className="small">End <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
-        <label className="small">Crew <Input value={crew} placeholder="person or role:…" onChange={(e) => setCrew(e.target.value)} /></label>
+        <Field inline label="Start"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+        <Field inline label="End"><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
+        <Field inline label="Crew"><Input value={crew} placeholder="person or role:…" onChange={(e) => setCrew(e.target.value)} /></Field>
         <Button size="sm" disabled={!!busy} onClick={() => change({ start, end: end < start ? start : end, crew })}>Reschedule</Button>
         <Select aria-label="Status" value={item.status} disabled={!!busy} onChange={(e) => change({ status: e.target.value })}>
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}

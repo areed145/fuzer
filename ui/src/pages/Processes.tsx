@@ -236,14 +236,11 @@ function Lifecycle({ state }: { state: string }) {
 
 function Versions({ defs, current }: { defs: WorkDefinition[]; current: WorkDefinition }) {
   return (
-    <label className="small row">
-      Version
-      <Select value={current.id} onChange={(e) => (location.hash = href(`/workflows/${current.process_key}`, { v: e.target.value }))}>
+    <Field inline label="Version"><Select value={current.id} onChange={(e) => (location.hash = href(`/workflows/${current.process_key}`, { v: e.target.value }))}>
         {defs.map((d) => (
           <option key={d.id} value={d.id}>v{d.version} · {d.state}{d.running ? ` · ${d.running} running` : ""}</option>
         ))}
-      </Select>
-    </label>
+      </Select></Field>
   );
 }
 
@@ -543,21 +540,15 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
   return (
     <>
       <div className="work-toolbar">
-        <label className="small row">
-          Version
-          <Select value={version ?? ""} onChange={(e) => setVersion(e.target.value ? Number(e.target.value) : undefined)}>
+        <Field inline label="Version"><Select value={version ?? ""} onChange={(e) => setVersion(e.target.value ? Number(e.target.value) : undefined)}>
             <option value="">all versions</option>
             {defs.filter((d) => d.state === "published" || d.state === "superseded").map((d) => (
               <option key={d.id} value={d.id}>v{d.version} · {d.state}{d.running ? ` · ${d.running} running` : ""}</option>
             ))}
-          </Select>
-        </label>
-        <label className="small row">
-          Finished in the last
-          <Select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          </Select></Field>
+        <Field inline label="Finished in the last"><Select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[1, 7, 30, 90, 365].map((d) => <option key={d} value={d}>{d === 1 ? "day" : `${d} days`}</option>)}
-          </Select>
-        </label>
+          </Select></Field>
         <Text small muted>{running} running{drawn && version === undefined ? ` · drawn on v${drawn.version}` : ""}</Text>
         <Button onClick={m.reload}>Refresh</Button>
       </div>
