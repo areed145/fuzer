@@ -28,6 +28,9 @@ export interface NavItem {
   view?: string;
   /** A link out of the app (opens in a new tab) instead of a page. */
   external?: string;
+  /** Desk work a field operator doesn't do: its tab is left out of the phone's row for an account whose only role is
+   * operator. Presentation only; the page still opens and its own access rules still apply. */
+  desk?: boolean;
   permission?: string;
   ownerOnly?: boolean;
 }
@@ -52,8 +55,8 @@ export const NAV: NavGroup[] = [
       // Handover is reached from My work and Data review from Master data (#554).
       { label: "My work", section: "inbox", also: ["work", "teams", "field", "handover"], badge: "work" },
       // The playbooks the work follows, beside the work; #/processes keeps its URLs.
-      { label: "Workflows", section: "workflows", also: ["processes"] },
-      { label: "Master data", section: "masterdata", also: ["review"], badge: "review" },
+      { label: "Workflows", section: "workflows", also: ["processes"], desk: true },
+      { label: "Master data", section: "masterdata", also: ["review"], badge: "review", desk: true },
     ],
   },
   {
@@ -120,15 +123,21 @@ export function useNavigationAccess() {
 export const currentItem = (items: NavItem[], section: string, query?: URLSearchParams) =>
   items.find((i) => i.view && isActive(i, section) && query?.has(i.view)) ?? items.find((i) => !i.view && isActive(i, section));
 
-export function AreaNavigation({ section, query, demoEnabled }: { section: string; query?: URLSearchParams; demoEnabled: boolean }) {
+export function AreaNavigation({ section, query, demoEnabled, roles }: {
+  section: string; query?: URLSearchParams; demoEnabled: boolean;
+  /** The person's workflow roles. An operator and nothing else is in the field: desk tabs leave the phone's row. */
+  roles?: string[];
+}) {
   const allowed = useNavigationAccess();
   const found = navItemFor(section);
   if (!found || !allowed(found.group) || (found.group.demo && !demoEnabled)) return null;
   const items = found.group.items.filter(allowed);
   if (items.length < 2) return null;
   const current = currentItem(items, section, query);
+  const field = roles?.length === 1 && roles[0] === "operator";
   return <nav className="area-navigation" aria-label={`${found.group.label} pages`}>
     {items.map((item) => <a key={item.label} href={item.external ?? href(item.path ?? `/${item.section}`)}
+      className={field && item.desk && item !== current ? "desk-tab" : undefined}
       aria-current={item === current ? "page" : undefined}
       {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}>{item.label}</a>)}
   </nav>;

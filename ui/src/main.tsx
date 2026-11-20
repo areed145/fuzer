@@ -161,7 +161,7 @@ function App() {
         {/* The account is the round badge at the top right on every screen, as on the phone. */}
         <div className="page-account"><AccountButton /></div>
         <BackButton path={path} className="page-back" />
-        <AreaNavigation section={navSection} query={query} demoEnabled={demo.data?.enabled === true} />
+        <AreaNavigation section={navSection} query={query} demoEnabled={demo.data?.enabled === true} roles={inbox.data?.roles} />
         <PageNote.Provider value={viewOnly && VIEW_ONLY_SECTIONS.has(section)
           ? <p className="notice view-only" role="note">View only: the demo account can look at this page but can't change it.</p> : null}>
         <Suspense fallback={<div className="status" role="status" aria-live="polite">Loading…</div>}>

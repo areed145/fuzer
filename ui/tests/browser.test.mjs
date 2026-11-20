@@ -7568,6 +7568,35 @@ test("App search at the top left finds pages, tabs and records, and sends a ques
   assert.equal(asked?.question, "why did P-101 trip?");
 });
 
+test("A field operator's phone leaves Workflows and Master data out of Work's tabs; the desk and other roles keep them", async () => {
+  let roles = ["operator"];
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  await page.route("**/work/inbox*", (route) => route.fulfill({ json: { person: "fred", roles, mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  const tabs = () => page.getByRole("navigation", { name: "Work pages", exact: true }).locator("a:visible").allTextContents();
+  for (const [who, width, expected] of [
+    [["operator"], 390, ["All work", "My work"]],
+    [["operator"], 1440, ["All work", "My work", "Workflows", "Master data"]],
+    [["operator", "data_steward"], 390, ["All work", "My work", "Workflows", "Master data"]],
+  ]) {
+    roles = who;
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`${url}/#/exceptions`);
+    await page.reload();
+    await page.getByRole("navigation", { name: "Work pages", exact: true }).waitFor();
+    await page.waitForFunction((n) => [...document.querySelectorAll('nav[aria-label="Work pages"] a')]
+      .filter((a) => a.getClientRects().length).length === n, expected.length);
+    assert.deepEqual(await tabs(), expected);
+  }
+  // The pages still open from a link, with their own tab shown while on them.
+  roles = ["operator"];
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/masterdata`);
+  await page.reload();
+  await page.waitForFunction(() => [...document.querySelectorAll('nav[aria-label="Work pages"] a')].filter((a) => a.getClientRects().length).length === 3);
+  assert.deepEqual(await tabs(), ["All work", "My work", "Master data"]);
+});
+
 test("P5.14b On a phone, Home, My work, Explore and Reports are one tap away at the bottom", async () => {
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["operator"], mine: [], queue: [],
