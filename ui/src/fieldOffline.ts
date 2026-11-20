@@ -8,6 +8,7 @@
  * the app returns to the foreground and every 30 s while it is on screen, from whichever page is open. iOS has no
  * background sync, so nothing is sent while the app is closed. Only writes that never reached the server are sent
  * again; one the server refused is not resent (AGENTS.md), and an expired session holds the outbox until sign-in. */
+import { forgetSnapshot } from "./snapshot";
 import { errorMessage } from "./lib";
 import { when } from "./format";
 import { useEffect, useState } from "react";
@@ -241,6 +242,7 @@ export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
 
 /** Forget the pages kept for the signed-in account, at sign-out. Its outbox stays: that is the operator's work. */
 export async function forgetKept(): Promise<void> {
+  forgetSnapshot();
   await clearKept(account);
   await store.remove("kept", `warm:${account}:${getProject()}`);
   note({ kept: false });

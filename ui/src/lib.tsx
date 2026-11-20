@@ -1,7 +1,11 @@
 // Small shared hooks and components.
 
 import { Badge as UIBadge, Button, Card, Text } from "./ui";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { getProject } from "./authState";
+import { getScope } from "./fieldStore";
+import { keptAt } from "./fieldPack";
+import { CHANGED, joinWave, notifyChanged, openWave, recall, remember, snapshotKey, subscribeWave, waveOpen } from "./snapshot";
 import { Mark } from "./brand";
 
 /** Hash-based routing: #/ , #/e/<id> , #/review. Keeps the API free to own real paths. */
@@ -52,12 +56,22 @@ export const planItemHref = (p: { id: number; start_at: string }) =>
   href("/plan", { item: String(p.id), from: new Date(new Date(p.start_at).getTime() - 7 * 86_400_000).toISOString().slice(0, 10) });
 
 /** Fires when data changes (e.g. after a review decision) so views can refresh. */
-export const CHANGED = "fuzer:changed";
-export const notifyChanged = () => window.dispatchEvent(new Event(CHANGED));
+export { CHANGED, notifyChanged, refreshAll } from "./snapshot";
 
+/** Load data for a view. The answer this read last gave in this tab (see `snapshot.ts`) shows at once, marked
+ * `loading`, while the read asks the server again, so a refresh or a return to a page never starts from blank. */
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
+  const place = useId();
   const key = useMemo(() => ({}), deps);
-  const [state, setState] = useState<{ key: object; data?: T; error?: string; loading: boolean }>({ key, loading: true });
+  const snap = useMemo(() => snapshotKey(getScope(), getProject(), place, fn.toString(), deps), deps);
+  const start = (): { key: object; data?: T; error?: string; loading: boolean } => {
+    const kept = recall<T>(snap);
+    if (!kept) return { key, loading: true };
+    // What the page shows from here changes together: this read and those beside it join one wave (see snapshot.ts).
+    openWave();
+    return { key, data: kept.value, loading: true };
+  };
+  const [state, setState] = useState(start);
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick((t) => t + 1), []);
   // Any data change (a review answer, a finished background rebuild) refreshes every view.
@@ -67,17 +81,26 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   }, [reload]);
   useEffect(() => {
     let live = true;
-    setState((s) => s.key === key ? { ...s, loading: true, error: undefined } : { key, loading: true });
+    setState((s) => s.key === key ? { ...s, loading: true, error: undefined } : start());
+    const turn = joinWave();
     fn().then(
-      (data) => live && setState({ key, data, loading: false }),
-      (e: unknown) => live && setState({ key, error: errorMessage(e), loading: false }),
+      (data) => {
+        if (!live) return;
+        remember(snap, data, keptAt(data) !== null);
+        turn.settle(() => { if (live) setState({ key, data, loading: false }); });
+      },
+      (e: unknown) => { if (live) turn.settle(() => { if (live) setState({ key, error: errorMessage(e), loading: false }); }); },
     );
     return () => {
       live = false;
+      turn.drop();
     };
   }, [...deps, tick]);
-  return { ...state, ...(state.key === key ? {} : { data: undefined, error: undefined, loading: true }), reload };
+  return { ...(state.key === key ? state : start()), reload };
 }
+
+/** Whether a Refresh (or the first reads after a page load) is still bringing in new answers. */
+export const useRefreshing = () => useSyncExternalStore(subscribeWave, waveOpen, () => false);
 
 /** Read again every `ms` while the page is in view (Home's live feed and map). Reads only: an action never repeats. */
 export function useLive(reloads: (() => void)[], ms = 30_000) {
