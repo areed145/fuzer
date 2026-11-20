@@ -47,8 +47,7 @@ export function AssetProfile({ id, data }: { id: string; data?: Awaited<ReturnTy
   </span>]);
   if (!rows.length) return null;
   return (
-    <Card as="section" className="asset-profile">
-      <h2>About this asset</h2>
+    <Card as="section" className="asset-profile" title="About this asset">
       <dl className="profile-facts">
         {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
       </dl>

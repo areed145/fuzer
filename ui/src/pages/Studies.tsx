@@ -84,7 +84,7 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
   const s = useAsync(() => api.study(id), [id]);
   const d = s.data;
   return (
-    <UICard  as="section">
+    <UICard as="section">
       <Status of={s} />
       {d && (
         <>

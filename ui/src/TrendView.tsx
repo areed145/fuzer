@@ -12,7 +12,7 @@ import { caseHref } from "./pages/workflows/shared";
 import { useTheme } from "./theme";
 import { buildFigure, fromQuery, LANE_SHORT, names, OTHER, reading, toQuery, valueAt, type Palette, type TimelineEvent,
   type TrendTrace } from "./trendFigure";
-import { Badge, Button, Card, Disclosure, Input, Table, ErrorText, Line, Text, List } from "./ui";
+import { Badge, Button, Card, Disclosure, Input, Table, ErrorText, Text, List } from "./ui";
 
 const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
 const local = (iso: string) => iso.slice(0, 16);
@@ -160,19 +160,13 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
   // Nothing measured here (a document, a pipeline without points): no card at all, the page's other views carry on.
   if (d && !d.error && !at && groups.every((g) => !g.traces.length)) return null;
   return (
-    <Card as="section" className={pending ? "trend-view trend-view-pending" : "trend-view"}>
-      <h2>
-        {d?.unit_label ? `${d.unit_label} · ` : ""}{d?.template.title ?? "Trend"}{" "}
-        {d && !d.error && (
-          <Text small muted>
-            {/* Generated values are labelled, as a chip rather than a sentence that read as a fault (#1076). */}
-            {d.provider === "synthetic"
-              ? <Badge title="Generated values: no PI or ADX historian is connected">Demo data</Badge>
-              : `from ${d.provider.toUpperCase()}`}
-            {" "}every {shown?.step_minutes ?? d.step_minutes} min{d.upsets.length > 0 && " · shaded: the 12 h leading into each incident"}
-          </Text>
-        )}
-      </h2>
+    <Card as="section" className={pending ? "trend-view trend-view-pending" : "trend-view"}
+      title={<>{d?.unit_label ? `${d.unit_label} · ` : ""}{d?.template.title ?? "Trend"}</>}
+      // Generated values are labelled, as a chip rather than a sentence that read as a fault (#1076).
+      detail={d && !d.error && <>
+        {d.provider === "synthetic" ? <Badge title="Generated values: no PI or ADX historian is connected">Demo data</Badge> : `from ${d.provider.toUpperCase()}`}
+        {" "}every {shown?.step_minutes ?? d.step_minutes} min{d.upsets.length > 0 && " · shaded: the 12 h leading into each incident"}
+      </>}>
       <div className="row trend-controls">
         <div className="chips segmented trend-windows" role="group" aria-label="How much time the chart shows">
           {WINDOWS.map((h) => (
@@ -212,12 +206,9 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         </div>
       )}
       {selected.length > 0 && (
-        <Card as="section" className="trend-view-detail" aria-label="Selected events">
-          <Line>
-            <h3>{selected.length === 1 ? (KIND[selected[0].kind] ?? "Event") : `${selected.length} events`}</h3>
-            <span className="spacer" />
-            <Button size="sm" variant="link" onClick={() => setChosen(null)}>Close</Button>
-          </Line>
+        <Card as="section" className="trend-view-detail" aria-label="Selected events"
+          title={selected.length === 1 ? (KIND[selected[0].kind] ?? "Event") : `${selected.length} events`}
+          actions={<Button size="sm" variant="link" onClick={() => setChosen(null)}>Close</Button>}>
           <List plain>
             {selected.map((e, i) => {
               const h = recordHref(e);
@@ -234,12 +225,9 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
         </Card>
       )}
       {pins.length > 0 && shown && !shown.error && (
-        <Card as="section" className="trend-view-pins" aria-label="Pinned times">
-          <Line>
-            <h3>{pins.length === 1 ? `At ${minute(pins[0])}` : `${minute(pins[0])} to ${minute(pins[1])}`}</h3>
-            <span className="spacer" />
-            <Button size="sm" variant="link" onClick={() => setPins([])}>Unpin</Button>
-          </Line>
+        <Card as="section" className="trend-view-pins" aria-label="Pinned times"
+          title={pins.length === 1 ? `At ${minute(pins[0])}` : `${minute(pins[0])} to ${minute(pins[1])}`}
+          actions={<Button size="sm" variant="link" onClick={() => setPins([])}>Unpin</Button>}>
           <Table variant="list" density="compact">
             <thead><tr><th>Trace</th><th>A</th>{pins.length > 1 && <><th>B</th><th>Change</th></>}</tr></thead>
             <tbody>

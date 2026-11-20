@@ -19,11 +19,7 @@ export function MemoryCard({ id }: { id: string }) {
   if (!r.data?.length) return null;
   const act = (p: Promise<unknown>) => p.then(() => { setError(undefined); r.reload(); }, (e) => setError(String(e)));
   return (
-    <UICard  as="section">
-      <h2>
-        What the assistant remembers{" "}
-        <Text small muted>learned from answers rated useful, not source records</Text>
-      </h2>
+    <UICard as="section" title="What the assistant remembers">
       <ErrorText>{error}</ErrorText>
       <List plain>
         {r.data.map((f) => <FactRow key={f.id} f={f} act={act} />)}

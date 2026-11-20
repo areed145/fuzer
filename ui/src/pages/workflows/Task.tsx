@@ -92,7 +92,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
           ) : t.kind === "agent" ? (
             <p>The {t.role} agent has this step{t.claimed_by ? ` (worker ${t.claimed_by})` : ""}. Hand it to a person to take it over.</p>
           ) : (
-            <UICard className="">
+            <UICard>
               <div className="actions">
                 {!t.assignee && (demo ? <ConfirmAction label="claim task" busy={!!a.busy} disabled={completion !== null}
                   consequence="Claim this shared task for your account. It leaves the role queue and changes recorded ownership; this is not a private demonstration."
@@ -237,8 +237,7 @@ function Evidence({ v }: { v: WorkTaskView }) {
     return e.agents.map((a) => ({ a, old: seen.has(a.element ?? "") || !seen.add(a.element ?? "") }));
   }, [e.agents]);
   return (
-    <UICard className="evidence">
-      <h3>Evidence</h3>
+    <UICard className="evidence" title="Evidence">
       {e.subjects.length > 0 && (
         <Text as="p" small>About <EntityLinks ids={e.subjects.map((s) => s.fuzer_id)} /></Text>
       )}

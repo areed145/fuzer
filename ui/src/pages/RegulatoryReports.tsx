@@ -70,8 +70,7 @@ function Decide({ d, onDone }: { d: RegulatoryReport; onDone: () => void }) {
   const latest = d.version === Math.max(...d.versions);
   const needsNote = d.marked.length > 0;
   return (
-    <Card as="section">
-      <h2>Approve and submit</h2>
+    <Card as="section" title="Approve and submit">
       {d.status === "draft" && !latest && <Text as="p" small muted>An older draft; only the latest version can be approved.</Text>}
       {d.status === "draft" && latest && (!person ? (
         <Text as="p" small>Say who you are in the sidebar (bottom left) to approve it.</Text>
@@ -130,16 +129,13 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
       <Status of={r} />
       {d && (
         <>
-          <Card as="section">
-            <Line spread>
-              <h2>{d.title}, {d.coverage.label}</h2>
-              <span className="small row">
+          <Card as="section" title={<>{d.title}, {d.coverage.label}</>}
+            actions={<span className="small row">
                 {d.versions.map((v) => (
                   <Button key={v} className={v === d.version ? "chip on" : "chip"} onClick={() => setVersion(v)}>v{v}</Button>
                 ))}
                 {d.review?.item_id && <a href={href(`/cases/${d.review.item_id}`)}>review case ({d.review.state})</a>}
-              </span>
-            </Line>
+              </span>}>
             <Text as="p" small muted>
               Covers {d.coverage.since} to {d.coverage.through}
               {d.coverage.partial ? ", drafted through the data's last full day: the month is not over" : ""}.
@@ -161,8 +157,7 @@ export function RegulatoryReportView({ template, period, onChange }: { template:
           </Card>
           <Decide d={d} onDone={() => { r.reload(); onChange(); }} />
           {d.sections.map((s) => (
-            <Card as="section" key={s.title}>
-              <h2>{s.title}</h2>
+            <Card as="section" key={s.title} title={s.title}>
               {s.note && <Text as="p" small muted>{s.note}</Text>}
               {s.figures.length === 0 ? <Text as="p" small muted>Nothing for this period.</Text> : (
                 <Table>

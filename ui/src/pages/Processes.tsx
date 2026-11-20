@@ -418,8 +418,7 @@ function ModelTab({ def, defs, draft, reload }: {
       {editable && !admin && person && <Text as="p" small muted>You can edit and check drafts; publishing needs the workflow admin role.</Text>}
       {msg && <div className={`status small ${msg.error ? "error" : "ok"}`} role={msg.error ? "alert" : "status"}>{msg.text}</div>}
       <NeedName person={person} />
-      {editable && <UICard className="workflow-agent">
-        <h3>Workflow drafting agent</h3>
+      {editable && <UICard className="workflow-agent" title="Workflow drafting agent">
         <label className="prop">
           <span>Workflow description</span>
           <Textarea rows={3} maxLength={12000} value={description} onChange={(e) => setDescription(e.target.value)}
@@ -455,8 +454,7 @@ function ModelTab({ def, defs, draft, reload }: {
       </UICard>}
 
       {problems.length > 0 && (
-        <UICard className="problems">
-          <h3>Problems</h3>
+        <UICard className="problems" title="Problems">
           <List plain>
             {problems.map((p, i) => (
               <li key={i} className="small">
@@ -486,10 +484,9 @@ function Comparison({ compare, onPick }: { compare: WorkCompare; onPick: (id: st
   const { xml } = useXml(compare.against?.id);
   const classes = useMemo(() => Object.fromEntries(compare.changes.filter((c) => c.change !== "added")
     .map((c) => [c.element, c.change === "removed" ? "fz-removed" : "fz-changed"])), [compare]);
-  if (!compare.against) return <UICard className=""><h3>Comparison</h3><Text as="p" small muted>Nothing published yet: everything is new.</Text></UICard>;
+  if (!compare.against) return <UICard title="Comparison"><Text as="p" small muted>Nothing published yet: everything is new.</Text></UICard>;
   return (
-    <UICard className="">
-      <h3>Changes against v{compare.against.version} ({compare.against.state})</h3>
+    <UICard title={<>Changes against v{compare.against.version} ({compare.against.state})</>}>
       {compare.changes.length === 0 ? <Text as="p" small muted>No changes to what the engine runs (moving shapes doesn't count).</Text> : (
         <ul className="plain changes">
           {compare.changes.map((c) => <ChangeRow key={c.element} c={c} onPick={onPick} />)}
@@ -575,8 +572,7 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
         <span><i className="dot fz-legend-late" /> some of it overdue</span>
       </div>
       {m.data && (
-        <UICard className="">
-          <h3>Steps</h3>
+        <UICard title="Steps">
           {rows.length === 0 ? <Text as="p" small muted>Nothing waiting and nothing finished in this period.</Text> : (
             <Table variant="list">
               <thead><tr><th>Step</th><th>Waiting</th><th>Overdue</th><th>Oldest wait</th><th>Done ({days} d)</th><th>Median time</th></tr></thead>

@@ -15,8 +15,7 @@ export function Rules() {
   if (!r.data) return <Status of={r} />;
   return (
     <>
-      <UICard className="">
-        <h2>Default priority <Text small muted>the systems' rank: lower wins; a reviewer's decision always comes first</Text></h2>
+      <UICard title="Default priority, lower rank wins">
         <Table variant="list" density="compact">
           <tbody>
             {r.data.ranks.map((s) => (
@@ -35,8 +34,7 @@ export function Rules() {
         </Table>
       </UICard>
       <MatchConfidence rows={r.data.calibration ?? []} reload={r.reload} />
-      <UICard className="">
-        <h2>Field and match rules</h2>
+      <UICard title="Field and match rules">
         <Table variant="list" density="compact">
           <thead><tr><th>Scope</th><th>Name</th><th>Rule</th><th>By</th><th /></tr></thead>
           <tbody>
@@ -75,8 +73,7 @@ function MatchConfidence({ rows, reload }: { rows: MatchCalibration[]; reload: (
   const changes = rows.filter((x) => x.recommended && x.in_use &&
     (x.recommended.auto_accept !== x.in_use.auto_accept || x.recommended.review_min !== x.in_use.review_min));
   return (
-    <UICard className="match-confidence">
-      <h2>Match confidence</h2>
+    <UICard className="match-confidence" title="Match confidence">
       {!rows.length ? <Empty className="small">Not measured yet. Measure after a rebuild.</Empty> : (
         <Table variant="list" density="compact">
           <thead><tr><th>Source</th><th>Straight-through</th><th>Measured there</th><th>Review from</th></tr></thead>
