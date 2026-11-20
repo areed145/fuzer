@@ -27,8 +27,24 @@ function script(src: string): Promise<void> {
   });
 }
 
+/* The token is kept in the tab until two minutes before it expires, so a refresh draws the map at once instead of
+ * waiting for its token behind every other read the page makes. */
+const KEPT = "fz:mapkit-token";
+type Token = { token: string | null; expires?: number };
+function kept(): Token | null {
+  try {
+    const k = JSON.parse(sessionStorage.getItem(KEPT) ?? "null") as Token | null;
+    return k?.token && (k.expires ?? 0) * 1000 - Date.now() > 120_000 ? k : null;
+  } catch { return null; }
+}
+async function token(): Promise<Token> {
+  const t = await api.mapkitToken();
+  try { if (t.token && t.expires) sessionStorage.setItem(KEPT, JSON.stringify(t)); } catch { /* storage refused */ }
+  return t;
+}
+
 async function start(): Promise<MapKit | null> {
-  const first = await api.mapkitToken().catch(() => null);
+  const first = kept() ?? await token().catch(() => null);
   if (typeof first?.token !== "string" || !first.token) return null;
   await script(MAPKIT_SRC);
   const mk = window.mapkit;
@@ -50,7 +66,7 @@ async function start(): Promise<MapKit | null> {
       authorizationCallback: (done: (token: string) => void) => {
         if (initial) { done(initial); initial = null; return; }
         // Apple asks again before a token expires; a failed refresh shows as an "error" event above.
-        api.mapkitToken().then((r) => { if (r.token) done(r.token); }).catch(() => {});
+        token().then((r) => { if (r.token) done(r.token); }).catch(() => {});
       },
     });
   });
