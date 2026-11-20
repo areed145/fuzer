@@ -35,6 +35,10 @@ DEMO_TENANT = "fuzer-demo"  # never a UUID, so no Microsoft identity can collide
 DEMO_NAME = "Demo account"
 DEMO_DENIED = frozenset({"configure"})
 DEMO_SESSION_HOURS = 12
+# The demo account also signs in with a username and password on the sign-in page, so a deployment can be shown and
+# checked without Microsoft. Same switch as the token: off while FUZER_DEMO_TOKEN is unset. The password is "demo"
+# unless FUZER_DEMO_PASSWORD names another.
+DEMO_USERNAME = "demo"
 
 
 class AccessError(ValueError):
@@ -266,13 +270,29 @@ def demo_projects(conn) -> list[str]:
 
 
 def demo_sign_in(conn, token: str) -> tuple[Principal, str]:
-    """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN. The account is created enabled with the
-    operator role in the demo projects (demo_projects); an owner can disable it or change its roles on Users, and a
-    disabled demo account stays signed out. It never owns or changes configuration, and reads all of it (see
-    principal)."""
+    """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN."""
     expected = os.environ.get("FUZER_DEMO_TOKEN", "")
     if not demo_enabled() or not hmac.compare_digest(token.encode(), expected.encode()):
         raise AccessError("Demo sign-in is not available")
+    return _demo_session(conn, "demo_token")
+
+
+def demo_password_sign_in(conn, username: str, password: str) -> tuple[Principal, str]:
+    """Sign in as the demo account with its username and password (DEMO_USERNAME, FUZER_DEMO_PASSWORD or "demo")."""
+    expected = os.environ.get("FUZER_DEMO_PASSWORD") or "demo"
+    right_name = hmac.compare_digest(username.strip().lower().encode(), DEMO_USERNAME.encode())
+    right_password = hmac.compare_digest(password.encode(), expected.encode())
+    if not demo_enabled():
+        raise AccessError("Demo sign-in is not available")
+    if not (right_name and right_password):
+        raise AccessError("Wrong username or password")
+    return _demo_session(conn, "demo_password")
+
+
+def _demo_session(conn, method: str) -> tuple[Principal, str]:
+    """Start a demo account session. The account is created enabled with the operator role in the demo projects
+    (demo_projects); an owner can disable it or change its roles on Users, and a disabled demo account stays signed
+    out. It never owns or changes configuration, and reads all of it (see principal)."""
     created = conn.execute(
         "insert into access_account (id, tenant_id, object_id, display_name, enabled, owner) "
         "values (%s, %s, %s, %s, true, false) on conflict (id) do nothing returning id",
@@ -300,7 +320,7 @@ def demo_sign_in(conn, token: str) -> tuple[Principal, str]:
     conn.execute(
         "insert into access_session (token_hash, account_id, csrf, expires_at) "
         "values (%s, %s, %s, now() + %s * interval '1 hour')", (digest(session_token), DEMO_ID, csrf, hours))
-    event(conn, ACTOR_PREFIX + DEMO_ID, "signed_in", method="demo_token")
+    event(conn, ACTOR_PREFIX + DEMO_ID, "signed_in", method=method)
     conn.commit()
     return principal(conn, DEMO_ID, csrf), session_token
 

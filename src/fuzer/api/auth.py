@@ -57,7 +57,7 @@ def me(request: Request):
             "user": None if person is None else {
                 **asdict(person), "actor": person.actor, "permissions": sorted(person.permissions),
                 "projects": visible},
-            "needs_owner": not has_owner}
+            "needs_owner": not has_owner, "demo_sign_in": access.demo_enabled()}
 
 
 @router.get("/login")
@@ -132,15 +132,10 @@ class DemoSignIn(BaseModel):
     token: str = Field(max_length=512)
 
 
-@router.post("/demo")
-def demo(body: DemoSignIn, request: Request):
-    """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN (off unless that is set). For
-    demonstrations and automated checks of a live deployment; Microsoft stays the sign-in for people."""
-    if access.mode() != "microsoft" or not access.configured() or not access.demo_enabled():
-        raise HTTPException(404, "Not Found")
+def _demo_response(request: Request, sign_in):
     try:
         with db.connect() as conn:
-            person, token = access.demo_sign_in(conn, body.token)
+            person, token = sign_in(conn)
             old = request.cookies.get(cookie_name("session"))
             if old:
                 conn.execute("delete from access_session where token_hash = %s", (access.digest(old),))
@@ -153,6 +148,32 @@ def demo(body: DemoSignIn, request: Request):
                              "csrf": person.csrf, "project": person.project})
     _cookie(response, "session", token, hours * 3600)
     return response
+
+
+def _demo_available():
+    if access.mode() != "microsoft" or not access.configured() or not access.demo_enabled():
+        raise HTTPException(404, "Not Found")
+
+
+@router.post("/demo")
+def demo(body: DemoSignIn, request: Request):
+    """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN (off unless that is set). For
+    demonstrations and automated checks of a live deployment; Microsoft stays the sign-in for people."""
+    _demo_available()
+    return _demo_response(request, lambda conn: access.demo_sign_in(conn, body.token))
+
+
+class PasswordSignIn(BaseModel):
+    username: str = Field(max_length=128)
+    password: str = Field(max_length=512)
+
+
+@router.post("/password")
+def password(body: PasswordSignIn, request: Request):
+    """Sign in as the demo account with its username and password, from the sign-in page. On only while the demo
+    account is (FUZER_DEMO_TOKEN set); there are no other password accounts."""
+    _demo_available()
+    return _demo_response(request, lambda conn: access.demo_password_sign_in(conn, body.username, body.password))
 
 
 @router.post("/logout")
