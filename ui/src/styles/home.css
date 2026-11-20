@@ -29,7 +29,7 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 /* The top panel: the figures, then the layer chips, in one box the width of the space between the menu and Needs you. */
 .home-top { justify-self: stretch; display: grid; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--panel); box-shadow: 0 6px 24px rgb(0 0 0 / .18); }
-.home-figures { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-top .home-figures { flex-wrap: wrap; gap: 8px; }
 .home-figures:empty { display: none; }
 .home-figure { flex: 1 1 128px; display: grid; min-width: 0; white-space: nowrap; }
 .home-layers { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
@@ -95,9 +95,15 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
   .home-layers::-webkit-scrollbar { display: none; }
   .home-layers .chip { flex: none; white-space: nowrap; }
   .home-top { padding: 6px; }
-  .home-figures { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .home-figures::-webkit-scrollbar { display: none; }
-  .home-figure { flex: none; min-width: 104px; }
+  .home-top .home-figures { flex-wrap: nowrap; }
+  /* Two figures and half the next across a phone, so the row plainly goes on and each label keeps to one line. */
+  .home-figure { flex: 0 0 calc((100% - 16px) / 2.5); min-width: 0; }
+  .home-figure small { white-space: normal; }
+  /* The mark sits on the map, which is dark in both themes: it gets the glass the buttons beside it have. */
+  html:has(.home-map) .topbar .brand { display: inline-flex; align-items: center; height: 44px; padding: 0 14px; border-radius: 22px;
+    background: var(--glass, var(--panel)); background-image: var(--glass-sheen, none);
+    -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%);
+    border: var(--hair, 1px) solid var(--glass-edge, var(--line)); box-shadow: inset 0 1px 0 var(--glass-hi, transparent), var(--glass-shadow, none); }
   .home-charts { max-height: calc(100dvh - var(--bar-top, 0px) - var(--bar-bottom, 0px) - 260px); }
   .home-feed { top: auto; left: 0; right: 0; bottom: var(--bar-bottom, 0px); width: auto; max-height: 56px; border-radius: 16px 16px 0 0;
     border-bottom: 0; transition: max-height .2s ease; }

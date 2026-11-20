@@ -80,6 +80,43 @@ export function Tabs({ items, label, small, className = "" }: { items: TabItem[]
     : <div ref={row} className={cls} role="group" aria-label={label}>{tabs}</div>;
 }
 
+/** Every row that scrolls sideways: the kit's tabs, area navigation, chip rows, Home's figures and the like. A row
+ * wider than the screen shows that there is more by fading the edge that has more and snapping so items rest whole,
+ * only the next one peeking in. `watchScrollers` marks every such row once, so a page adds nothing; a new row uses
+ * `Scroller`, or one of these classes. */
+export const SCROLL_ROWS = ".ui-scroller, .tabs, .area-navigation, .chips, .report-days, .map-legend, .trend-controls";
+
+function markScroll(el: HTMLElement) {
+  const max = el.scrollWidth - el.clientWidth, at = Math.abs(el.scrollLeft);
+  const more = max <= 1 ? "" : at <= 1 ? "end" : at >= max - 1 ? "start" : "both";
+  if ((el.dataset.more ?? "") !== more) { if (more) el.dataset.more = more; else delete el.dataset.more; }
+}
+
+export function watchScrollers() {
+  const seen = new WeakSet<Element>();
+  const sizes = new ResizeObserver((entries) => entries.forEach((e) => markScroll(e.target as HTMLElement)));
+  let queued = false;
+  const scan = () => {
+    queued = false;
+    document.querySelectorAll<HTMLElement>(SCROLL_ROWS).forEach((el) => {
+      if (!seen.has(el)) {
+        seen.add(el);
+        el.addEventListener("scroll", () => markScroll(el), { passive: true });
+        sizes.observe(el);
+      }
+      markScroll(el);  // its items may have changed without its own box changing size
+    });
+  };
+  new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(scan); } })
+    .observe(document.body, { childList: true, subtree: true });
+  scan();
+}
+
+/** A row of cards, chips or buttons that scrolls sideways on a narrow screen (see SCROLL_ROWS). */
+export function Scroller({ label, className = "", children }: { label?: string; className?: string; children: ReactNode }) {
+  return <div className={`ui-scroller ${className}`.trim()} role={label ? "group" : undefined} aria-label={label}>{children}</div>;
+}
+
 /** A heading for a part of a page or a group inside a card, where it isn't a Card's own title. `detail` is the grey
  * fact after it (a count, a date, an id), `actions` the controls on its right, and `small` the compact heading of a
  * group inside a card. */

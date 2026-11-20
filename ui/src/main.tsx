@@ -5,7 +5,7 @@ import "./styles/shell.css";
 import "./styles/shared.css";
 import "./styles/workflows.css";
 import "./styles/ios.css";
-import { Badge as UIBadge, ErrorText } from "./ui";
+import { Badge as UIBadge, ErrorText, watchScrollers } from "./ui";
 import { StrictMode, Suspense, lazy, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { href, useAsync, useRoute } from "./lib";
@@ -292,6 +292,7 @@ function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuil
 
 // Before the first render, so a cold launch of the installed app resumes on the last page (P5.14a).
 startIos();
+watchScrollers();
 startAppHistory();
 lockPageZoom();
 // One sender for reports kept without signal (P5.17a), from whichever page is open.
