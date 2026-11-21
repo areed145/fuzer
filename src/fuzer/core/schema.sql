@@ -54,6 +54,8 @@ create table if not exists fuzer.access_session (
     expires_at timestamptz not null
 );
 create index if not exists access_session_account on fuzer.access_session(account_id);
+-- The roles a demo session acts as, by project: per session so concurrent demos don't overwrite each other.
+alter table fuzer.access_session add column if not exists acting_roles jsonb not null default '{}';
 -- Application roles in a project other than the database's first one (whose roles are access_membership).
 -- Owners span every project; anyone else sees a project only through a grant here.
 create table if not exists fuzer.access_project_grant (

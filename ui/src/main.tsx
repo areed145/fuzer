@@ -181,7 +181,9 @@ function App() {
         <BackButton path={path} className="page-back" />
         <AreaNavigation section={navSection} query={query} demoEnabled={demo.data?.enabled === true} roles={inbox.data?.roles} />
         <PageNote.Provider value={viewOnly && VIEW_ONLY_SECTIONS.has(section)
-          ? <p className="notice view-only" role="note">View only: the demo account can look at this page but can't change it.</p> : null}>
+          ? <p className="notice view-only" role="note">{section === "sources"
+            ? "Demo account: you can rerun a load, profile it, add a check and approve a mapping here. Systems, connections and settings are view only."
+            : "View only: the demo account can look at this page but can't change it."}</p> : null}>
         <Suspense fallback={<div className="status" role="status" aria-live="polite">Loading…</div>}>
           {section === "" && query.has("q") ? (
             <Search query={query} stats={s} />

@@ -194,12 +194,12 @@ def pending(conn, now: datetime | None = None) -> bool:
 def _acting_roles(conn, person: str) -> list[str] | None:
     """The roles the demo account picked to act as (#1068), else None. Its notices follow the pick (#1115): acting as
     the planner, it is not shown what it was told as the ops lead. Other accounts see every notice of theirs."""
-    from ..core import access
+    from ..core import access, db
 
     if person != access.ACTOR_PREFIX + access.DEMO_ID:
         return None
-    row = conn.execute("select roles from work_person where name = %s", (person,)).fetchone()
-    return list(row["roles"]) if row and row["roles"] else None
+    picked = (access.ACTING.get() or {}).get(db.scope().project or "")  # this session's pick (act_as)
+    return list(picked) if picked else None
 
 
 # A notice counts for a role when the step (else the case) it is about sits in that role's queue.

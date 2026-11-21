@@ -215,12 +215,12 @@ def test_the_demo_accounts_notices_follow_the_role_it_acts_as(conn):
     row = conn.execute("select assignee, role from work_item where id = %s", (field,)).fetchone()
     assert (row["assignee"], row["role"]) == (demo, "operator")  # an account is a person, not a queue
     assert {n["item_id"] for n in told(conn, demo)} >= {lead, field}  # acting as every role: every notice
-    engine.act_as(conn, ["operator"])
-    conn.commit()
+    from fuzer.core import access, db
+
+    picked = access.ACTING.set({db.scope().project or "": ["operator"]})  # this demo session acts as an operator
     shown = told(conn, demo)
     assert field in {n["item_id"] for n in shown} and lead not in {n["item_id"] for n in shown}
     assert notify.mine(conn, demo)["unread"] == len([n for n in shown if not n["read_at"]])
     assert notify.mark_read(conn, demo)["read"] == len([n for n in shown if not n["read_at"]])
-    engine.act_as(conn, [])
-    conn.commit()
+    access.ACTING.reset(picked)  # another session, or none picked: every role again
     assert [n for n in told(conn, demo) if n["item_id"] == lead and not n["read_at"]]  # still there for the ops lead

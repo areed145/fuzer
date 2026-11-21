@@ -404,15 +404,21 @@ def remove_cover(conn, name: str, by: str = SYSTEM) -> dict:
 
 
 @_op
-def act_as(conn, roles: list[str], by: str = SYSTEM) -> dict:
-    """The demo account picks the human roles it acts as in this project (#1068); none picked means every one."""
+def act_as(conn, roles: list[str], by: str = SYSTEM, token: str = "") -> dict:
+    """The demo account picks the human roles this session acts as in this project (#1068); none picked means every
+    one. Kept on the session (access.set_acting), so another demo session keeps its own pick."""
+    from ..core import db
+
     name = access.ACTOR_PREFIX + access.DEMO_ID
     known = {r["name"] for r in conn.execute("select name from work_role where kind = 'person'")}
     if unknown := set(roles) - known:
         raise WorkError(f"unknown roles: {', '.join(sorted(unknown))}")
-    conn.execute("insert into work_person (name, roles) values (%s, %s) on conflict (name) do update "
-                 "set roles = excluded.roles", (name, sorted(set(roles))))
+    try:
+        acting = access.set_acting(conn, token, db.scope().project, roles)
+    except access.AccessError as e:
+        raise WorkError(str(e)) from e
     _event(conn, "roles_set", by, data={"person": name, "roles": sorted(set(roles))})
+    access.ACTING.set(acting)
     return {"name": name, "roles": roles_of(conn, name), "picked": sorted(set(roles))}
 
 
@@ -424,11 +430,17 @@ def roles_of(conn, name: str) -> list[str]:
             return []
         if account and account["owner"]:
             return [r["name"] for r in conn.execute("select name from work_role where kind = 'person' order by name")]
+    if name == access.ACTOR_PREFIX + access.DEMO_ID:
+        # The demo account can be any role (#1068): every human role until this session picks which to act as
+        # (act_as). The pick lives on the session, so outside a request (or before a pick) it is every role.
+        from ..core import db
+
+        if picked := (access.ACTING.get() or {}).get(db.scope().project or ""):
+            return list(picked)
+        if account:
+            return [r["name"] for r in conn.execute("select name from work_role where kind = 'person' order by name")]
     row = conn.execute("select roles from work_person where name = %s", (name,)).fetchone()
     own = list(row["roles"]) if row else []
-    if name == access.ACTOR_PREFIX + access.DEMO_ID and not own and account:
-        # The demo account can be any role (#1068): every human role until it picks which to act as (act_as).
-        return [r["name"] for r in conn.execute("select name from work_role where kind = 'person' order by name")]
     for c in _covers(conn, name):  # an overarching person's roles count here too (#497)
         own += [r for r in c["roles"] if r not in own]
     return own

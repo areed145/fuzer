@@ -239,6 +239,19 @@ def test_a_case_handed_back_by_name_is_the_holders_to_act_on_whatever_queue_it_n
     assert runtime.post(f"/work/items/{theirs['id']}/comment", json={"by": "system", "text": "Not mine"}).status_code == 403
 
 
+def test_a_lead_can_close_out_a_case_another_lead_holds(runtime):
+    # back from the field, the job went to riley; the IOC lead on shift closes it out (red team tour, 21 Nov)
+    person, _ = signed_in(runtime, roles=("operator",))
+    with db.connect() as conn:
+        work.set_person(conn, person.actor, ["ops_lead"])
+        lead = work.create_item(conn, "test", "Back from the field", "system", role="ops_lead", assignee="riley")
+        engineer = work.create_item(conn, "test", "Engineer's case", "system", role="engineer", assignee="casey")
+        conn.commit()
+    assert runtime.post(f"/work/items/{lead['id']}/comment", json={"by": "system", "text": "Closing it"}).status_code == 200
+    refused = runtime.post(f"/work/items/{engineer['id']}/comment", json={"by": "system", "text": "Not a lead queue"})
+    assert refused.status_code == 403
+
+
 def test_owner_can_extend_app_roles_revoke_access_and_cannot_remove_last_owner(runtime):
     owner, _ = signed_in(runtime, owner=True)
     response = runtime.put(f"/auth/accounts/{owner.id}", json={"enabled": True, "owner": False, "roles": ["reader"]})
@@ -839,14 +852,38 @@ def test_demo_account_is_every_human_role_until_it_picks_which_to_act_as(runtime
     picked = runtime.put("/work/me/roles", json={"roles": ["operator"]})
     assert picked.status_code == 200, picked.text
     assert picked.json()["roles"] == ["operator"]
+    assert runtime.get("/auth/me").json()["user"]["acting_here"] == ["operator"]
+    assert runtime.get("/work/inbox", params={"person": "user:demo"}).json()["roles"] == ["operator"]
     with db.connect() as conn:
-        assert work.roles_of(conn, "user:demo") == ["operator"]
+        # the pick is this session's: outside it (a job, another demo session) the account is every role again
+        assert set(work.roles_of(conn, "user:demo")) == people
         last = conn.execute("select actor, data from work_event where kind = 'roles_set' order by id desc limit 1").fetchone()
         assert last["actor"] == "user:demo" and last["data"]["roles"] == ["operator"]
+    with TestClient(app, base_url="https://testserver") as other:  # a second person demonstrating at the same time
+        demo_signed_in(other)
+        assert set(other.get("/work/inbox", params={"person": "user:demo"}).json()["roles"]) == people
+        assert other.put("/work/me/roles", json={"roles": ["data_steward"]}).status_code == 200
+    assert runtime.get("/work/inbox", params={"person": "user:demo"}).json()["roles"] == ["operator"]  # unchanged
     assert runtime.put("/work/me/roles", json={"roles": ["workflow_admin_made_up"]}).status_code == 400
     assert set(runtime.put("/work/me/roles", json={"roles": []}).json()["roles"]) == people  # back to every role
     signed_in(runtime, owner=True)  # only the demo account picks its own roles
     assert runtime.put("/work/me/roles", json={"roles": ["operator"]}).status_code == 403
+
+
+def test_demo_account_does_a_data_stewards_fixes_but_not_configuration(runtime, monkeypatch):
+    from fuzer.api import security
+
+    assert security.steward_action("/sources/datasets/{name}/run", "POST")
+    assert security.steward_action("/sources/mappings/{version_id}/approve", "POST")
+    assert not security.steward_action("/sources/datasets/{name}", "PATCH")
+    assert not security.steward_action("/sources/systems", "POST")
+    assert not security.steward_action("/sources/connections/{cid}", "PATCH")
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
+    demo_signed_in(runtime)
+    refused = runtime.patch("/sources/systems/okan_dcs", json={"description": "demo tries"})
+    assert refused.status_code == 403 and "can't change it" in refused.json()["detail"]
+    passed = runtime.post("/sources/datasets/not_a_dataset/profile")  # past the access check, to the route itself
+    assert passed.status_code != 403, passed.text
 
 
 def test_demo_account_never_owns_or_configures_and_an_owner_or_the_deployment_can_switch_it_off(runtime, monkeypatch):

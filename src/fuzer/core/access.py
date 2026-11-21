@@ -6,7 +6,8 @@ import os
 import re
 import secrets
 import uuid
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field, replace
 from urllib.parse import urlsplit
 
 from psycopg.types.json import Jsonb
@@ -56,6 +57,10 @@ class Principal:
     csrf: str = ""
     project: str | None = None  # the project these roles and permissions are for (None: the database's first)
     inspect: bool = False  # reads configuration without being able to change it (the demo account)
+    # The roles this demo session acts as, by project ("" is the database's first); none picked means every human
+    # role. Kept on the session, not the shared demo account, so two people demonstrating at once don't overwrite
+    # each other's role, queue and Tower.
+    acting: dict = field(default_factory=dict)
 
     @property
     def actor(self):
@@ -325,12 +330,32 @@ def _demo_session(conn, method: str) -> tuple[Principal, str]:
     return principal(conn, DEMO_ID, csrf), session_token
 
 
+# The signed-in session's picked demo roles while a request runs (security sets it); None outside a request.
+ACTING: ContextVar[dict | None] = ContextVar("fuzer_acting_roles", default=None)
+
+
 def session(conn, token: str) -> Principal | None:
-    row = conn.execute("select account_id, csrf from access_session where token_hash = %s and expires_at > now()",
-                       (digest(token),)).fetchone()
+    row = conn.execute("select account_id, csrf, acting_roles from access_session "
+                       "where token_hash = %s and expires_at > now()", (digest(token),)).fetchone()
     if row and row["account_id"] == DEMO_ID and not demo_enabled():
         return None  # removing FUZER_DEMO_TOKEN signs the demo account out everywhere, not just at next sign-in
-    return principal(conn, row["account_id"], row["csrf"]) if row else None
+    person = principal(conn, row["account_id"], row["csrf"]) if row else None
+    return replace(person, acting=dict(row["acting_roles"] or {})) if person and person.inspect else person
+
+
+def set_acting(conn, token: str, project: str | None, roles: list[str]) -> dict:
+    """Keep the roles this demo session acts as in `project` on the session itself (none: every role)."""
+    row = conn.execute("select acting_roles from access_session where token_hash = %s and account_id = %s",
+                       (digest(token), DEMO_ID)).fetchone()
+    if row is None:
+        raise AccessError("Only a demo account session picks the roles it acts as")
+    acting = dict(row["acting_roles"] or {})
+    if roles:
+        acting[project or ""] = sorted(set(roles))
+    else:
+        acting.pop(project or "", None)
+    conn.execute("update access_session set acting_roles = %s where token_hash = %s", (Jsonb(acting), digest(token)))
+    return acting
 
 
 def bootstrap(conn, person: Principal, token: str):
