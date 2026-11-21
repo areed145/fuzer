@@ -15,7 +15,7 @@ export function WatchButton({ target, label }: { target: string; label: string }
   return (
     <span className="watch">
       <Button variant="secondary" aria-pressed={on} disabled={!!busy} onClick={toggle}
-        title={on ? `Stop showing changes on this ${label} on your Home` : `Show new cases and changes on this ${label} on your Home, without taking it on`}>
+        title={on ? `Stop showing changes on this ${label} on Tower` : `Show new cases and changes on this ${label} on Tower, without taking it on`}>
         {on ? "Watching" : "Watch"}
       </Button>
       <ErrorText inline>{error}</ErrorText>

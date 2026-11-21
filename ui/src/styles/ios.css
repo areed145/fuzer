@@ -278,7 +278,7 @@
   :root.ios .attention-detail-head { background: transparent; }
   :root.ios .attention-detail .attention-close.ui-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; border-radius: 50%; }
 
-  /* Menu: a sheet that rises from the bottom, its destinations as a grouped list with coloured icon tiles. */
+  /* Menu: a sheet that rises from the bottom, its destinations as a grid of app icons. */
   :root.ios .sidebar {
     inset: auto 0 0 0; width: 100%; height: calc(100dvh - max(16px, env(safe-area-inset-top)) - 8px);
     padding: 12px 16px calc(24px + env(safe-area-inset-bottom)); border-radius: 34px 34px 0 0;
@@ -294,16 +294,15 @@
   :root.ios .drawer-close { position: absolute; top: 18px; right: 16px; width: 44px; height: 44px; min-height: 44px; padding: 0;
     border-radius: 50%; font-size: 0; color: var(--text); }
   :root.ios .drawer-close::after { content: "\2715"; font-size: var(--t-body); }
-  :root.ios .nav-group ul { background: var(--panel); border-radius: var(--radius); gap: 0; overflow: hidden; }
-  :root.ios .nav-group li + li a::before { content: ""; position: absolute; top: 0; left: 54px; right: 0; border-top: var(--hair) solid var(--line); }
-  :root.ios .nav-group a, :root.ios .nav-group a.on { position: relative; gap: 14px; min-height: 52px; padding: 10px 40px 10px 14px; border-radius: 0;
-    color: var(--text); font-size: var(--t-body); font-weight: 400; background: none; }
-  :root.ios .nav-group a.on { font-weight: 600; }
-  :root.ios .nav-group a::after { content: ""; position: absolute; right: 18px; top: 50%; width: 8px; height: 8px; margin-top: -4px;
-    border-right: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); border-top: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); transform: rotate(45deg); }
-  /* Plain line icons in the tint colour, the way iOS's own lists draw them. */
-  :root.ios .nav-group a .nav-icon { width: 24px; height: 24px; color: var(--accent); stroke: var(--accent); stroke-width: 1.8; }
-  :root.ios .nav-group a .count { margin-left: auto; background: none; color: var(--muted); font-size: var(--t-body); }
+  /* The destinations as a home screen: four app icons to a row on the sheet. */
+  :root.ios .nav-group ul { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px 12px; padding: 6px 4px 0; }
+  :root.ios .nav-group ul.no-labels { row-gap: 18px; }
+  @media (min-width: 600px) { :root.ios .nav-group ul { grid-template-columns: repeat(6, minmax(0, 1fr)); padding-top: 12px; } }
+  :root.ios .nav-tile { gap: 6px; color: var(--text); font-size: var(--t-caption); font-weight: 400; }
+  :root.ios .nav-tile.on { color: var(--text); font-weight: 600; }
+  :root.ios .nav-tile-icon { max-width: 64px; background: var(--panel); color: var(--accent); }
+  :root.ios .nav-tile.on .nav-tile-icon { background: var(--accent); color: var(--accent-text, #fff); }
+  :root.ios .nav-tile .count { right: calc(50% - 40px); font-size: var(--t-caption); min-width: 22px; line-height: 22px; padding: 0 6px; border-radius: 11px; }
   :root.ios .sidebar .sidebar-status { margin-top: 8px; padding: 14px 16px; border: 0; border-radius: var(--radius); background: var(--fill);
     --text: inherit; --muted: inherit; color: var(--muted); font-size: var(--t-footnote); }
   :root.ios .scrim { background: rgb(0 0 0 / .35); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
@@ -414,9 +413,13 @@
     --rail-text: var(--text); --rail-hover: var(--fill); --rail-on: var(--lens); --rail-line: var(--line);
     --brand-ink: var(--text); --brand-word: var(--text); --brand-hub: var(--accent);
   }
-  :root.ios .nav-group a { min-height: 44px; border-radius: 12px; font-size: var(--t-subhead); }
-  :root.ios .nav-group a .nav-icon { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
-  :root.ios .nav-group a.on { color: var(--accent); font-weight: 600; }
+  :root.ios .nav-group ul { gap: 16px 6px; padding: 4px 2px 6px; }
+  :root.ios .nav-group ul.no-labels { row-gap: 10px; }
+  :root.ios .nav-tile { color: var(--text); font-size: var(--t-caption); font-weight: 400; }
+  :root.ios .nav-tile.on { color: var(--text); font-weight: 600; }
+  :root.ios .nav-tile-icon { max-width: 60px; background: var(--fill); color: var(--accent); }
+  :root.ios .nav-tile.on .nav-tile-icon { background: var(--accent); color: var(--accent-text, #fff); }
+  :root.ios .nav-tile .count { right: calc(50% - 38px); }
   :root.ios .sidebar a:focus-visible { outline-color: var(--accent); }
   :root.ios .sidebar .sidebar-status { --text: inherit; --muted: inherit; --panel: inherit; --line: inherit; --accent: inherit; color: var(--muted); }
   :root.ios .sidebar { overflow-x: hidden; }

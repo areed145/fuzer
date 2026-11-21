@@ -58,7 +58,7 @@ export function DemoPage({ query, stats }: {
           </EmptyState>}
         <p>Beyond the walkthrough, <a href={href("/network")}>Network</a> connects assets,
           <a href={href("/downtime")}> Downtime</a> ranks recorded losses and
-          <a href={href("/")}> Home</a> charts production and capacity evidence. Coverage depends on loaded sources.</p>
+          <a href={href("/")}> Tower</a> charts production and capacity evidence. Coverage depends on loaded sources.</p>
       </>}
       {step.key === "agents" && <>
         <p>The catalog below comes from Fuzer's capability registry, not a claim that every required source

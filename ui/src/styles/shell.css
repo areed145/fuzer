@@ -17,15 +17,23 @@
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
   color: var(--muted); margin: 0 0 4px; padding: 0 8px;
 }
-.nav-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
-.nav-group a {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px; border-radius: 8px; color: var(--rail-text); font-weight: 500;
-}
-.nav-group a .nav-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.nav-group a .count { margin-left: auto; }
-.nav-group a:hover { background: var(--rail-hover); text-decoration: none; }
-.nav-group a.on { background: var(--rail-on); color: #ffffff; }
+/* The menu: every page an app icon in a grid, as on an iPhone's home screen, its name under it unless that setting is
+   off. The page you are on has its icon filled with the accent; the count is the red badge on the icon's corner. */
+.nav-group ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 6px; }
+.nav-group ul.no-labels { row-gap: 10px; }
+.nav-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 2px 0;
+  border-radius: 12px; color: var(--rail-text); font-size: 11px; font-weight: 500; line-height: 1.25; text-align: center; }
+.nav-tile:hover { text-decoration: none; }
+.nav-tile-icon { display: grid; place-items: center; width: 100%; max-width: 56px; aspect-ratio: 1; border-radius: 23%;
+  background: var(--rail-hover); color: var(--rail-text); transition: transform .12s ease; }
+.nav-tile .nav-icon { width: 46%; height: 46%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nav-tile:hover .nav-tile-icon { filter: brightness(1.12); }
+.nav-tile:active .nav-tile-icon { transform: scale(.94); }
+.nav-tile.on { color: #ffffff; font-weight: 600; }
+.nav-tile.on .nav-tile-icon { background: var(--accent); color: var(--accent-text, #ffffff); }
+.nav-tile-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-tile .count { position: absolute; top: -5px; right: calc(50% - 36px); background: var(--danger); color: #ffffff; }
+@media (prefers-reduced-motion: reduce) { .nav-tile-icon { transition: none; } }
 .sidebar a:focus-visible { outline-color: #ffffff; }
 .nav-group.admin { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
 .sidebar a:focus-visible, .menu-button:focus-visible {

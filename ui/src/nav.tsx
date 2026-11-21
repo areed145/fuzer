@@ -1,4 +1,4 @@
-// The app's navigation: one list of pages, drawn as a sidebar (a drawer below 900 px).
+// The app's navigation: one list of pages, drawn as a grid of app icons in a sidebar (a sheet below 900 px).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
 import { href, refreshAll, useRefreshing } from "./lib";
@@ -8,6 +8,7 @@ import { goBack, useAppDepth } from "./appHistory";
 import { SyncStatus } from "./SyncStatus";
 import { AccountButton } from "./Identity";
 import { AppSearch, SearchButton } from "./AppSearch";
+import { useMenuLabels } from "./theme";
 
 // One count: what waits on you. A data question is a case in the steward's queue, so it is counted there.
 export type Badge = "work";
@@ -46,7 +47,8 @@ export interface NavGroup {
 
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
-  { label: "Home", icon: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z", items: [{ label: "Home", section: "" }] },
+  // The control tower: the field map with what needs you over it (#/ keeps its URL).
+  { label: "Tower", icon: "M12 2v3M4.5 5h15L17 10H7zM10 5.5l.4 4M14 5.5l-.4 4M9.5 10l-1 11M14.5 10l1 11M6 21h12", items: [{ label: "Tower", section: "" }] },
   // Work: all the work, as a List (a table) or a Board, one set of rows filtered on any dimension. My work and Data
   // questions are presets on it; their pages (#/inbox for a field operator's jobs, #/masterdata) keep their links
   // and light Work.
@@ -164,7 +166,7 @@ export function upFor(path: string[]): { to: string; label: string } | undefined
   const page = found && found.item.path ? found.item.path : found ? `/${found.item.section}` : "/";
   if (found && !found.item.external && (path.length > 1 || section !== found.item.section) && page !== `/${path.join("/")}`)
     return { to: href(page), label: found.item.label };
-  return { to: href("/"), label: "Home" };
+  return { to: href("/"), label: "Tower" };
 }
 
 /** The installed app has no address bar to copy from (P5.14d): share this page's link, or copy it where the phone
@@ -209,7 +211,7 @@ export function BackButton({ path, className }: { path: string[]; className?: st
 /** The phone's bottom bar: the primary destinations a dispatched operator reaches for, in this order. Same pages and
  * access rules as the sidebar; the drawer behind Menu still holds all of them. */
 const BOTTOM: { group: string; tab?: string; section?: string }[] = [
-  { group: "Home" }, { group: "Work" }, { group: "Explore" }, { group: "Reports" },
+  { group: "Tower" }, { group: "Work" }, { group: "Explore" }, { group: "Reports" },
 ];
 
 /** True while the on-screen keyboard is up (the visual viewport shrinks well below the window), so the bottom bar
@@ -278,6 +280,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
   }, []);
 
   const refreshing = useRefreshing();
+  const labels = useMenuLabels();
   return (
     <>
       {/* Search at the top left, the mark in the middle, the account at the top right. */}
@@ -345,9 +348,11 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           <Logo />
         </a>
         <SearchButton wide />
+        {/* Every page an app icon in a grid, as on an iPhone's home screen. The names under them are a setting; with
+            them off the name is still the link's name, and a tooltip on a wide screen. */}
         <nav aria-label="Main">
           <section className="nav-group">
-              <ul>
+              <ul className={labels ? "nav-grid" : "nav-grid no-labels"}>
                 {NAV.filter((group) => allowed(group) && (!group.demo || demoEnabled)).map((group) => {
                   const item = group.items.find(allowed);
                   if (!item) return null;
@@ -360,12 +365,15 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
                     <li key={group.label}>
                       <a
                         href={href(item.path ?? `/${item.section}`)}
-                        className={on ? "on" : undefined}
+                        className={on ? "nav-tile on" : "nav-tile"}
                         aria-current={on ? "page" : undefined}
+                        title={labels ? undefined : group.label}
                         {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       >
-                        <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={group.icon} /></svg>
-                        <span>{group.label}</span>
+                        <span className="nav-tile-icon">
+                          <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={group.icon} /></svg>
+                        </span>
+                        <span className={labels ? "nav-tile-label" : "nav-tile-label sr-only"}>{group.label}</span>
                         {count > 0 && <span className="count" title={counted}>
                           <span aria-hidden="true">{count}</span><span className="sr-only">{counted}</span></span>}
                       </a>

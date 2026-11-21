@@ -1971,6 +1971,27 @@ test("an asset says what is known, what is missing and what each gap holds back;
   }
 });
 
+test("the menu is a grid of app icons whose names are a setting", async () => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(url);
+  const nav = page.getByRole("navigation", { name: "Main", exact: true });
+  const home = nav.getByRole("link", { name: "Tower", exact: true });
+  await home.waitFor();
+  const icon = await home.locator(".nav-tile-icon").boundingBox();
+  assert.ok(icon && Math.abs(icon.width - icon.height) < 1, "Each page is a square icon");
+  assert.equal(await home.locator(".nav-tile-label").isVisible(), true);
+  await page.goto(`${url}/#/settings`);
+  await page.getByRole("checkbox", { name: "Names under the menu icons" }).uncheck();
+  // The names leave the screen, not the links: each icon is still named for a screen reader and on hover.
+  await page.waitForFunction(() => document.querySelector("#sidebar .nav-tile-label").getBoundingClientRect().width <= 1);
+  assert.equal(await home.getAttribute("title"), "Tower");
+  await page.reload();
+  await home.waitFor();
+  assert.equal(await page.getByRole("checkbox", { name: "Names under the menu icons" }).isChecked(), false);
+  await page.getByRole("checkbox", { name: "Names under the menu icons" }).check();
+  await page.waitForFunction(() => document.querySelector("#sidebar .nav-tile-label").getBoundingClientRect().width > 20);
+});
+
 test("main menu has no Demo entry and keeps existing primary destinations and specialist routes", async () => {
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
@@ -1979,7 +2000,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-of-type").allTextContents(), ["Home", "Work", "Plan", "Explore", "Reports", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a .nav-tile-label").allTextContents(), ["Tower", "Work", "Plan", "Explore", "Reports", "Sources", "Jobs", "Settings"]);
   // Demo left the menu; its page still opens from a direct link.
   await page.goto(`${url}/#/demo`);
   await page.getByRole("heading", { level: 1, name: "Demo", exact: true }).waitFor();
@@ -2040,7 +2061,7 @@ test("primary destination navigation keeps page headings and active context alig
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.locator("a").first().waitFor();
   const destinations = [
-    { label: "Home", href: "#/", heading: "Home" },
+    { label: "Tower", href: "#/", heading: "Tower" },
     { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
     { label: "Reports", href: "#/downtime", heading: "Downtime", area: "Reports pages", current: "Downtime" },
     { label: "Work", href: "#/list", heading: "All work", area: "Work pages", current: "List" },
@@ -2590,7 +2611,7 @@ test("Okan loading and transport errors keep recovery and navigation usable", as
   await page.getByRole("alert").waitFor();
   await page.getByRole("button", { name: "Try again", exact: true }).waitFor();
   await page.getByRole("link", { name: "Return home", exact: true }).click();
-  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Tower", exact: true }).waitFor();
 });
 
 test("Appearance persists, overrides the OS and stays controlled when the effective color is unchanged", async () => {
@@ -2697,8 +2718,8 @@ test("API failures remain visible and offer guided recovery rather than breaking
   await page.goto(`${url}/#/browse?q=pump`);
   await page.getByRole("alert").filter({ hasText: "Register unavailable" }).waitFor();
   await page.getByRole("heading", { name: "Browse", exact: true }).waitFor();
-  await page.getByRole("link", { name: "Home", exact: true }).first().click();
-  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Tower", exact: true }).first().click();
+  await page.getByRole("heading", { name: "Tower", exact: true }).waitFor();
 });
 
 const draftFixture = { id: "d_abc123", title: "Review OK-J07-03 deferment", role: "production_engineer", summary: "Rate fell after the valve failure.",
@@ -2956,8 +2977,8 @@ test("Mermaid loads only for an answer with a diagram", async () => {
 test("Ask opens and can be left without DOM effect-cleanup crashes", async () => {
   await page.goto(`${url}/#/ask`);
   await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
-  await page.getByRole("link", { name: "Home", exact: true }).first().click();
-  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Tower", exact: true }).first().click();
+  await page.getByRole("heading", { name: "Tower", exact: true }).waitFor();
 });
 
 test("Ask names specialists from the catalog and lists what none of them can do", async () => {
@@ -3120,7 +3141,7 @@ test("Home mounts both charts and refreshes below default admission limits", asy
 test("Empty facilities show no charts, and old Analytics links land on Home", async () => {
   await page.goto(`${url}/#/analytics?ref=plant&end=2026-10-10`);
   await page.waitForURL(`${url}/#/`);
-  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Tower", exact: true }).waitFor();
   assert.equal(await page.locator(".home-charts").count(), 0);
 });
 
@@ -3383,7 +3404,7 @@ test("a rendering failure has a usable recovery screen and Return home restores 
   assert.ok(errors.every((message) => message.includes("map is not a function")));
   errors.length = 0;
   await page.getByRole("button", { name: "Return home", exact: true }).click();
-  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Tower", exact: true }).waitFor();
 });
 
 test("a field operator sees a dispatched job on a phone and reports back; the IOC dispatches from Exceptions", async () => {
@@ -7684,7 +7705,7 @@ test("P5.14a The installed app has its own Back, never leaves the app, and resum
   await back.click();
   await page.waitForURL(/#\/browse$/);
   assert.equal(await page.evaluate(() => history.length), entries, "going up replaces, so there's no loop");
-  await backReads("Back to Home");
+  await backReads("Back to Tower");
 
   // Pages opened inside the app go back the way they came, and a redirect is not a step of its own.
   await page.evaluate(() => { location.hash = "#/e/fz-pump"; });
@@ -7696,7 +7717,7 @@ test("P5.14a The installed app has its own Back, never leaves the app, and resum
   await page.waitForURL(/#\/e\/fz-pump$/);
   await back.click();
   await page.waitForURL(/#\/browse$/);
-  await backReads("Back to Home");
+  await backReads("Back to Tower");
   await back.click();
   await page.waitForURL(/#\/$/);
   await back.waitFor({ state: "detached" });  // Home has nothing to go back to
@@ -7854,7 +7875,7 @@ test("P5.14b On a phone, Home, Work, Explore and Reports are one tap away at the
   const bar = page.getByRole("navigation", { name: "Quick", exact: true });
   await bar.waitFor();
   const targets = bar.locator(":scope > a, :scope > button");
-  assert.deepEqual(await targets.evaluateAll(els => els.map(e => e.lastElementChild.textContent.trim())), ["Home", "Work", "Explore", "Reports", "Menu"]);
+  assert.deepEqual(await targets.evaluateAll(els => els.map(e => e.lastElementChild.textContent.trim())), ["Tower", "Work", "Explore", "Reports", "Menu"]);
   for (const box of await targets.evaluateAll(els => els.map(e => e.getBoundingClientRect().toJSON())))
     assert.ok(box.height >= 44 && box.width >= 44, "every tab is big enough for a gloved thumb");
   const barBox = await bar.boundingBox();

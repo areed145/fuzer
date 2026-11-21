@@ -90,7 +90,7 @@ not the facility database. System follows your device's appearance; charts, grap
 follow the same choice. On a phone, the bottom bar holds Home, My work, Explore and Reports, and **Menu** opens the rest.
 The magnifying glass at the top left (in the sidebar on a wider screen, or press `/`) searches pages, their tabs and
 the register's records in one box, and a question typed there goes to Ask.
-**Field mode**, in the same place, makes buttons larger for gloves and raises contrast for sunlight on that device.
+**Field mode**, in the same place, makes buttons larger for gloves and raises contrast for sunlight on that device. **Names under the menu icons**, also there, shows or hides the label beneath each page's icon in the menu.
 
 The planted stories to find are listed in the [README](https://github.com/areed145/fuzer#okan-field-demo).
 
