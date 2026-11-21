@@ -1,4 +1,4 @@
-// The app's navigation: one list of pages, drawn as a sidebar (a drawer below 900 px).
+// The app's navigation: one list of pages, drawn as a grid of app icons in a sidebar (a sheet below 900 px).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
 import { href, refreshAll, useRefreshing } from "./lib";
@@ -8,6 +8,7 @@ import { goBack, useAppDepth } from "./appHistory";
 import { SyncStatus } from "./SyncStatus";
 import { AccountButton } from "./Identity";
 import { AppSearch, SearchButton } from "./AppSearch";
+import { useMenuLabels } from "./theme";
 
 // One count: what waits on you. A data question is a case in the steward's queue, so it is counted there.
 export type Badge = "work";
@@ -279,6 +280,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
   }, []);
 
   const refreshing = useRefreshing();
+  const labels = useMenuLabels();
   return (
     <>
       {/* Search at the top left, the mark in the middle, the account at the top right. */}
@@ -346,9 +348,11 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           <Logo />
         </a>
         <SearchButton wide />
+        {/* Every page an app icon in a grid, as on an iPhone's home screen. The names under them are a setting; with
+            them off the name is still the link's name, and a tooltip on a wide screen. */}
         <nav aria-label="Main">
           <section className="nav-group">
-              <ul>
+              <ul className={labels ? "nav-grid" : "nav-grid no-labels"}>
                 {NAV.filter((group) => allowed(group) && (!group.demo || demoEnabled)).map((group) => {
                   const item = group.items.find(allowed);
                   if (!item) return null;
@@ -361,12 +365,15 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
                     <li key={group.label}>
                       <a
                         href={href(item.path ?? `/${item.section}`)}
-                        className={on ? "on" : undefined}
+                        className={on ? "nav-tile on" : "nav-tile"}
                         aria-current={on ? "page" : undefined}
+                        title={labels ? undefined : group.label}
                         {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       >
-                        <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={group.icon} /></svg>
-                        <span>{group.label}</span>
+                        <span className="nav-tile-icon">
+                          <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={group.icon} /></svg>
+                        </span>
+                        <span className={labels ? "nav-tile-label" : "nav-tile-label sr-only"}>{group.label}</span>
                         {count > 0 && <span className="count" title={counted}>
                           <span aria-hidden="true">{count}</span><span className="sr-only">{counted}</span></span>}
                       </a>

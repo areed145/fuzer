@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Button, Card, Field, Notice, Select, Text } from "./ui";
+import { Button, Card, Checkbox, Field, Notice, Select, Text } from "./ui";
 
 export type ThemePreference = "system" | "light" | "dark";
 const KEY = "fuzer.theme";
@@ -62,12 +62,26 @@ export const fieldModeChosen = () => { try { return localStorage.getItem(FIELD_K
 applyFieldMode();
 export const useFieldMode = () => useSyncExternalStore(subscribe, () => fieldMode);
 
+/** The menu is a grid of app icons, as on an iPhone's home screen; their names under them are on unless turned off. */
+const LABELS_KEY = "fuzer.menuLabels";
+let menuLabels = true;
+try { menuLabels = localStorage.getItem(LABELS_KEY) !== "off"; } catch { /* storage unavailable: on */ }
+export function setMenuLabels(on: boolean) {
+  menuLabels = on;
+  try { localStorage.setItem(LABELS_KEY, on ? "on" : "off"); } catch { /* lasts for this visit */ }
+  window.dispatchEvent(new Event(THEME_CHANGED));
+}
+window.addEventListener("storage", (event) => {
+  if (event.key === LABELS_KEY) { menuLabels = event.newValue !== "off"; window.dispatchEvent(new Event(THEME_CHANGED)); }
+});
+export const useMenuLabels = () => useSyncExternalStore(subscribe, () => menuLabels);
+
 export function useTheme() {
   return useSyncExternalStore(subscribe, () => document.documentElement.dataset.theme);
 }
 
 export function Appearance() {
-  useSyncExternalStore(subscribe, () => `${preference}|${persistenceError}|${document.documentElement.dataset.theme}|${fieldMode}`);
+  useSyncExternalStore(subscribe, () => `${preference}|${persistenceError}|${document.documentElement.dataset.theme}|${fieldMode}|${menuLabels}`);
   const theme = document.documentElement.dataset.theme;
   return (
     <Card title="Appearance">
@@ -83,6 +97,7 @@ export function Appearance() {
         <input type="checkbox" checked={fieldMode} onChange={(e) => setFieldMode(e.target.checked)} />
         <span>Field mode: larger buttons for gloves and high contrast for sunlight, on this device</span>
       </label>
+      <Checkbox checked={menuLabels} onChange={setMenuLabels}>Names under the menu icons</Checkbox>
       {persistenceError && <p role="status" className="error small">{persistenceError}</p>}
     </Card>
   );
