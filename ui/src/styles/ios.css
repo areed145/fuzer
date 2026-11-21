@@ -722,7 +722,6 @@
    header actions are one line of small controls in one size. Home's four work counts sit two by two. */
 :root.ios .work-card-title { font-weight: 600; }
 @media (max-width: 900px) {
-  :root.ios #main-content .work-list-card.ui-card { padding: 0; }
   :root.ios .work-row .work-card-title { font-size: var(--t-body); }
   :root.ios:not(.field-mode) #main-content :is(.entity-head, .case-head) .row { gap: 6px 14px; align-items: center; font-size: var(--t-subhead); }
   :root.ios:not(.field-mode) #main-content :is(.entity-head, .case-head) .row > :is(a, .small, .ui-button-link) { font-size: var(--t-subhead); font-weight: 400; }
