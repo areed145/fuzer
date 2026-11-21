@@ -182,7 +182,7 @@ type Panel = null | "dispatch" | "more" | "plan" | "shelve";
 export interface RowPlace { stage: string; area: string; due: string | null; overdue: boolean }
 
 /** One event as a row of the List's table (and, under it, the panel its actions open): what it is, where it stands,
- * what it is about and where, who has it, when it is due, how old it is and what raised it. */
+ * what it is about and where, who has it, when it is due and how old it is (what raised it is under its title). */
 export function EventRow({ r, place, person, people, queues, onChange }: {
   r: ExceptionRow; place: RowPlace; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
@@ -207,7 +207,7 @@ export function EventRow({ r, place, person, people, queues, onChange }: {
         <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
         {/* The type opens its route: where this kind of work goes, who holds it and when it is due (#1078). */}
         <Text as="div" small muted><a className="muted work-type-link" href={href("/routing", { type: r.type })} title="Where this type of work goes">
-          {r.type.replace(/_/g, " ")}</a>{reports > 1 ? ` · ${reports} reports` : ""}</Text>
+          {r.type.replace(/_/g, " ")}</a>{r.source ? ` · ${r.source}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</Text>
         {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}
         {error && <p role="alert" className="error small">{error}</p>}
       </td>
@@ -233,7 +233,6 @@ export function EventRow({ r, place, person, people, queues, onChange }: {
       <td className="small nowrap">{place.due ? whenDay(place.due) : ""}{place.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
       <td className="small nowrap" title={`Raised in Fuzer ${when(r.first_seen)} · last reported ${when(r.last_seen)}${event ? ` · happened ${day(event)}` : ""}`}>
         {age(Date.now() - new Date(r.first_seen).getTime())}</td>
-      <td className="small">{r.source}</td>
       <td className="work-row-act">{canAct && <div className="row work-row-actions">
         {/* back from the field (#1222): the IOC closes it, sends it again or plans it, in one tap from the row */}
         {back && <ButtonLink size="sm" variant="primary" href={href(`/cases/${r.item_id}`, { close: "1" })}>Close</ButtonLink>}
@@ -273,7 +272,7 @@ export function EventRow({ r, place, person, people, queues, onChange }: {
 }
 
 /** The List's columns, in order: the table's header and each row agree on them. */
-export const ROW_HEADINGS = ["Work", "Stage", "Priority", "Value", "About", "Area", "With", "Due", "Age", "Source", ""];
+export const ROW_HEADINGS = ["Work", "Stage", "Priority", "Value", "About", "Area", "With", "Due", "Age", ""];
 const ROW_COLUMNS = ROW_HEADINGS.length;
 export const STAGE_WORDS: Record<string, string> = {
   dispatch: "To dispatch", desk: "With a desk", planned: "On the plan", field: "With the field",

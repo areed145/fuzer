@@ -3618,7 +3618,7 @@ test("All work is one list of every open event and case, filtered on any dimensi
   assert.equal(await page.getByRole("navigation", { name: "All work views" }).count(), 0, "views are filters, not tabs");
   // The List is a table: a column for each thing the desk scans for, and a heading with a button sorts by it.
   assert.deepEqual((await page.getByRole("columnheader").allInnerTexts()).map((t) => t.trim()),
-    ["Work", "Stage", "Priority", "Value ↓", "About", "Area", "With", "Due", "Age", "Source", ""]);
+    ["Work", "Stage", "Priority", "Value ↓", "About", "Area", "With", "Due", "Age", ""]);
   const sealRow = page.getByRole("row").filter({ hasText: "Seal weeping" });
   assert.match(await sealRow.innerText(), /Back from the field/);
   await page.getByRole("columnheader", { name: "Due" }).getByRole("button").click();

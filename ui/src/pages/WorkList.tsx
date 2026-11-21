@@ -242,7 +242,7 @@ function CaseRow({ r, place }: { r: WorkListRow; place: RowPlace }) {
   return <tr className="work-row">
     <td className="work-row-what">
       <div className="work-card-title"><a href={open}>{say(r.title)}</a></div>
-      <Text as="div" small muted>{r.kind_label}</Text>
+      <Text as="div" small muted>{r.kind_label}{r.source ? ` · ${r.source}` : ""}</Text>
     </td>
     <td className="small work-row-stage">{STAGE_WORDS[r.stage] ?? r.stage}</td>
     <td className="small"><PriorityBadge p={r.priority} type={r.type} /></td>
@@ -253,7 +253,6 @@ function CaseRow({ r, place }: { r: WorkListRow; place: RowPlace }) {
     <td className="work-row-with small"><a href={open}>{holderWords(r.assignee, r.role)}</a></td>
     <td className="small nowrap">{r.due_at ? whenDay(r.due_at) : ""}{r.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
     <td className="small nowrap">{age(Date.now() - new Date(r.opened).getTime())}</td>
-    <td className="small">{r.source}</td>
     <td />
   </tr>;
 }
