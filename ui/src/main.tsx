@@ -56,6 +56,16 @@ import { startOutbox } from "./fieldOffline";
 import "./styles/field-mode.css";
 
 /** Pages that change configuration, where the demo account looks but can't change (#1068). */
+/* How wide the page may grow on a wide monitor: boards, lists, maps and diagrams use the whole screen; a case, a task,
+   a form or an answer stays at reading width; everything else stops at a desk width. */
+const WIDE_SECTIONS = new Set(["list", "board", "ranked", "map", "network", "ontology", "plan", "3d", "downtime", "routing", "performance"]);
+const READING_SECTIONS = new Set(["ask", "investigate", "demo", "settings", "users", "access", "handover", "lessons"]);
+function pageWidth(section: string, path: string[]): "wide" | "reading" | undefined {
+  if (WIDE_SECTIONS.has(section) || ((section === "processes" || section === "workflows") && path[1] && path[1] !== "forms")) return "wide";
+  if (READING_SECTIONS.has(section) || (section === "cases" && path[1]) || (section === "inbox" && path[1] === "task")
+    || ((section === "processes" || section === "workflows") && path[1] === "forms")) return "reading";
+  return undefined;
+}
 const VIEW_ONLY_SECTIONS = new Set(["sources", "ontology", "jobs", "settings", "users", "access", "processes", "workflows", "routing"]);
 import { UsersPage } from "./pages/Users";
 import { RoutingPage } from "./pages/Routing";
@@ -165,7 +175,7 @@ function App() {
           </>
         }
       />
-      <main id="main-content" tabIndex={-1}>
+      <main id="main-content" tabIndex={-1} data-width={pageWidth(section, path)}>
         {/* The account is the round badge at the top right on every screen, as on the phone. */}
         <div className="page-account"><AccountButton /></div>
         <BackButton path={path} className="page-back" />
