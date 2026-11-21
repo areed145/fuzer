@@ -40,7 +40,7 @@ built left to right.
 | 3 First value | P5.3, P5.1, P6.1, P7.2 | P3.5, P3.8, P3.2, P3.9 | P2.3, P2.4, P2.5 | P4.1, P4.3, first pack of P4.2 |
 | 4 Depth | P5.5, P5.11, P5.4, P5.6, P5.8, P5.9 | P3.1, P3.10, P3.6, P3.3 in shadow, P3.7 | P2.1, P2.6, P7.1 | Packs 2 to 4 of P4.2, P4.5 |
 | *Gate B* (passed 2026-11-13) | Every work type closes end to end | | | |
-| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15, P5.16, P5.17 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
+| 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15, P5.16, P5.17, P5.19 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
 | *Gate C* (passed 2026-11-13) | | | Third asset type live, no code | |
 
@@ -167,6 +167,16 @@ and weather, not only crews. One epic in the work lane gives the plan logic, a c
 | Epic | Build | Done when |
 |---|---|---|
 | P5.18 Integrated planning: schedule logic, critical path and shared-resource constraints | (a) an open page survives a deploy: earlier builds' files stay served, and a missing file offers a reload; (b) turnaround operations with durations, predecessor links, the window and units down, loaded as a source; (c) forward and backward pass, float, critical chain and a crew-levelled schedule, with a specialist tool and a Gantt drawn by Fuzer; (d) an integrated planning skill for Work Management & Supply Chain; (e) a shared-resource register (POB beds, seats, vessels, cranes, deck space, production capacity, weather windows) with capacity over time and a constraint check; (f) a Gantt and resource view on Plan. | Ask names OK-TAR-2026's critical activities, unconstrained and levelled finish and the resource that drives it, citing records. The Gantt draws at 390 px, iPad and desktop. The constraint check flags POB, seat, crane and capacity overloads with the items that cause them. Kestrel and Harrier run with no code of their own. |
+
+## All work as a List and Board (P5.19 #1243)
+
+IOC staff triage work from every source, so they need it in one place, cut by facility, area, asset, queue or state,
+with their own "waiting on me" counted once. A multi-part ask needs to be a checklist the field ticks off where it is
+taken. This was built on 2026-11-20 and 21, ahead of its epic, and filed afterwards so it is tracked here.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P5.19 All work as a List and Board, with checklists on cases | One definition of open, waiting on you and overdue (#1230); one page per case (#1225); a List and Board over all work, filtered and sorted on any dimension, with presets instead of views (#1232, #1236, #1240); My work as the "Waiting on me" preset (#1233, #1239); checklists on a case, with items sent to other queues as their own cases (#1234, #1237); closing a field job from its row (#1223) | Counts agree on every page; the List and Board filter on facility, area, asset, queue, state and source; nothing waiting on a person is counted twice; a checklist item can be ticked or sent on; browser tests at 390 px and on desktop; loop eval green |
 
 ## How the work is tracked
 
