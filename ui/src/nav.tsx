@@ -47,19 +47,18 @@ export interface NavGroup {
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
   { label: "Home", icon: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z", items: [{ label: "Home", section: "" }] },
-  // All the work, as a list or a board: one set of rows, filtered on any dimension. My work and Data questions are
-  // presets on it; their pages (#/inbox for a field operator's jobs, #/masterdata) keep their links and light List.
+  // Work: all the work, as a List (a table) or a Board, one set of rows filtered on any dimension. My work and Data
+  // questions are presets on it; their pages (#/inbox for a field operator's jobs, #/masterdata) keep their links
+  // and light Work.
   {
-    label: "List",
+    label: "Work",
     icon: "M6 4h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 10l2 2 4-4M8 16h8",
-    items: [{ label: "List", section: "list",
-      also: ["exceptions", "cases", "performance", "inbox", "work", "teams", "field", "handover", "masterdata", "review"],
-      badge: "work" }],
-  },
-  {
-    label: "Board",
-    icon: "M4 5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM10.5 5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1zM17 5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1z",
-    items: [{ label: "Board", section: "board" }],
+    items: [
+      { label: "List", section: "list",
+        also: ["exceptions", "cases", "performance", "inbox", "work", "teams", "field", "handover", "masterdata", "review"],
+        badge: "work" },
+      { label: "Board", section: "board" },
+    ],
   },
   {
     // The days and weeks ahead, beside Work's today: one timeline for every source, its schedules and its resources.
@@ -210,7 +209,7 @@ export function BackButton({ path, className }: { path: string[]; className?: st
 /** The phone's bottom bar: the primary destinations a dispatched operator reaches for, in this order. Same pages and
  * access rules as the sidebar; the drawer behind Menu still holds all of them. */
 const BOTTOM: { group: string; tab?: string; section?: string }[] = [
-  { group: "Home" }, { group: "List" }, { group: "Board" }, { group: "Explore" },
+  { group: "Home" }, { group: "Work" }, { group: "Explore" }, { group: "Reports" },
 ];
 
 /** True while the on-screen keyboard is up (the visual viewport shrinks well below the window), so the bottom bar
@@ -310,7 +309,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           if (!group || !allowed(group)) return null;
           const item = group.items.find((entry) => entry.section === first && allowed(entry)) ?? group.items.find(allowed);
           if (!item) return null;
-          // A slot lights anywhere in its group, so the bar always shows where you are (#1131): the List slot is lit on
+          // A slot lights anywhere in its group, so the bar always shows where you are (#1131): the Work slot is lit on
           // My work's and Master data's pages too. It is the current page only on the page it opens.
           const here = item.section === section;
           const on = here || group.items.some((entry) => isActive(entry, section));

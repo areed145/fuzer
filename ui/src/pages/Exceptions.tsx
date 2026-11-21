@@ -3,72 +3,15 @@
 import { useEffect, useState } from "react";
 import { money, when, whenDay, count } from "../format";
 import { api, type ExceptionRow, type Readiness } from "../api";
-import { Badge, Button, ButtonLink, Card, Disclosure, Field, Input, Select, Table, Empty, ErrorText, Line, Text, Checkbox, List } from "../ui";
+import { Badge, Button, ButtonLink, Card, Disclosure, Field, Input, Select, Table, ErrorText, Line, Text, Checkbox, List } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../lib";
-import { holder, reportedBy, usePerson } from "../work";
+import { holder, reportedBy } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display, type EntityNames } from "../entityRefs";
-import { PriorityBadge, SampleTeam } from "./workflows/shared";
+import { PriorityBadge } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
 import { person as personName, queue, say } from "../wording";
-
-export type ExceptionView = "dispatch" | "field" | "back" | "open";
-
-const EMPTY: Record<ExceptionView, string> = {
-  dispatch: "Nothing waiting to be dispatched.",
-  field: "Nothing is with the field right now.",
-  back: "Nothing back from the field waiting on the IOC.",
-  open: "Nothing here.",
-};
-
-/** The exception views of All work (#502): to dispatch, with the field, back from the field, and every exception in
- * a chosen state. */
-export function ExceptionsPage({ query, view = "open", filters = {} }: {
-  query?: URLSearchParams; view?: ExceptionView; filters?: { type?: string; who?: string; q?: string; at?: string };
-}) {
-  const [person] = usePerson();
-  const [state, setState] = useState(view === "open" ? query?.get("state") ?? "open" : "open");
-  const type = filters.type ?? "";
-  const rows = useAsync(() => api.exceptions({ state: state || "any", type: type || undefined, at: filters.at }),
-                        [state, type, filters.at]);
-  const people = useAsync(() => api.workPeople(), []);
-  const roles = useAsync(() => api.rolesCatalog(), []);
-  const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
-  if (!rows.data) return <Status of={rows} />;
-  const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
-  // A tag matches however it is written: 77-HCV-1003, 77-HCV1003 and 77hcv1003 are the same tag.
-  const flat = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const words = filters.q ? flat(filters.q) : "";
-  const shown = (view === "dispatch" ? rows.data.filter(waitingToDispatch)
-    : view === "back" ? rows.data.filter(backFromField)
-    : view === "field" ? rows.data.filter((r) => withTheField(r, operators))
-    : rows.data)
-    .filter((r) => !filters.who || r.assignee === filters.who || (!!r.role && `role:${r.role}` === filters.who))
-    .filter((r) => !words || flat(`${r.title} ${r.key}`).includes(words));
-  return (
-    <>
-      <div className="row work-state">
-        {view === "open" && <Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
-          <option value="open">open</option><option value="cleared">cleared</option>
-          <option value="closed">closed</option><option value="shelved">shelved</option><option value="">any state</option>
-        </Select>}
-        <Text small muted>{shown.length} {shown.length === 1 ? "event" : "events"}</Text>
-      </div>
-      <Card className="work-list-card">
-        {!shown.length ? <Empty>{EMPTY[view]}</Empty> : <>
-          <div className="work-list-head small muted" aria-hidden="true">
-            <span>Work</span><span>Entities</span><span>Age</span><span>With</span><span /></div>
-          <ul className="work-list" aria-label={`${shown.length} ${shown.length === 1 ? "event" : "events"}`}>
-            {shown.map((r) => <EventRow key={r.id} r={r} person={person}
-              people={people.data ?? []} queues={queues} onChange={rows.reload} />)}</ul>
-        </>}
-        <SampleTeam onAdded={people.reload} />
-      </Card>
-      {view === "open" && <Suppressed />}
-    </>
-  );
-}
 
 const WINDOW: Record<string, string> = {
   shutdown: "Shutdown", planned_work: "Planned work", person: "Set by a person", muted: "Provider muted",
@@ -235,8 +178,13 @@ type Panel = null | "dispatch" | "more" | "plan" | "shelve";
 
 /** One exception as a row on a desk and a card on a phone (#1070): what it is, where, how old, who has it, and one
  * main action. Dispatch opens who, what to do and readiness beneath the row; Plan and Shelve sit behind More. */
-export function EventRow({ r, person, people, queues, onChange }: {
-  r: ExceptionRow; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
+/** The cells the List's table shows beside an event's own: where it stands, where it is and when it is due. */
+export interface RowPlace { stage: string; area: string; due: string | null; overdue: boolean }
+
+/** One event as a row of the List's table (and, under it, the panel its actions open): what it is, where it stands,
+ * what it is about and where, who has it, when it is due, how old it is and what raised it. */
+export function EventRow({ r, place, person, people, queues, onChange }: {
+  r: ExceptionRow; place: RowPlace; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
   const names = useEntityNames(r.subjects);
   const { busy, error, run } = useAction();
@@ -253,26 +201,26 @@ export function EventRow({ r, person, people, queues, onChange }: {
   const done = () => { setPanel(null); onChange(); };
   const back = !!r.item_id && backFromField(r);
   return (
-    <li className={fieldSaid?.status === "could_not_do" ? "work-card work-row attention" : "work-card work-row"}>
-      <div className="work-row-what">
+    <>
+    <tr className={fieldSaid?.status === "could_not_do" ? "work-row attention" : "work-row"}>
+      <td className="work-row-what">
         <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
-        <Text as="div" small muted><PriorityBadge p={r.priority} type={r.type} />{" "}
-          {/* The type opens its route: where this kind of work goes, who holds it and when it is due (#1078). */}
-          <a className="muted work-type-link" href={href("/routing", { type: r.type })} title="Where this type of work goes">
-            {r.type.replace(/_/g, " ")}</a>
-          {[r.source, r.value_usd ? `${money(r.value_usd)} at stake` : null].filter(Boolean).map((x) => ` · ${x}`).join("")}</Text>
+        {/* The type opens its route: where this kind of work goes, who holds it and when it is due (#1078). */}
+        <Text as="div" small muted><a className="muted work-type-link" href={href("/routing", { type: r.type })} title="Where this type of work goes">
+          {r.type.replace(/_/g, " ")}</a>{reports > 1 ? ` · ${reports} reports` : ""}</Text>
         {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}
-      </div>
-      <div className="work-row-where small">{subjects.map((s) => <div key={s}><a href={entityHref(s)}
+        {error && <p role="alert" className="error small">{error}</p>}
+      </td>
+      <td className="small work-row-stage">{STAGE_WORDS[place.stage] ?? place.stage}</td>
+      <td className="small"><PriorityBadge p={r.priority} type={r.type} /></td>
+      <td className="small nowrap">{r.value_usd ? money(r.value_usd) : ""}</td>
+      <td className="work-row-where small">{subjects.map((s) => <div key={s}><a href={entityHref(s)}
         title={names?.[s]?.at ? names[s].label ?? s : s}>{display(s, names)}</a></div>)}
         {r.unmatched.map((u) => <div key={u} className="muted">unmatched: {u}{" "}
           {canAct && <MatchRef value={u} busy={!!busy} onPick={(fid, remember) =>
-            run("Matching", () => api.resolveRef(r.id, person!, u, fid, remember), onChange)} />}</div>)}</div>
-      <div className="work-row-age small" title={`Raised in Fuzer ${when(r.first_seen)} · last reported ${when(r.last_seen)}`}>
-        <strong>{age(Date.now() - new Date(r.first_seen).getTime())}</strong>
-        <Text muted>{event ? ` · happened ${day(event)}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</Text>
-      </div>
-      <div className="work-row-with small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
+            run("Matching", () => api.resolveRef(r.id, person!, u, fid, remember), onChange)} />}</div>)}</td>
+      <td className="small">{place.area}</td>
+      <td className="work-row-with small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
         : r.planned ? <a href={planItemHref(r.planned)}>planned {whenDay(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
         : <Text muted>not dispatched</Text>}
         {fieldSaid && <div title={fieldSaid.note ?? undefined}>
@@ -281,23 +229,26 @@ export function EventRow({ r, person, people, queues, onChange }: {
           {fieldSaid.note && <Text as="div" muted>{fieldSaid.note}</Text>}</div>}
         {shelved && <div><Badge>Shelved</Badge> until {day(r.shelved_until!)}: {r.shelved_reason}
           {r.shelved_by ? ` · ${personName(r.shelved_by)}` : ""}</div>}
-      </div>
-      {canAct && <div className="row work-card-actions work-row-actions">
+      </td>
+      <td className="small nowrap">{place.due ? whenDay(place.due) : ""}{place.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
+      <td className="small nowrap" title={`Raised in Fuzer ${when(r.first_seen)} · last reported ${when(r.last_seen)}${event ? ` · happened ${day(event)}` : ""}`}>
+        {age(Date.now() - new Date(r.first_seen).getTime())}</td>
+      <td className="small">{r.source}</td>
+      <td className="work-row-act">{canAct && <div className="row work-row-actions">
         {/* back from the field (#1222): the IOC closes it, sends it again or plans it, in one tap from the row */}
         {back && <ButtonLink size="sm" variant="primary" href={href(`/cases/${r.item_id}`, { close: "1" })}>Close</ButtonLink>}
         <Button size="sm" variant="secondary" className="work-lead" aria-expanded={panel === "dispatch"}
           onClick={() => setPanel(panel === "dispatch" ? null : "dispatch")}>{back ? "Send again" : "Send to"}</Button>
-        {back && <Button size="sm" variant="secondary" aria-expanded={panel === "plan"}
-          onClick={() => setPanel(panel === "plan" ? null : "plan")}>Plan for a day</Button>}
         {shelved ? <Button size="sm" variant="secondary" disabled={!!busy}
           onClick={() => run("Unshelving", () => api.unshelveException(r.id, person!), onChange)}>Back on the list</Button>
           : <Button size="sm" variant="secondary" aria-expanded={panel === "more" || panel === "plan" || panel === "shelve"}
             onClick={() => setPanel(panel && panel !== "dispatch" ? null : "more")}>More</Button>}
-      </div>}
-      {canAct && panel && <div className="work-row-panel">
+      </div>}</td>
+    </tr>
+    {canAct && panel && <tr className="work-row-panel-row"><td colSpan={ROW_COLUMNS} className="work-row-panel" data-label="">
         {panel === "dispatch" && <DispatchControls r={r} person={person!} people={people} queues={queues} onDone={done} />}
         {panel === "more" && <Line wrap role="group" aria-label="More actions">
-          {!back && <Button size="sm" variant="secondary" onClick={() => setPanel("plan")}>Plan for a day</Button>}
+          <Button size="sm" variant="secondary" onClick={() => setPanel("plan")}>Plan for a day</Button>
           <Button size="sm" variant="secondary" onClick={() => setPanel("shelve")}>Shelve until a date</Button>
         </Line>}
         {panel === "plan" && <div className="row wrap work-row-form">
@@ -316,11 +267,18 @@ export function EventRow({ r, person, people, queues, onChange }: {
               () => { setShelveTo(""); setShelveWhy(""); done(); })}>Shelve</Button>
           <Button size="sm" variant="ghost" onClick={() => setPanel(null)}>Cancel</Button>
         </div>}
-      </div>}
-      {error && <p role="alert" className="error small work-row-panel">{error}</p>}
-    </li>
+    </td></tr>}
+    </>
   );
 }
+
+/** The List's columns, in order: the table's header and each row agree on them. */
+export const ROW_HEADINGS = ["Work", "Stage", "Priority", "Value", "About", "Area", "With", "Due", "Age", "Source", ""];
+const ROW_COLUMNS = ROW_HEADINGS.length;
+export const STAGE_WORDS: Record<string, string> = {
+  dispatch: "To dispatch", desk: "With a desk", planned: "On the plan", field: "With the field",
+  back: "Back from the field", closed: "Closed",
+};
 
 /** Who to send it to, what they should do, and whether it is ready to go (P5.5): the one dispatch control, used by
  * the All work lists and the board's cards. */

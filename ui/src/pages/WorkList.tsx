@@ -6,15 +6,15 @@ import "../styles/all-work.css";
 import "../styles/work-board.css";
 import { useEffect, useState } from "react";
 import { api, type WorkListFilters, type WorkListResult, type WorkListRow, type ExceptionRow } from "../api";
-import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, PageHeader, Select, Text, Heading } from "../ui";
+import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, PageHeader, Select, Table, Text, Heading } from "../ui";
 import { Status, href, useAsync, useDebounced, errorMessage } from "../lib";
 import { money, whenDay } from "../format";
 import { holder as holderWords, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
 import { queue as queueWords, say } from "../wording";
-import { EventRow, DispatchControls, Suppressed, age, type Person } from "./Exceptions";
-import { SampleTeam } from "./workflows/shared";
+import { EventRow, DispatchControls, ROW_HEADINGS, STAGE_WORDS, Suppressed, age, type Person, type RowPlace } from "./Exceptions";
+import { PriorityBadge, SampleTeam } from "./workflows/shared";
 import { NewWorkItem } from "./workflows/Cases";
 import { WORK_PRESETS, savedFilters } from "../pageTabs";
 
@@ -67,7 +67,8 @@ export function WorkListPage({ query, board = false }: { query: URLSearchParams;
           ? `, the first ${list.data.rows.length} shown` : ""}</Text>
         {board ? <Board data={list.data} group={filters.group || "stage"} person={person} people={people.data ?? []}
           queues={queues} onChange={list.reload} />
-          : <Rows rows={list.data.rows} person={person} people={people.data ?? []} queues={queues} onChange={list.reload} />}
+          : <Rows rows={list.data.rows} labels={list.data.labels ?? {}} sort={filters.sort ?? "value"}
+            setSort={(sort) => set({ sort })} person={person} people={people.data ?? []} queues={queues} onChange={list.reload} />}
         {!board && filters.state !== "closed" && <Suppressed />}
         <SampleTeam onAdded={people.reload} />
       </>}
@@ -204,38 +205,57 @@ function Within({ id, onClear }: { id: string; onClear: () => void }) {
   return <Chip onClear={onClear}>In {ids.map((x) => display(x, names)).join(" · ")}</Chip>;
 }
 
-function Rows({ rows, person, people, queues, onChange }: {
-  rows: WorkListRow[]; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
+/** The List: the rows as a table, one column per thing an IOC desk scans for. A heading with an arrow sorts by it. */
+function Rows({ rows, labels, sort, setSort, person, people, queues, onChange }: {
+  rows: WorkListRow[]; labels: Record<string, string>; sort: string; setSort: (s: string | undefined) => void;
+  person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
+  const place = (r: WorkListRow) => ({ stage: r.stage, due: r.due_at, overdue: r.overdue,
+    area: r.area !== "none" ? labels[r.area] ?? r.area : r.facility !== "none" ? labels[r.facility] ?? r.facility : "" });
+  const head = (h: string) => {
+    const by = SORTABLE[h];
+    if (!by) return <th key={h}>{h}</th>;
+    const on = sort === by;
+    return <th key={h} aria-sort={on ? (by === "title" || by === "due" ? "ascending" : "descending") : undefined}>
+      <Button variant="link" size="sm" onClick={() => setSort(by === "value" ? undefined : by)}>{h}{on ? " ↓" : ""}</Button></th>;
+  };
   return <Card className="work-list-card">
-    {!rows.length ? <Empty>Nothing matches these filters.</Empty> : <>
-      <div className="work-list-head small muted" aria-hidden="true">
-        <span>Work</span><span>Entities</span><span>Age</span><span>With</span><span /></div>
-      <ul className="work-list" aria-label={`${rows.length} shown`}>
-        {rows.map((r) => r.id != null
-          ? <EventRow key={r.uid} r={r as unknown as ExceptionRow} person={person} people={people} queues={queues} onChange={onChange} />
-          : <CaseRow key={r.uid} r={r} />)}
-      </ul>
-    </>}
+    {!rows.length ? <Empty>Nothing matches these filters.</Empty> :
+      <Table className="work-table" aria-label={`${rows.length} shown`}>
+        <thead><tr>{ROW_HEADINGS.map(head)}</tr></thead>
+        <tbody>
+          {rows.map((r) => r.id != null
+            ? <EventRow key={r.uid} r={r as unknown as ExceptionRow} place={place(r)} person={person} people={people} queues={queues} onChange={onChange} />
+            : <CaseRow key={r.uid} r={r} place={place(r)} />)}
+        </tbody>
+      </Table>}
   </Card>;
 }
 
+/** The headings that sort the list, and what they sort by. */
+const SORTABLE: Record<string, string> = { Work: "title", Value: "value", Due: "due", Age: "opened" };
+
 /** A case no event raised (a task, a handover, a close-out): it is worked on its case page. */
-function CaseRow({ r }: { r: WorkListRow }) {
+function CaseRow({ r, place }: { r: WorkListRow; place: RowPlace }) {
   const names = useEntityNames(r.subjects);
   const open = href(`/cases/${r.item_id}`);
-  return <li className="work-card work-row">
-    <div className="work-row-what">
+  return <tr className="work-row">
+    <td className="work-row-what">
       <div className="work-card-title"><a href={open}>{say(r.title)}</a></div>
-      <Text as="div" small muted>{r.kind_label}{r.source ? ` · ${r.source}` : ""}</Text>
-    </div>
-    <div className="work-row-where small">{r.subjects.map((s) => <div key={s}><a href={href(`/e/${encodeURIComponent(s)}`)}>
-      {display(s, names)}</a></div>)}</div>
-    <div className="work-row-age small"><strong>{age(Date.now() - new Date(r.opened).getTime())}</strong>
-      {r.due_at && <Text muted> · due {whenDay(r.due_at)}</Text>}{r.overdue && <> <Badge tone="danger">overdue</Badge></>}</div>
-    <div className="work-row-with small"><a href={open}>{holderWords(r.assignee, r.role)}</a></div>
-    <div />
-  </li>;
+      <Text as="div" small muted>{r.kind_label}</Text>
+    </td>
+    <td className="small work-row-stage">{STAGE_WORDS[r.stage] ?? r.stage}</td>
+    <td className="small"><PriorityBadge p={r.priority} type={r.type} /></td>
+    <td />
+    <td className="work-row-where small">{r.subjects.map((s) => <div key={s}><a href={href(`/e/${encodeURIComponent(s)}`)}>
+      {display(s, names)}</a></div>)}</td>
+    <td className="small">{place.area}</td>
+    <td className="work-row-with small"><a href={open}>{holderWords(r.assignee, r.role)}</a></td>
+    <td className="small nowrap">{r.due_at ? whenDay(r.due_at) : ""}{r.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
+    <td className="small nowrap">{age(Date.now() - new Date(r.opened).getTime())}</td>
+    <td className="small">{r.source}</td>
+    <td />
+  </tr>;
 }
 
 /** The same rows in columns: by stage (in the order work moves), or by kind, holder, team, source, facility, area or asset. */

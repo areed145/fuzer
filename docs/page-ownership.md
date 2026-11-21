@@ -2,8 +2,8 @@
 
 Organize by user goals, not by the adapter, database table or feature's implementation history.
 These are ownership boundaries, not a requirement for a fixed number of top-level navigation entries.
-The operational primary destinations are **Home, List, Board, Plan, Explore, Reports,
-Sources, Jobs and Settings**, in that order. List and Board are all the work, today's shift (triage, dispatch,
+The operational primary destinations are **Home, Work, Plan, Explore, Reports,
+Sources, Jobs and Settings**, in that order. Work's two pages, List and Board, are all the work, today's shift (triage, dispatch,
 close out), as rows or as columns; Plan is the days and weeks ahead, so they sit together. Demo is not in the menu; `#/demo` still opens the guided tour.
 Specialist pages appear in secondary area navigation using their existing URLs.
 
@@ -17,7 +17,7 @@ Direct links select their owning primary destination.
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/3d`, `#/ask` | Assets and connected evidence, and the operations assistant that answers from them. Paid Ask remains AI-permission gated. All entity links reuse the existing entity viewer. An asset's kind links to it in the Ontology for configurers. |
 | Reports | `#/incidents`, `#/downtime`, `#/reports`, `#/metrics`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. |
-| List and Board | `#/list` and `#/board`: all the work (`GET /cases`), filtered and sorted on any dimension in the URL (`kind`, `stage`, `holder`, `queue`, `source`, `state`, `overdue`, `waiting_on`, `subject`, `at`, `q`, `sort`; the Board adds `group`). Old links land on the same work: `#/exceptions?list=…` and `#/cases?state=…` redirect to `#/list` with the filters the old view meant. Presets (Waiting on me, To dispatch, Back from the field, Overdue, Data questions) and views saved for a role only set filters. `#/inbox` (a field operator's jobs with their report buttons, kept for no signal; `#/field` redirects into it), `#/masterdata` (its Questions tab answers what `#/review` did), contextual `#/teams` and `#/handover`, and `#/cases/:id` keep their URLs and light List. | Human priorities, dispatch, review decisions, tasks and cases. Workflows (`#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key`; the older `#/processes…` URLs open the same pages) are in Settings. |
+| List and Board | `#/list` and `#/board`: all the work (`GET /cases`), filtered and sorted on any dimension in the URL (`kind`, `stage`, `holder`, `queue`, `source`, `facility`, `area`, `asset`, `state`, `overdue`, `waiting_on`, `subject`, `within`, `at`, `q`, `sort`; the Board adds `group`). Old links land on the same work: `#/exceptions?list=…` and `#/cases?state=…` redirect to `#/list` with the filters the old view meant. Presets (Waiting on me, To dispatch, Back from the field, Overdue, Data questions) and views saved for a role only set filters. `#/inbox` (a field operator's jobs with their report buttons, kept for no signal; `#/field` redirects into it), `#/masterdata` (its Questions tab answers what `#/review` did), contextual `#/teams` and `#/handover`, and `#/cases/:id` keep their URLs and light Work. | Human priorities, dispatch, review decisions, tasks and cases. Workflows (`#/workflows`, `#/workflows/:key`, `#/workflows/forms/:key`; the older `#/processes…` URLs open the same pages) are in Settings. |
 | Plan | `#/plan` (with `#/turnaround` redirecting into it), `#/plan?schedules=1` (Schedules), `#/plan?schedule=CODE`, `#/plan?resources=1` (Resources) | The days and weeks ahead: every source's planned work on one timeline, schedules, resources and their clashes. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views, configure-protected `#/ontology` (`?kind=…` opens on a kind) | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
@@ -43,7 +43,7 @@ the menu, the tabs pages declare in `ui/src/pageTabs.ts`, and records through th
 uses; a question opens Ask with it and asks it once. It is a way in, not an owner: each result opens its owning page. Sources secondary pages are Sources and configure-protected
 Ontology, the model each source maps onto.
 Demo is one route outside the menu, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Reports contains Downtime, Incidents, Daily reports, Metrics,
-Lessons and Studies. List and Board are one entry each: all the work as rows or as columns, with the same filters.
+Lessons and Studies. Work has two pages, List and Board: all the work as a table or as columns, with the same filters.
 My work and Master data's questions are presets on it, not menu entries. Workflows (formerly Processes; "process" means the plant in oil and gas) sit in Settings beside Routing:
 they are the playbooks the work follows; a case or task links to the workflow it
 is following. Plan contains Plan (the timeline), Schedules and Resources. A work item planned for a day links to its
