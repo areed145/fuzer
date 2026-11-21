@@ -12,6 +12,8 @@ export function useAppData() {
   const stats = useAsync(() => api.stats(), []);
   const demo = useAsync(() => api.demoConfig(), []);
   const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(undefined), [person]);
+  // The headline counts (the Work badge, Home's tiles, Needs you), read once here so every place shows the same number.
+  const figures = useAsync(() => person ? api.workCounts(person) : Promise.resolve(undefined), [person]);
   const jobsHealth = useAsync(() => configure ? api.jobsHealth() : Promise.resolve(undefined), [configure]);
   const declared = useAsync(() => api.ontologyDeclared().then((ontology) => {
     applyOntology(ontology);
@@ -32,5 +34,5 @@ export function useAppData() {
     if (wasRebuilding.current && !rebuilding) notifyChanged();
     wasRebuilding.current = rebuilding;
   }, [rebuilding]);
-  return { stats, demo, inbox, jobsHealth, declared, rebuilding };
+  return { stats, demo, inbox, figures, jobsHealth, declared, rebuilding };
 }

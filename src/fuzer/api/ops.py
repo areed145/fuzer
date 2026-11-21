@@ -633,18 +633,13 @@ def exception_list(state: str | None = "open", type: str | None = None, subject:
 
 
 @router.get("/work/counts")
-def work_counts(person: str, conn=Depends(get_conn)):
-    """The headline work figures, each by its one definition: open and overdue cases, what waits on the person, and
-    open events by stage. Every page that shows one of these reads it here."""
-    from ..ops import exceptions
-    from ..workflow import engine as work
+def work_counts(person: str | None = None, conn=Depends(get_conn)):
+    """The headline work figures, counted over the List's own rows (ops.worklist.figures): open, overdue, each stage,
+    and what waits on the person. Each equals the List with the matching filter, and every page that shows one of these
+    (the Work badge, Home, My work, the handover) reads it here."""
+    from ..ops import worklist
     _loaded_types()
-    w = work.my_work(conn, person, limit=0)["counts"]
-    return {"cases": work.case_counts(conn),
-            "waiting_on_you": {"total": w["mine"]["total"] + w["queue"]["total"],
-                               "overdue": w["mine"]["overdue"] + w["queue"]["overdue"],
-                               "mine": w["mine"]["total"], "queue": w["queue"]["total"]},
-            "events": exceptions.counts(conn)}
+    return worklist.figures(conn, person)
 
 
 @router.get("/cases")

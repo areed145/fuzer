@@ -1,12 +1,12 @@
 import "../../styles/work.css";
 import { count, money } from "../../format";
-import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line, Text, List } from "../../ui";
+import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line, Text, List, Notice } from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
 import { Due, holder, usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
 import { useState, type ReactNode } from "react";
 import { api, type ChecklistProgress, type WorkRow } from "../../api";
-import { href, useAction, useAsync } from "../../lib";
+import { href, notifyChanged, useAction, useAsync } from "../../lib";
 import { queue } from "../../wording";
 import { ATTENTION_TONE } from "../../kinds";
 
@@ -202,11 +202,22 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   const [why, setWhy] = useState("");
   const [blocked, setBlocked] = useState<string[] | null>(null);
   const a = useAction();
+  // Said where the IOC pressed Send (red team #2): the form empties, so without this nothing showed it went. The case
+  // reads again now and once more shortly, as its workflow moves on to the field check after the send is saved.
+  const [sent, setSent] = useState<string | null>(null);
   const field = (people.data ?? []).filter((p) => p.roles.includes("operator"));
-  const send = () => a.run("send", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined), () => {
-    setTo(""); setAsk(""); setWhy(""); setBlocked(null); onDone();
-  }).catch(() => undefined);
+  const named = (v: string) => v === "role:operator" ? queue("operator") : field.find((p) => p.name === v)?.display_name || v;
+  const send = () => {
+    const who = named(to);
+    return a.run("Sending to the field", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined), () => {
+      setSent(`Sent to ${who}. It is on their field jobs, and their report comes back to you here.`);
+      setTo(""); setAsk(""); setWhy(""); setBlocked(null); onDone(); notifyChanged();
+      window.setTimeout(onDone, 1500);
+    }).catch(() => undefined);
+  };
   const notReady = a.error?.startsWith("Not ready to dispatch") ?? false;
+  if (sent) return <Notice role="status" className="row wrap"><span>{sent}</span>
+    <Button size="sm" variant="ghost" onClick={() => setSent(null)}>Send someone else</Button></Notice>;
   return (
     <Disclosure className="small" label={<>Send to the field…</>}>
       <Line wrap>
@@ -223,7 +234,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
         <Input value={why} onChange={(e) => { setWhy(e.target.value); setBlocked([a.error ?? ""]); }} /></Field>}
       <Button variant="primary" disabled={!to || !ask.trim() || !!a.busy || ((notReady || !!blocked) && !why.trim())}
         title={!ask.trim() ? "Say what to check or do first: they see it on their job" : undefined}
-        onClick={send}>Send</Button>
+        onClick={send}>{a.busy ? "Sending…" : "Send"}</Button>
       <ErrorText>{a.error}</ErrorText>
     </Disclosure>
   );

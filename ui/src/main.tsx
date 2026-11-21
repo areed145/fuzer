@@ -85,7 +85,7 @@ function App() {
   const { path, query } = useRoute();
   const routeKey = path.join("/");
   const previousRoute = useRef(routeKey);
-  const { stats, demo, inbox, jobsHealth, declared, rebuilding } = useAppData();
+  const { stats, demo, inbox, figures, jobsHealth, declared, rebuilding } = useAppData();
   // Records keep who acted as an actor ("user:9abd…"); every page shows the account's name instead.
   const names = useAsync(() => api.workNames(), []);
   if (names.data) setPeopleNames(names.data);
@@ -95,7 +95,8 @@ function App() {
   const section = path[0] ?? "";
   const viewOnly = useViewOnly();
   const navSection = !section && query.has("q") ? "browse" : section;
-  const work = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
+  // What waits on you: the List's Waiting on me, counted by the server over the List's own rows.
+  const work = figures.data?.waiting_on_you?.total ?? 0;
   // The old Work pages' links (#/work, #/work/item/3, #/work/processes/upset, #/work/forms/x) still land right.
   useEffect(() => {
     if (section === "access") {
@@ -188,7 +189,7 @@ function App() {
           {section === "" && query.has("q") ? (
             <Search query={query} stats={s} />
           ) : section === "" ? (
-            <HomePage stats={s} statsLoading={stats.loading} statsError={stats.error} inbox={inbox} jobsHealth={jobsHealth} />
+            <HomePage stats={s} statsLoading={stats.loading} statsError={stats.error} inbox={inbox} figures={figures} jobsHealth={jobsHealth} />
           ) : section === "demo" || (section === "investigate" && path[1] === "okan") ? (
             !demo.data || demo.error ? <section><PageHeader>Demo</PageHeader>
               <Status of={demo} />

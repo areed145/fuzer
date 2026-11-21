@@ -503,12 +503,15 @@ export interface WritebackDetail extends Writeback {
 /** A reading the field took on site (P5.3b): a number with its unit, and what it was of. */
 export interface FieldReading { value: number; unit: string; what?: string | null }
 
-/** The headline work figures, each by its one definition (GET /work/counts): every page that shows one reads it here. */
+/** The headline work figures (GET /work/counts), counted over the List's own rows: `open` is the List unfiltered,
+ * `overdue` its Overdue toggle, `stages` its Stage picker and the Board's columns, `waiting_on_you` its Waiting on me
+ * preset. The Work badge, Home, Needs you and the handover read these, so a number always equals the List it opens. */
 export type EventStage = "dispatch" | "planned" | "field" | "back" | "desk" | "closed";
 export interface WorkFigures {
-  cases: { open: number; overdue: number };
-  waiting_on_you: { total: number; overdue: number; mine: number; queue: number };
-  events: { open: number; stages: Record<Exclude<EventStage, "closed">, number> };
+  open: number;
+  overdue: number;
+  stages: Record<Exclude<EventStage, "closed">, number>;
+  waiting_on_you: { total: number; overdue: number; to_dispatch: number } | null;
 }
 
 export interface WorkInbox {

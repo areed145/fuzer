@@ -32,8 +32,11 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
 
 /** The step a case waits on, worked on the case itself (#1222): what the field reported, its form or note, take or
  * give back, and sending it on. The case around it carries the evidence, the diagram and the history. */
-export function StepActions({ id, demo = false, send = true, complete: completes = true, onChanged }: {
+export function StepActions({ id, demo = false, send = true, complete: completes = true, onChanged, caseShowsProposal = false }: {
   id: number; demo?: boolean; /** offer sending the step on; the case page sends the whole case instead */ send?: boolean;
+  /** The case page around this step already shows its proposal with the decision, so the step doesn't show it twice
+   * (red team #1: two sets of Accept / Reject on one page). */
+  caseShowsProposal?: boolean;
   /** offer completing the step with a note; a task's one step ends with its case, finished on the case instead */
   complete?: boolean;
   onChanged: () => void;
@@ -74,8 +77,8 @@ export function StepActions({ id, demo = false, send = true, complete: completes
         <Text as="p" small>When it is done, say what you set in the note so the case keeps it.</Text>
       </UICard>}
       <FromField v={v} />
-      {typeof v.data.opportunity === "string" && <OpportunityPanel opportunityKey={v.data.opportunity} person={person}
-        readOnly={demo} onDecided={refresh} />}
+      {typeof v.data.opportunity === "string" && !caseShowsProposal && <OpportunityPanel opportunityKey={v.data.opportunity}
+        person={person} readOnly={demo} onDecided={refresh} />}
       {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
         canMerge={waiting && operate && !demo} onMerged={refresh} />}
       {kept && !demo ? <Notice>Done on this phone, waiting to send. The case moves on when the signal

@@ -103,42 +103,41 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         if len(rows) > LIMIT:
             more[name] = len(rows) - LIMIT
 
-    holder = lambda r: r["assignee"] or (f"the {wording.queue(r['role'])}" if r["role"] else "nobody yet")
-    keep("Open work", conn.execute(
-        """
-        select id, title, type, priority, assignee, role, due from work_item
-        where state not in ('done', 'cancelled') and type <> all(%s)
-        order by priority desc nulls last, due nulls last, created_at
-        """, ([CASE_TYPE, RECORDS],)).fetchall(),
-        lambda r: _line(f"{r['title']} ({r['type'].replace('_', ' ')}), with {holder(r)}"
-                        + (f", due {r['due']:%d %b %H:%M}" if r["due"] else ""), f"case:{r['id']}"))
-    keep("In the field", conn.execute(
-        """
-        select e.id, e.title, e.item_id, f->>'by' as by, f->>'at' as at, e.evidence->'handover' as handover
-        from exception_record e, lateral (select evidence->'field'->-1 as f) last
-        where e.state = 'open' and e.joined_to is null and f->>'status' = 'on_site'
-        order by (f->>'at')
-        """).fetchall(),
-        lambda r: _line(f"{r['title']}: {r['by']} on site since {_local(r['at'])}"
-                        + (f"; handed over to {r['handover']['to']}, waiting to be accepted"
-                           + (f" (unsafe to leave: {r['handover']['unsafe']})" if r["handover"].get("unsafe") else "")
-                           if r["handover"] and not r["handover"].get("accepted_at") else ""),
-                        f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
+    holder = lambda r: r.get("assignee") or (f"the {wording.queue(r['role'])}" if r.get("role") else "nobody yet")
+    # Open work, In the field and Back from the field are the List's own rows (ops.worklist), so the handover's counts
+    # are the List's and the Board's (red team #4): the same open work, the same stages.
+    from . import worklist
+
+    live = [r for r in worklist._all(conn, "open") if r["kind"] not in (CASE_TYPE, RECORDS)]
+    cite = lambda r: (f"exception:{r['exception_id']}" if r.get("exception_id") else "", f"case:{r['item_id']}" if r.get("item_id") else "")
+    last = lambda r: ((r.get("evidence") or {}).get("field") or [None])[-1] if isinstance(r.get("evidence"), dict) else None
+    due = lambda r: f", due {datetime.fromisoformat(r['due_at']).astimezone(_tz()):%d %b %H:%M}" if r.get("due_at") else ""
+    keep("Open work", sorted(live, key=lambda r: (-(r.get("priority") or 0), r.get("due_at") or "~", r.get("opened") or "")),
+         lambda r: _line(f"{r['title']} ({r['kind_label'].lower()}), with {holder(r)}{due(r)}", *cite(r)))
+
+    def in_field(r) -> dict:
+        said, handed = last(r), (r.get("evidence") or {}).get("handover")
+        text = (f"{r['title']}: {said['by']} on site since {_local(said.get('at'))}" if said and said.get("status") == "on_site"
+                else f"{r['title']}: with {holder(r)}")
+        if handed and not handed.get("accepted_at"):
+            text += f"; handed over to {handed['to']}, waiting to be accepted" + (
+                f" (unsafe to leave: {handed['unsafe']})" if handed.get("unsafe") else "")
+        return _line(text, *cite(r))
+    keep("In the field", sorted((r for r in live if r["stage"] == "field"), key=lambda r: (last(r) or {}).get("at") or "~"), in_field)
+
+    def came_back(r) -> dict:
+        said = last(r)
+        if not said or said.get("status") not in ("done", "could_not_do"):
+            return _line(f"{r['title']}: back with {holder(r)}", *cite(r))
+        return _line(f"{r['title']}: {said['by']} reported {'done' if said['status'] == 'done' else 'could not do'}"
+                     + (f" ({said['note']})" if said.get("note") else ""), *cite(r))
+    back = sorted((r for r in live if r["stage"] == "back"), key=lambda r: (last(r) or {}).get("at") or "", reverse=True)
     keep("Open permits", _permits(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}"))
     keep("Active bypasses", _bypasses(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}"))
     from . import rounds
 
     keep("Rounds", rounds.of_shift(conn, start, end), lambda r: _line(r["text"]))
-    keep("Back from the field", conn.execute(
-        """
-        select e.id, e.title, e.item_id, f->>'status' as said, f->>'by' as by, f->>'note' as note
-        from exception_record e, lateral (select evidence->'field'->-1 as f) last
-        where e.state = 'open' and e.joined_to is null and f->>'status' in ('done', 'could_not_do')
-        order by (f->>'at') desc
-        """).fetchall(),
-        lambda r: _line(f"{r['title']}: {r['by']} reported {'done' if r['said'] == 'done' else 'could not do'}"
-                        + (f" ({r['note']})" if r["note"] else ""), f"exception:{r['id']}",
-                        f"case:{r['item_id']}" if r["item_id"] else ""))
+    keep("Back from the field", back, came_back)
     keep("Escalated or overdue", conn.execute(
         """
         select t.id, t.item_id, coalesce(t.name, t.element) as step, i.title, t.assignee, t.role, t.due_at,

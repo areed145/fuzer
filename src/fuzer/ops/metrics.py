@@ -112,7 +112,7 @@ def _work(measure: str, label: str, definition: str, formula: str, better: str, 
 _work("arrivals", "Cases opened", "Cases opened this week (Monday to now).", "count(cases created this week)", "none")
 _work("closed", "Cases closed", "Cases closed this week (Monday to now).", "count(cases closed this week)", "higher")
 _work("backlog", "Open cases", "Cases still open now.", "count(cases open now)", "lower")
-_work("sla_misses", "Steps past due", "Person steps due this week that finished late or are still open past due.",
+_work("sla_misses", "Steps late this week", "Person steps due this week that finished late or are still open past due.",
       "count(person steps due this week, done after their due time or still open past it)", "lower", 0)
 
 

@@ -1319,3 +1319,79 @@ def test_all_the_work_is_one_list_filtered_and_sorted_on_any_dimension(conn, typ
         worklist.rows(conn, sort="colour")
     queues = {r["uid"]: r["queue"] for r in worklist.rows(conn, kind="seep")["rows"]}
     assert queues[f"e{a['id']}"] == "none", "a seep's type names no team and nobody has it yet"
+
+
+def test_every_headline_count_equals_the_list_it_opens(conn, types):
+    """One count of the work (red team #4): the badge, Home's tiles, My work and the handover read worklist.figures,
+    and each figure is exactly the List with the matching filter, so no two screens can disagree."""
+    from fuzer.ops import worklist
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    types("weep", audience=("ioc", "field"))
+    a = raise_exception(conn, "weep", "W-1", "Weep at W-1", "walk", refs=["tag:W-1"])
+    b = raise_exception(conn, "weep", "W-2", "Weep at W-2", "walk", refs=["tag:W-2"])
+    c = raise_exception(conn, "weep", "W-3", "Weep at W-3", "walk", refs=["tag:W-3"])
+    impl.dispatch(conn, b["id"], "ivy", "olly", reason="look at it")
+    impl.dispatch(conn, c["id"], "ivy", "olly", reason="look at it")
+    impl.report(conn, c["id"], "olly", "done", note="tightened it")
+    work.open_case(conn, "tidy_rt", "Tidy the store", "ivy", assignee="olly", due="2020-01-01T00:00:00Z")
+    assert a
+
+    for person in ("ivy", "olly"):
+        f = worklist.figures(conn, person)
+        assert f["open"] == worklist.rows(conn)["total"]
+        assert f["overdue"] == worklist.rows(conn, overdue=True)["total"] >= 1
+        for stage, n in f["stages"].items():
+            assert n == worklist.rows(conn, stage=stage)["total"], stage
+        assert sum(f["stages"].values()) == f["open"]
+        assert f["waiting_on_you"]["total"] == worklist.rows(conn, waiting_on=person)["total"]
+        assert f["waiting_on_you"]["overdue"] == worklist.rows(conn, waiting_on=person, overdue=True)["total"]
+        assert f["waiting_on_you"]["to_dispatch"] == worklist.rows(conn, waiting_on=person, stage="dispatch")["total"]
+    assert worklist.figures(conn, "ivy")["waiting_on_you"]["to_dispatch"] == worklist.figures(conn)["stages"]["dispatch"]
+    assert worklist.figures(conn)["waiting_on_you"] is None
+
+    # the shift handover lists the same open work at the same stages
+    from datetime import UTC, datetime, timedelta
+
+    from fuzer.ops import handover
+    now = datetime.now(UTC)
+    h = handover.facts(conn, now - timedelta(hours=12), now)
+    lines = lambda name: len(h["sections"][name]) + h["more"].get(name, 0)
+    f = worklist.figures(conn)
+    assert (lines("Open work"), lines("In the field"), lines("Back from the field")) == (
+        f["open"], f["stages"]["field"], f["stages"]["back"])
+    conn.rollback()
+
+
+def test_a_proposal_case_carries_its_worth_on_the_list_and_sorts_by_it(conn, types):
+    """Red team #6: the most valuable work showed no value and sorted below rows worth nothing; a case its scan valued
+    (an opportunity) carries that value on the List, the same figure its case page shows."""
+    from psycopg.types.json import Jsonb
+
+    from fuzer.ops import worklist
+
+    types("drip2", audience=("ioc",))
+    raise_exception(conn, "drip2", "V-1", "Drip at V-1", "walk", refs=["tag:V-1"], value_usd=900)
+    case = work.open_case(conn, "opportunity", "Reallocate lift gas on 30-FT-3002", "agent:opportunity_scan")
+    conn.execute("insert into opportunity (key, kind, title, value_usd, detail, fingerprint, item_id) "
+                 "values ('t-opp', 'lift_gas', 'Reallocate', 5611950, %s, 'f', %s)", (Jsonb({}), case["id"]))
+    rows = worklist.rows(conn, kind="drip2,opportunity")["rows"]
+    assert rows[0]["uid"] == f"c{case['id']}" and rows[0]["value_usd"] == 5611950
+    conn.rollback()
+
+
+def test_a_job_someone_reported_done_leaves_their_field_jobs_even_when_it_comes_back_to_them(conn, types):
+    """Red team #30: one person both dispatching and doing the job (a small crew, the demo login) saw the job they had
+    reported done still at the top of their field jobs, due in 3 h."""
+    from fuzer.ops import exceptions as ex
+
+    conn.execute("delete from work_person")
+    types("leak3", audience=("ioc", "field"))
+    e = raise_exception(conn, "leak3", "walk-30", "Leak at P-130", "olga", refs=["tag:P-130"])
+    ex.dispatch(conn, e["id"], "dana", "dana", reason="I'll go")
+    assert [j for j in ex.field_jobs(conn, "dana") if j["id"] == e["id"]]
+    ex.report(conn, e["id"], "dana", "done", note="tightened it")
+    assert not [j for j in ex.field_jobs(conn, "dana") if j["id"] == e["id"]]
+    conn.rollback()

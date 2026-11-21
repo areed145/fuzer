@@ -14,7 +14,8 @@ import { useMenuLabels } from "./theme";
 export type Badge = "work";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const BADGE_WORDS: Record<Badge, (n: number) => string> = {
-  work: (n) => plural(n, "workflow step waiting on you", "workflow steps waiting on you"),
+  // the List's Waiting on me: events and cases, one each however many steps a case has
+  work: (n) => plural(n, "item waiting on you", "items waiting on you"),
 };
 
 export interface NavItem {
@@ -361,7 +362,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
                   if (!item) return null;
                   const on = group.items.some((entry) => isActive(entry, section));
                   const count = group.items.reduce((n, entry) => n + (entry.badge ? badges[entry.badge] : 0), 0);
-                  // Say what the number counts (#397): "1 workflow step waiting on you".
+                  // Say what the number counts (#397): "1 item waiting on you".
                   const counted = group.items.filter((entry) => entry.badge && badges[entry.badge] > 0)
                     .map((entry) => BADGE_WORDS[entry.badge!](badges[entry.badge!])).join(", ");
                   return (

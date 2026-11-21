@@ -17,7 +17,7 @@ Every KPI is declared once, with its definition, formula, unit, the standard it 
 | [`work.arrivals`](#workarrivals) Cases opened | Work | cases | queue, type | this week |
 | [`work.backlog`](#workbacklog) Open cases | Work | cases | queue, type | this week |
 | [`work.closed`](#workclosed) Cases closed | Work | cases | queue, type | this week |
-| [`work.sla_misses`](#worksla_misses) Steps past due | Work | cases | queue, type | this week |
+| [`work.sla_misses`](#worksla_misses) Steps late this week | Work | cases | queue, type | this week |
 
 ## context.completeness
 
@@ -129,7 +129,7 @@ Every KPI is declared once, with its definition, formula, unit, the standard it 
 
 ## work.sla_misses
 
-**Steps past due.** Person steps due this week that finished late or are still open past due.
+**Steps late this week.** Person steps due this week that finished late or are still open past due.
 
 - **Formula:** count(person steps due this week, done after their due time or still open past it)
 - **Unit:** cases (lower is better)
