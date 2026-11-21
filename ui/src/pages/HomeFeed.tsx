@@ -4,7 +4,7 @@
  * Read only; it reads again every 30 s while the page is in view. */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { when } from "../format";
-import { api, type ExceptionRow, type JobsHealth, type LocatedPlace, type WorkHome, type WorkInbox, type WorkRow } from "../api";
+import { api, type ExceptionRow, type JobsHealth, type LocatedPlace, type WorkHome, type WorkFigures, type WorkInbox, type WorkRow } from "../api";
 import { Badge, Button, Empty, Text, Heading } from "../ui";
 import { Status, afterMap, href, useAsync, useLive } from "../lib";
 import { Actor, Due, holder, usePerson } from "../work";
@@ -57,9 +57,11 @@ function useArrivals(keys: string[] | null): Map<string, number> {
   return arrived;
 }
 
-export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, configure, onRing, top, open, onToggle }: {
+export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, steward, configure, onRing, top, open, onToggle }: {
   /** The person's own work here, read (and kept live) by Home, which takes their roles from it. */
   inbox: { data?: WorkInbox | null; error?: string; reload: () => void };
+  /** The headline counts (the Work badge's): My work's and To dispatch's totals are the List's own. */
+  figures?: WorkFigures | null;
   /** The scheduled jobs' health, read (and kept live) by the shell for its status light. */
   jobsHealth: { data?: JobsHealth | null; error?: string };
   /** False until the map has its data: the feed's other reads wait, so the map comes first on a busy server. */
@@ -98,7 +100,13 @@ export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, config
         {project !== here && <> · <Badge>{project || "this field"}</Badge></>} <StepBadges row={r} /></>,
     });
     if (inbox.data) out.push(...[...inbox.data.mine, ...inbox.data.queue].map((r) => row(r, here)));
-    for (const f of fields.data ?? []) if (f.project !== here) out.push(...[...f.mine, ...f.queue].map((r) => row(r, f.project)));
+    // Another field's work is ranked in with this field's (#649), but only what is theirs in the seat they hold here:
+    // assigned to them, or in a queue of a role they act in here (red team #5: acting as data steward, five ops lead
+    // approvals from other fields pushed the steward's own three off the list).
+    const seat = new Set(inbox.data?.roles ?? []);
+    const theirs = (r: WorkRow) => r.assignee === person || (!r.assignee && seat.has((r.role ?? "").replace(/^role:/, "")));
+    for (const f of fields.data ?? []) if (f.project !== here)
+      out.push(...[...f.mine, ...f.queue.filter(theirs)].map((r) => row(r, f.project)));
     for (const x of (exceptions ?? []).filter(waitingToDispatch)) {
       out.push({ group: "dispatch", key: `x-${x.id}`, title: x.title, to: workHref("dispatch", { q: x.title }), late: false, subjects: x.subjects ?? [],
                  at: x.first_seen, priority: x.priority, meta: <><strong>To dispatch</strong> · {x.source ?? "unknown source"} · since {when(x.first_seen)}</> });
@@ -114,7 +122,7 @@ export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, config
                  meta: <><strong>Scheduled jobs</strong> · Jobs</> });
     }
     return out.sort(rank);
-  }, [inbox.data, fields.data, exceptions, loads.data, jobs.data, here]);
+  }, [inbox.data, fields.data, exceptions, loads.data, jobs.data, here, person]);
 
   // What others did since the last look: the first read, then each later read's new events added on top.
   const [changes, setChanges] = useState<Change[]>([]);
@@ -169,14 +177,19 @@ export function NeedsYou({ inbox, jobsHealth, ready, exceptions, steward, config
     if (open) onToggle();
   };
 
-  // My work's count is the My work tab's: the inbox's own totals, which also count rows past the page the list holds.
-  const hereTotal = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
+  // The counts are the List's (red team #4): what waits on you is its Waiting on me, less what waits to be dispatched,
+  // which To dispatch lists; the two add up to the Work badge.
+  const waiting = figures?.waiting_on_you;
+  const hereTotal = waiting ? waiting.total - waiting.to_dispatch : 0;
   const elsewhere = items.filter((i) => i.group === "work" && i.project).length;
   const sections = GROUPS.map((g) => {
     const rows = items.filter((i) => i.group === g.key);
-    return { ...g, rows, total: g.key === "work" ? Math.max(hereTotal, rows.length - elsewhere) : rows.length };
+    return { ...g, rows, total: g.key === "work" ? (waiting ? hereTotal : rows.length - elsewhere)
+      : g.key === "dispatch" && figures && exceptions ? figures.stages.dispatch : rows.length };
   }).filter((g) => g.rows.length > 0 || g.total > 0);
-  const more: Record<Group, string> = { work: href("/list", { waiting_on: "me" }), dispatch: workHref("dispatch"), data: href("/sources") };
+  const more: Record<Group, string> = {
+    work: href("/list", waiting?.to_dispatch ? { waiting_on: "me", stage: "desk,planned,field,back" } : { waiting_on: "me" }),
+    dispatch: workHref("dispatch"), data: href("/sources") };
   const feedRow = (i: FeedItem) => (
     <li key={i.key} className={`feed-item${i.late ? " late" : ""}${fresh(i.key) ? " fresh" : ""}`} {...point(i.subjects, i.title)}>
       <span className="feed-line">

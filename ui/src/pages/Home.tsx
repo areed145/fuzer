@@ -4,7 +4,6 @@
 import "../styles/home.css";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { api, type AttentionPlace, type JobsHealth, type Stats, type WorkFigures, type WorkInbox } from "../api";
-import { usePerson } from "../work";
 import { openReviews } from "../figures";
 import { count } from "../format";
 import { Status, afterMap, href, useAsync, useLive } from "../lib";
@@ -16,9 +15,7 @@ import type { HotspotSpec, Inset } from "../map/engine";
 import { workHref } from "../pageTabs";
 
 /** How many open events wait at each stage, from the one count every page reads (GET /work/counts). */
-const iocCounts = (c: WorkFigures) => ({
-  dispatch: c.events.stages.dispatch, field: c.events.stages.field, back: c.events.stages.back, open: c.events.open,
-});
+const iocCounts = (c: WorkFigures) => ({ dispatch: c.stages.dispatch, field: c.stages.field, back: c.stages.back, open: c.open });
 import { FILTERS, PlaceDetail, keep, type Filter } from "./HomeAttention";
 import { NeedsYou, type Ring } from "./HomeFeed";
 
@@ -68,16 +65,17 @@ function savedFeed(): boolean {
   try { return localStorage.getItem(FEED_KEY) !== "folded"; } catch { return true; }
 }
 
-export function HomePage({ stats, inbox, jobsHealth }: {
+export function HomePage({ stats, inbox, figures, jobsHealth }: {
   stats?: Stats;
   statsLoading: boolean;
   statsError?: string;
   /** The shell's reads, shared so Home doesn't ask again and the My work tab's count moves with Home's. */
   inbox: { data?: WorkInbox | null; error?: string; reload: () => void };
+  /** The headline counts, the badge's own read, so Home's tiles and Needs you always show the badge's numbers. */
+  figures: { data?: WorkFigures | null; reload: () => void };
   jobsHealth: { data?: JobsHealth | null; error?: string };
 }) {
   const configure = usePermission("configure");
-  const [person] = usePerson();
   const roles = inbox.data?.roles ?? [];
   const seat = seatOf(roles);
   const dispatcher = roles.includes("ops_lead");
@@ -89,9 +87,9 @@ export function HomePage({ stats, inbox, jobsHealth }: {
   const spots = useAsync(() => api.attention(), []);
   const ready = geo.data !== undefined || !!geo.error;
   const open = useAsync(() => (dispatcher ? afterMap(ready, () => api.exceptions({ state: "open" })) : Promise.resolve(null)), [dispatcher, ready]);
-  // the headline figures, each by its one definition: the same numbers All work's views show
-  const tally = useAsync(() => (person ? afterMap(ready, () => api.workCounts(person)) : Promise.resolve(null)), [person, ready]);
-  useLive([inbox.reload, spots.reload, open.reload, tally.reload]);
+  // the headline figures: the List's own counts, the same read the Work badge shows
+  const tally = figures;
+  useLive([inbox.reload, spots.reload, open.reload, figures.reload]);
 
   const [layers, setLayers] = useState(savedLayers);
   const toggle = (k: Layer) => setLayers((s) => {
@@ -163,7 +161,7 @@ export function HomePage({ stats, inbox, jobsHealth }: {
               frame={(body) => <UICard title={title} className="home-card">{body}</UICard>} />)}
           </div>}
         </div>
-        <NeedsYou inbox={inbox} jobsHealth={jobsHealth} ready={ready} exceptions={dispatcher ? (open.error ? [] : open.data ?? undefined) : null} steward={steward} configure={configure} onRing={setRing}
+        <NeedsYou inbox={inbox} figures={figures.data} jobsHealth={jobsHealth} ready={ready} exceptions={dispatcher ? (open.error ? [] : open.data ?? undefined) : null} steward={steward} configure={configure} onRing={setRing}
                   open={sheet} onToggle={toggleFeed}
                   top={chosen && <PlaceDetail place={chosen} onClose={close} />} />
       </div>
@@ -215,7 +213,7 @@ function Figures({ seat, dispatcher, stats, tally, work, ready }: {
   seat: Seat; dispatcher: boolean; stats?: Stats; ready: boolean;
   tally?: WorkFigures; work?: { places: number; unplaced: number };
 }) {
-  const c = dispatcher && tally?.events ? iocCounts(tally) : null;
+  const c = dispatcher && tally?.stages ? iocCounts(tally) : null;
   const reviews = seat === "steward" && stats ? openReviews(stats) : null;
   return (
     <Scroller className="home-figures" label="Key figures">
@@ -224,7 +222,7 @@ function Figures({ seat, dispatcher, stats, tally, work, ready }: {
         <Tile to={workHref("field")} label="With the field" value={count(c.field)} />
         <Tile to={workHref("back")} label="Back from the field" value={count(c.back)} late={c.back > 0} />
       </>}
-      {tally?.events && work && seat !== "operator" && <Tile to={workHref("open")} label="Open work" value={count(tally.events.open)} />}
+      {tally?.stages && work && seat !== "operator" && <Tile to={workHref("open")} label="Open work" value={count(tally.open)} />}
       {reviews !== null && <Tile to={href("/masterdata", { tab: "questions" })} label="Records to review" value={count(reviews)} />}
       {METRICS[seat].map((key) => <MetricTile key={key} metric={key} ready={ready} />)}
     </Scroller>

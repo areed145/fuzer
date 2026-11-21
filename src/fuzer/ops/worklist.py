@@ -5,6 +5,8 @@ set of these filters.
     rows(conn, **filters)    {rows, total, facets, labels}: the matching rows (sorted, at most `limit`), how many
                              match, for each dimension how many match on each of its values with that dimension left
                              out, and the names of the facilities, areas and assets the facets count
+    figures(conn, person)    the headline counts every page shows (open, overdue, each stage, what waits on the
+                             person), counted over these same rows, so a number always equals the List it opens
 
 An event (an exception) is one row with the case working it, if any. A case no event raised (a task, a handover, a
 close-out) is a row of its own. Every row says where it stands (`stage`: dispatch, planned, field, back, desk or
@@ -103,6 +105,11 @@ def _all(conn, state: str) -> list[dict]:
     held = {e["item_id"] for e in events if e.get("item_id")}
     held |= {r["item_id"] for r in conn.execute("select item_id from exception_record where item_id is not null")}
     field_people = exceptions.operators(conn)
+    # A case no event raised carries the value its scan stored (an opportunity's worth), the figure its case page shows,
+    # so Most valuable doesn't sink a $5.6 M proposal under rows worth nothing (red team #6).
+    worth = {r["item_id"]: r["value_usd"] for r in conn.execute(
+        "select item_id, max(value_usd) as value_usd from opportunity where item_id is not null and value_usd is not null"
+        " group by item_id")}
     for c in _cases(conn, None, state).values():
         if c["id"] in held:
             continue
@@ -114,7 +121,7 @@ def _all(conn, state: str) -> list[dict]:
             "kind": c["type"], "kind_label": labels.get(c["type"], c["type"].replace("_", " ").capitalize()),
             "key": None, "title": c["title"], "source": c["source"] or c["created_by"],
             "state": "closed" if closed else "open", "exception_state": None, "case_state": c["state"],
-            "stage": stage, "priority": c["priority"], "value_usd": None, "subjects": c["subjects"] or [],
+            "stage": stage, "priority": c["priority"], "value_usd": worth.get(c["id"]), "subjects": c["subjects"] or [],
             "unmatched": [], "assignee": c["assignee"], "role": c["role"], "holder": _holder(c["assignee"], c["role"]),
             "queue": team(c["type"], c["role"]), "due_at": _iso(due), "overdue": bool(due and due < now and not closed), "waiting": c["waiting"] or [],
             "opened": _iso(c["created_at"]), "updated": _iso(c["updated_at"]), "first_seen": _iso(c["created_at"]),
@@ -169,6 +176,29 @@ SORT_KEYS = {
     "updated": lambda r: _neg_time(r.get("updated")),
     "title": lambda r: (r.get("title") or "").lower(),
 }
+
+
+OPEN_STAGES = ("dispatch", "desk", "planned", "field", "back")
+
+
+def figures(conn, person: str | None = None) -> dict:
+    """The one count of how much work there is (#4 of the red team tour). Every figure is a filter of the List over the
+    same open rows: `open` is the List with no filter, `overdue` its Overdue toggle, `stages` its Stage picker (and the
+    Board's columns), `waiting_on_you` its Waiting on me preset. The badge, Home, My work, the handover and the List
+    all read these, so they can't disagree."""
+    everything = _all(conn, "open")
+    stages = dict.fromkeys(OPEN_STAGES, 0)
+    for r in everything:
+        stages[r["stage"]] = stages.get(r["stage"], 0) + 1
+    out = {"open": len(everything), "overdue": sum(1 for r in everything if r["overdue"]), "stages": stages,
+           "waiting_on_you": None}
+    if person:
+        roles = set(work.roles_of(conn, person))
+        mine = [r for r in everything if _waits_on(r, person, roles)]
+        # an ops lead's includes what waits to be dispatched; Needs you lists that part on its own
+        out["waiting_on_you"] = {"total": len(mine), "overdue": sum(1 for r in mine if r["overdue"]),
+                                 "to_dispatch": sum(1 for r in mine if r["stage"] == "dispatch")}
+    return out
 
 
 def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=None, waiting_on: str | None = None,

@@ -147,6 +147,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null}
+        proposal={typeof raised.opportunity === "string"}
         asked={typeof raised.summary === "string" ? raised.summary : null}
         evidence={Array.isArray(raised.evidence) && typeof raised.summary === "string" ? raised.evidence.filter((x): x is string => typeof x === "string") : []} />
       {closed && (it.checklist ?? []).length > 0 && <UICard title="Checklist">
@@ -188,8 +189,10 @@ function questionOf(sources?: CaseSource[]): { id: number; kind: ReviewKind } | 
 
 /** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
  * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
-function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null, asked = null, evidence = [] }: {
+function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null, asked = null, evidence = [], proposal = false }: {
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
+  /** The case shows its proposal with the decision below, so the step leaves it out. */
+  proposal?: boolean;
   exceptionId?: number | null; /** what was asked, in the asker's words (Markdown) */ asked?: string | null;
   /** the records the ask cites */ evidence?: string[];
 }) {
@@ -221,7 +224,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
       <CaseChecklist it={it} person={person} readOnly={demo} reload={reload} />
       {/* the step is worked here (#1222): no separate step page. A task's one step ends with its case, so it is
           finished below, not completed here as well */}
-      {next && !answered && <StepActions key={next.id} id={next.id} demo={demo} send={false} onChanged={reload}
+      {next && !answered && <StepActions key={next.id} id={next.id} demo={demo} send={false} onChanged={reload} caseShowsProposal={proposal}
         complete={!it.processes.some((p) => p.id === next.process_id && p.process_key === "task")} />}
       {fieldOnly && <div className="row wrap case-next-actions"><ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink></div>}
       <ErrorText>{takeOver.error}</ErrorText>

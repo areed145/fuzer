@@ -950,6 +950,8 @@ def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
                            order by due_at nulls last, id limit 1) t on true
         left join work_process p on p.id = (select process_id from work_token where id = t.id)
         where e.state = 'open' and e.joined_to is null and w.state not in ('done', 'cancelled')
+          -- a job they reported done is the IOC's to close, not still theirs to do (red team #30)
+          and not coalesce(e.evidence->'field'->-1->>'status' = 'done' and e.evidence->'field'->-1->>'by' = %(p)s, false)
           and (t.assignee = %(p)s or (t.id is null and w.assignee = %(p)s)
                or (t.id is not null and t.assignee is null and t.role = any(%(roles)s))
                or (t.id is null and w.assignee is null and w.role = any(%(roles)s))

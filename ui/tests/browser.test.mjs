@@ -32,6 +32,7 @@ beforeEach(async () => {
     "/auth/me": { mode: "local", configured: true, user: null },
     "/work/inbox": { person: "", roles: [], mine: [], queue: [],
       counts: { mine: { total: 0 }, queue: { total: 0 } } },
+    "/work/counts": { open: 0, overdue: 0, stages: { dispatch: 0, planned: 0, field: 0, back: 0, desk: 0 }, waiting_on_you: null },
     "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
     "/settings": { project: null, projects: [], settings: [] },
     "/demo/config": { enabled: true },
@@ -538,6 +539,35 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+test("sending a case to the field says it went, and the case reads again as its workflow moves on (red team #2)", async () => {
+  let reads = 0;
+  const sent = [];
+  const item = () => ({ id: 21, title: "Separator level high", type: "upset", state: "open", subjects: [],
+    created_by: "detector:sre", created_at: "2026-11-12T03:00:00Z", events: [], processes: [],
+    payload: { exception_id: 7 } });
+  await page.route("**/work/items/21", (route) => { reads += 1; return route.fulfill({ json: item() }); });
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
+    { name: "sam", roles: ["operator"], holding: 2 }] }));
+  await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  await page.goto(`${url}/#/cases/21`);
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+  await page.reload();
+  await page.getByText("Send to the field…").click();
+  await page.getByLabel("Send to").selectOption("sam");
+  await page.getByLabel("What to check or do (they see this)").fill("check the level glass");
+  const before = reads;
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Sent to sam. It is on their field jobs" }).waitFor();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, "sam");
+  // the case reads again at once, and once more a moment later, after its workflow has moved on to the field check
+  await new Promise((r) => setTimeout(r, 700));
+  const first = reads;
+  for (let i = 0; i < 40 && reads === first; i++) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(first > before && reads > first, `read again at once and a moment later (${before} → ${first} → ${reads})`);
+  await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+});
+
 test("a standing condition is shelved with a reason and an expiry, and shows as shelved (P3.5c)", async () => {
   const row = (extra = {}) => ({ id: 5, type: "machine_health", key: "K-1", title: "Seal weeping", source: "screen", state: "open",
     priority: null, value_usd: null, subjects: [], unmatched: [], item_id: null, case_state: null, assignee: null, role: null,
@@ -764,12 +794,15 @@ test("the Work badge says what it counts and the Cases filters are labelled (#39
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["engineer"], mine: [], queue: [],
     counts: { mine: { total: 1 }, queue: { total: 0 } } } }));
+  // the badge is the List's Waiting on me, counted by the server (red team #4)
+  await page.route("**/work/counts?*", route => route.fulfill({ json: { open: 3, overdue: 0,
+    stages: { dispatch: 0, planned: 0, field: 0, back: 0, desk: 3 }, waiting_on_you: { total: 1, overdue: 0, to_dispatch: 0 } } }));
   await page.route("**/stats", route => route.fulfill({ json: { facility: "OKAN", pack: "okan", records: 1, entities: {}, edges: 0,
     open_reviews: { match: 14 }, rebuild: {} } }));
   await page.goto(`${url}/#/cases`);
   const badge = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Work/ }).locator(".count");
   await page.waitForFunction(() => document.querySelector("nav[aria-label=Main] .count")?.getAttribute("title")
-    === "1 workflow step waiting on you");
+    === "1 item waiting on you");
   assert.equal(await badge.locator("[aria-hidden=true]").innerText(), "1", "a data question is counted in the steward's queue, not again");
   // Under All work the shared filter bar labels them (#502).
   await page.getByRole("combobox", { name: "Held by", exact: true }).waitFor();
@@ -3168,11 +3201,10 @@ const homePopulated = {
   "/sources/health": [],
   "/analytics/figures/production-efficiency": efficiency, "/analytics/figures/flow-capacity": capacity,
 };
-/** GET /work/counts: the headline figures every page reads, here with open events at the given stages. */
-const workCounts = (stages = {}) => {
+/** GET /work/counts: the headline figures every page reads (the List's own counts), here with work at the given stages. */
+const workCounts = (stages = {}, waiting = { total: 0, overdue: 0, to_dispatch: 0 }) => {
   const all = { dispatch: 0, planned: 0, field: 0, back: 0, desk: 0, ...stages };
-  return { cases: { open: 0, overdue: 0 }, waiting_on_you: { total: 0, overdue: 0, mine: 0, queue: 0 },
-    events: { open: Object.values(all).reduce((a, b) => a + b, 0), stages: all } };
+  return { open: Object.values(all).reduce((a, b) => a + b, 0), overdue: 0, stages: all, waiting_on_you: waiting };
 };
 
 async function homeFixture(fixtures, { fail = false } = {}) {
@@ -7892,6 +7924,8 @@ test("P5.14b On a phone, Home, Work, Explore and Reports are one tap away at the
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["operator"], mine: [], queue: [],
     counts: { mine: { total: 2 }, queue: { total: 0 } } } }));
+  await page.route("**/work/counts?*", route => route.fulfill({ json: { open: 2, overdue: 0,
+    stages: { dispatch: 0, planned: 0, field: 2, back: 0, desk: 0 }, waiting_on_you: { total: 2, overdue: 0, to_dispatch: 0 } } }));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/browse`);
   const bar = page.getByRole("navigation", { name: "Quick", exact: true });
@@ -7906,7 +7940,7 @@ test("P5.14b On a phone, Home, Work, Explore and Reports are one tap away at the
   assert.equal(await bar.locator('a[aria-current="page"]').innerText(), "Explore");
 
   // Work says how much is waiting on you and opens all the work.
-  const list = bar.getByRole("link", { name: "Work, 2 workflow steps waiting on you", exact: true });
+  const list = bar.getByRole("link", { name: "Work, 2 items waiting on you", exact: true });
   await list.click();
   await page.waitForURL(/#\/list$/);
   await bar.locator('a[aria-current="page"]', { hasText: "Work" }).waitFor();
