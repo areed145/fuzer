@@ -931,7 +931,8 @@ test("The demo account goes anywhere, view only on configuration, and picks the 
   });
   await page.goto(`${url}/#/sources`);
   await page.getByRole("heading", { name: "Source readiness", exact: true }).waitFor();
-  await page.getByText("View only: the demo account can look at this page but can't change it.").waitFor();
+  // a data steward's fixes are the demo's to do here; systems, connections and settings stay view only
+  await page.getByText("Demo account: you can rerun a load, profile it, add a check and approve a mapping here.", { exact: false }).waitFor();
   // The account is the badge at the top right, on every screen: a circle, not an oval.
   const badge = await page.getByRole("button", { name: /^Account/ }).boundingBox();
   assert.equal(badge.width, badge.height, "the account badge is round");
@@ -943,6 +944,8 @@ test("The demo account goes anywhere, view only on configuration, and picks the 
   await acting.selectOption("ops_lead");
   await page.waitForFunction(() => document.querySelector('select[aria-label="Acting as"]')?.value === "ops_lead");
   assert.deepEqual(sent, [["ops_lead"]]);
+  await page.goto(`${url}/#/settings`);
+  await page.getByText("View only: the demo account can look at this page but can't change it.").waitFor();
   await page.goto(`${url}/#/inbox`);
   assert.equal(await page.getByText("View only:", { exact: false }).count(), 0);  // work pages are the demo's to act on
 });
