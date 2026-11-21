@@ -141,7 +141,12 @@
   text-align: center;
 }
 
-main { width: 100%; max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
+/* Page width on a wide monitor (main.tsx pageWidth): a desk width by default, the whole screen for boards, lists, maps
+   and diagrams, and a reading width for a case, a task, a form or an answer. Below 1200px all three are the same. */
+main { width: 100%; max-width: 1600px; margin: 0 auto; padding: 20px 24px 60px; }
+main[data-width="wide"] { max-width: none; }
+main[data-width="wide"] p { max-width: 100ch; }  /* the page widens, a sentence does not */
+main[data-width="reading"] { max-width: 1200px; }
 
 
 @media (max-width: 800px) {
