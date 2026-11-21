@@ -59,7 +59,7 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
         or scheduler process to restart. Saving is not confirmation that the running process has adopted a value.</p>
       <p>Changing an environment-backed secret requires applying the hosting change as well.</p>
       <ButtonLink href={config()}>Open all configuration</ButtonLink>{" "}
-      <ButtonLink href={href("/")}>Return Home</ButtonLink>
+      <ButtonLink href={href("/")}>Back to Tower</ButtonLink>
     </Card>
   </div>;
 }

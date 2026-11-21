@@ -155,6 +155,8 @@ shutdown is counted under the shutdown and opens no case.
 
 **Tag.** A functional position in the plant, such as `20-P-1001B`. Equipment is installed at a tag.
 
+**Tower.** The first page (`#/`): the field map with what needs you over it, the control tower view. Not Home.
+
 **Upset.** Detections close in time and connected in the plant model, grouped into one. The earliest is its likely
 first cause.
 

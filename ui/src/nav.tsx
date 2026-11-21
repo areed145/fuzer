@@ -47,7 +47,8 @@ export interface NavGroup {
 
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
-  { label: "Home", icon: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z", items: [{ label: "Home", section: "" }] },
+  // The control tower: the field map with what needs you over it (#/ keeps its URL).
+  { label: "Tower", icon: "M12 2v3M4.5 5h15L17 10H7zM10 5.5l.4 4M14 5.5l-.4 4M9.5 10l-1 11M14.5 10l1 11M6 21h12", items: [{ label: "Tower", section: "" }] },
   // All the work, as a list or a board: one set of rows, filtered on any dimension. My work and Data questions are
   // presets on it; their pages (#/inbox for a field operator's jobs, #/masterdata) keep their links and light List.
   {
@@ -166,7 +167,7 @@ export function upFor(path: string[]): { to: string; label: string } | undefined
   const page = found && found.item.path ? found.item.path : found ? `/${found.item.section}` : "/";
   if (found && !found.item.external && (path.length > 1 || section !== found.item.section) && page !== `/${path.join("/")}`)
     return { to: href(page), label: found.item.label };
-  return { to: href("/"), label: "Home" };
+  return { to: href("/"), label: "Tower" };
 }
 
 /** The installed app has no address bar to copy from (P5.14d): share this page's link, or copy it where the phone
@@ -211,7 +212,7 @@ export function BackButton({ path, className }: { path: string[]; className?: st
 /** The phone's bottom bar: the primary destinations a dispatched operator reaches for, in this order. Same pages and
  * access rules as the sidebar; the drawer behind Menu still holds all of them. */
 const BOTTOM: { group: string; tab?: string; section?: string }[] = [
-  { group: "Home" }, { group: "List" }, { group: "Board" }, { group: "Explore" },
+  { group: "Tower" }, { group: "List" }, { group: "Board" }, { group: "Explore" },
 ];
 
 /** True while the on-screen keyboard is up (the visual viewport shrinks well below the window), so the bottom bar
