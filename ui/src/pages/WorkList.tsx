@@ -4,10 +4,10 @@
  * out in columns by stage, kind, holder, team, source, facility, area or asset. */
 import "../styles/all-work.css";
 import "../styles/work-board.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type WorkListFilters, type WorkListResult, type WorkListRow, type ExceptionRow } from "../api";
 import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, PageHeader, Select, Table, Text, Heading } from "../ui";
-import { Status, href, useAsync, useDebounced, errorMessage } from "../lib";
+import { Status, href, useAsync, useDebounced, usePhone, errorMessage } from "../lib";
 import { money, whenDay } from "../format";
 import { holder as holderWords, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -42,7 +42,10 @@ export function listHref(board: boolean, f: Filters) {
   return href(board ? "/board" : "/list", Object.fromEntries(Object.entries(f).filter(([, v]) => v)) as Record<string, string>);
 }
 
-export function WorkListPage({ query, board = false }: { query: URLSearchParams; board?: boolean }) {
+export function WorkListPage({ query, board: wantsBoard = false }: { query: URLSearchParams; board?: boolean }) {
+  // A phone gets the List as compact cards: a board of columns needs a tablet's or a desk's width.
+  const phone = usePhone();
+  const board = wantsBoard && !phone;
   const filters: Filters = Object.fromEntries([...KEYS, "group"].map((k) => [k, query.get(k) || undefined]));
   const [person] = usePerson();
   // `me` is whoever is looking, so a preset or a shared link works for everyone.
@@ -56,8 +59,6 @@ export function WorkListPage({ query, board = false }: { query: URLSearchParams;
   return (
     <section>
       <PageHeader className="all-work-header">{board ? "Board" : "All work"}</PageHeader>
-      <Text as="p" small>{mine?.roles.includes("operator") && <><a href={href("/inbox")}>Your field jobs</a>, with their
-        report buttons and kept for no signal. </>}<a href={href("/performance")}>How the work is running</a></Text>
       {filters.state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <Presets board={board} filters={filters} roles={mine?.roles ?? []} />
       <FilterBar board={board} filters={filters} facets={list.data?.facets} labels={list.data?.labels ?? {}} set={set} />
@@ -91,6 +92,7 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
   const forRole = role || roles[0] || "";
   const open = (key: string) => {
     if (!key) return location.assign(listHref(board, { group: filters.group }));
+    if (key.startsWith("page:")) return location.assign(href(key.slice(5)));
     const p = WORK_PRESETS.find((x) => x.key === key);
     const v = views.find((x) => String(x.id) === key);
     const f = p ? p.filters : v ? savedFilters(v.list, v.filters) : undefined;
@@ -110,6 +112,12 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
         {WORK_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
         {views.length > 0 && <optgroup label="Saved for a role">
           {views.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.role.replace(/_/g, " ")})</option>)}</optgroup>}
+        {/* The pages beside the list: a field operator's jobs with their report buttons (kept for no signal), and how
+            the work is running per team. */}
+        <optgroup label="Other pages">
+          {roles.includes("operator") && <option value="page:/inbox">Your field jobs</option>}
+          <option value="page:/performance">How the work is running</option>
+        </optgroup>
       </Select>
       {person && roles.length > 0 && Object.keys(chosen).length > 0 && !current && !naming &&
         <Button variant="link" className="work-views" onClick={() => setNaming(true)}>Save this view for a role</Button>}
@@ -126,6 +134,8 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
   );
 }
 
+const MORE_FILTERS = new Set<Key>(["queue", "source", "facility", "area", "asset", "state"]);
+
 /** One picker per dimension, each value with how many match it given the other filters. */
 function FilterBar({ board, filters, facets, labels, set }: {
   board: boolean; filters: Filters; facets?: WorkListResult["facets"]; labels: Record<string, string>; set: (f: Filters) => void;
@@ -139,11 +149,14 @@ function FilterBar({ board, filters, facets, labels, set }: {
   // On a phone the pickers fold behind one Filters button, so the first screen holds work (#1070).
   const [open, setOpen] = useState(false);
   const chosen = KEYS.filter((k) => k !== "q" && k !== "sort" && filters[k]).length;
+  // A desk and a tablet show the pickers a lead reaches for every shift; team, source, place and state wait behind More
+  // filters, and a chosen one stays out where it can be seen and cleared.
+  const more = (key: Key) => MORE_FILTERS.has(key) && !filters[key] ? "work-filter-more" : undefined;
   const pick = (key: Key, label: string, counts: Record<string, number> | undefined, words: (v: string) => string, any: string) => {
     const options = Object.entries(counts ?? {});
     const value = filters[key] ?? "";
     if (value && !options.some(([v]) => v === value)) options.push([value, 0]);
-    return <Select aria-label={label} value={value} onChange={(e) => set({ [key]: e.target.value || undefined })}>
+    return <Select aria-label={label} className={more(key)} value={value} onChange={(e) => set({ [key]: e.target.value || undefined })}>
       <option value="">{any}</option>
       {options.map(([v, n]) => <option key={v} value={v}>{v.includes(",") ? `${v.split(",").length} chosen` : words(v)}{n ? ` (${n})` : ""}</option>)}
     </Select>;
@@ -152,7 +165,8 @@ function FilterBar({ board, filters, facets, labels, set }: {
     <div className={open ? "row wrap work-filters open" : "row wrap work-filters"} role="search" aria-label="Filter all work">
       <Input type="search" aria-label="Search titles" placeholder="Search titles" value={text} onChange={(e) => setText(e.target.value)} />
       <Button className="work-filters-toggle" variant="secondary" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Filters{chosen ? ` (${chosen})` : ""}</Button>
+        <span className="work-filters-phone">Filters{chosen ? ` (${chosen})` : ""}</span>
+        <span className="work-filters-desk">{open ? "Fewer filters" : "More filters"}</span></Button>
       {pick("kind", "Kind of work", facets?.kind, (v) => kindLabel[v] ?? v.replace(/_/g, " "), "Every kind")}
       {pick("stage", "Stage", facets?.stage, (v) => STAGE_LABEL[v] ?? v, "Every stage")}
       {pick("holder", "Held by", facets?.holder, holderLabel, "Anyone")}
@@ -161,7 +175,7 @@ function FilterBar({ board, filters, facets, labels, set }: {
       {pick("facility", "Facility", facets?.facility, named("No facility"), "Every facility")}
       {pick("area", "Area", facets?.area, named("No area"), "Every area")}
       {pick("asset", "Asset", facets?.asset, named("No asset"), "Every asset")}
-      <Select aria-label="State" value={filters.state ?? ""} onChange={(e) => set({ state: e.target.value || undefined })}>
+      <Select aria-label="State" className={more("state")} value={filters.state ?? ""} onChange={(e) => set({ state: e.target.value || undefined })}>
         <option value="">Open</option><option value="closed">Closed</option><option value="all">Every state</option>
       </Select>
       <Select aria-label="Sort by" value={filters.sort ?? ""} onChange={(e) => set({ sort: e.target.value || undefined })}>
@@ -268,24 +282,32 @@ function Board({ data, group, person, people, queues, onChange }: {
   const values = group === "stage"
     ? STAGE_ORDER.filter((s) => s !== "closed" || data.rows.some((r) => r.stage === "closed"))
     : [...new Set(data.rows.map(key))];
-  const [shown, setShown] = useState<string | null>(null);
-  const showing = shown ?? values.find((v) => data.rows.some((r) => key(r) === v)) ?? values[0];
-  return <>
-    <nav className="chips work-board-stages" aria-label="Columns">
-      {values.map((v) => <Button key={v} className="chip" aria-pressed={v === showing} onClick={() => setShown(v)}>
-        {label(v)} <Text muted>{data.rows.filter((r) => key(r) === v).length}</Text></Button>)}
-    </nav>
-    <div className="work-board">
+  // Below the width every column needs, the board scrolls sideways; a fade on the edge says more columns are there.
+  const [more, setMore] = useState({ left: false, right: false });
+  const frame = useRef<HTMLDivElement>(null);
+  const edges = () => {
+    const el = frame.current;
+    if (!el) return;
+    const next = { left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 };
+    setMore((was) => was.left === next.left && was.right === next.right ? was : next);
+  };
+  useEffect(() => {
+    edges();
+    const watch = new ResizeObserver(edges);
+    if (frame.current) watch.observe(frame.current);
+    return () => watch.disconnect();
+  }, [data, group]);  // eslint-disable-line react-hooks/exhaustive-deps
+  return <div className={`work-board-frame${more.left ? " more-left" : ""}${more.right ? " more-right" : ""}`}>
+    <div className="work-board" ref={frame} onScroll={edges} tabIndex={0} aria-label="Board columns">
       {values.map((v) => {
         const cards = data.rows.filter((r) => key(r) === v);
-        return <section key={v} className={`work-board-column${cards.length ? "" : " empty"}${v === showing ? " shown" : ""}`}
-          aria-label={label(v)}>
+        return <section key={v} className={`work-board-column${cards.length ? "" : " empty"}`} aria-label={label(v)}>
           <Heading level={2}><span>{label(v)}</span><Text muted>{cards.length}</Text></Heading>
           {cards.map((r) => <BoardCard key={r.uid} r={r} person={person} people={people} queues={queues} onChange={onChange} />)}
         </section>;
       })}
     </div>
-  </>;
+  </div>;
 }
 
 function BoardCard({ r, person, people, queues, onChange }: {

@@ -168,6 +168,16 @@ export function useReasonedAction(saved: () => void) {
   return { reason, setReason, busy, error, done, setDone, run };
 }
 
+/** True on a phone-width screen (the width the stylesheets call a phone), and it follows a rotate or a resized window. */
+export const PHONE = "(max-width: 600px)";
+export function usePhone(): boolean {
+  return useSyncExternalStore((change) => {
+    const q = matchMedia(PHONE);
+    q.addEventListener("change", change);
+    return () => q.removeEventListener("change", change);
+  }, () => matchMedia(PHONE).matches, () => false);
+}
+
 export function useDebounced<T>(value: T, ms = 250): T {
   const [v, setV] = useState(value);
   useEffect(() => {

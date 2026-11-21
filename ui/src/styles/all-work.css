@@ -1,6 +1,10 @@
 /* All work: the views, then one filter row. Search comes first; on a phone the two pickers fold behind Filters. */
 .work-filters { margin: 12px 0 8px; }
-.work-filters-toggle { display: none; }
+/* A desk and a tablet: search, kind, stage, holder, sort and overdue in view, the rest behind More filters (#8). */
+.work-filters-phone { display: none; }
+.work-filters:not(.open) > .work-filter-more { display: none; }
+.work-filters > .work-filters-toggle { order: 1; }
+@media (min-width: 601px) { #main-content .row.work-filters > select { flex: 0 1 auto; width: auto; min-width: 9rem; } }
 @media (max-width: 600px) {
   .work-filters { flex-wrap: wrap; }
   #main-content .row.work-filters > input[type=search] { order: 0; flex: 1 1 0; width: auto; min-width: 0; }
@@ -8,7 +12,9 @@
   /* Saving a view for a role is set up at a desk. */
   .work-views { display: none; }
   #main-content .row.work-state > select.ui-input { width: auto; flex: 0 0 auto; }
-  .work-filters > .work-filters-toggle { display: inline-flex; flex: 0 0 auto; min-height: 44px; }
+  .work-filters > .work-filters-toggle { display: inline-flex; flex: 0 0 auto; min-height: 44px; order: 0; }
+  .work-filters-phone { display: inline; }
+  .work-filters-desk { display: none; }
   .work-filters > select { display: none; flex: 1 1 0; min-width: 0; }
   .work-filters.open > select { display: block; }
   /* The first screen is for work (#1070): the subtitle and the side links give way on a phone. */
@@ -32,6 +38,7 @@
 .work-row .work-card-title { font-size: 14px; }
 .work-row-where > div, .work-row-with > div { overflow-wrap: break-word; }
 .work-row-actions { justify-content: flex-end; flex-wrap: nowrap; gap: 6px; margin: 0; }
+.work-row-actions > :is(button, a) { white-space: nowrap; }
 .work-row-panel { padding: 8px 10px; }
 .work-row-panel .row { gap: 8px; align-items: end; }
 .dispatch-controls { display: flex; flex-direction: column; gap: 8px; }
@@ -44,3 +51,42 @@
 }
 /* All work's views are filters on the one list: facets, not a second row of tabs. */
 .work-views a.chip { text-decoration: none; }
+
+/* On a phone the List is compact cards (the Board is not offered there): the title, then one line of priority, stage,
+ * due and value, then what it is about and who has it, then the row's actions side by side across the card. Area and
+ * age stay on a tablet or a desk. Cells carry no labels here; each value reads on its own. */
+@media (max-width: 600px) {
+  :root #main-content table.work-table.work-table.work-table tr.work-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+    padding: 12px 0; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td { flex: 0 1 auto; min-width: 0; font-size: 13px; line-height: 18px; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td::before { content: none; display: none; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(1) { flex: 1 1 100%; order: 0; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(3) { order: 1; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(2) { order: 2; color: var(--muted); }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(8) { order: 3; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(4) { order: 4; font-weight: 600; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(5) { order: 5; flex: 1 1 100%; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(5) > div { display: inline; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(5) > div + div::before { content: " · "; color: var(--muted); }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(7) { order: 6; flex: 1 1 100%; color: var(--muted); }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(7):has(> a[href*="/cases/"])::before { content: "With "; display: inline; color: var(--muted); }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > :is(td:nth-child(6), td:nth-child(9)) { display: none; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td.work-row-act { order: 9; flex: 1 1 100%; width: auto; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row > td.work-row-act:not(:has(button, a)) { display: none; }
+  #main-content .work-table td.work-row-act .work-row-actions { display: flex; flex-wrap: nowrap; gap: 8px; min-width: 0; margin-top: 4px; }
+  #main-content .work-table td.work-row-act .work-row-actions > :is(button, a) { flex: 1 1 0; min-width: 0; min-height: 44px; justify-content: center;
+    padding-inline: 8px; white-space: nowrap; font-size: 15px; }
+  #main-content .work-table tr.work-row-panel-row { display: block; padding: 0 0 12px; }
+}
+/* A tablet in portrait: the table drops Area and Age (the case has both), and below 900 px Priority too (it shows on the
+ * case and sorts nothing here), so Due and the row's actions stay in view without scrolling sideways. */
+@media (min-width: 601px) and (max-width: 1100px) {
+  .work-table tr > :is(th, td):nth-child(6), .work-table tr > :is(th, td):nth-child(9) { display: none; }
+  .work-table .work-row-what { min-width: 10rem; }
+  .work-table tr.work-row > td.nowrap:nth-child(8) { white-space: normal; }
+  #main-content .work-table tr > :is(th, td) { padding-inline: 6px; }
+  #main-content .work-table td.work-row-where { min-width: 6rem; }
+}
+@media (min-width: 601px) and (max-width: 900px) {
+  .work-table tr > :is(th, td):nth-child(3) { display: none; }
+}
