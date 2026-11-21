@@ -37,7 +37,9 @@
 .dispatch-controls { display: flex; flex-direction: column; gap: 8px; }
 .dispatch-controls .ui-field.ui-width-lg { flex: 1 1 18rem; }
 @media (max-width: 600px) {
-  .work-table td.work-row-act .work-row-actions { min-width: 0; justify-content: flex-start; }
+  .work-table td.work-row-act { flex: 1 1 100%; width: auto; }
+  .work-table td.work-row-act .work-row-actions { min-width: 0; justify-content: flex-start; flex-wrap: nowrap; }
+  .work-table td.work-row-act .ui-button { white-space: nowrap; }
   .work-row-actions .ui-button { min-height: 44px; }
   .work-row-panel .ui-field, .work-row-panel .ui-field .ui-input { width: 100%; }
   .work-row-panel .ui-button { min-height: 44px; }
