@@ -231,14 +231,22 @@ settings and never in the repository or chat. Microsoft stays the sign-in for pe
 - It can go anywhere and change no configuration. It opens every page, including
   Sources, Ontology, Jobs, Settings and Users, and those pages say "View only". It can
   never be an owner or hold `configure`, whatever roles an owner gives it, so the
-  server refuses any change to users, settings, sources or routing. The Users page
+  server refuses any change to users, settings, systems, connections or routing. A data
+  steward's day-to-day fixes are the exception: it can rerun or load a dataset, profile
+  it, add a suggested check, pause or resume it, test a connection, approve, discard or
+  roll back a mapping version, rematch and rebuild (`STEWARD_ACTIONS` in
+  `api/security.py`), so the data steward's jobs can be shown end to end. The Users page
   shows it accounts without their Microsoft identifiers. It gets no `ai` permission
   unless an owner grants it `ai_user` on Users.
 - It can be any role. It holds every human workflow role, so My work shows every
   queue, until someone picks one under **Acting as** in the sidebar (an operator, the
-  ops lead, a data steward). The pick is kept per project and shared by every demo
-  session in that project (`PUT /work/me/roles`, demo account only; an empty list is
-  every role again).
+  ops lead, a data steward). The pick is kept on that sign-in's session, per project, so
+  two people demonstrating at once each keep their own role, queue and Tower
+  (`PUT /work/me/roles`, demo account only; an empty list is every role again).
+- A lead covers for another lead: a case in a lead's queue (one other queues escalate
+  to, such as the ops lead's) that another person holds can be acted on by anyone holding
+  that role, so the IOC lead on shift can close out a job that came back from the field
+  to another lead. A job in the field stays with whoever is doing it.
 - Every sign-in and action is recorded as `user:demo`. Its sessions last at most
   12 hours. An owner can disable it on Users; removing `FUZER_DEMO_TOKEN` ends its
   live sessions as well as further sign-ins.

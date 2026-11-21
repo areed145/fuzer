@@ -109,6 +109,22 @@ def permission(path: str, method: str) -> str:
     return "read"
 
 
+# What a data steward does to keep loads flowing (fix a held load, rerun, profile, accept a check or a mapping
+# version, rematch, rebuild): routes under /sources and /rebuild that the demo account may use while every other
+# configuration change (systems, connections, settings, ontology, roles, accounts) stays read only for it.
+STEWARD_ACTIONS = frozenset({
+    "/sources/datasets/{name}/run", "/sources/datasets/{name}/profile", "/sources/datasets/{name}/checks",
+    "/sources/datasets/{name}/pause", "/sources/datasets/{name}/resume", "/sources/{name}/load",
+    "/sources/connections/{cid}/test", "/sources/mappings/{version_id}/approve",
+    "/sources/mappings/{version_id}/discard", "/sources/mappings/{version_id}/rollback", "/sources/rematch",
+    "/rebuild"})
+
+
+def steward_action(path: str, method: str) -> bool:
+    """`path` is the route's template, as `self.path` holds it."""
+    return method == "POST" and path in STEWARD_ACTIONS
+
+
 def _arguments(kwargs):
     """Bind audit actors after validation; do not rewrite nested workflow data or read sort parameters."""
     person = current.get()
@@ -151,8 +167,11 @@ class AuthenticatedRoute(APIRoute):
                 return await handler(request)
             if db.scope().project and requested_project(request):
                 await run_in_threadpool(self._project_access, person)
+            acting = access.ACTING.set(person.acting if person.inspect else None)  # the demo session's own roles
             unsafe = request.method not in ("GET", "HEAD")
             needed = permission(self.path, request.method)
+            if unsafe and needed == "configure" and person.inspect and steward_action(self.path, request.method):
+                needed = "operate"  # a data steward's day-to-day fixes, not configuration (see steward_action)
             if unsafe and needed == "configure" and person.inspect and not person.allows(needed):
                 raise HTTPException(403, "The demo account can look at configuration but can't change it.")
             if unsafe or not person.reads(needed):
@@ -203,6 +222,7 @@ class AuthenticatedRoute(APIRoute):
             finally:
                 current.reset(token)
                 mutating.reset(mutation)
+                access.ACTING.reset(acting)
                 _active -= 1
         return protected
 
@@ -280,7 +300,8 @@ class AuthenticatedRoute(APIRoute):
         # back to the IOC person who sent it while the case still names the operator queue
         if row and row["role"] and row["assignee"] != person.actor and not _may_work(conn, person.actor, row["role"]):
             raise HTTPException(403, "This case needs its assigned workflow role")
-        if row and row["assignee"] and row["assignee"] != person.actor and not person.allows("configure"):
+        if (row and row["assignee"] and row["assignee"] != person.actor and not person.allows("configure")
+                and not _leads(conn, person.actor, row["role"])):
             raise HTTPException(403, "This case is assigned to another person")
 
     @staticmethod
@@ -320,6 +341,16 @@ def _may_work(conn, actor: str, role: str) -> bool:
         return True
     up = conn.execute("select escalate_to from work_role where name = %s", (role,)).fetchone()
     return bool(up and up["escalate_to"] and up["escalate_to"] in held)
+
+
+def _leads(conn, actor: str, role: str | None) -> bool:
+    """Whether someone may act on a case another person holds: it sits in a lead's queue (other queues escalate to
+    it) and they hold that role. Leads cover for each other across a shift, so the IOC lead who sent a job to the
+    field can close it out when it comes back to another lead. A job in the field stays with whoever is doing it."""
+    from ..workflow.definitions import roles_of
+
+    return bool(role) and role in roles_of(conn, actor) and bool(
+        conn.execute("select 1 from work_role where escalate_to = %s limit 1", (role,)).fetchone())
 
 
 AREA_REFUSAL = ("This work is on plant outside your areas. You can still read it; ask an owner to add the area, "

@@ -56,7 +56,7 @@ def me(request: Request):
     return {"mode": "microsoft", "configured": True, "project": here,
             "user": None if person is None else {
                 **asdict(person), "actor": person.actor, "permissions": sorted(person.permissions),
-                "projects": visible},
+                "projects": visible, "acting_here": person.acting.get(db.scope().project or "", [])},
             "needs_owner": not has_owner, "demo_sign_in": access.demo_enabled()}
 
 

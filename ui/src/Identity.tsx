@@ -94,26 +94,25 @@ export function Identity() {
 const spaced = (role: string) => role.replace(/_/g, " ");
 
 /** The demo account can be any role: it holds every human role until one is picked here, and then gets that role's
- * queue, jobs and Home. Kept per project on the server, so every demo session in the project acts as the same role. */
+ * queue, jobs and Tower. Kept on this sign-in's session, so two people demonstrating at once each keep their own. */
 function ActingAs({ actor }: { actor: string }) {
-  const data = useAsync(async () => {
-    const [roles, people] = await Promise.all([api.rolesCatalog(), api.workPeople()]);
-    return { roles: roles.filter((r) => r.kind === "person").map((r) => r.name).sort(),
-      picked: people.find((p) => p.name === actor)?.assigned_roles ?? [] };
-  }, [actor]);
+  const session = useAuth();
+  const data = useAsync(async () => (await api.rolesCatalog()).filter((r) => r.kind === "person").map((r) => r.name).sort(),
+    [actor]);
+  const [picked, setPicked] = useState<string[]>(session?.user?.acting_here ?? []);
   const [error, setError] = useState("");
-  const picked = data.data?.picked ?? [];
   const value = picked.length === 1 ? picked[0] : "";
   const pick = (role: string) => {
     setError("");
-    api.actAs(role ? [role] : []).then(() => notifyChanged()).catch((e: Error) => setError(e.message));
+    api.actAs(role ? [role] : []).then((r) => { setPicked(r.picked); notifyChanged(); })
+      .catch((e: Error) => setError(e.message));
   };
   return <>
     <label className="acting-as">
       <Text muted>Acting as</Text>
       <Select value={value} aria-label="Acting as" disabled={!data.data} onChange={(e) => pick(e.target.value)}>
         <option value="">{picked.length > 1 ? picked.map(spaced).join(", ") : "Every role"}</option>
-        {(data.data?.roles ?? []).map((role) => <option key={role} value={role}>{spaced(role)}</option>)}
+        {(data.data ?? []).map((role) => <option key={role} value={role}>{spaced(role)}</option>)}
       </Select>
     </label>
     <ErrorText>{error}</ErrorText>

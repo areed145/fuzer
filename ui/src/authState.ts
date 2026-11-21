@@ -10,6 +10,8 @@ export interface SignedInUser {
   projects?: string[];
   /** Reads every configuration page without being able to change it (the demo account). */
   inspect?: boolean;
+  /** The roles this demo session acts as in this project (none: every role); kept per session. */
+  acting_here?: string[];
 }
 
 export interface AuthSession {
