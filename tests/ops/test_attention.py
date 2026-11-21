@@ -133,3 +133,23 @@ def test_locate_names_the_place_a_feed_item_or_incident_sits_at(conn):
     assert out["fz-pump"]["id"] == "fz-plat"
     assert "fz-nowhere" not in out
     conn.rollback()
+
+
+def test_the_list_filters_and_counts_work_by_facility_area_and_asset(conn, raised):
+    """The List and Board (ops.worklist): each row's area and asset come from what it is about and what that sits in,
+    so work can be filtered and counted by them, and `within` keeps the work about an entity or anything in it."""
+    from fuzer.ops import worklist
+
+    out = worklist.rows(conn, kind="trip,finding")
+    by_title = {r["title"]: r for r in out["rows"]}
+    trip = by_title["W-73 shut in, lift gas short"]
+    assert (trip["area"], trip["asset"]) == ("fz-jkt-7", "fz-well-73"), "a tag on a well on a jacket"
+    assert by_title["Vibration on P-201"]["asset"] == "fz-pump"
+    assert by_title["Something with no place"]["area"] == "none"
+    assert out["facets"]["area"]["fz-jkt-7"] == 2 and out["labels"]["fz-jkt-7"] == "OKAN-67"
+    jacket = worklist.rows(conn, kind="trip,finding", area="fz-jkt-7")
+    assert {r["title"] for r in jacket["rows"]} == {"W-73 shut in, lift gas short", "Wellhead seepage"}
+    assert jacket["facets"]["area"]["fz-plat"] == 1, "the area's own counts leave its filter out"
+    inside = worklist.rows(conn, kind="trip,finding", within="fz-well-73")
+    assert {r["title"] for r in inside["rows"]} == {"W-73 shut in, lift gas short", "Wellhead seepage"}
+    assert worklist.rows(conn, kind="trip,finding", asset="none")["total"] == 0

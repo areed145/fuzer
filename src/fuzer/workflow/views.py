@@ -9,7 +9,8 @@ from .definitions import roles_of
 # so views saved before still open the same work.
 LISTS = {"list", "board", "dispatch", "field", "back", "open", "progress", "ranked", "closed"}
 # The list's filters (ops.worklist), and the old names some saved views still carry (`type` the kind, `who` the holder).
-FILTERS = ("state", "kind", "stage", "holder", "queue", "waiting_on", "overdue", "subject", "at", "source", "q", "sort",
+FILTERS = ("state", "kind", "stage", "holder", "queue", "waiting_on", "overdue", "subject", "at", "source", "facility",
+           "area", "asset", "within", "q", "sort",
            "group", "type", "who")
 
 

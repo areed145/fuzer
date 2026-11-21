@@ -1,7 +1,7 @@
 /** All the work, as a List or a Board (the simplification review, #1208): one set of rows from GET /cases, every event
  * and every case, filtered and sorted on any of its dimensions and kept in the URL. My work, To dispatch and Data
  * questions are presets, sets of these filters; a role can save its own as a view. The Board is the same rows laid
- * out in columns by stage, kind, holder, team or source. */
+ * out in columns by stage, kind, holder, team, source, facility, area or asset. */
 import "../styles/all-work.css";
 import "../styles/work-board.css";
 import { useEffect, useState } from "react";
@@ -18,7 +18,8 @@ import { SampleTeam } from "./workflows/shared";
 import { NewWorkItem } from "./workflows/Cases";
 import { WORK_PRESETS, savedFilters } from "../pageTabs";
 
-const KEYS = ["state", "kind", "stage", "holder", "queue", "waiting_on", "overdue", "subject", "at", "source", "q", "sort"] as const;
+const KEYS = ["state", "kind", "stage", "holder", "queue", "waiting_on", "overdue", "subject", "at", "source", "facility",
+  "area", "asset", "within", "q", "sort"] as const;
 type Key = typeof KEYS[number];
 export type Filters = Partial<Record<Key | "group", string>>;
 
@@ -29,7 +30,9 @@ export const STAGE_LABEL: Record<string, string> = {
 const STAGE_ORDER = ["dispatch", "desk", "planned", "field", "back", "closed"];
 const SORTS: [string, string][] = [["value", "Most valuable"], ["due", "Due soonest"], ["opened", "Newest"],
   ["updated", "Recently changed"], ["title", "Title"]];
-const GROUPS: [string, string][] = [["stage", "Stage"], ["kind", "Kind"], ["holder", "Held by"], ["queue", "Team"], ["source", "Source"]];
+const GROUPS: [string, string][] = [["stage", "Stage"], ["kind", "Kind"], ["holder", "Held by"], ["queue", "Team"], ["source", "Source"],
+  ["facility", "Facility"], ["area", "Area"], ["asset", "Asset"]];
+const PLACE_DIMS = new Set(["facility", "area", "asset"]);
 
 const holderLabel = (h: string) => h === "none" ? "Nobody" : h.startsWith("role:") ? queueWords(h.slice(5)) : holderWords(h, null);
 const teamLabel = (q: string) => q === "none" ? "No team" : queueWords(q).replace(/ queue$/, "");
@@ -57,7 +60,7 @@ export function WorkListPage({ query, board = false }: { query: URLSearchParams;
         report buttons and kept for no signal. </>}<a href={href("/performance")}>How the work is running</a></Text>
       {filters.state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <Presets board={board} filters={filters} roles={mine?.roles ?? []} />
-      <FilterBar board={board} filters={filters} facets={list.data?.facets} set={set} />
+      <FilterBar board={board} filters={filters} facets={list.data?.facets} labels={list.data?.labels ?? {}} set={set} />
       {!list.data ? <Status of={list} /> : <>
         <Text as="p" small muted>{list.data.total} {filters.state === "closed" ? "closed"
           : filters.state === "all" ? "in every state" : "open"}{list.data.total > list.data.rows.length
@@ -123,9 +126,10 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
 }
 
 /** One picker per dimension, each value with how many match it given the other filters. */
-function FilterBar({ board, filters, facets, set }: {
-  board: boolean; filters: Filters; facets?: WorkListResult["facets"]; set: (f: Filters) => void;
+function FilterBar({ board, filters, facets, labels, set }: {
+  board: boolean; filters: Filters; facets?: WorkListResult["facets"]; labels: Record<string, string>; set: (f: Filters) => void;
 }) {
+  const named = (none: string) => (v: string) => v === "none" ? none : labels[v] ?? v;
   const kinds = useAsync(() => api.exceptionKinds(), []);
   const kindLabel = Object.fromEntries((kinds.data ?? []).map((k) => [k.name, k.label]));
   const [text, setText] = useState(filters.q ?? "");
@@ -153,6 +157,9 @@ function FilterBar({ board, filters, facets, set }: {
       {pick("holder", "Held by", facets?.holder, holderLabel, "Anyone")}
       {pick("queue", "Team", facets?.queue, teamLabel, "Every team")}
       {pick("source", "Source", facets?.source, (v) => v, "Every source")}
+      {pick("facility", "Facility", facets?.facility, named("No facility"), "Every facility")}
+      {pick("area", "Area", facets?.area, named("No area"), "Every area")}
+      {pick("asset", "Asset", facets?.asset, named("No asset"), "Every asset")}
       <Select aria-label="State" value={filters.state ?? ""} onChange={(e) => set({ state: e.target.value || undefined })}>
         <option value="">Open</option><option value="closed">Closed</option><option value="all">Every state</option>
       </Select>
@@ -168,6 +175,7 @@ function FilterBar({ board, filters, facets, set }: {
         Waiting on {filters.waiting_on === "me" ? "me" : filters.waiting_on}</Chip>}
       {filters.at && <Place id={filters.at} onClear={() => set({ at: undefined })} />}
       {filters.subject && <About id={filters.subject} onClear={() => set({ subject: undefined })} />}
+      {filters.within && <Within id={filters.within} onClear={() => set({ within: undefined })} />}
       {(chosen > 0 || filters.q) && <Button variant="link" onClick={() => { setText(""); location.replace(listHref(board, { group: filters.group })); }}>
         Clear filters</Button>}
     </div>
@@ -188,6 +196,12 @@ function Place({ id, onClear }: { id: string; onClear: () => void }) {
 function About({ id, onClear }: { id: string; onClear: () => void }) {
   const names = useEntityNames([id]);
   return <Chip onClear={onClear}>About {display(id, names)}</Chip>;
+}
+
+function Within({ id, onClear }: { id: string; onClear: () => void }) {
+  const ids = id.split(",");
+  const names = useEntityNames(ids);
+  return <Chip onClear={onClear}>In {ids.map((x) => display(x, names)).join(" · ")}</Chip>;
 }
 
 function Rows({ rows, person, people, queues, onChange }: {
@@ -224,13 +238,14 @@ function CaseRow({ r }: { r: WorkListRow }) {
   </li>;
 }
 
-/** The same rows in columns: by stage (in the order work moves), or by kind, holder, team or source. */
+/** The same rows in columns: by stage (in the order work moves), or by kind, holder, team, source, facility, area or asset. */
 function Board({ data, group, person, people, queues, onChange }: {
   data: WorkListResult; group: string; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
   const key = (r: WorkListRow) => String(r[group as keyof WorkListRow] ?? "none");
   const label = (v: string) => group === "stage" ? STAGE_LABEL[v] ?? v : group === "holder" ? holderLabel(v)
-    : group === "queue" ? teamLabel(v) : group === "kind" ? data.rows.find((r) => r.kind === v)?.kind_label ?? v : v;
+    : group === "queue" ? teamLabel(v) : group === "kind" ? data.rows.find((r) => r.kind === v)?.kind_label ?? v
+    : PLACE_DIMS.has(group) ? (v === "none" ? `No ${group}` : data.labels?.[v] ?? v) : v;
   const values = group === "stage"
     ? STAGE_ORDER.filter((s) => s !== "closed" || data.rows.some((r) => r.stage === "closed"))
     : [...new Set(data.rows.map(key))];

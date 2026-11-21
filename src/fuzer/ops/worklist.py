@@ -2,8 +2,9 @@
 on any of its dimensions. The List and the Board read it; a preset (My work, To dispatch, Data questions) is only a
 set of these filters.
 
-    rows(conn, **filters)    {rows, total, facets}: the matching rows (sorted, at most `limit`), how many match, and
-                             for each dimension how many match on each of its values with that dimension left out
+    rows(conn, **filters)    {rows, total, facets, labels}: the matching rows (sorted, at most `limit`), how many
+                             match, for each dimension how many match on each of its values with that dimension left
+                             out, and the names of the facilities, areas and assets the facets count
 
 An event (an exception) is one row with the case working it, if any. A case no event raised (a task, a handover, a
 close-out) is a row of its own. Every row says where it stands (`stage`: dispatch, planned, field, back, desk or
@@ -19,6 +20,10 @@ Filters, each optional, a comma list where it says so:
     overdue     true for only what is past its due time
     subject     an entity the work is about
     at          places on Home's map (comma list; `unplaced` for none)
+    facility    the facility it is at, by its id (comma list; `none`)
+    area        the area it is in, by its id (comma list; `none`)
+    asset       the equipment, well or pipeline it is about, by its id (comma list; `none`)
+    within      entities: only work about one of them or about something in one of them (comma list)
     source      what raised it (comma list)
     q           words in the title or key
     sort        value (the default: what it is worth, then priority, then newest), due, opened, updated or title
@@ -31,7 +36,8 @@ from . import exceptions
 
 SORTS = ("value", "due", "opened", "updated", "title")
 STATES = ("open", "closed", "all")
-DIMENSIONS = ("kind", "stage", "holder", "queue", "source")
+DIMENSIONS = ("kind", "stage", "holder", "queue", "source", "facility", "area", "asset")
+ASSET_KINDS = ("equipment", "well", "pipeline", "pipeline_segment")
 
 
 def _list(v) -> list[str]:
@@ -118,6 +124,23 @@ def _all(conn, state: str) -> list[dict]:
     return out
 
 
+def _place(conn, rows: list[dict]) -> dict[str, str]:
+    """Each row's facility, area and asset (the nearest of each kind among its subjects and what they sit in, else
+    `none`) and the set of everything it is about or in (`_within`); returns the names of what it found."""
+    from . import attention
+    up = attention.lineage(conn, sorted({s for r in rows for s in r.get("subjects") or []}))
+    labels: dict[str, str] = {}
+    for r in rows:
+        chains = [up.get(s, []) for s in r.get("subjects") or []]
+        r["_within"] = {e["id"] for c in chains for e in c}
+        for dim, kinds in (("facility", ("facility",)), ("area", ("area",)), ("asset", ASSET_KINDS)):
+            found = next((e for c in chains for e in c if e["kind"] in kinds), None)
+            r[dim] = found["id"] if found else "none"
+            if found:
+                labels[found["id"]] = found["label"]
+    return labels
+
+
 def _waits_on(r: dict, person: str, roles: set[str]) -> bool:
     steps = r["waiting"] or ([{"assignee": r.get("assignee"), "role": r.get("role")}] if r.get("item_id") else [])
     for s in steps:
@@ -149,7 +172,8 @@ SORT_KEYS = {
 
 
 def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=None, waiting_on: str | None = None,
-         overdue: bool | None = None, subject: str | None = None, at=None, source=None, q: str | None = None,
+         overdue: bool | None = None, subject: str | None = None, at=None, source=None, facility=None, area=None,
+         asset=None, within=None, q: str | None = None,
          sort: str = "value", limit: int = 500) -> dict:
     if state not in STATES:
         raise ValueError(f"state must be one of {', '.join(STATES)}")
@@ -159,8 +183,11 @@ def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=No
     if at:
         from . import attention
         everything = attention.only_at(conn, everything, ",".join(_list(at)))
+    labels = _place(conn, everything)
     chosen = {"kind": set(_list(kind)), "stage": set(_list(stage)), "holder": set(_list(holder)),
-              "queue": set(_list(queue)), "source": set(_list(source))}
+              "queue": set(_list(queue)), "source": set(_list(source)), "facility": set(_list(facility)),
+              "area": set(_list(area)), "asset": set(_list(asset))}
+    inside = set(_list(within))
     roles = set(work.roles_of(conn, waiting_on)) if waiting_on else set()
     words = "".join(ch for ch in (q or "").lower() if ch.isalnum())
 
@@ -170,6 +197,8 @@ def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=No
         if overdue and not r["overdue"]:
             return False
         if subject and subject not in (r.get("subjects") or []):
+            return False
+        if inside and not inside & r["_within"]:
             return False
         said = "".join(ch for ch in f"{r.get('title') or ''} {r.get('key') or ''}".lower() if ch.isalnum())
         return not words or words in said
@@ -190,4 +219,6 @@ def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=No
     matched.sort(key=SORT_KEYS[sort])
     for r in matched:
         r.pop("waiting", None)
-    return {"rows": matched[:limit], "total": len(matched), "facets": facets}
+        r.pop("_within", None)
+    labels.update({e: e for e in inside if e not in labels})
+    return {"rows": matched[:limit], "total": len(matched), "facets": facets, "labels": labels}
