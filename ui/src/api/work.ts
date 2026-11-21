@@ -734,16 +734,22 @@ export interface WorkListRow extends Omit<ExceptionRow, "id" | "key"> {
   uid: string; id: number | null; exception_id: number | null; key: string | null;
   kind: string; kind_label: string; stage: EventStage; holder: string; queue: string;
   due_at: string | null; overdue: boolean; opened: string; updated: string;
+  /** the facility, area and asset (equipment, well or pipeline) it is about, by id, or `none` */
+  facility: string; area: string; asset: string;
 }
 /** The filters of all the work, each a comma list where it can be one; a preset is only a set of these. */
 export interface WorkListFilters {
   state?: string; kind?: string; stage?: string; holder?: string; queue?: string; waiting_on?: string;
-  overdue?: string; subject?: string; at?: string; source?: string; q?: string; sort?: string;
+  overdue?: string; subject?: string; at?: string; source?: string; facility?: string; area?: string; asset?: string;
+  within?: string; q?: string; sort?: string;
 }
 export interface WorkListResult {
   rows: WorkListRow[]; total: number;
   facets: { kind: Record<string, number>; stage: Record<string, number>; holder: Record<string, number>;
-            queue: Record<string, number>; source: Record<string, number>; overdue: number };
+            queue: Record<string, number>; source: Record<string, number>; facility: Record<string, number>;
+            area: Record<string, number>; asset: Record<string, number>; overdue: number };
+  /** the names of the facilities, areas and assets the facets count */
+  labels?: Record<string, string>;
 }
 
 /** Where attention is needed (Home's map): open exceptions gathered at the located places they are about. */

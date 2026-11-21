@@ -54,6 +54,31 @@ def _places(conn, ids: list[str], rels: tuple[str, ...] = RELS) -> dict[str, dic
     return {r["start"]: dict(r) for r in rows}
 
 
+def lineage(conn, ids: list[str]) -> dict[str, list[dict]]:
+    """Subject -> itself and what it sits in, nearest first, up the part_of / installed_at / located_at chain:
+    [{id, kind, label}]. The List and Board filter and count work by facility, area and asset with it."""
+    if not ids:
+        return {}
+    rows = conn.execute(
+        """
+        with recursive up (start, fuzer_id, depth) as (
+            select s, s, 0 from unnest(%(ids)s::text[]) s
+            union
+            select up.start, e.dst, up.depth + 1 from up
+            join edge e on e.src = up.fuzer_id and e.rel = any(%(rels)s) and e.valid_to is null
+            where up.depth < 6)
+        select up.start, up.fuzer_id as id, min(up.depth) as depth, n.kind, coalesce(l.label, up.fuzer_id) as label
+        from up join entity n on n.fuzer_id = up.fuzer_id
+        left join entity_label l on l.fuzer_id = up.fuzer_id
+        group by up.start, up.fuzer_id, n.kind, l.label
+        order by up.start, depth
+        """, {"ids": ids, "rels": list(RELS)}).fetchall()
+    out: dict[str, list[dict]] = {}
+    for r in rows:
+        out.setdefault(r["start"], []).append({"id": r["id"], "kind": r["kind"], "label": r["label"]})
+    return out
+
+
 def locate(conn, ids: list[str]) -> dict[str, dict]:
     """Each id -> the place it sits at, as `hotspots` places it: {id, label, name, kind, lon, lat}. Ids with no
     located ancestor are left out. Home uses it to show where a feed item or an incident is; an incident or a

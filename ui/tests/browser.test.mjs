@@ -87,18 +87,21 @@ function workList(rows, f = {}, people = []) {
     return { subjects: [], unmatched: [], joined: [], ...r, uid: `e${r.id}`, exception_id: r.id, kind: r.type,
       kind_label: r.type.replace(/_/g, " "), stage, holder: r.assignee ?? (r.role ? `role:${r.role}` : "none"),
       queue: r.queue ?? "none", source: r.source ?? null, due_at: r.due_at ?? null, overdue: !!r.overdue,
-      opened: r.first_seen, updated: r.last_seen, state: !r.state || r.state === "open" ? "open" : "closed" };
+      opened: r.first_seen, updated: r.last_seen, state: !r.state || r.state === "open" ? "open" : "closed",
+      facility: r.facility ?? "none", area: r.area ?? "none", asset: r.asset ?? "none" };
   });
-  const dims = ["kind", "stage", "holder", "queue", "source"];
+  const dims = ["kind", "stage", "holder", "queue", "source", "facility", "area", "asset"];
   const on = (r, d) => !f[d] || f[d].split(",").includes(String(r[d]));
   const words = (f.q ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const base = shaped.filter((r) => (!words || `${r.title} ${r.key}`.toLowerCase().replace(/[^a-z0-9]/g, "").includes(words))
     && (f.overdue !== "true" || r.overdue)
-    && (!f.waiting_on || r.assignee === f.waiting_on || (!r.assignee && !!r.role)));
+    && (!f.waiting_on || r.assignee === f.waiting_on || (!r.assignee && !!r.role))
+    && (!f.within || f.within.split(",").some((e) => [r.facility, r.area, r.asset, ...r.subjects].includes(e))));
   const facets = Object.fromEntries(dims.map((d) => [d, base.filter((r) => dims.every((x) => x === d || on(r, x)))
     .reduce((n, r) => ({ ...n, [r[d]]: (n[r[d]] ?? 0) + 1 }), {})]));
   const matched = base.filter((r) => dims.every((d) => on(r, d)));
-  return { rows: matched, total: matched.length, facets: { ...facets, overdue: matched.filter((r) => r.overdue).length } };
+  const labels = Object.assign({}, ...rows.map((r) => r.place_labels ?? {}));
+  return { rows: matched, total: matched.length, facets: { ...facets, overdue: matched.filter((r) => r.overdue).length }, labels };
 }
 afterEach(async () => {
   await context.close();
@@ -3650,6 +3653,42 @@ test("All work is one list of every open event and case, filtered on any dimensi
   assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test("the List filters and lays out work by facility, area and asset, named, and an entity's Work here opens what is in it", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
+  const names = { "fz-okan": "OKAN", "fz-j7": "OKAN-67", "fz-pp": "OKAN-40", "fz-w73": "W-73" };
+  const exc = (id, extra) => ({ id, type: "upset", key: `k${id}`, source: "sre", state: "open", priority: null, value_usd: null,
+    subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
+    last_seen: "2026-11-08T07:00:00Z", item_id: null, assignee: null, evidence: {}, facility: "fz-okan", place_labels: names, ...extra });
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [
+    exc(1, { title: "Lift gas short", area: "fz-j7", asset: "fz-w73" }),
+    exc(2, { title: "Wellhead seepage", area: "fz-j7", asset: "fz-w73" }),
+    exc(3, { title: "Pump vibration", area: "fz-pp" }),
+  ] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [] }));
+  await page.route("**/exceptions/types", (route) => route.fulfill({ json: [] }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/list`);
+  await page.getByText("Pump vibration").waitFor();
+  const area = page.getByRole("combobox", { name: "Area", exact: true });
+  assert.deepEqual(await area.locator("option").allTextContents(), ["Every area", "OKAN-67 (2)", "OKAN-40 (1)"]);
+  assert.deepEqual(await page.getByRole("combobox", { name: "Facility", exact: true }).locator("option").allTextContents(),
+    ["Every facility", "OKAN (3)"]);
+  await area.selectOption("fz-j7");
+  await page.waitForURL(/area=fz-j7/);
+  await page.getByText("Lift gas short").waitFor();
+  assert.equal(await page.getByText("Pump vibration").count(), 0);
+  // The Board can lay the same work out in columns by area.
+  await page.goto(`${url}/#/board?group=area`);
+  await page.getByRole("region", { name: "OKAN-67" }).getByText("Wellhead seepage").waitFor();
+  await page.getByRole("region", { name: "OKAN-40" }).getByText("Pump vibration").waitFor();
+  // From an entity, Work here is the List of what is about it or in it.
+  await page.goto(`${url}/#/list?within=fz-w73`);
+  await page.getByText("Lift gas short").waitFor();
+  assert.equal(await page.getByText("Pump vibration").count(), 0);
+  await page.getByRole("button", { name: "Remove this filter" }).click();
+  await page.getByText("Pump vibration").waitFor();
 });
 
 

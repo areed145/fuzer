@@ -163,6 +163,8 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
               : <KindBadge kind={e.kind} label={kindName} />}
             <WatchButton target={fid} label={operated ? "asset" : kindName.toLowerCase()} />
             <a className="small" href={href("/ask", { subject: fid })}>Ask about this {operated ? "asset" : kindName.toLowerCase()}</a>
+            {/* the work about it or about anything in it, on the List */}
+            <a className="small" href={href("/list", { within: fid })}>Work here</a>
             {/* On a phone the date picker waits behind this, so the header leaves room for the page (#1076). */}
             {!asOf && !dated && <Button variant="link" size="sm" className="asof-open" onClick={() => setDated(true)}>Earlier date</Button>}
           </Line>
