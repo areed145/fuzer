@@ -1,7 +1,7 @@
 // The app's navigation: one list of pages, drawn as a grid of app icons in a sidebar (a sheet below 900 px).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
-import { href, refreshAll, useRefreshing } from "./lib";
+import { href, refreshAll, usePhone, useRefreshing } from "./lib";
 import { Button } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
@@ -32,6 +32,8 @@ export interface NavItem {
   /** Desk work a field operator doesn't do: its tab is left out of the phone's row for an account whose only role is
    * operator. Presentation only; the page still opens and its own access rules still apply. */
   desk?: boolean;
+  /** Not offered on a phone (the Board needs the width of a tablet or a desk); its link opens the List there. */
+  noPhone?: boolean;
   permission?: string;
   ownerOnly?: boolean;
 }
@@ -59,7 +61,7 @@ export const NAV: NavGroup[] = [
       { label: "List", section: "list",
         also: ["exceptions", "cases", "performance", "inbox", "work", "teams", "field", "handover", "masterdata", "review"],
         badge: "work" },
-      { label: "Board", section: "board" },
+      { label: "Board", section: "board", noPhone: true },
     ],
   },
   {
@@ -135,9 +137,10 @@ export function AreaNavigation({ section, query, demoEnabled, roles }: {
   roles?: string[];
 }) {
   const allowed = useNavigationAccess();
+  const phone = usePhone();
   const found = navItemFor(section);
   if (!found || !allowed(found.group) || (found.group.demo && !demoEnabled)) return null;
-  const items = found.group.items.filter(allowed);
+  const items = found.group.items.filter((item) => allowed(item) && !(phone && item.noPhone));
   if (items.length < 2) return null;
   const current = currentItem(items, section, query);
   const field = roles?.length === 1 && roles[0] === "operator";

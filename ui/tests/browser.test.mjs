@@ -3607,14 +3607,24 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
   await expectReports(dispatched, 1);
   assert.equal(dispatched[0].to, "sam");
 
-  // A phone shows one column at a time, chosen from the chips, and never scrolls sideways.
-  await page.setViewportSize({ width: 390, height: 844 });
-  const stages = page.getByRole("navigation", { name: "Columns" });
-  await stages.getByRole("button", { name: "With the field 2" }).click();
-  await column("With the field").getByText("Seal leak at export pump B").waitFor();
-  assert.equal(await column("To dispatch").isVisible(), false);
+  // A tablet narrower than every column needs scrolls the board sideways inside itself, never the page, and fades the
+  // edge that has more.
+  await page.setViewportSize({ width: 700, height: 1000 });
+  await page.locator(".work-board-frame.more-right").waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-  await waveScreenshot("work-board-phone");
+  await page.locator(".work-board").evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+  await page.locator(".work-board-frame.more-left:not(.more-right)").waitFor();
+
+  // A phone has no Board: the same link shows the List as cards, and Work has no Board tab there.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".work-table").waitFor();
+  assert.equal(await page.locator(".work-board").count(), 0);
+  assert.equal(await page.getByRole("navigation", { name: "Work pages" }).count(), 0);
+  const phoneCard = page.locator("tr.work-row", { hasText: "Wellhead pressure high" });
+  const buttons = await phoneCard.locator(".work-row-actions > *").evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+  assert.ok(buttons.length >= 2 && buttons.every((t) => Math.abs(t - buttons[0]) < 2), "a card's actions sit side by side in one row");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await waveScreenshot("work-list-phone");
 });
 
 test("All work is one list of every open event and case, filtered on any dimension, and old links land on the same work", async () => {
@@ -3706,12 +3716,17 @@ test("the List filters and lays out work by facility, area and asset, named, and
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/list`);
   await page.getByText("Pump vibration").waitFor();
-  const area = page.getByRole("combobox", { name: "Area", exact: true });
+  // Team, source, place and state wait behind More filters on a desk; one that is chosen stays out.
+  const area = page.locator('select[aria-label="Area"]');
+  assert.equal(await area.isVisible(), false);
+  await page.getByRole("button", { name: "More filters" }).click();
   assert.deepEqual(await area.locator("option").allTextContents(), ["Every area", "OKAN-67 (2)", "OKAN-40 (1)"]);
   assert.deepEqual(await page.getByRole("combobox", { name: "Facility", exact: true }).locator("option").allTextContents(),
     ["Every facility", "OKAN (3)"]);
   await area.selectOption("fz-j7");
   await page.waitForURL(/area=fz-j7/);
+  await page.getByRole("button", { name: "Fewer filters" }).click();
+  assert.equal(await area.isVisible(), true);
   await page.getByText("Lift gas short").waitFor();
   assert.equal(await page.getByText("Pump vibration").count(), 0);
   // The Board can lay the same work out in columns by area.
@@ -5974,7 +5989,8 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
     types: [], compliance: { as_of: "2026-11-12", summary: { PM: { plans: 10, overdue: 2, on_time_pct: 80 } } },
   } }));
   await page.goto(`${url}/#/list`);
-  await page.getByRole("link", { name: "How the work is running" }).click();
+  // The pages beside the list are in its preset picker, so the top of the page is the work itself.
+  await page.getByLabel("Preset").selectOption({ label: "How the work is running" });
   await page.getByRole("heading", { name: "Work performance" }).waitFor();
   const row = page.getByRole("row").filter({ hasText: "operator" });
   await row.getByText("falling behind").waitFor();
@@ -7863,7 +7879,10 @@ test("A field operator finds their jobs, with the report buttons, from the List"
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/list`);
-  assert.equal(await page.getByRole("link", { name: "Your field jobs" }).getAttribute("href"), "#/inbox");
+  // A phone shows the List as cards with no Board tab; the field jobs page is in the preset picker.
+  assert.equal(await page.getByRole("navigation", { name: "Work pages" }).count(), 0);
+  await page.getByLabel("Preset").selectOption({ label: "Your field jobs" });
+  await page.waitForFunction(() => location.hash === "#/inbox");
   await page.goto(`${url}/#/masterdata`);
   // Master data is a preset now, not a menu entry: its page still opens from a link, under List.
   await page.locator('#sidebar nav[aria-label="Main"] a[href="#/list"][aria-current="page"]').waitFor({ state: "attached" });
