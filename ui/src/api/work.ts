@@ -1118,8 +1118,9 @@ export const workApi = {
   removeExceptionKind: (name: string) => request<unknown>("DELETE", `/exceptions/types/${encodeURIComponent(name)}`),
   splitException: (id: number, by: string, reason?: string) =>
     request<ExceptionRow>("POST", `/exceptions/${id}/split`, undefined, { by, reason: reason ?? null }),
-  dispatch: (id: number, by: string, to: string, reason?: string, override?: string) =>
-    request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null, override: override ?? null }),
+  dispatch: (id: number, by: string, to: string, reason?: string, override?: string, due?: string) =>
+    request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null, override: override ?? null,
+      ...(due ? { due } : {}) }),
   exceptionReadiness: (id: number) => request<Readiness>("GET", `/exceptions/${id}/readiness`),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),

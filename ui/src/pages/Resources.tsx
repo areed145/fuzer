@@ -51,17 +51,21 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
   const cap = (n: number): CSSProperties => ({ bottom: along(n) });
   const color = (s: string) => `load-src-${Math.max(0, r.sources.indexOf(s)) % 6}`;
   const picked = r.days.find((d) => d.day === day);
+  // Nothing on the plan uses it in this window: say so, not "within capacity" over an empty chart (red team #36).
+  const idle = !r.routine_load && r.days.every((d) => d.demand <= 1e-6);
   return (
     <Card title={`${r.name} (${r.code})`} className="load-card"
       actions={<Text small>capacity {num(r.capacity)} {r.unit ?? ""}{r.work_center ? ` · work center ${r.work_center}` : ""}</Text>}>
       <Line>
-        {over > 0 ? <Badge tone="danger">over capacity on {over} {over === 1 ? "day" : "days"}</Badge> : <Badge tone="ok">within capacity</Badge>}
+        {over > 0 ? <Badge tone="danger">over capacity on {over} {over === 1 ? "day" : "days"}</Badge>
+          : idle ? <Badge tone="muted">not used in this window</Badge> : <Badge tone="ok">within capacity</Badge>}
         {r.sources.map((s) => <span key={s} className="load-legend small"><span className={`load-swatch ${color(s)}`} />{s}</span>)}
       </Line>
       {r.counts.length > 0 && <Text as="p" small>{r.kind === "seats" ? `Counts ${r.counts.join(", ")} flying out for their first job on a schedule and back after their last.`
         : `Counts everyone working on ${r.counts.join(", ")}.`}</Text>}
       {r.kind === "capacity" && <Text as="p" small>Counts what is online against what the system can handle: every well at its latest test rate, less the wells behind a unit that a job has down, plus what a job brings on from the day it finishes.</Text>}
       {r.routine_load && <Text as="p" small>{r.routine_load.source} hold {num(r.routine_load.quantity)} the whole time: {r.routine_load.basis}.</Text>}
+      {idle ? <Text as="p" small>No job on the plan needs it from {whenDay(r.days[0]?.day ?? "")} to {whenDay(r.days[r.days.length - 1]?.day ?? "")}.</Text> : <>
       <div className="load-cols" role="img" aria-label={`${r.name}: ${over ? `over capacity on ${over} days` : "within capacity"}`}>
         {r.days.map((d) => <span role="button" tabIndex={0} key={d.day} aria-pressed={day === d.day} aria-label={`${whenDay(d.day)}: ${num(d.demand)} of ${num(d.capacity)}`}
           className={`load-col${d.demand > d.capacity + 1e-6 ? " over" : ""}${day === d.day ? " on" : ""}`} onClick={() => setDay(day === d.day ? null : d.day)}
@@ -71,6 +75,7 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
         </span>)}
       </div>
       <div className="load-axis small"><span>{whenDay(r.days[0]?.day ?? "")}</span><span>{whenDay(r.days[r.days.length - 1]?.day ?? "")}</span></div>
+      </>}
       {picked && <Text as="p" small>{whenDay(picked.day)}: {num(picked.demand)} needed at the busiest hour against {num(picked.capacity)}
         {Object.keys(picked.by_source).length ? ` (${Object.entries(picked.by_source).map(([s, q]) => `${s} ${num(q)}`).join(", ")})` : ""}.</Text>}
       {r.overloads.length > 0 && <>

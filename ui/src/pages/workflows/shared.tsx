@@ -1,5 +1,5 @@
 import "../../styles/work.css";
-import { count, money } from "../../format";
+import { count, money, when } from "../../format";
 import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line, Text, List, Notice } from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
 import { Due, holder, usePerson } from "../../work";
@@ -200,6 +200,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   const [to, setTo] = useState("");
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");
+  const [due, setDue] = useState("");
   const [blocked, setBlocked] = useState<string[] | null>(null);
   const a = useAction();
   // Said where the IOC pressed Send (red team #2): the form empties, so without this nothing showed it went. The case
@@ -209,9 +210,9 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   const named = (v: string) => v === "role:operator" ? queue("operator") : field.find((p) => p.name === v)?.display_name || v;
   const send = () => {
     const who = named(to);
-    return a.run("Sending to the field", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined), () => {
-      setSent(`Sent to ${who}. It is on their field jobs, and their report comes back to you here.`);
-      setTo(""); setAsk(""); setWhy(""); setBlocked(null); onDone(); notifyChanged();
+    return a.run("Sending to the field", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined, due || undefined), () => {
+      setSent(`Sent to ${who}${due ? `, wanted back by ${when(due)}` : ""}. It is on their field jobs, and their report comes back to you here.`);
+      setTo(""); setAsk(""); setWhy(""); setDue(""); setBlocked(null); onDone(); notifyChanged();
       window.setTimeout(onDone, 1500);
     }).catch(() => undefined);
   };
@@ -229,6 +230,8 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
         </Select></Field>
         <Field label="What to check or do (they see this)" width="lg">
           <Input value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>
+        {/* When it is wanted back (red team #23); left empty, the field check's own time applies. */}
+        <Field label="Wanted back by" width="md"><Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
       </Line>
       {(notReady || blocked) && <Field label="Why send it anyway (kept on the case)" width="lg">
         <Input value={why} onChange={(e) => { setWhy(e.target.value); setBlocked([a.error ?? ""]); }} /></Field>}

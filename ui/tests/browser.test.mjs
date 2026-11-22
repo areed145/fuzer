@@ -9049,3 +9049,37 @@ test("#8 the List shows a page of rows with Show more, and a long Board column s
   await column.getByRole("button", { name: "Show all 62" }).click();
   assert.equal(await column.locator(".work-card").count(), 62);
 });
+
+test("#20 in Needs you a late risk comes before a late opportunity, however valuable", async () => {
+  const late = (i, title, type) => ({ ...homeRow(i), title, type, overdue: true, escalated_at: "2026-10-02T00:00:00Z",
+    due_at: "2026-10-01T00:00:00Z", role: "ops_lead" });
+  await homeFixture({ ...homePopulated, "/work/inbox": { person: "Ada", roles: ["ops_lead"], mine: [],
+    queue: [late(1, "Reallocate lift gas on 30-FT-3002", "opportunity"), late(2, "Reallocate lift gas on 20-FT-3002", "opportunity"),
+            late(3, "PTW-30003 lapsed with isolations in place", "permit_lapse")],
+    counts: { mine: { total: 0 }, queue: { total: 3 } } } });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/`);
+  const feed = page.getByRole("complementary", { name: "Needs you" });
+  await feed.getByText("PTW-30003 lapsed", { exact: false }).waitFor();
+  const titles = await feed.locator(".feed-item").allInnerTexts();
+  const at = (s) => titles.findIndex((t) => t.includes(s));
+  assert.ok(at("PTW-30003") >= 0 && at("PTW-30003") < at("30-FT-3002"), titles.join(" | "));
+});
+
+test("#23 sending to the field can say when it is wanted back", async () => {
+  const sent = [];
+  await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "Separator level high", type: "upset",
+    state: "open", subjects: [], created_by: "detector:sre", created_at: "2026-11-12T03:00:00Z", events: [], processes: [],
+    payload: { exception_id: 7 } } }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "sam", roles: ["operator"], holding: 2 }] }));
+  await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+  await page.goto(`${url}/#/cases/21`);
+  await page.getByText("Send to the field…").click();
+  await page.getByLabel("Send to").selectOption("sam");
+  await page.getByLabel("What to check or do (they see this)").fill("check the level glass");
+  await page.getByLabel("Wanted back by").fill("2026-11-12T09:00");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Sent to sam, wanted back by" }).waitFor();
+  assert.equal(sent[0].due, "2026-11-12T09:00");
+});

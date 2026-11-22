@@ -34,12 +34,16 @@ const GROUPS: { key: Group; label: string }[] = [
 export interface FeedItem {
   key: string; group: Group; title: string; to: string; project?: string; meta: ReactNode; due?: string | null; late: boolean;
   subjects: string[]; at: string; priority: number | null;
+  /** Money to be made rather than a risk to handle (an opportunity): it waits behind late risks (#20). */
+  gain?: boolean;
 }
 type Change = WorkHome["changes"][number];
 export type Ring = { at: [number, number]; label: string } | null;
 
+/** Late first; among those, a risk (an upset, a lapsed permit, a breach) before an opportunity, so five overdue
+ * lift-gas moves don't push the permit lapse off the first screen (red team #20); then due and priority. */
 const rank = (a: FeedItem, b: FeedItem) =>
-  Number(b.late) - Number(a.late) || byUrgency({ due_at: a.due, priority: a.priority }, { due_at: b.due, priority: b.priority })
+  Number(b.late) - Number(a.late) || Number(!!a.gain) - Number(!!b.gain) || byUrgency({ due_at: a.due, priority: a.priority }, { due_at: b.due, priority: b.priority })
   || b.at.localeCompare(a.at);
 
 /** The keys that appeared after the first read, each with when it did. */
@@ -95,7 +99,7 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
     const row = (r: WorkRow, project: string): FeedItem => ({
       group: "work", key: `t-${project}-${r.task_id ?? "i"}-${r.item_id}`, title: r.title, to: caseHref(r.item_id),
       project: project === here ? undefined : project, due: r.due_at, late: !!r.overdue || !!r.escalated_at,
-      subjects: r.subjects ?? [], at: r.created_at, priority: r.priority,
+      subjects: r.subjects ?? [], at: r.created_at, priority: r.priority, gain: /opportunit/.test(r.type),
       meta: <>{!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}
         {project !== here && <> · <Badge>{project || "this field"}</Badge></>} <StepBadges row={r} /></>,
     });
