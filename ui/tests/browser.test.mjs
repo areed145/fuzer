@@ -4182,7 +4182,9 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.waitForURL(/#\/handover\?id=7$/);
   await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
   // Citations read as words and link to what they cite; no raw `case:` or register ids (#1072)
-  assert.equal(await page.getByRole("link", { name: "open the case", exact: true }).first().getAttribute("href"), "#/cases/113");
+  // the line itself opens its case (#11), rather than "open the case" after every line
+  assert.equal(await page.getByRole("link", { name: /^Low alarm on OK-J08-03/ }).getAttribute("href"), "#/cases/113");
+  assert.equal(await page.getByRole("link", { name: "open the case", exact: true }).count(), 0);
   assert.equal(await page.getByRole("link", { name: "the permit", exact: true }).getAttribute("href"), "#/e/fz-permit-65501ac23ccf");
   assert.doesNotMatch(await page.locator("main").innerText(), /\[case:|\[entity:|fz-[a-z_]+-[0-9a-f]{6,}|role:|alarm:/);
   acked = true;
@@ -4201,6 +4203,8 @@ test("a handover reads in a minute on a phone: what needs the lead first, five l
       "Escalated or overdue": many("Escalated step", 2) }, more: { "Open work": 121 } } } }));
   await page.goto(`${url}/#/handover?id=8`);
   await page.getByText("Escalated step 1").waitFor();
+  // the headline says what the incoming lead takes on first, in reading order (#11)
+  assert.equal(await page.locator(".handover-first").innerText(), "First: 2 escalated or overdue · 146 open work");
   const headings = await page.locator("main h3").allInnerTexts();
   assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("Open work"), headings.join(" | "));
   assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 5);

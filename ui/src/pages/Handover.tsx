@@ -28,6 +28,7 @@ const citeLabel = (c: string) => {
 const FIRST = 5;
 const FIRST_READ = ["Escalated or overdue", "Back from the field", "In the field", "Active bypasses", "Open permits",
   "Records to check", "New exceptions", "Dispatched", "Rounds", "Open work"];
+const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, "-");
 const rank = (name: string) => { const i = FIRST_READ.indexOf(name); return i < 0 ? FIRST_READ.length - 1 : i; };
 
 export function HandoverPage({ query }: { query: URLSearchParams }) {
@@ -81,6 +82,9 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
     .sort(([a], [b]) => rank(a) - rank(b));
   const busy = sections.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) > 0);
   const quiet = sections.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) === 0).map(([name]) => name);
+  const jumps = (part: typeof busy) => part.map(([name, lines], i) => <span key={name}>{i > 0 && " · "}
+    <a href={`#handover-${slug(name)}`} onClick={(e) => { e.preventDefault(); document.getElementById(`handover-${slug(name)}`)?.scrollIntoView({ block: "start" }); }}>
+      {lines.length + (h.facts.more?.[name] ?? 0)} {name.toLowerCase()}</a></span>);
   return (
     <Card title={`Shift ${when(h.shift_start)} to ${when(h.shift_end)}`}>
       <Text as="p" small>
@@ -90,18 +94,27 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
         <Text muted> · drafted {when(h.drafted_at)}</Text>
       </Text>
       {busy.length === 0 && <Empty className="small">Nothing to hand over.</Empty>}
+      {/* The headline (#11): what the incoming lead takes on first, in the order to read it, each a jump to its lines.
+          The standing backlog is counted last. */}
+      {busy.length > 0 && <p className="handover-first">
+        <strong>First:</strong> {jumps(busy.slice(0, 3))}
+        {busy.length > 3 && <Text muted>. Then {jumps(busy.slice(3))}</Text>}
+      </p>}
       {busy.map(([name, lines]) => {
         const more = h.facts.more?.[name] ?? 0;
         const total = lines.length + more;
         const open = shown.has(name);
         const visible = open ? lines : lines.slice(0, FIRST);
-        return <div key={name}>
+        return <div key={name} id={`handover-${slug(name)}`} className="handover-section">
           <Heading level={3} detail={total}>{name}</Heading>
           <List small>
-            {visible.map((l, i) => (
-              <li key={i}>{l.text}{" "}
-                {l.cites.filter((c, _, all) => !(c.startsWith("exception:") && all.some((x) => x.startsWith("case:")))).map((c, n) => <span key={c}>{n > 0 && " · "}<a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>
-            ))}
+            {visible.map((l, i) => {
+              // The line opens its case (else its exception); "open the case" after every line was noise (#11).
+              const target = l.cites.find((c) => c.startsWith("case:")) ?? l.cites.find((c) => c.startsWith("exception:"));
+              const rest = l.cites.filter((c) => !c.startsWith("case:") && !c.startsWith("exception:"));
+              return <li key={i}>{target ? <a className="handover-line" href={citeHref(target)}>{l.text}</a> : l.text}
+                {rest.map((c) => <span key={c}> · <a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>;
+            })}
             {open && more > 0 && <li className="muted">and {more} more</li>}
           </List>
           {lines.length > FIRST && <Button size="sm" variant="ghost" aria-expanded={open}
