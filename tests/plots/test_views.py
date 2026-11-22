@@ -34,6 +34,10 @@ def test_propagation_puts_the_cause_first(conn):
     s = fig.summary
     assert s["first_cause"] == "20-V-2001" and s["order"][0] == {"unit": "20-V-2001", "minutes_after_first": 0}
     assert s["units"] > 10 and s["links_drawn"] > 0
+    # a row per unit, names down the side where they can't be cut off, the first 20 drawn and the rest counted (#14)
+    y = fig.layout["yaxis"]
+    assert y["type"] == "category" and y["categoryarray"][0] == "20-V-2001" and len(y["categoryarray"]) == 20
+    assert y["title"]["text"] == f"first 20 of {s['units']} units"
 
 
 def test_window_waterfall_breakdown_flare(conn):

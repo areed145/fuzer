@@ -209,3 +209,27 @@ test("#1076 descriptions read in sentence case, codes keep theirs", () => {
   assert.equal(sentence("Train B LP Compressor 20-K-2100B Speed"), "Train B LP compressor 20-K-2100B speed");
   assert.equal(pointTag("OK_GGCP:20-FT-2100B.PV"), "20-FT-2100B");
 });
+
+test("#14 traces in one unit at very different levels get a scale each, coloured, the lower one's alarm drawn", () => {
+  const whp = trace("wellhead", "psig", { min: 160, max: 166, mean: 163, last: 166, limits: [{ type: "lo", value: 164, basis: "alarm" }, { type: "hi", value: 300, basis: "alarm" }] });
+  const cas = trace("casing", "psig", { min: 1040, max: 1046, mean: 1043, last: 1045, limits: [{ type: "hi", value: 1136, basis: "alarm" }] });
+  const near = trace("tubing", "psig", { min: 150, max: 170, mean: 160, last: 165 });
+  const v = { ...view, groups: [{ key: "pressures", label: "Pressures", show: true, traces: [whp, cas] }], other: [] };
+  const f = buildFigure(v, null, new Set(["wellhead", "casing"]), palette);
+  assert.deepEqual(plain(f.data.map((d) => d.yaxis)), ["y", "y2"]);
+  assert.equal(f.layout.yaxis2.overlaying, "y");
+  assert.equal(f.layout.yaxis.tickfont.color, "a");
+  assert.equal(f.layout.yaxis2.tickfont.color, "b");
+  const lims = f.layout.shapes.filter((s) => s.type === "line");
+  assert.equal(lims.length, 1); // the wellhead's low alarm; limits far off the lines would flatten them again
+  assert.equal(lims[0].yref, "y");
+  assert.equal(lims[0].y0, 164);
+  // traces at about the same level still share one plain scale
+  const w = { ...v, groups: [{ ...v.groups[0], traces: [whp, near] }] };
+  const g = buildFigure(w, null, new Set(["wellhead", "tubing"]), palette);
+  assert.deepEqual(plain(g.data.map((d) => d.yaxis)), ["y", "y"]);
+  assert.equal(g.layout.yaxis.tickfont, undefined);
+  // on a phone the far one goes to a panel of its own
+  const p = buildFigure(v, null, new Set(["wellhead", "casing"]), palette, true);
+  assert.equal(p.layout.yaxis2.overlaying, undefined);
+});
