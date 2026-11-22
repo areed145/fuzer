@@ -60,10 +60,12 @@ function OptionsView({ d, person, readOnly, onChosen }: {
     <Card className="case-options" aria-label="Options" title="Options">
       <Cost d={d} />
       <ul className="case-options-list">
-        {d.options.map((opt) => <Option key={opt.key} opt={opt} d={d} readOnly={readOnly || !person} busy={!!a.busy}
+        {d.options.filter((opt) => opt.available).map((opt) => <Option key={opt.key} opt={opt} d={d} readOnly={readOnly || !person} busy={!!a.busy}
           open={open === opt.key} anyOpen={open !== null} onOpen={() => setOpen(open === opt.key ? null : opt.key)}
           onChoose={(c) => choose(opt, c)} />)}
       </ul>
+      {d.options.filter((opt) => !opt.available).map((opt) =>
+        <Text as="div" small key={opt.key}><strong>{opt.label}</strong>: {opt.unavailable}</Text>)}
       {last && <Text as="div" small>Last chosen: {d.options.find((x) => x.key === last.chosen)?.label ?? last.chosen},
         {" "}by {personName(last.by)} {when(last.at)}{last.accepted ? ", as recommended" : `: ${last.reason ?? ""}`}</Text>}
       {d.unknown && d.unknown.length > 0 && <Text as="div" small>Not known: {d.unknown.join("; ")}.</Text>}
@@ -88,8 +90,6 @@ function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose }: {
   onOpen: () => void; onChoose: (c: Parameters<typeof api.chooseOption>[3]) => void;
 }) {
   const rec = opt.key === d.recommended;
-  if (!opt.available) return <li className="case-option unavailable">
-    <strong>{opt.label}</strong> <Text small>{opt.unavailable}</Text></li>;
   const blocked = opt.ready === false;
   // The recommended option is one tap: it needs nothing more (dispatch goes to the operator queue), unless it can't go.
   const oneTap = rec && !blocked;

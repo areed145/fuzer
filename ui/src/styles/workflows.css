@@ -59,7 +59,6 @@ details.exception-types { margin-top: 16px; }
 .case-option { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column;
   gap: 4px; min-width: 0; }
 .case-option.recommended { border-color: var(--accent); border-width: 2px; padding: 9px 11px; }
-.case-option.unavailable { color: var(--muted); }
 .case-option-facts { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 13px; }
 .case-option-why { font-size: 13px; }
 .case-option-act { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
