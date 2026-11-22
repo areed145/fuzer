@@ -287,7 +287,7 @@ function CaseRow({ r, place, person, take, onChange }: {
     </td>
     <td className="small work-row-stage">{STAGE_WORDS[r.stage] ?? r.stage}</td>
     <td className="small"><PriorityBadge p={r.priority} type={r.type} /></td>
-    <td />
+    <td className="small nowrap">{r.value_usd ? money(r.value_usd) : ""}</td>
     <td className="work-row-where small">{r.subjects.map((s) => <div key={s}><a href={href(`/e/${encodeURIComponent(s)}`)}>
       {display(s, names)}</a></div>)}</td>
     <td className="small">{place.area}</td>

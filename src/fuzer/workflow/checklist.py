@@ -32,7 +32,7 @@ _ITEMS = """
            c.note, c.done_by, coalesce(c.done_at, case when ch.state = 'done' then ch.closed_at end) as done_at,
            case when ch.id is null then null else jsonb_build_object(
                'id', ch.id, 'title', ch.title, 'state', ch.state, 'closed_at', ch.closed_at,
-               'assignee', ch.assignee, 'role', ch.role) end as child
+               'assignee', ch.assignee, 'role', ch.role, 'step', ch.step, 'due', ch.due) end as child
     from work_check c left join work_item ch on ch.id = c.child_item_id
     where c.item_id = %(item)s and (%(id)s::bigint is null or c.id = %(id)s)
     order by c.position, c.id

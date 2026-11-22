@@ -65,10 +65,11 @@ export function InboxPage() {
   // answered, every one pushed the lists down the page (#1069). The page waits for them, failures included.
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
   if (!offline && ![field, handovers, told, exceptions].every(settled)) return <Status loading />;
-  // My work is the List's Waiting on me now: one list, one count. Someone in the field (an operator, or anyone with field
-  // jobs) keeps this page for their jobs, kept for no signal with the report buttons; anyone can still open their steps
-  // here to tick several at once (`?steps=1`).
-  if (!offline && inbox.data && inbox.data.roles.length > 0 && !inbox.data.roles.includes("operator")
+  // My work is the List's Waiting on me now: one list, one count. Someone only in the field (an operator alone), or
+  // anyone with field jobs, keeps this page for their jobs, kept for no signal with the report buttons; a person with a
+  // desk role besides (the demo account holds every role) goes to the List. Anyone can still open their steps here to
+  // tick several at once (`?steps=1`).
+  if (!offline && inbox.data && inbox.data.roles.some((r) => r !== "operator")
       && !(field.data?.jobs ?? []).length && !stepsWanted()) {
     location.replace(href("/list", { waiting_on: "me" }));
     return <Status loading />;

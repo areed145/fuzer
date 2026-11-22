@@ -39,14 +39,24 @@ function kept(): Token | null {
 }
 async function token(): Promise<Token> {
   const t = await api.mapkitToken();
-  try { if (t.token && t.expires) sessionStorage.setItem(KEPT, JSON.stringify(t)); } catch { /* storage refused */ }
+  try {
+    if (t.token && t.expires) sessionStorage.setItem(KEPT, JSON.stringify(t));
+    localStorage.setItem(HAS_KEY, t.token ? "1" : "0");
+  } catch { /* storage refused */ }
   return t;
 }
 
+/* Whether this deployment gave this browser a token last time. When it did, Apple's script loads while the token is
+ * asked for, rather than after it (#27); a deployment without a key never loads Apple's script. */
+const HAS_KEY = "fz:mapkit-key";
+const hadKey = () => { try { return localStorage.getItem(HAS_KEY) === "1"; } catch { return false; } };
+
 async function start(): Promise<MapKit | null> {
+  const early = hadKey() ? script(MAPKIT_SRC) : null;
+  early?.catch(() => {});  // a failed load is met again below
   const first = kept() ?? await token().catch(() => null);
   if (typeof first?.token !== "string" || !first.token) return null;
-  await script(MAPKIT_SRC);
+  await (early ?? script(MAPKIT_SRC));
   const mk = window.mapkit;
   if (!mk?.init) return null;
   let initial: string | null = first.token;
@@ -73,7 +83,8 @@ async function start(): Promise<MapKit | null> {
   return mk;
 }
 
-/** MapKit when it is set up and accepted its token, else null (use Leaflet). */
+/** MapKit when it is set up and accepted its token, else null (use Leaflet). A page whose first sight is a map calls
+ * this as it opens, so the library is under way while the page's other reads are answered (#27). */
 export function loadMapKit(): Promise<MapKit | null> {
   ready ??= start().catch(() => null);
   return ready.then((mk) => (failed ? null : mk));

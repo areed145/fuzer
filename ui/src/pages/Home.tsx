@@ -13,6 +13,7 @@ import { show } from "../analytics/Metric";
 import { LiveFigure } from "../analytics/LiveFigure";
 import type { HotspotSpec, Inset } from "../map/engine";
 import { workHref } from "../pageTabs";
+import { loadMapKit } from "../map/mapkitLoader";
 
 /** How many open events wait at each stage, from the one count every page reads (GET /work/counts). */
 const iocCounts = (c: WorkFigures) => ({ dispatch: c.stages.dispatch, field: c.stages.field, back: c.stages.back, open: c.open });
@@ -83,6 +84,8 @@ export function HomePage({ stats, inbox, figures, jobsHealth }: {
   const noRecords = stats?.records === 0;
 
   // The map and its open work first; the rest waits for the map, since the server answers reads largely one at a time.
+  // Apple's map library starts now too, not once the map's own code has loaded behind the network (#27).
+  useEffect(() => { void loadMapKit(); }, []);
   const geo = useAsync(() => api.map(), []);
   const spots = useAsync(() => api.attention(), []);
   const ready = geo.data !== undefined || !!geo.error;

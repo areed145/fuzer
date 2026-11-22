@@ -3740,11 +3740,16 @@ test("My work is the List's Waiting on me, and a row waiting in your queue is ta
     subjects: [], unmatched: [], case_state: "open", role: "ops_lead", raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
     last_seen: "2026-11-08T07:00:00Z", item_id: 12, assignee: null, evidence: {}, title: "Approve PM order 4711" };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [exc] }));
-  await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 1, labels: {}, facets: { overdue: 0 },
+  await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 2, labels: {}, facets: { overdue: 0 },
     rows: [{ ...exc, uid: "e4", exception_id: 4, kind: "sap_notification", kind_label: "SAP notification", stage: "desk",
       holder: taken ? "ivy" : "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen,
       updated: exc.last_seen, facility: "none", area: "none", asset: "none", take: taken ? null : 55,
-      assignee: taken ? "ivy" : null }] } }));
+      assignee: taken ? "ivy" : null },
+    // a case of its own (no exception) shows its value in the Value column, as the sort says (#6)
+    { ...exc, uid: "c9", id: null, exception_id: null, item_id: 9, type: "opportunity", kind: "opportunity",
+      kind_label: "Opportunity", title: "Reallocate lift gas on 30-FT-3002", value_usd: 5611950, stage: "desk",
+      holder: "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen,
+      updated: exc.last_seen, facility: "none", area: "none", asset: "none", take: null }] } }));
   await page.route("**/work/tasks/55/claim*", (route) => { claims.push(route.request().postDataJSON()); taken = true; return route.fulfill({ json: {} }); });
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ivy", roles: ["ops_lead"], mine: [], queue: [],
     counts: { mine: { total: 0 }, queue: { total: 1 } } } }));
@@ -3752,6 +3757,8 @@ test("My work is the List's Waiting on me, and a row waiting in your queue is ta
   await page.goto(`${url}/#/inbox`);
   await page.waitForURL(/#\/list\?waiting_on=me$/);
   const row = page.locator("tr.work-row", { hasText: "Approve PM order 4711" });
+  const valued = page.locator("tr", { hasText: "Reallocate lift gas on 30-FT-3002" });
+  assert.match(await valued.locator("td").nth(3).innerText(), /\$5\.6M|\$5,611,950/);
   await row.getByRole("button", { name: "Take it" }).click();
   await expectReports(claims, 1);
   assert.equal(claims[0].by, "ivy");

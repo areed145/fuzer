@@ -33,8 +33,12 @@ OUTCOMES = {"fixed": "Fixed", "contained": "Contained, follow-up planned", "not_
 ACTION_WORDS = (("1", r"\breplac"), ("10", r"\boverhaul"), ("2", r"\brepair|\bfix(ed)?\b"), ("4", r"\badjust|\bre-?set\b"),
                 ("7", r"\bservic|\bclean|\bgrease|\blubric"), ("8", r"\btest"), ("9", r"\binspect"),
                 ("3", r"\bmodif"), ("6", r"\bcheck"))
-FALSE_WORDS = r"\bfalse alarm\b|\bspurious\b|\bnothing (was )?wrong\b|\bno fault\b"
-DATA_WORDS = r"\bbad (data|value|reading)\b|\bstale\b|\bwrong unit|\bsensor (fault|drift)\b|\bdata (problem|issue)\b"
+# the field's own answer ("Field: Done: ...") is a comment, so these read it too (#34)
+FALSE_WORDS = (r"\bfalse alarm\b|\bspurious\b|\bnothing (was )?(wrong|found)\b|\bno fault\b|(?<!not )\bas it should be\b"
+               r"|\ball (good|ok|normal)\b|\bno (leaks?|issues?|problems?) found\b")
+DATA_WORDS = (r"\bbad (data|value|reading)\b|\bstale\b|\bwrong unit|\bsensor (fault|drift)\b|\bdata (problem|issue)\b"
+              r"|\bimpulse line\b|\b(agrees|agreed|matches|matched) with the (dcs|scada|local gauge)\b|\brecalibrat"
+              r"|\breads? wrong\b|\breading wrong\b")
 
 
 def vocabulary(pack: Pack) -> dict:

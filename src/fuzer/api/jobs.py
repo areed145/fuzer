@@ -247,21 +247,21 @@ def health(instance, defs, check_rows: list | None = None) -> dict:
     sched = scheduler(instance)["running"]
     triggers = sorted(name for name, (_, tick) in _states(instance).items()
                       if tick is not None and _enum(tick.status) == "FAILURE")
-    level = "red" if (failed or triggers) else "amber" if (failing or not sched or recovered) else "green"
+    # a failure since recovered is history: it is said, but the light is green when nothing is wrong now (#33)
+    level = "red" if (failed or triggers) else "amber" if (failing or not sched) else "green"
     parts = []
     down = sorted({rec.dagster_run.job_name for rec in runs if latest[rec.dagster_run.job_name] != "SUCCESS"})
     if failed:  # said by job, what someone fixes, with the runs behind it
         parts.append(f"{len(down)} job{'s' * (len(down) != 1)} failing ({failed} failed run{'s' * (failed != 1)} "
                      "in 24 h)")
-    if recovered:
-        parts.append(f"{recovered} earlier failure{'s' * (recovered != 1)} since recovered")
     if triggers:
         parts.append(f"{', '.join(triggers)} failing, so the jobs {'it starts' if len(triggers) == 1 else 'they start'}"
                      " are not running")
     if failing:
-        parts.append(f"{failing} check{'s' * (failing != 1)} flagging")
+        parts.append(f"{failing} data check{'s' * (failing != 1)} {'need' if failing != 1 else 'needs'} a look")  # #21
     if not sched:
         parts.append("scheduler not running")
+    # a failure since recovered stays in recovered_runs_24h for the Jobs page; the nav line says what is wrong now
     return {"level": level, "available": True, "failed_runs_24h": failed, "recovered_runs_24h": recovered,
             "failing_checks": failing,
             "failing_triggers": triggers, "scheduler_running": sched, "summary": "; ".join(parts) or "All jobs healthy"}

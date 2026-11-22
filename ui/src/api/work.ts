@@ -373,7 +373,9 @@ export interface CheckItem {
   id: number; position: number; text: string; subjects: string[];
   state: "open" | "done" | "skipped"; note: string | null; done_by: string | null; done_at: string | null;
   /** The case it was sent as, part of this one: the item is done when that case is done. */
-  child: { id: number; title: string; state: string; closed_at: string | null; assignee: string | null; role: string | null } | null;
+  child: { id: number; title: string; state: string; closed_at: string | null; assignee: string | null; role: string | null;
+    /** Where it is and when it is due (#26), while it is open. */
+    step?: string | null; due?: string | null } | null;
 }
 
 export interface WorkDraft {
