@@ -70,7 +70,7 @@ export function WorkListPage({ query, board: wantsBoard = false }: { query: URLS
           ? `, the first ${list.data.rows.length} shown` : ""}</Text>
         {board ? <Board data={list.data} group={filters.group || "stage"} person={person} people={people.data ?? []}
           queues={queues} onChange={list.reload} />
-          : <Rows rows={list.data.rows} labels={list.data.labels ?? {}} sort={filters.sort ?? "value"}
+          : <Rows key={JSON.stringify(filters)} rows={list.data.rows} labels={list.data.labels ?? {}} sort={filters.sort ?? "value"}
             setSort={(sort) => set({ sort })} person={person} people={people.data ?? []} queues={queues} onChange={list.reload} />}
         {!board && filters.state !== "closed" && <Suppressed />}
         <SampleTeam onAdded={people.reload} />
@@ -245,6 +245,9 @@ function Rows({ rows, labels, sort, setSort, person, people, queues, onChange }:
   rows: WorkListRow[]; labels: Record<string, string>; sort: string; setSort: (s: string | undefined) => void;
   person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
+  // A page of rows at a time, so the List is a screenful or two, not 37,000 px (#8); a new filter starts over.
+  const [count, setCount] = useState(PAGE);
+  const shown = rows.slice(0, count);
   // A step waiting in a queue the person works is theirs to take, from the row (My work folded into the List).
   const takes = (r: WorkListRow) => (person ? r.take ?? null : null);
   const place = (r: WorkListRow) => ({ stage: r.stage, due: r.due_at, overdue: r.overdue,
@@ -261,14 +264,21 @@ function Rows({ rows, labels, sort, setSort, person, people, queues, onChange }:
       <Table className="work-table" aria-label={`${rows.length} shown`}>
         <thead><tr>{ROW_HEADINGS.map(head)}</tr></thead>
         <tbody>
-          {rows.map((r) => r.id != null
+          {shown.map((r) => r.id != null
             ? <EventRow key={r.uid} r={r as unknown as ExceptionRow} place={place(r)} person={person} people={people} queues={queues}
               onChange={onChange} take={takes(r)} />
             : <CaseRow key={r.uid} r={r} place={place(r)} person={person} take={takes(r)} onChange={onChange} />)}
         </tbody>
       </Table>}
+    {rows.length > count && <div className="work-more">
+      <Button onClick={() => setCount((n) => n + PAGE)}>Show {Math.min(PAGE, rows.length - count)} more</Button>
+      <Text small muted>{count} of {rows.length} shown</Text></div>}
   </Card>;
 }
+
+/** Rows the List shows before Show more, and cards a Board column shows before Show all. */
+const PAGE = 50;
+const COLUMN = 20;
 
 /** The headings that sort the list, and what they sort by. */
 const SORTABLE: Record<string, string> = { Work: "title", Value: "value", Due: "due", Age: "opened" };
@@ -314,6 +324,8 @@ function Board({ data, group, person, people, queues, onChange }: {
     : [...new Set(data.rows.map(key))];
   // Below the width every column needs, the board scrolls sideways; a fade on the edge says more columns are there.
   const [more, setMore] = useState({ left: false, right: false });
+  // A long column shows its first cards and a Show all, so a board of 300 isn't 28,000 px of cards (#8).
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const frame = useRef<HTMLDivElement>(null);
   const edges = () => {
     const el = frame.current;
@@ -331,9 +343,11 @@ function Board({ data, group, person, people, queues, onChange }: {
     <div className="work-board" ref={frame} onScroll={edges} tabIndex={0} aria-label="Board columns">
       {values.map((v) => {
         const cards = data.rows.filter((r) => key(r) === v);
+        const all = open.has(v) || cards.length <= COLUMN;
         return <section key={v} className={`work-board-column${cards.length ? "" : " empty"}`} aria-label={label(v)}>
           <Heading level={2}><span>{label(v)}</span><Text muted>{cards.length}</Text></Heading>
-          {cards.map((r) => <BoardCard key={r.uid} r={r} person={person} people={people} queues={queues} onChange={onChange} />)}
+          {(all ? cards : cards.slice(0, COLUMN)).map((r) => <BoardCard key={r.uid} r={r} person={person} people={people} queues={queues} onChange={onChange} />)}
+          {!all && <Button size="sm" variant="link" onClick={() => setOpen((o) => new Set(o).add(v))}>Show all {cards.length}</Button>}
         </section>;
       })}
     </div>

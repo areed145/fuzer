@@ -30,3 +30,4 @@ table.ui-table--results tr.static { cursor: default; }
 .wrap-last-column tr.log-error td { color: var(--danger); }
 table.ui-table--mapping td { vertical-align: middle; }
 table.ui-table--mapping input[type="checkbox"] { margin-right: 4px; }
+.jobs .jobs-dagster { display: inline-flex; align-items: center; min-height: 36px; }

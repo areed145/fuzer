@@ -72,6 +72,14 @@ const accountName = (actor: string) => accountNames[actor] ?? "a signed-in user"
 /** A state or label as a sentence starts: "open" reads "Open". */
 export const cap = (s: string | null | undefined): string => (s ? s[0].toUpperCase() + s.slice(1) : "");
 
+/** What raised an event, as words (#16): "alarm_performance" reads "Alarm performance", "agent:opportunity_scan" the
+ * "Opportunity scan agent". */
+export function detectorName(source: string): string {
+  if (/^(agent|detector):/.test(source)) return person(source);
+  return /^[a-z0-9]+(_[a-z0-9]+)*$/.test(source)
+    ? cap(source.replace(/_/g, " ")).replace(/\b(sre|sap|iow|dcs)\b/gi, (w) => w.toUpperCase()) : source;
+}
+
 /** Who did something, as a name: the demo sign-in reads "Demo account", the system "Fuzer". */
 export function person(who: string | null | undefined): string {
   if (!who) return "";

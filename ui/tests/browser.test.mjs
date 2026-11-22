@@ -6293,6 +6293,8 @@ test("a job in progress is handed over at shift change and the incoming operator
   await card.getByRole("button", { name: "Hand over at shift change" }).click();
   const go = card.getByRole("button", { name: "Hand over", exact: true });
   assert.equal(await go.isDisabled(), true);
+  // the roster loads on its own: wait for it before reading the choices
+  await card.getByLabel("Hand over to").locator("option", { hasText: "gina" }).waitFor({ state: "attached" });
   assert.deepEqual(await card.getByLabel("Hand over to").locator("option").allTextContents(), ["who takes it", "gina"]);
   await card.getByLabel("Hand over to").selectOption("gina");
   await card.getByLabel("What was done").fill("isolated and blown down");
@@ -9020,4 +9022,30 @@ test("Logistics lists each day's crews and jobs, who travels, seats and beds aga
   await page.route("**/plan/logistics?*", (route) => route.fulfill({ json: { ...plan, by_day: [] } }));
   await page.getByLabel("Days shown").selectOption("7");
   await page.getByText("Nothing to send in these days.").waitFor();
+});
+
+test("#8 the List shows a page of rows with Show more, and a long Board column shows its first cards", async () => {
+  const exc = (id) => ({ id, type: "upset", key: `k${id}`, source: "sre", state: "open", priority: null, value_usd: null,
+    subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
+    last_seen: "2026-11-08T07:00:00Z", item_id: null, assignee: null, evidence: {}, title: `Upset number ${id}` });
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: Array.from({ length: 62 }, (_, i) => exc(i + 1)) }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [] }));
+  await page.route("**/exceptions/types", (route) => route.fulfill({ json: [] }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/list`);
+  await page.locator(".work-table").waitFor();
+  assert.equal(await page.locator("tr.work-row").count(), 50);
+  await page.getByText("50 of 62 shown").waitFor();
+  await page.getByRole("button", { name: "Show 12 more" }).click();
+  await page.getByText("Upset number 62", { exact: true }).waitFor();
+  assert.equal(await page.locator("tr.work-row").count(), 62);
+  assert.equal(await page.getByRole("button", { name: /Show \d+ more/ }).count(), 0);
+
+  await page.goto(`${url}/#/board`);
+  const column = page.locator(".work-board-column", { hasText: "To dispatch" });
+  await column.getByRole("button", { name: "Show all 62" }).waitFor();
+  assert.equal(await column.locator(".work-card").count(), 20);
+  await column.getByRole("button", { name: "Show all 62" }).click();
+  assert.equal(await column.locator(".work-card").count(), 62);
 });

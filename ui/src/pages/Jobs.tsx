@@ -24,7 +24,9 @@ export function JobsPage() {
   const o = useAsync(() => api.jobs(), []);
   return (
     <section className="jobs">
-      <PageHeader actions={o.data && <DagsterLink d={o.data.dagster} />}>Jobs</PageHeader>
+      {/* The header's row is there from the start, and the tiers wait for the overview, so nothing jumps as they
+          arrive (#15). */}
+      <PageHeader actions={<span className="jobs-dagster">{o.data && <DagsterLink d={o.data.dagster} />}</span>}>Jobs</PageHeader>
       <Status of={o} />
       {o.data && !o.data.available && (
         <UICard>
@@ -36,7 +38,7 @@ export function JobsPage() {
         </UICard>
       )}
       {o.data?.available && <Overview o={o.data} />}
-      <Tiers />
+      {(o.data || o.error) && <Tiers />}
     </section>
   );
 }

@@ -166,6 +166,11 @@ main { width: 100%; max-width: 1600px; margin: 0 auto; padding: 20px 24px 60px; 
 main[data-width="wide"] { max-width: none; }
 main[data-width="wide"] p { max-width: 100ch; }  /* the page widens, a sentence does not */
 main[data-width="reading"] { max-width: 1200px; }
+/* A wide monitor gives a case room for its trend and tables (#17); its sentences stay a reading length. */
+@media (min-width: 1900px) {
+  main[data-width="reading"] { max-width: 1520px; }
+  main[data-width="reading"] p { max-width: 110ch; }
+}
 
 
 @media (max-width: 800px) {
