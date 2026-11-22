@@ -337,7 +337,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]);
         setKept(how === "queued");
         if (how === "sent" && (status === "done" || status === "could_not_do"))
-          onReported?.(`${SAID[status]} sent for "${job.title}". It goes back to ${job.sent?.by ? personName(job.sent.by) : "the IOC"} to close out.`);
+          onReported?.(`${SAID[status]} sent for "${words(job.title)}". It goes back to ${job.sent?.by ? personName(job.sent.by) : "the IOC"} to close out.`);
         if (how === "sent") onChange();
       });
   };
