@@ -3751,8 +3751,12 @@ test("My work is the List's Waiting on me, and a row waiting in your queue is ta
       holder: "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen,
       updated: exc.last_seen, facility: "none", area: "none", asset: "none", take: null }] } }));
   await page.route("**/work/tasks/55/claim*", (route) => { claims.push(route.request().postDataJSON()); taken = true; return route.fulfill({ json: {} }); });
-  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ivy", roles: ["ops_lead"], mine: [], queue: [],
-    counts: { mine: { total: 0 }, queue: { total: 1 } } } }));
+  // a desk role with operator too (as the demo account holds): field jobs only waiting in the operator queue are taken
+  // from the List, so My work is still the List
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ivy", roles: ["ops_lead", "operator"], mine: [],
+    queue: [], counts: { mine: { total: 0 }, queue: { total: 1 } } } }));
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "ivy", coming_up: [], jobs: [
+    { item_id: 30, exception_id: 30, title: "Compressor trip", role: "operator", queued: true, sent: null, history: [], field: [] }] } }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/inbox`);
   await page.waitForURL(/#\/list\?waiting_on=me$/);
