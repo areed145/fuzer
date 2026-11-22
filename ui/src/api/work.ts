@@ -881,6 +881,16 @@ export interface ResourceLoad {
 }
 /** The people a resource's routine duties hold whatever else is planned (operators on their rounds and checks). */
 export interface RoutineLoad { quantity: number; source: string; basis: string }
+/** One job on a day of the logistics plan: who it needs, where, and when. */
+export interface LogisticsJob { item_id: number; title: string; code: string | null; schedule: string | null; order: string | null;
+  assets: string[]; area: string | null; start: string; end: string; quantity: number }
+export interface LogisticsDay {
+  day: string;
+  crews: { resource: string; name: string; unit: string | null; capacity: number; kind: string; jobs: LogisticsJob[] }[];
+  equipment: { resource: string; name: string; unit: string | null; capacity: number; kind: string; jobs: LogisticsJob[] }[];
+  travel: { crew: string; name: string; people: number; way: "out" | "back"; schedule: string; by: string | null }[];
+  limits: { resource: string; name: string; kind: string; unit: string | null; need: number; capacity: number; over: boolean }[];
+}
 export interface PlanResource { code: string; name: string; kind: string; unit: string | null; capacity: number; work_center?: string | null;
   counts?: string[]; routine?: RoutineLoad | string | null }
 
@@ -1075,6 +1085,8 @@ export const workApi = {
   scheduleUnlink: (by: string, pred: number, succ: number) => request<unknown>("DELETE", "/plan/schedules/links", { by, pred, succ }),
   resourceLoad: (f: { resource?: string; start?: string; days?: number } = {}) =>
     request<{ start: string; end: string; days: number; resources: ResourceLoad[] }>("GET", "/plan/resources/load", f),
+  planLogistics: (f: { start?: string; days?: number } = {}) =>
+    request<{ start: string; end: string; days: number; by_day: LogisticsDay[] }>("GET", "/plan/logistics", f),
   capacityWindow: (code: string, w: { by: string; start: string; end: string; capacity: number; reason?: string }) =>
     request<unknown>("POST", `/plan/resources/${encodeURIComponent(code)}/capacity`, undefined, w),
   capacityWindowRemove: (id: number, by: string) => request<unknown>("DELETE", `/plan/resources/capacity/${id}`, { by }),

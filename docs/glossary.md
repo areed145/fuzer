@@ -92,6 +92,10 @@ line citing its case. The incoming lead acknowledges it.
 every kind; a page shows that label, or the more specific word a record carries (a compressor's template, a
 drawing's document type).
 
+**Logistics.** What the plan asks to be sent each day: each crew's jobs, the crews that travel out and back, the
+seats and beds they take, and the cranes, vessels and deck space booked. Plan > Logistics reads it from the plan's
+dates and resource needs.
+
 **Mapping.** YAML that says what one source table's rows mean: entities, fields, links and measurements. Kept as
 versions in the source catalog (the latest approved one is in use); the files in `src/fuzer/mappings/` seed it.
 

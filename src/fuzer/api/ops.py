@@ -1495,6 +1495,14 @@ def plan_resource_change(code: str, r: PlanResourceChange, conn=Depends(get_conn
                       capacity=r.capacity, work_center=r.work_center, counts=r.counts, routine=r.routine)
 
 
+@router.get("/plan/logistics")
+def plan_logistics(start: datetime | None = None, days: int = Query(14, ge=1, le=60), conn=Depends(get_conn)):
+    """Logistics from the plan: day by day, each crew's jobs, who travels, the seats and beds they take
+    and the cranes, vessels and deck space booked."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.logistics, start, days)
+
+
 class CapacityWindow(BaseModel):
     by: str
     start: datetime

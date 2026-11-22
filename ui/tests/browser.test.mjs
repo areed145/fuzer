@@ -8898,3 +8898,46 @@ test("A resource owner sees demand against capacity, the overload and its cheape
     if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/resources-${w}.png`, fullPage: true });
   }
 });
+
+test("Logistics lists each day's crews and jobs, who travels, seats and beds against what there is, and what is booked, at phone, iPad and desktop widths (P5.18)", async () => {
+  const job = (id, code, title, quantity, assets, area) => ({ item_id: id, code, title, schedule: "OK-TAR-2026", order: null, assets, area,
+    start: "2027-02-23T06:00:00+00:00", end: "2027-02-23T18:00:00+00:00", quantity });
+  const plan = { start: "2027-02-22", end: "2027-03-08", days: 14, by_day: [{
+    day: "2027-02-23",
+    crews: [{ resource: "SCAF", name: "Scaffolders", unit: "people", capacity: 4, kind: "crew",
+      jobs: [job(11, "A0050", "Scaffold 20-K-2200B and 20-E-2350A", 4, ["20-K-2200B", "20-E-2350A"], "OKAN-20")] },
+    { resource: "OPS", name: "Operations isolation team", unit: "people", capacity: 4, kind: "crew",
+      jobs: [job(12, "A0030", "Isolate, drain and purge area 20", 3, ["OKAN-20"], "OKAN-20")] }],
+    equipment: [{ resource: "CRANE", name: "Platform crane", unit: "cranes", capacity: 1, kind: "crane",
+      jobs: [job(13, "A0200", "Lift the compressor casing", 1, ["20-K-2200B"], "OKAN-20")] }],
+    travel: [{ crew: "SCAF", name: "Scaffolders", people: 4, way: "out", schedule: "OK-TAR-2026", by: "Helicopter seats" }],
+    limits: [{ resource: "SEATS", name: "Helicopter seats", kind: "seats", unit: "seats", need: 4, capacity: 12, over: false },
+      { resource: "BEDS", name: "Beds on board", kind: "beds", unit: "beds", need: 16, capacity: 14, over: true }],
+  }] };
+  const asked = [];
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/logistics?*", (route) => { asked.push(new URL(route.request().url()).searchParams.get("days")); return route.fulfill({ json: plan }); });
+  await page.goto(`${url}/#/plan`);
+  await page.getByRole("link", { name: "Logistics" }).click();
+  await page.getByRole("heading", { name: "Logistics", level: 1 }).waitFor();
+  const day = page.locator(".logistics-day").first();
+  await day.getByText("4 Scaffolders travel out on Helicopter seats").waitFor();
+  await day.getByText("Helicopter seats: 4 of 12").waitFor();
+  await day.getByText("Beds on board: 16 of 14").waitFor();
+  await day.getByRole("link", { name: /A0050 Scaffold 20-K-2200B/ }).waitFor();
+  assert.equal(await day.getByRole("link", { name: /A0050/ }).getAttribute("href"), "#/plan?schedule=OK-TAR-2026");
+  await day.getByText("Platform crane").waitFor();
+  await day.getByText(/A0200 Lift the compressor casing/).waitFor();
+  await page.getByLabel("Days shown").selectOption("28");
+  await page.waitForTimeout(200);
+  assert.deepEqual(asked.slice(-1), ["28"]);
+  for (const w of [390, 820, 1280]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.waitForTimeout(150);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `fits ${w} px`);
+    if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/logistics-${w}.png`, fullPage: true });
+  }
+  await page.route("**/plan/logistics?*", (route) => route.fulfill({ json: { ...plan, by_day: [] } }));
+  await page.getByLabel("Days shown").selectOption("7");
+  await page.getByText("Nothing to send in these days.").waitFor();
+});

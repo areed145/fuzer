@@ -73,6 +73,7 @@ export const NAV: NavGroup[] = [
       { label: "Plan", section: "plan", also: ["turnaround"] },
       { label: "Schedules", section: "plan", path: "/plan?schedules=1", view: "schedules" },
       { label: "Resources", section: "plan", path: "/plan?resources=1", view: "resources" },
+      { label: "Logistics", section: "plan", path: "/plan?logistics=1", view: "logistics" },
       { label: "Backlog by value", section: "ranked" },
     ],
   },
