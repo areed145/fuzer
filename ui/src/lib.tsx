@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExtern
 import { getProject } from "./authState";
 import { getScope } from "./fieldStore";
 import { keptAt } from "./fieldPack";
-import { CHANGED, joinWave, notifyChanged, openWave, recall, remember, snapshotKey, subscribeWave, waveOpen } from "./snapshot";
+import { CHANGED, joinWave, notifyChanged, keptSince, openWave, recall, showingKept, remember, snapshotKey, subscribeWave, waveOpen } from "./snapshot";
 import { Mark } from "./brand";
 
 /** Hash-based routing: #/ , #/e/<id> , #/review. Keeps the API free to own real paths. */
@@ -61,15 +61,18 @@ export { CHANGED, notifyChanged, refreshAll } from "./snapshot";
 
 /** Load data for a view. The answer this read last gave in this tab (see `snapshot.ts`) shows at once, marked
  * `loading`, while the read asks the server again, so a refresh or a return to a page never starts from blank. */
-export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
+export function useAsync<T>(fn: () => Promise<T>, deps: unknown[], keptBy: unknown[] = deps) {
   const place = useId();
   const key = useMemo(() => ({}), deps);
-  const snap = useMemo(() => snapshotKey(getScope(), getProject(), place, fn.toString(), deps), deps);
+  // `keptBy` names the inputs that tell answers apart, when `deps` also holds a gate that only says when to read
+  // (Home's `ready`): the answer kept from the last visit then shows while the gate is still shut.
+  const snap = useMemo(() => snapshotKey(getScope(), getProject(), place, fn.toString(), keptBy), deps);
   const start = (): { key: object; data?: T; error?: string; loading: boolean } => {
     const kept = recall<T>(snap);
     if (!kept) return { key, loading: true };
     // What the page shows from here changes together: this read and those beside it join one wave (see snapshot.ts).
     openWave();
+    showingKept(kept.at);
     return { key, data: kept.value, loading: true };
   };
   const [state, setState] = useState(start);
@@ -102,6 +105,8 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
 
 /** Whether a Refresh (or the first reads after a page load) is still bringing in new answers. */
 export const useRefreshing = () => useSyncExternalStore(subscribeWave, waveOpen, () => false);
+/** When the oldest kept answer on screen was given, while fresh answers are still coming in (see snapshot.ts). */
+export const useKept = () => useSyncExternalStore(subscribeWave, keptSince, () => null);
 
 /** Read again every `ms` while the page is in view (Home's live feed and map). Reads only: an action never repeats. */
 export function useLive(reloads: (() => void)[], ms = 30_000) {

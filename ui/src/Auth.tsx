@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import type { AuthSession } from "./authState";
-import { setCsrf } from "./authState";
+import { getProject, setCsrf } from "./authState";
 import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
 import { useRoute, errorMessage, useAction } from "./lib";
@@ -24,6 +24,21 @@ function keep(session: AuthSession | null) {
 function kept(): Kept | null {
   try { return JSON.parse(localStorage.getItem(KEPT) ?? "null") as Kept | null; } catch { return null; }
 }
+/** A session the server admitted within the last twelve hours opens the app at once, while the check runs: the page
+ * and its kept answers (snapshot.ts) show in the first second instead of after the check. It grants nothing, as above:
+ * the server checks every read, writes wait for the check's CSRF token, and an ended session swaps to sign-in. */
+const WARM_MS = 12 * 3_600_000;
+function warm(): Kept | null {
+  const k = kept();
+  if (!k || !(Date.now() - Date.parse(k.kept_at) < WARM_MS)) return null;
+  const admits = k.mode === "local" || !!k.user?.enabled && (k.user.owner || k.user.permissions.includes("read"));
+  // Picked another project since (the field switcher reloads the page): its access is the server's to say.
+  const picked = getProject();
+  if (!admits || picked && picked !== (k.project ?? "")) return null;
+  if (k.mode === "microsoft") setTrustedPerson(k.user?.actor ?? "");
+  outboxSession(k.user?.actor ?? "", false);  // held until the check says the session is live
+  return k;
+}
 
 const AuthContext = createContext<AuthSession | null>(null);
 export const useAuth = () => useContext(AuthContext);
@@ -43,7 +58,7 @@ export function useViewOnly() {
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { query } = useRoute();
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(warm);
   const [error, setError] = useState("");
   const [ended, setEnded] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -235,7 +250,7 @@ export function SignOut() {
   return <>
     <Button size="sm" disabled={busy} onClick={async () => {
       setBusy(true); setError("");
-      try { await api.signOut(); await forgetKept(); location.reload(); }
+      try { await api.signOut(); keep(null); await forgetKept(); location.reload(); }
       catch (failure) { setError(errorMessage(failure)); setBusy(false); }
     }}>{busy ? "Signing out..." : "Sign out"}</Button>
     {error && <span role="alert">{error}</span>}

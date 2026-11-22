@@ -320,7 +320,8 @@ test("a report waiting on an agent no worker has claimed says the agent worker m
   current = report(false, 90);  // a worker holds it: just drafting
   await page.reload();
   await page.getByText("the reporter agent is drafting it", { exact: false }).waitFor();
-  assert.equal(await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).count(), 0);
+  // The reload shows the answer kept from before at once, then the fresh one (stale-while-revalidate).
+  await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).waitFor({ state: "detached" });
 });
 
 test("P7.6 a regulatory report marks figures on estimated or missing data and drills each figure to its records", async () => {
@@ -1657,6 +1658,8 @@ test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the th
   assert.ok(s.dashes.includes("6 6"), "gas lift keeps its dash");
   assert.ok(s.span < 0.1, `fitted to the field, span ${s.span}`);
   assert.equal(await page.locator(".leaflet-container").count(), 0, "no Leaflet map");
+  // #13: the stand-in copies of the markers go once MapKit draws its own.
+  await page.waitForFunction(() => !document.querySelector(".mk-standin"));
   await group.getByRole("button", { name: "Satellite" }).click();
   assert.equal((await state()).type, "hybrid");
   // A Terrain choice saved from the free tiles shows as Standard on Apple Maps, which has no terrain map.
@@ -3950,6 +3953,57 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   assert.equal(await back.getAttribute("href"), "#/list?q=North+train+overhaul");
   assert.equal(await page.getByRole("button", { name: /North train overhaul/ }).getAttribute("aria-expanded"), "true");
   assert.equal(await page.getByLabel("From").inputValue(), at(3).slice(0, 10));
+});
+
+test("#25 Plan shows each crew's load day by day on the plan's own dates, overloads in red, linked to Resources", async () => {
+  const from = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  const days = (cap, at) => Array.from({ length: 56 }, (_, n) => ({ day: new Date(new Date(from).getTime() + n * 86_400_000).toISOString().slice(0, 10),
+    capacity: cap, demand: at(n), by_source: {} }));
+  const res = (code, name, kind, cap, at) => ({ code, name, kind, unit: "people", capacity: cap, work_center: null, sources: [], counts: [],
+    routine: null, routine_load: null, days: days(cap, at), overloads: [], capacity_windows: [] });
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: from, end: from, days: 56, resources: [
+    res("MECH", "Mechanical fitters", "crew", 6, (n) => (n === 9 ? 8 : n === 10 ? 4 : 0)),
+    res("SCAF", "Scaffolders", "crew", 4, () => 0)] } }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/plan`);
+  const card = page.locator(".plan-load");
+  await card.getByText("1 of 1 over capacity on some days.", { exact: false }).waitFor();
+  const row = card.getByRole("link", { name: /Mechanical fitters/ });
+  assert.equal(await row.getAttribute("href"), "#/plan?resources=1&resource=MECH");
+  await row.getByText("over on 1 day").waitFor();
+  assert.equal(await card.locator(".plan-load-day").count(), 2);
+  assert.equal(await card.locator(".plan-load-day.over").count(), 1);
+  await card.getByText("Not used in these weeks: Scaffolders.").waitFor();
+  // The day's column sits on the same dates as the rows: day 9 of a window that starts at From.
+  const [track, over] = await Promise.all([card.locator(".plan-load-track").boundingBox(), card.locator(".plan-load-day.over").boundingBox()]);
+  const expected = track.x + (9 / 56) * track.width;
+  assert.ok(Math.abs(over.x - expected) < 2, `overloaded day at ${over.x}, expected ${expected}`);
+  await page.setViewportSize({ width: 390, height: 900 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test("a cold open shows the last answers at once, says how old they are, then swaps in the fresh ones", async () => {
+  const res = (name) => ({ code: "MECH", name, kind: "crew", unit: "people", capacity: 6, work_center: null, sources: [], counts: [],
+    routine: null, routine_load: null, days: [], overloads: [], capacity_windows: [] });
+  let name = "Mechanical fitters", wait = 0;
+  await page.route("**/plan/resources/load*", async (route) => {
+    const json = { start: "2026-11-01", end: "2026-12-01", days: 42, resources: [res(name)] };
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    return route.fulfill({ json });
+  });
+  await page.route("**/plan/resources", (route) => route.fulfill({ json: [] }));
+  await page.goto(`${url}/#/plan?resources=1`);
+  await page.getByRole("heading", { name: /Mechanical fitters/ }).waitFor();
+  await page.waitForTimeout(700);  // kept answers are written half a second after they come
+  // Opened again two minutes later: the kept answer shows while the slow fresh one is on its way.
+  name = "Fitters and riggers"; wait = 1500;
+  await page.addInitScript(() => { const now = Date.now; Date.now = () => now() + 120_000; });
+  await page.reload();
+  await page.getByRole("heading", { name: /Mechanical fitters/ }).waitFor({ timeout: 1000 });
+  await page.getByRole("status").filter({ hasText: /Showing what was here 2 min ago\. Refreshing/ }).waitFor({ timeout: 1000 });
+  await page.getByRole("heading", { name: /Fitters and riggers/ }).waitFor();
+  assert.equal(await page.locator(".kept-notice").count(), 0, "the notice goes with the fresh answers");
 });
 
 test("an asset's page shows the open exceptions about it and the work planned on it", async () => {

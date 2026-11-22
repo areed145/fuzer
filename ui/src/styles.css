@@ -472,3 +472,7 @@ dl.perf-hours dd { margin: 0; font-variant-numeric: tabular-nums; }
   background-size: var(--week) 100%; background-repeat: repeat-x; background-position: var(--week-at) 0; }
 .plan-timeline .plan-today, .plan-timeline .plan-axis-today { left: var(--today); }
 @media (max-width: 640px) { .plan-axis > span:first-child { display: none; } }
+/* Crew load on the plan (#25): a day's demand as a column on the same track as the rows, full height at capacity. */
+.plan-load .plan-load-track { height: 1.6rem; }
+.plan-load-day { position: absolute; bottom: 0; background: color-mix(in srgb, var(--accent, #2563eb) 70%, transparent); border-radius: 1px 1px 0 0; }
+.plan-load-day.over { background: var(--danger, #b91c1c); }

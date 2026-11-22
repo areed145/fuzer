@@ -1,23 +1,26 @@
-/** What each read last answered in this tab, so a refresh or a return to a page shows it at once instead of a blank
- * page, while the read asks the server again. Kept in `sessionStorage`: it survives a reload of the tab and is gone
- * when the tab closes, so opening the app fresh never shows another day's answers. Kept per account and project, for
- * half an hour at most, under a size budget; only plain JSON answers are kept, never a file or an answer read from the
- * phone's field pack. Signing out forgets it.
+/** What each read last answered, so opening the app, a reload or a return to a page shows it at once instead of a
+ * blank page, while the read asks the server again (stale-while-revalidate). Kept in `localStorage` per account and
+ * project, for twelve hours at most, under a size budget, so a cold open of Tower shows the last-known map and lists
+ * in the first second; the shell says it is showing kept answers until the fresh ones are in (`useKept`). Only plain
+ * JSON answers are kept, never a file or an answer read from the phone's field pack. Signing out, or the session
+ * ending, forgets it.
  *
  * A wave holds fresh answers so that the reads shown from here change together, never one figure new and the one next
  * to it old: a page that opens with kept answers (after a reload, or going back to it) holds the fresh answers of every
  * read it starts until all are in, and so does Refresh. No React here: `useAsync` uses it. */
 
-/** Answers are kept per build of the app: a new version may read an answer's fields differently. */
-const BUILD = typeof document === "undefined" ? ""
-  : new URL(document.querySelector<HTMLScriptElement>("script[type=module][src]")?.src ?? "x:", "x:/").pathname;
+/** Answers outlive a new version of the app, which deploys often: a page that can't draw an answer kept by the version
+ * before is caught by the app's error boundary, which forgets every kept answer and draws again (`recalledAny`).
+ * `VERSION` changes only when kept answers must all go. */
+const VERSION = "4";
 const ROOT = "fz:snap:";
-const PREFIX = `${ROOT}${BUILD}|`;
-export const MAX_AGE_MS = 30 * 60_000;
-// Characters, as the browser counts its ~5 million-character sessionStorage quota. A page's main list (open exceptions,
-// My work's fields) runs to a few hundred thousand: kept, or the page opens on Loading after all.
-const ENTRY_LIMIT = 1_500_000;
-const BUDGET = 4_000_000;
+const PREFIX = `${ROOT}${VERSION}|`;
+export const MAX_AGE_MS = 12 * 3_600_000;
+// Characters, as the browser counts its ~5 million-character localStorage quota, shared with the app's other settings.
+// A page's main list (open exceptions, My work's fields) runs to a few hundred thousand: kept, or the page opens on
+// Loading after all.
+const ENTRY_LIMIT = 1_200_000;
+const BUDGET = 3_000_000;
 /** The longest a wave holds answers that have already come back while others are still out. */
 export const WAVE_LIMIT_MS = 10_000;
 
@@ -27,8 +30,15 @@ const dirty = new Set<string>();
 let used = 0;
 
 function storage(): Storage | null {
-  try { return typeof sessionStorage === "undefined" ? null : sessionStorage; } catch { return null; }
+  try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; }
 }
+
+/** The tab-only copy this replaced: cleared once so it doesn't hold the session quota. */
+try {
+  if (typeof sessionStorage !== "undefined") {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) { const k = sessionStorage.key(i); if (k?.startsWith(ROOT)) sessionStorage.removeItem(k); }
+  }
+} catch { /* ignore */ }
 
 (function load() {
   const s = storage();
@@ -66,11 +76,45 @@ export function snapshotKey(scope: string, project: string, place: string, read:
   return `${scope}|${project}|${route}|${place}|${read}|${JSON.stringify(deps)}`;
 }
 
-/** The answer this read last gave in this tab, if it is recent enough. */
-export function recall<T>(key: string | null): { value: T } | undefined {
-  const entry = key ? entries.get(key) : undefined;
+/** The key without the read's place in the page (the fourth part): a cold open can mount the page's parts in another
+ * order, which moves the place. */
+const loose = (key: string) => { const p = key.split("|"); return [...p.slice(0, 3), ...p.slice(4)].join("|"); };
+/** The answer kept for the same read with the same inputs on the same page at another place, when exactly one is:
+ * two kept at different places are reads that only look alike (a shared wrapper), so neither is taken. */
+function elsewhere(key: string): Entry | undefined {
+  const want = loose(key);
+  let found: Entry | undefined;
+  for (const [k, e] of entries) {
+    if (loose(k) !== want) continue;
+    if (found) return undefined;
+    found = e;
+  }
+  return found;
+}
+
+let recalled = false;
+/** Whether any kept answer has been drawn since the page loaded (the error boundary's cue to forget them and retry). */
+export const recalledAny = () => recalled;
+
+/** The answer this read last gave, if it is recent enough. Notes how old it is, for the shell's "kept" notice. */
+export function recall<T>(key: string | null): { value: T; at: number } | undefined {
+  const entry = key ? entries.get(key) ?? elsewhere(key) : undefined;
   if (!entry || Date.now() - entry.at >= MAX_AGE_MS) return undefined;
-  try { return { value: JSON.parse(entry.json) as T }; } catch { return undefined; }
+  try {
+    const value = JSON.parse(entry.json) as T;
+    recalled = true;
+    return { value, at: entry.at };
+  } catch { return undefined; }
+}
+
+/** When the oldest kept answer on screen was given, while the fresh answers are still coming in; null otherwise. */
+let oldestShown: number | null = null;
+export const keptSince = () => (wave ? oldestShown : null);
+/** A kept answer given at `at` is on screen in the open wave. */
+export function showingKept(at: number): void {
+  if (!wave) return;
+  // Called while a page draws: tell the shell after it, not during it.
+  if (oldestShown === null || at < oldestShown) { oldestShown = at; queueMicrotask(() => window.dispatchEvent(new Event(WAVE))); }
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -162,6 +206,7 @@ function flush() {
   const { held, timer } = wave;
   clearTimeout(timer);
   wave = null;
+  oldestShown = null;
   held.forEach((apply) => apply());  // one task: React renders every change together
   window.dispatchEvent(new Event(WAVE));
 }
@@ -169,6 +214,7 @@ function flush() {
 /** Start holding answers until every read started from now on has come back (or `WAVE_LIMIT_MS` has passed). */
 export function openWave(): void {
   if (wave) return;
+  oldestShown = null;
   wave = { pending: 0, held: [], timer: setTimeout(flush, WAVE_LIMIT_MS) };
   window.dispatchEvent(new Event(WAVE));
   // Nothing joined (no page reads anything): close at once rather than spin.

@@ -37,8 +37,16 @@ function kept(): Token | null {
     return k?.token && (k.expires ?? 0) * 1000 - Date.now() > 120_000 ? k : null;
   } catch { return null; }
 }
+/** The token the page asked for as it opened (index.html), taken once; else asked for now. */
+async function asked(): Promise<Token> {
+  const w = window as Window & { __fzMapkitToken?: Promise<Token | null> };
+  const early = w.__fzMapkitToken;
+  w.__fzMapkitToken = undefined;
+  const t = early ? await early : null;
+  return typeof t?.token === "string" && t.token ? t : api.mapkitToken();
+}
 async function token(): Promise<Token> {
-  const t = await api.mapkitToken();
+  const t = await asked();
   try {
     if (t.token && t.expires) sessionStorage.setItem(KEPT, JSON.stringify(t));
     localStorage.setItem(HAS_KEY, t.token ? "1" : "0");

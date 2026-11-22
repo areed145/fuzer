@@ -15,6 +15,21 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Fuzer" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- Tower's map (red team #13): when this browser had a MapKit key last time, Apple's script and the map's token
+         start with the page, not after the app's code has loaded and signed in, so the markers draw seconds sooner. -->
+    <link rel="preconnect" href="https://cdn.apple-mapkit.com" crossorigin />
+    <script>
+      try {
+        if (localStorage.getItem("fz:mapkit-key") === "1" && /^(#\/?(\?.*)?)?$/.test(location.hash)) {
+          var l = document.createElement("link");
+          l.rel = "preload"; l.as = "script"; l.crossOrigin = "anonymous";
+          l.href = "https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js";
+          document.head.appendChild(l);
+          window.__fzMapkitToken = fetch("/mapkit/token", { credentials: "same-origin" })
+            .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+        }
+      } catch (e) { /* storage refused: the app asks as it always did */ }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,7 +1,8 @@
 // The app's navigation: one list of pages, drawn as a grid of app icons in a sidebar (a sheet below 900 px).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
-import { href, refreshAll, usePhone, useRefreshing } from "./lib";
+import { href, refreshAll, useKept, usePhone, useRefreshing } from "./lib";
+import { ago } from "./format";
 import { Button, Heading } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
@@ -311,6 +312,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
         </div>
       </header>
       <AppSearch />
+      <KeptNotice />
       {/* On a phone the primary destinations sit at the bottom, within thumb reach (P5.14b); Menu opens the rest. */}
       <nav className={keyboard ? "bottombar keyboard-up" : "bottombar"} aria-label="Quick">
         {BOTTOM.map(({ group: label, tab, section: first }) => {
@@ -420,3 +422,11 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
   );
 }
 
+
+/** While a page shows answers kept from an earlier visit and the fresh ones are on their way, say how old they are, so
+ * a last-known figure is never taken for a live one. A kept answer under a minute old isn't worth the words. */
+function KeptNotice() {
+  const since = useKept();
+  if (since === null || Date.now() - since < 60_000) return null;
+  return <div className="kept-notice" role="status">Showing what was here {ago(new Date(since).toISOString())}. Refreshing…</div>;
+}

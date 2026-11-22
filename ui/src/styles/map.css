@@ -117,3 +117,6 @@ h2 select { font: inherit; font-size: 15px; }
   color: var(--muted); font: inherit; font-size: 20px; line-height: 1; cursor: pointer; border-radius: 6px; }
 .map-popup .map-popup-close:hover { color: var(--text); }
 .map-popup .map-popup-close:focus-visible { outline: 2px solid var(--accent); }
+/* Copies of the markers drawn while MapKit is still loading its own (mapkitEngine's stand-in layer). */
+.mk-standin { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.mk-standin > .mk-anchor { position: absolute; left: 0; top: 0; }

@@ -248,3 +248,10 @@ main[data-width="reading"] { max-width: 1200px; }
   .app-search-bar { padding-top: max(10px, env(safe-area-inset-top)); }
   .app-search-results { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 }
+/* Kept answers on screen while fresh ones load (snapshot.ts): a quiet chip at the bottom centre, clear of Tower's
+ * figures and of the phone's bottom bar. */
+.kept-notice { position: fixed; bottom: calc(1rem + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 60;
+  max-width: calc(100vw - 2rem); padding: 0.3rem 0.75rem; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel, var(--bg)); color: var(--muted); font-size: 0.8125rem; box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) { .kept-notice { bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 1102; } }

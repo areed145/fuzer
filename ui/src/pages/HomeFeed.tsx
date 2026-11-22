@@ -81,12 +81,12 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
   const [person] = usePerson();
   const session = useAuth();
   const here = session?.project ?? "";
-  const fields = useAsync(() => (person ? afterMap(ready, () => api.inboxFields(person)) : Promise.resolve(null)), [person, ready]);
-  const since = useAsync(() => (person ? afterMap(ready, () => api.workHome(person, true)) : Promise.resolve(null)), [person, ready]);
+  const fields = useAsync(() => (person ? afterMap(ready, () => api.inboxFields(person)) : Promise.resolve(null)), [person, ready], [person]);
+  const since = useAsync(() => (person ? afterMap(ready, () => api.workHome(person, true)) : Promise.resolve(null)), [person, ready], [person]);
   // Later reads only: the first look is `since`, so the two don't both run on load.
   const [polls, setPolls] = useState(0);
   const later = useAsync(() => (person && polls ? api.workHome(person, false) : Promise.resolve(null)), [person, polls]);
-  const loads = useAsync(() => (steward ? afterMap(ready, () => api.sourceHealth()) : Promise.resolve([])), [steward, ready]);
+  const loads = useAsync(() => (steward ? afterMap(ready, () => api.sourceHealth()) : Promise.resolve([])), [steward, ready], [steward]);
   const jobs = configure ? jobsHealth : { data: null };
   useLive([fields.reload, () => setPolls((n) => n + 1)]);
   useLive([loads.reload], SLOW);
