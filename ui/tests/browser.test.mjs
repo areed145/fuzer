@@ -3954,6 +3954,34 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   assert.equal(await page.getByLabel("From").inputValue(), at(3).slice(0, 10));
 });
 
+test("#25 Plan shows each crew's load day by day on the plan's own dates, overloads in red, linked to Resources", async () => {
+  const from = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  const days = (cap, at) => Array.from({ length: 56 }, (_, n) => ({ day: new Date(new Date(from).getTime() + n * 86_400_000).toISOString().slice(0, 10),
+    capacity: cap, demand: at(n), by_source: {} }));
+  const res = (code, name, kind, cap, at) => ({ code, name, kind, unit: "people", capacity: cap, work_center: null, sources: [], counts: [],
+    routine: null, routine_load: null, days: days(cap, at), overloads: [], capacity_windows: [] });
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: from, end: from, days: 56, resources: [
+    res("MECH", "Mechanical fitters", "crew", 6, (n) => (n === 9 ? 8 : n === 10 ? 4 : 0)),
+    res("SCAF", "Scaffolders", "crew", 4, () => 0)] } }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/plan`);
+  const card = page.locator(".plan-load");
+  await card.getByText("1 of 1 over capacity on some days.", { exact: false }).waitFor();
+  const row = card.getByRole("link", { name: /Mechanical fitters/ });
+  assert.equal(await row.getAttribute("href"), "#/plan?resources=1&resource=MECH");
+  await row.getByText("over on 1 day").waitFor();
+  assert.equal(await card.locator(".plan-load-day").count(), 2);
+  assert.equal(await card.locator(".plan-load-day.over").count(), 1);
+  await card.getByText("Not used in these weeks: Scaffolders.").waitFor();
+  // The day's column sits on the same dates as the rows: day 9 of a window that starts at From.
+  const [track, over] = await Promise.all([card.locator(".plan-load-track").boundingBox(), card.locator(".plan-load-day.over").boundingBox()]);
+  const expected = track.x + (9 / 56) * track.width;
+  assert.ok(Math.abs(over.x - expected) < 2, `overloaded day at ${over.x}, expected ${expected}`);
+  await page.setViewportSize({ width: 390, height: 900 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
 test("an asset's page shows the open exceptions about it and the work planned on it", async () => {
   const id = "fz-equipment-0123456789ab";
   await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));

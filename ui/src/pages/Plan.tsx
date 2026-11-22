@@ -3,8 +3,8 @@
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { acronyms } from "../wording";
 import { money, whenDay, count } from "../format";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
-import { api, type AtRisk, type PlanItem } from "../api";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
@@ -89,6 +89,16 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
                   "--week-at": `${week < 100 && mondays.length ? (100 * weekAt(mondays[0])) / (100 - week) : 0}%` } as CSSProperties;
   const taWindow = turnaround?.window ? { left: pos(turnaround.window.start), right: pos(turnaround.window.end) } : null;
   const changed = () => { plan.reload(); scope.reload(); };
+  const axis = (
+    <div className="plan-row plan-axis" aria-hidden="true">
+      <span />
+      <div className="plan-axis-track">
+        {mondays.map((t, n) => <span key={t} className="plan-axis-week" style={{ left: `${weekAt(t)}%` }}>
+          {n % Math.ceil(mondays.length / 9) === 0 && Math.abs(weekAt(t) - today) > 4 ? short(new Date(t).toISOString()) : ""}</span>)}
+        {today > 0 && today < 100 && <span className="plan-axis-today">Today</span>}
+      </div>
+    </div>
+  );
   return (
     <section>
       <PageHeader
@@ -114,19 +124,13 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
       <div>
       {/* The number a manager wants comes first: production at risk from the planned shutdowns (#1078). */}
       <AtRiskCard from={from} />
+      <CrewLoadCard from={from} days={weeks * 7} pos={pos} lines={lines} axis={axis} />
       {!plan.data.length && <Empty>Nothing planned in these weeks.</Empty>}
       {groups.map(([area, list]) => (
         <Card key={area} title={areaTitle(area, list)} className="plan-area">
           {/* Each area's timeline carries its own date axis, so a row is read against dates, not a bare track (#1078). */}
           <div className="plan-timeline" style={lines}>
-          <div className="plan-row plan-axis" aria-hidden="true">
-            <span />
-            <div className="plan-axis-track">
-              {mondays.map((t, n) => <span key={t} className="plan-axis-week" style={{ left: `${weekAt(t)}%` }}>
-                {n % Math.ceil(mondays.length / 9) === 0 && Math.abs(weekAt(t) - today) > 4 ? short(new Date(t).toISOString()) : ""}</span>)}
-              {today > 0 && today < 100 && <span className="plan-axis-today">Today</span>}
-            </div>
-          </div>
+          {axis}
           <ul className="plan-rows">{list.map((i) => <li key={i.id} id={`plan-item-${i.id}`} className={`plan-row status-${i.status}`}>
             <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
               <strong>{acronyms(i.title)}</strong>
@@ -183,6 +187,58 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       </Line> : <Text as="p" small>Choose who you are to change the plan.</Text>}
       <ErrorText>{error}</ErrorText>
     </div>
+  );
+}
+
+const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+/** Crew load on the plan itself (red team #25): each shared crew or resource the plan uses in these weeks, day by day
+ * against its capacity, on the same dates as the rows below, so an overloaded day shows beside the jobs that cause it.
+ * Resources owns the detail: who is in each overload and the move that clears it. */
+function CrewLoadCard({ from, days, pos, lines, axis }: { from: string; days: number; pos: (at: string) => number;
+                                                         lines: CSSProperties; axis: ReactNode }) {
+  const load = useAsync(() => api.resourceLoad({ start: from, days }), [from, days]);
+  const all = load.data?.resources ?? [];
+  const used = all.filter((r) => r.days.some((d) => d.demand > 0))
+    .sort((a, b) => Number(b.kind === "crew") - Number(a.kind === "crew") || a.name.localeCompare(b.name));
+  const idle = all.filter((r) => !used.includes(r));
+  const over = (r: ResourceLoad) => r.days.filter((d) => d.demand > d.capacity + 1e-6).length;
+  const overloaded = used.filter((r) => over(r) > 0).length;
+  return (
+    <Card title="Crew load" className="plan-area plan-load"
+      actions={<a href="#/plan?resources=1">Resources</a>}>
+      <Status of={load} />
+      {load.data && (used.length ? <>
+        <Text as="p" small>{overloaded ? `${overloaded} of ${used.length} over capacity on some days.` : `All ${used.length} within capacity.`}
+          {" "}Each column is a day's demand at its busiest hour: full height is the capacity, red is over it.</Text>
+        <div className="plan-timeline" style={lines}>
+          {axis}
+          <ul className="plan-rows">{used.map((r) => {
+            const n = over(r);
+            const peak = Math.max(...r.days.map((d) => d.demand));
+            return <li key={r.code} className="plan-row">
+              <a className="plan-label" href={`#/plan?resources=1&resource=${encodeURIComponent(r.code)}`}>
+                <strong>{r.name}</strong>
+                <Text small muted> peak {num(peak)} of {num(r.capacity)}{r.unit ? ` ${r.unit}` : ""}</Text>
+                {n > 0 && <Badge tone="danger">over on {n} {n === 1 ? "day" : "days"}</Badge>}
+              </a>
+              <div className="plan-track plan-load-track" role="img"
+                aria-label={`${r.name}: ${n ? `over capacity on ${n} ${n === 1 ? "day" : "days"}` : `peak ${num(peak)} of ${num(r.capacity)}`}`}>
+                {r.days.filter((d) => d.demand > 0).map((d) => {
+                  const left = pos(d.day), right = pos(new Date(new Date(d.day).getTime() + DAY).toISOString());
+                  const share = d.capacity > 0 ? d.demand / d.capacity : 1;
+                  const at: CSSProperties = { left: `${left}%`, width: `${Math.max(0.3, right - left)}%`,
+                                              height: `${Math.min(100, Math.max(12, share * 100))}%` };
+                  return <span key={d.day} className={`plan-load-day${d.demand > d.capacity + 1e-6 ? " over" : ""}`}
+                    title={`${short(d.day)}: ${num(d.demand)} of ${num(d.capacity)}${r.unit ? ` ${r.unit}` : ""}`} style={at} />;
+                })}
+              </div>
+            </li>;
+          })}</ul>
+        </div>
+        {!!idle.length && <Text as="p" small>Not used in these weeks: {idle.map((r) => r.name).join(", ")}.</Text>}
+      </> : <Empty>No shared crew or resource is used in these weeks.</Empty>)}
+    </Card>
   );
 }
 
