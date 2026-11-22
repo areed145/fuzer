@@ -320,7 +320,8 @@ test("a report waiting on an agent no worker has claimed says the agent worker m
   current = report(false, 90);  // a worker holds it: just drafting
   await page.reload();
   await page.getByText("the reporter agent is drafting it", { exact: false }).waitFor();
-  assert.equal(await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).count(), 0);
+  // The reload shows the answer kept from before at once, then the fresh one (stale-while-revalidate).
+  await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).waitFor({ state: "detached" });
 });
 
 test("P7.6 a regulatory report marks figures on estimated or missing data and drills each figure to its records", async () => {
@@ -3980,6 +3981,29 @@ test("#25 Plan shows each crew's load day by day on the plan's own dates, overlo
   assert.ok(Math.abs(over.x - expected) < 2, `overloaded day at ${over.x}, expected ${expected}`);
   await page.setViewportSize({ width: 390, height: 900 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test("a cold open shows the last answers at once, says how old they are, then swaps in the fresh ones", async () => {
+  const res = (name) => ({ code: "MECH", name, kind: "crew", unit: "people", capacity: 6, work_center: null, sources: [], counts: [],
+    routine: null, routine_load: null, days: [], overloads: [], capacity_windows: [] });
+  let name = "Mechanical fitters", wait = 0;
+  await page.route("**/plan/resources/load*", async (route) => {
+    const json = { start: "2026-11-01", end: "2026-12-01", days: 42, resources: [res(name)] };
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    return route.fulfill({ json });
+  });
+  await page.route("**/plan/resources", (route) => route.fulfill({ json: [] }));
+  await page.goto(`${url}/#/plan?resources=1`);
+  await page.getByRole("heading", { name: /Mechanical fitters/ }).waitFor();
+  await page.waitForTimeout(700);  // kept answers are written half a second after they come
+  // Opened again two minutes later: the kept answer shows while the slow fresh one is on its way.
+  name = "Fitters and riggers"; wait = 1500;
+  await page.addInitScript(() => { const now = Date.now; Date.now = () => now() + 120_000; });
+  await page.reload();
+  await page.getByRole("heading", { name: /Mechanical fitters/ }).waitFor({ timeout: 1000 });
+  await page.getByRole("status").filter({ hasText: /Showing what was here 2 min ago\. Refreshing/ }).waitFor({ timeout: 1000 });
+  await page.getByRole("heading", { name: /Fitters and riggers/ }).waitFor();
+  assert.equal(await page.locator(".kept-notice").count(), 0, "the notice goes with the fresh answers");
 });
 
 test("an asset's page shows the open exceptions about it and the work planned on it", async () => {

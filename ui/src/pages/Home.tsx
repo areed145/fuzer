@@ -89,7 +89,7 @@ export function HomePage({ stats, inbox, figures, jobsHealth }: {
   const geo = useAsync(() => api.map(), []);
   const spots = useAsync(() => api.attention(), []);
   const ready = geo.data !== undefined || !!geo.error;
-  const open = useAsync(() => (dispatcher ? afterMap(ready, () => api.exceptions({ state: "open" })) : Promise.resolve(null)), [dispatcher, ready]);
+  const open = useAsync(() => (dispatcher ? afterMap(ready, () => api.exceptions({ state: "open" })) : Promise.resolve(null)), [dispatcher, ready], [dispatcher]);
   // the headline figures: the List's own counts, the same read the Work badge shows
   const tally = figures;
   useLive([inbox.reload, spots.reload, open.reload, figures.reload]);
@@ -240,7 +240,7 @@ function Tile({ to, label, value, late }: { to: string; label: string; value: st
 /** A registered metric's latest value, left out while it has none (no reports loaded for it). Its trend is on its page,
  * so Home doesn't ask for the history, the slowest read it made. */
 function MetricTile({ metric, ready }: { metric: string; ready: boolean }) {
-  const m = useAsync(() => afterMap(ready, () => api.metric(metric, null, false)), [metric, ready]);
+  const m = useAsync(() => afterMap(ready, () => api.metric(metric, null, false)), [metric, ready], [metric]);
   const v = m.data;
   if (!v || v.value == null) return null;
   return (
@@ -253,7 +253,7 @@ function MetricTile({ metric, ready }: { metric: string; ready: boolean }) {
 /** The incidents layer: recorded incidents gathered at the place each is about, numbered by how many, the
  * title the latest. A tap opens the latest one. */
 function useIncidents(on: boolean, ready: boolean): HotspotSpec[] | undefined {
-  const list = useAsync(() => (on ? afterMap(ready, () => api.incidents()) : Promise.resolve(null)), [on, ready]);
+  const list = useAsync(() => (on ? afterMap(ready, () => api.incidents()) : Promise.resolve(null)), [on, ready], [on]);
   const ids = (list.data?.items ?? []).map((i) => i.id);
   const where = useAsync(() => (ids.length ? api.attentionPlaces(ids) : Promise.resolve({})), [ids.join(",")]);
   return useMemo(() => {

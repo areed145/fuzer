@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { forgetSnapshot, recalledAny } from "./snapshot";
 import { Button, Card, PageHeader, ErrorText } from "./ui";
 
 export class AppErrorBoundary extends Component<{ children: ReactNode }, { error?: Error }> {
@@ -10,7 +11,15 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { error
 
   componentDidCatch(error: Error) {
     console.error("Fuzer page rendering failed", error);
+    // An answer kept by an earlier version of the app may be what failed to draw (snapshot.ts): forget the kept
+    // answers and draw once more from the server's.
+    if (recalledAny() && !this.retried) {
+      this.retried = true;
+      forgetSnapshot();
+      this.setState({ error: undefined });
+    }
   }
+  private retried = false;
 
   render() {
     if (!this.state.error) return this.props.children;
