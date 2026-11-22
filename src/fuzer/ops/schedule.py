@@ -21,6 +21,7 @@ and `level` take plain data, so the logic is tested without a database.
 
 from collections import defaultdict
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 from ..core import clock, events
 from ..core.plan import STATUSES, PlanError
@@ -912,7 +913,7 @@ def _crew_stays(conn, res, start: datetime, end: datetime) -> dict[str, list[dic
         if t["last"] <= start or t["first"] >= end:
             continue
         cuts = sorted({t["first"], t["last"], *(j["start_at"] for j in t["jobs"]), *(j["end_at"] for j in t["jobs"])})
-        for a, b in zip(cuts, cuts[1:]):
+        for a, b in pairwise(cuts):
             working = sum(j["quantity"] for j in t["jobs"] if j["start_at"] < b and j["end_at"] > a)
             idle = t["peak"] - working
             if idle <= EPS:
