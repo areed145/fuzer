@@ -229,6 +229,7 @@ def test_readings_taken_before_the_move_to_us_units_read_in_the_points_unit_now(
     the finding was titled in bar. The move puts both in psig, once."""
     from psycopg.types.json import Jsonb
 
+    from fuzer.core.exceptions import raise_exception
     from fuzer.graph import measurements
 
     conn, _ = kestrel
@@ -244,8 +245,13 @@ def test_readings_taken_before_the_move_to_us_units_read_in_the_points_unit_now(
             i["value"] = "3.03 to 5.52 barg"
     conn.execute("update exception_record set title = %s, evidence = %s where id = %s", (old, Jsonb(evidence), e["id"]))
     conn.execute("update work_item set title = %s where id = %s", (old, e["item_id"]))
+    # a finding on a point the checklist no longer reads that way keeps its own limits, converted as written
+    gone = raise_exception(conn, rounds.ROUND_FINDING, "R-OLD-01", "Bearing temperature on B1-K-2001: 90 degC, limits 0 to "
+                           "85 degC", "olu", refs=[low["asset"]], source="rounds")
     moved = rounds.metric_readings_moved(conn)
-    assert moved == {"findings": 1, "readings": 1}
+    assert moved == {"findings": 2, "readings": 1}
+    assert conn.execute("select title from exception_record where id = %s", (gone["id"],)).fetchone()["title"] == (
+        "Bearing temperature on B1-K-2001: 194 degF, limits 32 to 185 degF")
     e = conn.execute("select * from exception_record where id = %s", (e["id"],)).fetchone()
     assert e["title"] == "Lube oil pressure on B1-K-2001: 36.26 psig, limits 44 to 80 psig"
     assert conn.execute("select title from work_item where id = %s", (e["item_id"],)).fetchone()["title"] == e["title"]
