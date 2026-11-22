@@ -183,8 +183,10 @@ export interface RowPlace { stage: string; area: string; due: string | null; ove
 
 /** One event as a row of the List's table (and, under it, the panel its actions open): what it is, where it stands,
  * what it is about and where, who has it, when it is due and how old it is (what raised it is under its title). */
-export function EventRow({ r, place, person, people, queues, onChange }: {
+export function EventRow({ r, place, person, people, queues, onChange, take = null }: {
   r: ExceptionRow; place: RowPlace; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
+  /** A step of this row's case waiting unclaimed in one of the person's queues: the row offers Take it first. */
+  take?: number | null;
 }) {
   const names = useEntityNames(r.subjects);
   const { busy, error, run } = useAction();
@@ -235,6 +237,8 @@ export function EventRow({ r, place, person, people, queues, onChange }: {
         {age(Date.now() - new Date(r.first_seen).getTime())}</td>
       <td className="work-row-act">{canAct && <div className="row work-row-actions">
         {/* back from the field (#1222): the IOC closes it, sends it again or plans it, in one tap from the row */}
+        {take != null && <Button size="sm" variant="primary" disabled={!!busy}
+          onClick={() => run("Taking it", () => api.claim(take, person!), onChange)}>Take it</Button>}
         {back && <ButtonLink size="sm" variant="primary" href={href(`/cases/${r.item_id}`, { close: "1" })}>Close</ButtonLink>}
         <Button size="sm" variant="secondary" className="work-lead" aria-expanded={panel === "dispatch"}
           onClick={() => setPanel(panel === "dispatch" ? null : "dispatch")}>{back ? "Send again" : "Send to"}</Button>

@@ -6,13 +6,13 @@ import "../styles/all-work.css";
 import "../styles/work-board.css";
 import { useEffect, useRef, useState } from "react";
 import { api, type WorkListFilters, type WorkListResult, type WorkListRow, type ExceptionRow } from "../api";
-import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, PageHeader, Select, Table, Text, Heading } from "../ui";
-import { Status, href, useAsync, useDebounced, usePhone, errorMessage } from "../lib";
-import { money, whenDay } from "../format";
+import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, Notice, PageHeader, Select, Table, Text, Heading } from "../ui";
+import { Status, href, useAction, useAsync, useDebounced, usePhone, errorMessage } from "../lib";
+import { money, when, whenDay } from "../format";
 import { holder as holderWords, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
-import { queue as queueWords, say } from "../wording";
+import { person as personName, queue as queueWords, say } from "../wording";
 import { EventRow, DispatchControls, ROW_HEADINGS, STAGE_WORDS, Suppressed, age, type Person, type RowPlace } from "./Exceptions";
 import { PriorityBadge, SampleTeam } from "./workflows/shared";
 import { NewWorkItem } from "./workflows/Cases";
@@ -49,7 +49,8 @@ export function WorkListPage({ query, board: wantsBoard = false }: { query: URLS
   const filters: Filters = Object.fromEntries([...KEYS, "group"].map((k) => [k, query.get(k) || undefined]));
   const [person] = usePerson();
   // `me` is whoever is looking, so a preset or a shared link works for everyone.
-  const asked: WorkListFilters = Object.fromEntries(KEYS.map((k) => [k, filters[k] === "me" && k === "waiting_on" ? person || undefined : filters[k]]));
+  const asked: WorkListFilters = { ...Object.fromEntries(KEYS.map((k) => [k, filters[k] === "me" && k === "waiting_on" ? person || undefined : filters[k]])),
+    person: person || undefined };
   const list = useAsync(() => api.workList(asked), [JSON.stringify(asked)]);
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
@@ -59,6 +60,7 @@ export function WorkListPage({ query, board: wantsBoard = false }: { query: URLS
   return (
     <section>
       <PageHeader className="all-work-header">{board ? "Board" : "All work"}</PageHeader>
+      {filters.waiting_on === "me" && mine?.roles.includes("ops_lead") && <HandoverBanner />}
       {filters.state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <Presets board={board} filters={filters} roles={mine?.roles ?? []} />
       <FilterBar board={board} filters={filters} facets={list.data?.facets} labels={list.data?.labels ?? {}} set={set} />
@@ -77,6 +79,19 @@ export function WorkListPage({ query, board: wantsBoard = false }: { query: URLS
   );
 }
 
+/** The shift handover waits for the incoming lead on their Waiting on me (it was on the old My work, #504): a banner until
+ * someone acknowledges the latest one whose shift has ended. */
+function HandoverBanner() {
+  const handovers = useAsync(() => api.handovers(), []);
+  const h = handovers.data?.find((x) => new Date(x.shift_end).getTime() <= Date.now());
+  if (!h || h.state === "acknowledged") return null;
+  return <Notice tone="warn" className="row wrap">
+    <strong>Shift handover ready, {when(h.shift_end)}.</strong>
+    <span>{h.lines ?? 0} lines{h.notes_by ? `, notes from ${personName(h.notes_by)}` : ""}.</span>
+    <ButtonLink variant="primary" href={href("/handover", { id: String(h.id) })}>Read and acknowledge</ButtonLink>
+  </Notice>;
+}
+
 /** Presets and saved views: each only sets filters. */
 function Presets({ board, filters, roles }: { board: boolean; filters: Filters; roles: string[] }) {
   const [person] = usePerson();
@@ -92,7 +107,10 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
   const forRole = role || roles[0] || "";
   const open = (key: string) => {
     if (!key) return location.assign(listHref(board, { group: filters.group }));
-    if (key.startsWith("page:")) return location.assign(href(key.slice(5)));
+    if (key.startsWith("page:")) {
+      const [path, q] = key.slice(5).split("?");
+      return location.assign(href(path, Object.fromEntries(new URLSearchParams(q ?? ""))));
+    }
     const p = WORK_PRESETS.find((x) => x.key === key);
     const v = views.find((x) => String(x.id) === key);
     const f = p ? p.filters : v ? savedFilters(v.list, v.filters) : undefined;
@@ -116,6 +134,9 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
             the work is running per team. */}
         <optgroup label="Other pages">
           {roles.includes("operator") && <option value="page:/inbox">Your field jobs</option>}
+          {roles.includes("ops_lead") && <option value="page:/handover">Shift handover</option>}
+          {roles.includes("ops_lead") && <option value="page:/teams">Team workload</option>}
+          <option value="page:/inbox?steps=1">Your steps, to tick several at once</option>
           <option value="page:/performance">How the work is running</option>
         </optgroup>
       </Select>
@@ -224,6 +245,8 @@ function Rows({ rows, labels, sort, setSort, person, people, queues, onChange }:
   rows: WorkListRow[]; labels: Record<string, string>; sort: string; setSort: (s: string | undefined) => void;
   person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
+  // A step waiting in a queue the person works is theirs to take, from the row (My work folded into the List).
+  const takes = (r: WorkListRow) => (person ? r.take ?? null : null);
   const place = (r: WorkListRow) => ({ stage: r.stage, due: r.due_at, overdue: r.overdue,
     area: r.area !== "none" ? labels[r.area] ?? r.area : r.facility !== "none" ? labels[r.facility] ?? r.facility : "" });
   const head = (h: string) => {
@@ -239,8 +262,9 @@ function Rows({ rows, labels, sort, setSort, person, people, queues, onChange }:
         <thead><tr>{ROW_HEADINGS.map(head)}</tr></thead>
         <tbody>
           {rows.map((r) => r.id != null
-            ? <EventRow key={r.uid} r={r as unknown as ExceptionRow} place={place(r)} person={person} people={people} queues={queues} onChange={onChange} />
-            : <CaseRow key={r.uid} r={r} place={place(r)} />)}
+            ? <EventRow key={r.uid} r={r as unknown as ExceptionRow} place={place(r)} person={person} people={people} queues={queues}
+              onChange={onChange} take={takes(r)} />
+            : <CaseRow key={r.uid} r={r} place={place(r)} person={person} take={takes(r)} onChange={onChange} />)}
         </tbody>
       </Table>}
   </Card>;
@@ -250,13 +274,16 @@ function Rows({ rows, labels, sort, setSort, person, people, queues, onChange }:
 const SORTABLE: Record<string, string> = { Work: "title", Value: "value", Due: "due", Age: "opened" };
 
 /** A case no event raised (a task, a handover, a close-out): it is worked on its case page. */
-function CaseRow({ r, place }: { r: WorkListRow; place: RowPlace }) {
+function CaseRow({ r, place, person, take, onChange }: {
+  r: WorkListRow; place: RowPlace; person: string | null; take: number | null; onChange: () => void;
+}) {
   const names = useEntityNames(r.subjects);
+  const { busy, error, run } = useAction();
   const open = href(`/cases/${r.item_id}`);
   return <tr className="work-row">
     <td className="work-row-what">
       <div className="work-card-title"><a href={open}>{say(r.title)}</a></div>
-      <Text as="div" small muted>{r.kind_label}{r.source ? ` · ${r.source}` : ""}</Text>
+      <Text as="div" small muted>{r.kind_label}{r.source ? ` · ${personName(r.source)}` : ""}</Text>
     </td>
     <td className="small work-row-stage">{STAGE_WORDS[r.stage] ?? r.stage}</td>
     <td className="small"><PriorityBadge p={r.priority} type={r.type} /></td>
@@ -267,7 +294,10 @@ function CaseRow({ r, place }: { r: WorkListRow; place: RowPlace }) {
     <td className="work-row-with small"><a href={open}>{holderWords(r.assignee, r.role)}</a></td>
     <td className="small nowrap">{r.due_at ? whenDay(r.due_at) : ""}{r.overdue && <> <Badge tone="danger">overdue</Badge></>}</td>
     <td className="small nowrap">{age(Date.now() - new Date(r.opened).getTime())}</td>
-    <td />
+    <td className="work-row-act">{take != null && person && <div className="row work-row-actions">
+      <Button size="sm" variant="primary" disabled={!!busy} onClick={() => run("Taking it", () => api.claim(take, person), onChange)}>
+        Take it</Button></div>}
+      <ErrorText>{error}</ErrorText></td>
   </tr>;
 }
 
@@ -320,16 +350,21 @@ function BoardCard({ r, person, people, queues, onChange }: {
   // the field could not do. Work with the field is the field's to move.
   const send = open && (r.stage === "dispatch" || (r.stage === "back" && said?.status === "could_not_do"));
   const closeOut = open && r.stage === "back" && said?.status !== "could_not_do" && !!r.item_id;
+  const take = person && r.state === "open" ? r.take ?? null : null;
+  const taking = useAction();
   return <article className={said?.status === "could_not_do" ? "work-card attention" : "work-card"}>
     <div className="work-card-title" title={r.title}>{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
     <Text small muted>{r.kind_label}{r.value_usd ? ` · ${money(r.value_usd)}` : ""}</Text>
     <div className="work-card-meta small"><span>{r.item_id ? holderWords(r.assignee, r.role) : "not dispatched"}</span>
       <span>{r.overdue ? <Badge tone="danger">overdue</Badge> : r.due_at ? `due ${whenDay(r.due_at)}` : age(Date.now() - new Date(r.opened).getTime())}</span></div>
     {said && r.stage === "back" && <Text small muted>{said.status === "could_not_do" ? "Could not do" : "Done"}{said.note ? `: ${said.note}` : ""}</Text>}
-    {(send || closeOut) && <div className="row work-card-actions">
+    {(send || closeOut || take != null) && <div className="row work-card-actions">
+      {take != null && <Button size="sm" variant="primary" disabled={!!taking.busy}
+        onClick={() => taking.run("Taking it", () => api.claim(take, person!), onChange)}>Take it</Button>}
       {closeOut && <ButtonLink size="sm" variant="primary" href={href(`/cases/${r.item_id}`, { close: "1" })}>Close out</ButtonLink>}
       {send && <Button size="sm" variant="secondary" aria-expanded={sending} onClick={() => setSending(!sending)}>
         {r.stage === "back" ? "Send again" : "Send to"}</Button>}</div>}
+    <ErrorText>{taking.error}</ErrorText>
     {send && sending && <DispatchControls r={r as unknown as ExceptionRow} person={person!} people={people} queues={queues}
       onDone={() => { setSending(false); onChange(); }} />}
   </article>;

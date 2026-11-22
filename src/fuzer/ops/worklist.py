@@ -28,6 +28,7 @@ Filters, each optional, a comma list where it says so:
     within      entities: only work about one of them or about something in one of them (comma list)
     source      what raised it (comma list)
     q           words in the title or key
+    person      who is looking: each row's `take` is a step of theirs to take from a queue, if any
     sort        value (the default: what it is worth, then priority, then newest), due, opened, updated or title
 """
 
@@ -62,7 +63,7 @@ def _cases(conn, ids: list[int] | None, state: str) -> dict[int, dict]:
                i.created_by, i.created_at, i.updated_at, i.closed_at,
                coalesce((select min(t.due_at) from work_token t where t.item_id = i.id and t.state = 'waiting'
                          and t.kind in ('user', 'fix')), i.due) as due_at,
-               coalesce((select json_agg(json_build_object('assignee', t.assignee, 'role', t.role))
+               coalesce((select json_agg(json_build_object('id', t.id, 'assignee', t.assignee, 'role', t.role) order by t.id)
                          from work_token t where t.item_id = i.id and t.state = 'waiting'
                          and t.kind in ('user', 'fix')), '[]') as waiting
         from work_item i where {where}
@@ -204,7 +205,7 @@ def figures(conn, person: str | None = None) -> dict:
 def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=None, waiting_on: str | None = None,
          overdue: bool | None = None, subject: str | None = None, at=None, source=None, facility=None, area=None,
          asset=None, within=None, q: str | None = None,
-         sort: str = "value", limit: int = 500) -> dict:
+         sort: str = "value", limit: int = 500, person: str | None = None) -> dict:
     if state not in STATES:
         raise ValueError(f"state must be one of {', '.join(STATES)}")
     if sort not in SORTS:
@@ -247,8 +248,13 @@ def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=No
     matched = [r for r in base if all(on(r, d) for d in DIMENSIONS)]
     facets["overdue"] = sum(1 for r in matched if r["overdue"])
     matched.sort(key=SORT_KEYS[sort])
+    # `take`: the step waiting unclaimed in a queue of a role the looker acts in, so the row offers Take it (My work
+    # folded into the List); the same roles Waiting on me counts by.
+    mine = (roles if person == waiting_on else set(work.roles_of(conn, person))) if person else set()
     for r in matched:
-        r.pop("waiting", None)
+        steps = r.pop("waiting", None) or []
+        r["take"] = next((s["id"] for s in steps if s.get("id") and not s.get("assignee")
+                          and (s.get("role") or "").removeprefix("role:") in mine), None) if r["state"] == "open" else None
         r.pop("_within", None)
     labels.update({e: e for e in inside if e not in labels})
     return {"rows": matched[:limit], "total": len(matched), "facets": facets, "labels": labels}

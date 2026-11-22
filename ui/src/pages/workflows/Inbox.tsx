@@ -31,6 +31,8 @@ export function myWorkCounts(d: WorkInbox, jobs: Pick<FieldJob, "item_id" | "que
   };
 }
 
+const stepsWanted = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("steps") === "1";
+
 export function InboxPage() {
   const [person] = usePerson();
   const inbox = useAsync(() => (person ? api.inbox(person) : Promise.resolve(null)), [person]);
@@ -63,6 +65,14 @@ export function InboxPage() {
   // answered, every one pushed the lists down the page (#1069). The page waits for them, failures included.
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
   if (!offline && ![field, handovers, told, exceptions].every(settled)) return <Status loading />;
+  // My work is the List's Waiting on me now: one list, one count. Someone in the field (an operator, or anyone with field
+  // jobs) keeps this page for their jobs, kept for no signal with the report buttons; anyone can still open their steps
+  // here to tick several at once (`?steps=1`).
+  if (!offline && inbox.data && inbox.data.roles.length > 0 && !inbox.data.roles.includes("operator")
+      && !(field.data?.jobs ?? []).length && !stepsWanted()) {
+    location.replace(href("/list", { waiting_on: "me" }));
+    return <Status loading />;
+  }
   const none = { total: 0, overdue: 0, due_soon: 0 };
   const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&

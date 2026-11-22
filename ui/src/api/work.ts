@@ -739,10 +739,12 @@ export interface WorkListRow extends Omit<ExceptionRow, "id" | "key"> {
   due_at: string | null; overdue: boolean; opened: string; updated: string;
   /** the facility, area and asset (equipment, well or pipeline) it is about, by id, or `none` */
   facility: string; area: string; asset: string;
+  /** A step waiting unclaimed in a queue of a role the person looking acts in (asked with `person`): theirs to take. */
+  take?: number | null;
 }
 /** The filters of all the work, each a comma list where it can be one; a preset is only a set of these. */
 export interface WorkListFilters {
-  state?: string; kind?: string; stage?: string; holder?: string; queue?: string; waiting_on?: string;
+  state?: string; kind?: string; stage?: string; holder?: string; queue?: string; waiting_on?: string; person?: string;
   overdue?: string; subject?: string; at?: string; source?: string; facility?: string; area?: string; asset?: string;
   within?: string; q?: string; sort?: string;
 }

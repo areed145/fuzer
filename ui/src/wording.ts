@@ -76,6 +76,9 @@ export const cap = (s: string | null | undefined): string => (s ? s[0].toUpperCa
 export function person(who: string | null | undefined): string {
   if (!who) return "";
   if (who === "system") return "Fuzer";
+  // a machine actor reads as what it is (red team #16): "agent:opportunity_scan" is the "Opportunity scan agent"
+  const machine = /^(agent|detector):([a-z0-9_]+)$/.exec(who);
+  if (machine) return `${cap(machine[2].replace(/_/g, " ")).replace(/\b(sre|sap|iow|dcs)\b/gi, (w) => w.toUpperCase())} ${machine[1]}`;
   return who.replace(DEMO_ACTOR, "Demo account").replace(ACCOUNT_ACTOR, accountName);
 }
 
