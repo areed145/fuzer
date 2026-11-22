@@ -6,6 +6,7 @@ definitions in fuzer.ops.jobs. When there is no instance, or the daemon isn't ru
 of failing.
 """
 
+import logging
 import os
 import threading
 import time
@@ -320,16 +321,37 @@ _shared_locks = {"health": threading.Lock(), "overview": threading.Lock()}
 def shared(name: str, instance, read):
     """`read()`, or what it returned to someone else in the last SHARED_SECONDS. Each reading is dozens of queries on
     the scheduler's storage; the navigation asks every minute from every open tab, and Home and Jobs ask on opening.
-    People who ask together wait for one reading instead of each making their own."""
+    People who ask together wait for one reading instead of each making their own. Once there is a reading, an older
+    one is answered at once while a fresh one is read in the background (red team #28: the nav's status took 2 to 22 s
+    on every page), so only the first reading after a start makes anyone wait."""
     if instance is None or SHARED_SECONDS <= 0:
         return read()
+    hit = _shared.get(name)
+    if hit and hit[1] is instance:
+        if time.monotonic() - hit[0] >= SHARED_SECONDS and name not in _refreshing:
+            _refreshing.add(name)
+            threading.Thread(target=_refresh, args=(name, instance, read), daemon=True).start()
+        return hit[2]
     with _shared_locks[name]:
         hit = _shared.get(name)
-        if hit and hit[1] is instance and time.monotonic() - hit[0] < SHARED_SECONDS:
+        if hit and hit[1] is instance:
             return hit[2]
         value = read()
         _shared[name] = (time.monotonic(), instance, value)
         return value
+
+
+_refreshing: set[str] = set()
+
+
+def _refresh(name: str, instance, read) -> None:
+    try:
+        with _shared_locks[name]:
+            _shared[name] = (time.monotonic(), instance, read())
+    except Exception:  # a failed background reading keeps the last one; the next ask tries again
+        logging.getLogger(__name__).exception("reading the scheduler's %s in the background failed", name)
+    finally:
+        _refreshing.discard(name)
 
 
 @router.get("/jobs/health")

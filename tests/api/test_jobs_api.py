@@ -259,5 +259,14 @@ def test_people_who_ask_together_share_one_reading(monkeypatch):
     assert jobs.shared("health", instance, read) == {"n": 1}  # within the window: the same reading
     assert jobs.shared("health", other, read) == {"n": 2}  # another scheduler's storage is read again
     assert jobs.shared("health", None, read) == {"n": 3}  # no scheduler: nothing to keep
-    monkeypatch.setattr(jobs.time, "monotonic", lambda: 1e12)
-    assert jobs.shared("health", other, read) == {"n": 4}  # the window passed
+    jobs._shared.pop("health", None)
+    assert jobs.shared("health", other, read) == {"n": 4}
+    clock = jobs.time.monotonic
+    monkeypatch.setattr(jobs.time, "monotonic", lambda: clock() + 1e6)
+    # the window passed: the last reading is answered at once while a fresh one is read in the background
+    assert jobs.shared("health", other, read) == {"n": 4}
+    for _ in range(100):
+        if "health" not in jobs._refreshing:
+            break
+        jobs.time.sleep(0.01)
+    assert jobs._shared["health"][2] == {"n": 5}

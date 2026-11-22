@@ -1395,3 +1395,21 @@ def test_a_job_someone_reported_done_leaves_their_field_jobs_even_when_it_comes_
     ex.report(conn, e["id"], "dana", "done", note="tightened it")
     assert not [j for j in ex.field_jobs(conn, "dana") if j["id"] == e["id"]]
     conn.rollback()
+
+
+def test_a_row_waiting_in_your_queue_offers_take_it(conn, types):
+    """My work folded into the List: a case waiting unclaimed in a queue of a role the looker acts in carries `take`,
+    the step to claim; someone outside the role, or the step once claimed, gets none."""
+    from fuzer.ops import worklist
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    case = work.open_case(conn, "queue_rt", "Approve the order", "system", role="ops_lead")
+    row = lambda who: next(r for r in worklist.rows(conn, kind="queue_rt", person=who)["rows"] if r["item_id"] == case["id"])
+    work.attach_process(conn, case["id"], "queue_item", {"exception_id": 0}, "system")  # one step, in the ops lead queue
+    step = row("ivy")["take"]
+    assert step and row("olly")["take"] is None
+    engine.claim(conn, step, "ivy")
+    assert row("ivy")["take"] is None
+    conn.rollback()

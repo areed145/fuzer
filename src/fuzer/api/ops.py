@@ -648,7 +648,7 @@ def case_list(state: Literal["open", "closed", "all"] = "open", kind: str | None
               subject: str | None = None, at: str | None = None, source: str | None = None,
               facility: str | None = None, area: str | None = None, asset: str | None = None, within: str | None = None,
               q: str | None = None, sort: Literal["value", "due", "opened", "updated", "title"] = "value",
-              limit: int = Query(500, le=5000), conn=Depends(get_conn)):
+              limit: int = Query(500, le=5000), person: str | None = None, conn=Depends(get_conn)):
     """All the work as one list: every event and every case, filtered on any dimension (kind, stage, holder, queue,
     source, facility, area, asset as comma lists; waiting_on a person; overdue; subject; at places; within entities;
     words) and sorted. The List and the Board read
@@ -658,7 +658,8 @@ def case_list(state: Literal["open", "closed", "all"] = "open", kind: str | None
     _loaded_types()
     return worklist.rows(conn, state=state, kind=kind, stage=stage, holder=holder, queue=queue, waiting_on=waiting_on,
                          facility=facility, area=area, asset=asset, within=within,
-                         overdue=overdue, subject=subject, at=at, source=source, q=q, sort=sort, limit=limit)
+                         overdue=overdue, subject=subject, at=at, source=source, q=q, sort=sort, limit=limit,
+                         person=person)
 
 
 @router.get("/attention")

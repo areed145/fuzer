@@ -2708,7 +2708,7 @@ test("identity changes clear the previous person's inbox while a new response is
     if (person === "ben") await held;
     await route.fulfill({ json: { person, roles: [`${person}-role`], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } } });
   });
-  await page.goto(`${url}/#/inbox`);
+  await page.goto(`${url}/#/inbox?steps=1`);
   await page.getByText("ana-role", { exact: false }).waitFor();
   await page.getByRole("button", { name: "Account: ana", exact: true }).click();
   await page.getByRole("button", { name: "ana", exact: true }).click();
@@ -2733,7 +2733,7 @@ test("refreshing the same resource keeps its current data visible until the upda
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   const inbox = (role) => ({ person: "ana", roles: [role], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } });
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox("current-role") }));
-  await page.goto(`${url}/#/inbox`);
+  await page.goto(`${url}/#/inbox?steps=1`);
   await page.getByText("current-role", { exact: false }).waitFor();
   let release;
   const held = new Promise((resolve) => { release = resolve; });
@@ -3732,6 +3732,32 @@ test("All work is one list of every open event and case, filtered on any dimensi
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
+test("My work is the List's Waiting on me, and a row waiting in your queue is taken from it", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
+  let taken = false;
+  const claims = [];
+  const exc = { id: 4, type: "sap_notification", key: "k4", source: "sap", state: "open", priority: null, value_usd: null,
+    subjects: [], unmatched: [], case_state: "open", role: "ops_lead", raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
+    last_seen: "2026-11-08T07:00:00Z", item_id: 12, assignee: null, evidence: {}, title: "Approve PM order 4711" };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [exc] }));
+  await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 1, labels: {}, facets: { overdue: 0 },
+    rows: [{ ...exc, uid: "e4", exception_id: 4, kind: "sap_notification", kind_label: "SAP notification", stage: "desk",
+      holder: taken ? "ivy" : "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen,
+      updated: exc.last_seen, facility: "none", area: "none", asset: "none", take: taken ? null : 55,
+      assignee: taken ? "ivy" : null }] } }));
+  await page.route("**/work/tasks/55/claim*", (route) => { claims.push(route.request().postDataJSON()); taken = true; return route.fulfill({ json: {} }); });
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ivy", roles: ["ops_lead"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 1 } } } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  await page.waitForURL(/#\/list\?waiting_on=me$/);
+  const row = page.locator("tr.work-row", { hasText: "Approve PM order 4711" });
+  await row.getByRole("button", { name: "Take it" }).click();
+  await expectReports(claims, 1);
+  assert.equal(claims[0].by, "ivy");
+  await row.getByRole("button", { name: "Take it" }).waitFor({ state: "detached" });
+});
+
 test("the List filters and lays out work by facility, area and asset, named, and an entity's Work here opens what is in it", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
   const names = { "fz-okan": "OKAN", "fz-j7": "OKAN-67", "fz-pp": "OKAN-40", "fz-w73": "W-73" };
@@ -4051,7 +4077,7 @@ test("My work opens in place: the banner, what is new and the counts don't push 
   await page.route("**/work/notifications?*", late({ unread: 1, notifications: [{ id: 1, kind: "escalated", text: "Escalated to you",
     link: "#/cases/40", created_at: "2026-11-12T06:00:00Z", read_at: null }] }, 900));
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`${url}/#/inbox`);
+  await page.goto(`${url}/#/inbox?steps=1`);
   await page.getByText("Check separator level 1", { exact: true }).waitFor();
   await page.getByText("Read and acknowledge", { exact: true }).waitFor();
   await page.getByRole("navigation", { name: "Show in my work" }).waitFor();
@@ -4066,7 +4092,7 @@ test("My work is one list, escalated first, and its chips pick what it holds", a
     queue: [{ ...homeRow(2), bulk: [] }, { ...homeRow(3), bulk: [], escalated_at: "2026-11-12T06:00:00Z" }],
     counts: { mine: { total: 1 }, queue: { total: 2 } } };
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
-  await page.goto(`${url}/#/inbox`);
+  await page.goto(`${url}/#/inbox?steps=1`);
   const chips = page.getByRole("navigation", { name: "Show in my work" });
   await chips.waitFor();
   assert.deepEqual((await chips.getByRole("button").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim()),
@@ -4089,6 +4115,7 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   const inbox = { person: "ann", roles: ["ops_lead"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
   await page.route("**/work/inbox", (route) => route.fulfill({ json: inbox }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ann", roles: ["ops_lead"] }] }));
   let acked = false;
   const row = () => ({ id: 7, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z",
     state: acked ? "acknowledged" : "handed_over", notes_by: "bo", acknowledged_by: acked ? "ann" : null,
@@ -4100,7 +4127,9 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   ];
   await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "Open work": lines } },
     drafted_at: "2026-11-12T06:00:00Z", notes: "Watch K-201", notes_at: "2026-11-12T05:50:00Z", acknowledged_note: null } }));
+  // My work is the List's Waiting on me now: the banner waits for the incoming lead there
   await page.goto(`${url}/#/inbox`);
+  await page.waitForURL(/#\/list\?waiting_on=me$/);
   await page.getByText("Shift handover ready", { exact: false }).waitFor();
   await page.getByRole("link", { name: "Read and acknowledge" }).click();
   await page.waitForURL(/#\/handover\?id=7$/);
@@ -4110,8 +4139,8 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   assert.equal(await page.getByRole("link", { name: "the permit", exact: true }).getAttribute("href"), "#/e/fz-permit-65501ac23ccf");
   assert.doesNotMatch(await page.locator("main").innerText(), /\[case:|\[entity:|fz-[a-z_]+-[0-9a-f]{6,}|role:|alarm:/);
   acked = true;
-  await page.goto(`${url}/#/inbox`);
-  await page.getByRole("link", { name: "Shift handover", exact: true }).waitFor();
+  await page.goto(`${url}/#/list?waiting_on=me`);
+  await page.locator('select[aria-label="Preset"] option', { hasText: "Shift handover" }).waitFor({ state: "attached" });
   await page.getByText("Shift handover ready", { exact: false }).waitFor({ state: "detached" });
 });
 
@@ -4652,7 +4681,7 @@ test("an overarching person's Inbox lists their work in other fields and opens a
     { project: "okan", roles: ["engineer"], mine: [], queue: [] },
     { project: "kestrel", roles: ["engineer"], mine: [], queue: [row] },
   ] }));
-  await page.goto(`${url}/#/inbox`);
+  await page.goto(`${url}/#/inbox?steps=1`);
   await page.getByText("In your other fields", { exact: false }).waitFor();
   await page.getByText("Sales gas compressor vibration", { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Work in okan" }).count(), 0);  // the field this tab is in
@@ -8471,7 +8500,7 @@ test("My work never scrolls sideways on a phone, even holding every role (#1077)
   await page.route("**/work/notifications?*", (r) => r.fulfill({ json: { notifications, unread: 1 } }));
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "demo"));
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${url}/?ios=1#/inbox`);
+  await page.goto(`${url}/?ios=1#/inbox?steps=1`);
   const badge = page.getByText(/^Your roles:/);
   await badge.waitFor();
   assert.match(await badge.innerText(), /data steward, engineer/);
