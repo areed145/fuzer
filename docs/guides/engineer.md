@@ -7,7 +7,7 @@ the data cannot tell you, and close it with what it turned out to be, so the nex
 
 ```mermaid
 flowchart TB
-  q["My work<br><small>the engineer queue</small>"] --> c["Claim it"]
+  q["Waiting on me<br><small>the engineer queue</small>"] --> c["Take it"]
   c --> r["Read the evidence<br><small>what was found, the trend,<br>how it spread</small>"]
   r -->|"real"| a["Act<br><small>diagnose, plan,<br>raise a notification</small>"]
   r -->|"not sure"| f["Send someone<br>to look"]
@@ -18,7 +18,8 @@ flowchart TB
 
 ## What arrives in your queue
 
-Open **Work > My work**. Under your own steps is what waits unclaimed in the engineer queue, most urgent first.
+Open **Work > List** and pick **Waiting on me**. Beside your own steps is what waits unclaimed in the engineer queue,
+with **Take it** on its row.
 Each row says what kind of work it is, the asset, and when it is due. A step is usually due a day after it arrives
 (a triage sooner) and escalates to the ops lead if nobody takes it.
 

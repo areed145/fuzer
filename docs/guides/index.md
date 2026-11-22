@@ -71,21 +71,21 @@ application permission; who gets which work is a workflow role ([page ownership]
 
 ## Find your way around
 
-The menu holds eight destinations. On a phone, the bottom bar keeps Home, My work, Explore and Investigate in
+The menu holds eight destinations. On a phone, the bottom bar keeps Tower, Work, Explore and Reports in
 thumb reach, and **Menu** opens the rest, including Plan.
 
 ![The menu on a phone](../assets/screens/guides/nav-menu-phone.png){ loading=lazy width="320" align=right }
 
 | Destination | What it is for | Main pages |
 |---|---|---|
-| **Home** | The field map with open work, crews and incidents on it, key figures over it, and Needs you: what waits on you, ringed on the map | Home |
-| **Work** | Everything that came in, and what waits on you | All work, My work, Workflows, Master data |
-| **Plan** | Every planned activity from every source on one timeline | Plan, Schedules, Resources |
-| **Explore** | Assets and how they connect | Browse, Map, Network, 3D |
-| **Investigate** | Evidence and analysis | Downtime, Ask, Incidents, Daily reports, Metrics, Lessons, Studies |
+| **Tower** | The field map with open work, crews and incidents on it, key figures over it, and Needs you: what waits on you, ringed on the map | Tower |
+| **Work** | Everything that came in, and what waits on you | List (with the Waiting on me, To dispatch, Back from the field, Overdue and Data questions presets), Board |
+| **Plan** | Every planned activity from every source on one timeline | Plan, Schedules, Resources, Logistics, Backlog by value |
+| **Explore** | Assets and how they connect, and the assistant | Browse, Map, Network, 3D, Ask |
+| **Reports** | Evidence and analysis | Downtime, Incidents, Daily reports, Metrics, Lessons learned, Studies |
 | **Sources** | Connect, load and recover source data | Sources, Ontology |
 | **Jobs** | Scheduled jobs and their runs | Jobs |
-| **Settings** | Application settings, people and routing | Application settings (with Detection), Users, Routing, Docs |
+| **Settings** | Application settings, people, routing and workflows | Application settings (with Detection), Users, Routing, Workflows, Docs |
 
 Three things are on every page. The **search** at the top of Home and Browse finds an asset by tag, well name,
 serial number or words in its description. The **account button** at the top right shows who you are, switches

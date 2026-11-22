@@ -49,7 +49,7 @@ Work reaches the plan from five places, and none of it is typed twice:
 
 A count at the top says how many activities are waiting on parts. A planned order whose reserved parts will not
 arrive by the day it needs them also arrives as routed work, **Parts not ready for planned work**, in the
-maintenance planner queue on **My work**, with every late or short line on one case. It closes by itself when
+maintenance planner queue, on **Waiting on me**, with every late or short line on one case. It closes by itself when
 stock or an order due in time covers every line.
 
 ![A parts case: every late or short line on one case](../assets/screens/guides/planner-parts-desktop.png){ loading=lazy }
@@ -123,7 +123,7 @@ records a capacity window such as leave, a certification lapsing or a vessel in 
 ## Approve the update that goes back to SAP
 
 When the field reports Done or Could not do on work SAP raised, the update for SAP is drafted and lands in the
-maintenance planner queue on **My work**: a completion with the field's note and the closed status, or a follow-up
+maintenance planner queue, on **Waiting on me**: a completion with the field's note and the closed status, or a follow-up
 notification saying what still needs doing and why. Open it, edit the text if needed, and **approve** it or decide
 not to send it. Once SAP applies it, the next intake sees the new status and the work is not raised again.
 

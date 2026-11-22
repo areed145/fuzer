@@ -39,3 +39,13 @@ def test_a_recorded_watch_run_is_kept_per_window_and_shown(monkeypatch, tmp_path
     page = reference.eval_results_md()
     assert "| 2026-11-13 | okan | 2025-01-13 to 2025-01-15 | m | 4 (1) | 4 | 0 | 0% | 0% | $0.26 | no |" in page
     assert "10-P-1001A head_loss" in page
+
+
+def test_every_type_of_work_is_in_the_source_catalog():
+    # docs/work-sources.md is written by hand for IOC staff and the field: each type declared in code must be in it.
+    from fuzer.core import exceptions
+
+    exceptions.load()
+    page = (ROOT / "docs" / "work-sources.md").read_text()
+    missing = sorted(name for name in exceptions.TYPES if f"`{name}`" not in page)
+    assert not missing, f"docs/work-sources.md does not say how these are routed: {missing}"

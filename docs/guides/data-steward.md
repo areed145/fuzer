@@ -19,8 +19,8 @@ flowchart TB
   fix --> load
 ```
 
-Your work arrives two ways: as cases in the **data steward** queue on **My work** (source problems, records that
-match nothing, links that name nothing, asset context missing), and on **Work > Master data**, which gathers every
+Your work arrives two ways: as cases in the **data steward** queue, under the List's **Data questions** preset (source problems, records that
+match nothing, links that name nothing, asset context missing), and on **Master data**, which gathers every
 question the register has.
 
 ## Answer the register's questions

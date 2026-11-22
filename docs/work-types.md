@@ -1,13 +1,13 @@
 # Work types
 
 Generated from the work type registry (`core/exceptions.py`) and the detector registry; don't edit by hand (`uv run python -m fuzer.reference`).
-The 46 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (All work > Exception types) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages.
+The 46 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
 
-Every type is listed on **All work**, whichever group it is in. *The field can be sent* means a case of the type can be dispatched to a field operator's **My work**; *joins one event's case* means it joins an open case about the same asset instead of opening another; *held back by planned work* means a finding during a shutdown or planned job on its asset is counted under that window and opens no case.
+Every type is listed on the **List** (All work), whichever group it is in. *The field can be sent* means a case of the type can be dispatched to a field operator's **My work**; *joins one event's case* means it joins an open case about the same asset instead of opening another; *held back by planned work* means a finding during a shutdown or planned job on its asset is counted under that window and opens no case.
 
 ## Waits for the IOC
 
-No workflow and no queue: it waits on **All work > To dispatch** until the IOC dispatches it, plans it for a day or shelves it.
+No workflow and no queue: it waits on the List's **To dispatch** until the IOC dispatches it, plans it for a day or shelves it.
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|
@@ -15,7 +15,7 @@ No workflow and no queue: it waits on **All work > To dispatch** until the IOC d
 
 ## Starts its own workflow
 
-Starts a named BPMN workflow (or adds its evidence to the one already open). Its steps show on **My work** for whoever holds each lane, and the workflow is drawn under **Work > Workflows**.
+Starts a named BPMN workflow (or adds its evidence to the one already open). Its steps show on **Waiting on me** for whoever holds each lane, and the workflow is drawn under **Settings > Workflows**.
 
 | Type of work | What it is | Workflow | Found by | Declared in | How it behaves |
 |---|---|---|---|---|---|
@@ -24,7 +24,7 @@ Starts a named BPMN workflow (or adds its evidence to the one already open). Its
 
 ## Goes to a role's queue
 
-Starts the standard one-step `queue_item` workflow in the role's queue on **My work**, with the role's SLA and escalation. Whoever takes it can work it at the desk or send it to the field and get it back.
+Starts the standard one-step `queue_item` workflow in the role's queue, on each holder's **Waiting on me** with **Take it**, and with the role's SLA and escalation. Whoever takes it can work it at the desk or send it to the field and get it back.
 
 ### Engineer queue
 
