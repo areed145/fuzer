@@ -354,6 +354,7 @@ class ExceptionDispatch(BaseModel):
     to: str
     reason: str | None = None
     override: str | None = None   # why it goes though it isn't ready (P5.5): required when it isn't
+    due: datetime | None = None   # when it is wanted back (red team #23): the case's open steps are due then
 
 
 class Closeout(BaseModel):
@@ -750,9 +751,13 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
     if not ready["ready"] and not override:
         raise HTTPException(409, "Not ready to dispatch: " + "; ".join(ready["blockers"])
                             + ". Say why it should go anyway.")
-    return _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason,
-                           override=override if not ready["ready"] else None,
-                           blockers=ready["blockers"])
+    out = _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason,
+                          override=override if not ready["ready"] else None,
+                          blockers=ready["blockers"])
+    if d.due and out.get("item_id"):
+        from ..core import work
+        _exception_call(conn, work.set_due, out["item_id"], d.by, d.due, "wanted back by then when sent")
+    return out
 
 
 @router.get("/exceptions/{exception_id}/readiness")

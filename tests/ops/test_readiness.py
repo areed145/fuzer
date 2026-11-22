@@ -163,6 +163,21 @@ def test_a_job_waits_for_a_free_crew_and_the_blocker_names_the_jobs_holding_it(k
     assert [c["label"] for c in k2001["centers"]] == ["MECH"] and k2001["ready"] is True
 
 
+def test_a_job_sent_with_a_due_time_is_wanted_back_by_then(kestrel, client):
+    """Red team #23: the dispatch says when it is wanted back, and the case's history says it was set."""
+    from fuzer.graph import queries
+
+    conn, pack = kestrel
+    e = job(conn, "G-7007 meter check", queries.resolve_ref(conn, pack, "G1-G-7007"))
+    r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred", "reason": "read the meter",
+                                                     "due": "2026-11-12T09:00:00", "override": "fine to go"})
+    assert r.status_code == 200, r.text
+    changed = conn.execute("select data from work_event where item_id = %s and kind = 'item_changed'",
+                           (r.json()["item_id"],)).fetchall()
+    assert [c["data"]["due"]["to"][:16] for c in changed] == ["2026-11-12T09:00"]
+    assert changed[0]["data"]["reason"] == "wanted back by then when sent"
+
+
 def test_equipment_no_work_order_names_a_crew_for_is_not_blocked(kestrel):
     out = readiness.crew(kestrel[0], ["fz-nothing-here"])
     assert out["ready"] is True and out["checked"] is False and out["note"].startswith("No work orders")

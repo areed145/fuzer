@@ -98,6 +98,8 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
 function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const a = useAction();
   const [test, setTest] = useState<Awaited<ReturnType<typeof api.testConnection>> | null>(null);
+  // Profiling answers with the dataset's new profile, further down the page: say here that it ran (red team #36).
+  const [profiled, setProfiled] = useState<Date | null>(null);
   const [done, setDone] = useState<SourceLoad | null>(null);
   const ds = d.dataset, h = d.health, last = d.runs[0];
   const ready = canLoad(d);
@@ -119,14 +121,16 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           onConfirm={() => a.run("run", () => api.runDataset(ds.name), (r) => { setDone(r); reload(); })} />
         <Button variant="secondary" disabled={!!a.busy || !d.connection}
           onClick={() => a.run("test", () => api.testConnection(d.connection!.id), setTest)}>Test connection</Button>
-        <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("profile", () => api.profileDataset(ds.name), reload)}>
+        <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("profile", () => api.profileDataset(ds.name), () => { setProfiled(new Date()); reload(); })}>
           Profile now</Button>
+        {profiled && !a.busy && !a.error && <UIBadge tone="ok">profiled at {profiled.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</UIBadge>}
+        {profiled && !a.busy && !a.error && <a href={href("/sources", { view: "dataset", name: ds.name, tab: "quality" })}>see the profile</a>}
         {done && !a.busy && !a.error && <Loaded r={done} />}
         {test && <UIBadge tone={test.ok ? "ok" : "muted"}>{test.ok ? "connection ok" : "connection failed"}</UIBadge>}
       </Line>
       {test && !test.ok && <TestSteps steps={test.steps} />}
       {!ready && <p>Before loading, resume the dataset, enable its connection and resolve missing deployment-secret references.</p>}
-      <ActionStatus busy={a.busy ? `${a.busy === "run" ? "Loading source records" : "Checking source"}; wait for the recorded result…` : null} error={a.error} />
+      <ActionStatus busy={a.busy ? `${a.busy === "run" ? "Loading source records" : a.busy === "profile" ? "Profiling the source" : "Checking source"}; wait for the recorded result…` : null} error={a.error} />
       <p><a href={href("/sources", { view: "dataset", name: ds.name, tab: "runs" })}>Inspect recorded source runs</a>{" · "}
         <a href={href("/jobs")}>Inspect scheduler execution</a></p>
       <Scorecard s={d.scorecard} />
