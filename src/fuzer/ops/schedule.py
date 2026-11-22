@@ -1196,7 +1196,10 @@ def logistics(conn, start: datetime | None = None, days: int = 14) -> dict:
         select i.id, i.title, i.project, i.code, i.source, i.source_key, i.start_at, i.end_at, i.status,
                d.resource, d.quantity, la.label as area,
                coalesce((select json_agg(l.label order by n) from unnest(i.subjects) with ordinality u (s, n)
-                         join entity_label l on l.fuzer_id = s), '[]') as assets
+                         join entity_label l on l.fuzer_id = s join entity e on e.fuzer_id = s
+                         where e.kind <> 'work_order'), '[]') as assets,
+               (select l.label from unnest(i.subjects) with ordinality u (s, n) join entity_label l on l.fuzer_id = s
+                join entity e on e.fuzer_id = s where e.kind = 'work_order' order by n limit 1) as work_order
         from plan_demand d join plan_item i on i.id = d.item_id left join entity_label la on la.fuzer_id = i.area_id
         where i.status = any(%s) and i.start_at < %s and i.end_at > %s and d.quantity > 0
         order by i.start_at, i.id
@@ -1213,7 +1216,7 @@ def logistics(conn, start: datetime | None = None, days: int = 14) -> dict:
 
     def job(x) -> dict:
         return {"item_id": x["id"], "title": x["title"], "code": x["code"], "schedule": x["project"],
-                "order": x["source_key"] if x["source"] != "schedule" else None, "assets": x["assets"], "area": x["area"],
+                "order": x["work_order"] or (x["source_key"] if x["source"] != "schedule" else None), "assets": x["assets"], "area": x["area"],
                 "start": x["start_at"], "end": x["end_at"], "quantity": x["quantity"]}
 
     out = []

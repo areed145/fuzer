@@ -316,6 +316,10 @@ def test_logistics_reads_each_day_s_crews_travel_seats_beds_and_lifts_from_the_p
     crew = next(x for x in day["crews"] if x["resource"] == "SCAF")
     assert {j["code"] for j in crew["jobs"]} >= {a["code"] for a in scaf if a["start"] == first}
     assert all(j["schedule"] == "OK-TAR-2026" and j["assets"] for j in crew["jobs"])
+    # an activity on an SAP order names the order as its order, not as a place it happens
+    mech = [j for d in plan_["by_day"] for x in d["crews"] if x["resource"] == "MECH" for j in x["jobs"]]
+    opening = next(j for j in mech if j["code"] == "A0100")
+    assert opening["order"] and opening["order"] not in opening["assets"] and "20-K-2200B" in opening["assets"]
     [trip] = [t for t in day["travel"] if t["crew"] == "SCAF"]
     assert trip["way"] == "out" and trip["people"] == 4 and trip["by"], "the scaffolders fly out the day they start"
     seats = next(x for x in day["limits"] if x["kind"] == "seats")

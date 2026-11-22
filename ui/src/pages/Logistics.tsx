@@ -1,25 +1,27 @@
 /** Logistics from the plan (P5.18): day by day, each crew's jobs, who travels and who stays aboard between jobs, the
  * seats and beds they take against what there is, the cranes, vessels and deck space booked, and the parts to send
  * for the jobs that start that day. Read from the plan; changed on Plan. */
-import { useState } from "react";
 import { isoDay, when, whenDay } from "../format";
 import { api, type LogisticsDay, type LogisticsJob, type LogisticsMaterial } from "../api";
 import { Badge, ButtonLink, Card, Empty, Field, Heading, Input, Line, List, PageHeader, Select, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Status, entityHref, useAsync, useRouteState } from "../lib";
 import { acronyms } from "../wording";
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 export function LogisticsPage() {
-  const [from, setFrom] = useState(() => isoDay());
-  const [days, setDays] = useState(14);
+  // the window is kept in the link, so Back from a job or a material returns to the same days
+  const [fromParam, setFrom] = useRouteState("from");
+  const [daysParam, setDays] = useRouteState("days");
+  const from = fromParam || isoDay();
+  const days = Number(daysParam) || 14;
   const plan = useAsync(() => api.planLogistics({ start: from, days }), [from, days]);
   return (
     <section>
       <PageHeader>Logistics</PageHeader>
       <Line>
         <Field inline label="From"><Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></Field>
-        <Field inline label="Showing"><Select aria-label="Days shown" value={String(days)} onChange={(e) => setDays(Number(e.target.value))}>
+        <Field inline label="Showing"><Select aria-label="Days shown" value={String(days)} onChange={(e) => setDays(e.target.value)}>
           {[7, 14, 28, 42].map((d) => <option key={d} value={d}>{d} days</option>)}
         </Select></Field>
       </Line>

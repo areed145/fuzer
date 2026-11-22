@@ -9082,6 +9082,15 @@ test("Logistics lists each day's crews and jobs, who travels and who stays aboar
   await page.getByLabel("Days shown").selectOption("28");
   await page.waitForTimeout(200);
   assert.deepEqual(asked.slice(-1), ["28"]);
+  // the window is kept in the link: Back from a material returns to the same days
+  await page.getByLabel("From").fill("2027-02-22");
+  await page.waitForTimeout(200);
+  assert.match(page.url(), /from=2027-02-22/);
+  assert.match(page.url(), /days=28/);
+  await page.reload();
+  await page.locator(".logistics-day").first().waitFor();
+  assert.equal(await page.getByLabel("From").inputValue(), "2027-02-22");
+  assert.equal(await page.getByLabel("Days shown").inputValue(), "28");
   for (const w of [390, 820, 1280]) {
     await page.setViewportSize({ width: w, height: 900 });
     await page.waitForTimeout(150);
