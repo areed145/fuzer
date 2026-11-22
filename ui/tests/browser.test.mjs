@@ -2089,6 +2089,16 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
     document.querySelector('#sidebar nav[aria-label="Main"] a[href="#/sources"][aria-current="page"]'));
   await page.getByRole("heading", { name: "Sources", exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  // The sheet doesn't repeat the bottom bar (#31): its icons are the rest, and every page inside an area is named under
+  // them, so Map or Incidents is one tap from anywhere.
+  await menu.click();
+  assert.deepEqual(await page.locator('#sidebar nav[aria-label="Main"] .nav-tile:visible .nav-tile-label').allTextContents(),
+    ["Plan", "Sources", "Jobs", "Settings"]);
+  const pages = page.getByRole("navigation", { name: "All pages", exact: true });
+  await pages.getByRole("link", { name: "Incidents", exact: true }).click();
+  await page.waitForURL(/#\/incidents$/);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  assert.equal(await pages.isVisible(), false, "the desk's sidebar has the area tabs instead");
 });
 
 test("primary destination navigation keeps page headings and active context aligned", async () => {

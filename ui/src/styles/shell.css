@@ -49,6 +49,7 @@
 .sidebar-status select { max-width: 100%; }
 .topbar { display: none; }
 .bottombar { display: none; }
+.sidebar .nav-pages { display: none; }  /* the menu sheet's page list, below 900 px */
 /* In-app Back (P5.14a): in the phone top bar, and above the page in the installed app on a tablet, where the browser's
    own back button is gone. 44 px tall so it can be hit with a gloved thumb. */
 .back-button { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; min-width: 44px; padding: 0 10px 0 4px; }
@@ -129,7 +130,17 @@
   }
   .sidebar.open { transform: none; visibility: visible; box-shadow: 0 0 24px rgb(0 0 0 / .25); }
   .scrim { display: block; position: fixed; inset: 0; z-index: 1102; background: rgb(0 0 0 / .35); }
+  /* The menu sheet: icons for what the bottom bar doesn't hold, then every page by name (#31). */
+  .nav-group ul > li.on-bottombar { display: none; }
+  .sidebar nav { flex: none; }
+  .sidebar .nav-pages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; padding: 4px 4px 0; border-top: 1px solid var(--rail-line); padding-top: 14px; }
+  .nav-pages h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 2px; color: var(--rail-text); opacity: .75; }
+  .nav-pages ul { list-style: none; margin: 0; padding: 0; display: grid; }
+  .nav-pages a { display: flex; align-items: center; min-height: 40px; color: var(--rail-text); font-size: 15px; }
+  .nav-pages a:hover { text-decoration: none; }
+  .nav-pages a[aria-current="page"] { font-weight: 600; }
 }
+@media (min-width: 600px) and (max-width: 900px) { .sidebar .nav-pages { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 20px; } }
 @media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
 .mark .ink { stroke: var(--brand-ink); }
 .mark .hub { fill: var(--brand-hub); }
