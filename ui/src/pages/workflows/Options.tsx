@@ -99,8 +99,9 @@ function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose }: {
       {opt.detail && <Text as="div" small>{opt.detail}</Text>}
       <div className="case-option-facts">
         <span>Done by {when(opt.by)}</span>
+        {/* with nothing deferred now the card's first line says so once, not on every option */}
         {opt.deferred ? <span>about {estimate(opt.deferred.oil_bbl)} bbl, {money(twoFigures(opt.deferred.usd))} deferred</span>
-          : <span>nothing deferred</span>}
+          : d.loss ? <span>nothing deferred</span> : null}
         {opt.risk && <span title={opt.risk.why}>Risk <Badge tone={RISK[opt.risk.level]}>{opt.risk.level.toLowerCase()}</Badge></span>}
         {!blocked && (opt.key === "dispatch" || opt.key === "window") && <Badge tone="ok">ready</Badge>}
       </div>

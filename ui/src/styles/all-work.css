@@ -7,7 +7,7 @@
 @media (min-width: 601px) { #main-content .row.work-filters > select { flex: 0 1 auto; width: auto; min-width: 9rem; } }
 @media (max-width: 600px) {
   .work-filters { flex-wrap: wrap; }
-  #main-content .row.work-filters > input[type=search] { order: 0; flex: 1 1 0; width: auto; min-width: 0; }
+  #main-content .row.work-filters > input[type=search] { order: 0; flex: 1 1 9rem; width: auto; min-width: 9rem; }
   #main-content .row.work-filters.open > select.ui-input { flex: 1 1 40%; width: auto; max-width: none; }
   /* Saving a view for a role is set up at a desk. */
   .work-views { display: none; }

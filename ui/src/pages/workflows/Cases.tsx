@@ -5,7 +5,7 @@ import { OpportunityPanel } from "./OpportunityPanel";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { cap, say } from "../../wording";
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
 import { Status, href, useAsync, useAction } from "../../lib";
@@ -97,6 +97,15 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   const fieldOnly = !demo && roles.length > 0 && roles.every((r) => r === "operator");
   // A steward's question is answered here, on its case (#1131): its finding names the question on Master data.
   const asks = closed ? null : questionOf(it.sources);
+  // A case run by a standard one-step workflow (queue item, task) closes from here, whatever step it waits on: the IOC
+  // closes a job back from the field without opening the step (#1222).
+  const closesHere = it.type !== "recheck" && (closed ? it.state === "done"
+    : it.processes.every((p) => p.state !== "running" || CLOSES_WITH_CASE.has(p.process_key)));
+  const closeout = closesHere ? <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload}
+    startOpen={closing} openItems={(it.checklist ?? []).filter((c) => c.state === "open").length} /> : null;
+  // Close out sits with the step it ends, in Waiting on, rather than loose between the cards below it.
+  const steps = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
+  const inStep = !closed && !(steps.length === 0 && demo);
   const evidence = <>
     <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
     {!evidenceReady ? <Status loading /> : <>
@@ -123,26 +132,26 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   return (
     <section>
       {demo && <DemoContext step="workflow" />}
-      <div className="entity-head">
+      <div className="entity-head case-head">
         <div>
           <PageHeader record className={it.title.length > 48 ? "case-title-long" : undefined}>{say(it.title)}</PageHeader>
-          <Line small>
+          {/* One line under the title: what it is, how late, what it is about, who opened it. The due time and the
+              entity it is about each took a line of their own, and Watch sat between them. */}
+          <Line small wrap>
             <UIBadge>{it.type.replace(/_/g, " ")}</UIBadge>
             <UIBadge tone={closed ? "ok" : "muted"}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
+            {!closed && <Due at={it.due} />}
             {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority, {level.why}</Text></span>}
+            {(it.subjects.length > 0 || dataset) && <span><Text muted>about</Text>{" "}
+              <EntityLinks ids={it.subjects} />
+              {dataset && <> source dataset <a href={href("/sources", { view: "dataset", name: dataset })}>{dataset}</a></>}
+            </span>}
             <span className="case-opened"><Text muted>opened by</Text> <Actor who={it.created_by} /> <Text muted>{when(it.created_at)}</Text></span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
             {!demo && canAsk && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
           </Line>
           {it.parent && <Text as="p" small>Part of <a href={caseHref(it.parent.id)}>{say(it.parent.title)}</a></Text>}
-          {(it.subjects.length > 0 || dataset) && (
-            <Text as="p" small>About{" "}
-              <EntityLinks ids={it.subjects} />
-              {dataset && <> source dataset <a href={href("/sources", { view: "dataset", name: dataset })}>{dataset}</a></>}
-            </Text>
-          )}
         </div>
-        {!closed && <Due at={it.due} />}
       </div>
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
@@ -151,7 +160,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {!closed && !fieldOnly && <CaseOptionsCard o={options} person={person} readOnly={demo}
         onDone={() => { item.reload(); options.reload(); }} />}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
-        optionsShown={!!options.data?.applies}
+        optionsShown={!!options.data?.applies} closeout={inStep ? closeout : null}
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null}
         proposal={typeof raised.opportunity === "string"}
         asked={typeof raised.summary === "string" ? raised.summary : null}
@@ -166,12 +175,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
         reload={item.reload} />}
       {typeof raised.recheck_of === "number" && <RecheckCard firstId={raised.recheck_of} person={person} closed={closed}
         readOnly={demo} reload={item.reload} />}
-      {/* a case run by a standard one-step workflow (queue item, task) closes from here, whatever step it waits on:
-          the IOC closes a job back from the field without opening the step (#1222) */}
-      {it.type !== "recheck" && (closed ? it.state === "done"
-        : it.processes.every((p) => p.state !== "running" || CLOSES_WITH_CASE.has(p.process_key))) &&
-        <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload} startOpen={closing}
-          openItems={(it.checklist ?? []).filter((c) => c.state === "open").length} />}
+      {!inStep && closeout}
       {fieldOnly ? <Disclosure className="case-full" label={<>Full case</>}>{evidence}</Disclosure> : evidence}
     </section>
   );
@@ -179,6 +183,14 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
 
 /** The standard workflows that end with their case (fuzer:closeWithCase in queue_item.bpmn and task.bpmn). */
 const CLOSES_WITH_CASE = new Set(["queue_item", "task"]);
+/** Whether a step is the one a standard workflow's case is worked in: a task's one step, or a queue item's "Work the
+ * case". Close out ends it, with what was found, so the step offers no Complete with a note of its own, which closed
+ * the case with no close-out at all. A queue item's Field check is the field's step and keeps its own. */
+function standsForCase(it: WorkItem, step: { process_id: number; element: string }): boolean {
+  const p = it.processes.find((x) => x.id === step.process_id);
+  return !!p && (p.process_key === "task" || (p.process_key === "queue_item" && step.element === "work"));
+}
+
 /** What a case's Details leave out: the engine's routing keys, and the summary, which is shown as what was asked. */
 const HIDDEN_DETAILS = [...ENGINE_FIELDS, "summary", "evidence"];
 
@@ -196,8 +208,10 @@ function questionOf(sources?: CaseSource[]): { id: number; kind: ReviewKind } | 
 /** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
  * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
 function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null, asked = null, evidence = [], proposal = false,
-  optionsShown = false }: {
+  optionsShown = false, closeout = null }: {
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
+  /** Close out or Finish, shown under the step it ends. */
+  closeout?: ReactNode;
   /** The Options card above dispatches it (P5.20), so the step leaves out its own Send to the field. */
   optionsShown?: boolean;
   /** The case shows its proposal with the decision below, so the step leaves it out. */
@@ -233,8 +247,12 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
       <CaseChecklist it={it} person={person} readOnly={demo} reload={reload} />
       {/* the step is worked here (#1222): no separate step page. A task's one step ends with its case, so it is
           finished below, not completed here as well */}
-      {next && !answered && <StepActions key={next.id} id={next.id} demo={demo} send={false} onChanged={reload} caseShowsProposal={proposal}
-        complete={!it.processes.some((p) => p.id === next.process_id && p.process_key === "task")} />}
+      {/* Take it and Close out side by side: the step's form or the close-out form, once open, takes the full width */}
+      <div className="case-next-do">
+        {next && !answered && <StepActions key={next.id} id={next.id} demo={demo} send={false} onChanged={reload} caseShowsProposal={proposal}
+          complete={!standsForCase(it, next)} />}
+        {closeout && <div className="case-next-close">{closeout}</div>}
+      </div>
       {fieldOnly && <div className="row wrap case-next-actions"><ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink></div>}
       <ErrorText>{takeOver.error}</ErrorText>
       {/* the IOC sends it out through the case's workflow: not while the field already has it */}

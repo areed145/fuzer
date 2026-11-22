@@ -27,6 +27,8 @@ details.exception-types { margin-top: 16px; }
 /* A long generated case title is a heading, not a large title, on a phone (#1071). */
 @media (max-width: 600px) {
   :root .ui-page-header h1.case-title-long, :root.ios main .ui-page-header h1.case-title-long { font-size: 22px; line-height: 28px; }
+  /* ...and read in full: cut at two lines, "89.42 °C, limits 0 to 85 °C" lost the limits it was raised on */
+  :root.ios main .ui-page-header h1.case-title-long { display: block; -webkit-line-clamp: unset; line-clamp: none; overflow: visible; }
   .case-next-actions .ui-button, .case-actions .ui-button { min-height: 44px; }
   .case-actions .ui-field, .case-actions .ui-field .ui-input { width: 100%; }
 }
@@ -64,3 +66,13 @@ details.exception-types { margin-top: 16px; }
 .case-option-act { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
 .case-option-form { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 @media (max-width: 600px) { .case-option-act > * { flex: 1 1 auto; min-height: 44px; } }
+/* Four choices on a tablet read as two by two, not three and one left over on its own row. */
+@media (min-width: 601px) and (max-width: 1099px) { .case-options-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Stacked on a phone, the recommended choice comes first and one that can't be taken comes last, so the first screen
+   holds the decision rather than the alternatives to it. */
+@media (max-width: 600px) { .case-option.recommended { order: -1; } .case-option.unavailable { order: 1; } }
+/* Close out ends the step, inside Waiting on, beside Take it; a form, once open, takes the row. */
+.case-next-do { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-top: 8px; }
+.case-next-do > * { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.case-next-do > :has(textarea, select, input, .notice, .from-field) { flex-basis: 100%; }
+.case-next-do > .step-actions:empty { display: none; }

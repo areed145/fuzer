@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
-import { kindWord, person as personName } from "../wording";
+import { kindWord, person as personName, say as words } from "../wording";
 import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List, Heading } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
@@ -62,7 +62,7 @@ function Refused({ w, jobs }: { w: QueuedWrite; jobs: { id: number; title: strin
       {others.length > 0 && <>
         <Select aria-label="Send it to another of your jobs" value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="">another job…</option>
-          {others.map((j) => <option key={j.id} value={j.id}>{j.title}</option>)}
+          {others.map((j) => <option key={j.id} value={j.id}>{words(j.title)}</option>)}
         </Select>
         <Button disabled={!!busy || !to} onClick={() => run("Sending", () => moveReport(w, Number(to)))}>Send there</Button>
       </>}
@@ -356,7 +356,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   const onSite = last?.status === "on_site" && last.by === person;
   const evidence = !!note.trim() || !!reading || photos.length > 0;
   return (
-    <Card className="field-job" id={`field-job-${job.id}`} tabIndex={-1} title={<>{job.title}{job.label && !job.title.toLowerCase().includes(job.label.toLowerCase()) && <> <Badge>{job.label}</Badge></>}</>}>
+    <Card className="field-job" id={`field-job-${job.id}`} tabIndex={-1} title={<>{words(job.title)}{job.label && !job.title.toLowerCase().includes(job.label.toLowerCase()) && <> <Badge>{job.label}</Badge></>}</>}>
       {job.handover && <HandoverNote h={job.handover} />}
       {job.handover?.mine_to_accept && <div className="row field-actions">
         {mine.some((w) => w.kind === "handover_accept") ? <Badge tone="warn">Accepted · waiting to send</Badge>
@@ -365,14 +365,17 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
       </div>}
       <Line as="p" small>
         <Due at={job.due} />
-        {last && <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
+        {/* the last report says where the job stands only if it came after this dispatch: an earlier visit's "Could not
+            do" read as this job's state the moment it was sent out again (it stays in the field log) */}
+        {last && !(job.sent?.at && Date.parse(last.at) < Date.parse(job.sent.at)) &&
+          <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
         {waiting.length > 0 && <Badge tone="warn">{waiting.length === 1 ? `${SAID[(waiting[0].payload as { status: string }).status] ?? "Report"} waiting to send`
           : `${waiting.length} reports waiting to send`}</Badge>}
         <Text muted>seen {job.reports ?? job.raised_count}× since {when(job.first_seen)}</Text>
       </Line>
       {job.sent && (job.sent.reason || !job.queued) && <p className="field-sent">
         <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
-        {job.sent.by && <Text small muted> · sent by {job.sent.by.replace(/^agent:/, "")}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</Text>}</p>}
+        {job.sent.by && <Text small muted> · sent by {personName(job.sent.by)}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</Text>}</p>}
       {job.assets.length > 0 && <div>
         <Heading level={3} small>Where</Heading>
         <List plain>{job.assets.map((a) => <li key={a.fuzer_id}>
@@ -459,7 +462,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
           onClick={() => say("could_not_do")}>Could not do</Button>
         <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
         {/* a step of their own is worked on its case (#1222) */}
-        {job.item_id && job.task_id && job.own_step && <ButtonLink href={href(`/cases/${job.item_id}`)}>Open step: {job.task_name}</ButtonLink>}
+        {job.item_id && job.task_id && job.own_step && <ButtonLink href={href(`/cases/${job.item_id}`)}>Open the case</ButtonLink>}
         {job.item_id && !job.task_id && <ButtonLink href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
       </div>
       {!job.handover && <HandOver job={job} person={person} onChange={onChange} />}</>}

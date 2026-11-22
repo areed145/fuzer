@@ -3684,7 +3684,7 @@ test("the field's report sits above the IOC's decision, and operators are only o
     task_name: "Triage", own_step: false, sent: { by: null, at: null, reason: "look at it" } };
   await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "otto", jobs: [theirs, handed], coming_up: [] } }));
   await page.goto(`${url}/#/inbox`);
-  await page.locator(".field-job", { hasText: "Low pressure" }).getByRole("link", { name: "Open step: Field check" }).waitFor();
+  await page.locator(".field-job", { hasText: "Low pressure" }).getByRole("link", { name: "Open the case" }).waitFor();
   const other = page.locator(".field-job", { hasText: "Gauge reads odd" });
   await other.getByText("look at it").waitFor();
   assert.equal(await other.getByRole("link", { name: /Open step/ }).count(), 0);  // an engineer's form isn't theirs
@@ -5086,7 +5086,8 @@ for (const [bundle, type, job] of LOOP_JOBS) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${url}/#/inbox`);
     const card = page.locator(".field-job").first();
-    await card.getByRole("heading", { name: job.title }).waitFor();
+    // the title in people's words, as the case shows it: "207 °F", not "207 degF"
+    await card.getByRole("heading", { name: job.title.replace(/\bdegF\b/g, "°F").replace(/\bdegC\b/g, "°C") }).waitFor();
     await card.getByText(job.sent.reason).waitFor();  // what the IOC asked
     for (const a of job.assets) await card.getByText(a.label ?? a.name, { exact: false }).first().waitFor();
     assert.doesNotMatch(await card.innerText(), /\bfz-[\w-]+/, "no raw ids on the job");
@@ -8784,7 +8785,7 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
   await page.getByRole("heading", { name: /Pump P-101 vibration/ }).waitFor();
   await fits("My work");
   // The step on that job, worked on its case (#1222).
-  await page.getByRole("link", { name: "Open step: Review recorded evidence" }).click();
+  await page.getByRole("link", { name: "Open the case" }).click();
   await page.waitForURL(/#\/cases\/7$/);
   await page.locator(".case-next").getByText("Review recorded evidence", { exact: true }).waitFor();
   await fits("the step");
