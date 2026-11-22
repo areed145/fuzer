@@ -45,3 +45,6 @@ details.exception-types { margin-top: 16px; }
 .case-check.done .case-check-text, .case-check.skipped .case-check-text { color: var(--muted); text-decoration: line-through; }
 .case-check > div { margin-left: 26px; }
 .work-draft-steps { margin: 4px 0 8px; }
+/* Taken from the queue, the page follows the job up to the operator's own list, clear of the sticky top bar (#9). */
+.field-job { scroll-margin-top: 80px; }
+.field-job:focus { outline: none; }

@@ -291,6 +291,10 @@ function PermitPanel({ permit, inHand, onInHand }: { permit: FieldPermit; inHand
 // Queues that work at a desk: their jobs carry no directions or permit, which only matter on the plant.
 const DESK_ROLES = new Set(["data_steward", "engineer", "production_engineer", "workflow_admin"]);
 
+/** The job just taken from the queue: it moves up into the operator's own jobs, and the page follows it there (#9)
+ * rather than staying on the queue or the notices above. */
+let justTaken: number | null = null;
+
 export function FieldJobCard({ job, person, onChange, onReported }: {
   job: FieldJob; person: string; onChange: () => void;
   /** Told when Done or Could not do reached the IOC, so the page can say so after the card leaves the list. */
@@ -306,6 +310,13 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   const [kept, setKept] = useState(false);
   const [why, setWhy] = useState("");
   const [inHand, setInHand] = useState(false);
+  useEffect(() => {
+    if (justTaken !== job.id || job.queued) return;
+    justTaken = null;
+    const card = document.getElementById(`field-job-${job.id}`);
+    card?.scrollIntoView({ block: "start", behavior: "smooth" });
+    card?.focus({ preventScroll: true });
+  }, [job.id, job.queued]);
   const blocked = !!job.permit?.blocked;
   const signal = useSignal();
   // Reports for this job still on the phone (P5.17b): shown as waiting, not as done, until the server has them.
@@ -345,7 +356,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   const onSite = last?.status === "on_site" && last.by === person;
   const evidence = !!note.trim() || !!reading || photos.length > 0;
   return (
-    <Card className="field-job" title={<>{job.title}{job.label && !job.title.toLowerCase().includes(job.label.toLowerCase()) && <> <Badge>{job.label}</Badge></>}</>}>
+    <Card className="field-job" id={`field-job-${job.id}`} tabIndex={-1} title={<>{job.title}{job.label && !job.title.toLowerCase().includes(job.label.toLowerCase()) && <> <Badge>{job.label}</Badge></>}</>}>
       {job.handover && <HandoverNote h={job.handover} />}
       {job.handover?.mine_to_accept && <div className="row field-actions">
         {mine.some((w) => w.kind === "handover_accept") ? <Badge tone="warn">Accepted · waiting to send</Badge>
@@ -408,7 +419,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
           ? `Back in the ${job.role?.replace(/_/g, " ") ?? ""} queue: ${personName(last.by)} was on site ${when(last.at)} and has not reported since.`
           : `Waiting in the ${job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.`}</Text>
         <Button variant="primary" disabled={!!busy || !signal.live}
-          onClick={() => run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), onChange)}>Take it</Button>
+          onClick={() => { justTaken = job.id; run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), onChange); }}>Take it</Button>
         {!signal.live && <Text small muted>{NEEDS_SIGNAL}</Text>}
       </div> : <>
       <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC (a reading, what you found, why it couldn't be done)</label>

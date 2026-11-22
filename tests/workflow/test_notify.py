@@ -106,6 +106,19 @@ def test_a_step_coming_due_tells_its_holder_once(conn):
     due = [n for n in told(conn, "pia") if n["item_id"] == item and n["kind"] == "due_soon"]
     assert len(due) == 1 and "is due in" in due[0]["text"]
     assert len([n for n in told(conn, "pia") if n["item_id"] == item and n["kind"] == "due_soon"]) == 1
+    # once it is past due, "is due in 20 min" is no longer true: it leaves what she is told (#10)
+    later = notify.mine(conn, "pia", now=engine.utcnow() + timedelta(hours=1))["notifications"]
+    assert not [n for n in later if n["item_id"] == item and n["kind"] == "due_soon"]
+
+
+def test_a_notice_about_a_closed_case_is_history_not_news(conn):
+    item = case(conn, "Grease the valve")
+    engine.dispatch_item(conn, item, "ines", "olav", "stiff to turn")
+    conn.commit()
+    assert [n for n in told(conn, "olav") if n["item_id"] == item]
+    conn.execute("update work_item set state = 'done', closed_at = now() where id = %s", (item,))
+    conn.commit()
+    assert not [n for n in told(conn, "olav") if n["item_id"] == item]
 
 
 def test_an_escalation_tells_the_new_holder_and_whoever_had_it(conn):
