@@ -3,8 +3,8 @@
  * for the jobs that start that day. Read from the plan; changed on Plan. */
 import { isoDay, when, whenDay } from "../format";
 import { api, type LogisticsDay, type LogisticsJob, type LogisticsMaterial } from "../api";
-import { Badge, ButtonLink, Card, Empty, Field, Heading, Input, Line, List, PageHeader, Select, Table, Text } from "../ui";
-import { Status, entityHref, useAsync, useRouteState } from "../lib";
+import { Badge, ButtonLink, Card, Disclosure, Empty, Field, Heading, Input, Line, List, PageHeader, Select, Table, Text } from "../ui";
+import { Status, entityHref, useAsync, usePhone, useRouteState } from "../lib";
 import { acronyms } from "../wording";
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -33,7 +33,12 @@ export function LogisticsPage() {
   );
 }
 
+/** Where a job runs: its first two assets, and its area when that isn't one of them. */
+const where = (j: LogisticsJob) =>
+  [...j.assets.slice(0, 2), j.area && !j.assets.includes(j.area) ? j.area : null].filter(Boolean).join(", ");
+
 function Day({ d }: { d: LogisticsDay }) {
+  const phone = usePhone();
   const aboard = d.aboard ?? [];
   const materials = d.materials ?? [];
   return (
@@ -46,14 +51,23 @@ function Day({ d }: { d: LogisticsDay }) {
         {d.limits.map((l) => <Badge key={l.resource} tone={l.over ? "danger" : "ok"}>
           {l.name}: {num(l.need)} of {num(l.capacity)}</Badge>)}
       </Line>}
-      {d.crews.length > 0 && <Table density="compact">
-        <thead><tr><th>Crew</th><th>People</th><th>Job</th><th>Where</th><th>When</th></tr></thead>
-        <tbody>{d.crews.flatMap((c) => c.jobs.map((j) => <tr key={`${c.resource}-${j.item_id}`}>
-          <td>{c.name}</td><td>{num(j.quantity)}</td><td><Job j={j} /></td>
-          <td>{[...j.assets.slice(0, 2), j.area && !j.assets.includes(j.area) ? j.area : null].filter(Boolean).join(", ")}</td>
-          <td>{when(j.start)} to {when(j.end)}</td>
-        </tr>))}</tbody>
-      </Table>}
+      {d.crews.length > 0 && (phone
+        // a phone folds the crews' jobs behind one line naming the crews, so a fortnight reads as its travel, beds
+        // and materials first; each job is then one line
+        ? <Disclosure label={`Jobs: ${d.crews.map((c) => c.name).join(", ")}`}>
+          <List plain>{d.crews.flatMap((c) => c.jobs.map((j) => <li key={`${c.resource}-${j.item_id}`} className="small">
+            <strong>{c.name}</strong> {num(j.quantity)} · <Job j={j} />
+            <Text small muted> {[where(j), `${when(j.start)} to ${when(j.end)}`].filter(Boolean).join(" · ")}</Text>
+          </li>))}</List>
+        </Disclosure>
+        : <Table density="compact">
+          <thead><tr><th>Crew</th><th>People</th><th>Job</th><th>Where</th><th>When</th></tr></thead>
+          <tbody>{d.crews.flatMap((c) => c.jobs.map((j) => <tr key={`${c.resource}-${j.item_id}`}>
+            <td>{c.name}</td><td>{num(j.quantity)}</td><td><Job j={j} /></td>
+            <td>{where(j)}</td>
+            <td>{when(j.start)} to {when(j.end)}</td>
+          </tr>))}</tbody>
+        </Table>)}
       {d.equipment.length > 0 && <>
         <Heading level={3}>Booked</Heading>
         <List plain>{d.equipment.map((e) => <li key={e.resource} className="small">

@@ -9217,6 +9217,16 @@ test("Logistics lists each day's crews and jobs, who travels and who stays aboar
     await page.setViewportSize({ width: w, height: 900 });
     await page.waitForTimeout(150);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `fits ${w} px`);
+    if (w === 390) {  // a phone folds the day's jobs behind a line naming the crews; each job is then one line
+      const jobs = day.getByRole("button", { name: "Jobs: Scaffolders, Operations isolation team" });
+      await jobs.waitFor();
+      assert.equal(await day.locator("table").filter({ hasText: "Crew" }).count(), 0);
+      assert.equal(await day.getByRole("link", { name: /A0050/ }).count(), 0, "folded until asked");
+      await jobs.click();
+      await day.getByRole("listitem").filter({ hasText: "Scaffolders 4" }).getByRole("link", { name: /A0050 Scaffold/ }).waitFor();
+    } else {
+      await day.getByRole("columnheader", { name: "Crew" }).waitFor();
+    }
     if (process.env.GANTT_SHOTS) await page.screenshot({ path: `${process.env.GANTT_SHOTS}/logistics-${w}.png`, fullPage: true });
   }
   await page.route("**/plan/logistics?*", (route) => route.fulfill({ json: { ...plan, by_day: [] } }));
