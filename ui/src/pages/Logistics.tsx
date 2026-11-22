@@ -1,25 +1,27 @@
 /** Logistics from the plan (P5.18): day by day, each crew's jobs, who travels and who stays aboard between jobs, the
  * seats and beds they take against what there is, the cranes, vessels and deck space booked, and the parts to send
  * for the jobs that start that day. Read from the plan; changed on Plan. */
-import { useState } from "react";
 import { isoDay, when, whenDay } from "../format";
 import { api, type LogisticsDay, type LogisticsJob, type LogisticsMaterial } from "../api";
 import { Badge, ButtonLink, Card, Empty, Field, Heading, Input, Line, List, PageHeader, Select, Table, Text } from "../ui";
-import { Status, entityHref, useAsync } from "../lib";
+import { Status, entityHref, useAsync, useRouteState } from "../lib";
 import { acronyms } from "../wording";
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 export function LogisticsPage() {
-  const [from, setFrom] = useState(() => isoDay());
-  const [days, setDays] = useState(14);
+  // the window is kept in the link, so Back from a job or a material returns to the same days
+  const [fromParam, setFrom] = useRouteState("from");
+  const [daysParam, setDays] = useRouteState("days");
+  const from = fromParam || isoDay();
+  const days = Number(daysParam) || 14;
   const plan = useAsync(() => api.planLogistics({ start: from, days }), [from, days]);
   return (
     <section>
       <PageHeader>Logistics</PageHeader>
       <Line>
         <Field inline label="From"><Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></Field>
-        <Field inline label="Showing"><Select aria-label="Days shown" value={String(days)} onChange={(e) => setDays(Number(e.target.value))}>
+        <Field inline label="Showing"><Select aria-label="Days shown" value={String(days)} onChange={(e) => setDays(e.target.value)}>
           {[7, 14, 28, 42].map((d) => <option key={d} value={d}>{d} days</option>)}
         </Select></Field>
       </Line>
@@ -60,18 +62,27 @@ function Day({ d }: { d: LogisticsDay }) {
       </>}
       {materials.length > 0 && <>
         <Heading level={3}>Materials to send</Heading>
-        <Table density="compact">
-          <thead><tr><th>Material</th><th>Qty</th><th>For</th><th>Ready</th></tr></thead>
-          <tbody>{materials.map((m) => <tr key={`${m.order}-${m.material_id}`}>
-            <td><a href={entityHref(m.material_id)}>{m.material ?? m.material_id}</a>{m.description && <Text small> {m.description}</Text>}</td>
-            <td>{num(m.quantity)}</td>
-            <td><Job j={{ ...m, start: d.day }} /></td>
-            <td><Cover m={m} /></td>
-          </tr>)}</tbody>
-        </Table>
+        {byJob(materials).map((g) => <div key={`${g[0].item_id}-${g[0].order}`} className="logistics-parts">
+          <Job j={{ ...g[0], start: d.day }} />
+          <List plain>{g.map((m) => <li key={m.material_id} className="small">
+            <a href={entityHref(m.material_id)}>{m.material ?? m.material_id}</a>
+            {m.description && ` ${m.description}`} × {num(m.quantity)} <Cover m={m} />
+          </li>)}</List>
+        </div>)}
       </>}
     </Card>
   );
+}
+
+/** The day's parts under the job they are for, in the order the first of each comes (the server puts the least ready
+ * first, so a job with a late part leads). */
+function byJob(materials: LogisticsMaterial[]): LogisticsMaterial[][] {
+  const groups = new Map<string, LogisticsMaterial[]>();
+  for (const m of materials) {
+    const key = `${m.item_id}-${m.order}`;
+    groups.set(key, [...(groups.get(key) ?? []), m]);
+  }
+  return [...groups.values()];
 }
 
 /** Whether stock or an order on record covers a part on the day it is sent. */
