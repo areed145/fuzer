@@ -90,3 +90,4 @@
 @media (min-width: 601px) and (max-width: 900px) {
   .work-table tr > :is(th, td):nth-child(3) { display: none; }
 }
+.work-more { display: flex; align-items: center; gap: 12px; padding: 12px 4px 4px; }

@@ -18,7 +18,8 @@ const token = (id: string, text: string) => `${OPEN}${id}${MID}${text}${CLOSE}`;
  * installed at and its description ("20-K-2100B 1st Stage Compressor"), as people in the field know it (#495). */
 export const display = (id: string, names?: EntityNames) => {
   const n = names?.[id];
-  return n?.at ? [n.at, n.description].filter(Boolean).join(" ") : n?.label || id;
+  // An entity with no label (equipment a source never tagged) reads as its description, not its id (#16).
+  return n?.at ? [n.at, n.description].filter(Boolean).join(" ") : n?.label || n?.description || id;
 };
 
 /** What people call a thing, when its description says more than its tag: "Crude Cooler" for 10-E-3001, "Okan

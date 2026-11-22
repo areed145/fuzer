@@ -11,7 +11,7 @@ const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/wording.
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(code, { exports: exportsObject });
-const { KIND_LABELS, acronyms, alarm, kindWord, person, plural, queue, say, setPeopleNames, unit } = exportsObject;
+const { KIND_LABELS, acronyms, alarm, detectorName, kindWord, person, plural, queue, say, setPeopleNames, unit } = exportsObject;
 
 const MACHINE = /\b(?:alarm|iow|role):[a-z_]|\bdegC\b|\bSm3\b|\b[a-z]+_[a-z_]+ queue\b/;
 
@@ -53,4 +53,12 @@ test("a signed-in account reads as its name, never its actor id", () => {
   assert.equal(person("user:demo"), "Demo account");
   assert.equal(person("system"), "Fuzer");
   assert.equal(say(`handed over by ${id}`), "handed over by Adam Reeder");
+});
+
+test("#16 what raised an event reads as words, not its code", () => {
+  assert.equal(detectorName("alarm_performance"), "Alarm performance");
+  assert.equal(detectorName("rotating_screen"), "Rotating screen");
+  assert.equal(detectorName("sre"), "SRE");
+  assert.equal(detectorName("agent:opportunity_scan"), "Opportunity scan agent");
+  assert.equal(detectorName("SAP PM"), "SAP PM");
 });
