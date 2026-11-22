@@ -189,6 +189,10 @@ register(
             "Work"),
     Setting("exceptions.max_shelve_days", "int", 30, "The longest a person can shelve a standing condition off the "
             "open list; when its expiry passes it comes back on its own", "Work", min=1, max=365),
+    Setting("options.trip_usd", "float", 5000.0, "Options on a case: what a separate trip to the field costs; waiting "
+            "is recommended while it defers less production than this and leaves no high risk", "Work", min=0),
+    Setting("options.window_days", "int", 21, "Options on a case: how far ahead a planned visit to the same area or "
+            "assets is looked for, to ride along with", "Work", min=1, max=90),
     Setting("providers.triage_role", "str", "role:engineer", "Where a detection provider set to triage first sends "
             "the case its alert opens, for a person to look at before it goes on (P3.8b)", "Work"),
     Setting("records.log_tolerance_hours", "int", 12, "Records mismatch: hours either side of a downtime "

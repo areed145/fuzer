@@ -101,6 +101,14 @@ versions in the source catalog (the latest approved one is in use); the files in
 
 **MCP.** Model Context Protocol: how Claude, in the app or in another client, calls Fuzer's tools.
 
+**Options.** The choices for a piece of field work, side by side on a case in To dispatch, With a desk or Back from
+the field (and from its row on All work): **Dispatch now**, **Ride along with the next visit** (a scheduled plan
+item on the same area or assets), **Shelve** (until the area's turnaround, or for at most the longest shelving) and
+**Escalate** (to the engineer, or past the engineer to the ops lead). Each says when it would be done, the
+production deferred until then in bbl and $, the risk of waiting, and whether it is ready; one is **recommended**
+with its reason. Choosing another needs a reason; the choice is kept on the case and counted as the recommendation
+**taken** or not, per work type, on Work performance. Not "proposal" (that is an agent's suggested change).
+
 **Plan.** The one timeline of every planned job from every source: SAP orders and maintenance plans, inspections,
 schedules, and work the IOC planned for a day. A bar on it is a **plan item**.
 

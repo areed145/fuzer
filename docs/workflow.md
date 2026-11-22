@@ -185,6 +185,25 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   it back on the list and says so on its case. **Back on the list** does that early (`POST /exceptions/{id}/unshelve`).
   A safety case type (an IOW breach) can't be shelved. Shelving an exception that joined another's case shelves the
   event (its host), since the event is one row. The case itself is left as it is.
+- **Options with consequences** (P5.20, `ops/options.py`). A case about field work in To dispatch, With a desk or Back
+  from the field opens with its **Options** card (and its row on All work has **Options**): **Dispatch now**, **Ride
+  along with the next visit**, **Shelve** and **Escalate**, side by side (`GET /exceptions/{id}/options`,
+  `GET /work/items/{id}/options`). Each says when it would be done, the production deferred until then in bbl and $,
+  the risk of waiting (the event's priority and its assets' ABC criticality, lower for a short wait), whether it is
+  ready (crew, permit, spares, simultaneous operations, MOC) and its clashes. What it defers now is the producing
+  wells it reaches at their latest test, all of it while a machine is stopped (a trip, with its share where parallel
+  trains carry the rest), else the pack's share for a condition still going (`upsets.rate_at_risk_share`, the
+  assumption an upset's value uses); a condition not yet costing anything says what is behind it if it trips. When:
+  the operator queue's SLA for a dispatch; the start of the next scheduled plan item on the same area or assets within
+  `options.window_days` for a ride along; the area's next turnaround or shutdown, at most
+  `exceptions.max_shelve_days`, for a shelf; the engineer queue's SLA and then a dispatch to escalate. Prices are the
+  pack's value config. One option is **recommended** by one rule, the same on every case: wait while it leaves no high
+  risk and defers less than a separate trip costs (`options.trip_usd`); dispatch now when waiting costs more or leaves
+  a high risk; escalate when it should go now and can't. What is not known is named. The recommended option is one
+  tap (a dispatch goes to the operator queue, or **Choose who…** for a person, what to do, when it is wanted back and a
+  priority); another needs a reason (`POST /exceptions/{id}/options/choose`). The dispatch carries "Why now" to the
+  field job; the choice, the recommendation and the reason go on the case's history, and Work performance by work type
+  shows how often the recommendation was taken (`GET /options/acceptance`).
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
   person step) goes to them, and the instruction travels with it.
 - **Field jobs** on My work are the operator's phone view: jobs sent to them, then jobs waiting in their roles' queues

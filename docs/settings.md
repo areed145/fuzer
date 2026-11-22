@@ -66,6 +66,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `exceptions.around_after_hours` | int | `6` | 0 to 72 | A case shows the alarms and operator log entries about its event's assets until this many hours after its latest finding (the checks and restart are logged after). |
 | `exceptions.suppress_planned_work` | bool | `True` |  | A machine's trip, health or upset detection about an asset with planned work or a shutdown scheduled or in progress on it is counted under that window instead of opening a case (never a safety case type). Off: only shutdowns, turnarounds and people's windows count. |
 | `exceptions.max_shelve_days` | int | `30` | 1 to 365 | The longest a person can shelve a standing condition off the open list; when its expiry passes it comes back on its own. |
+| `options.trip_usd` | float | `5000.0` | ≥ 0 | Options on a case: what a separate trip to the field costs; waiting is recommended while it defers less production than this and leaves no high risk. |
+| `options.window_days` | int | `21` | 1 to 90 | Options on a case: how far ahead a planned visit to the same area or assets is looked for, to ride along with. |
 | `providers.triage_role` | str | `role:engineer` |  | Where a detection provider set to triage first sends the case its alert opens, for a person to look at before it goes on (P3.8b). |
 | `records.log_tolerance_hours` | int | `12` | 0 to 168 | Records mismatch: hours either side of a downtime record (and during it) an operator log entry about the same plant counts as its log. |
 | `records.notification_tolerance_days` | int | `3` | 0 to 60 | Records mismatch: days either side of a downtime record a notification about the same plant counts as its notification. |

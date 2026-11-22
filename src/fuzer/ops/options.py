@@ -1,0 +1,562 @@
+"""Options with consequences on a case (P5.20, #1251): the realistic choices for one piece of field work, side by side
+on one scale, one of them recommended with the factor that decided it, carried out in one tap and recorded.
+
+    for_exception(conn, id)    the options for an event: dispatch now, ride along with the next visit to its area,
+                               shelve, escalate; each with when it would be done, the production deferred until then
+                               (bbl and $), the risk of waiting, readiness and clashes
+    for_case(conn, item_id)    the same, for the event a case works
+    choose(conn, id, by, option, reason, ...)  carry out a choice: dispatch it, put it on the plan, shelve it or send
+                               it to the engineer, with the reason on the case's history and the field job
+    acceptance(conn, days)     how often the recommendation was taken, per work type
+
+Read from what Fuzer already has, never from equipment type:
+    what it defers now      the producing wells it reaches at their latest test (sre_handoff.rate_at_risk): all of it
+                            while a machine is down (a trip), else the pack's share for a condition still going
+                            (value config `upsets.rate_at_risk_share`), the same assumption an upset's value uses.
+                            A machine that is down takes the wells behind it on the flow network (at_risk.trip), its
+                            share where parallel trains carry the rest
+    what it puts at risk    for a condition not yet costing production: what is behind it if it trips, for the
+                            risk line; never added to the deferred barrels, since the chance it trips is not known
+    when it is done         dispatch now: the operator queue's time to respond (its SLA); the next visit: a plan item
+                            on the same area or assets starting within `options.window_days`; shelve: until the next
+                            turnaround or shutdown of the area, at most `exceptions.max_shelve_days`; escalate: the
+                            engineer queue's SLA, then a dispatch
+    readiness and clashes   readiness.check (crew, permit, spares, simultaneous operations, MOC) for dispatch now;
+                            the visit's own clashes on the plan for riding along
+    price                   the pack's value config (oil per bbl, gas per Mscf)
+
+The recommendation is a rule, the same on every case, so two people reading one case get one answer: the cheapest
+option that is ready and does not leave a high risk waiting, where a separate trip (`options.trip_usd`) has to save
+more than it costs. Anything not known is named, not guessed.
+"""
+
+from datetime import UTC, datetime, timedelta
+
+from psycopg.types.json import Jsonb
+
+from ..core import events, settings, work
+from ..core.exceptions import ExceptionError
+
+KEYS = ("dispatch", "window", "shelve", "escalate")
+DOWN_TYPES = ("machine_trip",)  # the thing is stopped: everything it reaches is deferred, not a share
+OPEN_STAGES = ("dispatch", "desk", "back", "planned")
+JOB_HOURS = 4.0  # the job itself, once someone is there: added after a wait for a visit or a shelf
+LEVELS = ("Low", "Medium", "High")
+
+
+class OptionsError(ExceptionError):
+    pass
+
+
+# ---- the event and what it costs ------------------------------------------------------------------------------
+
+def _event(conn, exception_id: int) -> dict:
+    from . import exceptions
+
+    row = conn.execute(
+        """
+        select e.*, w.state as case_state, w.assignee, w.role, w.priority as case_priority,
+               coalesce((select h.data->>'reason' from work_event h where h.item_id = e.item_id and h.kind = 'handed_off'
+                         order by h.id desc limit 1) like 'Back from the field%%', false) as back_from_field,
+               (select json_build_object('id', p.id, 'start_at', p.start_at, 'end_at', p.end_at, 'crew', p.crew)
+                from plan_item p where p.exception_id = e.id and p.status in ('proposed', 'scheduled', 'in_progress')
+                order by p.start_at limit 1) as planned
+        from exception_record e left join work_item w on w.id = e.item_id where e.id = %s
+        """, (exception_id,)).fetchone()
+    if row is None:
+        raise OptionsError(f"no exception {exception_id}")
+    if row["joined_to"]:
+        return _event(conn, row["joined_to"])
+    row = dict(row)
+    row["stage"] = exceptions.stage(row, exceptions.operators(conn))
+    return row
+
+
+def _hours(conn, role: str, fallback: float) -> float:
+    """A queue's time to respond, from its SLA (work_role.default_sla, an ISO 8601 duration Postgres reads)."""
+    import psycopg
+
+    try:
+        with conn.transaction():  # a savepoint: an SLA Postgres can't read rolls back only this read
+            r = conn.execute("select extract(epoch from default_sla::interval) / 3600 as h from work_role "
+                             "where name = %s and default_sla is not null", (role,)).fetchone()
+    except psycopg.DataError:  # an SLA written in a form Postgres doesn't read: the fallback, not a failed page
+        return fallback
+    return float(r["h"]) if r and r["h"] else fallback
+
+
+def _parallel(conn, unit: str) -> int:
+    """How many units carry what `unit` carries: those fed by the same nodes and feeding the same ones on the flow
+    network (trains in parallel). One when it has no twin."""
+    rows = conn.execute(
+        """
+        with mine as (select array_agg(distinct dst order by dst) as out,
+                             (select array_agg(distinct src order by src) from edge where rel = 'flows_to'
+                              and dst = %(u)s and valid_to is null) as feeds
+                      from edge where rel = 'flows_to' and src = %(u)s and valid_to is null)
+        select count(*) as n from (
+            select o.src, array_agg(distinct o.dst order by o.dst) as out,
+                   (select array_agg(distinct i.src order by i.src) from edge i where i.rel = 'flows_to'
+                    and i.dst = o.src and i.valid_to is null) as feeds
+            from edge o where o.rel = 'flows_to' and o.valid_to is null group by o.src) t, mine
+        where t.out = mine.out and t.feeds is not distinct from mine.feeds
+        """, {"u": unit}).fetchone()
+    return max(1, int(rows["n"] or 1))
+
+
+def _prices(conn) -> dict:
+    from ..analysis import value
+    from ..core import pack as packs
+
+    try:
+        cfg = value.config(packs.current_pack(conn))
+    except Exception:  # no pack chosen yet: the built-in prices, said as such
+        cfg = value.config(type("NoPack", (), {"name": "none", "value": None})())
+    return {**cfg["prices"], "source": cfg["source"], "share": cfg["upsets"]["rate_at_risk_share"]}
+
+
+def _usd(oil: float, gas: float, prices: dict) -> float:
+    return oil * prices["oil_bbl"] + gas * prices["gas_mscf"]
+
+
+def loss(conn, row: dict, prices: dict) -> tuple[dict | None, dict | None, list[str]]:
+    """What the event defers now (per day) and what is behind it if it trips, each with its basis, and what is not
+    known. Deferred now: a down machine's share of the wells behind it, or the wells the condition reaches; at risk:
+    what is behind a machine whose condition has not stopped it yet."""
+    from . import at_risk, sre_handoff
+
+    subjects = list(row["subjects"] or [])
+    unknown: list[str] = []
+    down = row["type"] in DOWN_TYPES
+    rate = sre_handoff.rate_at_risk(conn, subjects) if subjects else None
+    now = behind = None
+    if rate:
+        share = 1.0 if down else prices["share"]
+        oil, gas = rate["oil_bbld"] * share, rate["gas_mscfd"] * share
+        now = {"oil_bbld": round(oil, 1), "gas_mscfd": round(gas, 1), "usd_per_day": round(_usd(oil, gas, prices)),
+               "wells": rate["wells"],
+               "basis": (f"the latest test rate of the {rate['wells']} producing well(s) it is on, stopped"
+                         if down else f"{share:.0%} of the latest test rate of the {rate['wells']} producing well(s) "
+                         "it is on, while it lasts (the pack's share for a condition still going)")}
+    elif subjects:
+        tripped = at_risk.trip(conn, subjects[0], hours=24)
+        oil = next((a["value"] for a in tripped["at_risk"] if a["quantity"] == "oil_rate"), 0.0)
+        gas = next((a["value"] for a in tripped["at_risk"] if a["quantity"] == "gas_rate"), 0.0)
+        if tripped["on_network"] and (oil or gas):
+            n = _parallel(conn, tripped["units"][0]["id"]) if len(tripped["units"]) == 1 else 1
+            oil, gas = oil / n, gas / n
+            wells = len(tripped["wells"])
+            said = (f"the {wells} well(s) behind {tripped['item']['label']} on the flow network at their latest test"
+                    + (f", its share of {n} trains in parallel" if n > 1 else ""))
+            figure = {"oil_bbld": round(oil, 1), "gas_mscfd": round(gas, 1),
+                      "usd_per_day": round(_usd(oil, gas, prices)), "wells": wells, "basis": said}
+            if down:
+                now = {**figure, "basis": said + ", stopped"}
+            else:
+                behind = {**figure, "basis": said + ", if it trips"}
+        elif not tripped["on_network"]:
+            unknown.append("what it defers: it reaches no tested producing well and is not on the flow network")
+    else:
+        unknown.append("what it defers: it is matched to no asset")
+    return now, behind, unknown
+
+
+def _criticality(conn, subjects: list[str]) -> str | None:
+    """The highest ABC criticality among its assets and the tags they are installed at."""
+    if not subjects:
+        return None
+    rows = conn.execute(
+        """
+        select value #>> '{}' as v from golden where field = 'criticality' and fuzer_id in (
+            select unnest(%(s)s::text[]) union select dst from edge where rel = 'installed_at' and valid_to is null
+            and src = any(%(s)s))
+        """, {"s": subjects}).fetchall()
+    found = sorted({(r["v"] or "").strip().upper()[:1] for r in rows} & {"A", "B", "C"})
+    return found[0] if found else None
+
+
+def _base(priority: float | None, crit: str | None) -> int:
+    """The risk of the condition itself, 0 low to 2 high: its priority (a 0-1 score, or SAP 1-4 stored as 5 minus
+    it) and its criticality, whichever is higher."""
+    p = 0
+    if priority is not None and priority > 0:
+        if priority <= 1:
+            p = 2 if priority >= 0.8 else 1 if priority >= 0.5 else 0
+        elif priority <= 4:
+            sap = 5 - round(priority)
+            p = 2 if sap <= 2 else 1 if sap == 3 else 0
+        else:  # a value in USD
+            p = 2 if priority >= 10000 else 1 if priority >= 1000 else 0
+    c = {"A": 2, "B": 1, "C": 0}.get(crit or "", 0)
+    return max(p, c)
+
+
+def _risk(base: int, hours: float, crit: str | None, behind: dict | None) -> dict:
+    """The risk of leaving it this long: a short wait takes the condition's own risk down a level or two, a long one
+    leaves it as it is."""
+    level = base - 2 if hours <= 8 else base - 1 if hours <= 72 else base
+    level = max(0, min(2, level))
+    why = [f"criticality {crit}" if crit else "criticality not assessed"]
+    if behind:
+        why.append(f"{_n(behind['oil_bbld'])} bbl/d behind it if it trips")
+    return {"level": LEVELS[level], "why": ", ".join(why)}
+
+
+def _n(x: float) -> str:
+    return f"{x:,.0f}"
+
+
+def _deferred(now: dict | None, hours: float, prices: dict) -> dict | None:
+    if now is None:
+        return None
+    days = hours / 24
+    oil, gas = now["oil_bbld"] * days, now["gas_mscfd"] * days
+    return {"oil_bbl": round(oil), "gas_mscf": round(gas), "usd": round(_usd(oil, gas, prices))}
+
+
+# ---- the windows -------------------------------------------------------------------------------------------------
+
+def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
+    """The next planned visit to the event's area or assets that it could ride along with: a plan item scheduled or
+    under way, starting after now and within `days`, not this event's own."""
+    from .plan import ACTIVE, _area
+
+    subjects = list(row["subjects"] or [])
+    area = _area(conn, subjects)
+    if not area and not subjects:
+        return None
+    r = conn.execute(
+        """
+        select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew, p.area_id, la.label as area
+        from plan_item p left join entity_label la on la.fuzer_id = p.area_id
+        where p.status = any(%(active)s) and p.status <> 'proposed' and p.start_at > %(at)s
+          and p.start_at <= %(until)s and p.exception_id is distinct from %(e)s
+          and ((%(area)s::text is not null and p.area_id = %(area)s) or p.subjects && %(s)s::text[])
+        order by p.start_at, p.id limit 1
+        """, {"active": list(ACTIVE), "at": at, "until": at + timedelta(days=days), "e": row["id"], "area": area,
+              "s": subjects}).fetchone()
+    return dict(r) if r else None
+
+
+def _turnaround(conn, row: dict, at: datetime) -> dict | None:
+    """The next turnaround or shutdown of the event's area, within a year."""
+    from .plan import ACTIVE, SHUTDOWNS, _area
+
+    area = _area(conn, list(row["subjects"] or []))
+    if not area:
+        return None
+    r = conn.execute(
+        """
+        select id, title, kind, start_at, end_at from plan_item
+        where status = any(%(active)s) and kind = any(%(sd)s) and area_id = %(area)s and start_at > %(at)s
+          and start_at <= %(at)s + interval '365 days'
+        order by start_at limit 1
+        """, {"active": list(ACTIVE), "sd": list(SHUTDOWNS), "area": area, "at": at}).fetchone()
+    return dict(r) if r else None
+
+
+def _plan_clashes(conn, item_id: int, start: datetime, end: datetime) -> list[str]:
+    from . import plan
+
+    for i in plan.items(conn, start - timedelta(hours=1), end + timedelta(hours=1)):
+        if i["id"] == item_id:
+            return [c["say"] for c in i["clashes"] if c["kind"] != "bundle"]
+    return []
+
+
+def _escalate_to(conn, row: dict) -> str:
+    """The engineer, unless the engineer already has it: then where the engineer queue escalates (the ops lead)."""
+    if row.get("role") == "engineer" or (row.get("assignee") and "engineer" in work.roles_of(conn, row["assignee"])):
+        r = conn.execute("select escalate_to from work_role where name = 'engineer'").fetchone()
+        return (r and r["escalate_to"]) or "ops_lead"
+    return "engineer"
+
+
+# ---- the options -------------------------------------------------------------------------------------------------
+
+def _applies(conn, row: dict) -> str | None:
+    """Why options don't apply to this event, or None when they do: work the field does, still to be decided."""
+    from . import exceptions
+
+    t = exceptions.types(conn).get(row["type"])
+    if t is not None and "field" not in t.audience:
+        return "not field work: it is worked at a desk"
+    if row["state"] != "open":
+        return f"it is {row['state']}"
+    if row["stage"] not in OPEN_STAGES:
+        return "the field has it" if row["stage"] == "field" else f"it is {row['stage']}"
+    return None
+
+
+def for_case(conn, item_id: int) -> dict:
+    r = conn.execute("select id from exception_record where item_id = %s and joined_to is null order by id limit 1",
+                     (item_id,)).fetchone()
+    if r is None:
+        return {"applies": False, "why_not": "no event behind this case", "exception_id": None, "options": []}
+    return for_exception(conn, r["id"])
+
+
+def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
+    from . import readiness
+
+    row = _event(conn, exception_id)
+    at = at or datetime.now(UTC)
+    head = {"exception_id": row["id"], "item_id": row["item_id"], "type": row["type"], "stage": row["stage"],
+            "decided": decisions(conn, row["id"])[:1] or None}
+    why_not = _applies(conn, row)
+    if why_not:
+        return {**head, "applies": False, "why_not": why_not, "options": []}
+    prices = _prices(conn)
+    now, behind, unknown = loss(conn, row, prices)
+    crit = _criticality(conn, list(row["subjects"] or []))
+    if not crit:
+        unknown.append("criticality: not assessed on its assets")
+    base = _base(row["case_priority"] or row["priority"], crit)
+    options = []
+
+    # dispatch now
+    respond = _hours(conn, "operator", 4.0)
+    ready = readiness.check(conn, list(row["subjects"] or []), row["id"])
+    clashes = next((c["blockers"] for c in ready["checks"] if c["check"] == "simops"), [])
+    notes = [c["note"] for c in ready["checks"] if not c.get("checked") and c.get("note")]
+    options.append({
+        "key": "dispatch", "label": "Dispatch now", "detail": "to a field operator",
+        "hours": respond, "by": (at + timedelta(hours=respond)).isoformat(),
+        "deferred": _deferred(now, respond, prices), "risk": _risk(base, respond, crit, behind),
+        "ready": ready["ready"], "blockers": [b for b in ready["blockers"] if b not in clashes],
+        "warnings": ready["warnings"] + notes[:2], "clashes": clashes, "available": True,
+        "basis": f"the operator queue answers within {respond:g} h (its SLA)"})
+
+    # ride along with the next visit
+    days = int(settings.get(conn, "options.window_days"))
+    visit = _visit(conn, row, at, days)
+    if visit:
+        hours = (visit["start_at"] - at).total_seconds() / 3600 + JOB_HOURS
+        short = [b for b in readiness.spares(conn, list(row["subjects"] or []))["blockers"]
+                 if not _arrives_by(b, visit["start_at"])]
+        options.append({
+            "key": "window", "label": "Ride along with the next visit",
+            "detail": f"{visit['title']}, {visit['start_at']:%a %d %b}", "plan_item": visit["id"],
+            "start": visit["start_at"].isoformat(), "crew": visit["crew"],
+            "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
+            "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
+            "ready": not short, "blockers": short, "warnings": [],
+            "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"]), "available": True,
+            "basis": f"{visit['kind'].replace('_', ' ')} on the plan" + (f" in {visit['area']}" if visit["area"] else "")
+                     + f", then {JOB_HOURS:g} h for the job"})
+    else:
+        options.append({"key": "window", "label": "Ride along with the next visit", "available": False,
+                        "unavailable": f"nothing scheduled on its area or assets in the next {days} days"})
+
+    # shelve
+    longest = int(settings.get(conn, "exceptions.max_shelve_days"))
+    ta = _turnaround(conn, row, at)
+    until = min(ta["start_at"], at + timedelta(days=longest)) if ta else at + timedelta(days=longest)
+    safety = row["type"] in _safety_types(conn)
+    hours = (until - at).total_seconds() / 3600 + JOB_HOURS
+    to_ta = bool(ta) and until == ta["start_at"]
+    shelve = {"key": "shelve", "label": "Shelve until the turnaround" if to_ta else f"Shelve for {(until - at).days} days",
+              "detail": f"{until:%a %d %b}" + (f", {ta['title']}" if to_ta else ""),
+              "until": until.isoformat(), "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
+              "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
+              "ready": True, "blockers": [], "warnings": [], "clashes": [], "available": not safety,
+              "basis": (f"the next {ta['kind']} of its area starts {ta['start_at']:%d %b}" if ta else
+                        "no turnaround of its area on the plan") +
+                       (f"; shelving is for at most {longest} days" if not to_ta else "")}
+    if safety:
+        shelve["unavailable"] = "a safety case type can't be shelved"
+    options.append(shelve)
+
+    # escalate
+    to = _escalate_to(conn, row)
+    hours = _hours(conn, to, 24.0) + respond
+    options.append({
+        "key": "escalate", "label": f"Escalate to the {to.replace('_', ' ')}", "detail": "decides what happens next",
+        "to": f"role:{to}", "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
+        "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
+        "ready": True, "blockers": [], "warnings": [], "clashes": [], "available": True,
+        "basis": f"the {to.replace('_', ' ')} queue answers within {_hours(conn, to, 24.0):g} h, then a dispatch"})
+
+    key, reason = recommend(options, now, float(settings.get(conn, "options.trip_usd")))
+    return {**head, "applies": True, "why_not": None, "at": at.isoformat(), "loss": now, "if_it_trips": behind,
+            "criticality": crit, "prices": {"oil_bbl": prices["oil_bbl"], "gas_mscf": prices["gas_mscf"],
+                                            "source": prices["source"]},
+            "options": options, "recommended": key, "reason": reason, "unknown": unknown}
+
+
+def _arrives_by(blocker: str, start: datetime) -> bool:
+    """A spares blocker whose purchase order is due before the visit starts."""
+    import re
+
+    m = re.search(r"due (\d{4}-\d{2}-\d{2})", blocker)
+    return bool(m) and m.group(1) <= start.date().isoformat()
+
+
+def _safety_types(conn) -> set[str]:
+    from ..core import gates
+
+    return set(gates.safety_case_types(conn))
+
+
+def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[str, str]:
+    """One option, by one rule, and the factor that decided it. Waiting is preferred while it leaves no high risk and
+    defers less than a separate trip costs; dispatch now when waiting costs more, or the risk of waiting is high;
+    escalate when it should go now and can't."""
+    from ..core.wording import money
+
+    by = {o["key"]: o for o in options if o.get("available")}
+    d = by["dispatch"]
+    usd = lambda o: (o.get("deferred") or {}).get("usd") or 0
+    waiting = [o for o in (by.get("window"), by.get("shelve")) if o]
+    waits = [o for o in waiting if o["ready"] and o["risk"]["level"] != "High"]
+    cheapest = min(waits, key=lambda o: (usd(o), o["hours"])) if waits else None
+    saved = usd(cheapest) - usd(d) if cheapest else None
+    if cheapest and saved <= trip_usd:
+        risk = f"waiting leaves the risk {cheapest['risk']['level'].lower()}"
+        if cheapest["key"] == "window":
+            cost = (f"{_money(saved)} more deferred than going now, less than a separate trip "
+                    f"({money(trip_usd)})" if now and saved > 0 else "nothing deferred while it waits")
+            return "window", f"The visit on {cheapest['detail'].rsplit(', ', 1)[-1]} does it with {cost}; {risk}."
+        cost = (f"Waiting defers {_bbl(cheapest)} ({_money(usd(cheapest))}), less than a separate trip "
+                f"({money(trip_usd)})" if now and usd(cheapest) else "Nothing is deferred while it waits")
+        return "shelve", f"{cost}; {risk}."
+    alt = min(waiting, key=lambda o: (usd(o), o["hours"])) if waiting else None
+    if d["ready"]:
+        why = []
+        if alt and now:
+            name = "the next visit" if alt["key"] == "window" else "the shelf"
+            why.append(f"Waiting for {name} defers {_bbl(alt)} ({_money(usd(alt))}) against {_bbl(d)} "
+                       f"({_money(usd(d))}) if it goes now")
+        if any(o["risk"]["level"] == "High" for o in waiting):
+            why.append("waiting leaves the risk high" if why else "Waiting leaves the risk high")
+        why.append("nothing blocks it")
+        return "dispatch", "; ".join(why) + "."
+    blocked = (d["blockers"] or d["clashes"] or ["not ready"])[0]
+    if "window" in by and by["window"]["ready"] and by["window"]["risk"]["level"] != "High":
+        return "window", f"It can't go now ({blocked}); the next visit can take it."
+    return "escalate", f"It can't go now ({blocked}) and waiting leaves the risk high: an engineer decides the way round."
+
+
+def about(v: float) -> float:
+    """An estimate to two significant figures: a test rate times hours claims no more (as Plan shows at-risk)."""
+    if not v:
+        return 0
+    import math
+
+    p = 10 ** max(0, math.floor(math.log10(abs(v))) - 1)
+    return round(v / p) * p
+
+
+def _money(v: float) -> str:
+    from ..core.wording import money
+
+    return money(about(v))
+
+
+def _bbl(o: dict) -> str:
+    d = o.get("deferred") or {}
+    return f"about {_n(about(d.get('oil_bbl') or 0))} bbl"
+
+
+# ---- carrying out a choice ---------------------------------------------------------------------------------------
+
+def choose(conn, exception_id: int, by: str, option: str, reason: str | None = None, *, to: str | None = None,
+           ask: str | None = None, due=None, priority: float | None = None, override: str | None = None) -> dict:
+    """Carry out one of an event's options and record it: dispatch it (to a person or the operator queue, with what to
+    do and why now), put it on the plan with the next visit, shelve it, or send it to the engineer. Taking another
+    option than the one recommended needs a reason. The choice, the recommendation and the reason are kept, on the
+    case's history too, and published as exception.option_chosen."""
+    from . import exceptions, plan, readiness
+
+    if option not in KEYS:
+        raise OptionsError(f"option must be one of {KEYS}")
+    offered = for_exception(conn, exception_id)
+    if not offered["applies"]:
+        raise OptionsError(f"no options to choose from: {offered['why_not']}")
+    o = next(x for x in offered["options"] if x["key"] == option)
+    if not o.get("available"):
+        raise OptionsError(f"{o['label']} is not open: {o.get('unavailable')}")
+    reason = (reason or "").strip()
+    rec = offered["recommended"]
+    if option != rec and not reason:
+        raise OptionsError("say why you chose another option than the one recommended")
+    why = reason or offered["reason"]
+    eid = offered["exception_id"]
+    if option == "dispatch":
+        ready = readiness.for_exception(conn, eid)
+        override = (override or "").strip()
+        if not ready["ready"] and not override:
+            raise OptionsError("Not ready to dispatch: " + "; ".join(ready["blockers"]) + ". Say why it should go anyway.")
+        told = "; ".join(x for x in ((ask or "").strip(), f"Why now: {why}") if x)
+        row = exceptions.dispatch(conn, eid, by, to or "role:operator", told,
+                                  override=override if not ready["ready"] else None, blockers=ready["blockers"])
+        if row["item_id"] and due:
+            work.set_due(conn, row["item_id"], by, due, "wanted back by then when dispatched")
+        if row["item_id"] and priority is not None:
+            work.set_priority(conn, row["item_id"], by, priority, "set when dispatched")
+    elif option == "window":
+        from ..core.plan import PlanError
+
+        start = datetime.fromisoformat(o["start"])
+        try:
+            plan.plan_exception(conn, eid, by, start, start + timedelta(hours=JOB_HOURS), crew=o.get("crew"),
+                                notes=f"Rides along with {o['detail']}. Why: {why}")
+        except PlanError as e:
+            raise OptionsError(str(e)) from e
+        row = _event(conn, eid)
+        if row["item_id"]:
+            work.set_due(conn, row["item_id"], by, start + timedelta(hours=JOB_HOURS), f"rides along with {o['detail']}")
+    elif option == "shelve":
+        row = exceptions.shelve(conn, eid, by, why, o["until"])
+    else:
+        row = exceptions.dispatch(conn, eid, by, o["to"], f"Escalated: {why}")
+    row = _event(conn, eid)
+    accepted = option == rec
+    rec_label = next(x["label"] for x in offered["options"] if x["key"] == rec)
+    kept = {k: offered[k] for k in ("loss", "if_it_trips", "criticality", "recommended", "reason", "unknown")}
+    kept["options"] = [{k: x.get(k) for k in ("key", "label", "detail", "hours", "deferred", "risk", "ready")}
+                       for x in offered["options"] if x.get("available")]
+    d = conn.execute(
+        """
+        insert into option_choice (exception_id, item_id, type, chosen, recommended, accepted, reason, by, offered)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s) returning *
+        """, (eid, row["item_id"], row["type"], option, rec, accepted, reason or None, by, Jsonb(kept))).fetchone()
+    if row["item_id"]:
+        cost = (o.get("deferred") or {}).get("usd")
+        text = (f"Chose {o['label'].lower()}" + (f" ({o['detail']})" if o.get("detail") else "")
+                + (f", deferring about {_money(cost)}" if cost else "")
+                + (", as recommended" if accepted else f" instead of the recommended {rec_label.lower()}")
+                + f". Why: {why}")
+        work.comment(conn, row["item_id"], by, text)
+    events.publish(conn, "exception.option_chosen", f"exception:{eid}",
+                   {"id": eid, "item_id": row["item_id"], "chosen": option, "recommended": rec, "accepted": accepted,
+                    "reason": reason or None, "by": by})
+    return {"choice": d, "event": {k: row[k] for k in ("id", "item_id", "stage", "state")}}
+
+
+def decisions(conn, exception_id: int) -> list[dict]:
+    """The choices made on an event, newest first."""
+    return conn.execute("select id, chosen, recommended, accepted, reason, by, at from option_choice "
+                        "where exception_id = %s order by id desc", (exception_id,)).fetchall()
+
+
+def acceptance(conn, days: int = 90) -> dict:
+    """How often the recommended option was taken over the last `days`, per work type and overall: the measure of
+    whether the recommendations are any good."""
+    from . import exceptions
+
+    rows = conn.execute(
+        """
+        with c as (select type, chosen, count(*) as n, count(*) filter (where accepted) as a from option_choice
+                   where at > now() - make_interval(days => %s) group by type, chosen)
+        select type, sum(n)::int as decided, sum(a)::int as accepted, jsonb_object_agg(chosen, n) as chosen
+        from c group by type order by sum(n) desc, type
+        """, (days,)).fetchall()
+    labels = {n: t.label for n, t in exceptions.types(conn).items()}
+    out = [{"type": r["type"], "label": labels.get(r["type"], r["type"].replace("_", " ")), "decided": r["decided"],
+            "accepted": r["accepted"], "rate": round(r["accepted"] / r["decided"], 2) if r["decided"] else None,
+            "chosen": r["chosen"] or {}} for r in rows]
+    decided = sum(r["decided"] for r in out)
+    taken = sum(r["accepted"] for r in out)
+    return {"days": days, "decided": decided, "accepted": taken,
+            "rate": round(taken / decided, 2) if decided else None, "types": out}

@@ -2139,6 +2139,24 @@ A deterministic rule drafted from a pattern of confirmed proposals (P3.4): its s
 | `published_at` | timestamptz |  |
 | `reason` | text |  |
 
+### `option_choice`
+
+A choice made between an event's options (P5.20, #1251): what was offered and recommended, what was taken and why, so how often the recommendation is taken can be measured per work type.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `exception_id` | bigint |  |
+| `item_id` | bigint |  |
+| `type` | text |  |
+| `chosen` | text | dispatch \| window \| shelve \| escalate |
+| `recommended` | text |  |
+| `accepted` | boolean |  |
+| `reason` | text, | the person's own words; required when not the recommendation |
+| `by` | text |  |
+| `at` | timestamptz |  |
+| `offered` | jsonb | the options as they stood, with their figures |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)
