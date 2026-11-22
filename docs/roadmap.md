@@ -43,7 +43,7 @@ built left to right.
 | 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15, P5.16, P5.17, P5.19 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
 | *Gate C* (passed 2026-11-13) | | | Third asset type live, no code | |
-| 7 After the alert | P5.20, P5.21, P5.22, P5.23 | | P2.8 | |
+| 7 After the alert | P5.20, P5.21, P5.22, P5.23 | | P2.8 | P4.8, P4.7, P6.6 |
 
 Gate A was signed off on 2026-11-12. One gap is logged for Phase 2: in the loop eval, steward questions and source
 and mapping problems are still raised by the loop instead of arriving on their own (#747).
@@ -193,6 +193,18 @@ five, filed at Adam's request before a session starts them.
 | P5.22 Pipeline outage scheduling for Harrier | A customer and contract register; outage windows with volume and $ impact; views by asset, person and customer; three proposed windows with reasons; drafted internal and customer notices; proposals merged by a coordinator | Harrier flags two outages hitting the same customer, proposes windows with $ impact and drafts notices, with no code of its own |
 | P2.8 Free-text messages become matched work | Email, operator log, radio notes, Teams posts and phone notes become exceptions matched to the register, low confidence to the steward, shown on All work with their source and a drafted acknowledgement | A recorded Okan message set is matched with measured precision; a phone note becomes routed work |
 | P5.23 Rules in plain words, auto-assign, agent steps with Revert | Rules typed in words become typed, switchable checks on Plan; auto-assign of unassigned field jobs as a proposal; each agent action lists its steps and records changed, with Revert | A typed rule flags tiles that break it; auto-assign breaks no rule; Revert restores an agent change |
+
+## Skills for the choices, and what Fuzer couldn't determine (P4.7 #1259, P4.8 #1260, P6.6 #1258)
+
+The After the alert epics ask specialists to weigh options and plan around trips, on every asset. Two skills are
+missing: no specialist knows pipelines, and nothing compares options on one scale. And when a specialist can't settle
+something, Fuzer records nothing, so its blind spots never reach the roadmap.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P4.7 Pipelines & Commercial specialist | A pack with pipeline integrity, hydraulics and linepack, nominations and contracts, and outage planning skills, with tools over Harrier's segments, stations, meters and customers | Every Harrier pipeline case gets its brief; the pack passes its eval; no Harrier-specific code |
+| P4.8 A shared skill that weighs options the same way every time | `shared/options-and-tradeoffs`: deferred bbl and $, risk, readiness and clashes on one scale, one recommendation with its deciding factor, unknowns named | Options on Okan cases share the same fields and pass an eval; two specialists agree or say why not |
+| P6.6 A "couldn't determine" log | A typed record when a specialist, option or plan change can't settle something (no data, tool or skill, conflicting evidence, out of scope), "unknown" shown instead of a guess, a ranked view on How the work is running, and drafted issues for the top items | Records raised on a seeded missing source; the view ranks by frequency and value at stake; an item drafts an issue |
 
 ## How the work is tracked
 
