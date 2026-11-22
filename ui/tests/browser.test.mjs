@@ -7986,6 +7986,33 @@ test("P5.13c A case page draws the trend of the unit its event is on, over the e
   assert.equal(await page.getByRole("link", { name: "See what K-1 feeds in 3D" }).getAttribute("href"), "#/3d?at=k1&node=k1&path=down&as_of=2024-03-14T09%3A00");
 });
 
+test("a case's trend opens on the reading its title names, with every value a tap away", async () => {
+  const trace = (id, label) => ({ id, point: `OK:${id}.PV`, description: label, uom: "degF", axis: "degF", show: true,
+    values: [["2024-03-14T00:00", 140], ["2024-03-14T08:00", 150]], min: 140, max: 150, mean: 145, last: 150, role_label: label,
+    on: null, limits: [] });
+  const view = { provider: "synthetic", centre: "2024-03-14T06:00", start: "2024-03-13T23:00", end: "2024-03-14T09:00",
+    step_minutes: 5, upsets: [], unit: "p1", unit_label: "P-1", classes: ["PU"], template: { key: "PU", title: "Pump" },
+    missing: [], other: [], groups: [
+      { key: "pressures", label: "Pressures", show: true, traces: [trace("pt1", "Suction pressure"), trace("pt2", "Discharge pressure")] },
+      { key: "bearings", label: "Vibration and bearings", show: true, traces: [trace("vt1", "Casing vibration"), trace("tt1", "Bearing temperature")] }] };
+  await page.route("**/work/items/32", route => route.fulfill({ json: { id: 32, title: "P-1 bearing temperature on P-1: 190 degF",
+    type: "round_finding", state: "open", subjects: ["p1"], created_by: "alex", created_at: "2024-03-14T03:20:00Z", events: [], processes: [] } }));
+  await page.route("**/work/items/32/around", route => route.fulfill({ json: {
+    window: { start: "2024-03-13T23:00", end: "2024-03-14T09:00" }, units: [{ id: "p1", label: "P-1" }], alarms: [], log: [], basis: "" } }));
+  await page.route("**/entities/p1/trend-view*", route => route.fulfill({ json: view }));
+  await page.route("**/entities/p1/timeline*", route => route.fulfill({ json: { unit: "p1", start: view.start, end: view.end, lanes: [] } }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/cases/32`);
+  const card = page.locator(".trend-view");
+  await card.locator(".main-svg").first().waitFor();
+  // only the bearing temperature is drawn, and the chips wait behind Show all
+  assert.match(await card.locator("[aria-label*='traces']").first().getAttribute("aria-label"), /: 1 traces/);
+  assert.equal(await card.getByRole("button", { name: "Suction pressure", exact: true }).count(), 0);
+  await card.getByRole("button", { name: "Show all 4 values" }).click();
+  await card.getByRole("button", { name: "Suction pressure", exact: true }).waitFor();
+  assert.match(await card.locator("[aria-label*='traces']").first().getAttribute("aria-label"), /: 4 traces/);
+});
+
 test("P5.14a The installed app has its own Back, never leaves the app, and resumes the last page", async () => {
   // Opened from the home screen: standalone display, no browser back button.
   await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
