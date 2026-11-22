@@ -7,7 +7,7 @@ drawing; a role is a list of people.
 ```mermaid
 flowchart LR
   t["1. Define the type<br><small>All work > Exception types,<br>or a source pack</small>"] --> r["2. Route it<br><small>process, queue,<br>or the IOC</small>"]
-  r --> w["3. Draw the workflow<br><small>Work > Workflows</small>"]
+  r --> w["3. Draw the workflow<br><small>Settings > Workflows</small>"]
   w --> u["4. Give people roles<br><small>Settings > Users</small>"]
   u --> d["5. Dry-run it<br><small>Settings > Routing</small>"]
 ```
@@ -31,7 +31,7 @@ queue, with the role's SLA and escalation; or nothing, waiting on **All work > T
 
 ## 3. Draw the workflow
 
-**Work > Workflows** lists each BPMN workflow with its health, and opens **Overview**, **Running**, **Model**,
+**Settings > Workflows** lists each BPMN workflow with its health, and opens **Overview**, **Running**, **Model**,
 **Monitor** and **SLAs & routing**. The modeler draws lanes for roles, person steps with forms, agent steps run by
 the assistant's specialists, timers and escalations. Reusable components such as **Field check** send a step to the
 field and bring it back. Task forms are edited beside the workflow.
