@@ -29,6 +29,8 @@
 #main-content .work-table thead th[aria-sort] .ui-button.ui-button-link { color: var(--text); font-weight: 600; }
 .work-table td.work-row-act { width: 1%; }
 .work-table td.work-row-act .work-row-actions { flex-wrap: wrap; min-width: 6.5rem; }
+/* On a wide monitor a row's actions sit side by side, so a row is one line tall, not four buttons tall (#17). */
+@media (min-width: 1800px) { .work-table td.work-row-act .work-row-actions { flex-wrap: nowrap; } }
 .work-table .work-row-stage { min-width: 6rem; }
 .work-table td.work-row-where { min-width: 8rem; }
 .work-table td.work-row-with { max-width: 11rem; }

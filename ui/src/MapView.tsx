@@ -159,6 +159,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
   const [library, setLibrary] = useState<"pending" | "mapkit" | "leaflet">(basemap ? "pending" : "leaflet");
   const [engine, setEngine] = useState<MapEngine | null>(null);
   const fitted = useRef(false);
+  const firstFit = useRef<{ coords: LatLon[]; zoom: number } | null>(null);
   const [zoomed, setZoomed] = useState(0);  // counts zoom changes, so overlapping hotspots gather again
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [basemapName, setBasemapName] = useState<Basemap>(basemap ? savedBasemap : "none");
@@ -204,7 +205,17 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     return () => { made.destroy(); setEngine(null); };
   }, [library]);
 
-  useEffect(() => { if (inset) engine?.setInset(inset); }, [engine, inset?.top, inset?.right, inset?.bottom, inset?.left]);  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!inset || !engine) return;
+    engine.setInset(inset);
+    // The panels over the map settle after the first fit (Tower's tiles fill in): fit again into the room they leave,
+    // unless the person has zoomed since (#17).
+    const was = firstFit.current;
+    if (was && Math.abs(engine.zoom() - was.zoom) < 0.01) {
+      engine.fit(was.coords, 48, 15);
+      firstFit.current = { coords: was.coords, zoom: engine.zoom() };
+    }
+  }, [engine, inset?.top, inset?.right, inset?.bottom, inset?.left]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const choices = library === "mapkit" ? APPLE : (Object.keys(BASEMAPS) as BasemapName[]);
   const shown: Basemap = basemapName === "none" || choices.includes(basemapName) ? basemapName : "standard";
@@ -299,9 +310,11 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
     // overlap at this zoom are one marker, which zooms in to part them (#1074); the chosen place always stands alone.
     if (!fitted.current && hotspots.length) {
       // Fit to where the work is the first time (before gathering, which reads the view); afterwards a person's pan
-      // and zoom stay put.
+      // and zoom stay put. Close enough to fill the map on a wide screen, not a small cluster in the middle (#17).
       fitted.current = true;
-      engine.fit(hotspots.map((p) => [p.lat, p.lon]), 48, 13);
+      const coords: LatLon[] = hotspots.map((p) => [p.lat, p.lon]);
+      engine.fit(coords, 48, 15);
+      firstFit.current = { coords, zoom: engine.zoom() };
     }
     const narrow = matchMedia("(max-width: 600px)").matches;  // a phone names only the chosen place
     const urgent = [...hotspots].sort((a, b) => RANK[a.band] - RANK[b.band] || b.overdue - a.overdue || b.open - a.open);
