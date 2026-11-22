@@ -187,6 +187,9 @@ html.ui-fullscreen-open .bottombar { display: none; }
 :where(.ui-scroller) { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; max-width: 100%; }
 .ui-scroller::-webkit-scrollbar { display: none; }
 :where(.ui-scroller) > * { flex-shrink: 0; }
+.ui-scroller[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.ui-scroller[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+.ui-scroller[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 [data-more] { --scroll-fade: 28px; scroll-snap-type: x mandatory; }
 [data-more] > * { scroll-snap-align: start; }
 [data-more="end"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--scroll-fade)), transparent);

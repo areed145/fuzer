@@ -115,7 +115,24 @@ export function watchScrollers() {
 
 /** A row of cards, chips or buttons that scrolls sideways on a narrow screen (see SCROLL_ROWS). */
 export function Scroller({ label, className = "", children }: { label?: string; className?: string; children: ReactNode }) {
-  return <div className={`ui-scroller ${className}`.trim()} role={label ? "group" : undefined} aria-label={label}>{children}</div>;
+  // A row cut off at an edge fades there, so a chip clipped mid-word reads as "more this way" (#19), not a bug.
+  const el = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState({ start: false, end: false });
+  useEffect(() => {
+    const node = el.current;
+    if (!node) return;
+    const check = () => {
+      const start = node.scrollLeft > 1, end = node.scrollLeft + node.clientWidth < node.scrollWidth - 1;
+      setMore((m) => (m.start === start && m.end === end ? m : { start, end }));
+    };
+    check();
+    node.addEventListener("scroll", check, { passive: true });
+    const seen = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    seen?.observe(node);
+    return () => { node.removeEventListener("scroll", check); seen?.disconnect(); };
+  }, []);
+  return <div ref={el} className={`ui-scroller ${className}`.trim()} role={label ? "group" : undefined} aria-label={label}
+    data-more={more.start && more.end ? "both" : more.start ? "start" : more.end ? "end" : undefined}>{children}</div>;
 }
 
 /** A heading for a part of a page or a group inside a card, where it isn't a Card's own title. `detail` is the grey

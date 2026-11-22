@@ -6568,9 +6568,9 @@ test("Plan shows production at risk per shutdown window with the durations used 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/plan`);
   const card = page.locator(".plan-at-risk");
-  await card.getByText("Gas 2,523 Mscf").waitFor();
+  await card.getByText("Gas about 2,500 Mscf").waitFor();  // an estimate, to two figures (#14)
   await card.getByText("counted once", { exact: false }).waitFor();
-  await card.getByRole("button", { name: /Gas 2,523 Mscf/ }).click();
+  await card.getByRole("button", { name: /Gas about 2,500 Mscf/ }).click();
   await card.getByText("Compressor valve change: 48 h down (B1-K-2001)").waitFor();
   await card.getByText("Assumption: SAP maintenance plans give a due date, not an outage length: one day is assumed.").waitFor();
   await card.getByText("No test on record, so not counted: KR 14-01H.").waitFor();
