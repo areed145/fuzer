@@ -89,6 +89,51 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
     const lon = (w * 360) / (TILE * 2 ** zoom);
     return { lon, lat: (lon * h) / w };
   };
+  // MapKit holds annotations back until its renderer and the map's manifest have loaded, seconds after the map
+  // itself shows. Until then a stand-in layer draws copies of the markers at the same places, so they show with the
+  // first tiles rather than after them. It goes as soon as MapKit draws its own.
+  let standin: HTMLElement | null = document.createElement("div");
+  standin.className = "mk-standin";
+  standin.setAttribute("aria-hidden", "true");
+  el.appendChild(standin);
+  const standins = new Map<string, { at: LatLon; node: HTMLElement; drawn: HTMLElement }[]>();
+  let placedFor = "";
+  const placeStandins = () => {
+    if (!standin) return;
+    if ([...standins.values()].some((list) => list.some((s) => s.drawn.isConnected))) {
+      standin.remove();
+      standin = null;
+      return;
+    }
+    const r = map.region;
+    const key = r ? `${r.center.latitude},${r.center.longitude},${r.span.latitudeDelta},${r.span.longitudeDelta},${el.clientWidth}x${el.clientHeight}` : "";
+    if (key !== placedFor) {
+      placedFor = key;
+      const box = el.getBoundingClientRect();
+      for (const list of standins.values()) {
+        for (const s of list) {
+          const p = map.convertCoordinateToPointOnPage(coord(s.at));
+          s.node.style.transform = `translate(${p.x - box.left - window.scrollX}px, ${p.y - box.top - window.scrollY}px)`;
+        }
+      }
+    }
+    requestAnimationFrame(placeStandins);
+  };
+  const standIn = (layer: string, list: { at: LatLon; node: HTMLElement }[]) => {
+    if (!standin) return;
+    for (const s of standins.get(layer) ?? []) s.node.remove();
+    const copies = list.map(({ at, node }) => {
+      const copy = node.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll("[tabindex], [title], [role], [aria-label]").forEach((n) => {
+        for (const a of ["tabindex", "title", "role", "aria-label"]) n.removeAttribute(a);
+      });
+      standin?.appendChild(copy);
+      return { at, node: copy, drawn: node };
+    });
+    standins.set(layer, copies);
+    placedFor = "";
+  };
+  requestAnimationFrame(placeStandins);
   const clear = (layer: { overlays: unknown[]; annotations: unknown[] }) => {
     if (layer.overlays.length) map.removeOverlays(layer.overlays);
     if (layer.annotations.length) map.removeAnnotations(layer.annotations);
@@ -120,7 +165,7 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
       }
       // Squares (platforms) after dots (wells): later annotations draw on top.
       const ordered = [...points.filter((p) => p.shape !== "square"), ...points.filter((p) => p.shape === "square")];
-      const annotations = ordered.map((p) => {
+      const marks = ordered.map((p) => {
         const dot = document.createElement("div");
         const d = 2 * p.radius + p.strokeWidth;
         dot.className = p.shape === "square" ? "mk-point mk-square" : "mk-point";
@@ -129,8 +174,11 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
         if (p.tip) dot.title = p.tip;
         dot.addEventListener("click", (e) => { e.stopPropagation(); openCard(p.popup()); });
         const node = anchored(dot, -d / 2, -d / 2);
-        return new mapkit.Annotation(coord(p.at), () => node, { calloutEnabled: false, animates: false });
+        return { at: p.at, node };
       });
+      standIn("network", marks);
+      const annotations = marks.map(({ at, node }) =>
+        new mapkit.Annotation(coord(at), () => node, { calloutEnabled: false, animates: false }));
       map.addOverlays(overlays);
       map.addAnnotations(annotations);
       network = { overlays, annotations };
@@ -139,6 +187,7 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
       if (spots.length) map.removeAnnotations(spots);
       // DOM order is stacking order: the chosen place last, on top.
       const ordered = [...list.filter((s) => !s.selected), ...list.filter((s) => s.selected)];
+      const marks: { at: LatLon; node: HTMLElement }[] = [];
       spots = ordered.flatMap((s) => {
         const out: unknown[] = [];
         const dot = document.createElement("div");
@@ -154,17 +203,21 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
           if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.onSelect(); }
         });
         const node = anchored(dot, -s.size / 2, -s.size / 2);
+        marks.push({ at: s.at, node });
         out.push(new mapkit.Annotation(coord(s.at), () => node, { calloutEnabled: false, animates: false, title: s.name }));
         if (s.crew) {
           const crew = document.createElement("div");
           crew.className = "mk-crew hotspot-crew";
           crew.innerHTML = s.crew.html;
           crew.title = s.crew.title;
-          out.push(new mapkit.Annotation(coord(s.at), () => anchored(crew, -11, -30),
+          const badge = anchored(crew, -11, -30);
+          marks.push({ at: s.at, node: badge });
+          out.push(new mapkit.Annotation(coord(s.at), () => badge,
                                          { calloutEnabled: false, animates: false, enabled: false }));
         }
         return out;
       });
+      standIn("spots", marks);
       map.addAnnotations(spots);
     },
     fit(coords: LatLon[], padding, maxZoom) {
@@ -229,6 +282,8 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
     destroy() {
       unsubscribe();
       closeCard();
+      standin?.remove();
+      standin = null;
       el.removeEventListener("pointerdown", onPointer, { capture: true });
       map.destroy();
     },

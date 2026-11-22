@@ -1657,6 +1657,8 @@ test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the th
   assert.ok(s.dashes.includes("6 6"), "gas lift keeps its dash");
   assert.ok(s.span < 0.1, `fitted to the field, span ${s.span}`);
   assert.equal(await page.locator(".leaflet-container").count(), 0, "no Leaflet map");
+  // #13: the stand-in copies of the markers go once MapKit draws its own.
+  await page.waitForFunction(() => !document.querySelector(".mk-standin"));
   await group.getByRole("button", { name: "Satellite" }).click();
   assert.equal((await state()).type, "hybrid");
   // A Terrain choice saved from the free tiles shows as Standard on Apple Maps, which has no terrain map.
