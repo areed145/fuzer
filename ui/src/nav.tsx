@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
 import { href, refreshAll, usePhone, useRefreshing } from "./lib";
-import { Button } from "./ui";
+import { Button, Heading } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
 import { SyncStatus } from "./SyncStatus";
@@ -286,6 +286,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
 
   const refreshing = useRefreshing();
   const labels = useMenuLabels();
+  const phone = usePhone();
   return (
     <>
       {/* Search at the top left, the mark in the middle, the account at the top right. */}
@@ -367,7 +368,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
                   const counted = group.items.filter((entry) => entry.badge && badges[entry.badge] > 0)
                     .map((entry) => BADGE_WORDS[entry.badge!](badges[entry.badge!])).join(", ");
                   return (
-                    <li key={group.label}>
+                    <li key={group.label} className={BOTTOM.some((b) => b.group === group.label) ? "on-bottombar" : undefined}>
                       <a
                         href={href(item.path ?? `/${item.section}`)}
                         className={on ? "nav-tile on" : "nav-tile"}
@@ -387,6 +388,31 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
                 })}
               </ul>
           </section>
+          {/* Below 900 px the bottom bar holds Tower, Work, Explore and Reports, so the sheet's icons are the rest, and
+              under them every page by name (#31): the pages inside an area (Map, Incidents, Schedules) are a tap away
+              here, not only from the tabs on each area's first page. */}
+        </nav>
+        <nav className="nav-pages" aria-label="All pages">
+            {NAV.filter((group) => allowed(group) && (!group.demo || demoEnabled)).map((group) => {
+              const items = group.items.filter((item) => allowed(item) && !(phone && item.noPhone));
+              if (items.length < 2) return null;
+              const query = new URLSearchParams(location.hash.split("?")[1] ?? "");
+              const current = currentItem(items, section, query);
+              return (
+                <div key={group.label} className="nav-pages-group">
+                  <Heading small>{group.label}</Heading>
+                  <ul>
+                    {items.map((item) => (
+                      <li key={item.label}>
+                        <a href={item.external ?? href(item.path ?? `/${item.section}`)}
+                          aria-current={item === current ? "page" : undefined}
+                          {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}>{item.label}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
         </nav>
         <div className="sidebar-status">{status}</div>
       </aside>

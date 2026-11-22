@@ -207,13 +207,25 @@ _FOR_ROLES = ("(%(roles)s::text[] is null or exists (select 1 from work_item i l
               "where i.id = n.item_id and coalesce(t.role, i.role) = any(%(roles)s)))")
 
 
-def mine(conn, person: str, limit: int = 30) -> dict:
-    q = {"p": person, "roles": _acting_roles(conn, person), "limit": limit}
+# A notice still says something true (#10): its case is open, its step still waits, a step it said was coming due isn't
+# past due yet, and work escalated to a queue hasn't been taken by someone else since. One that no longer holds is
+# history, kept on the case, not news: "is due in 55 min" read a day later, or an escalation another lead has picked up.
+_STILL_TRUE = (
+    "not exists (select 1 from work_item i where i.id = n.item_id and i.closed_at is not null) "
+    "and not exists (select 1 from work_token t where t.id = n.token_id and t.state <> 'waiting') "
+    "and not (n.kind = 'due_soon' and coalesce((select t.due_at from work_token t where t.id = n.token_id), "
+    "(select i.due from work_item i where i.id = n.item_id)) <= %(now)s) "
+    "and not (n.kind = 'escalated' and exists (select 1 from work_token t where t.id = n.token_id "
+    "and t.assignee is not null and t.assignee <> n.person))")
+
+
+def mine(conn, person: str, limit: int = 30, now: datetime | None = None) -> dict:
+    q = {"p": person, "roles": _acting_roles(conn, person), "limit": limit, "now": now or utcnow()}
     rows = conn.execute("select n.id, n.kind, n.item_id, n.token_id, n.text, n.link, n.channel, n.delivery, n.created_at, "
-                        f"n.read_at from work_notification n where n.person = %(p)s and {_FOR_ROLES} "
+                        f"n.read_at from work_notification n where n.person = %(p)s and {_FOR_ROLES} and {_STILL_TRUE} "
                         "order by n.id desc limit %(limit)s", q).fetchall()
     unread = conn.execute(f"select count(*) as n from work_notification n where n.person = %(p)s and n.read_at is null "
-                          f"and {_FOR_ROLES}", q).fetchone()["n"]
+                          f"and {_FOR_ROLES} and {_STILL_TRUE}", q).fetchone()["n"]
     from ..core.wording import say
 
     return {"notifications": [{**r, "text": say(r["text"])} for r in rows], "unread": unread}

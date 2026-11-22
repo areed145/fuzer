@@ -2089,6 +2089,16 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
     document.querySelector('#sidebar nav[aria-label="Main"] a[href="#/sources"][aria-current="page"]'));
   await page.getByRole("heading", { name: "Sources", exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  // The sheet doesn't repeat the bottom bar (#31): its icons are the rest, and every page inside an area is named under
+  // them, so Map or Incidents is one tap from anywhere.
+  await menu.click();
+  assert.deepEqual(await page.locator('#sidebar nav[aria-label="Main"] .nav-tile:visible .nav-tile-label').allTextContents(),
+    ["Plan", "Sources", "Jobs", "Settings"]);
+  const pages = page.getByRole("navigation", { name: "All pages", exact: true });
+  await pages.getByRole("link", { name: "Incidents", exact: true }).click();
+  await page.waitForURL(/#\/incidents$/);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  assert.equal(await pages.isVisible(), false, "the desk's sidebar has the area tabs instead");
 });
 
 test("primary destination navigation keeps page headings and active context aligned", async () => {
@@ -3732,6 +3742,32 @@ test("All work is one list of every open event and case, filtered on any dimensi
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
+test("a field job taken from the queue is followed up to the operator's own jobs (#9)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let taken = false;
+  const finding = { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+    end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null };
+  const base = { type: "upset", source: "scada", state: "open", priority: null, value_usd: null, subjects: [], unmatched: [],
+    raised_count: 1, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", evidence: {}, assets: [], finding,
+    history: [], field: [], label: "Upset" };
+  const mineJobs = Array.from({ length: 4 }, (_, i) => ({ ...base, id: 20 + i, key: `m${i}`, title: `Gauge check ${i + 1}`,
+    item_id: 40 + i, assignee: "fred", role: null, queued: false, sent: { by: "ann", at: "2026-11-08T07:05:00Z", reason: "look" } }));
+  const waiting = () => ({ ...base, id: 8, key: "q8", title: "Compressor trip on high discharge pressure", item_id: 32,
+    assignee: taken ? "fred" : null, role: "operator", queued: !taken, sent: taken ? { by: "fred", at: "2026-11-08T08:00:00Z", reason: "taken" } : null });
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", coming_up: [],
+    jobs: taken ? [waiting(), ...mineJobs] : [...mineJobs, waiting()] } }));
+  await page.route("**/exceptions/8/dispatch", (route) => { taken = true; return route.fulfill({ json: waiting() }); });
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job", { hasText: "Compressor trip" });
+  await card.getByRole("button", { name: "Take it" }).click();
+  await page.waitForFunction(() => document.activeElement?.id === "field-job-8");
+  await card.getByRole("button", { name: "Done" }).waitFor();
+  await page.waitForFunction(() => { const r = document.getElementById("field-job-8").getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight / 2; });
+});
+
 test("My work is the List's Waiting on me, and a row waiting in your queue is taken from it", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
   let taken = false;
@@ -4146,7 +4182,9 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.waitForURL(/#\/handover\?id=7$/);
   await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
   // Citations read as words and link to what they cite; no raw `case:` or register ids (#1072)
-  assert.equal(await page.getByRole("link", { name: "open the case", exact: true }).first().getAttribute("href"), "#/cases/113");
+  // the line itself opens its case (#11), rather than "open the case" after every line
+  assert.equal(await page.getByRole("link", { name: /^Low alarm on OK-J08-03/ }).getAttribute("href"), "#/cases/113");
+  assert.equal(await page.getByRole("link", { name: "open the case", exact: true }).count(), 0);
   assert.equal(await page.getByRole("link", { name: "the permit", exact: true }).getAttribute("href"), "#/e/fz-permit-65501ac23ccf");
   assert.doesNotMatch(await page.locator("main").innerText(), /\[case:|\[entity:|fz-[a-z_]+-[0-9a-f]{6,}|role:|alarm:/);
   acked = true;
@@ -4165,6 +4203,8 @@ test("a handover reads in a minute on a phone: what needs the lead first, five l
       "Escalated or overdue": many("Escalated step", 2) }, more: { "Open work": 121 } } } }));
   await page.goto(`${url}/#/handover?id=8`);
   await page.getByText("Escalated step 1").waitFor();
+  // the headline says what the incoming lead takes on first, in reading order (#11)
+  assert.equal(await page.locator(".handover-first").innerText(), "First: 2 escalated or overdue · 146 open work");
   const headings = await page.locator("main h3").allInnerTexts();
   assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("Open work"), headings.join(" | "));
   assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 5);

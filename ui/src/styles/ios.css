@@ -298,6 +298,12 @@
   :root.ios .nav-group ul { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px 12px; padding: 6px 4px 0; }
   :root.ios .nav-group ul.no-labels { row-gap: 18px; }
   @media (min-width: 600px) { :root.ios .nav-group ul { grid-template-columns: repeat(6, minmax(0, 1fr)); padding-top: 12px; } }
+  /* On an iPad the menu hugs what it holds rather than filling the screen with empty space under eight icons (#32). */
+  @media (min-width: 600px) { :root.ios .sidebar { height: auto; max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - 8px); } }
+  :root.ios .sidebar .nav-pages::before { content: none; }
+  :root.ios .nav-pages h2 { color: var(--muted); }
+  :root.ios .nav-pages a { color: var(--text); }
+  :root.ios .nav-pages a[aria-current="page"] { color: var(--accent); }
   :root.ios .nav-tile { gap: 6px; color: var(--text); font-size: var(--t-caption); font-weight: 400; }
   :root.ios .nav-tile.on { color: var(--text); font-weight: 600; }
   :root.ios .nav-tile-icon { max-width: 64px; background: var(--panel); color: var(--accent); }
