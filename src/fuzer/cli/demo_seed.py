@@ -29,6 +29,17 @@ def _units_moved(conn) -> list[str]:
     return moved
 
 
+def _readings_moved(conn) -> None:
+    """Round readings and findings taken before the move, put in the US unit their points read in now."""
+    from ..ops import rounds
+
+    moved = rounds.metric_readings_moved(conn)
+    if moved["findings"] or moved["readings"]:
+        conn.commit()
+        print(f"US oilfield units: {moved['findings']} round findings and {moved['readings']} round readings "
+              "converted from metric", flush=True)
+
+
 def refresh(conn, folder: Path, pack=None) -> None:
     """A deploy brings new exports and mappings in the image; an existing register needs them too.
 
@@ -39,6 +50,7 @@ def refresh(conn, folder: Path, pack=None) -> None:
     try:
         seeded = catalog.seed(conn)
         _units_moved(conn)
+        _readings_moved(conn)
         from ..core import access
         from ..sources import demo_hold
 

@@ -222,3 +222,38 @@ def test_a_reading_taken_without_signal_arrives_once_with_its_time_and_a_later_o
     assert conn.execute("select state from round_run where id = %s", (comp["id"],)).fetchone()["state"] == "partly_done"
     with pytest.raises(Exception, match="closed"):
         rounds.take(conn, comp["id"], "R-B1-04", "olu", value=4.0, client_id="phone-5")  # taken after it ended
+
+
+def test_readings_taken_before_the_move_to_us_units_read_in_the_points_unit_now(kestrel):
+    """A deployment that took readings in bar before its exports moved to psig: the numbers were kept as taken, and
+    the finding was titled in bar. The move puts both in psig, once."""
+    from psycopg.types.json import Jsonb
+
+    from fuzer.graph import measurements
+
+    conn, _ = kestrel
+    comp = next(r for r in rounds.runs(conn) if r["round"] == "Compression rounds")
+    low = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=2.5)  # 2.5 barg, taken in bar
+    e = conn.execute("select * from exception_record where id = %s", (low["exception"]["id"],)).fetchone()
+    old = "Lube oil pressure on B1-K-2001: 2.5 barg, limits 3.03 to 5.52 barg"
+    evidence = e["evidence"]
+    for i in evidence["finding"]["items"]:
+        if i["label"] == "Reading":
+            i["unit"] = "barg"
+        if i["label"] == "Limits":
+            i["value"] = "3.03 to 5.52 barg"
+    conn.execute("update exception_record set title = %s, evidence = %s where id = %s", (old, Jsonb(evidence), e["id"]))
+    conn.execute("update work_item set title = %s where id = %s", (old, e["item_id"]))
+    moved = rounds.metric_readings_moved(conn)
+    assert moved == {"findings": 1, "readings": 1}
+    e = conn.execute("select * from exception_record where id = %s", (e["id"],)).fetchone()
+    assert e["title"] == "Lube oil pressure on B1-K-2001: 36.26 psig, limits 44 to 80 psig"
+    assert conn.execute("select title from work_item where id = %s", (e["item_id"],)).fetchone()["title"] == e["title"]
+    items = {i["label"]: i for i in e["evidence"]["finding"]["items"]}
+    assert (items["Reading"]["value"], items["Reading"]["unit"], items["Limits"]["value"]) == (36.26, "psig", "44 to 80 psig")
+    taken = conn.execute("select value from round_reading where id = %s", (low["taken"]["id"],)).fetchone()["value"]
+    assert taken == 36.26
+    series = {s["quantity"]: s for s in measurements.for_entity(conn, low["asset"])["series"]}
+    assert [v["value"] for v in series["lube_oil_pressure"]["values"]] == [36.26]
+    assert rounds.metric_readings_moved(conn) == {"findings": 0, "readings": 0}  # once
+    conn.commit()

@@ -54,7 +54,12 @@ function spanning(start: string, end: string): { at: string; hours: number } {
 
 /** The trend of `id`. `start` and `end` open it over a window (a case's event) instead of the latest incident; `linked`
  * keeps the window and the toggles in the page link. */
-export function TrendView({ id, start, end, linked = false }: { id: string; start?: string; end?: string; linked?: boolean }) {
+export function TrendView({ id, start, end, linked = false, focus }: {
+  id: string; start?: string; end?: string; linked?: boolean;
+  /** What the page is about, in words (a case's title): the chart opens on the values it names, with the rest a tap away.
+   * A case drew every panel of its unit, 900 px of charts above its history, for one reading out of limits. */
+  focus?: string;
+}) {
   const q = useMemo(() => (linked ? linkQuery() : new URLSearchParams()), [linked, id]);
   const around = start && end ? spanning(start, end) : null;
   const [hours, setHours] = useState(() => Number(q.get("w")) || around?.hours || 72);
@@ -79,7 +84,22 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
   const fine = useAsync(() => (zoom && d && zoomHours < hours ? api.trendView(id, zoom[0], 0, zoomHours) : Promise.resolve(null)),
                         [id, zoom?.[0], zoomHours]);
   const shown = fine.data && !fine.data.error && zoom ? fine.data : d;
-  const on = useMemo(() => picked ?? (d ? fromQuery(d, q.get("show"), q.get("hide")) : new Set<string>()), [picked, d, q]);
+  const all = useMemo(() => (d ? fromQuery(d, q.get("show"), q.get("hide")) : new Set<string>()), [d, q]);
+  const name = useMemo(() => (d ? names(d) : new Map<string, string>()), [d]);
+  // The values the focus names, by their name or point; nothing named, the template's own choice stands.
+  const focused = useMemo(() => {
+    if (!focus || !d || d.error) return null;
+    const said = focus.toLowerCase();
+    const traces = [...d.groups.flatMap((g) => g.traces), ...d.other];
+    const named = traces.map((x) => name.get(x.id)?.toLowerCase() ?? "").filter((n) => n.length > 3 && said.includes(n));
+    // ...and the same value taken another way: "Bearing temperature at Area 10 rounds" beside "Bearing temperature"
+    const ids = traces.filter((x) => {
+      const n = name.get(x.id)?.toLowerCase() ?? "";
+      return named.some((m) => n.startsWith(m)) || said.includes(x.point.toLowerCase());
+    }).map((x) => x.id);
+    return ids.length ? new Set([...ids, ...[...all].filter((k) => k.startsWith("lane:"))]) : null;
+  }, [focus, d, name, all]);
+  const on = picked ?? focused ?? all;
   const first = around?.at;
   useEffect(() => {
     if (!linked || !d || d.error) return;
@@ -103,7 +123,6 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
     // the finer read keeps the range zoomed to
     return zoom ? { ...f, layout: { ...f.layout, xaxis: { ...(f.layout as Record<string, any>).xaxis, range: zoom } } } : f;
   }, [shown, t.data, on, theme, compact, pins, zoom]);
-  const name = useMemo(() => (d ? names(d) : new Map<string, string>()), [d]);
   // A lane marker says what it was under the chart, without leaving the page (P5.15c).
   const open = useCallback((data: unknown) => {
     if (Array.isArray(data) && data[0] === "events") setChosen(data.slice(1) as number[]);
@@ -171,6 +190,8 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
       </>}>
       <div className="row trend-controls">
         <Tabs small label="How much time the chart shows" items={WINDOWS.map((h) => ({ key: String(h), label: `${h / 24} d`, current: h === hours, onSelect: () => setHours(h) }))} />
+        {focused && !picked && all.size > focused.size && <Button size="sm" variant="link" onClick={() => setPicked(all)}>
+          Show all {[...all].filter((k) => !k.startsWith("lane:")).length} values</Button>}
         <span className="spacer" />
         {zoom && <Button size="sm" onClick={() => { setZoom(null); setRedraw((r) => r + 1); }}>Reset zoom</Button>}
         <Button size="sm" onClick={() => shift(-1)} disabled={!d}>← Earlier</Button>
@@ -186,7 +207,8 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
       <Status loading={pending} error={v.error ?? d?.error} empty={!!d && !d.error && groups.every((g) => !g.traces.length)}>
         No values between {d?.start.replace("T", " ")} and {d?.end.replace("T", " ")}{d?.errors?.length ? `: ${d.errors[0]}` : "."}
       </Status>
-      {!compact && !pending && chipsBlock}
+      {/* opened on the focus, the chips wait behind Show all: eight rows of them sat above a two-panel chart */}
+      {!compact && !pending && !(focused && !picked) && chipsBlock}
       {figure && !pending && (shownTraces.length > 0 || lanes.length > 0) && (
         // On a phone a sideways swipe moves the window (P5.15f); a drag there scrolls the page, not the chart.
         <div className="trend-view-plot"
@@ -249,7 +271,7 @@ export function TrendView({ id, start, end, linked = false }: { id: string; star
           </Table>
         </Card>
       )}
-      {compact && !pending && chipsBlock}
+      {compact && !pending && !(focused && !picked) && chipsBlock}
       {t.error && <ErrorText>Events unavailable: {t.error}</ErrorText>}
       {!pending && shownTraces.length > 0 && (
         <Disclosure className="small" label={<>Table</>}>

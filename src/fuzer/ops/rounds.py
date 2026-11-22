@@ -18,6 +18,8 @@ Read from the records, never from equipment type: a site's rounds are its own ex
 import re
 from datetime import UTC, datetime, timedelta
 
+from psycopg.types.json import Jsonb
+
 from ..core import findings
 from ..core.exceptions import ExceptionError, exception_type, raise_exception
 
@@ -327,3 +329,74 @@ def of_shift(conn, start: datetime, end: datetime) -> list[dict]:
         out.append({"id": r["id"], "state": state, "text": f"{r['round']}: {said}"
                     + (f"; {r['found']} found something" if r["found"] else "")})
     return out
+
+
+# ---- readings taken before the move to US oilfield units -------------------------------------------------------
+
+# A round point's metric unit before the exports moved to US oilfield units, and the US unit it reads in now.
+METRIC = {"psig": "barg", "degF": "degC"}
+_METRIC_TITLE = re.compile(r": (-?\d+(?:\.\d+)?) (barg|degC), limits [^:]*$")
+
+
+def metric_readings_moved(conn) -> dict:
+    """Readings taken on a round before its points moved to US oilfield units were kept as the numbers taken, in
+    bar or degrees Celsius, and are read today in psig or degrees Fahrenheit: an 89.42 °C bearing plotted at 89 °F
+    under a °F limit, beside a finding titled "89.42 degC, limits 0 to 85 degC". This puts them in the point's unit
+    now: each round finding still titled in a metric unit (its title, its case's title and its Reading and Limits),
+    and each reading taken before the first finding in a US unit that reads as the metric number it was, kept on
+    the run and as a measurement on its asset. Idempotent: what it converted reads in the point's unit after."""
+    from ..core import units
+
+    by_point = {p["point_id"]: p for p in points(conn) if p["kind"] == "reading" and p["unit"] in METRIC}
+    if not by_point:
+        return {"findings": 0, "readings": 0}
+    as_taken: set[tuple[str, float]] = set()  # (point, metric value) a metric title names
+    findings_moved = 0
+    for e in conn.execute("select id, key, title, evidence, item_id from exception_record "
+                          "where type = %s and title ~ ' (barg|degC), limits '", (ROUND_FINDING,)).fetchall():
+        p = by_point.get(e["key"])
+        m = _METRIC_TITLE.search(e["title"])
+        if not p or not m or METRIC[p["unit"]] != m.group(2):
+            continue
+        metric = float(m.group(1))
+        value = round(units.convert(metric, m.group(2), p["unit"]), 2)
+        as_taken.add((p["id"], metric))
+        title = f"{e['title'][:m.start()]}: {value:g} {p['unit']}, limits {_limits(p)}"
+        evidence = dict(e["evidence"] or {})
+        f = evidence.get(findings.KEY)
+        if isinstance(f, dict):
+            f["items"] = [{**i, "value": value, "unit": p["unit"]} if i.get("label") == "Reading"
+                          else {**i, "value": _limits(p)} if i.get("label") == "Limits" else i
+                          for i in f.get("items") or []]
+        conn.execute("update exception_record set title = %s, evidence = %s where id = %s",
+                     (title, Jsonb(evidence), e["id"]))
+        if e["item_id"]:
+            conn.execute("update work_item set title = %s where id = %s and title = %s", (title, e["item_id"], e["title"]))
+        findings_moved += 1
+    # Readings: those a metric title names, and the rest taken before the move that sit nearer the middle of the
+    # point's limits once converted than as they are (a reading is taken near the middle; 42 under 32 to 185 °F
+    # was 42 °C).
+    first_us = conn.execute(
+        "select min(last_seen) as t from exception_record where type = %s and title ~ ' (psig|degF), limits '",
+        (ROUND_FINDING,)).fetchone()["t"]
+    by_id = {p["id"]: p for p in by_point.values()}
+    readings_moved = 0
+    for t in conn.execute("select id, run_id, point, value, at from round_reading where value is not null "
+                          "and point = any(%s)", (list(by_id),)).fetchall():
+        p = by_id[t["point"]]
+        converted = units.convert(t["value"], METRIC[p["unit"]], p["unit"])
+        if converted is None:
+            continue
+        named = (p["id"], t["value"]) in as_taken
+        if not named:
+            if (first_us is not None and t["at"] >= first_us) or (p["low"] is None and p["high"] is None):
+                continue
+            mid = ((p["low"] if p["low"] is not None else p["high"]) + (p["high"] if p["high"] is not None else p["low"])) / 2
+            if abs(converted - mid) >= abs(t["value"] - mid):
+                continue
+        converted = round(converted, 2)
+        conn.execute("update round_reading set value = %s where id = %s", (converted, t["id"]))
+        conn.execute("update measurement set value = %s, unit = %s where record = %s and quantity = %s",
+                     (converted, p["unit"], _record(t["run_id"], p), _quantity(p["what"])))
+        readings_moved += 1
+    return {"findings": findings_moved, "readings": readings_moved}

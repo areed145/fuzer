@@ -112,7 +112,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       <CaseSafeguards id={it.id} data={safeguards.data} />
       {!asks && <CaseFindings sources={it.sources} />}
       {/* a question about the records has no event to trend */}
-      {!asks && <CaseAround id={it.id} data={around.data} />}
+      {!asks && <CaseAround id={it.id} data={around.data} focus={it.title} />}
       <Related about={{ case: it.id }} />
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />

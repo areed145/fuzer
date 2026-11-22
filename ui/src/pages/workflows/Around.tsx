@@ -15,7 +15,8 @@ function number(v: number): string {
 /** Around the event (P3.5a): the trend of the unit the event is on over the event's window, with its event lanes
  * (P5.13c), then the alarms that sounded on the event's assets and the operator log entries about them, beside the
  * detections and notifications that joined the case. Nothing shows when the case works no event. */
-export function CaseAround({ id, data }: { id: number; data?: CaseAroundData }) {
+export function CaseAround({ id, data, focus }: { id: number; data?: CaseAroundData;
+  /** the case's title: the trend opens on the reading it names */ focus?: string }) {
   // The case page reads it beside the case itself and passes it in, so the trend's place is known when the page shows.
   const around = useAsync(() => data ? Promise.resolve(data) : api.workItemAround(id), [id, data]);
   const [unit, setUnit] = useState<string | null>(null);
@@ -28,7 +29,7 @@ export function CaseAround({ id, data }: { id: number; data?: CaseAroundData }) 
       {units.length > 1 && (
         <Tabs label="Trend of" items={units.map((u) => ({ key: u.id, label: u.label ?? u.id, current: u.id === shown, onSelect: () => setUnit(u.id) }))} />
       )}
-      {shown && <TrendView key={shown} id={shown} start={d.window.start} end={d.window.end} />}
+      {shown && <TrendView key={shown} id={shown} start={d.window.start} end={d.window.end} focus={focus} />}
       {shown && (
         // The affected path in 3D (P5.16c): what this unit feeds, lit, with the rest of its area dimmed.
         <Text as="p" small>
