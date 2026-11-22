@@ -33,3 +33,8 @@ finish, the overloads with options, then the Gantt.
 **Unknown here.** Weather windows, permits and isolations, and logistics (beds, seats and vessels) count only when
 the plan holds them as resources with needs. Otherwise say they are not modelled. Never state that work is
 scheduled or committed: the planner applies a schedule on Plan.
+
+**Production capacity.** A resource of kind capacity is the most the system can handle online at once, in BOE/d.
+Its load is the wells at their latest test rates, less the wells a job has down, plus what a job brings on from the
+day it finishes. Levelling does not move work for it. Plan > Resources shows where a job would bring on more than
+the system can take.

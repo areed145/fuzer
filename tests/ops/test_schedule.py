@@ -269,25 +269,34 @@ def test_seats_carry_each_crew_out_for_its_first_job_and_back_after_its_last(tar
     c.rollback()
 
 
-def test_production_capacity_counts_what_each_shutdown_job_takes_offline_a_well_once(tar):
+def test_production_capacity_caps_what_is_online_less_what_jobs_have_down_plus_what_jobs_bring_on(tar):
+    """Adam: "the cap on how many can be online at once. You don't want to plan to bring on more production than
+    the system can handle." """
     c, _ = tar
+    from fuzer.core.units import boe
     from fuzer.ops import at_risk
 
-    schedule.set_resource(c, "PROD", "tests", name="Production offline at once", kind="capacity", unit="BOE/d", capacity=1e9)
-    start = datetime(2026, 4, 1, tzinfo=UTC)
-    prod = schedule.resource_load(c, "PROD", start, 30)["resources"][0]
-    peak = max(d["demand"] for d in prod["days"])
-    assert peak > 0 and "OK-TAR-2026" in prod["sources"] and not prod["overloads"]
-    # never more than every tested well on the flow network makes: overlapping jobs don't count a well twice
     _, nodes = at_risk._flow(c)
     wells = [r["fuzer_id"] for r in c.execute("select fuzer_id from entity where kind = 'well' and fuzer_id = any(%s)", (list(nodes),))]
-    from fuzer.core.units import boe
     field = sum(boe(sum(q[k]["value"] for k in ("oil_rate", "condensate_rate") if k in q), (q.get("gas_rate") or {}).get("value"))
                 for q in at_risk._rates(c, wells).values())
-    assert peak <= field + 1
-    assert all(d["demand"] == 0 for d in prod["days"] if d["day"] < "2026-04-06"), "nothing is down before the turnaround"
-    # a cap below what the turnaround takes down: the owner sees the run over it and the jobs behind it
-    schedule.set_resource(c, "PROD", "tests", capacity=peak / 2)
-    [run, *_] = schedule.resource_load(c, "PROD", start, 30)["resources"][0]["overloads"]
-    assert run["peak"] == peak and run["jobs"] and all(j["quantity"] > 0 for j in run["jobs"])
+    schedule.set_resource(c, "PROD", "tests", name="Production the system can handle", kind="capacity", unit="BOE/d",
+                          capacity=field + 500)
+    start = datetime(2026, 4, 1, tzinfo=UTC)
+    prod = schedule.resource_load(c, "PROD", start, 40)["resources"][0]
+    by_day = {d["day"]: d for d in prod["days"]}
+    # before the turnaround every tested well is on; during it the wells behind the units it has down are off
+    assert abs(by_day["2026-04-02"]["demand"] - field) < 1 and by_day["2026-04-02"]["by_source"] == {schedule.PRODUCING: by_day["2026-04-02"]["demand"]}
+    assert min(d["demand"] for d in prod["days"]) < field - 1 and not prod["overloads"]
+    # a job that brings 400 BOE/d on fits under the cap; one that brings 900 on is over it from the day it finishes
+    restart = next(a for a in schedule.analyse(c, "OK-TAR-2026")["activities"] if a["code"] == "A0220")
+    schedule.change_activity(c, restart["id"], "tests", adds_boed=400)
+    assert not schedule.resource_load(c, "PROD", start, 40)["resources"][0]["overloads"]
+    schedule.change_activity(c, restart["id"], "tests", adds_boed=900)
+    prod = schedule.resource_load(c, "PROD", start, 40)["resources"][0]
+    [run] = prod["overloads"]
+    assert abs(run["peak"] - (field + 900)) < 1 and [j["title"] for j in run["jobs"]] == [restart["name"]]
+    assert "OK-TAR-2026" in prod["sources"] and run["from"].date() >= restart["planned_finish"].date()
+    with pytest.raises(schedule.PlanError):
+        schedule.change_activity(c, restart["id"], "tests", adds_boed=-1)
     c.rollback()

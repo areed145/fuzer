@@ -114,3 +114,27 @@ def test_okan_oil_at_risk_behind_a_unit(okan_db):
     oil = next(r for r in w["at_risk"] if r["quantity"] == "oil_rate")
     assert oil["value"] > 0 and oil["unit"] == "bbl" and len(w["wells"]) >= 2
     conn.rollback()
+
+
+def test_kestrel_s_outage_template_seeds_and_the_plant_has_no_room_for_the_third_well(kestrel):
+    """The bundle's schedule (P5.18) on Kestrel, and production capacity as Adam put it: "the cap on how many can
+    be online at once. You don't want to plan to bring on more production than the system can handle." """
+    import yaml
+
+    from fuzer.ops import schedule
+
+    conn, _ = kestrel
+    doc = yaml.safe_load((KESTREL / "schedules" / "KR-OUT-2027.yaml").read_text())
+    assert schedule.import_template(conn, doc, "tests")["project"] == "KR-OUT-2027"
+    board = schedule.analyse(conn, "KR-OUT-2027")
+    assert len(board["activities"]) == 16 and not [a["code"] for a in board["activities"] if not a["assets"]], "every step is on an asset Fuzer knows"
+    assert board["critical_path"] and {r["code"] for r in board["resources"]} >= {"MECH", "INST", "OPS", "NDT", "CRANE", "BEDS"}
+    schedule.apply(conn, "KR-OUT-2027", "tests")
+    start = min(a["start"] for a in board["activities"]).replace(hour=0, minute=0, second=0, microsecond=0)
+    prod = schedule.resource_load(conn, "PROD", start - timedelta(days=2), 20)["resources"][0]
+    before, during = prod["days"][0], min(prod["days"], key=lambda d: d["demand"])
+    assert 9000 < before["demand"] < 14000 and during["demand"] == 0, "both wells are on before the outage and off in it"
+    [run] = prod["overloads"]  # the two wells and the third together are more than the plant can handle
+    assert run["peak"] > 14000 and [j["title"] for j in run["jobs"]] == ["Tie in and bring on well KR 12-05H"]
+    assert run["moves"] and run["moves"][0]["title"] == "Tie in and bring on well KR 12-05H"
+    conn.commit()

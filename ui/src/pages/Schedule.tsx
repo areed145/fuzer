@@ -95,7 +95,7 @@ export function SchedulePage({ code, person, view }: { code: string; person: str
           onSelect={(id) => { setSelected(id); if (id != null) setAdding(false); }} onChange={change} />
         {panel && <aside className="plan-panel gb-panel">
           {sel ? <Card title={`${sel.code ?? ""} ${acronyms(sel.name)}`.trim()} actions={<Button size="sm" variant="ghost" onClick={() => setSelected(null)}>Close</Button>}>
-            <Editor key={`${sel.id}-${sel.duration_hours}-${sel.not_before ?? ""}`} a={sel} s={s} person={person} onChange={data.reload} />
+            <Editor key={`${sel.id}-${sel.duration_hours}-${sel.not_before ?? ""}-${sel.adds_boed ?? ""}`} a={sel} s={s} person={person} onChange={data.reload} />
           </Card> : person && <AddActivity project={p.code} person={person} onClose={() => setAdding(false)} onChange={data.reload} />}
         </aside>}
       </div>
@@ -115,6 +115,7 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
   const [qty, setQty] = useState("1");
   const [removing, setRemoving] = useState(false);
   const [nb, setNb] = useState(a.not_before ? local(a.not_before) : "");
+  const [adds, setAdds] = useState(a.adds_boed ? String(a.adds_boed) : "");
   const byCode = new Map(s.activities.map((x) => [x.code, x.id]));
   const act = (label: string, fn: () => Promise<unknown>) => person && run(label, fn, onChange);
   return (
@@ -138,6 +139,10 @@ function Editor({ a, s, person, onChange }: { a: ScheduleRow; s: ScheduleAnalysi
           <Field label="Start no earlier than" width="md"><Input type="datetime-local" value={nb} onChange={(e) => setNb(e.target.value)} /></Field>
           <Button disabled={!!busy || !nb} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { not_before: new Date(nb).toISOString() }))}>Hold</Button>
           {a.not_before && <Button variant="ghost" disabled={!!busy} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { clear_not_before: true }))}>Release</Button>}
+        </Line>
+        <Line>
+          <Field label="Brings online when done (BOE/d)" width="md"><Input type="number" min="0" step="any" value={adds} onChange={(e) => setAdds(e.target.value)} /></Field>
+          <Button disabled={!!busy || Number(adds || 0) === (a.adds_boed ?? 0)} onClick={() => act("Saving", () => api.scheduleChange(a.id, person, { adds_boed: Number(adds || 0) }))}>Set</Button>
         </Line>
         <Heading level={3}>Predecessors</Heading>
         {a.predecessors.length ? <List plain>{a.predecessors.map((p) => <li key={p.code}>

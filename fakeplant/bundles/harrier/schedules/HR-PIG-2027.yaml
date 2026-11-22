@@ -1,0 +1,41 @@
+# Harrier's next mainline outage as its planner first laid it out (P5.18): a cleaning and inspection pig run with
+# the midline pump A overhaul and the receipt meter's proving done while the line is down. Dates are relative to
+# the day they're read, as the exports are. Hours are working hours on a 24-hour, 7-day outage calendar.
+# A pipeline and terminal has no wells, so no production capacity is kept here.
+schedule: 1
+code: HR-PIG-2027
+title: Harrier mainline outage (pig run, midline pump A overhaul, receipt meter proving)
+kind: campaign
+start: today+14d 06:00
+finish_by: today+20d 06:00
+calendar: {hours_per_day: 24, days_per_week: 7}
+resources:
+  - {code: MECH, name: Mechanical maintenance crew, kind: crew, capacity: 3, work_center: MECH}
+  - {code: INST, name: Instrument and metering technicians, kind: crew, capacity: 2, work_center: INST}
+  - {code: ELEC, name: Electrical technicians, kind: crew, capacity: 1, work_center: ELEC}
+  # the controllers also do their rounds and checks every shift, so three are on to give the line work two
+  - {code: OPS, name: Pipeline operations team, kind: crew, capacity: 3, routine: rounds}
+  - {code: ILI, name: Inline inspection contractor, kind: crew, capacity: 2}
+  - {code: CRANE, name: Mobile crane with rigging crew, kind: crane, unit: crane, capacity: 1}
+  # the inspection crew travels to the midline station and stays in the station's quarters
+  - {code: BEDS, name: Station quarters for visiting crews, kind: beds, unit: beds, capacity: 2, counts: [ILI]}
+activities:
+  # 1 Stop the line
+  - {code: A010, wbs: "1.1", name: "Draw down the breakout tank and stop the mainline", hours: 8, refs: [HRPT-A1], needs: {OPS: 2}}
+  - {code: A020, wbs: "1.2", name: "Isolate the origin and midline stations", hours: 6, refs: [A1-XV-1009, B1-XV-2006], needs: {OPS: 2}, after: [A010]}
+  # 2 Pig run
+  - {code: A100, wbs: "2.1", name: "Load the cleaning pig at the launcher", hours: 4, refs: [A1-V-1008], needs: {ILI: 2, OPS: 1}, after: [A020]}
+  - {code: A110, wbs: "2.2", name: "Run the cleaning pig, origin to terminal", hours: 30, refs: [HRPT-C1], needs: {OPS: 1}, after: [A100]}
+  - {code: A120, wbs: "2.3", name: "Receive the cleaning pig and weigh the wax", hours: 4, refs: [D1-V-4001], needs: {ILI: 2}, after: [A110]}
+  - {code: A130, wbs: "2.4", name: "Load and run the inspection tool", hours: 34, refs: [HRPT-C1], needs: {ILI: 2, OPS: 1}, after: [A120]}
+  - {code: A140, wbs: "2.5", name: "Receive the inspection tool and download its data", hours: 6, refs: [D1-V-4001], needs: {ILI: 2}, after: [A130]}
+  # 3 Midline pump A, while the station is down
+  - {code: A200, wbs: "3.1", name: "Lift out midline pump A's rotating element", hours: 12, refs: [B1-P-2001A], needs: {MECH: 3, CRANE: 1}, after: [A020]}
+  - {code: A210, wbs: "3.2", name: "Overhaul midline pump A: bearings, wear rings and seal", hours: 36, refs: [B1-P-2001A], needs: {MECH: 3}, after: [A200]}
+  - {code: A220, wbs: "3.3", name: "Refit and align midline pump A", hours: 12, refs: [B1-P-2001A], needs: {MECH: 3, CRANE: 1}, after: [A210]}
+  - {code: A230, wbs: "3.4", name: "Test midline pump A's motor and switchgear", hours: 8, refs: [B1-P-2001A], needs: {ELEC: 1}, after: [A020]}
+  # 4 Terminal receipt meter
+  - {code: A300, wbs: "4.1", name: "Clean the receipt meter's transducers and prove it", hours: 12, refs: [D1-FT-4002], needs: {INST: 2}, after: [A020]}
+  - {code: A310, wbs: "4.2", name: "Stroke test the mainline block valves", hours: 8, refs: [C1-XV-3001, C1-XV-3002], needs: {INST: 1, OPS: 1}, after: [A020]}
+  # 5 Restart
+  - {code: A900, wbs: "5.1", name: "De-isolate, pack the line and restart", hours: 10, refs: [HRPT-A1, HRPT-B1], needs: {OPS: 2}, after: [A140, A220, A230, A300, A310]}

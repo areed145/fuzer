@@ -60,7 +60,7 @@ function ResourceCard({ r, person, onChange }: { r: ResourceLoad; person: string
       </Line>
       {r.counts.length > 0 && <Text as="p" small>{r.kind === "seats" ? `Counts ${r.counts.join(", ")} flying out for their first job on a schedule and back after their last.`
         : `Counts everyone working on ${r.counts.join(", ")}.`}</Text>}
-      {r.kind === "capacity" && <Text as="p" small>Counts what each job that needs a unit down takes offline: the wells behind the unit at their latest test rate, each well once.</Text>}
+      {r.kind === "capacity" && <Text as="p" small>Counts what is online against what the system can handle: every well at its latest test rate, less the wells behind a unit that a job has down, plus what a job brings on from the day it finishes.</Text>}
       {r.routine_load && <Text as="p" small>{r.routine_load.source} hold {num(r.routine_load.quantity)} the whole time: {r.routine_load.basis}.</Text>}
       <div className="load-cols" role="img" aria-label={`${r.name}: ${over ? `over capacity on ${over} days` : "within capacity"}`}>
         {r.days.map((d) => <span role="button" tabIndex={0} key={d.day} aria-pressed={day === d.day} aria-label={`${whenDay(d.day)}: ${num(d.demand)} of ${num(d.capacity)}`}

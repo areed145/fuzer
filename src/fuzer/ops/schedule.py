@@ -312,8 +312,9 @@ def import_template(conn, doc: dict, by: str, replace: bool = False) -> dict:
     """Put a schedule template on the plan: the project, its resources, an activity per step (matched to the assets
     it names, and to the revision's SAP order on its tag), the links and the resource needs, then schedule it.
     A project already on the plan is left alone unless `replace`."""
-    from ..sources.relative_dates import offset
+    from ..sources.relative_dates import offset, resolve
 
+    doc = {**doc, "start": resolve(doc.get("start")), "finish_by": resolve(doc.get("finish_by"))}  # "today+21d 06:00"
     code = str(doc.get("code") or "").strip()
     if not code:
         raise PlanError("a schedule needs a code")
@@ -355,14 +356,16 @@ def import_template(conn, doc: dict, by: str, replace: bool = False) -> dict:
         row = conn.execute(
             """
             insert into plan_item (kind, title, source, source_key, subjects, area_id, start_at, end_at, status, project,
-                                   code, wbs, parent_id, duration_hours, needs_shutdown, notes, created_by, updated_by)
+                                   code, wbs, parent_id, duration_hours, needs_shutdown, notes, adds_boed, created_by,
+                                   updated_by)
             values (%(kind)s, %(title)s, 'schedule', %(key)s, %(subjects)s, %(area)s, %(start)s, %(end)s, 'proposed',
-                    %(project)s, %(code)s, %(wbs)s, %(parent)s, %(hours)s, %(shutdown)s, %(notes)s, %(by)s, %(by)s)
+                    %(project)s, %(code)s, %(wbs)s, %(parent)s, %(hours)s, %(shutdown)s, %(notes)s, %(adds)s, %(by)s, %(by)s)
             returning id
             """, {"kind": kind, "title": a["name"], "key": f"{code}:{a['code']}", "subjects": subjects,
                   "area": plan._area(conn, subjects), "start": start, "end": calendar.at(hours), "project": code,
                   "code": a["code"], "wbs": a.get("wbs"), "parent": parent, "hours": hours,
-                  "shutdown": kind == "turnaround", "notes": a.get("notes"), "by": by}).fetchone()
+                  "shutdown": bool(a.get("shutdown", kind == "turnaround")), "notes": a.get("notes"),
+                  "adds": a.get("adds_boed"), "by": by}).fetchone()
         ids[a["code"]] = row["id"]
         for r, q in (a.get("needs") or {}).items():
             set_demand(conn, row["id"], r, q, by)
@@ -635,7 +638,8 @@ def analyse(conn, code: str | None = None) -> dict:
                      "held_back_hours": round(lv["waited"][i], 1),
                      "held_back_by": ({"resource": lv["why"][i]["resource"],
                                        "activities": [label(x) for x in lv["why"][i]["held_by"]]} if i in lv["why"] else None),
-                     "planned_start": a["start_at"], "planned_finish": a["end_at"], "not_before": a["not_before"]})
+                     "planned_start": a["start_at"], "planned_finish": a["end_at"], "not_before": a["not_before"],
+                     "adds_boed": a["adds_boed"]})
     finish, levelled = cal.at(cp["finish"]), cal.at(lv["end"])
 
     def over(rows):
@@ -731,10 +735,12 @@ def add_activity(conn, project: str, code: str, name: str, hours: float, by: str
 
 def change_activity(conn, item_id: int, by: str, **fields) -> dict:
     """Rename, re-time (duration in working hours), progress (percent complete, status), re-number an activity, or
-    hold it to start no earlier than a time (`not_before`; None lets it start as early as its logic allows)."""
+    hold it to start no earlier than a time (`not_before`; None lets it start as early as its logic allows), or say
+    how much production it brings online when it finishes (`adds_boed`, BOE/d: production capacity counts it)."""
     _activity(conn, item_id)
     allowed = {"name": "title", "duration_hours": "duration_hours", "percent_complete": "percent_complete",
-               "wbs": "wbs", "code": "code", "status": "status", "notes": "notes", "not_before": "not_before"}
+               "wbs": "wbs", "code": "code", "status": "status", "notes": "notes", "not_before": "not_before",
+               "adds_boed": "adds_boed"}
     bad = set(fields) - set(allowed)
     if bad:
         raise PlanError(f"can't change {sorted(bad)}")
@@ -744,6 +750,8 @@ def change_activity(conn, item_id: int, by: str, **fields) -> dict:
         raise PlanError("percent complete is between 0 and 100")
     if "status" in fields and fields["status"] not in STATUSES:
         raise PlanError(f"status must be one of {STATUSES}")
+    if fields.get("adds_boed") is not None and fields["adds_boed"] < 0:
+        raise PlanError("the production an activity brings online is a number of BOE/d, 0 or more")
     sets = {allowed[k]: v for k, v in fields.items()}
     if not sets:
         return _activity(conn, item_id)
@@ -875,35 +883,43 @@ def _crew_changes(conn, res, start: datetime, end: datetime) -> dict[str, list[d
     return {r["code"]: [m | {"resource": r["code"]} for m in moves if m["crew"] in r["counts"]] for r in seats}
 
 
-def _offline(conn, res, start: datetime, end: datetime) -> list[dict]:
-    """Production capacity's demand, worked out from the plan: each active job that needs a unit down, with the wells
-    behind that unit on the flow network at their latest test rate in BOE/d (ops/at_risk.py's reads). One row per
-    job; `wells` is {well: BOE/d}, so a well two overlapping jobs take down is counted once."""
+PRODUCING = "Producing now"  # the source production capacity shows for what the wells make today
+
+
+def _online(conn, res, start: datetime, end: datetime) -> dict:
+    """Production capacity's demand, worked out from the plan: how much is online, in BOE/d, against how much the
+    system can handle. `wells` is what every well on the flow network makes at its latest test (ops/at_risk.py's
+    reads); `down` is each active job that needs a unit down, with the wells behind that unit, which are off while
+    it runs (a well two overlapping jobs take down is off once); `adds` is each active job that brings production
+    on when it finishes (`plan_item.adds_boed`), counted from its finish."""
     if not any(r["kind"] == "capacity" for r in res):
-        return []
+        return {"wells": {}, "down": [], "adds": []}
     from ..core.units import boe
     from . import at_risk
 
-    rows = conn.execute(
-        """
-        select id, title, kind, project, code, source, source_key, start_at, end_at, status, subjects from plan_item
-        where status = any(%s) and (needs_shutdown or kind = any(%s)) and start_at < %s and end_at > %s
-        order by start_at, id
-        """, (list(plan.ACTIVE), list(plan.SHUTDOWNS), end, start)).fetchall()
     feeds, nodes = at_risk._flow(conn)
     kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute(
         "select fuzer_id, kind from entity where fuzer_id = any(%s)", (list(nodes),))} if nodes else {}
-    behind = {r["id"]: sorted(n for n in at_risk._upstream(at_risk._units(conn, list(r["subjects"] or []), nodes), feeds)
-                              if kinds.get(n) == "well") for r in rows}
-    rates = at_risk._rates(conn, sorted({w for ws in behind.values() for w in ws}))
+    rates = at_risk._rates(conn, sorted(n for n in nodes if kinds.get(n) == "well"))
     made = {w: boe(sum(q[k]["value"] or 0 for k in ("oil_rate", "condensate_rate") if k in q),
                    (q.get("gas_rate") or {}).get("value")) for w, q in rates.items()}
-    out = []
-    for r in rows:
-        wells = {w: made[w] for w in behind[r["id"]] if made.get(w)}
+    made = {w: v for w, v in made.items() if v}
+    cols = "id, title, kind, project, code, source, source_key, start_at, end_at, status"
+    down = []
+    for r in conn.execute(
+            f"""
+            select {cols}, subjects from plan_item
+            where status = any(%s) and (needs_shutdown or kind = any(%s)) and start_at < %s and end_at > %s
+            order by start_at, id
+            """, (list(plan.ACTIVE), list(plan.SHUTDOWNS), end, start)).fetchall():
+        behind = at_risk._upstream(at_risk._units(conn, list(r["subjects"] or []), nodes), feeds)
+        wells = {w: made[w] for w in sorted(behind) if w in made}
         if wells:
-            out.append({**{k: r[k] for k in r if k != "subjects"}, "wells": wells, "quantity": round(sum(wells.values()), 1)})
-    return out
+            down.append({**{k: r[k] for k in r if k != "subjects"}, "wells": wells, "quantity": round(sum(wells.values()), 1)})
+    adds = [{**r, "arrives": r["end_at"], "quantity": float(r["adds_boed"])} for r in conn.execute(
+        f"select {cols}, adds_boed from plan_item where status = any(%s) and adds_boed > 0 and end_at < %s "
+        "order by end_at, id", (list(plan.ACTIVE), end)).fetchall()]
+    return {"wells": made, "down": down, "adds": adds}
 
 
 ROUND_CHECK_MINUTES = 4  # walking to a point, reading or checking it and keying it in
@@ -975,7 +991,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
             pass
     routine = routine_load(conn, res)
     trips = _crew_changes(conn, res, start, end)
-    offline = _offline(conn, res, start, end)
+    online = _online(conn, res, start, end)
     out = []
     for r in res:
         code = r["code"]
@@ -990,15 +1006,19 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
             for h in range(max(0, int(h_of(x["start_at"]))), min(hours, int(-(-h_of(x["end_at"]) // 1)))):
                 use[h][_source(x)] += x["quantity"]
                 jobs[h].append(x)
-        if r["kind"] == "capacity":  # what each shutdown job takes offline, a well counted once an hour
+        if r["kind"] == "capacity":  # what is online: the wells' rates, less what jobs have down, plus what jobs bring on
             down: list[set] = [set() for _ in range(hours)]
-            for x in offline:
+            for x in online["down"]:
                 for h in range(max(0, int(h_of(x["start_at"]))), min(hours, int(-(-h_of(x["end_at"]) // 1)))):
-                    new = {w: q for w, q in x["wells"].items() if w not in down[h]}
-                    if new:
-                        down[h] |= set(new)
-                        use[h][_source(x)] += sum(new.values())
-                        jobs[h].append(x)
+                    down[h] |= set(x["wells"])
+            field = sum(online["wells"].values())
+            for h in range(hours):
+                use[h][PRODUCING] += field - sum(online["wells"][w] for w in down[h])
+            for x in online["adds"]:  # from its finish on; moving the job later moves the production later
+                arrival = x | {"start_at": x["arrives"]}
+                for h in range(max(0, int(-(-h_of(x["arrives"]) // 1))), hours):
+                    use[h][_source(x)] += x["quantity"]
+                    jobs[h].append(arrival)
         if code in routine:
             for u in use:
                 u[routine[code]["source"]] += routine[code]["quantity"]

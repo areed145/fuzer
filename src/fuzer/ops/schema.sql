@@ -491,6 +491,9 @@ create table if not exists plan_resource_capacity (
 );
 -- a planner's constraint on a schedule activity: start no earlier than this (dragged on the Gantt)
 alter table plan_item add column if not exists not_before timestamptz;
+-- the production a job brings online when it finishes, in BOE/d (a new well, a restart, an uplift): what production
+-- capacity counts against how much the system can handle (ops/schedule.py)
+alter table plan_item add column if not exists adds_boed double precision;
 alter table plan_resource_capacity add column if not exists created_by text;
 alter table plan_resource_capacity add column if not exists created_at timestamptz not null default now();
 create table if not exists plan_demand (

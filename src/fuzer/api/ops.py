@@ -1391,6 +1391,7 @@ class ScheduleActivityChange(BaseModel):
     notes: str | None = None
     not_before: datetime | None = None
     clear_not_before: bool = False
+    adds_boed: float | None = None  # production it brings online when it finishes, BOE/d (0 clears it)
 
 
 class ScheduleLink(BaseModel):
