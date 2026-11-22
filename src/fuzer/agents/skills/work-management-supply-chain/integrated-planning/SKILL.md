@@ -1,6 +1,6 @@
 ---
 name: integrated-planning
-description: Integrated planning - the critical path of a turnaround, project or campaign, its schedule levelled against shared resources (crews, cranes, beds, seats, vessels, deck space, capacity), what drives the finish, and a Gantt.
+description: Integrated planning - the critical path of a turnaround, project or campaign, its schedule levelled against shared resources (crews, cranes, beds, seats, vessels, deck space, capacity), what drives the finish, a Gantt, and each day's logistics (crews to jobs, travel, seats, beds, lifts).
 ---
 
 # Integrated planning
@@ -26,6 +26,11 @@ on Plan, beside SAP orders and other planned work, so one schedule answers both 
 7. **Materials and scope.** `material_readiness` and `turnaround_scope` still give the parts and the scope. A part
    that arrives after an activity's start is a constraint the schedule doesn't know yet, so say which activity it
    holds.
+
+8. **Logistics.** `logistics_plan(start, days)` reads the plan day by day: each crew's jobs with the
+   people and the assets, the crews that travel out and back, the seats and beds needed against what there is, and
+   the cranes and vessels booked. Lead with any day that is `over` and say what it is short of. A crew travels only
+   when a seats or beds resource counts it. These are the plan's needs, not bookings.
 
 **Report:** the critical path, the unconstrained and levelled finish against the window, what drives the levelled
 finish, the overloads with options, then the Gantt.

@@ -300,3 +300,41 @@ def test_production_capacity_caps_what_is_online_less_what_jobs_have_down_plus_w
     with pytest.raises(schedule.PlanError):
         schedule.change_activity(c, restart["id"], "tests", adds_boed=-1)
     c.rollback()
+
+
+def test_logistics_reads_each_day_s_crews_travel_seats_beds_and_lifts_from_the_plan(tar):
+    """Dispatch and logistics from the schedule: who goes where each day, who travels, and what they take."""
+    c, _ = tar
+    out = schedule.analyse(c, "OK-TAR-2026")
+    scaf = [a for a in out["activities"] if "SCAF" in a["needs"]]
+    first = min(a["start"] for a in scaf)
+    start = first.replace(hour=0, minute=0, second=0, microsecond=0)
+    plan_ = schedule.logistics(c, start - timedelta(days=1), 40)
+    days = {d["day"]: d for d in plan_["by_day"]}
+    day = days[first.date().isoformat()]
+    crew = next(x for x in day["crews"] if x["resource"] == "SCAF")
+    assert {j["code"] for j in crew["jobs"]} >= {a["code"] for a in scaf if a["start"] == first}
+    assert all(j["schedule"] == "OK-TAR-2026" and j["assets"] for j in crew["jobs"])
+    [trip] = [t for t in day["travel"] if t["crew"] == "SCAF"]
+    assert trip["way"] == "out" and trip["people"] == 4 and trip["by"], "the scaffolders fly out the day they start"
+    seats = next(x for x in day["limits"] if x["kind"] == "seats")
+    assert seats["need"] >= 4 and seats["capacity"] == 12 and not seats["over"]
+    back = days[max(a["finish"] for a in scaf).date().isoformat()]
+    assert any(t["crew"] == "SCAF" and t["way"] == "back" for t in back["travel"])
+    lifts = [d for d in plan_["by_day"] if any(e["kind"] == "crane" for e in d["equipment"])]
+    assert lifts and all(e["jobs"] for d in lifts for e in d["equipment"])
+    # the seats the day needs are the Resources page's own figure, not a second count
+    load = schedule.resource_load(c, "SEATS", start - timedelta(days=1), 40)["resources"][0]
+    assert {d["day"]: d["demand"] for d in load["days"] if d["demand"]} == {
+        d["day"]: x["need"] for d in plan_["by_day"] for x in d["limits"] if x["kind"] == "seats"}
+    c.rollback()
+
+
+def test_the_specialist_reads_a_day_s_logistics(tar):
+    c, _ = tar
+    from fuzer.agents.capabilities import maintenance
+
+    first = min(a["start"] for a in schedule.analyse(c, "OK-TAR-2026")["activities"])
+    out = maintenance.logistics_plan(first.date().isoformat(), 3)
+    assert out["by_day"][0]["day"] == first.date().isoformat() and out["by_day"][0]["crews"]
+    assert "error" in maintenance.logistics_plan("next week")

@@ -381,6 +381,27 @@ def critical_path(project: str | None = None) -> dict[str, Any]:
         return _plain(out)
 
 
+@capability("work-management-supply-chain", "orchestrator", kind="calc")
+def logistics_plan(start: str | None = None, days: int = 14) -> dict[str, Any]:
+    """Logistics from the integrated plan (what to send where), day by day from `start` (a date; default today) for `days`:
+    each crew's jobs with the people, the assets and the hours, the crews that travel out and back for a schedule and
+    how, the seats and beds needed against what there is (`over` marks a day that is short), and the cranes, vessels
+    and deck space booked. It reads the plan's dates and resource needs; it books and commits nothing."""
+    from datetime import datetime
+
+    from ...core.plan import PlanError
+    from ...ops import schedule
+    try:
+        at = datetime.fromisoformat(start) if start else None
+    except ValueError:
+        return {"error": f"start must be a date such as 2027-02-23, not {start!r}"}
+    with db.connect() as conn:
+        try:
+            return _plain(schedule.logistics(conn, at, max(1, min(days, 60))))
+        except PlanError as e:
+            return {"error": str(e)}
+
+
 @capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", kind="plot")
 def plot_gantt(project: str | None = None, levelled: bool = True) -> dict[str, Any]:
     """Chart a schedule on the integrated plan as a Gantt: a bar per activity at its levelled dates (early dates with

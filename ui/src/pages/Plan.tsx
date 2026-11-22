@@ -10,6 +10,7 @@ import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
 import { ResourcesPage } from "./Resources";
+import { LogisticsPage } from "./Logistics";
 import { SchedulesPage } from "./Schedules";
 import { usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -26,6 +27,8 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
   const schedule = query.get("schedule");
   // `?resources=1` is the resource owners' view: demand from every source against each resource's capacity.
   if (query.has("resources")) return <ResourcesPage query={query} person={person} />;
+  // `?logistics=1` is what the plan asks to be sent each day: crews to jobs, who travels, seats, beds and lifts.
+  if (query.has("logistics")) return <LogisticsPage />;
   // `?schedules=1` lists the schedules (Plan's Schedules page).
   if (query.has("schedules")) return <SchedulesPage />;
   return schedule ? <SchedulePage code={schedule} person={person} view={query.get("view")} /> : <PlanTimeline query={query} person={person} />;

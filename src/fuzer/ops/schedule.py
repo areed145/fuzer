@@ -854,7 +854,13 @@ def _crew_changes(conn, res, start: datetime, end: datetime) -> dict[str, list[d
     seats = [r for r in res if r["kind"] == "seats" and r["counts"]]
     if not seats:
         return {}
-    crews = sorted({c for r in seats for c in r["counts"]})
+    moves = _crew_moves(conn, sorted({c for r in seats for c in r["counts"]}), start, end)
+    return {r["code"]: [m | {"resource": r["code"]} for m in moves if m["crew"] in r["counts"]] for r in seats}
+
+
+def _crew_moves(conn, crews: list[str], start: datetime, end: datetime) -> list[dict]:
+    """Each of `crews` travelling for a schedule: out at its peak size the day its first job starts, back the day
+    its last job finishes. One row per crew, schedule and direction, lasting that day."""
     names = {r["code"]: r["name"] for r in conn.execute("select code, name from plan_resource where code = any(%s)", (crews,))}
     jobs = conn.execute(
         """
@@ -879,8 +885,9 @@ def _crew_changes(conn, res, start: datetime, end: datetime) -> dict[str, list[d
             if day < end and day + timedelta(days=1) > start:
                 moves.append({"crew": crew, "id": None, "title": f"{names.get(crew, crew)} {way}", "kind": "crew_change",
                               "project": project, "code": None, "source": "crew change", "source_key": None, "start_at": day,
-                              "end_at": day + timedelta(days=1), "status": "scheduled", "quantity": peak})
-    return {r["code"]: [m | {"resource": r["code"]} for m in moves if m["crew"] in r["counts"]] for r in seats}
+                              "end_at": day + timedelta(days=1), "status": "scheduled", "quantity": peak,
+                              "way": "out" if way == "flies out" else "back"})
+    return moves
 
 
 PRODUCING = "Producing now"  # the source production capacity shows for what the wells make today
@@ -1090,3 +1097,68 @@ def remove_capacity_window(conn, window_id: int, by: str) -> dict:
     events.publish(conn, "plan.changed", f"plan_resource:{row['resource']}", {"resource": row["resource"],
                                                                               "change": "capacity window removed", "by": by})
     return {"removed": window_id}
+
+
+# ---- logistics, from the schedule -------------------------------------------------------------------------------
+
+EQUIPMENT = ("crane", "vessel", "deck")  # what is booked for a job, not staffed
+
+
+def logistics(conn, start: datetime | None = None, days: int = 14) -> dict:
+    """What the plan asks to be sent, day by day: each crew's jobs with the people and the assets, the crews that
+    travel (those a seats or beds resource counts: out the day their first job on a schedule starts, back the day
+    their last finishes) with the seats and beds they take against what there is, and the cranes, vessels and deck
+    space booked. Everything is read from the plan's dates and resource needs; nothing is committed here."""
+    start = (start or clock.now()).replace(hour=0, minute=0, second=0, microsecond=0)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=clock.zone())
+    end = start + timedelta(days=days)
+    res = {r["code"]: r for r in conn.execute("select * from plan_resource order by kind, code")}
+    rows = conn.execute(
+        """
+        select i.id, i.title, i.project, i.code, i.source, i.source_key, i.start_at, i.end_at, i.status,
+               d.resource, d.quantity, la.label as area,
+               coalesce((select json_agg(l.label order by n) from unnest(i.subjects) with ordinality u (s, n)
+                         join entity_label l on l.fuzer_id = s), '[]') as assets
+        from plan_demand d join plan_item i on i.id = d.item_id left join entity_label la on la.fuzer_id = i.area_id
+        where i.status = any(%s) and i.start_at < %s and i.end_at > %s and d.quantity > 0
+        order by i.start_at, i.id
+        """, (list(plan.ACTIVE), end, start)).fetchall()
+    carriers = [r for r in res.values() if r["kind"] in ("seats", "beds") and r["counts"]]
+    travelling = sorted({c for r in carriers for c in r["counts"]})
+    moves = _crew_moves(conn, travelling, start, end) if travelling else []
+    by_seats = {c: r for r in carriers if r["kind"] == "seats" for c in r["counts"]}
+    load = {r["code"]: {d["day"]: d for d in r["days"]}
+            for r in resource_load(conn, None, start, days)["resources"] if r["kind"] in ("seats", "beds")}
+
+    def job(x) -> dict:
+        return {"item_id": x["id"], "title": x["title"], "code": x["code"], "schedule": x["project"],
+                "order": x["source_key"] if x["source"] != "schedule" else None, "assets": x["assets"], "area": x["area"],
+                "start": x["start_at"], "end": x["end_at"], "quantity": x["quantity"]}
+
+    out = []
+    for n in range(days):
+        a = start + timedelta(days=n)
+        b = a + timedelta(days=1)
+        day = a.date().isoformat()
+        today = [x for x in rows if x["start_at"] < b and x["end_at"] > a and x["resource"] in res]
+        crews, equipment = [], []
+        for code, r in res.items():
+            mine = [x for x in today if x["resource"] == code]
+            if not mine or r["kind"] not in ("crew", *EQUIPMENT):
+                continue
+            entry = {"resource": code, "name": r["name"], "unit": r["unit"], "capacity": r["capacity"],
+                     "jobs": [job(x) for x in mine]}
+            (crews if r["kind"] == "crew" else equipment).append(entry | {"kind": r["kind"]})
+        travel = [{"crew": m["crew"], "name": res[m["crew"]]["name"], "people": m["quantity"], "way": m["way"],
+                   "schedule": m["project"], "by": by_seats[m["crew"]]["name"] if m["crew"] in by_seats else None}
+                  for m in moves if m["start_at"] == a]
+        limits = [{"resource": code, "name": res[code]["name"], "kind": res[code]["kind"], "unit": res[code]["unit"],
+                   "need": d[day]["demand"], "capacity": d[day]["capacity"], "over": d[day]["demand"] > d[day]["capacity"] + EPS}
+                  for code, d in load.items() if day in d and (d[day]["demand"] > 0)]
+        if crews or equipment or travel or limits:
+            out.append({"day": day, "crews": crews, "travel": travel, "equipment": equipment, "limits": limits})
+    return {"start": start, "end": end, "days": days, "by_day": out,
+            "basis": "every active planned job's resource needs at its planned dates; a crew that a seats or beds "
+                     "resource counts travels out the day its first job on a schedule starts and back the day its "
+                     "last one finishes"}

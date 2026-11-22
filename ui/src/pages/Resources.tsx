@@ -2,7 +2,7 @@
  * day by day against its capacity, each overload with the jobs in it and the move that clears it at the least cost,
  * and the owner's capacity and capacity windows (leave, a certification lapsing, a vessel in dock). */
 import { type CSSProperties, useState } from "react";
-import { when, whenDay } from "../format";
+import { isoDay, when, whenDay } from "../format";
 import { api, type ResourceLoad, type ResourceMove, type ResourceOverload } from "../api";
 import { Badge, Button, ButtonLink, Card, Empty, Field, Input, PageHeader, Select, ErrorText, Line, Text, List, Heading } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
@@ -13,7 +13,7 @@ const num = (n: number | null | undefined) => (n == null ? "" : Number.isInteger
 
 export function ResourcesPage({ query, person }: { query: URLSearchParams; person: string | null }) {
   const pick = query.get("resource") || "";
-  const [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [from, setFrom] = useState(() => isoDay());
   const [days, setDays] = useState(42);
   const load = useAsync(() => api.resourceLoad({ resource: pick || undefined, start: from, days }), [pick, from, days]);
   const all = useAsync(() => api.planResources(), []);

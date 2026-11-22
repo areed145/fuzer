@@ -76,3 +76,6 @@ export function ago(at: At, missing = ""): string {
     : a < 7 * 86400 ? `${Math.round(a / 86400)} d` : null;
   return !span ? when(at, missing) : s < 0 ? `${span} ago` : `in ${span}`;
 }
+
+/** The calendar day of a date or an ISO time as "2026-11-17", for a date input or a link; today when left out. */
+export const isoDay = (at: Date | string = new Date()): string => (typeof at === "string" ? at : at.toISOString()).split("T")[0];
