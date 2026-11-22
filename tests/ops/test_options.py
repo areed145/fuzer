@@ -120,11 +120,19 @@ def test_choosing_dispatch_sends_it_with_why_now_and_counts_the_recommendation(c
     assert any(s.startswith("Chose dispatch now") and "as recommended" in s for s in said), said
     sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
                         "('handed_off', 'created') order by id desc limit 1", (item,)).fetchone()["r"]
-    assert sent and "Why now:" in sent
+    assert sent and sent.startswith("Restart checks") and "Why now:" not in sent  # no reason given: the ask alone
     assert options.for_case(conn, item)["applies"] is False  # the field has it now
     stats = options.acceptance(conn)
     assert stats["decided"] >= 1 and next(t for t in stats["types"] if t["type"] == "machine_trip")["rate"] is not None
 
+
+def test_a_one_tap_dispatch_asks_the_field_to_look_not_the_cost_sum(conn):
+    e = trip(conn, "K-2300B trip 4")
+    out = options.choose(conn, e["id"], "riley", "dispatch", to="sam")
+    conn.commit()
+    sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
+                        "('handed_off', 'created') order by id desc limit 1", (out["event"]["item_id"],)).fetchone()["r"]
+    assert sent == options.ASK
 
 def test_another_option_than_recommended_needs_a_reason_and_is_counted_as_not_taken(conn):
     e = trip(conn, "K-2300B trip 3")

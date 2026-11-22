@@ -460,6 +460,8 @@ def _bbl(o: dict) -> str:
 
 # ---- carrying out a choice ---------------------------------------------------------------------------------------
 
+ASK = "Go and have a look, report what you find"  # what a dispatch asks when the IOC writes nothing (as the sample crew)
+
 def choose(conn, exception_id: int, by: str, option: str, reason: str | None = None, *, to: str | None = None,
            ask: str | None = None, due=None, priority: float | None = None, override: str | None = None) -> dict:
     """Carry out one of an event's options and record it: dispatch it (to a person or the operator queue, with what to
@@ -487,7 +489,9 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         override = (override or "").strip()
         if not ready["ready"] and not override:
             raise OptionsError("Not ready to dispatch: " + "; ".join(ready["blockers"]) + ". Say why it should go anyway.")
-        told = "; ".join(x for x in ((ask or "").strip(), f"Why now: {why}") if x)
+        # The field reads this first, in bold, on the job: what to do, and why only when the IOC wrote its own. The
+        # recommendation's reason (bbl and dollars against the shelf) is kept on the case, not sent as the instruction.
+        told = "; ".join(x for x in ((ask or "").strip() or ASK, f"Why now: {reason}" if reason else "") if x)
         row = exceptions.dispatch(conn, eid, by, to or "role:operator", told,
                                   override=override if not ready["ready"] else None, blockers=ready["blockers"])
         if row["item_id"] and due:
