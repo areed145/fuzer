@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from fuzer.analysis import material_readiness
 from fuzer.core.plan import PlanError
 from fuzer.ops import plan, schedule
 
@@ -327,6 +328,51 @@ def test_logistics_reads_each_day_s_crews_travel_seats_beds_and_lifts_from_the_p
     load = schedule.resource_load(c, "SEATS", start - timedelta(days=1), 40)["resources"][0]
     assert {d["day"]: d["demand"] for d in load["days"] if d["demand"]} == {
         d["day"]: x["need"] for d in plan_["by_day"] for x in d["limits"] if x["kind"] == "seats"}
+    c.rollback()
+
+
+def test_a_visiting_crew_keeps_its_beds_aboard_between_its_jobs(tar):
+    """The scaffolders put scaffolds up at the start and strike them at the end: in between they have no job but are
+    still aboard, so their four beds stay taken until they fly back, and the day lists them as aboard."""
+    c, _ = tar
+    acts = schedule.analyse(c, "OK-TAR-2026")["activities"]
+    scaf = sorted((a for a in acts if "SCAF" in a["needs"]), key=lambda a: a["start"])
+    gap = max(a["finish"] for a in scaf[:-1]).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    assert gap + timedelta(days=1) <= scaf[-1]["start"], "a whole day between the scaffolders' jobs"
+    start = scaf[0]["start"].replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    plan_ = schedule.logistics(c, start, 30)
+    day = next(d for d in plan_["by_day"] if d["day"] == gap.date().isoformat())
+    assert not any(x["resource"] == "SCAF" for x in day["crews"])
+    assert [(x["crew"], x["people"]) for x in day["aboard"]] == [("SCAF", 4)]
+    beds = schedule.resource_load(c, "BEDS", start, 30)["resources"][0]
+    held = next(d for d in beds["days"] if d["day"] == gap.date().isoformat())
+    assert held["by_source"]["OK-TAR-2026"] >= 4
+    assert next(x for x in day["limits"] if x["resource"] == "BEDS")["need"] == held["demand"]
+    # once they fly back the beds are free: nothing holds them after the last job
+    after = (scaf[-1]["finish"] + timedelta(days=1)).date().isoformat()
+    assert all(x["crew"] != "SCAF" for d in plan_["by_day"] if d["day"] >= after for x in d["aboard"])
+    c.rollback()
+
+
+def test_the_parts_for_a_job_are_listed_the_day_its_first_activity_starts(tar):
+    """Each work order's open reservations are sent for the day its first job on the plan starts, with whether stock
+    or an order on record covers them; the overhaul's parts come with its first activity, not with every one."""
+    c, _ = tar
+    acts = {a["code"]: a for a in schedule.analyse(c, "OK-TAR-2026")["activities"]}
+    first = min(a["start"] for a in acts.values()).replace(hour=0, minute=0, second=0, microsecond=0)
+    plan_ = schedule.logistics(c, first, 20)
+    parts = [(d["day"], m) for d in plan_["by_day"] for m in d["materials"]]
+    assert parts, "the turnaround's orders reserve parts"
+    overhaul = [(day, m) for day, m in parts if m["code"] == "A0100"]
+    assert overhaul and {day for day, _ in overhaul} == {acts["A0100"]["start"].date().isoformat()}
+    assert not any(m["code"] in ("A0110", "A0130") for _, m in parts), "one send per order"
+    lines = {(x["work_order"], x["material"]): x for x in material_readiness.coverage(c)["lines"]}
+    for _, m in parts:
+        assert m["schedule"] == "OK-TAR-2026" and m["order"] and m["material"]
+        assert m["verdict"] == lines[(m["order"], m["material"])]["verdict"]
+    # a window that starts after the order's first job has already sent its parts
+    later = schedule.logistics(c, first + timedelta(days=3), 10)
+    assert not any(m["code"] == "A0100" for d in later["by_day"] for m in d["materials"])
     c.rollback()
 
 

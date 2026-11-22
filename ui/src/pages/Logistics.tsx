@@ -1,10 +1,11 @@
-/** Logistics from the plan (P5.18): day by day, each crew's jobs, who travels, the seats and beds they
- * take against what there is, and the cranes, vessels and deck space booked. Read from the plan; changed on Plan. */
+/** Logistics from the plan (P5.18): day by day, each crew's jobs, who travels and who stays aboard between jobs, the
+ * seats and beds they take against what there is, the cranes, vessels and deck space booked, and the parts to send
+ * for the jobs that start that day. Read from the plan; changed on Plan. */
 import { useState } from "react";
 import { isoDay, when, whenDay } from "../format";
-import { api, type LogisticsDay, type LogisticsJob } from "../api";
+import { api, type LogisticsDay, type LogisticsJob, type LogisticsMaterial } from "../api";
 import { Badge, ButtonLink, Card, Empty, Field, Heading, Input, Line, List, PageHeader, Select, Table, Text } from "../ui";
-import { Status, useAsync } from "../lib";
+import { Status, entityHref, useAsync } from "../lib";
 import { acronyms } from "../wording";
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -31,11 +32,15 @@ export function LogisticsPage() {
 }
 
 function Day({ d }: { d: LogisticsDay }) {
+  const aboard = d.aboard ?? [];
+  const materials = d.materials ?? [];
   return (
     <Card title={whenDay(d.day)} className="logistics-day">
-      {(d.travel.length > 0 || d.limits.length > 0) && <Line>
+      {(d.travel.length > 0 || aboard.length > 0 || d.limits.length > 0) && <Line>
         {d.travel.map((t) => <Badge key={`${t.crew}-${t.way}-${t.schedule}`} tone="info">
           {num(t.people)} {t.name} {t.way === "out" ? "travel out" : "travel back"}{t.by ? ` on ${t.by}` : ""}</Badge>)}
+        {aboard.map((t) => <Badge key={`${t.crew}-${t.schedule}-aboard`} tone="muted">
+          {num(t.people)} {t.name} aboard, no job</Badge>)}
         {d.limits.map((l) => <Badge key={l.resource} tone={l.over ? "danger" : "ok"}>
           {l.name}: {num(l.need)} of {num(l.capacity)}</Badge>)}
       </Line>}
@@ -53,11 +58,34 @@ function Day({ d }: { d: LogisticsDay }) {
           <strong>{e.name}</strong>: {e.jobs.map((j) => `${j.code ? `${j.code} ` : ""}${acronyms(j.title)}`).join("; ")}
         </li>)}</List>
       </>}
+      {materials.length > 0 && <>
+        <Heading level={3}>Materials to send</Heading>
+        <Table density="compact">
+          <thead><tr><th>Material</th><th>Qty</th><th>For</th><th>Ready</th></tr></thead>
+          <tbody>{materials.map((m) => <tr key={`${m.order}-${m.material_id}`}>
+            <td><a href={entityHref(m.material_id)}>{m.material ?? m.material_id}</a>{m.description && <Text small> {m.description}</Text>}</td>
+            <td>{num(m.quantity)}</td>
+            <td><Job j={{ ...m, start: d.day }} /></td>
+            <td><Cover m={m} /></td>
+          </tr>)}</tbody>
+        </Table>
+      </>}
     </Card>
   );
 }
 
-function Job({ j }: { j: LogisticsJob }) {
+/** Whether stock or an order on record covers a part on the day it is sent. */
+function Cover({ m }: { m: LogisticsMaterial }) {
+  switch (m.verdict) {
+    case "in_stock": return <Badge tone="ok">In stock</Badge>;
+    case "on_order": return <Badge tone="ok">On order{m.due ? `, due ${whenDay(m.due)}` : ""}</Badge>;
+    case "late": return <Badge tone="danger">Late{m.due ? `, due ${whenDay(m.due)}` : ""}</Badge>;
+    case "not_on_order_too_late": return <Badge tone="danger">Not on order, too late</Badge>;
+    default: return <Badge tone="warn">Not on order</Badge>;
+  }
+}
+
+function Job({ j }: { j: Pick<LogisticsJob, "item_id" | "title" | "code" | "schedule"> & { order?: string | null; start?: string } }) {
   const label = `${j.code ? `${j.code} ` : ""}${acronyms(j.title)}`;
   return <>
     {j.schedule ? <ButtonLink size="sm" variant="link" href={`#/plan?schedule=${encodeURIComponent(j.schedule)}`}>{label}</ButtonLink>

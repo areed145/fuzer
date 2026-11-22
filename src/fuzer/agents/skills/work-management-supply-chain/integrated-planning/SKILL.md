@@ -28,9 +28,11 @@ on Plan, beside SAP orders and other planned work, so one schedule answers both 
    holds.
 
 8. **Logistics.** `logistics_plan(start, days)` reads the plan day by day: each crew's jobs with the
-   people and the assets, the crews that travel out and back, the seats and beds needed against what there is, and
-   the cranes and vessels booked. Lead with any day that is `over` and say what it is short of. A crew travels only
-   when a seats or beds resource counts it. These are the plan's needs, not bookings.
+   people and the assets, the crews that travel out and back and those aboard between jobs (who keep their beds),
+   the seats and beds needed against what there is, the cranes and vessels booked, and the materials to send for the
+   jobs that start that day with what covers each. Lead with any day that is `over` and say what it is short of,
+   then any material that is `late` or not on order. A crew travels only when a seats or beds resource counts it.
+   These are the plan's needs, not bookings.
 
 **Report:** the critical path, the unconstrained and levelled finish against the window, what drives the levelled
 finish, the overloads with options, then the Gantt.

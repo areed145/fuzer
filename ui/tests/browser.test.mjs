@@ -9035,7 +9035,7 @@ test("A resource owner sees demand against capacity, the overload and its cheape
   }
 });
 
-test("Logistics lists each day's crews and jobs, who travels, seats and beds against what there is, and what is booked, at phone, iPad and desktop widths (P5.18)", async () => {
+test("Logistics lists each day's crews and jobs, who travels and who stays aboard, seats and beds against what there is, what is booked and the materials to send, at phone, iPad and desktop widths (P5.18)", async () => {
   const job = (id, code, title, quantity, assets, area) => ({ item_id: id, code, title, schedule: "OK-TAR-2026", order: null, assets, area,
     start: "2027-02-23T06:00:00+00:00", end: "2027-02-23T18:00:00+00:00", quantity });
   const plan = { start: "2027-02-22", end: "2027-03-08", days: 14, by_day: [{
@@ -9047,8 +9047,16 @@ test("Logistics lists each day's crews and jobs, who travels, seats and beds aga
     equipment: [{ resource: "CRANE", name: "Platform crane", unit: "cranes", capacity: 1, kind: "crane",
       jobs: [job(13, "A0200", "Lift the compressor casing", 1, ["20-K-2200B"], "OKAN-20")] }],
     travel: [{ crew: "SCAF", name: "Scaffolders", people: 4, way: "out", schedule: "OK-TAR-2026", by: "Helicopter seats" }],
+    aboard: [{ crew: "NDT", name: "Inspection and NDT technicians", people: 2, schedule: "OK-TAR-2026" }],
     limits: [{ resource: "SEATS", name: "Helicopter seats", kind: "seats", unit: "seats", need: 4, capacity: 12, over: false },
       { resource: "BEDS", name: "Beds on board", kind: "beds", unit: "beds", need: 16, capacity: 14, over: true }],
+    materials: [
+      { material: "MAT-100034", material_id: "fz-material-34", description: "Dry gas seal cartridge", quantity: 2, order: "50000306",
+        item_id: 14, title: "Decouple and open the 20-K-2200B casing", code: "A0100", schedule: "OK-TAR-2026", verdict: "late",
+        due: "2027-02-27", days_late: 4, short: null },
+      { material: "MAT-100035", material_id: "fz-material-35", description: "Journal bearing set", quantity: 1, order: "50000306",
+        item_id: 14, title: "Decouple and open the 20-K-2200B casing", code: "A0100", schedule: "OK-TAR-2026", verdict: "in_stock",
+        due: null, days_late: null, short: null }],
   }] };
   const asked = [];
   await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
@@ -9060,6 +9068,13 @@ test("Logistics lists each day's crews and jobs, who travels, seats and beds aga
   await day.getByText("4 Scaffolders travel out on Helicopter seats").waitFor();
   await day.getByText("Helicopter seats: 4 of 12").waitFor();
   await day.getByText("Beds on board: 16 of 14").waitFor();
+  await day.getByText("2 Inspection and NDT technicians aboard, no job").waitFor();
+  await day.getByRole("heading", { name: "Materials to send" }).waitFor();
+  const seal = day.getByRole("row", { name: /MAT-100034/ });
+  await seal.getByText(/Late, due/).waitFor();
+  await seal.getByRole("link", { name: /A0100 Decouple/ }).waitFor();
+  assert.equal(await seal.getByRole("link", { name: "MAT-100034" }).getAttribute("href"), "#/e/fz-material-34");
+  await day.getByRole("row", { name: /MAT-100035/ }).getByText("In stock").waitFor();
   await day.getByRole("link", { name: /A0050 Scaffold 20-K-2200B/ }).waitFor();
   assert.equal(await day.getByRole("link", { name: /A0050/ }).getAttribute("href"), "#/plan?schedule=OK-TAR-2026");
   await day.getByText("Platform crane").waitFor();
