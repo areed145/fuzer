@@ -43,6 +43,7 @@ built left to right.
 | 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15, P5.16, P5.17, P5.19 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
 | *Gate C* (passed 2026-11-13) | | | Third asset type live, no code | |
+| 7 After the alert | P5.20, P5.21, P5.22, P5.23 | | P2.8 | |
 
 Gate A was signed off on 2026-11-12. One gap is logged for Phase 2: in the loop eval, steward questions and source
 and mapping problems are still raised by the loop instead of arriving on their own (#747).
@@ -177,6 +178,21 @@ taken. This was built on 2026-11-20 and 21, ahead of its epic, and filed afterwa
 | Epic | Build | Done when |
 |---|---|---|
 | P5.19 All work as a List and Board, with checklists on cases | One definition of open, waiting on you and overdue (#1230); one page per case (#1225); a List and Board over all work, filtered and sorted on any dimension, with presets instead of views (#1232, #1236, #1240); My work as the "Waiting on me" preset (#1233, #1239); checklists on a case, with items sent to other queues as their own cases (#1234, #1237); closing a field job from its row (#1223) | Counts agree on every page; the List and Board filter on facility, area, asset, queue, state and source; nothing waiting on a person is counted twice; a checklist item can be ticked or sent on; browser tests at 390 px and on desktop; loop eval green |
+
+## After the alert (P5.20 #1251, P5.21 #1252, P5.22 #1253, P2.8 #1254, P5.23 #1255)
+
+A review of Palantir's public oil and gas demos (21 Nov 2026) found Fuzer at parity on most of the loop. Where the
+demos go further is after the alert: options with their consequences, a plan that re-plans itself when something
+breaks, messages with no API turned into work, and pipeline outage planning. These five epics are that review's top
+five, filed at Adam's request before a session starts them.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P5.20 Options with consequences on a case | An Options card on cases in To dispatch and Back from the field: dispatch now, ride along with the next window, shelve until, escalate, each with bbl, $, risk, readiness and clashes, one recommended with its reason; dispatch gains due time, priority and a permit check; acceptance recorded | An IOC operator on a phone picks between options for an Okan trip on one screen; the choice and reason reach the case and field job; acceptance rate shown per work type |
+| P5.21 Re-plan when something breaks, with notices | A trip, late part or lapsed permit raises a plan change: before and after Gantt and KPIs, the constraint behind each move, a constraint added in words, approve commits and drafts the SAP change and notices to whoever it affects | A seeded Okan trip raises a reviewable plan change; approving it updates the plan, queues the SAP change and drafts notices; field jobs show why they moved |
+| P5.22 Pipeline outage scheduling for Harrier | A customer and contract register; outage windows with volume and $ impact; views by asset, person and customer; three proposed windows with reasons; drafted internal and customer notices; proposals merged by a coordinator | Harrier flags two outages hitting the same customer, proposes windows with $ impact and drafts notices, with no code of its own |
+| P2.8 Free-text messages become matched work | Email, operator log, radio notes, Teams posts and phone notes become exceptions matched to the register, low confidence to the steward, shown on All work with their source and a drafted acknowledgement | A recorded Okan message set is matched with measured precision; a phone note becomes routed work |
+| P5.23 Rules in plain words, auto-assign, agent steps with Revert | Rules typed in words become typed, switchable checks on Plan; auto-assign of unassigned field jobs as a proposal; each agent action lists its steps and records changed, with Revert | A typed rule flags tiles that break it; auto-assign breaks no rule; Revert restores an agent change |
 
 ## How the work is tracked
 
