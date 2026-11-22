@@ -6293,6 +6293,8 @@ test("a job in progress is handed over at shift change and the incoming operator
   await card.getByRole("button", { name: "Hand over at shift change" }).click();
   const go = card.getByRole("button", { name: "Hand over", exact: true });
   assert.equal(await go.isDisabled(), true);
+  // the roster loads on its own: wait for it before reading the choices
+  await card.getByLabel("Hand over to").locator("option", { hasText: "gina" }).waitFor({ state: "attached" });
   assert.deepEqual(await card.getByLabel("Hand over to").locator("option").allTextContents(), ["who takes it", "gina"]);
   await card.getByLabel("Hand over to").selectOption("gina");
   await card.getByLabel("What was done").fill("isolated and blown down");
