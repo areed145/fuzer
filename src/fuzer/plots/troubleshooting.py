@@ -292,9 +292,12 @@ def alarms_chart(conn, scope: str | None, since: str, until: str, pack=None) -> 
                             "bad_actors", "basis")}, out["sources"][:10])
 
 
+ROWS = 20
+
+
 def propagation(conn, upset: int) -> Figure:
-    """An upset on the plant model: its units as nodes coloured by when each was first detected, links where
-    the model connects them, the likely first cause marked."""
+    """An upset on the plant model: a row per unit in the order each was first detected, placed at the minutes after
+    the first detection, links where the model connects them, the likely first cause marked."""
     from datetime import datetime as dt
 
     from ..graph import topology
@@ -308,39 +311,41 @@ def propagation(conn, upset: int) -> Figure:
     for x in d["timeline"]:  # multivariate findings are area-wide symptoms, not a unit's own first sign
         if x["unit"] and x["unit"] not in first and x["detector"] != "multivariate":
             first[x["unit"]] = x["start"]
-    rows = conn.execute("select fuzer_id, label from entity_label where label = any(%s)", (list(first),)).fetchall()
-    ids = {r["label"]: r["fuzer_id"] for r in rows}
+    found = conn.execute("select fuzer_id, label from entity_label where label = any(%s)", (list(first),)).fetchall()
+    ids = {r["label"]: r["fuzer_id"] for r in found}
     if not first:
         raise ChartError("no unit detections in that upset")
     order = sorted(first, key=lambda u: first[u])
     t0 = dt.fromisoformat(first[order[0]])
     mins = {u: (dt.fromisoformat(first[u]) - t0).total_seconds() / 60 for u in order}
-    # layered layout: x = minutes after the first detection, y spreads the units at about the same time
-    pos, lanes = {}, {}
-    for u in order:
-        b = int(mins[u] // 10)
-        lanes[b] = lanes.get(b, 0) + 1
-        pos[u] = (mins[u], lanes[b])
+    # one row per unit, the first cause at the top, x = minutes after the first detection: names read down the side,
+    # where they can't be cut off at the chart's edge, and the rows mean something (#14)
+    rows = order[:ROWS]  # past that the rows are too thin to read; the text under the chart counts the rest
+    pos = {u: (mins[u], u) for u in rows}
     adj = topology.topology(conn)
     ex, ey = [], []
-    for i, u in enumerate(order):
-        for v in order[i + 1:]:
+    for i, u in enumerate(rows):
+        for v in rows[i + 1:]:
             if ids.get(v) in adj.get(ids.get(u), ()):
                 ex += [pos[u][0], pos[v][0], None]
                 ey += [pos[u][1], pos[v][1], None]
     data = [{"type": "scatter", "mode": "lines", "name": "plant model link", "x": ex, "y": ey,
              "line": {"width": 1, "color": "rgba(140,140,140,0.5)"}, "hoverinfo": "skip"},
-            {"type": "scatter", "mode": "markers+text", "name": "units", "x": [pos[u][0] for u in order],
-             "y": [pos[u][1] for u in order], "text": order, "textposition": "top center",
-             "customdata": [ids.get(u) for u in order],
-             "marker": {"size": 12, "color": [mins[u] for u in order], "colorscale": "Viridis",
-                        "colorbar": {"title": {"text": "min after first"}}},
-             "hovertemplate": "%{text}: first detected %{x:.0f} min in<extra></extra>"},
-            {"type": "scatter", "mode": "markers", "name": "likely first cause", "x": [pos[order[0]][0]], "y": [pos[order[0]][1]],
-             "marker": {"size": 22, "symbol": "star-open", "line": {"width": 2}}}]
-    lay = layout(f"Upset {upset}: how it spread", "minutes after the first detection", None)
-    lay["yaxis"] = {"visible": False}
-    return Figure("propagation", lay["title"]["text"], data, lay, {
+            {"type": "scatter", "mode": "markers", "name": "first detected", "x": [pos[u][0] for u in rows],
+             "y": rows, "customdata": [ids.get(u) for u in rows], "marker": {"size": 11},
+             "hovertemplate": "%{y}: first detected %{x:.0f} min in<extra></extra>"},
+            {"type": "scatter", "mode": "markers", "name": "likely first cause", "x": [pos[order[0]][0]], "y": [order[0]],
+             "marker": {"size": 22, "symbol": "star-open", "line": {"width": 2}}, "hoverinfo": "skip"}]
+    title = f"Upset {upset}: how it spread"
+    span = max(mins[u] for u in rows) or 10
+    lay = layout("", "minutes after the first detection", None, height=150 + 30 * len(rows),
+                 margin={"l": 10, "r": 20, "t": 36, "b": 50},
+                 legend={"orientation": "h", "x": 0, "y": 1, "yanchor": "bottom"})
+    lay["xaxis"]["range"] = [-span * 0.05, span * 1.08]
+    lay["xaxis"]["zeroline"] = False
+    lay["yaxis"] = {"type": "category", "categoryorder": "array", "categoryarray": rows, "autorange": "reversed",
+                    "automargin": True, "title": {"text": "unit" if len(rows) == len(order) else f"first {len(rows)} of {len(order)} units"}, "fixedrange": True}
+    return Figure("propagation", title, data, lay, {
         "upset": upset, "first_cause": d["first_unit"], "first_detection": f"{d['first_key']} on {d['first_point']}",
         "units": len(order), "order": [{"unit": u, "minutes_after_first": round(mins[u])} for u in order[:15]],
         "links_drawn": len(ex) // 3}, [i for i in ids.values()][:20])

@@ -36,6 +36,7 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, onTime }: {
   const full = useFullscreen();
   const theme = useTheme();
   const [error, setError] = useState("");
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     const node = element.current;
     if (!node) return;
@@ -56,6 +57,7 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, onTime }: {
       let width = node.parentElement?.clientWidth ?? 0;
       await draw(width);
       if (gone) return;
+      setReady(true);
       const events = node as HTMLDivElement & { on?: (ev: string, fn: (e: any) => void) => void };
       if (onPoint || onTime) {
         events.on?.("plotly_click", (e: any) => {
@@ -86,6 +88,8 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, onTime }: {
   return <>
     {error && <ErrorText>Chart unavailable: {error}. Use the data table below.</ErrorText>}
     <div ref={full.ref} className={`chart-frame${full.on ? " ui-fullscreen" : ""}`}>
+      {/* The chart's room is kept while it loads, with a word in it rather than a blank hole (#14). */}
+      {!ready && !error && <span className="chart-drawing" aria-hidden>Drawing the chart…</span>}
       <div ref={element} style={{ minHeight: spec.layout.height ?? 340 }} role="img" aria-label={label} />
       <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="chart-fullscreen" />
     </div>

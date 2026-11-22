@@ -166,6 +166,28 @@ export function colours(view: TrendViewData, palette: Palette): Map<string, stri
   return out;
 }
 
+/** A trace's swing, never zero, so a flat line still has a size to compare. */
+const swing = (lo: number, hi: number) => Math.max(hi - lo, Math.abs((hi + lo) / 2) * 0.02, 1e-9);
+
+/** Traces in one unit that sit at very different levels get scales of their own (#14): wellhead pressure at 166 psig
+ * on the same axis as casing pressure at 1,045 is a flat line, alarm and all. A trace joins a scale when the scale's
+ * span with it stays within four times the larger of the two swings; otherwise it starts the next scale. */
+export function scaled(groups: TrendGroup[]): TrendGroup[] {
+  return groups.map((g) => {
+    const scales = new Map<string, { lo: number; hi: number }[]>();
+    const traces = g.traces.map((t) => {
+      if (!Number.isFinite(t.min) || !Number.isFinite(t.max)) return t;
+      const mine = scales.get(t.axis) ?? [];
+      scales.set(t.axis, mine);
+      let k = mine.findIndex((c) => swing(Math.min(c.lo, t.min), Math.max(c.hi, t.max)) <= 4 * Math.max(swing(c.lo, c.hi), swing(t.min, t.max)));
+      if (k < 0) k = mine.push({ lo: t.min, hi: t.max }) - 1;
+      else mine[k] = { lo: Math.min(mine[k].lo, t.min), hi: Math.max(mine[k].hi, t.max) };
+      return k ? { ...t, axis: `${t.axis}#${k}` } : t;
+    });
+    return { ...g, traces };
+  });
+}
+
 /** A panel as drawn: a template group, or the part of one past its first two units (P5.15b), so no panel carries
  * more than two value axes. On a phone, where a second axis has no room for its scale, one unit a panel. */
 export function drawn(groups: TrendGroup[], per = 2): TrendGroup[] {
@@ -260,7 +282,7 @@ const local = (s: string) => Date.parse(s.length === 10 ? `${s}T00:00Z` : `${s.s
  * what it was without leaving the page (P5.15c). */
 export function buildFigure(view: TrendViewData, timeline: TimelineData | null, on: Set<string>, palette: Palette,
                             compact = false, pins: string[] = []) {
-  const shown = drawn(panels(view, on), compact ? 1 : 2);
+  const shown = drawn(scaled(panels(view, on)), compact ? 1 : 2);
   const name = names(view);
   const panelPx = compact ? PANEL_PX_PHONE : PANEL_PX;
   const pointNames = new Map([...view.groups, { traces: view.other }].flatMap((g) => g.traces.map((t) => [t.point, name.get(t.id) ?? t.point])));
@@ -301,11 +323,16 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
       // A position or opening in % reads on its whole 0 to 100 scale, so a valve shut at 0 is a line on the floor,
       // not noise blown up to fill the panel (#1076).
       const whole = label === "%" && traces.every((t) => t.min >= 0 && t.max <= 100) ? { range: [-2, 102], autorange: false } : {};
+      // Two scales in the same unit say which line each belongs to: the scale takes its one trace's colour (#14).
+      const own = traces.length === 1 && units.length > 1 && units.some((v) => v !== u && v.split("#")[0] === u.split("#")[0]);
+      const tint = own ? colour.get(traces[0].id) : undefined;
+      const title = { text: label, font: { size: 11, ...(tint ? { color: tint } : {}) } };
+      const ticks = tint ? { tickfont: { color: tint } } : {};
       layout[axis] = j === 0
-        ? { domain, anchor: "x", title: { text: label, font: { size: 11 } }, fixedrange: true, zeroline: false, ...whole }
+        ? { domain, anchor: "x", title, fixedrange: true, zeroline: false, ...ticks, ...whole }
         // The second scale picks its own round ticks: synced to the first axis's grid it reads 3,714.6, 3,654.8 (#1076).
         : { overlaying: first === 1 ? "y" : `y${first}`, side: "right", fixedrange: true, zeroline: false, showgrid: false,
-            tickmode: "auto", nticks: 5, title: { text: label, font: { size: 11 } }, anchor: "x", ...whole };
+            tickmode: "auto", nticks: 5, title, anchor: "x", ...ticks, ...whole };
       if (j === 0) lowest = ref;
       for (const t of traces) {
         data.push({
@@ -317,11 +344,15 @@ export function buildFigure(view: TrendViewData, timeline: TimelineData | null, 
           hovertemplate: `%{y:.4~g} ${unit(t.uom)}${t.sampled ? " %{text}" : ""}<extra>${name.get(t.id)}</extra>`,
         });
       }
-      // A limit draws only where it can't be mistaken for another trace's: the panel's one trace.
-      if (g.traces.length === 1) {
-        for (const l of traces[0].limits ?? []) {
+      // A limit draws only where it can't be mistaken for another trace's: the panel's one trace, or a trace with a
+      // scale of its own, its limit then in its colour on that scale, and only one near its line: a far one would
+      // stretch the scale and flatten the line again.
+      if (g.traces.length === 1 || own) {
+        const t = traces[0];
+        const near = (v: number) => !own || Math.abs(v - (t.min + t.max) / 2) <= swing(t.min, t.max) * 1.5;
+        for (const l of (t.limits ?? []).filter((x) => near(x.value))) {
           shapes.push({ type: "line", xref: "x", yref: ref, x0: view.start, x1: view.end, y0: l.value, y1: l.value,
-                        line: { color: palette.limit, width: 1, dash: l.basis === "learned" ? "dot" : "dash" }, layer: "below" });
+                        line: { color: tint ?? palette.limit, width: 1, dash: l.basis === "learned" ? "dot" : "dash" }, layer: "below" });
         }
       }
     });
