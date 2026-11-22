@@ -9070,11 +9070,16 @@ test("Logistics lists each day's crews and jobs, who travels and who stays aboar
   await day.getByText("Beds on board: 16 of 14").waitFor();
   await day.getByText("2 Inspection and NDT technicians aboard, no job").waitFor();
   await day.getByRole("heading", { name: "Materials to send" }).waitFor();
-  const seal = day.getByRole("row", { name: /MAT-100034/ });
+  // the parts sit under the job they are for: the job named once, a line per part
+  const parts = day.locator(".logistics-parts");
+  assert.equal(await parts.count(), 1, "both parts are for A0100, so one job");
+  await parts.getByRole("link", { name: /A0100 Decouple/ }).waitFor();
+  await parts.getByText("order 50000306").waitFor();
+  const seal = parts.getByRole("listitem").filter({ hasText: "MAT-100034" });
   await seal.getByText(/Late, due/).waitFor();
-  await seal.getByRole("link", { name: /A0100 Decouple/ }).waitFor();
+  await seal.getByText(/Dry gas seal cartridge × 2/).waitFor();
   assert.equal(await seal.getByRole("link", { name: "MAT-100034" }).getAttribute("href"), "#/e/fz-material-34");
-  await day.getByRole("row", { name: /MAT-100035/ }).getByText("In stock").waitFor();
+  await parts.getByRole("listitem").filter({ hasText: "MAT-100035" }).getByText("In stock").waitFor();
   await day.getByRole("link", { name: /A0050 Scaffold 20-K-2200B/ }).waitFor();
   assert.equal(await day.getByRole("link", { name: /A0050/ }).getAttribute("href"), "#/plan?schedule=OK-TAR-2026");
   await day.getByText("Platform crane").waitFor();

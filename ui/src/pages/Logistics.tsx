@@ -62,18 +62,27 @@ function Day({ d }: { d: LogisticsDay }) {
       </>}
       {materials.length > 0 && <>
         <Heading level={3}>Materials to send</Heading>
-        <Table density="compact">
-          <thead><tr><th>Material</th><th>Qty</th><th>For</th><th>Ready</th></tr></thead>
-          <tbody>{materials.map((m) => <tr key={`${m.order}-${m.material_id}`}>
-            <td><a href={entityHref(m.material_id)}>{m.material ?? m.material_id}</a>{m.description && <Text small> {m.description}</Text>}</td>
-            <td>{num(m.quantity)}</td>
-            <td><Job j={{ ...m, start: d.day }} /></td>
-            <td><Cover m={m} /></td>
-          </tr>)}</tbody>
-        </Table>
+        {byJob(materials).map((g) => <div key={`${g[0].item_id}-${g[0].order}`} className="logistics-parts">
+          <Job j={{ ...g[0], start: d.day }} />
+          <List plain>{g.map((m) => <li key={m.material_id} className="small">
+            <a href={entityHref(m.material_id)}>{m.material ?? m.material_id}</a>
+            {m.description && ` ${m.description}`} × {num(m.quantity)} <Cover m={m} />
+          </li>)}</List>
+        </div>)}
       </>}
     </Card>
   );
+}
+
+/** The day's parts under the job they are for, in the order the first of each comes (the server puts the least ready
+ * first, so a job with a late part leads). */
+function byJob(materials: LogisticsMaterial[]): LogisticsMaterial[][] {
+  const groups = new Map<string, LogisticsMaterial[]>();
+  for (const m of materials) {
+    const key = `${m.item_id}-${m.order}`;
+    groups.set(key, [...(groups.get(key) ?? []), m]);
+  }
+  return [...groups.values()];
 }
 
 /** Whether stock or an order on record covers a part on the day it is sent. */
