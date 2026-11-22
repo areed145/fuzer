@@ -2,7 +2,7 @@
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { acronyms } from "../wording";
-import { money, whenDay, count } from "../format";
+import { money, whenDay, estimate } from "../format";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field } from "../ui";
@@ -243,11 +243,8 @@ function CrewLoadCard({ from, days, pos, lines, axis }: { from: string; days: nu
 }
 
 const QUANTITY: Record<string, string> = { oil_rate: "Oil", gas_rate: "Gas", condensate_rate: "Condensate" };
-/** An estimate to two significant figures (#14): "about 60,000 bbl", not "59,928.3 bbl", which claims a precision a
- * latest-test-rate times hours-down estimate doesn't have. */
-const about = (v: number) => { if (!v) return "0"; const p = 10 ** Math.max(0, Math.floor(Math.log10(Math.abs(v))) - 1); return count(Math.round(v / p) * p); };
 const amount = (r: { quantity: string; value: number; unit: string | null }) =>
-  `${QUANTITY[r.quantity] ?? r.quantity.replace(/_/g, " ")} about ${about(r.value)}${r.unit ? ` ${r.unit}` : ""}`;
+  `${QUANTITY[r.quantity] ?? r.quantity.replace(/_/g, " ")} about ${estimate(r.value)}${r.unit ? ` ${r.unit}` : ""}`;
 
 /** Production at risk from planned shutdowns over the next 90 days (P5.9a): an estimate for planners, each number
  * with the durations it used. */

@@ -97,6 +97,11 @@ def set_due(conn, item_id: int, by: str, due, reason: str | None = None) -> dict
     return _engine().set_item(conn, item_id, by, reason=reason, due=due)
 
 
+def set_priority(conn, item_id: int, by: str, priority: float, reason: str | None = None) -> dict:
+    """Change a case's priority (a case with a process: its process data too)."""
+    return _engine().set_item(conn, item_id, by, reason=reason, priority=priority)
+
+
 def hand_back(conn, item_id: int, person: str, by: str, reason: str | None = None) -> dict | None:
     """Return what was sent to `person` on a case (its open person step they hold, else the case) to whoever it was
     handed from, or its role's queue. None when nothing on the case is with them."""

@@ -737,3 +737,21 @@ create table if not exists promoted_rule (
 create unique index if not exists promoted_rule_live on promoted_rule (pattern) where status in ('draft', 'published');
 alter table promoted_rule add column if not exists retired_by text;
 alter table promoted_rule add column if not exists retired_at timestamptz;
+
+-- A choice made between an event's options (P5.20, #1251): what was offered and recommended, what was taken and why,
+-- so how often the recommendation is taken can be measured per work type.
+create table if not exists option_choice (
+    id           bigserial primary key,
+    exception_id bigint not null references exception_record (id),
+    item_id      bigint,
+    type         text not null,
+    chosen       text not null,                 -- dispatch | window | shelve | escalate
+    recommended  text not null,
+    accepted     boolean not null,
+    reason       text,                          -- the person's own words; required when not the recommendation
+    by           text not null,
+    at           timestamptz not null default now(),
+    offered      jsonb not null default '{}'    -- the options as they stood, with their figures
+);
+create index if not exists option_choice_exception on option_choice (exception_id, id desc);
+create index if not exists option_choice_at on option_choice (at);

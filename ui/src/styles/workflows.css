@@ -52,3 +52,16 @@ details.exception-types { margin-top: 16px; }
 .handover-line { color: var(--text); }
 .handover-line:hover { color: var(--accent); }
 .handover-section { scroll-margin-top: 80px; }
+/* Options on a case (P5.20): the choices side by side on a desk, stacked on a phone; the recommended one marked. */
+.case-options-cost { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin: 0 0 10px; }
+.case-options-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.case-option { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column;
+  gap: 4px; min-width: 0; }
+.case-option.recommended { border-color: var(--accent); border-width: 2px; padding: 9px 11px; }
+.case-option.unavailable { color: var(--muted); }
+.case-option-facts { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 13px; }
+.case-option-why { font-size: 13px; }
+.case-option-act { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
+.case-option-form { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+@media (max-width: 600px) { .case-option-act > * { flex: 1 1 auto; min-height: 44px; } }

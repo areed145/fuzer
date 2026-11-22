@@ -84,6 +84,7 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
         actions={<Button variant="link" onClick={() => setOpen(null)}>Close</Button>}>
         <List plain small>{open.ids.map((id) => <li key={id}><a href={href(`/cases/${id}`)}>case {id}</a></li>)}</List>
       </Card>}
+      {by === "type" && <OptionsTaken />}
       {d?.compliance && <Card title="Schedule compliance">
         <List plain small>{Object.entries(d.compliance.summary).map(([kind, s]) => (
           <li key={kind}><strong>{kind}</strong> {s.on_time_pct}% on time · {s.overdue} of {s.plans} plans overdue</li>
@@ -107,6 +108,25 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
     </section>
   );
 }
+
+/** How often the recommended option was taken on a case (P5.20), per work type over 90 days: whether the
+ * recommendations are worth following. */
+function OptionsTaken() {
+  const data = useAsync(() => api.optionAcceptance(), []);
+  const d = data.data;
+  if (!d) return <Status of={data} />;
+  return <Card title="Recommended options taken" detail={d.rate != null ? `${percent(d.rate)} of ${d.decided} choices, last ${d.days} days` : undefined}>
+    {d.types.length ? <Table density="compact" className="phone-rows">
+      <thead><tr><th>Work type</th><th>Choices</th><th>Recommendation taken</th><th>Chosen</th></tr></thead>
+      <tbody>{d.types.map((t) => <tr key={t.type}>
+        <td><strong>{t.label}</strong></td><td>{t.decided}</td>
+        <td>{t.rate == null ? "–" : `${percent(t.rate)} (${t.accepted})`}</td>
+        <td>{Object.entries(t.chosen).map(([k, n]) => `${CHOSEN[k] ?? k} ${n}`).join(", ")}</td>
+      </tr>)}</tbody>
+    </Table> : <Empty>No options chosen on a case in the last {d.days} days.</Empty>}
+  </Card>;
+}
+const CHOSEN: Record<string, string> = { dispatch: "dispatch now", window: "next visit", shelve: "shelve", escalate: "escalate" };
 
 const EARNS: Record<DetectorEarning["verdict"], { text: string; tone?: "ok" | "warn" | "muted" }> = {
   earning: { text: "Earning its keep", tone: "ok" },

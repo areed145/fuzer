@@ -297,6 +297,36 @@ export interface WorkPerformance {
     open: number; not_taken: number; found: number }[];
 }
 
+/** One of an event's options (P5.20): when it would be done, the production deferred until then, the risk of waiting,
+ * and whether it is ready; an option that can't be taken says why. */
+export interface CaseOption {
+  key: "dispatch" | "window" | "shelve" | "escalate"; label: string; detail?: string; available: boolean;
+  unavailable?: string; hours?: number; by?: string;
+  deferred?: { oil_bbl: number; gas_mscf: number; usd: number } | null;
+  risk?: { level: "Low" | "Medium" | "High"; why: string };
+  ready?: boolean; blockers?: string[]; warnings?: string[]; clashes?: string[]; basis?: string;
+  plan_item?: number; start?: string; crew?: string | null; until?: string; to?: string;
+}
+
+export interface OptionDecision { id: number; chosen: CaseOption["key"]; recommended: CaseOption["key"]; accepted: boolean;
+  reason: string | null; by: string; at: string }
+
+/** An event's options side by side, one recommended with its reason (P5.20). */
+export interface CaseOptions {
+  applies: boolean; why_not: string | null; exception_id: number | null; item_id?: number | null; type?: string;
+  stage?: string; at?: string;
+  loss?: { oil_bbld: number; gas_mscfd: number; usd_per_day: number; wells: number; basis: string } | null;
+  if_it_trips?: { oil_bbld: number; gas_mscfd: number; usd_per_day: number; wells: number; basis: string } | null;
+  criticality?: string | null; prices?: { oil_bbl: number; gas_mscf: number; source: string };
+  options: CaseOption[]; recommended?: CaseOption["key"]; reason?: string; unknown?: string[];
+  decided?: OptionDecision[] | null;
+}
+
+export interface OptionAcceptance {
+  days: number; decided: number; accepted: number; rate: number | null;
+  types: { type: string; label: string; decided: number; accepted: number; rate: number | null; chosen: Record<string, number> }[];
+}
+
 export interface Readiness {
   ready: boolean; blockers: string[];
   /** What whoever sends the job should know that never holds it: an open MOC on the equipment, a permit to confirm. */
@@ -1130,6 +1160,13 @@ export const workApi = {
     request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null, override: override ?? null,
       ...(due ? { due } : {}) }),
   exceptionReadiness: (id: number) => request<Readiness>("GET", `/exceptions/${id}/readiness`),
+  exceptionOptions: (id: number) => request<CaseOptions>("GET", `/exceptions/${id}/options`),
+  caseOptions: (itemId: number) => request<CaseOptions>("GET", `/work/items/${itemId}/options`),
+  chooseOption: (id: number, by: string, option: CaseOption["key"], c: { reason?: string; to?: string; ask?: string;
+    due?: string; priority?: number; override?: string } = {}) =>
+    request<{ choice: OptionDecision; event: { id: number; item_id: number | null; stage: string; state: string } }>(
+      "POST", `/exceptions/${id}/options/choose`, undefined, { by, option, ...c }),
+  optionAcceptance: (days = 90) => request<OptionAcceptance>("GET", "/options/acceptance", { days: String(days) }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
   workItemGates: (id: number) => request<GateDecision[]>("GET", `/work/items/${id}/gates`),

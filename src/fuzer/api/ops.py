@@ -770,6 +770,54 @@ def exception_readiness(exception_id: int, conn=Depends(get_conn)):
         raise HTTPException(404, str(e)) from e
 
 
+class OptionChoice(BaseModel):
+    by: str
+    option: Literal["dispatch", "window", "shelve", "escalate"]
+    reason: str | None = None     # required when it is not the recommended option
+    to: str | None = None         # dispatch: a person or role:<role>; the operator queue when left out
+    ask: str | None = None        # dispatch: what to check or do (the field sees it, with why now)
+    due: datetime | None = None   # dispatch: when it is wanted back
+    priority: float | None = None
+    override: str | None = None   # dispatch: why it goes though not ready (P5.5)
+
+
+@router.get("/exceptions/{exception_id}/options")
+def exception_options(exception_id: int, conn=Depends(get_conn)):
+    """The options for an event (P5.20): dispatch now, ride along with the next visit, shelve, escalate; each with when
+    it would be done, the production deferred until then, the risk of waiting, readiness and clashes, one recommended
+    with its reason."""
+    from ..ops import options
+    _loaded_types()
+    try:
+        return options.for_exception(conn, exception_id)
+    except options.OptionsError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.get("/work/items/{item_id}/options")
+def case_options(item_id: int, conn=Depends(get_conn)):
+    """The options for the event a case works (P5.20)."""
+    from ..ops import options
+    _loaded_types()
+    return options.for_case(conn, item_id)
+
+
+@router.post("/exceptions/{exception_id}/options/choose")
+def exception_option_choose(exception_id: int, c: OptionChoice, conn=Depends(get_conn)):
+    """Carry out one of an event's options and record the choice, the recommendation and the reason (P5.20)."""
+    from ..ops import options
+    return _exception_call(conn, options.choose, exception_id, c.by, c.option, c.reason, to=c.to, ask=c.ask,
+                           due=c.due, priority=c.priority, override=c.override)
+
+
+@router.get("/options/acceptance")
+def option_acceptance(days: int = Query(90, ge=1, le=365), conn=Depends(get_conn)):
+    """How often the recommended option was taken, per work type (P5.20)."""
+    from ..ops import options
+    _loaded_types()
+    return options.acceptance(conn, days)
+
+
 @router.get("/rounds")
 def rounds_this_shift(conn=Depends(get_conn)):
     """This shift's operator rounds (P5.4), each with how far it has got; opens them on the first ask of a shift."""

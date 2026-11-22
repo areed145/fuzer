@@ -29,6 +29,17 @@ export function quantity(value: number, unit?: string | null): string {
 /** A count: "12,480". */
 export const count = (value: number): string => value.toLocaleString("en-US");
 
+/** An estimate to two significant figures (#14): "60,000", not "59,928.3", which claims a precision a latest-test-rate
+ * times hours estimate doesn't have. Shown after "about". */
+export const estimate = (value: number): string => count(twoFigures(value));
+
+/** A value rounded to two significant figures, for an estimate shown as money: `money(twoFigures(usd))`. */
+export function twoFigures(value: number): number {
+  if (!value) return 0;
+  const p = 10 ** Math.max(0, Math.floor(Math.log10(Math.abs(value))) - 1);
+  return Math.round(value / p) * p;
+}
+
 type At = string | number | Date | null | undefined;
 const ZONED = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 const WRITTEN = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/;

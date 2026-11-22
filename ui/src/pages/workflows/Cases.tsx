@@ -27,6 +27,7 @@ import { FieldPhoto, photosOf } from "../../FieldPhoto";
 import { usePermission } from "../../Auth";
 import { WatchButton } from "../../Watch";
 import { CaseCloseoutCard, RecheckCard } from "../Disposition";
+import { CaseOptionsCard } from "./Options";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
 
@@ -68,6 +69,7 @@ export function NewWorkItem({ onCreated }: { onCreated: () => void }) {
 
 export function CasePage({ id, demo = false, closing = false }: { id: number; demo?: boolean; closing?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
+  const options = useAsync(() => api.caseOptions(id), [id]);
   // Read beside the case, not after it, and shown with the rest of the evidence once they answer: arriving one by one,
   // each pushed down what was already on screen (#1069).
   const around = useAsync(() => api.workItemAround(id), [id]);
@@ -145,7 +147,11 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
       {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
+      {/* the choices side by side, with what each costs (P5.20): the IOC's decision on field work comes first */}
+      {!closed && !fieldOnly && <CaseOptionsCard o={options} person={person} readOnly={demo}
+        onDone={() => { item.reload(); options.reload(); }} />}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
+        optionsShown={!!options.data?.applies}
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null}
         proposal={typeof raised.opportunity === "string"}
         asked={typeof raised.summary === "string" ? raised.summary : null}
@@ -189,8 +195,11 @@ function questionOf(sources?: CaseSource[]): { id: number; kind: ReviewKind } | 
 
 /** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
  * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
-function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null, asked = null, evidence = [], proposal = false }: {
+function NextStep({ it, person, demo, fieldOnly, answered = false, reload, exceptionId = null, asked = null, evidence = [], proposal = false,
+  optionsShown = false }: {
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
+  /** The Options card above dispatches it (P5.20), so the step leaves out its own Send to the field. */
+  optionsShown?: boolean;
   /** The case shows its proposal with the decision below, so the step leaves it out. */
   proposal?: boolean;
   exceptionId?: number | null; /** what was asked, in the asker's words (Markdown) */ asked?: string | null;
@@ -229,7 +238,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
       {fieldOnly && <div className="row wrap case-next-actions"><ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink></div>}
       <ErrorText>{takeOver.error}</ErrorText>
       {/* the IOC sends it out through the case's workflow: not while the field already has it */}
-      {!demo && !fieldOnly && exceptionId != null && !open.some((s) => s.role === "operator") && person &&
+      {!demo && !fieldOnly && !optionsShown && exceptionId != null && !open.some((s) => s.role === "operator") && person &&
         <SendToField exceptionId={exceptionId} person={person} onDone={reload} />}
       {!demo && !fieldOnly && <CaseActions it={it} person={person} reload={reload} />}
     </UICard>

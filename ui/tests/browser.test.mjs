@@ -569,6 +569,119 @@ test("sending a case to the field says it went, and the case reads again as its 
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+/** An event's options as the server gives them (ops/options.py): four wells down on Okan, dispatch now recommended. */
+const caseOptions = (extra = {}) => ({
+  applies: true, why_not: null, exception_id: 7, item_id: 21, type: "machine_trip", stage: "desk",
+  loss: { oil_bbld: 1281.8, gas_mscfd: 850.9, usd_per_day: 99751, wells: 4,
+    basis: "the latest test rate of the 4 producing well(s) it is on, stopped" },
+  if_it_trips: null, criticality: "B", prices: { oil_bbl: 75, gas_mscf: 4.25, source: "pack okan" },
+  options: [
+    { key: "dispatch", label: "Dispatch now", detail: "to a field operator", available: true, hours: 4,
+      by: "2026-11-22T16:00:00Z", deferred: { oil_bbl: 214, gas_mscf: 142, usd: 16625 },
+      risk: { level: "Low", why: "criticality B" }, ready: true, blockers: [], warnings: [], clashes: [] },
+    { key: "window", label: "Ride along with the next visit", detail: "OKJ-01 well work, Wed 25 Nov", available: true,
+      hours: 76, by: "2026-11-25T16:00:00Z", deferred: { oil_bbl: 4059, gas_mscf: 2695, usd: 315879 },
+      risk: { level: "High", why: "criticality B" }, ready: true, blockers: [], warnings: [], clashes: [], start: "2026-11-25T12:00:00Z" },
+    { key: "shelve", label: "Shelve until later", detail: "Tue 22 Dec", available: true, hours: 724,
+      by: "2026-12-22T16:00:00Z", deferred: { oil_bbl: 38668, gas_mscf: 25669, usd: 3009165 },
+      risk: { level: "High", why: "criticality B" }, ready: true, blockers: [], warnings: [], clashes: [] },
+    { key: "escalate", label: "Escalate to the ops lead", detail: "decides what happens next", available: true, hours: 12,
+      by: "2026-11-23T00:00:00Z", deferred: { oil_bbl: 641, gas_mscf: 425, usd: 49876 },
+      risk: { level: "Medium", why: "criticality B" }, ready: true, blockers: [], warnings: [], clashes: [], to: "role:ops_lead" },
+  ],
+  recommended: "dispatch", reason: "Waiting for the next visit defers about 4,100 bbl ($320,000) against about 210 bbl ($17,000) if it goes now; waiting leaves the risk high; nothing blocks it.",
+  unknown: [], decided: null, ...extra,
+});
+
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a case's options sit side by side with their cost, and the recommended one is one tap (P5.20, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const chosen = [];
+    let options = caseOptions();
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
+      state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      chosen.push(route.request().postDataJSON());
+      options = caseOptions({ applies: false, why_not: "the field has it", options: [] });
+      return route.fulfill({ json: { choice: { id: 1, chosen: "dispatch", recommended: "dispatch", accepted: true }, event: { id: 7, item_id: 21, stage: "field", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    const card = page.getByLabel("Options");
+    await card.getByText("Costing about 1,300 bbl/d, $100,000 a day").waitFor();
+    for (const label of ["Dispatch now", "Ride along with the next visit", "Shelve until later", "Escalate to the ops lead"])
+      await card.getByText(label, { exact: true }).first().waitFor();
+    await card.getByText("about 4,100 bbl, $320,000 deferred").waitFor();  // estimates to two figures
+    await card.getByText("Recommended", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Send to the field…").count(), 0, "the options dispatch it: no second Send to the field");
+    // one primary button on the card: the recommended option's
+    assert.deepEqual(await card.locator(".ui-button-primary").allTextContents(), ["Dispatch now"]);
+    if (size === "phone") {
+      const box = await card.getByRole("button", { name: "Dispatch now", exact: true }).boundingBox();
+      assert.ok(box && box.height >= 44, `tap target ${box?.height}`);
+      const width = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(width <= 390, `no sideways scroll (${width})`);
+    }
+    await card.getByRole("button", { name: "Dispatch now", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Dispatched to the operator queue, as recommended." }).waitFor();
+    assert.deepEqual(chosen, [{ by: "riley", option: "dispatch" }]);
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
+
+test("another option than the recommended one needs a reason, which goes with the choice (P5.20)", async () => {
+  const chosen = [];
+  await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
+    state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+    payload: { exception_id: 7 } } }));
+  await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions() }));
+  await page.route("**/exceptions/7/options/choose", (route) => {
+    chosen.push(route.request().postDataJSON());
+    return route.fulfill({ json: { choice: { id: 2, chosen: "window", recommended: "dispatch", accepted: false }, event: { id: 7, item_id: 21, stage: "desk", state: "open" } } });
+  });
+  await page.goto(`${url}/#/cases/21`);
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+  await page.reload();
+  const card = page.getByLabel("Options");
+  await card.getByRole("button", { name: "Add to the visit…" }).click();
+  const go = card.getByRole("button", { name: "Add to the visit", exact: true });
+  assert.equal(await go.isDisabled(), true);
+  await card.getByLabel("Why not the recommended one (kept on the case)").fill("crew already on OKJ-01 that day");
+  await go.click();
+  await page.getByRole("status").filter({ hasText: "Added to the visit. The choice and why are on the case." }).waitFor();
+  assert.deepEqual(chosen, [{ by: "riley", option: "window", reason: "crew already on OKJ-01 that day" }]);
+  await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+});
+
+test("an event to dispatch opens its options from its row on All work (P5.20)", async () => {
+  const row = { id: 7, type: "machine_trip", key: "K-2300B", title: "20-K-2300B tripped", source: "sre", state: "open",
+    priority: 0.9, value_usd: null, subjects: [], unmatched: [], item_id: null, case_state: null, assignee: null, role: null,
+    raised_count: 1, first_seen: "2026-11-22T12:00:00Z", last_seen: "2026-11-22T12:00:00Z", stage: "dispatch" };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [row] }));
+  await page.route("**/exceptions/7/options", (route) => route.fulfill({ json: caseOptions({ item_id: null, stage: "dispatch" }) }));
+  await page.goto(`${url}/#/exceptions?list=open`);
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+  await page.reload();
+  await page.getByText("20-K-2300B tripped").first().waitFor();
+  await page.getByRole("button", { name: "Options", exact: true }).click();
+  await page.getByLabel("Options").getByText("Ride along with the next visit").waitFor();
+  await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+});
+
+test("how often the recommended option is taken shows per work type (P5.20)", async () => {
+  await page.route("**/work/performance", (route) => route.fulfill({ json: { queues: [], types: [], compliance: null, rounds: [] } }));
+  await page.route("**/options/acceptance*", (route) => route.fulfill({ json: { days: 90, decided: 4, accepted: 3, rate: 0.75,
+    types: [{ type: "machine_trip", label: "Compressor trip", decided: 4, accepted: 3, rate: 0.75, chosen: { dispatch: 3, window: 1 } }] } }));
+  await page.goto(`${url}/#/performance?by=type`);
+  const card = page.locator(".card").filter({ hasText: "Recommended options taken" });
+  await card.getByText("75% of 4 choices, last 90 days").waitFor();
+  await card.getByText("Compressor trip").waitFor();
+  await card.getByText("dispatch now 3, next visit 1").waitFor();
+});
+
 test("a standing condition is shelved with a reason and an expiry, and shows as shelved (P3.5c)", async () => {
   const row = (extra = {}) => ({ id: 5, type: "machine_health", key: "K-1", title: "Seal weeping", source: "screen", state: "open",
     priority: null, value_usd: null, subjects: [], unmatched: [], item_id: null, case_state: null, assignee: null, role: null,

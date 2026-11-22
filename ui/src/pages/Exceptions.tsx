@@ -11,6 +11,7 @@ import { display, type EntityNames } from "../entityRefs";
 import { PriorityBadge } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
+import { EventOptions } from "./workflows/Options";
 import { cap, detectorName, person as personName, queue, say } from "../wording";
 
 const WINDOW: Record<string, string> = {
@@ -174,7 +175,7 @@ export function namedSubjects(ids: string[], names: EntityNames | null | undefin
   return named;
 }
 
-type Panel = null | "dispatch" | "more" | "plan" | "shelve";
+type Panel = null | "dispatch" | "options" | "more" | "plan" | "shelve";
 
 /** One exception as a row on a desk and a card on a phone (#1070): what it is, where, how old, who has it, and one
  * main action. Dispatch opens who, what to do and readiness beneath the row; Plan and Shelve sit behind More. */
@@ -240,6 +241,9 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
         {take != null && <Button size="sm" variant="primary" disabled={!!busy}
           onClick={() => run("Taking it", () => api.claim(take, person!), onChange)}>Take it</Button>}
         {back && <ButtonLink size="sm" variant="primary" href={href(`/cases/${r.item_id}`, { close: "1" })}>Close</ButtonLink>}
+        {/* to dispatch or back from the field: the choices side by side with what each costs (P5.20) */}
+        {(place.stage === "dispatch" || place.stage === "back") && !shelved && <Button size="sm" variant="secondary"
+          aria-expanded={panel === "options"} onClick={() => setPanel(panel === "options" ? null : "options")}>Options</Button>}
         <Button size="sm" variant="secondary" className="work-lead" aria-expanded={panel === "dispatch"}
           onClick={() => setPanel(panel === "dispatch" ? null : "dispatch")}>{back ? "Send again" : "Send to"}</Button>
         {shelved ? <Button size="sm" variant="secondary" disabled={!!busy}
@@ -249,6 +253,7 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
       </div>}</td>
     </tr>
     {canAct && panel && <tr className="work-row-panel-row"><td colSpan={ROW_COLUMNS} className="work-row-panel" data-label="">
+        {panel === "options" && <EventOptions exceptionId={r.id} person={person!} onDone={onChange} />}
         {panel === "dispatch" && <DispatchControls r={r} person={person!} people={people} queues={queues} onDone={done} />}
         {panel === "more" && <Line wrap role="group" aria-label="More actions">
           <Button size="sm" variant="secondary" onClick={() => setPanel("plan")}>Plan for a day</Button>
