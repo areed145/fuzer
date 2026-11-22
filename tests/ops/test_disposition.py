@@ -69,6 +69,14 @@ def test_a_real_problem_off_equipment_needs_no_failure_terms(conn):
 def test_a_false_alarm_or_duplicate_needs_no_cause_and_a_closed_case_shows_it_is_missing(conn):
     alarm = work.open_case(conn, "manual", "Tank level alarm: spurious, nothing wrong", by="ioc-ann")["id"]
     assert disposition.suggest(conn, PACK, alarm)["disposition"] == "false_alarm"
+    # the field's answer, a comment, fills it in (#34): a gauge put right is a data problem; "not as it should be" is no
+    # false alarm
+    gauge = work.open_case(conn, "manual", "81-HCV-1003 pressure off", by="ioc-ann")["id"]
+    work.comment(conn, gauge, "alex", "Field: Done: Local gauge agrees with the DCS after blowing down the impulse line.")
+    assert disposition.suggest(conn, PACK, gauge)["disposition"] == "data_problem"
+    checked = work.open_case(conn, "manual", "Bonnet check", by="ioc-ann")["id"]
+    work.comment(conn, checked, "alex", "Field: Done: Found it not as it should be")
+    assert disposition.suggest(conn, PACK, checked).get("disposition") != "false_alarm"
     row = disposition.record(conn, PACK, alarm, "ioc-ann", "false_alarm", failure_mode="VIB", cause="3")
     assert row["failure_mode"] is None and row["cause"] is None  # the failure terms are for real problems only
     first = work.open_case(conn, "manual", "Leak at P-102", by="ioc-ann")["id"]

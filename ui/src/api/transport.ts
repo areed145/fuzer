@@ -65,9 +65,10 @@ const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
 
 type Params = Record<string, string | number | undefined | null>;
 
-/** `project` overrides the picked project, for a write kept on the phone that must go to the project it was made in. */
+/** `project` overrides the picked project, for a write kept on the phone that must go to the project it was made in.
+ * `first` sends a read ahead of the others waiting (see scheduleRequest). */
 export async function request<T>(method: string, path: string, params?: Params, body?: unknown,
-  project: string = getProject()): Promise<T> {
+  project: string = getProject(), first = false): Promise<T> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params ?? {})) {
     if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
@@ -100,7 +101,7 @@ export async function request<T>(method: string, path: string, params?: Params, 
     }
     return res.json();
   };
-  return readOnly ? scheduleRequest(() => keptRead(url, run), `${csrf}:${project}:${url}`) : scheduleRequest(run);
+  return readOnly ? scheduleRequest(() => keptRead(url, run), `${csrf}:${project}:${url}`, first) : scheduleRequest(run);
 }
 
 export async function requestText(path: string): Promise<string> {

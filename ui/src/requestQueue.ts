@@ -8,7 +8,7 @@ let active = 0;
 const waiting: (() => void)[] = [];
 const reads = new Map<string, Promise<unknown>>();
 
-async function admit(): Promise<void> {
+async function admit(first = false): Promise<void> {
   if (active < CONCURRENT) { active++; return; }
   if (waiting.length >= MAX_WAITING) throw new TypeError("Too many pending requests. Wait for current work to finish, then refresh.");
   await new Promise<void>((resolve, reject) => {
@@ -19,15 +19,17 @@ async function admit(): Promise<void> {
       // keep is kept rather than lost, and a kept read is served, when lie-fi holds every slot.
       reject(new TypeError("Timed out waiting for other requests. Wait for current work to finish, then refresh."));
     }, WAIT_MS);
-    waiting.push(start);
+    if (first) waiting.unshift(start); else waiting.push(start);
   });
 }
 
-export function scheduleRequest<T>(run: () => Promise<T>, readKey?: string): Promise<T> {
+/** `first` puts a read at the front of the line: one a page can't draw without while a dozen others wait (the map's
+ * token, #27), so it waits for a free place, never behind every read the page asked for before it. */
+export function scheduleRequest<T>(run: () => Promise<T>, readKey?: string, first = false): Promise<T> {
   const existing = readKey ? reads.get(readKey) : undefined;
   if (existing) return existing as Promise<T>;
   const result = (async () => {
-    await admit();
+    await admit(first);
     try { return await run(); }
     finally {
       const next = waiting.shift();

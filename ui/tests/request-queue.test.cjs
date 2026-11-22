@@ -75,3 +75,19 @@ test("a read asked for after a write finishes is read again, not joined to one s
   await Promise.all([before, after]);
   assert.equal(schedule(run, "session:/work/inbox") === after, false);
 });
+
+test("a read the page can't draw without goes ahead of the reads already waiting (#27)", async () => {
+  const { schedule } = queue();
+  const releases = [], order = [];
+  const hold = () => new Promise((resolve) => releases.push(resolve));
+  const running = [schedule(hold), schedule(hold), schedule(hold), schedule(hold)];
+  await turn();
+  const later = [1, 2, 3].map((n) => schedule(async () => { order.push(n); }, `s:/read${n}`));
+  const token = schedule(async () => { order.push("token"); }, "s:/mapkit/token", true);
+  releases.shift()();
+  await token;
+  assert.equal(order[0], "token");
+  releases.forEach((release) => release());
+  await Promise.all([...running, ...later]);
+  assert.deepEqual(order, ["token", 1, 2, 3]);
+});

@@ -229,7 +229,7 @@ def test_health_names_a_failing_sensor(instance, monkeypatch):
 
 def test_a_run_that_failed_but_whose_job_ran_cleanly_since_is_not_red(instance, monkeypatch):
     """Runs cut short by a deploy restart left the indicator red on every page for a day (#1115 sweep): a failure
-    whose job has finished cleanly since is counted apart, amber, not as a job that is down."""
+    whose job has finished cleanly since is counted apart, and green: said, but not a job that is down (#33)."""
     run = lambda job, status: SimpleNamespace(dagster_run=SimpleNamespace(job_name=job, status=SimpleNamespace(value=status)))
     failures = [run("detect_hourly", "FAILURE"), run("day_close", "FAILURE"), run("day_close", "FAILURE")]
     latest = {"detect_hourly": "SUCCESS", "day_close": "FAILURE"}
@@ -243,8 +243,8 @@ def test_a_run_that_failed_but_whose_job_ran_cleanly_since_is_not_red(instance, 
     assert (h["level"], h["failed_runs_24h"], h["recovered_runs_24h"]) == ("red", 2, 1)
     latest["day_close"] = "SUCCESS"
     h = jobs.health(WithHeartbeat(instance), DEFS, check_rows=[])
-    assert (h["level"], h["failed_runs_24h"], h["recovered_runs_24h"]) == ("amber", 0, 3)
-    assert h["summary"] == "3 earlier failures since recovered"
+    assert (h["level"], h["failed_runs_24h"], h["recovered_runs_24h"]) == ("green", 0, 3)
+    assert h["summary"] == "All jobs healthy"
 
 
 def test_people_who_ask_together_share_one_reading(monkeypatch):

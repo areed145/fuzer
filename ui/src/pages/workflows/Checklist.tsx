@@ -6,7 +6,7 @@ import { useState } from "react";
 import { api, type CheckItem, type WorkItem } from "../../api";
 import { AssignPicker, caseHref, progressText } from "./shared";
 import { useAction } from "../../lib";
-import { when } from "../../format";
+import { ago, when } from "../../format";
 import { Button, Checkbox, ErrorText, Input, Line, Text } from "../../ui";
 import { promptDialog } from "../../ui";
 import { Actor, EntityLinks, holder } from "../../work";
@@ -55,7 +55,9 @@ export function CaseChecklist({ it, person, readOnly, reload }: {
             <Text as="div" small muted>{[
               c.subjects.length > 0 && <EntityLinks key="s" ids={c.subjects} />,
               c.child && <span key="c">sent as <a href={caseHref(c.child.id)}>case {c.child.id}</a>{c.child.closed_at
-                ? `, ${c.child.state} ${when(c.child.closed_at)}` : <>, with {holder(c.child.assignee, c.child.role)}</>}</span>,
+                ? `, ${c.child.state} ${when(c.child.closed_at)}` : <>, with {holder(c.child.assignee, c.child.role)}{c.child.step ? `, at ${c.child.step}` : ""}
+                {c.child.due && (new Date(c.child.due).getTime() < Date.now()
+                  ? <>, <strong>overdue {ago(c.child.due)}</strong></> : `, due ${ago(c.child.due)}`)}</>}</span>,
               c.state === "done" && c.done_by && <span key="d">done by <Actor who={c.done_by} /> {c.done_at && when(c.done_at)}</span>,
               c.state === "skipped" && <span key="k">not needed{c.note ? `: ${c.note}` : ""}{c.done_by && <>, said <Actor who={c.done_by} /></>}</span>,
               editable && c.state === "open" && !waiting(c) && <Button key="n" variant="link" disabled={!!a.busy} onClick={() => skip(c)}>Not needed</Button>,
