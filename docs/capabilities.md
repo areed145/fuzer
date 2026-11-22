@@ -428,7 +428,7 @@ Used by every agent or by several specialists.
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
 | `plot_crew_load` | plot | as_of?, weeks? | Chart each crew's planned hours per week ahead against its weekly capacity, with the weeks over capacity. |
-| `logistics_plan` | calc | start?, days? | Logistics from the integrated plan (what to send where), day by day from `start` (a date; default today) for `days`: each crew's jobs with the people, the assets and the hours, the crews that travel out and back for a schedule and how, the seats and beds needed against what there is (`over` marks a day that is short), and the cranes, vessels and deck space booked. |
+| `logistics_plan` | calc | start?, days? | Logistics from the integrated plan (what to send where), day by day from `start` (a date; default today) for `days`: each crew's jobs with the people, the assets and the hours, the crews that travel out and back for a schedule and how, the crews aboard with no job that day (`aboard`: they keep their beds until they fly back), the seats and beds needed against what there is (`over` marks a day that is short), the cranes, vessels and deck space booked, and the parts to send for the jobs that start that day (`materials`, with `verdict`: in_stock, on_order, late, not_on_order or not_on_order_too_late). |
 
 ## HSE & Incident Management (2)
 

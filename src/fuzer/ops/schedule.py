@@ -858,36 +858,73 @@ def _crew_changes(conn, res, start: datetime, end: datetime) -> dict[str, list[d
     return {r["code"]: [m | {"resource": r["code"]} for m in moves if m["crew"] in r["counts"]] for r in seats}
 
 
-def _crew_moves(conn, crews: list[str], start: datetime, end: datetime) -> list[dict]:
-    """Each of `crews` travelling for a schedule: out at its peak size the day its first job starts, back the day
-    its last job finishes. One row per crew, schedule and direction, lasting that day."""
+def _crew_trips(conn, crews: list[str]) -> list[dict]:
+    """Each of `crews` on each schedule it works: its jobs there, the most of it working at once (how many travel and
+    take a bed), and its first start and last finish (out the day of the one, back the day of the other)."""
     names = {r["code"]: r["name"] for r in conn.execute("select code, name from plan_resource where code = any(%s)", (crews,))}
     jobs = conn.execute(
         """
         select d.resource, i.project, i.start_at, i.end_at, d.quantity
         from plan_demand d join plan_item i on i.id = d.item_id
         where d.resource = any(%s) and i.status = any(%s) and i.project is not null and i.source = 'schedule'
+          and d.quantity > 0
         """, (crews, list(plan.ACTIVE))).fetchall()
     groups = defaultdict(list)
     for j in jobs:
         groups[(j["resource"], j["project"])].append(j)
-    moves = []
+    out = []
     for (crew, project), js in sorted(groups.items()):
-        # the most of the crew working at once: how many travel
         edges = sorted([(j["start_at"], 1, j["quantity"]) for j in js] + [(j["end_at"], 0, -j["quantity"]) for j in js])
         size = peak = 0.0
         for _, _, q in edges:
             size += q
             peak = max(peak, size)
-        first, last = min(j["start_at"] for j in js), max(j["end_at"] for j in js)
-        for way, at in (("flies out", first), ("flies back", last)):
+        out.append({"crew": crew, "name": names.get(crew, crew), "project": project, "jobs": js, "peak": peak,
+                    "first": min(j["start_at"] for j in js), "last": max(j["end_at"] for j in js)})
+    return out
+
+
+def _crew_moves(conn, crews: list[str], start: datetime, end: datetime) -> list[dict]:
+    """Each of `crews` travelling for a schedule: out at its peak size the day its first job starts, back the day
+    its last job finishes. One row per crew, schedule and direction, lasting that day."""
+    moves = []
+    for t in _crew_trips(conn, crews):
+        for way, at in (("flies out", t["first"]), ("flies back", t["last"])):
             day = at.replace(hour=0, minute=0, second=0, microsecond=0)
             if day < end and day + timedelta(days=1) > start:
-                moves.append({"crew": crew, "id": None, "title": f"{names.get(crew, crew)} {way}", "kind": "crew_change",
-                              "project": project, "code": None, "source": "crew change", "source_key": None, "start_at": day,
-                              "end_at": day + timedelta(days=1), "status": "scheduled", "quantity": peak,
-                              "way": "out" if way == "flies out" else "back"})
+                moves.append({"crew": t["crew"], "id": None, "title": f"{t['name']} {way}", "kind": "crew_change",
+                              "project": t["project"], "code": None, "source": "crew change", "source_key": None,
+                              "start_at": day, "end_at": day + timedelta(days=1), "status": "scheduled",
+                              "quantity": t["peak"], "way": "out" if way == "flies out" else "back"})
     return moves
+
+
+def _crew_stays(conn, res, start: datetime, end: datetime) -> dict[str, list[dict]]:
+    """Beds' demand between a visiting crew's jobs: a crew that flew out stays aboard, at the size it travelled, until
+    it flies back after its last job, so every hour from its first start to its last finish when fewer of it are on
+    jobs holds the rest of its beds (a day with no job on it holds them all). Per beds resource, one row per run of
+    hours, with the shortfall as its quantity; the jobs' own hours are counted from the jobs as before."""
+    beds = [r for r in res if r["kind"] == "beds" and r["counts"]]
+    if not beds:
+        return {}
+    rows = []
+    for t in _crew_trips(conn, sorted({c for r in beds for c in r["counts"]})):
+        if t["last"] <= start or t["first"] >= end:
+            continue
+        cuts = sorted({t["first"], t["last"], *(j["start_at"] for j in t["jobs"]), *(j["end_at"] for j in t["jobs"])})
+        for a, b in zip(cuts, cuts[1:]):
+            working = sum(j["quantity"] for j in t["jobs"] if j["start_at"] < b and j["end_at"] > a)
+            idle = t["peak"] - working
+            if idle <= EPS:
+                continue
+            if rows and rows[-1]["crew"] == t["crew"] and rows[-1]["project"] == t["project"] \
+                    and rows[-1]["end_at"] == a and abs(rows[-1]["quantity"] - idle) <= EPS:
+                rows[-1]["end_at"] = b
+                continue
+            rows.append({"crew": t["crew"], "id": None, "title": f"{t['name']} aboard between jobs", "kind": "crew_stay",
+                         "project": t["project"], "code": None, "source": "crew stay", "source_key": None,
+                         "start_at": a, "end_at": b, "status": "scheduled", "quantity": idle})
+    return {r["code"]: [x | {"resource": r["code"]} for x in rows if x["crew"] in r["counts"]] for r in beds}
 
 
 PRODUCING = "Producing now"  # the source production capacity shows for what the wells make today
@@ -998,6 +1035,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
             pass
     routine = routine_load(conn, res)
     trips = _crew_changes(conn, res, start, end)
+    stays = _crew_stays(conn, res, start, end)
     online = _online(conn, res, start, end)
     out = []
     for r in res:
@@ -1008,7 +1046,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
                 cap[h] = float(w["capacity"])
         use: list[dict[str, float]] = [defaultdict(float) for _ in range(hours)]
         jobs: list[list] = [[] for _ in range(hours)]
-        mine = [x for x in rows if x["resource"] == code] + trips.get(code, [])
+        mine = [x for x in rows if x["resource"] == code] + trips.get(code, []) + stays.get(code, [])
         for x in mine:
             for h in range(max(0, int(h_of(x["start_at"]))), min(hours, int(-(-h_of(x["end_at"]) // 1)))):
                 use[h][_source(x)] += x["quantity"]
@@ -1104,11 +1142,49 @@ def remove_capacity_window(conn, window_id: int, by: str) -> dict:
 EQUIPMENT = ("crane", "vessel", "deck")  # what is booked for a job, not staffed
 
 
+def _materials(conn, start: datetime, end: datetime) -> dict[str, list[dict]]:
+    """The parts each day's jobs need on site, by day: every open reservation on a work order a planned job carries
+    out, due the day the first job on that order starts (a schedule's first activity on it, or the SAP order's own
+    planned job), with whether stock or an order on record covers it (analysis/material_readiness). An order whose
+    first job started before `start` has had its parts sent already, and is left out."""
+    from ..analysis import material_readiness
+
+    first: dict[str, dict] = {}
+    for r in conn.execute(
+            """
+            select i.id, i.title, i.code, i.project, i.source, i.source_key, i.start_at, e.fuzer_id as work_order
+            from plan_item i cross join lateral unnest(i.subjects) s (fuzer_id)
+            join entity e on e.fuzer_id = s.fuzer_id and e.kind = 'work_order'
+            where i.status = any(%s) and i.start_at < %s
+            order by i.start_at, i.source <> 'schedule', i.id
+            """, (list(plan.ACTIVE), end)):
+        first.setdefault(r["work_order"], r)
+    sending = {o: r for o, r in first.items() if r["start_at"] >= start}
+    if not sending:
+        return {}
+    out: dict[str, list[dict]] = defaultdict(list)
+    for line in material_readiness.coverage(conn)["lines"]:
+        job = sending.get(line["work_order_id"])
+        if not job:
+            continue
+        due = max((c["due"] for c in line["on_order"] if c["due"]), default=None)
+        out[job["start_at"].astimezone(start.tzinfo).date().isoformat()].append({
+            "material": line["material"], "material_id": line["material_id"], "description": line["description"],
+            "quantity": line["quantity"], "order": line["work_order"], "item_id": job["id"], "title": job["title"],
+            "code": job["code"], "schedule": job["project"], "verdict": line["verdict"], "due": due,
+            "days_late": line.get("days_late"), "short": line.get("short")})
+    rank = material_readiness.VERDICT_ORDER
+    return {d: sorted(xs, key=lambda x: (rank.index(x["verdict"]), x["order"] or "", x["material"] or ""))
+            for d, xs in out.items()}
+
+
 def logistics(conn, start: datetime | None = None, days: int = 14) -> dict:
     """What the plan asks to be sent, day by day: each crew's jobs with the people and the assets, the crews that
     travel (those a seats or beds resource counts: out the day their first job on a schedule starts, back the day
-    their last finishes) with the seats and beds they take against what there is, and the cranes, vessels and deck
-    space booked. Everything is read from the plan's dates and resource needs; nothing is committed here."""
+    their last finishes) with the seats and beds they take against what there is (a crew aboard keeps its beds on a
+    day between its jobs, listed under `aboard`), the cranes, vessels and deck space booked, and the parts to send
+    for the jobs that start that day with whether they are in stock or on order. Everything is read from the plan's
+    dates, resource needs and the work orders' reservations; nothing is committed here."""
     start = (start or clock.now()).replace(hour=0, minute=0, second=0, microsecond=0)
     if start.tzinfo is None:
         start = start.replace(tzinfo=clock.zone())
@@ -1128,6 +1204,9 @@ def logistics(conn, start: datetime | None = None, days: int = 14) -> dict:
     travelling = sorted({c for r in carriers for c in r["counts"]})
     moves = _crew_moves(conn, travelling, start, end) if travelling else []
     by_seats = {c: r for r in carriers if r["kind"] == "seats" for c in r["counts"]}
+    bedded = sorted({c for r in carriers if r["kind"] == "beds" for c in r["counts"]})
+    stays = [t for t in _crew_trips(conn, bedded) if t["last"] > start and t["first"] < end] if bedded else []
+    materials = _materials(conn, start, end)
     load = {r["code"]: {d["day"]: d for d in r["days"]}
             for r in resource_load(conn, None, start, days)["resources"] if r["kind"] in ("seats", "beds")}
 
@@ -1156,9 +1235,15 @@ def logistics(conn, start: datetime | None = None, days: int = 14) -> dict:
         limits = [{"resource": code, "name": res[code]["name"], "kind": res[code]["kind"], "unit": res[code]["unit"],
                    "need": d[day]["demand"], "capacity": d[day]["capacity"], "over": d[day]["demand"] > d[day]["capacity"] + EPS}
                   for code, d in load.items() if day in d and (d[day]["demand"] > 0)]
-        if crews or equipment or travel or limits:
-            out.append({"day": day, "crews": crews, "travel": travel, "equipment": equipment, "limits": limits})
+        aboard = [{"crew": t["crew"], "name": t["name"], "people": t["peak"], "schedule": t["project"]}
+                  for t in stays if t["first"] < b and t["last"] > a
+                  and not any(j["start_at"] < b and j["end_at"] > a for j in t["jobs"])]
+        ship = materials.get(day, [])
+        if crews or equipment or travel or limits or aboard or ship:
+            out.append({"day": day, "crews": crews, "travel": travel, "aboard": aboard, "equipment": equipment,
+                        "limits": limits, "materials": ship})
     return {"start": start, "end": end, "days": days, "by_day": out,
             "basis": "every active planned job's resource needs at its planned dates; a crew that a seats or beds "
                      "resource counts travels out the day its first job on a schedule starts and back the day its "
-                     "last one finishes"}
+                     "last one finishes, and keeps its beds aboard in between; parts are the open reservations on "
+                     "each work order, due the day its first planned job starts"}

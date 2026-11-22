@@ -46,7 +46,7 @@ Demo is one route outside the menu, the guided tour; it starts the Okan walkthro
 Lessons and Studies. Work has two pages, List and Board: all the work as a table or as columns, with the same filters.
 My work and Master data's questions are presets on it, not menu entries. Workflows (formerly Processes; "process" means the plant in oil and gas) sit in Settings beside Routing:
 they are the playbooks the work follows; a case or task links to the workflow it
-is following. Plan contains Plan (the timeline), Schedules, Resources and Logistics (read-only: each day's crews and jobs, travel, seats, beds and lifts, read from the plan; changes are made on a schedule or on Resources). A work item planned for a day links to its
+is following. Plan contains Plan (the timeline), Schedules, Resources and Logistics (read-only: each day's crews and jobs, travel, crews aboard between jobs, seats, beds, lifts and materials to send, read from the plan and the work orders' reservations; changes are made on a schedule or on Resources). A work item planned for a day links to its
 bar (`#/plan?item=ID&from=DATE` opens it), and a bar planned from work links back to it in All work. Shift handover is
 reached from My work, which shows a banner from shift change until the incoming lead acknowledges it; `#/handover`
 still opens it. Turnaround is a window on Plan: `#/plan?revision=…` shades the revision's window on the timeline and

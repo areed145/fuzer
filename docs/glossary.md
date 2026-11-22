@@ -93,8 +93,10 @@ every kind; a page shows that label, or the more specific word a record carries 
 drawing's document type).
 
 **Logistics.** What the plan asks to be sent each day: each crew's jobs, the crews that travel out and back, the
-seats and beds they take, and the cranes, vessels and deck space booked. Plan > Logistics reads it from the plan's
-dates and resource needs.
+seats and beds they take (a visiting crew keeps its beds aboard between its jobs until it flies back), the cranes,
+vessels and deck space booked, and the materials to send: the parts reserved on each work order whose first planned
+job starts that day, with whether stock or an order on record covers them. Plan > Logistics reads it from the plan's
+dates, resource needs and the work orders' reservations.
 
 **Mapping.** YAML that says what one source table's rows mean: entities, fields, links and measurements. Kept as
 versions in the source catalog (the latest approved one is in use); the files in `src/fuzer/mappings/` seed it.

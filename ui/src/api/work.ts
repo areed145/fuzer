@@ -888,11 +888,19 @@ export interface RoutineLoad { quantity: number; source: string; basis: string }
 /** One job on a day of the logistics plan: who it needs, where, and when. */
 export interface LogisticsJob { item_id: number; title: string; code: string | null; schedule: string | null; order: string | null;
   assets: string[]; area: string | null; start: string; end: string; quantity: number }
+export interface LogisticsMaterial { material: string | null; material_id: string; description: string | null; quantity: number;
+  order: string | null; item_id: number; title: string; code: string | null; schedule: string | null;
+  verdict: "in_stock" | "on_order" | "late" | "not_on_order" | "not_on_order_too_late"; due: string | null;
+  days_late: number | null; short: number | null }
 export interface LogisticsDay {
   day: string;
   crews: { resource: string; name: string; unit: string | null; capacity: number; kind: string; jobs: LogisticsJob[] }[];
   equipment: { resource: string; name: string; unit: string | null; capacity: number; kind: string; jobs: LogisticsJob[] }[];
   travel: { crew: string; name: string; people: number; way: "out" | "back"; schedule: string; by: string | null }[];
+  /** Visiting crews aboard with no job that day: they keep their beds until they fly back. */
+  aboard?: { crew: string; name: string; people: number; schedule: string }[];
+  /** Parts reserved on the work orders whose first job starts that day, with what covers each. */
+  materials?: LogisticsMaterial[];
   limits: { resource: string; name: string; kind: string; unit: string | null; need: number; capacity: number; over: boolean }[];
 }
 export interface PlanResource { code: string; name: string; kind: string; unit: string | null; capacity: number; work_center?: string | null;
