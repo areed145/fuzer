@@ -104,6 +104,9 @@ export function ProcessesPage() {
       <Text as="p" small id="who-edits">Publishing needs the workflow admin role{person ? (admin ? ", which you have" : ", which you don't have") : ""}.
         Queues are set on <a href={href("/routing")}>Routing</a>.</Text>
       <NeedName person={person} />
+      {/* Drawn once the list and its counts are in (#15): the table landing pushed the cards below it down after they
+          had been drawn. */}
+      {!(defs.data !== undefined || defs.error) || !(stats.data !== undefined || stats.error) ? <Status loading /> : <>
       <Status of={defs}
         empty={!defs.loading && !defs.error && !groups.length}>
         No processes yet. {person ? "Create one below, or import a .bpmn file." : "Say who you are to create one."}
@@ -175,6 +178,7 @@ export function ProcessesPage() {
           ))}
         </List>
       </UICard>
+      </>}
     </section>
   );
 }

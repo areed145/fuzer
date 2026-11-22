@@ -1,6 +1,6 @@
 import { Bar, PageHeader, Input, Table, Card as UICard, Text, Tabs } from "../ui";
 import { whenDay, count } from "../format";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, type DowntimeMonth, type RankRow } from "../api";
 import { Status, entityHref, useAsync } from "../lib";
 import "../styles/downtime.css";
@@ -25,6 +25,10 @@ export function DowntimePage() {
   const byReason = useAsync(() => api.downtimeRanking("reason", s, planned), [since, scope]);
   const checks = useAsync(() => api.reasonChecks(), []);
   const t = total.data;
+  // once drawn it stays drawn: a new date or scope fills in place rather than blanking the page
+  const drawn = useRef(false);
+  drawn.current ||= [total, months, byTag, byClass, byReason].every((a) => a.data !== undefined || !!a.error);
+  const settled = drawn.current;
   const plannedBbl = t?.planned?.lost_oil_bbl ?? 0;
   const plannedEvents = t?.planned?.events ?? 0;
   const events = (t?.recent ?? []).filter((e) => scope === "all" || (e.reason_category === "planned") === (scope === "planned"));
@@ -37,7 +41,11 @@ export function DowntimePage() {
           Since
           <Input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
         </label>}>Downtime</PageHeader>
-      <Status of={total} />
+      <Status error={total.error} onRetry={total.reload} />
+      {/* The page draws once its first reads are in (#15): drawn as each answered, the totals, the months chart and
+          the rankings each pushed the tabs and the events down the page after it had been read (a layout shift of
+          0.36). A failed read still draws, with its own retry. */}
+      {!settled ? <Status loading /> : <>
       {t && (
         <div className="downtime-totals">
           <p><b>{fmt(t.lost_oil_bbl)} bbl</b> oil lost over <b>{count(t.events)}</b> events ({fmt(t.hours)} h)</p>
@@ -77,6 +85,7 @@ export function DowntimePage() {
           </Table>
         </UICard>
       )}
+      </>}
       <Status of={checks} />
       {checks.data && checks.data.length > 0 && (
         <UICard as="section" title="Reason code doesn't match the comment" detail={checks.data.length}>
