@@ -188,7 +188,7 @@ def _schedules(manifest: Path, root: Path, listed) -> list[dict]:
         if not isinstance(doc.get("activities"), list) or not all(isinstance(a, dict) and a.get("code") and a.get("name")
                                                                    for a in doc["activities"]):
             raise BundleError(f"{manifest}: schedule template {rel}: each activity needs a code and a name")
-        fields = {"code", "wbs", "name", "hours", "refs", "order_of", "needs", "after", "notes"}
+        fields = {"code", "wbs", "name", "hours", "refs", "order_of", "needs", "after", "notes", "adds_boed", "shutdown"}
         for a in doc["activities"]:
             if extra := set(a) - fields:  # a comma in an unquoted name splits it into a stray key
                 raise BundleError(f"{manifest}: schedule template {rel}: {a['code']} has unknown fields "

@@ -21,6 +21,7 @@ project:
   timezone: America/Denver
 source_packs: [packs/measurement.yaml, packs/healthwatch.yaml, packs/corrwatch.yaml]
 roster: roster.yaml
+schedules: [schedules/KR-OUT-2027.yaml]  # the next plant outage as its planner first laid it out (P5.18)
 operating_model:
   name: standard
   version: 1

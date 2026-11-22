@@ -350,7 +350,7 @@ def _seed_schedules(conn) -> list[dict] | dict:
         return []
     try:
         with conn.transaction():
-            return schedule.seed(conn, name)
+            return [{**r, "finish": str(r["finish"])} if r.get("finish") else r for r in schedule.seed(conn, name)]  # a report
     except (PlanError, projects.ProjectError) as e:
         return {"error": str(e)}
 

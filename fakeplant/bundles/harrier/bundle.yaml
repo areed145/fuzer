@@ -19,6 +19,7 @@ project:
   sample_crew: true  # a sample team works the queue on today's clock (ops/sample_crew.py, #1073)
   timezone: America/Edmonton
 roster: roster.yaml
+schedules: [schedules/HR-PIG-2027.yaml]  # the next mainline outage as its planner first laid it out (P5.18)
 operating_model: {name: standard, version: 1}
 packs_not_applicable:  # specialist packs that can't apply to a pipeline and terminal (#826)
   - {pack: wells-subsurface/wells-and-lift, reason: a pipeline and terminal has no wells}

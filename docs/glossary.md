@@ -120,7 +120,9 @@ scoring them against what really happened. See [evals](evals.md).
 check), a suggested mapping, a reading by Claude to check.
 
 **Resource.** Something planned work shares and can run out of: a crew, a crane, beds, helicopter seats, vessel
-support, operator rounds, production capacity. Plan > Resources sets demand against its capacity.
+support, operator rounds, production capacity. Plan > Resources sets demand against its capacity. Production
+capacity is the most the system can handle online at once, in BOE/d: the wells at their latest test rates, less
+what a job has down, plus what a job brings on when it finishes.
 
 **Round.** A checklist of readings and checks an operator walks each shift on the phone. A reading outside its
 limits, or a failed check, raises a round finding.

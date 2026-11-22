@@ -1,0 +1,45 @@
+# Kestrel Ridge's next plant outage as its planner first laid it out (P5.18): the sales gas compressor's major
+# service and the amine contactor's internal inspection in one outage, and the third well tied in behind it.
+# Dates are relative to the day they're read, as the exports are. Hours are working hours on a 24-hour, 7-day
+# outage calendar. Links: `after: [A010]` is finish-to-start; "A010 SS+6" is start-to-start with a 6-hour lag.
+schedule: 1
+code: KR-OUT-2027
+title: Kestrel Ridge plant outage (compressor major service, amine contactor inspection, KR 12-05H tie-in)
+kind: turnaround
+start: today+21d 06:00
+finish_by: today+31d 06:00
+calendar: {hours_per_day: 24, days_per_week: 7}
+resources:
+  - {code: MECH, name: Mechanical maintenance crew, kind: crew, capacity: 3, work_center: MECH}
+  - {code: INST, name: Instrument technicians, kind: crew, capacity: 1, work_center: INST}
+  - {code: ELEC, name: Electrical technicians, kind: crew, capacity: 1, work_center: ELEC}
+  # the operators also do their rounds and checks every shift, so three are on to give the isolations two
+  - {code: OPS, name: Operations isolation team, kind: crew, capacity: 3, routine: rounds}
+  - {code: NDT, name: Inspection contractor, kind: crew, capacity: 2}
+  - {code: CRANE, name: Mobile crane with rigging crew, kind: crane, unit: crane, capacity: 1}
+  # the visiting inspection and service crews stay at the camp while their jobs run
+  - {code: BEDS, name: Camp beds for visiting crews, kind: beds, unit: beds, capacity: 4, counts: [NDT]}
+  # what the plant can take: the sales gas compressor's rating and the stabilizer, as BOE/d of wells online
+  - {code: PROD, name: Production the plant can handle, kind: capacity, unit: BOE/d, capacity: 14000}
+activities:
+  # 1 Shut down and make safe
+  - {code: A010, wbs: "1.1", name: "Shut in the wells and depressurise the plant", hours: 8, refs: [KRGP], needs: {OPS: 2}}
+  - {code: A020, wbs: "1.2", name: "Isolate and purge train B1 compression", hours: 8, refs: [KRGP-B1], needs: {OPS: 2}, after: [A010]}
+  - {code: A030, wbs: "1.3", name: "Isolate, drain and steam out the amine contactor", hours: 16, refs: [D1-V-4001], needs: {OPS: 2}, after: [A010]}
+  # 2 Sales gas compressor
+  - {code: A100, wbs: "2.1", name: "Open the sales gas compressor and pull the valves", hours: 16, refs: [B1-K-2001], needs: {MECH: 3}, after: [A020]}
+  - {code: A110, wbs: "2.2", name: "Major service: valves, rings, rider bands and packing", hours: 48, refs: [B1-K-2001], needs: {MECH: 3}, after: [A100]}
+  - {code: A120, wbs: "2.3", name: "Lift out and clean the aftercooler bundle", hours: 12, refs: [B1-E-2010], needs: {MECH: 2, CRANE: 1}, after: [A020]}
+  - {code: A130, wbs: "2.4", name: "Calibrate the compressor vibration and discharge instruments", hours: 12, refs: [B1-VT-2003, B1-PT-2001], needs: {INST: 1}, after: [A110]}
+  - {code: A140, wbs: "2.5", name: "Test the compressor motor and its switchgear", hours: 8, refs: [B1-K-2001], needs: {ELEC: 1}, after: [A020]}
+  - {code: A150, wbs: "2.6", name: "Box up the compressor and run in", hours: 12, refs: [B1-K-2001], needs: {MECH: 3}, after: [A110, A120, A130, A140]}
+  # 3 Amine contactor
+  - {code: A200, wbs: "3.1", name: "Open the amine contactor manways", hours: 8, refs: [D1-V-4001], needs: {MECH: 2}, after: [A030]}
+  - {code: A210, wbs: "3.2", name: "Internal inspection of the amine contactor (confined space entry)", hours: 24, refs: [D1-V-4001], needs: {NDT: 2}, after: [A200]}
+  - {code: A220, wbs: "3.3", name: "Change the amine carbon filter", hours: 8, refs: [D1-F-4010], needs: {MECH: 2}, after: [A030]}
+  - {code: A230, wbs: "3.4", name: "Box up the amine contactor", hours: 8, refs: [D1-V-4001], needs: {MECH: 2}, after: [A210]}
+  # 4 Hand back
+  - {code: A800, wbs: "4.1", name: "De-isolate and leak test", hours: 12, refs: [KRGP], needs: {OPS: 2}, after: [A150, A220, A230]}
+  - {code: A900, wbs: "4.2", name: "Restart and hand back to operations", hours: 8, refs: [KRGP], needs: {OPS: 2}, after: [A800]}
+  # 5 The third well, which the plant must have room for: it tests at about 5,200 BOE/d
+  - {code: A950, wbs: "5.1", name: "Tie in and bring on well KR 12-05H", hours: 24, refs: [KRGP-A1], needs: {MECH: 2, INST: 1}, after: [A900], adds_boed: 5200, shutdown: false}
