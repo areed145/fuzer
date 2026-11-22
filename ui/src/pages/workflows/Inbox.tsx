@@ -66,11 +66,11 @@ export function InboxPage() {
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
   if (!offline && ![field, handovers, told, exceptions].every(settled)) return <Status loading />;
   // My work is the List's Waiting on me now: one list, one count. Someone only in the field (an operator alone), or
-  // anyone with field jobs, keeps this page for their jobs, kept for no signal with the report buttons; a person with a
+  // anyone with field jobs sent to them (not just waiting in the operator queue, which the List offers to take), keeps this page for their jobs, kept for no signal with the report buttons; a person with a
   // desk role besides (the demo account holds every role) goes to the List. Anyone can still open their steps here to
   // tick several at once (`?steps=1`).
   if (!offline && inbox.data && inbox.data.roles.some((r) => r !== "operator")
-      && !(field.data?.jobs ?? []).length && !stepsWanted()) {
+      && !(field.data?.jobs ?? []).some((j) => !j.queued) && !stepsWanted()) {
     location.replace(href("/list", { waiting_on: "me" }));
     return <Status loading />;
   }
