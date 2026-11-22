@@ -661,13 +661,17 @@ test("an event to dispatch opens its options from its row on All work (P5.20)", 
     priority: 0.9, value_usd: null, subjects: [], unmatched: [], item_id: null, case_state: null, assignee: null, role: null,
     raised_count: 1, first_seen: "2026-11-22T12:00:00Z", last_seen: "2026-11-22T12:00:00Z", stage: "dispatch" };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [row] }));
-  await page.route("**/exceptions/7/options", (route) => route.fulfill({ json: caseOptions({ item_id: null, stage: "dispatch" }) }));
+  const none = caseOptions().options.map((o) => o.key === "window"
+    ? { key: "window", label: "Ride along with the next visit", available: false, unavailable: "nothing scheduled on its area or assets in the next 21 days" } : o);
+  await page.route("**/exceptions/7/options", (route) => route.fulfill({ json: caseOptions({ item_id: null, stage: "dispatch", options: none }) }));
   await page.goto(`${url}/#/exceptions?list=open`);
   await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
   await page.reload();
   await page.getByText("20-K-2300B tripped").first().waitFor();
   await page.getByRole("button", { name: "Options", exact: true }).click();
-  await page.getByLabel("Options").getByText("Ride along with the next visit").waitFor();
+  // an option that can't be taken is a line under the others, not an empty tile
+  await page.getByLabel("Options").getByText(": nothing scheduled on its area or assets in the next 21 days").waitFor();
+  assert.equal(await page.locator(".case-option").count(), 3);
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 

@@ -143,7 +143,9 @@ def loss(conn, row: dict, prices: dict) -> tuple[dict | None, dict | None, list[
         oil = next((a["value"] for a in tripped["at_risk"] if a["quantity"] == "oil_rate"), 0.0)
         gas = next((a["value"] for a in tripped["at_risk"] if a["quantity"] == "gas_rate"), 0.0)
         if tripped["on_network"] and (oil or gas):
-            n = _parallel(conn, tripped["units"][0]["id"]) if len(tripped["units"]) == 1 else 1
+            # one train of several in parallel carries its share; a machine that takes down a set of units (a driver
+            # sharing its train's parent) is one train of however many its widest unit has twins
+            n = max(_parallel(conn, u["id"]) for u in tripped["units"])
             oil, gas = oil / n, gas / n
             wells = len(tripped["wells"])
             said = (f"the {wells} well(s) behind {tripped['item']['label']} on the flow network at their latest test"
@@ -324,7 +326,7 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
         "hours": respond, "by": (at + timedelta(hours=respond)).isoformat(),
         "deferred": _deferred(now, respond, prices), "risk": _risk(base, respond, crit, behind),
         "ready": ready["ready"], "blockers": [b for b in ready["blockers"] if b not in clashes],
-        "warnings": ready["warnings"] + notes[:2], "clashes": clashes, "available": True,
+        "warnings": ready["warnings"], "unchecked": notes, "clashes": clashes, "available": True,
         "basis": f"the operator queue answers within {respond:g} h (its SLA)"})
 
     # ride along with the next visit
@@ -424,8 +426,10 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
     if d["ready"]:
         why = []
         if alt and now:
-            name = "the next visit" if alt["key"] == "window" else "the shelf"
-            why.append(f"Waiting for {name} defers {_bbl(alt)} ({_money(usd(alt))}) against {_bbl(d)} "
+            name = (f"the visit on {alt['detail'].rsplit(', ', 1)[-1]}" if alt["key"] == "window"
+                    else f"{round(alt['hours'] / 24)} days")
+            wait = f"for {name}" if alt["key"] == "window" else name
+            why.append(f"Waiting {wait} defers {_bbl(alt)} ({_money(usd(alt))}) against {_bbl(d)} "
                        f"({_money(usd(d))}) if it goes now")
         if any(o["risk"]["level"] == "High" for o in waiting):
             why.append("waiting leaves the risk high" if why else "Waiting leaves the risk high")
