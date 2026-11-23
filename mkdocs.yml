@@ -64,6 +64,7 @@ nav:
       - overview.md
       - system.md
       - work-routing.md
+      - work-model.md
       - architecture.md
       - adapter-boundaries.md
       - stack.md

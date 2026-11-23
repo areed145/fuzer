@@ -25,6 +25,9 @@ it round again.
 **Board.** All work's rows in columns, by stage (the default), kind, holder, team, source, facility, area or asset, with the same filters as
 the List. Sorting by value ranks everything outstanding by what it is worth: backlog, PMs, incidents, opportunities.
 
+**Booking.** When a job is planned to happen and with which resources: its dates, crew and the quantity it takes of
+each resource. Shown as the crew and dates on a bar on Plan. See [the work model](work-model.md).
+
 **Bundle.** A planned job due near a shutdown of its area that could be done in it. Shown as a flag on Plan.
 
 **Candidate.** What a source record says exists (a tag, a well, a pump), before identity resolution decides which
@@ -48,6 +51,9 @@ that system is drafted for a planner to approve. Work someone asked for (a task)
 asked, or a duplicate.
 
 **Capability.** A tool an agent can call, declared once with the agents that use it. See [capabilities](capabilities.md).
+
+**Container.** A group of cases with a shared window, budget or goal, and a parent: a business plan, program,
+project, turnaround or package. Shown by its kind, never as "container". Its own case runs its gates.
 
 **Connection.** How Fuzer reaches a system of record: a folder of exports, PI Web API or ADX, with secrets as
 references. A system can have several. See [sources](sources.md).
@@ -88,6 +94,9 @@ line citing its case. The incoming lead acknowledges it.
 
 **IOW.** Integrity operating window: a limit that protects equipment integrity rather than the process.
 
+**Job.** One piece of execution inside a case: done at a place, by a kind of crew, in a window. A case has none (desk
+work) or several. On screen a **field job** or a **desk job**; the **Jobs** page is the technical schedules and runs.
+
 **Kind.** What sort of entity something is (a well, a tag, a work order, a document). The ontology names and labels
 every kind; a page shows that label, or the more specific word a record carries (a compressor's template, a
 drawing's document type).
@@ -103,6 +112,9 @@ versions in the source catalog (the latest approved one is in use); the files in
 
 **MCP.** Model Context Protocol: how Claude, in the app or in another client, calls Fuzer's tools.
 
+**Need.** Why work should happen: a condition seen, an obligation falling due, or an intent to change something. A
+need opens a case or joins an open one. In code; on screen it is shown by its type (a notification, a due date).
+
 **Options.** The choices for a piece of field work, side by side on a case in To dispatch, With a desk or Back from
 the field (and from its row on All work): **Dispatch now**, **Ride along with the next visit** (a scheduled plan
 item on the same area or assets), **Shelve** (until the area's turnaround, or for at most the longest shelving) and
@@ -113,6 +125,9 @@ with its reason. Choosing another needs a reason; the choice is kept on the case
 
 **Plan.** The one timeline of every planned job from every source: SAP orders and maintenance plans, inspections,
 schedules, and work the IOC planned for a day. A bar on it is a **plan item**.
+
+**Prerequisite.** Something a job needs before it can be released: parts covered, crew within capacity, a permit,
+isolations, seats, beds and lifts, the unit down. A job is ready when every prerequisite is satisfied.
 
 **Profile.** What a load of a dataset looked like: per column its type, fill, distinct and top values. Compared
 with the one before to catch a source changing shape.
@@ -141,6 +156,9 @@ what a job has down, plus what a job brings on when it finishes.
 **Round.** A checklist of readings and checks an operator walks each shift on the phone. A reading outside its
 limits, or a failed check, raises a round finding.
 
+**Routine.** A standing rule that raises work each time it falls due: an SAP maintenance plan, a round, a routine
+duty, a report. It says when, on what, the job it makes and who owns it.
+
 **Routing table.** One row per type of work: whether it joins an open case, what it starts (a workflow, a queue, or
 nothing until the IOC dispatches it) and when it is due. Shown on Settings > Routing.
 
@@ -165,6 +183,10 @@ project. See [settings](settings.md).
 
 **Step.** One task in a case's workflow, held by a person, a queue or an agent. A step is worked on its case's page:
 **Take it**, **Give it back to the queue**, **Complete**, or **Send to** someone else.
+
+**Status mapping.** A system's statuses (SAP's system and user statuses, JD Edwards codes, Maximo statuses) and the
+Fuzer state each means, with the status sent back for each Fuzer move. Edited on Sources; a status with no row is
+flagged, not guessed.
 
 **Suppression.** Planned work holding back the detections it explains: a trip on a machine that is down for a
 shutdown is counted under the shutdown and opens no case.
