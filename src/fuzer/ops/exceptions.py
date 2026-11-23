@@ -668,6 +668,8 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
         item_id = routing.route(conn, row, by, to=to, reason=reason)
         conn.execute("update exception_record set item_id = %s, updated_at = now() where id = %s", (item_id, row["id"]))
         _adopt(conn, _row(conn, exception_id), by)
+        from . import plan
+        plan.link_case(conn, row["id"], item_id)  # a bar it was planned as is now this case's job
     row = _row(conn, exception_id)
     if override:  # sent though not ready (P5.5): what blocked it and why it went anyway, on the case's history
         work.comment(conn, row["item_id"], by, f"Sent though not ready ({'; '.join(blockers or [])}). Why: {override}")

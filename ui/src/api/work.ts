@@ -940,7 +940,10 @@ export interface PlanItem {
   id: number; kind: string; title: string; source: string | null; source_key: string | null; subjects: string[];
   area_id: string | null; area_label: string | null; start_at: string; end_at: string; status: string;
   crew: string | null; crew_hours: number | null; needs_shutdown: boolean; deferment_usd: number | null;
-  exception_id: number | null; notes: string | null; assets: { fuzer_id: string; label: string | null }[];
+  exception_id: number | null; notes: string | null;
+  /** Its case, once it has one; and whether the job is done in the field or at a desk. */
+  item_id?: number | null; place?: "field" | "desk";
+  assets: { fuzer_id: string; label: string | null }[];
   clashes: { kind: "same_asset" | "crew" | "bundle" | "simops"; with: number; title: string; say: string }[];
   /** Spare parts for its assets recorded with zero stock, for active work starting within 30 days. */
   parts_short?: { id: string; label: string | null; description: string | null; mpn: string | null; bin: string | null; for: string }[];
@@ -1107,7 +1110,7 @@ export const workApi = {
     request<RoundPoint & { exception: { id: number; raised: boolean } | null }>("POST", `/rounds/${id}/readings`, undefined, t, project),
   planAtRisk: (start?: string, days = 90) => request<AtRisk>("GET", "/plan/at-risk", { start, days }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
-  planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>,
+  planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string; place: "field" | "desk" }>,
     project?: string) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }, project),
   planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),

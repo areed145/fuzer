@@ -491,6 +491,11 @@ create table if not exists plan_resource_capacity (
 );
 -- a planner's constraint on a schedule activity: start no earlier than this (dragged on the Gantt)
 alter table plan_item add column if not exists not_before timestamptz;
+-- The work model (docs/work-model.md): a plan item is a job, the execution of a case. item_id is its case once it has
+-- one; place says whether it is done in the field (it goes through Ready and Release) or at a desk.
+alter table plan_item add column if not exists item_id bigint;
+alter table plan_item add column if not exists place text not null default 'field';
+create index if not exists plan_item_case on plan_item (item_id) where item_id is not null;
 -- the production a job brings online when it finishes, in BOE/d (a new well, a restart, an uplift): what production
 -- capacity counts against how much the system can handle (ops/schedule.py)
 alter table plan_item add column if not exists adds_boed double precision;
