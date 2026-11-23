@@ -13,7 +13,9 @@ from psycopg.conninfo import make_conninfo
 BUNDLES = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles"
 KESTREL = BUNDLES / "kestrel"
 FIXTURES = Path(__file__).resolve().parents[2] / "ui" / "tests" / "fixtures"
-OPTIONAL_ITEM = {"unit"}  # core.findings.Item: a unit is written only when the value has one
+# core.findings.Item: a unit is written only when the value has one, and a text only on an asset item, which a trip
+# with no first-out (the fake plant's trip cause turns with the day) does not have
+OPTIONAL_ITEM = {"unit", "text"}
 
 
 def _json(x):
