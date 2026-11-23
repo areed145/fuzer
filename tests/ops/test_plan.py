@@ -308,7 +308,8 @@ def test_a_job_is_released_to_the_field_when_its_prerequisites_are_met_or_with_a
     update(conn, bar["id"], "ann", status="scheduled", crew="fred")
     assert plan.prerequisites(conn, bar["id"])["ready"]
     out = plan.release(conn, bar["id"], "ann")
-    assert out["released_by"] == "ann" and out["release_reason"] is None
+    assert out["released_by"] == "ann" and out["release_reason"] is None and plan.job_stage(out) == "released"
+    assert next(i for i in plan.items(conn, "2026-12-01", "2026-12-15") if i["id"] == bar["id"])["stage"] == "released"
     assert out["start_at"].isoformat().startswith("2026-12-08")  # released ahead, its dates and booking stay
     row = exceptions._row(conn, e["id"])
     assert not routing.waiting_case(conn, row["item_id"]) and row["item_id"] == e["item_id"]

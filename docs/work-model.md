@@ -238,8 +238,9 @@ flow before the larger moves.
 5. **Prerequisites, the field job workflow and Release.** Ready is computed from prerequisites; a `field_job` workflow
    enforces the stages; Release, Reschedule and the SAP confirmation draft arrive. First part done: a bar's prerequisites (scheduled, the ready
    checks, no clash, the unit down when it needs it) decide Ready on Plan; Release sends its waiting case to the crew,
-   with a reason when one is open; Reschedule keeps its reason and sends a released job back to wait. The `field_job`
-   workflow and the SAP confirmation draft follow.
+   with a reason when one is open; Reschedule keeps its reason and sends a released job back to wait. Each bar carries
+   its job stage (planned, scheduled, released, in progress, done, cancelled). The SAP order confirmation draft comes
+   with SAP orders as jobs in step 8; a notification's close-out already drafts back to SAP.
 6. **One container.** `plan_project`, `board_project` and turnaround revisions become containers with a parent and a
    governing case.
 7. **Routines.** SAP maintenance plans, rounds and routine duties become routines raising obligation needs.
