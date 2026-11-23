@@ -6,6 +6,31 @@ import { mkdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 
 const url = "http://127.0.0.1:5174";
+
+/** A trend view fixture as the trend spec the server builds from it (analysis/trend_spec.py), for the chart's tests. */
+function specOf(view) {
+  const groups = [...view.groups, { key: "other", label: "Other points", show: false, traces: view.other ?? [] }];
+  const name = (t) => {
+    const what = t.role_label ?? t.description ?? t.point;
+    return t.on && t.on.relation !== "self" && t.on.label ? `${what} · ${t.on.label}` : what;
+  };
+  const unit = (u) => (u ?? "").replace(/^degF$/, "°F").replace(/^degC$/, "°C");
+  const tag = (p) => p.replace(/^[^:]*:/, "").replace(/\.(PV|CV|OUT|SP|MV)$/i, "");
+  const series = groups.flatMap((g) => g.traces.map((t) => ({ key: t.id, point: t.point, tag: tag(t.point), label: name(t),
+    description: t.description ?? null, unit: unit(t.uom), uom: t.uom, role: t.role ?? null, on: t.on ?? null, link: t.link ?? t.id,
+    as: t.sampled ? "step" : "line", axis: t.axis, values: t.values, min: t.min, max: t.max, mean: t.mean, last: t.last,
+    limits: t.limits ?? [], show: !!t.show })));
+  const lead = (u) => new Date(Date.parse(`${u}Z`) - 12 * 3600000).toISOString().slice(0, 16);
+  return { version: 1, subject: view.unit, unit: view.unit, unit_label: view.unit_label,
+    title: [view.unit_label, view.template.title].filter(Boolean).join(" · "), template: view.template, provider: view.provider,
+    step_minutes: view.step_minutes, time: { start: view.start, end: view.end, centre: view.centre },
+    panels: groups.filter((g) => g.traces.length).map((g) => ({ key: g.key, label: g.label, show: g.show, axis: "auto", series: g.traces.map((t) => t.id) })),
+    series, focus: null,
+    events: ["alarms", "log", "cases", "maintenance", "downtime"].map((lane) => ({ lane, label: lane, show: true })),
+    marks: (view.upsets ?? []).filter((u) => u >= view.start && lead(u) <= view.end)
+      .map((u) => ({ kind: "window", start: lead(u), end: u, label: "12 h before the incident", tone: "warn" })),
+    missing: view.missing ?? [], errors: view.errors ?? [] };
+}
 let server, browser, context, page, errors;
 before(async () => {
   server = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "preview", "--host", "127.0.0.1", "--port", "5174", "--strictPort"], {
@@ -5505,7 +5530,7 @@ test("P5.17c A job's asset page, documents and drawing open without signal, and 
   for (let i = 0; !(await keptKeys()).some((k) => k.startsWith("warm:")) && i < 150; i++) await page.waitForTimeout(100);
   const kept = await keptKeys();
   for (const path of [`/entities/${id}`, `/entities/${id}/status`, `/documents/${pid}/drawing`, `/documents/${pid}/image`,
-    `/entities/${id}/trend-view?hours_before=48&hours_after=24`]) assert.ok(kept.some((k) => k.endsWith(path)), `kept ${path}`);
+    `/entities/${id}/trend-spec?hours_before=48&hours_after=24`]) assert.ok(kept.some((k) => k.endsWith(path)), `kept ${path}`);
 
   reachable = false;
   await page.locator(".field-job").getByRole("link", { name: "P-101 export pump" }).click();
@@ -7899,7 +7924,7 @@ test("P5.13b The entity's Measurements tab is one trend: template panels, event 
   let windows = [];
   await page.route("**/entities/k1", route => route.fulfill({ json: { fuzer_id: "k1", kind: "tag", label: "K-1",
     golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
-  await page.route("**/entities/k1/trend-view*", route => route.fulfill({ json: view }));
+  await page.route("**/entities/k1/trend-spec*", route => route.fulfill({ json: specOf(view) }));
   await page.route("**/entities/k1/timeline*", route => {
     const q = new URL(route.request().url()).searchParams;
     windows.push([q.get("start"), q.get("end")]);
@@ -7972,10 +7997,10 @@ test("P5.13c A case page draws the trend of the unit its event is on, over the e
   await page.route("**/work/items/31/around", route => route.fulfill({ json: {
     window: { start: "2024-03-13T23:00", end: "2024-03-14T09:00" }, units: [{ id: "k1", label: "K-1" }],
     alarms: [], log: [], basis: "" } }));
-  await page.route("**/entities/k1/trend-view*", route => {
+  await page.route("**/entities/k1/trend-spec*", route => {
     const q = new URL(route.request().url()).searchParams;
     asked.push([q.get("at"), q.get("hours_before"), q.get("hours_after")]);
-    return route.fulfill({ json: view });
+    return route.fulfill({ json: specOf(view) });
   });
   await page.route("**/entities/k1/timeline*", route => route.fulfill({ json: { unit: "k1", start: view.start, end: view.end, lanes: [] } }));
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -8002,18 +8027,18 @@ test("a case's trend opens on the reading its title names, with every value a ta
     type: "round_finding", state: "open", subjects: ["p1"], created_by: "alex", created_at: "2024-03-14T03:20:00Z", events: [], processes: [] } }));
   await page.route("**/work/items/32/around", route => route.fulfill({ json: {
     window: { start: "2024-03-13T23:00", end: "2024-03-14T09:00" }, units: [{ id: "p1", label: "P-1" }], alarms: [], log: [], basis: "" } }));
-  await page.route("**/entities/p1/trend-view*", route => route.fulfill({ json: view }));
+  await page.route("**/entities/p1/trend-spec*", route => route.fulfill({ json: specOf(view) }));
   await page.route("**/entities/p1/timeline*", route => route.fulfill({ json: { unit: "p1", start: view.start, end: view.end, lanes: [] } }));
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${url}/#/cases/32`);
   const card = page.locator(".trend-view");
   await card.locator(".main-svg").first().waitFor();
   // only the bearing temperature is drawn, and the chips wait behind Show all
-  assert.match(await card.locator("[aria-label*='traces']").first().getAttribute("aria-label"), /: 1 traces/);
+  assert.match(await card.locator("[aria-label*=' series and ']").first().getAttribute("aria-label"), /: 1 series/);
   assert.equal(await card.getByRole("button", { name: "Suction pressure", exact: true }).count(), 0);
   await card.getByRole("button", { name: "Show all 4 values" }).click();
   await card.getByRole("button", { name: "Suction pressure", exact: true }).waitFor();
-  assert.match(await card.locator("[aria-label*='traces']").first().getAttribute("aria-label"), /: 4 traces/);
+  assert.match(await card.locator("[aria-label*=' series and ']").first().getAttribute("aria-label"), /: 4 series/);
 });
 
 test("P5.14a The installed app has its own Back, never leaves the app, and resumes the last page", async () => {
@@ -8794,13 +8819,13 @@ test("P5.14e A dispatched job walked in the installed app at 390 px: My work, th
     label: "P-101 export pump", golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
   await page.route("**/entities/fz-p-101/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
   const vals = [["2026-11-11T00:00", 4.1], ["2026-11-11T12:00", 4.3], ["2026-11-12T00:00", 7.9]];
-  await page.route("**/entities/fz-p-101/trend-view*", (route) => route.fulfill({ json: { provider: "synthetic",
+  await page.route("**/entities/fz-p-101/trend-spec*", (route) => route.fulfill({ json: specOf({ provider: "synthetic",
     centre: "2026-11-12T00:00", start: "2026-11-10T00:00", end: "2026-11-12T06:00", step_minutes: 30, upsets: [],
     unit: "fz-p-101", unit_label: "P-101 export pump", classes: ["PU"], template: { key: "PU", title: "Pump" }, missing: [],
     groups: [{ key: "vibration", label: "Vibration", show: true, traces: [{ id: "vt1", point: "OK:VT101.PV",
       description: "Pump vibration", uom: "mm/s", axis: "mm/s", show: true, values: vals, min: 4.1, max: 7.9, mean: 5.4,
       last: 7.9, role_label: "Vibration", on: { id: "fz-p-101", label: "P-101 export pump", relation: "self" }, limits: [] }] }],
-    other: [] } }));
+    other: [] }) }));
   await page.route("**/entities/fz-p-101/timeline*", (route) => route.fulfill({ json: { unit: "fz-p-101",
     start: "2026-11-10T00:00", end: "2026-11-12T06:00", lanes: [] } }));
   await page.route("**/entities/fz-p-101/measurements*", (route) => route.fulfill({ json: { id: "fz-p-101", series: [], truncated: false } }));
@@ -8870,12 +8895,12 @@ async function tripTrend(page, { width = 1280, height = 900 } = {}) {
   const asked = [];
   await page.route("**/entities/k1", route => route.fulfill({ json: { fuzer_id: "k1", kind: "tag", label: "20-K-2200B",
     golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
-  await page.route("**/entities/k1/trend-view*", route => {
+  await page.route("**/entities/k1/trend-spec*", route => {
     const q = Object.fromEntries(new URL(route.request().url()).searchParams);
     asked.push(q);
     // a window of an hour or two reads at the provider's finest step
     const fine = q.hours_before === "0" && Number(q.hours_after) <= 2;
-    return route.fulfill({ json: fine ? view(q.at, "2024-03-14T04:00", 5) : view("2024-03-12T03:20", "2024-03-15T03:20", 30) });
+    return route.fulfill({ json: specOf(fine ? view(q.at, "2024-03-14T04:00", 5) : view("2024-03-12T03:20", "2024-03-15T03:20", 30)) });
   });
   await page.route("**/entities/k1/timeline*", route => route.fulfill({ json: timeline }));
   await page.route("**/entities/k1/measurements*", route => route.fulfill({ json: { id: "k1", series: [], truncated: false } }));
@@ -8917,9 +8942,9 @@ test("P5.15d Two pinned times read the trip's drop in every value", async () => 
   const { card, emit } = await tripTrend(page);
   await emit("plotly_click", { points: [{ x: "2024-03-14 02:30" }] });
   const pins = page.getByRole("region", { name: "Pinned times" });
-  await pins.getByRole("heading", { name: "At 2024-03-14 02:30" }).waitFor();
+  await pins.getByRole("heading", { name: "At Mar 14, 2024, 2:30 AM plant time" }).waitFor();
   await emit("plotly_click", { points: [{ x: "2024-03-14 03:30" }] });
-  await pins.getByRole("heading", { name: "2024-03-14 02:30 to 2024-03-14 03:30" }).waitFor();
+  await pins.getByRole("heading", { name: "Mar 14, 2024, 2:30 AM plant time to Mar 14, 2024, 3:30 AM plant time" }).waitFor();
   const cells = await pins.locator("tbody tr").evaluateAll((rows) => rows.map((r) => [...r.cells].map((c) => c.textContent)));
   assert.deepEqual(cells, [["Suction pressure", "17 barg", "1 barg", "−16 barg (−94%)"],
                            ["Discharge pressure", "51 barg", "3 barg", "−48 barg (−94%)"]]);

@@ -152,15 +152,19 @@ def entity_trend_view(fuzer_id: str, at: str | None = None, hours_before: int = 
 
 @router.get("/entities/{fuzer_id}/trend-spec")
 def entity_trend_spec(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
-                      focus: str | None = None, conn=Depends(get_conn)):
+                      focus: str | None = None, case: int | None = None, conn=Depends(get_conn)):
     """An entity's trend as a spec, the one config every chart over time draws: its template's panels, every series
     worded with its unit and limits, the marks on the chart and the event lanes under it. `focus` (comma-separated
-    series keys, points or roles) opens it on those series."""
+    series keys, points or roles) opens it on those series; `case` opens it on what the case's event was seen on,
+    with the event shaded and its start marked (`ops.around.trend`)."""
     from ..analysis import trend_spec
+    from ..ops import around
 
+    keys = focus.split(",") if focus else []
+    context = around.trend(conn, case) if case is not None else None
     return trend_spec.spec(conn, fuzer_id, at, min(hours_before, TREND_SIDE_MAX_HOURS),
-                           min(hours_after, TREND_SIDE_MAX_HOURS), focus=focus.split(",") if focus else None,
-                           pack=deps.pack())
+                           min(hours_after, TREND_SIDE_MAX_HOURS), focus=[*keys, *(context or {}).get("focus", [])] or None,
+                           marks=(context or {}).get("marks"), pack=deps.pack())
 
 
 @router.get("/entities/{fuzer_id}/timeline")

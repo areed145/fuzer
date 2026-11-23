@@ -29,7 +29,7 @@ export function CaseAround({ id, data, focus }: { id: number; data?: CaseAroundD
       {units.length > 1 && (
         <Tabs label="Trend of" items={units.map((u) => ({ key: u.id, label: u.label ?? u.id, current: u.id === shown, onSelect: () => setUnit(u.id) }))} />
       )}
-      {shown && <TrendView key={shown} id={shown} start={d.window.start} end={d.window.end} focus={focus} />}
+      {shown && <TrendView key={shown} id={shown} start={d.window.start} end={d.window.end} focus={focus} caseId={id} />}
       {shown && (
         // The affected path in 3D (P5.16c): what this unit feeds, lit, with the rest of its area dimmed.
         <Text as="p" small>

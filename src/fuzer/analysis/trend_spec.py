@@ -123,7 +123,7 @@ def _marks(view: dict) -> list[dict]:
     return out
 
 
-def from_view(view: dict, focus: list[str] | None = None) -> dict:
+def from_view(view: dict, focus: list[str] | None = None, marks: list[dict] | None = None) -> dict:
     """A trend view (`trend_view.view`) as a spec."""
     if "error" in view:
         return {"version": VERSION, "error": view["error"]}
@@ -140,11 +140,12 @@ def from_view(view: dict, focus: list[str] | None = None) -> dict:
         "time": {"start": view["start"], "end": view["end"], "centre": view["centre"]},
         "panels": panels, "series": series, "focus": _focus(series, focus),
         "events": [{"lane": k, "label": v, "show": True} for k, v in LANES.items()],
-        "marks": _marks(view), "missing": view.get("missing", []), "errors": view.get("errors", []),
+        "marks": [*_marks(view), *(marks or [])], "missing": view.get("missing", []), "errors": view.get("errors", []),
     }
 
 
 def spec(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
-         focus: list[str] | None = None, src=None, pack=None) -> dict:
-    """The entity's trend as a spec: its class's template, every series in the window, worded."""
-    return from_view(trend_view.view(conn, fuzer_id, at, hours_before, hours_after, src=src, pack=pack), focus)
+         focus: list[str] | None = None, marks: list[dict] | None = None, src=None, pack=None) -> dict:
+    """The entity's trend as a spec: its class's template, every series in the window, worded. `marks` are a page's
+    own (a case's event), drawn beside the trend's."""
+    return from_view(trend_view.view(conn, fuzer_id, at, hours_before, hours_after, src=src, pack=pack), focus, marks)

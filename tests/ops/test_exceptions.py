@@ -794,6 +794,27 @@ def test_a_case_shows_the_log_entries_about_its_event_around_its_window(conn, co
     conn.commit()
 
 
+def test_a_cases_trend_opens_on_the_point_its_event_was_seen_on_with_the_event_marked(conn, compressor, three_sources):
+    """Trends step 3: the case's trend is about the case. It opens on the point the finding was seen on, shades the
+    event and marks its start with what it was, read from the title; an event still going is shaded to the window's
+    end and says so."""
+    from fuzer.core.findings import Finding
+    from fuzer.ops import around
+
+    step = raise_exception(conn, "upset_x", "UPSET-TREND", "Step change on 20-K-2001 from 2026-11-11 03:10", "sre",
+                           refs=[compressor["equipment"], compressor["point"]],
+                           finding=Finding("test", "deterministic", start="2026-11-11T03:10"))
+    t = around.trend(conn, step["item_id"])
+    assert t["focus"][0] == compressor["point"]
+    assert t["marks"] == [
+        {"kind": "window", "start": "2026-11-11T03:10", "end": "2026-11-11T09:10", "label": "Step change, still going",
+         "tone": "accent"},
+        {"kind": "time", "at": "2026-11-11T03:10", "label": "Step change", "tone": "danger"}]
+    assert around._what("Low alarm on OK-J01-06 (peak 190.5 psig) from 2026-11-21 00:40") == "Low alarm"
+    assert around.trend(conn, 999_999) is None
+    conn.rollback()
+
+
 def test_a_cases_window_reads_findings_written_with_and_without_a_zone(conn, compressor, three_sources, monkeypatch):
     """#1107: one source writes a finding's start with a zone ("...+00:00", "Z"), another without; the case's window
     reads both on the plant's wall clock instead of failing to compare them."""

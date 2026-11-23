@@ -24,7 +24,7 @@ function kinds() {
 }
 
 /** Files whose keys share a kind's name but name something else: the trend's lanes. */
-const LANES = ["trendFigure.ts"];
+const LANES = ["trends/figure.ts"];
 
 test("an entity kind is labelled only by the ontology", () => {
   const names = kinds();

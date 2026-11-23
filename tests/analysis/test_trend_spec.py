@@ -106,3 +106,10 @@ def test_a_compressor_spec_reads_its_template(okan_db):
     assert s["focus"] and all(by[k]["role"] == "discharge_pressure" for k in s["focus"])
     assert all(x["values"] and x["label"] and x["axis"] for x in s["series"])
     assert len(by) == len(s["series"])
+
+
+@pytest.mark.unit
+def test_a_pages_own_marks_are_drawn_beside_the_trends():
+    case = {"kind": "time", "at": "2024-07-24T13:20", "label": "Step change", "tone": "danger"}
+    s = trend_spec.from_view(_view(), marks=[case])
+    assert s["marks"][-1] == case and s["marks"][0]["label"] == "12 h before the incident"

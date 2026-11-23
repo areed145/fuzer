@@ -120,8 +120,8 @@ template group is a panel on a shared time axis, and traces in a panel share an 
 unit's event lanes from `GET /entities/{id}/timeline?start&end` (`ops/timeline.py`): alarms, operator log entries,
 cases, notifications and work orders, and downtime and incidents. Each event names the record it came from, and
 clicking a marker opens it. Chips switch each trace, group and lane on or off; a group the template switches off is
-one chip until it is on. A limit draws only on a panel with one trace. On a phone, groups switch as a whole and each
-panel carries one unit, so every line is read against its own scale.
+one chip until it is on. On a phone, groups switch as a whole and each panel carries one unit, so every line is read
+against its own scale.
 
 The window and what is switched on are kept in the page link (P5.13c): `show` and `hide` list the traces and lanes
 switched on or off against the template's defaults, and `at` and `w` the centre and width when they differ from the
@@ -140,8 +140,8 @@ each on their own axis.
 
 The chart reads without the chips (P5.15a, b). Above each panel is its key: the panel's name, then each trace's name
 in its colour with its last value, so a trace is matched by name rather than colour alone (on a phone the key is a list,
-one trace a line, a long name cut and whole in the hover). A panel carries at most two units; a third starts a
-"continued" panel under it. The heading names the unit. Plotly's floating toolbar is gone: drag to zoom, and a
+one trace a line, a long name cut and whole in the hover). A panel carries one unit, or a pair of series on two
+scales (speed and power); any other unit starts a "continued" panel under it. The heading names the unit. Plotly's floating toolbar is gone: drag to zoom, and a
 Reset zoom button shows once zoomed.
 
 The lanes read too (P5.15c). Alarms get a row per point, the most urgent first: a point's priority where the record
@@ -163,6 +163,20 @@ is on, line or steps, values, limits), the series it opens on (`focus`, by key, 
 the chart itself (the 12 h leading into an incident, a case's window) and the event lanes under it. Because a panel
 names series by key, a series keeps its identity and colour whatever else is switched on. It is built on the trend
 view, so the template, window, centre, limits and provider are the trend view's own.
+
+The chart itself is `ui/src/trends/TrendChart.tsx`, drawing the spec through `trends/figure.ts`, where its
+readability rules live. A series' colour runs on across panels, so the first line of every panel is not the same
+colour. A series' limits draw when it is the one the chart is about, alone in its panel, or on a scale of its own; a
+limit near the line is a dashed line named at the right edge (HiHi and LoLo in the danger colour, learned ranges
+dotted), and one far from it is named at the panel's edge with an arrow instead of stretching the scale. Only events in
+the window are drawn; those before or after are counted on their lane's name ("Suction flow alarm · 2 earlier"). Hover,
+pins and the event card read times as the rest of Fuzer does. On a phone the chart opens on its first three panels,
+with the rest one tap away, and the controls are one row: the window, earlier and later.
+
+A case's trend is about the case (`GET /entities/{id}/trend-spec?case=<id>`, `ops.around.trend`): it opens on the
+points the case's findings were seen on and the points that alarmed in its window, shades the event (to the window's
+end when it is still going) and marks its start with what it was, read from the title ("Step change", "Low alarm").
+Every other value is behind Show all.
 
 ## Operating limits, IOWs and excursions
 
