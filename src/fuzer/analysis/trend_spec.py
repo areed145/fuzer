@@ -24,10 +24,14 @@ import re
 from datetime import datetime, timedelta
 
 from ..core import wording
-from . import trend_view
+from . import trend_view, values
 
 VERSION = 1
 LEAD_IN = timedelta(hours=12)
+# What a trend can be compared with: the same hours a period earlier, or the same hours around the unit's earlier
+# incidents, each lined up on this window's centre.
+SHIFTS = {"1d": timedelta(days=1), "7d": timedelta(days=7), "28d": timedelta(days=28)}
+PAST_INCIDENTS = 3
 # The event lanes the timeline draws under a trend, in order, with their short names.
 LANES = {"alarms": "Alarms", "log": "Log", "cases": "Cases", "maintenance": "Work orders", "downtime": "Downtime"}
 
@@ -123,7 +127,7 @@ def _marks(view: dict) -> list[dict]:
     return out
 
 
-def from_view(view: dict, focus: list[str] | None = None) -> dict:
+def from_view(view: dict, focus: list[str] | None = None, marks: list[dict] | None = None) -> dict:
     """A trend view (`trend_view.view`) as a spec."""
     if "error" in view:
         return {"version": VERSION, "error": view["error"]}
@@ -140,11 +144,95 @@ def from_view(view: dict, focus: list[str] | None = None) -> dict:
         "time": {"start": view["start"], "end": view["end"], "centre": view["centre"]},
         "panels": panels, "series": series, "focus": _focus(series, focus),
         "events": [{"lane": k, "label": v, "show": True} for k, v in LANES.items()],
-        "marks": _marks(view), "missing": view.get("missing", []), "errors": view.get("errors", []),
+        "marks": [*_marks(view), *(marks or [])], "missing": view.get("missing", []), "errors": view.get("errors", []),
     }
 
 
+def _overlays(conn, fuzer_id: str, view: dict, compare: str, hours_before: int, hours_after: int, src, pack) -> list[dict]:
+    """What the window is compared with, each as {"label", "shift", "view"}: the trend read over the earlier hours, and
+    how far forward its times move to line up with this window."""
+    centre = datetime.fromisoformat(view["centre"])
+    if compare in SHIFTS:
+        by = SHIFTS[compare]
+        anchors = [(centre - by, f"{by.days} d earlier")]
+    elif compare == "incidents":
+        earlier = [t for t in values.incidents(conn, view["unit"]) if t < centre - timedelta(hours=1)][-PAST_INCIDENTS:]
+        anchors = [(t, f"{t:%b} {t.day} incident") for t in reversed(earlier)]
+    else:
+        return []
+    out = []
+    for t, label in anchors:
+        other = trend_view.view(conn, fuzer_id, t.isoformat(timespec="minutes"), hours_before, hours_after, src=src, pack=pack)
+        if "error" not in other:
+            out.append({"label": label, "shift": centre - t, "view": other})
+    return out
+
+
+def _with_compare(s: dict, overlays: list[dict], compare: str) -> dict:
+    """Each series with its values over the compared windows, moved forward onto this window's times."""
+    if "error" in s:
+        return s
+    for o in overlays:
+        theirs = {t["id"]: t for g in [*o["view"]["groups"], {"traces": o["view"]["other"]}] for t in g["traces"]}
+        for x in s["series"]:
+            t = theirs.get(x["key"])
+            if not t or not t["values"]:
+                continue
+            moved = [[(datetime.fromisoformat(at) + o["shift"]).isoformat(timespec="minutes"), v] for at, v in t["values"]]
+            x.setdefault("compare", []).append({"label": o["label"], "values": moved})
+    s["compare"] = {"mode": compare, "labels": [o["label"] for o in overlays]}
+    return s
+
+
 def spec(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
-         focus: list[str] | None = None, src=None, pack=None) -> dict:
-    """The entity's trend as a spec: its class's template, every series in the window, worded."""
-    return from_view(trend_view.view(conn, fuzer_id, at, hours_before, hours_after, src=src, pack=pack), focus)
+         focus: list[str] | None = None, marks: list[dict] | None = None, compare: str | None = None,
+         src=None, pack=None) -> dict:
+    """The entity's trend as a spec: its class's template, every series in the window, worded. `marks` are a page's
+    own (a case's event), drawn beside the trend's. `compare` ("1d", "7d", "28d" or "incidents") adds to each series
+    its values over the same hours a period earlier, or around the unit's last three incidents before this window's
+    centre, lined up on it."""
+    view = trend_view.view(conn, fuzer_id, at, hours_before, hours_after, src=src, pack=pack)
+    s = from_view(view, focus, marks)
+    if compare in (*SHIFTS, "incidents") and "error" not in view:
+        s = _with_compare(s, _overlays(conn, fuzer_id, view, compare, hours_before, hours_after, src, pack), compare)
+    return s
+
+
+def _rate(v: float) -> str:
+    return f"{'+' if v > 0 else ''}{v:.3g}"
+
+
+def from_measurements(data: dict, title: str = "Tests and samples") -> dict:
+    """An entity's landed readings over their whole history (`graph.measurements.for_entity`) as a spec: one panel per
+    quantity and location, each reading a marker on its line, with what qualified it and how it was taken in the
+    hover, and the change per year in its name."""
+    rows = data.get("series", [])
+    if not rows:
+        return {"version": VERSION, "error": "no readings"}
+    series, panels = [], []
+    for r in rows:
+        key = f"m:{r['of']['id']}|{r['quantity']}|{r['location'] or ''}"
+        name = r["quantity"].replace("_", " ").capitalize() + (f" at {r['location']}" if r["location"] else "")
+        if r["of"]["id"] != data.get("id") and r["of"].get("label"):
+            name += f" · {r['of']['label']}"
+        unit = wording.unit(r.get("unit"))
+        rate = f" · {_rate(r['per_year'])} {unit}/year".replace("  ", " ") if r.get("per_year") is not None else ""
+        vals = r["values"]
+        series.append({
+            "key": key, "point": name, "tag": name, "label": name + rate, "description": None, "unit": unit,
+            "uom": r.get("unit"), "role": None, "on": {"id": r["of"]["id"], "label": r["of"].get("label"), "relation": "self"},
+            "link": r["of"]["id"], "as": "points", "axis": (r.get("unit") or "value").lower(),
+            "values": [[v["at"][:16], v["value"]] for v in vals],
+            "methods": [" · ".join(x for x in (f"{v['qualifier']} below the detection limit" if v.get("qualifier") else "",
+                                                v.get("method") or "") if x) for v in vals],
+            "min": r["min"], "max": r["max"], "mean": sum(v["value"] for v in vals) / len(vals),
+            "last": r["latest"]["value"], "limits": [], "show": True,
+        })
+        panels.append({"key": key, "label": name, "show": True, "axis": "auto", "series": [key]})
+    start = min(r["first"] for r in rows)[:16]
+    end = max(r["latest"]["at"] for r in rows)[:16]
+    return {"version": VERSION, "subject": data.get("id"), "unit": data.get("id"), "unit_label": None, "title": title,
+            "template": {"key": "measurements", "title": title, "source": "platform"}, "provider": "measurements",
+            "step_minutes": 0, "time": {"start": start, "end": end, "centre": end}, "panels": panels, "series": series,
+            "focus": None, "events": [], "marks": [], "missing": [], "errors": [],
+            **({"truncated": True} if data.get("truncated") else {})}

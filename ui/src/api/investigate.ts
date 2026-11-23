@@ -257,7 +257,8 @@ export interface Values {
   end: string;
   step_minutes: number;
   upsets: string[];
-  series: import("../Trend").Series[];
+  series: { id: string; point: string; description: string | null; uom: string | null; values: [string, number][];
+            min: number; max: number; mean: number; last: number; limits?: import("../trendFigure").TrendLimit[] }[];
   errors?: string[];
   error?: string;
 }

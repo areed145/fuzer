@@ -1,4 +1,8 @@
 /* One trend with event lanes (TrendView.tsx): chips per group above one chart (below it on a phone). */
+.trend-controls { flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.trend-controls input { font: inherit; }
+.trend-controls .spacer { flex: 1; }
+.trend-compare { flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .trend-view-chips .chips { align-items: center; margin: 4px 0; gap: 2px 14px; }
 .trend-view-group { min-width: 9em; text-align: left; }
 .trend-view-chips .chip .dot { display: inline-block; width: 8px; height: 8px; margin-right: 2px; border-radius: 50%; }
@@ -13,8 +17,8 @@
   .trend-view-chips .chips { display: inline-flex; gap: 2px 10px; margin: 2px 12px 2px 0; }
   /* On a phone a group is switched as a whole; single traces are a desk job. */
   .trend-view-chips .chip:not(.trend-view-group):not(.lane) { display: none; }
-  /* One control row (P5.15a): it scrolls sideways rather than taking the first screen. */
-  .trend-view .trend-controls { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  /* One control row: the window, earlier and later; the date is a desk job, a swipe moves it on a phone. */
+  .trend-view .trend-controls { flex-wrap: wrap; gap: 6px; }
   .trend-view .trend-controls > * { flex: none; }
   .trend-view .trend-controls .spacer { display: none; }
 }

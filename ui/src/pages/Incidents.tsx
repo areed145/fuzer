@@ -4,7 +4,7 @@ import { Button, Disclosure, PageHeader, Card as UICard, Badge as UIBadge, Empty
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
-import { TrendGrid } from "../Trend";
+import { TrendView } from "../TrendView";
 import { loadPerson } from "../work";
 import { IncidentRepeats, useRepeats } from "./IncidentRepeats";
 import { FlareAttribution } from "./FlareAttribution";
@@ -97,17 +97,12 @@ function RatingProgress() {
 }
 
 export function IncidentDetail({ id }: { id: string }) {
-  const values = useAsync(() => api.values(id), [id]);
   return (
     <>
       <BriefCard id={id} />
       <IncidentPanels id={id} />
-      {values.data && values.data.series.length > 0 && (
-        <UICard as="section" title="Process values"
-          detail={<>48 h before to 24 h after {values.data.centre.replace("T", " ")}; shaded: the 12 h leading into each incident · {values.data.provider === "synthetic" ? "synthetic values: no PI / ADX connection configured" : `from ${values.data.provider.toUpperCase()}`}</>}>
-          <TrendGrid series={values.data.series} upsets={values.data.upsets} />
-        </UICard>
-      )}
+      {/* The unit's trend around the incident, the 12 h leading into it shaded on the chart. */}
+      <TrendView id={id} />
     </>
   );
 }

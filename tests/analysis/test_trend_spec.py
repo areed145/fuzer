@@ -106,3 +106,61 @@ def test_a_compressor_spec_reads_its_template(okan_db):
     assert s["focus"] and all(by[k]["role"] == "discharge_pressure" for k in s["focus"])
     assert all(x["values"] and x["label"] and x["axis"] for x in s["series"])
     assert len(by) == len(s["series"])
+
+
+@pytest.mark.unit
+def test_a_pages_own_marks_are_drawn_beside_the_trends():
+    case = {"kind": "time", "at": "2024-07-24T13:20", "label": "Step change", "tone": "danger"}
+    s = trend_spec.from_view(_view(), marks=[case])
+    assert s["marks"][-1] == case and s["marks"][0]["label"] == "12 h before the incident"
+
+
+def test_an_incident_spec_reads_its_units_trend_with_the_lead_in_marked(okan_db):
+    conn = okan_db.conn
+    row = conn.execute(
+        "select a.src as id from edge a join entity i on i.fuzer_id = a.src and i.kind = 'incident' "
+        "where a.rel = 'about' order by 1 limit 1").fetchone()
+    s = trend_spec.spec(conn, row["id"])
+    assert s["series"] and s["panels"]
+    assert any(m["label"] == "12 h before the incident" for m in s["marks"])
+
+
+@pytest.mark.unit
+def test_landed_readings_are_a_panel_each_over_their_whole_history():
+    data = {"id": "w1", "truncated": False, "series": [
+        {"quantity": "wall_thickness", "location": "CML-3", "of": {"id": "p9", "label": "Line 9"}, "unit": "in", "count": 2,
+         "first": "2023-01-05T00:00:00", "min": 0.48, "max": 0.5, "per_year": -0.012,
+         "latest": {"at": "2025-06-01T00:00:00", "value": 0.48, "qualifier": None, "method": "UT", "record": "r2"},
+         "values": [{"at": "2023-01-05T00:00:00", "value": 0.5, "qualifier": None, "reported": None, "method": "UT", "record": "r1"},
+                    {"at": "2025-06-01T00:00:00", "value": 0.48, "qualifier": None, "reported": None, "method": "UT", "record": "r2"}]},
+        {"quantity": "h2s", "location": None, "of": {"id": "w1", "label": "W-1"}, "unit": "ppm", "count": 1,
+         "first": "2024-02-01T00:00:00", "min": 0.5, "max": 0.5, "per_year": None,
+         "latest": {"at": "2024-02-01T00:00:00", "value": 0.5, "qualifier": "<", "method": "lab", "record": "r3"},
+         "values": [{"at": "2024-02-01T00:00:00", "value": 0.5, "qualifier": "<", "reported": "<0.5", "method": "lab", "record": "r3"}]},
+    ]}
+    s = trend_spec.from_measurements(data)
+    assert [p["label"] for p in s["panels"]] == ["Wall thickness at CML-3 · Line 9", "H2s"]
+    wall, h2s = s["series"]
+    assert wall["label"] == "Wall thickness at CML-3 · Line 9 · -0.012 in/year" and wall["as"] == "points"
+    assert wall["values"] == [["2023-01-05T00:00", 0.5], ["2025-06-01T00:00", 0.48]] and wall["link"] == "p9"
+    assert h2s["methods"] == ["< below the detection limit · lab"]
+    assert s["time"] == {"start": "2023-01-05T00:00", "end": "2025-06-01T00:00", "centre": "2025-06-01T00:00"}
+    assert trend_spec.from_measurements({"id": "x", "series": []})["error"] == "no readings"
+
+
+def test_a_trend_compares_with_last_week_and_the_units_past_incidents_lined_up_on_its_window(okan_db):
+    conn = okan_db.conn
+    row = conn.execute(
+        "select a.dst as unit, count(*) from edge a join entity i on i.fuzer_id = a.src and i.kind = 'incident' "
+        "where a.rel = 'about' group by a.dst order by count(*) desc, a.dst limit 1").fetchone()
+    week = trend_spec.spec(conn, row["unit"], compare="7d")
+    assert week["compare"] == {"mode": "7d", "labels": ["7 d earlier"]}
+    shown = [x for x in week["series"] if x["show"]]
+    assert shown and all(x["compare"][0]["label"] == "7 d earlier" for x in shown)
+    x = shown[0]
+    # moved forward a week: the earlier window's times land on this window's
+    assert x["compare"][0]["values"][0][0][:13] == x["values"][0][0][:13]
+    past = trend_spec.spec(conn, row["unit"], compare="incidents")
+    assert len(past["compare"]["labels"]) <= trend_spec.PAST_INCIDENTS
+    assert all(label.endswith("incident") for label in past["compare"]["labels"])
+    assert "compare" not in trend_spec.spec(conn, row["unit"], compare="sideways")

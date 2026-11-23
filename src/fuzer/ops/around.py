@@ -4,6 +4,11 @@ case's event is on, around its window. Neither is an exception (an alarm is a po
 shown on it, beside the detections and notifications that did.
 
     context(conn, item_id) -> {"window", "units", "alarms", "log", "basis"}
+    trend(conn, item_id) -> {"focus": [point id, ...], "marks": [...]} | None
+
+`trend` is what the case's trend opens on: the points its findings were seen on and the points that alarmed in its
+window, with the event itself shaded on the chart and its start marked with what it was ("Step change", "Low
+alarm"), so the chart is about the case, not every value of its unit.
 
 The event's window runs from the earliest start to the latest end of the findings on the case (a finding that gives
 only a day, an SAP notification's, counts when nothing gives a time), widened by `exceptions.around_before_hours`
@@ -122,3 +127,35 @@ def context(conn, item_id: int, src=None) -> dict:
                      "from the earliest finding on the case to the latest, widened by "
                      f"{settings.get(conn, 'exceptions.around_before_hours')} h before and "
                      f"{settings.get(conn, 'exceptions.around_after_hours')} h after."}
+
+
+def _what(title: str) -> str:
+    """What an event was, from its title: "Step change on 20-GT-2000A from ..." reads "Step change"."""
+    return title.split(" on ")[0].split(" from ")[0].strip() or "Event"
+
+
+def trend(conn, item_id: int, src=None) -> dict | None:
+    """What the case's trend opens on and what it marks; None when the case works no exception."""
+    rows = conn.execute(
+        "select e.title, e.subjects, e.evidence->'finding'->>'start' as s, e.evidence->'finding'->>'end' as e "
+        "from exception_record e where e.item_id = %s order by e.first_seen, e.id", (item_id,)).fetchall()
+    w = window(conn, item_id)
+    if not rows or w is None:
+        return None
+    a, b, subjects = w
+    kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute(
+        "select fuzer_id, kind from entity where fuzer_id = any(%s)", (subjects,))}
+    points = [s for s in subjects if kinds.get(s) == "timeseries"]
+    points += [x["point_id"] for x in alarms(conn, anchors(conn, subjects), a, b, src)]
+    marks, seen = [], set()
+    for r in rows:
+        start, end = _t(r["s"]) if r["s"] and "T" in r["s"] else None, _t(r["e"]) if r["e"] and "T" in (r["e"] or "") else None
+        if not start or start in seen:
+            continue
+        seen.add(start)
+        what = _what(r["title"])
+        marks.append({"kind": "window", "start": start.isoformat(timespec="minutes"),
+                      "end": (end or b).isoformat(timespec="minutes"), "label": what if end else f"{what}, still going",
+                      "tone": "accent"})
+        marks.append({"kind": "time", "at": start.isoformat(timespec="minutes"), "label": what, "tone": "danger"})
+    return {"focus": list(dict.fromkeys(points)), "marks": marks}

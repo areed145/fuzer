@@ -215,7 +215,7 @@ export async function warmPack(jobs: FieldJob[], force = false): Promise<void> {
     }
     for (const id of assets) {
       await Promise.allSettled([api.entity(id), api.entityStatus(id), api.entityProfile(id),
-        api.exceptions({ state: "open", subject: id }), api.plan({ subject: id }), api.trendView(id, undefined, 48, 24)]);
+        api.exceptions({ state: "open", subject: id }), api.plan({ subject: id }), api.trendSpec(id, undefined, 48, 24)]);
       await Promise.allSettled([api.incidents(id), api.related({ subject: id }), api.events(id), api.assetThreads(id),
         api.entityMap(id)]);
     }

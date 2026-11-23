@@ -17,6 +17,19 @@ from ..sources.timeseries import (
 from . import limits
 
 
+def incidents(conn, unit: str) -> list[datetime]:
+    """When each incident about a unit started (its first timed signal, else its start day), oldest first."""
+    return sorted(datetime.fromisoformat(r["start"]) for r in conn.execute(
+        f"""
+        select coalesce(({FIRST_TIMED.format(incident="a.src")}), g.value #>> '{{}}') as start
+        from edge a join golden g on g.fuzer_id = a.src and g.field = 'start'
+        join entity i on i.fuzer_id = a.src and i.kind = 'incident'
+        where a.dst = %s and a.rel = 'about'
+        """,
+        (unit,),
+    ))
+
+
 def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
            step_minutes: int | None = None, max_points: int = 12, src: Provider | None = None,
            direct: bool = False, pack=None, points: list[dict] | None = None) -> dict:
@@ -38,15 +51,7 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
         at = _latest(conn, src, hours_after)
     if not at and row["kind"] == "incident":
         at = conn.execute(f"select ({FIRST_TIMED.format(incident='%s')}) as t", (fuzer_id,)).fetchone()["t"]
-    upsets = sorted(datetime.fromisoformat(r["start"]) for r in conn.execute(
-        f"""
-        select coalesce(({FIRST_TIMED.format(incident="a.src")}), g.value #>> '{{}}') as start
-        from edge a join golden g on g.fuzer_id = a.src and g.field = 'start'
-        join entity i on i.fuzer_id = a.src and i.kind = 'incident'
-        where a.dst = %s and a.rel = 'about'
-        """,
-        (unit,),
-    ))
+    upsets = incidents(conn, unit)
     if not at and row["kind"] != "incident" and upsets:
         at = upsets[-1].isoformat()
     src = src or provider()
