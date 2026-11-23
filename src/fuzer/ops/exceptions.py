@@ -5,7 +5,8 @@ matched to entities, routed to a case through the Work port, and published on th
     clear(conn, type, key, by, reason)
     split(conn, exception_id, by)   take one that joined another's case back out to a case of its own
     join(conn, exception_id, into, by)  the reverse: bring one with its own case into another's, cancelling its own
-    reconcile(conn)          close the ones whose case finished, unshelve expired ones (the work tick runs it)
+    reconcile(conn)          close the ones whose case finished and their bars on the plan, unshelve expired ones
+                             (the work tick runs it)
     shelve(conn, exception_id, by, reason, until) / unshelve(...)  set a standing condition aside, with an expiry
     match(conn, refs)        -> (fuzer ids, refs that matched nothing)
     listing(conn, ...)       what the IOC (or the field) sees
@@ -162,6 +163,8 @@ def _close_if_case_finished(conn, row: dict | None) -> dict | None:
         if item and item["state"] in ("done", "cancelled"):
             conn.execute("update exception_record set state = 'closed', closed_at = now(), updated_at = now() "
                          "where id = %s", (row["id"],))
+            from . import plan
+            plan.finish_closed_work(conn, [row["id"]])
             return None
     return row
 
@@ -446,6 +449,8 @@ def clear(conn, type: str, key: str, by: str, reason: str | None = None, closeou
                     from . import disposition
 
                     disposition.record_known(conn, row["item_id"], by, closeout, note=reason)
+    from . import plan
+    plan.finish_closed_work(conn, [row["id"]], by)
     events.publish(conn, "exception.cleared", f"exception:{row['id']}", {**_payload(row, t), "reason": reason})
     return row
 
@@ -461,7 +466,9 @@ def reconcile(conn) -> dict:
         """).fetchall()
     for row in rows:
         events.publish(conn, "exception.closed", f"exception:{row['id']}", _payload(row))
-    return {"closed": len(rows), "unshelved": len(unshelve_expired(conn))}
+    from . import plan
+    finished = plan.finish_closed_work(conn)  # every bar whose work is over, older ones included
+    return {"closed": len(rows), "plan_done": len(finished), "unshelved": len(unshelve_expired(conn))}
 
 
 def shelve(conn, exception_id: int, by: str, reason: str, until) -> dict:
