@@ -150,6 +150,19 @@ def entity_trend_view(fuzer_id: str, at: str | None = None, hours_before: int = 
                            pack=deps.pack())
 
 
+@router.get("/entities/{fuzer_id}/trend-spec")
+def entity_trend_spec(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
+                      focus: str | None = None, conn=Depends(get_conn)):
+    """An entity's trend as a spec, the one config every chart over time draws: its template's panels, every series
+    worded with its unit and limits, the marks on the chart and the event lanes under it. `focus` (comma-separated
+    series keys, points or roles) opens it on those series."""
+    from ..analysis import trend_spec
+
+    return trend_spec.spec(conn, fuzer_id, at, min(hours_before, TREND_SIDE_MAX_HOURS),
+                           min(hours_after, TREND_SIDE_MAX_HOURS), focus=focus.split(",") if focus else None,
+                           pack=deps.pack())
+
+
 @router.get("/entities/{fuzer_id}/timeline")
 def entity_timeline(fuzer_id: str, start: str, end: str, conn=Depends(get_conn)):
     """What happened on an entity's unit in a window, one lane per kind (P5.13a): alarms, operator log, cases,
