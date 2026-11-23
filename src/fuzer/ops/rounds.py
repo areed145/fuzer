@@ -341,32 +341,46 @@ _METRIC_TITLE = re.compile(r": (-?\d+(?:\.\d+)?) (barg|degC), limits [^:]*$")
 def metric_readings_moved(conn) -> dict:
     """Readings taken on a round before its points moved to US oilfield units were kept as the numbers taken, in
     bar or degrees Celsius, and are read today in psig or degrees Fahrenheit: an 89.42 °C bearing plotted at 89 °F
-    under a °F limit, beside a finding titled "89.42 degC, limits 0 to 85 degC". This puts them in the point's unit
-    now: each round finding still titled in a metric unit (its title, its case's title and its Reading and Limits),
-    and each reading taken before the first finding in a US unit that reads as the metric number it was, kept on
-    the run and as a measurement on its asset. Idempotent: what it converted reads in the point's unit after."""
+    under a °F limit, beside a finding titled "89.42 degC, limits 0 to 85 degC". This puts them in US units: each
+    round finding still titled in a metric unit (its title, its case's title and its Reading and Limits), and each
+    reading taken before the move that reads as the metric number it was, kept on the run and as a measurement on its
+    asset. Idempotent: what it converted reads in US units after."""
     from ..core import units
 
+    # When the move happened: the first finding titled in a US unit after the last one still titled in a metric
+    # unit. Read before converting, so what this converts doesn't move it.
+    move = conn.execute(
+        """
+        select min(last_seen) as t from exception_record
+        where type = %(t)s and title ~ ' (psig|degF), limits '
+          and last_seen > coalesce((select max(last_seen) from exception_record
+                                    where type = %(t)s and title ~ ' (barg|degC), limits '), '-infinity')
+        """, {"t": ROUND_FINDING}).fetchone()["t"]
     by_point = {p["point_id"]: p for p in points(conn) if p["kind"] == "reading" and p["unit"] in METRIC}
-    if not by_point:
-        return {"findings": 0, "readings": 0}
     as_taken: set[tuple[str, float]] = set()  # (point, metric value) a metric title names
     findings_moved = 0
     for e in conn.execute("select id, key, title, evidence, item_id from exception_record "
                           "where type = %s and title ~ ' (barg|degC), limits '", (ROUND_FINDING,)).fetchall():
-        p = by_point.get(e["key"])
         m = _METRIC_TITLE.search(e["title"])
-        if not p or not m or METRIC[p["unit"]] != m.group(2):
+        if not m:
             continue
-        metric = float(m.group(1))
-        value = round(units.convert(metric, m.group(2), p["unit"]), 2)
-        as_taken.add((p["id"], metric))
-        title = f"{e['title'][:m.start()]}: {value:g} {p['unit']}, limits {_limits(p)}"
+        metric, was = float(m.group(1)), m.group(2)
+        us = next(k for k, v in METRIC.items() if v == was)
+        value = round(units.convert(metric, was, us), 2)
+        p = by_point.get(e["key"])
+        if p and p["unit"] == us:
+            limits = _limits(p)
+            as_taken.add((p["id"], metric))
+        else:
+            # the point reads something else now (the checklist changed): its own limits, converted as written
+            limits = re.sub(r"-?\d+(?:\.\d+)?", lambda n, was=was, us=us: f"{round(units.convert(float(n.group()), was, us), 1):g}",
+                            e["title"][m.end(2):].split("limits ", 1)[1]).replace(was, us)
+        title = f"{e['title'][:m.start()]}: {value:g} {us}, limits {limits}"
         evidence = dict(e["evidence"] or {})
         f = evidence.get(findings.KEY)
         if isinstance(f, dict):
-            f["items"] = [{**i, "value": value, "unit": p["unit"]} if i.get("label") == "Reading"
-                          else {**i, "value": _limits(p)} if i.get("label") == "Limits" else i
+            f["items"] = [{**i, "value": value, "unit": us} if i.get("label") == "Reading"
+                          else {**i, "value": limits} if i.get("label") == "Limits" else i
                           for i in f.get("items") or []]
         conn.execute("update exception_record set title = %s, evidence = %s where id = %s",
                      (title, Jsonb(evidence), e["id"]))
@@ -376,9 +390,6 @@ def metric_readings_moved(conn) -> dict:
     # Readings: those a metric title names, and the rest taken before the move that sit nearer the middle of the
     # point's limits once converted than as they are (a reading is taken near the middle; 42 under 32 to 185 °F
     # was 42 °C).
-    first_us = conn.execute(
-        "select min(last_seen) as t from exception_record where type = %s and title ~ ' (psig|degF), limits '",
-        (ROUND_FINDING,)).fetchone()["t"]
     by_id = {p["id"]: p for p in by_point.values()}
     readings_moved = 0
     for t in conn.execute("select id, run_id, point, value, at from round_reading where value is not null "
@@ -387,9 +398,8 @@ def metric_readings_moved(conn) -> dict:
         converted = units.convert(t["value"], METRIC[p["unit"]], p["unit"])
         if converted is None:
             continue
-        named = (p["id"], t["value"]) in as_taken
-        if not named:
-            if (first_us is not None and t["at"] >= first_us) or (p["low"] is None and p["high"] is None):
+        if (p["id"], t["value"]) not in as_taken:
+            if (move is not None and t["at"] >= move) or (p["low"] is None and p["high"] is None):
                 continue
             mid = ((p["low"] if p["low"] is not None else p["high"]) + (p["high"] if p["high"] is not None else p["low"])) / 2
             if abs(converted - mid) >= abs(t["value"] - mid):

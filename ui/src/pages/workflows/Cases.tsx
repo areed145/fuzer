@@ -106,6 +106,11 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   // Close out sits with the step it ends, in Waiting on, rather than loose between the cards below it.
   const steps = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
   const inStep = !closed && !(steps.length === 0 && demo);
+  const optionsCard = !closed && !fieldOnly ? <CaseOptionsCard o={options} person={person} readOnly={demo}
+    onDone={() => { item.reload(); options.reload(); }} /> : null;
+  // Back from the field, the IOC's next act is reading the report and closing out, so Waiting on (the report, Close
+  // out) comes first and the options to send it again follow it, rather than "Dispatch now · Recommended" on top.
+  const backFromField = options.data?.stage === "back";
   const evidence = <>
     <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
     {!evidenceReady ? <Status loading /> : <>
@@ -157,14 +162,14 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
           evidence it is decided on. */}
       {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
       {/* the choices side by side, with what each costs (P5.20): the IOC's decision on field work comes first */}
-      {!closed && !fieldOnly && <CaseOptionsCard o={options} person={person} readOnly={demo}
-        onDone={() => { item.reload(); options.reload(); }} />}
+      {!backFromField && optionsCard}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
         optionsShown={!!options.data?.applies} closeout={inStep ? closeout : null}
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null}
         proposal={typeof raised.opportunity === "string"}
         asked={typeof raised.summary === "string" ? raised.summary : null}
         evidence={Array.isArray(raised.evidence) && typeof raised.summary === "string" ? raised.evidence.filter((x): x is string => typeof x === "string") : []} />
+      {backFromField && optionsCard}
       {closed && (it.checklist ?? []).length > 0 && <UICard title="Checklist">
         <CaseChecklist it={it} person={person} readOnly reload={item.reload} /></UICard>}
       {typeof raised.opportunity === "string" && <OpportunityPanel opportunityKey={raised.opportunity} person={person}
