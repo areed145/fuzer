@@ -1119,7 +1119,7 @@ export const workApi = {
     at?: string }, project?: string) =>
     request<RoundPoint & { exception: { id: number; raised: boolean } | null }>("POST", `/rounds/${id}/readings`, undefined, t, project),
   planAtRisk: (start?: string, days = 90) => request<AtRisk>("GET", "/plan/at-risk", { start, days }),
-  plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
+  plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string; within?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string; place: "field" | "desk" }>,
     project?: string) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }, project),

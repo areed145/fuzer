@@ -4,9 +4,9 @@
  * out in columns by stage, kind, holder, team, source, facility, area or asset. */
 import "../styles/all-work.css";
 import "../styles/work-board.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type WorkListFilters, type WorkListResult, type WorkListRow, type ExceptionRow } from "../api";
-import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, Notice, PageHeader, Select, Table, Text, Heading } from "../ui";
+import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, Line, Notice, PageHeader, Select, Table, Text, Heading } from "../ui";
 import { Status, href, useAction, useAsync, useDebounced, usePhone, errorMessage } from "../lib";
 import { money, when, whenDay } from "../format";
 import { holder as holderWords, usePerson } from "../work";
@@ -77,6 +77,36 @@ export function WorkListPage({ query, board: wantsBoard = false }: { query: URLS
       </>}
     </section>
   );
+}
+
+/** All the work about an entity or anything beneath it, as the List's rows (an entity page's Work tab): open by default,
+ * closed a tap away, and the List itself, filtered to it, for everything else. */
+export function WorkWithin({ within }: { within: string }) {
+  const [state, setState] = useState<"open" | "closed">("open");
+  const [person] = usePerson();
+  const list = useAsync(() => api.workList({ within, state, person: person || undefined }), [within, state, person]);
+  const people = useAsync(() => api.workPeople(), []);
+  const roles = useAsync(() => api.rolesCatalog(), []);
+  const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
+  const [sort, setSort] = useState<string | undefined>();
+  const rows = useMemo(() => {
+    const out = [...(list.data?.rows ?? [])];
+    if (sort === "title") out.sort((a, b) => a.title.localeCompare(b.title));
+    if (sort === "due") out.sort((a, b) => (a.due_at ?? "9").localeCompare(b.due_at ?? "9"));
+    if (sort === "opened") out.sort((a, b) => a.opened.localeCompare(b.opened));
+    return out;
+  }, [list.data, sort]);
+  return <>
+    <Line wrap>
+      <div className="chips" role="group" aria-label="Which work">
+        {(["open", "closed"] as const).map((s) => <Button key={s} className={state === s ? "chip on" : "chip"} aria-pressed={state === s}
+          onClick={() => setState(s)}>{s === "open" ? "Open" : "Closed"}{state === s && list.data ? <Text muted> {list.data.total}</Text> : null}</Button>)}
+      </div>
+      <a href={listHref(false, { within, ...(state === "closed" ? { state } : {}) })}>Filter and act on these in All work</a>
+    </Line>
+    {!list.data ? <Status of={list} /> : <Rows key={state} rows={rows} labels={list.data.labels ?? {}} sort={sort ?? "value"}
+      setSort={setSort} person={person} people={people.data ?? []} queues={queues} onChange={list.reload} />}
+  </>;
 }
 
 /** The shift handover waits for the incoming lead on their Waiting on me (it was on the old My work, #504): a banner until

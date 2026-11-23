@@ -43,6 +43,7 @@ EXCLUDED = {
 # Actor columns whose time column is not named after them.
 TIMES = {
     ("daily_ops_report", "drafted_by"): "created_at",
+    ("entity_summary", "by_user"): "created_at",
     ("exception_record", "shelved_by"): "updated_at",
     ("plan_item", "moved_by"): "updated_at",
     ("regulatory_report", "drafted_by"): "created_at",

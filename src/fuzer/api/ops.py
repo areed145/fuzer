@@ -1385,12 +1385,12 @@ def plan_at_risk(start: str | None = None, days: int = 90, conn=Depends(get_conn
 
 @router.get("/plan")
 def plan_items(start: str | None = None, end: str | None = None, area: str | None = None, status: str | None = None,
-               subject: str | None = None, conn=Depends(get_conn)):
+               subject: str | None = None, within: str | None = None, conn=Depends(get_conn)):
     """The integrated plan in a window (default: a week ago to eight weeks ahead), each item with its clashes
     (same asset, same person), bundling chances (could ride along with a shutdown of its area) and, for work
     starting within 30 days, its assets' spare parts with no stock on record."""
     from ..ops import plan
-    return _plan_call(conn, plan.items, start, end, area=area, status=status, subject=subject)
+    return _plan_call(conn, plan.items, start, end, area=area, status=status, subject=subject, within=within)
 
 
 @router.post("/plan")

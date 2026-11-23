@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { api, type RelationDef } from "../api";
 import { useAsync } from "../lib";
 import { PageHeader } from "../ui";
@@ -22,4 +22,19 @@ export function Scene({ query = new URLSearchParams() }: { query?: URLSearchPara
       <NetworkScene query={query} set={set} relDef={relDef} />
     </section>
   );
+}
+
+/** An entity page's 3D tab: its facility or area drawn, or the area it sits in with it picked. What the view shows is
+ * kept in the tab, not the address, so the entity's own link stays its own. */
+export function SceneWithin({ at }: { at: string }) {
+  const [query, setQuery] = useState(() => new URLSearchParams({ at, node: at }));
+  const set = useCallback((values: Record<string, string | undefined>) => setQuery((old) => {
+    const q = new URLSearchParams(old);
+    for (const [k, v] of Object.entries(values)) if (v === undefined) q.delete(k); else q.set(k, v);
+    return q;
+  }), []);
+  const declared = useAsync(() => api.ontologyDeclared(), []);
+  const relations = declared.data?.relations;
+  const relDef = useCallback((name: string): RelationDef | undefined => relations?.find((r) => r.name === name), [relations]);
+  return <NetworkScene query={query} set={set} relDef={relDef} />;
 }

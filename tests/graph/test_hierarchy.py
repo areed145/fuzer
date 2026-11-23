@@ -51,3 +51,34 @@ def test_the_api_rolls_open_work_up_to_the_area(okan_db):
         assert c["open_work"] <= data["open_work"]
         assert all(g["open_work"] <= c["open_work"] for g in c["children"]), "a child's work is inside its parent's"
     assert client.get("/entities/fz-nothing/hierarchy").status_code == 404
+
+
+def test_an_entity_page_offers_only_the_tabs_with_something_in_them(okan_db):
+    from fuzer.ops import beneath, plan
+
+    conn = okan_db.conn
+    okan, ggcp, well = _id(conn, "OKAN"), _id(conn, "OKAN-20"), _id(conn, "OK-J03-01")
+    facility = beneath.tabs(conn, okan)
+    assert facility["beneath"] > 100 and facility["scene"] and facility["map"] and facility["connections"]
+    assert facility["work"] >= beneath.tabs(conn, ggcp)["work"], "a facility's work holds its areas'"
+    # The schedule rolls up: everything planned on the area's machines is on the area's Schedule.
+    made = plan.propose(conn, "maintenance", "Change the seal on 20-K-2100A", "test", "2026-12-01", "2026-12-02",
+                 refs=[_id(conn, "20-K-2100A")])
+    assert made["subjects"]
+    on_area = plan.items(conn, "2026-11-25", "2026-12-10", within=ggcp)
+    assert any(i["title"] == "Change the seal on 20-K-2100A" for i in on_area)
+    assert not plan.items(conn, "2026-11-25", "2026-12-10", within=_id(conn, "OKAN-30"))
+    conn.rollback()
+    assert beneath.tabs(conn, well)["trends"]
+    doc = conn.execute("select fuzer_id from entity where kind = 'document' limit 1").fetchone()["fuzer_id"]
+    assert beneath.tabs(conn, doc)["beneath"] == 0
+
+
+def test_documents_beneath_roll_up_to_the_area(okan_db):
+    from fuzer.graph import knowledge
+
+    conn = okan_db.conn
+    ggcp = _id(conn, "OKAN-20")
+    below = knowledge.documents_beneath(conn, ggcp)
+    assert below and all(d["why"].startswith("applies to ") for d in below)
+    assert not {d["id"] for d in below} & {d["id"] for d in knowledge.documents_for(conn, ggcp)}

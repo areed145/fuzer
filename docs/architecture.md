@@ -550,6 +550,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
     - `assistant_fact`
     - `assistant_image`
     - `assistant_message`
+    - `entity_summary`
     - `lesson`
     - `skill_version`
     - `work_event`
@@ -560,9 +561,10 @@ The operations assistant, its specialists, and the MCP server with their tools. 
     - `assistant_fact`
     - `assistant_image`
     - `assistant_message`
+    - `entity_summary`
     - `skill_version`
-- **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 50, field-operations-facilities 97, hse-incident-management 51, maintenance-integrity 88, orchestrator 26, production-surveillance 80, wells-subsurface 73, work-management-supply-chain 42 ([capabilities](capabilities.md))
+- **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `agents.summary_hours`, `agents.summary_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
+- **Tools:** asset-performance-reporting 51, field-operations-facilities 98, hse-incident-management 52, maintenance-integrity 89, orchestrator 27, production-surveillance 81, wells-subsurface 74, work-management-supply-chain 43 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals

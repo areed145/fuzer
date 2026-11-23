@@ -116,6 +116,12 @@ async function waveScreenshot(name) {
   await page.screenshot({ path: `${process.env.WAVE_SCREENSHOTS}/${name}.png`, fullPage: true });
 }
 
+/** An entity page's tabs, once its counts have answered (or could not be read): the row the page settles on. */
+async function entityTabsRead(want) {
+  await page.waitForFunction((w) => [...document.querySelectorAll('nav[aria-label="Views of this entity"] a')]
+    .map((a) => a.textContent.trim()).join("|") === w, want.join("|"));
+}
+
 test("Wave 1 Downtime rankings fit mobile and recover a failed ranking read", async () => {
   let failed = true;
   await page.route("**/downtime?*", route => route.fulfill({ json: { lost_oil_bbl: 423, events: 1, hours: 2, items: [] } }));
@@ -4213,10 +4219,9 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   await page.goto(`${url}/#/e/${id}`);
   // An asset opens on its work and process values; what the register holds about it is one view away.
   await page.getByRole("heading", { name: "OK-J09-04", exact: true }).waitFor();
-  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this entity" }).getByRole("link").allInnerTexts(),
-    ["Overview", "Timeline", "Documents", "Data"]);
+  await entityTabsRead(["Overview", "Timeline", "Documents", "Sources"]);
   assert.equal(await page.getByRole("heading", { name: "Source records" }).count(), 0);
-  await page.getByRole("link", { name: "Data", exact: true }).click();
+  await page.getByRole("navigation", { name: "Views of this entity" }).getByRole("link", { name: "Sources", exact: true }).click();
   await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
   assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
   // where it came from (#875): the system behind it, how its record was matched, and the reviewer's choice
@@ -8643,15 +8648,14 @@ test("an asset's Overview says what it is; work orders and spares sit under Main
   for (const text of ["SN79550", "Centrifugal compressors", "Gas Compression Platform", "C40 manual"]) {
     await about.getByText(text, { exact: false }).first().waitFor();
   }
-  assert.deepEqual(await page.getByRole("navigation", { name: "Views of this entity" }).getByRole("link").allInnerTexts(),
-    ["Overview", "Maintenance", "Timeline", "Documents", "Data"]);
+  await entityTabsRead(["Overview", "Work", "Timeline", "Documents", "Sources"]);
   assert.equal(await page.getByRole("heading", { name: "Spare parts" }).count(), 0);
   // The manual opens in the reader from the card.
   await about.getByRole("link", { name: "C40 manual" }).click();
   await page.locator(".doc-full").waitFor();
   await page.keyboard.press("Escape");
   await page.locator(".doc-full").waitFor({ state: "detached" });
-  await page.getByRole("link", { name: "Maintenance", exact: true }).click();
+  await page.getByRole("navigation", { name: "Views of this entity" }).getByRole("link", { name: "Work", exact: true }).click();
   await page.getByRole("heading", { name: "Spare parts" }).waitFor();
   await page.getByText("Dry gas seal").waitFor();
   // Every sheet is a tile, not a picker; a tile opens that sheet full screen with the asset ringed.
@@ -8686,8 +8690,8 @@ test("on an iPhone the app follows iOS: a row of views too wide for the screen s
   assert.equal(await page.getByRole("menu").count(), 0);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "the page itself does not scroll sideways");
   // Choosing a view goes to it, and the row opens with the chosen tab in view.
-  await views.getByRole("link", { name: "Maintenance" }).click();
-  await page.waitForFunction(() => location.hash.includes("tab=maintenance"));
+  await views.getByRole("link", { name: "Work", exact: true }).click();
+  await page.waitForFunction(() => location.hash.includes("tab=work"));
   await page.waitForFunction(() => {
     const row = document.querySelector("nav.page-tabs"), tab = row?.querySelector(".on, [aria-current]");
     if (!row || !tab) return false;
@@ -8698,7 +8702,7 @@ test("on an iPhone the app follows iOS: a row of views too wide for the screen s
   await page.goto(`${url}/?ios=0#/e/${id}`);
   await views.getByRole("link").first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.classList.contains("ios")), false);
-  assert.equal(await views.getByRole("link", { name: "Maintenance" }).isVisible(), true);
+  assert.equal(await views.getByRole("link", { name: "Work", exact: true }).isVisible(), true);
   assert.deepEqual(errors, []);
 });
 

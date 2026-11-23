@@ -34,17 +34,23 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
   return schedule ? <SchedulePage code={schedule} person={person} view={query.get("view")} /> : <PlanTimeline query={query} person={person} />;
 }
 
-function PlanTimeline({ query, person }: { query: URLSearchParams; person: string | null }) {
+/** An entity page's Schedule tab: the plan's timeline, only the jobs about it or anything beneath it. */
+export function PlanWithin({ within }: { within: string }) {
+  const [person] = usePerson();
+  return <PlanTimeline query={new URLSearchParams()} person={person} within={within} />;
+}
+
+function PlanTimeline({ query, person, within }: { query: URLSearchParams; person: string | null; within?: string }) {
   // `?revision=TA26` opens that turnaround beside the timeline; `?revision=` opens the next one.
-  const revision = query.has("revision") ? query.get("revision") ?? "" : null;
-  const scope = useAsync(() => api.turnaround(revision || undefined), [revision]);
+  const revision = !within && query.has("revision") ? query.get("revision") ?? "" : null;
+  const scope = useAsync(() => (within ? Promise.resolve(undefined) : api.turnaround(revision || undefined)), [revision, within]);
   const turnaround = revision !== null ? scope.data : undefined;
   const pick = (r: string) => { location.hash = r ? `#/plan?revision=${encodeURIComponent(r)}` : "#/plan"; };
   // `?item=12&from=…` comes from a work item's "planned" link: its bar opens, in a window that holds it.
   const [from, setFrom] = useState(() => query.get("from") ?? day(new Date(Date.now() - 7 * DAY)));
   const [weeks, setWeeks] = useState(8);
   const to = day(new Date(new Date(from).getTime() + weeks * 7 * DAY));
-  const plan = useAsync(() => api.plan({ start: from, end: to }), [from, to]);
+  const plan = useAsync(() => api.plan({ start: from, end: to, within }), [from, to, within]);
   const { busy, error, run } = useAction();
   const [open, setOpen] = useState<number | null>(() => Number(query.get("item")) || null);
   const askedItem = Number(query.get("item")) || null, askedFrom = query.get("from");
@@ -101,15 +107,15 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
   );
   return (
     <section>
-      <PageHeader
+      {!within && <PageHeader
         actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
-        Plan</PageHeader>
+        Plan</PageHeader>}
       <Line>
         <Field inline label="From"><Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></Field>
         <Field inline label="Showing"><Select aria-label="Weeks shown" value={String(weeks)} onChange={(e) => setWeeks(Number(e.target.value))}>
           {[2, 4, 8, 12, 26].map((w) => <option key={w} value={w}>{w} weeks</option>)}
         </Select></Field>
-        {!!scope.data?.revisions?.length && <Field inline label="Turnaround"><Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
+        {!within && !!scope.data?.revisions?.length && <Field inline label="Turnaround"><Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
           <option value="">None shown</option>
           {scope.data.revisions.map((r) => <option key={r} value={r}>{r}</option>)}
         </Select></Field>}
@@ -123,8 +129,8 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
       <div className={revision !== null ? "plan-layout with-panel" : "plan-layout"}>
       <div>
       {/* The number a manager wants comes first: production at risk from the planned shutdowns (#1078). */}
-      <AtRiskCard from={from} />
-      <CrewLoadCard from={from} days={weeks * 7} pos={pos} lines={lines} axis={axis} />
+      {!within && <AtRiskCard from={from} />}
+      {!within && <CrewLoadCard from={from} days={weeks * 7} pos={pos} lines={lines} axis={axis} />}
       {!plan.data.length && <Empty>Nothing planned in these weeks.</Empty>}
       {groups.map(([area, list]) => (
         <Card key={area} title={areaTitle(area, list)} className="plan-area">

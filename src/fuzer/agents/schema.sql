@@ -93,3 +93,17 @@ create table if not exists skill_version (
     unique (skill, version)
 );
 create unique index if not exists skill_version_live on skill_version (skill) where status = 'published';
+
+-- An entity page's summary (Explore): what matters about an entity and everything beneath it, written by the summary
+-- specialist from the facts it was given (kept with it), shared with everyone who opens the page until it is
+-- agents.summary_hours old.
+create table if not exists entity_summary (
+    fuzer_id    text not null,
+    headline    text not null,
+    points      jsonb not null default '[]',
+    facts       jsonb not null default '{}',
+    usage       jsonb not null default '{}',
+    by_user     text not null default 'anonymous',
+    created_at  timestamptz not null default now()
+);
+create index if not exists entity_summary_latest on entity_summary (fuzer_id, created_at desc);

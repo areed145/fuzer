@@ -1,5 +1,5 @@
 import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empty, Line, Text, Heading } from "../ui";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { api, type GraphNode, type RelationDef, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, REL_VIEWS, kindColor, relColor, subgraphElements } from "../graph";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -9,7 +9,11 @@ const list = (v: string | null) => (v ? v.split(",").filter(Boolean) : []);
 
 /** One network for every asset and every link type (flow, gas lift, P&ID piping, or anything the ontology adds):
  * which links and which kinds of thing to draw are filters, kept in the address so a view can be shared. */
-export function Network({ query = new URLSearchParams() }: { query?: URLSearchParams }) {
+export function Network({ query: asked0 = new URLSearchParams(), within }: { query?: URLSearchParams;
+  /** An entity page's Connections: only it, what is beneath it and what they link to, its filters kept in the tab. */
+  within?: string }) {
+  const [local, setLocal] = useState(() => new URLSearchParams());
+  const query = within ? local : asked0;
   const asOf = query.get("as_of") ?? "";
   const asked = list(query.get("rels"));
   const hidden = new Set(list(query.get("hide")));
@@ -19,6 +23,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
   const set = (values: Record<string, string | undefined>) => {
     const q = new URLSearchParams(query);
     for (const [k, v] of Object.entries(values)) if (v === undefined) q.delete(k); else q.set(k, v);
+    if (within) { setLocal(q); return; }
     history.replaceState(history.state, "", `#/network${q.size ? `?${q}` : ""}`);
     window.dispatchEvent(new Event("hashchange"));
   };
@@ -28,8 +33,8 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
   // No link types asked for: the server draws the ontology's flow view and says which ones that was.
   const none = query.get("rels") === "";
   const net = useAsync(
-    () => (none ? Promise.resolve(undefined) : api.network(asOf || undefined, asked.length ? asked : undefined)),
-    [asOf, asked.join(","), none],
+    () => (none ? Promise.resolve(undefined) : api.network(asOf || undefined, asked.length ? asked : undefined, within)),
+    [asOf, asked.join(","), none, within],
   );
   const on = none ? [] : asked.length ? asked : net.data?.rels ?? [];
   const order = (rels: string[]) => [...rels].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
@@ -89,7 +94,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
     <section>
       <Line spread>
         <div>
-          <PageHeader>Network</PageHeader>
+          {!within && <PageHeader>Network</PageHeader>}
         </div>
         <label className="asof">
           As of

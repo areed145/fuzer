@@ -166,6 +166,35 @@ def documents_for(conn, fuzer_id: str) -> list[dict]:
 
 
 
+def documents_beneath(conn, fuzer_id: str) -> list[dict]:
+    """Current documents that apply to anything beneath this entity (a facility's areas, an area's machines), each
+    with what it applies to, that `documents_for` (its own scope, looking up) did not already list."""
+    from .hierarchy import subtree
+
+    tree = subtree(conn, fuzer_id)
+    if not tree:
+        return []
+    own = {d["id"] for d in documents_for(conn, fuzer_id)}
+    rows = conn.execute(
+        """
+        select distinct on (d.src) d.src as id, l.label, gt.value #>> '{}' as title, gd.value #>> '{}' as doc_type,
+               gr.value #>> '{}' as revision, coalesce(vl.label, d.dst) as via
+        from edge d
+        join entity e on e.fuzer_id = d.src and e.kind = 'document' and e.retired_at is null
+        left join entity_label l on l.fuzer_id = d.src
+        left join entity_label vl on vl.fuzer_id = d.dst
+        left join golden gt on gt.fuzer_id = d.src and gt.field = 'title'
+        left join golden gd on gd.fuzer_id = d.src and gd.field = 'doc_type'
+        left join golden gr on gr.fuzer_id = d.src and gr.field = 'revision'
+        left join golden gs on gs.fuzer_id = d.src and gs.field = 'status'
+        where d.rel = 'applies_to' and d.dst = any(%s) and coalesce(gs.value #>> '{}', 'current') <> 'superseded'
+        order by d.src, vl.label
+        """, (list(tree),)).fetchall()
+    return sorted(({"id": r["id"], "label": r["label"], "title": r["title"], "doc_type": r["doc_type"],
+                    "revision": r["revision"], "why": f"applies to {r['via']}"} for r in rows if r["id"] not in own),
+                  key=lambda d: (d["doc_type"] or "", d["label"] or ""))
+
+
 def for_incident(conn, incident_id: str, limit: int = 5) -> list[dict]:
     """Suggested reading for an incident: sections in scope of its unit that cover its failure modes."""
     row = conn.execute(

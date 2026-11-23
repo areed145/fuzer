@@ -125,6 +125,10 @@ register(
             env="FUZER_AGENT_SPECIALIST_EFFORT", restart=True),
     Setting("agents.fallbacks", "bool", True, "On a policy decline, let the API re-run the request on a fallback model",
             "Agents", env="FUZER_AGENT_FALLBACKS", restart=True),
+    Setting("agents.summary_model", "str", "claude-haiku-5-5", "Model that writes an entity page's summary: a small, "
+            "cheap one, as the summary is one short call per entity a day", "Agents", env="FUZER_AGENT_SUMMARY_MODEL"),
+    Setting("agents.summary_hours", "int", 24, "How long an entity's summary is kept before the next visit by someone "
+            "with AI access writes a new one", "Agents", min=1),
     Setting("agents.case_cap_usd", "float", 2.0, "Agent spend a case may reach (USD) before its next agent step goes "
             "to a person, with the spend and the cap on the case (0: no cap)", "Agents", min=0),
     Setting("agents.briefs", "bool", True, "Have the owning specialist brief each new case of a type a pack briefs, "
