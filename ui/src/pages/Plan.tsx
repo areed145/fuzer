@@ -180,8 +180,39 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       return why ? api.planBook(item.id, person, { ...b, reason: why }) : null;
     }
   }, onChange);
+  const pre = useAsync(() => api.planPrerequisites(item.id), [item.id, item.status, item.released_at, item.start_at]);
+  const fieldJob = (item.place ?? "field") === "field" && ["proposed", "scheduled", "in_progress"].includes(item.status);
+  // field work reaches the field through Release; with a prerequisite open it goes only with a reason
+  const release = () => person && run("Releasing", async () => {
+    try { return await api.planRelease(item.id, person); }
+    catch (e) {
+      if ((e as { status?: number }).status !== 409) throw e;
+      const why = await promptDialog(errorMessage(e), { confirm: "Release anyway" });
+      return why ? api.planRelease(item.id, person, why) : null;
+    }
+  }, onChange);
+  // moving a released job says why, and it waits for release again on its new dates
+  const reschedule = async () => {
+    if (!person) return;
+    const to = { start, end: end < start ? start : end, crew };
+    if (!item.released_at) return change(to);
+    const why = await promptDialog("It was released. Why does it move? It waits for release again on the new dates.",
+                                   { confirm: "Reschedule" });
+    if (why) run("Rescheduling", async () => {
+      await api.planReschedule(item.id, person, to.start, to.end, why);
+      return to.crew !== (item.crew ?? "") ? api.planChange(item.id, person, { crew: to.crew }) : null;
+    }, onChange);
+  };
   return (
     <div className="plan-detail">
+      {fieldJob && pre.data && <Text as="div" small>
+        {item.released_at
+          ? <Badge tone="ok">Released {whenDay(item.released_at)}{item.released_by ? ` by ${item.released_by}` : ""}</Badge>
+          : <Badge tone={pre.data.ready ? "ok" : "warn"}>{pre.data.ready ? "Ready" : "Not ready"}</Badge>}
+        {item.release_reason && <Text as="span" small muted> Why it went anyway: {item.release_reason}</Text>}
+        <List>{pre.data.prerequisites.map((p) => <li key={p.kind} className={p.satisfied ? "" : "error"}>
+          {p.satisfied ? "✓" : "✗"} {p.label}{p.detail.length ? `: ${p.detail.join("; ")}` : ""}</li>)}</List>
+      </Text>}
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
         {c.kind === "bundle" ? "Bundle: " : c.kind === "simops" ? "Simultaneous operations: " : "Clash: "}{c.say}</p>)}
       {!!item.parts_short?.length && <Text as="p" small>
@@ -200,7 +231,8 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
           onChange={(e) => change({ place: e.target.value === "desk" ? "desk" : "field" })}>
           <option value="field">in the field</option><option value="desk">at a desk</option>
         </Select></Field>
-        <Button size="sm" disabled={!!busy} onClick={() => change({ start, end: end < start ? start : end, crew })}>Reschedule</Button>
+        <Button size="sm" disabled={!!busy} onClick={reschedule}>Reschedule</Button>
+        {fieldJob && !item.released_at && <Button size="sm" variant="primary" disabled={!!busy} onClick={release}>Release</Button>}
         {crews.length > 0 && <>
           <Field inline label="Book on"><Select aria-label="Crew to book" value={resource} onChange={(e) => setResource(e.target.value)}>
             <option value="">choose a crew</option>

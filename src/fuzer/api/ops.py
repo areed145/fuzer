@@ -1428,6 +1428,41 @@ def plan_book(item_id: int, b: PlanBook, conn=Depends(get_conn)):
     return _plan_call(conn, plan.book, item_id, b.by, b.resource, b.quantity, person=b.person, reason=b.reason)
 
 
+@router.get("/plan/{item_id}/prerequisites")
+def plan_prerequisites(item_id: int, conn=Depends(get_conn)):
+    """What a job needs before it is released: each prerequisite satisfied or not, with what holds it; ready when all
+    are (step 5 of the work model)."""
+    from ..ops import plan
+    return _plan_call(conn, plan.prerequisites, item_id)
+
+
+class PlanRelease(BaseModel):
+    by: str
+    reason: str | None = None  # why it goes though a prerequisite is open
+
+
+@router.post("/plan/{item_id}/release")
+def plan_release(item_id: int, r: PlanRelease, conn=Depends(get_conn)):
+    """Release a job to the field. With a prerequisite open it is refused (409, naming it) unless `reason` says why it
+    goes anyway; a job whose case waits to be sent goes to its crew."""
+    from ..ops import plan
+    return _plan_call(conn, plan.release, item_id, r.by, r.reason)
+
+
+class PlanReschedule(BaseModel):
+    by: str
+    start: datetime
+    end: datetime
+    reason: str
+
+
+@router.post("/plan/{item_id}/reschedule")
+def plan_reschedule(item_id: int, r: PlanReschedule, conn=Depends(get_conn)):
+    """Move a job with the reason on its case; a released job goes back to waiting for release."""
+    from ..ops import plan
+    return _plan_call(conn, plan.reschedule, item_id, r.by, r.start, r.end, r.reason)
+
+
 @router.post("/plan/sync")
 def plan_sync(conn=Depends(get_conn)):
     """Bring the plan's SAP work orders, maintenance plans and planning-system schedules up to date with the register

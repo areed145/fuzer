@@ -19,7 +19,7 @@ its assets' spare parts recorded with zero stock (`parts_short`), so stores can 
 from datetime import UTC, date, datetime, time, timedelta
 
 from ..core import clock, events
-from ..core.plan import KINDS, STATUSES, PlanError, PlanOverload
+from ..core.plan import KINDS, STATUSES, PlanError, PlanNotReady, PlanOverload
 
 ACTIVE = ("proposed", "scheduled", "in_progress")
 SHUTDOWNS = ("turnaround", "shutdown")  # the items other work can be bundled into
@@ -527,3 +527,115 @@ def book_dispatch(conn, exception_id: int, item_id: int, to: str, by: str) -> di
     if crew and not conn.execute("select 1 from plan_demand where item_id = %s", (bar["id"],)).fetchone():
         conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, %s, 1)", (bar["id"], crew["code"]))
     return conn.execute("select * from plan_item where id = %s", (bar["id"],)).fetchone()
+
+
+# ---- prerequisites decide Ready; field work reaches the field through Release (step 5 of docs/work-model.md) --------
+
+def _shutdown_cover(conn, row: dict) -> bool:
+    """Whether a turnaround or shutdown on the plan covers a job that needs the unit down: same area, overlapping."""
+    return bool(conn.execute(
+        "select 1 from plan_item where kind = any(%s) and status = any(%s) and id <> %s and area_id is not distinct "
+        "from %s and start_at <= %s and end_at >= %s limit 1",
+        (list(SHUTDOWNS), list(ACTIVE), row["id"], row["area_id"], row["start_at"], row["end_at"])).fetchone())
+
+
+def prerequisites(conn, item_id: int) -> dict:
+    """What a job needs before it can go: each prerequisite satisfied or not, with what holds it. Scheduled (booked
+    on a crew or given to someone), each ready check (parts, crew capacity, permits, SIMOPS, MOCs), no clash on the
+    plan, and the unit down when the job needs it. A new kind of check is a new prerequisite, not a change to the
+    gate. Ready is all of them satisfied."""
+    from . import readiness
+
+    row = conn.execute("select * from plan_item where id = %s", (item_id,)).fetchone()
+    if row is None:
+        raise PlanError(f"no plan item {item_id}")
+    booked = row["status"] in ("scheduled", "in_progress") or bool(conn.execute(
+        "select 1 from plan_demand where item_id = %s limit 1", (item_id,)).fetchone())
+    out = [{"kind": "scheduled", "label": "Scheduled", "satisfied": booked,
+            "detail": [] if booked else ["not booked on a crew yet"]}]
+    checks = readiness.check(conn, list(row["subjects"] or []), row["exception_id"])["checks"]
+    for c in checks:
+        out.append({"kind": c.get("check") or c["label"].lower(), "label": c["label"],
+                    "satisfied": not c["blockers"], "detail": list(c["blockers"])})
+    others = conn.execute("select * from plan_item where status = any(%s) and start_at < %s and end_at > %s",
+                          (list(ACTIVE), row["end_at"], row["start_at"])).fetchall()
+    clashes = [c["say"] for c in _clashes([row, *[o for o in others if o["id"] != row["id"]]])[row["id"]]
+               if c["kind"] in ("same_asset", "crew")]
+    out.append({"kind": "clash", "label": "No clash", "satisfied": not clashes, "detail": clashes})
+    if row["needs_shutdown"]:
+        down = _shutdown_cover(conn, row)
+        out.append({"kind": "unit_down", "label": "Unit down", "satisfied": down,
+                    "detail": [] if down else ["needs the unit down and no shutdown on the plan covers it"]})
+    return {"item_id": item_id, "ready": all(p["satisfied"] for p in out), "prerequisites": out,
+            "released_at": row["released_at"], "released_by": row["released_by"]}
+
+
+def _note(conn, row: dict, by: str, text: str) -> None:
+    """On the job's case when it has one, else on its notes."""
+    if row["item_id"]:
+        from ..core import work
+        work.comment(conn, row["item_id"], by, text)
+    else:
+        conn.execute("update plan_item set notes = concat_ws(' · ', notes, %s::text) where id = %s", (text, row["id"]))
+
+
+def release(conn, item_id: int, by: str, reason: str | None = None) -> dict:
+    """Release a job to the field: the one way planned field work reaches it. Its prerequisites are checked; one still
+    open is refused (PlanNotReady, naming it) unless `reason` says why it goes anyway, and the reason is kept on the
+    case. A job whose case waits to be sent is sent to its crew (the operator queue when it has none); the bar keeps
+    its dates and its booking."""
+    from ..core import gates
+
+    gates.require_person(conn, "field_dispatch", by, ref=f"plan_item:{item_id}")
+    row = conn.execute("select * from plan_item where id = %s for update", (item_id,)).fetchone()
+    if row is None:
+        raise PlanError(f"no plan item {item_id}")
+    if row["status"] not in ACTIVE:
+        raise PlanError(f"plan item {item_id} is {row['status']}: only open work is released")
+    if row["released_at"]:
+        raise PlanError(f"plan item {item_id} was released {row['released_at']:%d %b %H:%M} by {row['released_by']}")
+    if row["place"] == "desk":
+        raise PlanError(f"plan item {item_id} is done at a desk: nothing goes to the field")
+    pre = prerequisites(conn, item_id)
+    open_ = [f"{p['label']}: {'; '.join(p['detail']) or 'not satisfied'}" for p in pre["prerequisites"]
+             if not p["satisfied"]]
+    reason = (reason or "").strip()
+    if open_ and not reason:
+        raise PlanNotReady("Not ready: " + " · ".join(open_)[:400] + ". Say why it should be released anyway.")
+    row = conn.execute(
+        "update plan_item set released_at = now(), released_by = %s, release_reason = %s, "
+        "status = case when status = 'proposed' then 'scheduled' else status end, updated_by = %s, updated_at = now() "
+        "where id = %s returning *", (by, reason or None, by, item_id)).fetchone()
+    if row["exception_id"]:
+        from . import exceptions, routing
+
+        e = conn.execute("select * from exception_record where id = %s", (row["exception_id"],)).fetchone()
+        if e and e["state"] == "open" and (not e["item_id"] or routing.waiting_case(conn, e["item_id"])):
+            exceptions.dispatch(conn, e["id"], by, row["crew"] or f"role:{exceptions.OPERATOR_ROLE}",
+                                f"Released from the plan for {row['start_at']:%a %d %b}", override=reason or None,
+                                blockers=open_, planned=True)
+            row = conn.execute("select * from plan_item where id = %s", (item_id,)).fetchone()
+    if reason and not row["exception_id"]:
+        _note(conn, row, by, f"Released though not ready ({'; '.join(open_)}). Why: {reason}")
+    events.publish(conn, "plan.changed", f"plan_item:{item_id}",
+                   {"id": item_id, "change": "released", "by": by, "title": row["title"], "ready": not open_,
+                    "reason": reason or None})
+    return {**row, "prerequisites": pre["prerequisites"]}
+
+
+def reschedule(conn, item_id: int, by: str, start, end, reason: str) -> dict:
+    """Move a job to new dates with the reason kept on its case (or notes). A released job moved goes back to waiting
+    for release: what was ready then is checked again for the new dates."""
+    reason = (reason or "").strip()
+    if not reason:
+        raise PlanError("say why it moves")
+    row = conn.execute("select * from plan_item where id = %s", (item_id,)).fetchone()
+    if row is None:
+        raise PlanError(f"no plan item {item_id}")
+    moved = update(conn, item_id, by, start=start, end=end)
+    if row["released_at"]:
+        moved = conn.execute("update plan_item set released_at = null, released_by = null, release_reason = null "
+                             "where id = %s returning *", (item_id,)).fetchone()
+    _note(conn, moved, by, f"Rescheduled from {row['start_at']:%a %d %b} to {moved['start_at']:%a %d %b}. Why: {reason}"
+          + (" It was released: release it again for the new dates." if row["released_at"] else ""))
+    return moved

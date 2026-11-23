@@ -142,6 +142,10 @@ for the entity itself.
 
 **Register.** The golden records and the links between them: what the work is matched to.
 
+**Release.** The IOC sending a planned field job to the field, from its bar on Plan: the one way planned field work
+reaches it. Its prerequisites are checked first; one still open needs a reason, kept on the case. Moving a released
+job (Reschedule, with a reason) sends it back to wait for release.
+
 **Replay.** Running the detectors over history one window at a time, without letting them see later data, and
 scoring them against what really happened. See [evals](evals.md).
 

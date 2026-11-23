@@ -497,6 +497,10 @@ alter table plan_item add column if not exists not_before timestamptz;
 -- one; place says whether it is done in the field (it goes through Ready and Release) or at a desk.
 alter table plan_item add column if not exists item_id bigint;
 alter table plan_item add column if not exists place text not null default 'field';
+-- Released to the field (step 5 of docs/work-model.md): who released it, when, and why if a prerequisite was open
+alter table plan_item add column if not exists released_at timestamptz;
+alter table plan_item add column if not exists released_by text;
+alter table plan_item add column if not exists release_reason text;
 create index if not exists plan_item_case on plan_item (item_id) where item_id is not null;
 -- the production a job brings online when it finishes, in BOE/d (a new well, a restart, an uplift): what production
 -- capacity counts against how much the system can handle (ops/schedule.py)

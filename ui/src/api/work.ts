@@ -943,10 +943,18 @@ export interface PlanItem {
   exception_id: number | null; notes: string | null;
   /** Its case, once it has one; and whether the job is done in the field or at a desk. */
   item_id?: number | null; place?: "field" | "desk";
+  /** Released to the field (step 5 of the work model): when, by whom, and why if it went though not ready. */
+  released_at?: string | null; released_by?: string | null; release_reason?: string | null;
   assets: { fuzer_id: string; label: string | null }[];
   clashes: { kind: "same_asset" | "crew" | "bundle" | "simops"; with: number; title: string; say: string }[];
   /** Spare parts for its assets recorded with zero stock, for active work starting within 30 days. */
   parts_short?: { id: string; label: string | null; description: string | null; mpn: string | null; bin: string | null; for: string }[];
+}
+
+/** What a job needs before it is released: each prerequisite satisfied or not, with what holds it. */
+export interface PlanPrerequisites {
+  item_id: number; ready: boolean; released_at: string | null; released_by: string | null;
+  prerequisites: { kind: string; label: string; satisfied: boolean; detail: string[] }[];
 }
 
 /** A turnaround's scope read against the plan (GET /turnarounds). */
@@ -1116,6 +1124,11 @@ export const workApi = {
   /** Book a job on a crew (or other resource) for its dates; refused with 409 over capacity unless a reason is given. */
   planBook: (id: number, by: string, b: { resource: string; quantity?: number; person?: string; reason?: string }) =>
     request<PlanItem>("POST", `/plan/${id}/book`, undefined, { by, ...b }),
+  planPrerequisites: (id: number) => request<PlanPrerequisites>("GET", `/plan/${id}/prerequisites`),
+  planRelease: (id: number, by: string, reason?: string) =>
+    request<PlanItem>("POST", `/plan/${id}/release`, undefined, { by, reason }),
+  planReschedule: (id: number, by: string, start: string, end: string, reason: string) =>
+    request<PlanItem>("POST", `/plan/${id}/reschedule`, undefined, { by, start, end, reason }),
   planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),
   schedules: () => request<ScheduleSummary[]>("GET", "/plan/schedules"),
   schedule: (code: string) => request<ScheduleAnalysis>("GET", `/plan/schedules/${encodeURIComponent(code)}`),
