@@ -5,6 +5,7 @@
     sync_work_orders(conn)       open SAP work orders with dates in the register, as plan items
     sync_maintenance_plans(conn) the next due date of each SAP maintenance and inspection plan, as plan items
     plan_exception(conn, id, ...)  an exception the IOC chose to plan rather than work now
+    link_case(conn, id, item)    the case working an exception, on the bars it was planned as (a bar is its case's job)
     finish_closed_work(conn)     bars whose work closed are done (or cancelled with a cancelled case), never left behind
 
 Clashes: two active items on one asset at the same time (simultaneous operations on it), and one person booked on
@@ -22,7 +23,9 @@ ACTIVE = ("proposed", "scheduled", "in_progress")
 SHUTDOWNS = ("turnaround", "shutdown")  # the items other work can be bundled into
 READY_DAYS = 30  # how far ahead planned work is checked for spare parts out of stock
 BUNDLE_DAYS = 21
-FIELDS = ("title", "kind", "start", "end", "status", "crew", "crew_hours", "needs_shutdown", "deferment_usd", "notes")
+FIELDS = ("title", "kind", "start", "end", "status", "crew", "crew_hours", "needs_shutdown", "deferment_usd", "notes",
+          "place")
+PLACES = ("field", "desk")  # where a job is done: field jobs go through Ready and Release, desk jobs do not
 
 
 def _when(v) -> datetime:
@@ -109,6 +112,8 @@ def update(conn, item_id: int, by: str, **fields) -> dict:
     start = _when(fields["start"]) if fields.get("start") else row["start_at"]
     end = _when(fields["end"]) if fields.get("end") else row["end_at"]
     _check(fields.get("kind"), fields.get("status"), start, end)
+    if fields.get("place") is not None and fields["place"] not in PLACES:
+        raise PlanError(f"place must be one of {PLACES}")
     sets = {"start_at": start, "end_at": end, **{k: v for k, v in fields.items() if k not in ("start", "end")}}
     if (start, end) != (row["start_at"], row["end_at"]):
         sets["moved_by"] = by  # a person's dates now win over the source's next proposal
@@ -380,28 +385,41 @@ def plan_exception(conn, exception_id: int, by: str, start, end, crew: str | Non
     row = propose(conn, "exception", e["title"], by, start, end, refs=e["subjects"], source="exceptions",
                   source_key=str(exception_id), crew=crew, needs_shutdown=needs_shutdown,
                   deferment_usd=e["value_usd"], exception_id=exception_id, notes=notes, status="scheduled")
+    if e["item_id"]:
+        row = next((r for r in link_case(conn, exception_id, e["item_id"]) if r["id"] == row["id"]), row)
     events.publish(conn, "exception.planned", f"exception:{exception_id}",
                    {"id": exception_id, "plan_item": row["id"], "by": by, "start": row["start_at"].isoformat()})
     return row
 
 
+def link_case(conn, exception_id: int, item_id: int) -> list[dict]:
+    """The case that works an exception, on the bars it was planned as: from then on the bar is that case's job."""
+    return conn.execute("update plan_item set item_id = %s where exception_id = %s and item_id is distinct from %s "
+                        "returning *", (item_id, exception_id, item_id)).fetchall()
+
+
 def finish_closed_work(conn, exception_ids: list[int] | None = None, by: str = "fuzer") -> list[dict]:
-    """Close the bars of work that is over: an active plan item whose exception is no longer open (its case was
-    closed, or the condition cleared) is done, or cancelled when its case was cancelled. Without this a closed case
-    left its bar scheduled, and Plan, Logistics and crew load counted a job nobody would do (step 1 of the work
+    """Close the bars of work that is over: an active plan item whose case is done (or whose exception is no longer
+    open: closed, or the condition cleared) is done, and cancelled when its case was cancelled. Without this a closed
+    case left its bar scheduled, and Plan, Logistics and crew load counted a job nobody would do (step 1 of the work
     model). `exception_ids` limits it to those; with none every bar is checked, so the work tick sweeps up the rest."""
     rows = conn.execute(
         """
-        update plan_item p set status = case when w.state = 'cancelled' then 'cancelled' else 'done' end,
-               updated_by = %(by)s, updated_at = now()
-        from exception_record e left join work_item w on w.id = e.item_id
-        where p.exception_id = e.id and e.state <> 'open' and p.status = any(%(active)s)
-          and (%(ids)s::bigint[] is null or e.id = any(%(ids)s))
-        returning p.id, p.title, p.status, p.start_at, p.end_at, p.exception_id
+        with over as (
+            select p.id, case when w.state = 'cancelled' then 'cancelled' else 'done' end as status
+            from plan_item p
+            left join exception_record e on e.id = p.exception_id
+            left join work_item w on w.id = coalesce(p.item_id, e.item_id)
+            where p.status = any(%(active)s)
+              and ((e.id is not null and e.state <> 'open') or w.state in ('done', 'cancelled'))
+              and (%(ids)s::bigint[] is null or e.id = any(%(ids)s)))
+        update plan_item p set status = over.status, updated_by = %(by)s, updated_at = now()
+        from over where p.id = over.id
+        returning p.id, p.title, p.status, p.start_at, p.end_at, p.exception_id, p.item_id
         """, {"by": by, "active": list(ACTIVE), "ids": exception_ids}).fetchall()
     for r in rows:
         events.publish(conn, "plan.changed", f"plan_item:{r['id']}",
                        {"id": r["id"], "change": "updated", "by": by, "fields": ["status"], "title": r["title"],
                         "start": r["start_at"].isoformat(), "end": r["end_at"].isoformat(), "status": r["status"],
-                        "reason": f"its work closed (exception {r['exception_id']})"})
+                        "reason": "its work closed"})
     return rows

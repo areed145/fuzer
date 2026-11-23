@@ -1343,6 +1343,7 @@ class PlanChange(BaseModel):
     crew_hours: float | None = None
     needs_shutdown: bool | None = None
     notes: str | None = None
+    place: Literal["field", "desk"] | None = None  # where the job is done
 
 
 class TurnaroundBringIn(BaseModel):

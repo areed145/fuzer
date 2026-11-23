@@ -138,6 +138,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
               {i.clashes.filter((c) => c.kind !== "bundle").length > 0 && <Badge tone="danger">clash</Badge>}
               {i.clashes.some((c) => c.kind === "bundle") && <Badge tone="ok">bundle</Badge>}
               {i.needs_shutdown && <Badge tone="warn">shutdown</Badge>}
+              {i.place === "desk" && <Badge>desk</Badge>}
               {!!i.parts_short?.length && <Badge tone="warn">parts short</Badge>}
             </button>
             <div className="plan-track" aria-hidden="true">
@@ -173,13 +174,18 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
           `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</Text>}
       <Text as="p" small>{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</Text>
-      {item.exception_id != null && <Text as="p" small><a href={href("/list", { q: item.title })}>Open this work in All work</a></Text>}
+      {item.item_id != null ? <Text as="p" small><a href={href(`/cases/${item.item_id}`)}>Open its case</a></Text>
+        : item.exception_id != null && <Text as="p" small><a href={href("/list", { q: item.title })}>Open this work in All work</a></Text>}
       <Text as="p" small muted>{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
         {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</Text>
       {person ? <Line>
         <Field inline label="Start"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
         <Field inline label="End"><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
         <Field inline label="Crew"><Input value={crew} placeholder="person or role:…" onChange={(e) => setCrew(e.target.value)} /></Field>
+        <Field inline label="Done"><Select aria-label="Where it is done" value={item.place ?? "field"} disabled={!!busy}
+          onChange={(e) => change({ place: e.target.value === "desk" ? "desk" : "field" })}>
+          <option value="field">in the field</option><option value="desk">at a desk</option>
+        </Select></Field>
         <Button size="sm" disabled={!!busy} onClick={() => change({ start, end: end < start ? start : end, crew })}>Reschedule</Button>
         <Select aria-label="Status" value={item.status} disabled={!!busy} onChange={async (e) => {
           const status = e.target.value;

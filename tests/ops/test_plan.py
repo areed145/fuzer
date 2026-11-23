@@ -218,3 +218,24 @@ def test_a_bar_closes_with_its_work_and_taking_one_off_leaves_the_work_open(conn
     listed = next(x for x in exceptions.listing(conn) if x["id"] == still["id"])
     assert listed["state"] == "open" and listed["planned"] is None and listed["stage"] == "dispatch"
     conn.rollback()
+
+
+def test_a_bar_becomes_its_cases_job_and_closes_with_the_case(conn, monkeypatch):
+    from fuzer.core import work
+    from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
+    from fuzer.ops import exceptions
+
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak"))
+    e = raise_exception(conn, "minor_leak", "P-104 drip", "P-104 drip", "olga", refs=["tag:P-101"])
+    bar = plan.plan_exception(conn, e["id"], "ann", "2026-11-24", "2026-11-24T04:00:00+00:00")
+    assert bar["item_id"] is None and bar["place"] == "field"
+    sent = exceptions.dispatch(conn, e["id"], "ann", "fred")
+    linked = conn.execute("select item_id from plan_item where id = %s", (bar["id"],)).fetchone()["item_id"]
+    assert linked == sent["item_id"]  # once the work has a case, the bar is that case's job
+    update(conn, bar["id"], "ann", place="desk")
+    with pytest.raises(PlanError, match="place must be"):
+        update(conn, bar["id"], "ann", place="moon")
+    work.close_case(conn, sent["item_id"], "cancelled", "ann", reason="not needed")
+    plan.finish_closed_work(conn)
+    assert conn.execute("select status from plan_item where id = %s", (bar["id"],)).fetchone()["status"] == "cancelled"
+    conn.rollback()
