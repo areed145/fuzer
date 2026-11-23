@@ -154,6 +154,16 @@ again for the zoomed range, at the finest step that keeps it to a chart's worth 
 heading says the step (P5.15e). On a phone the panels are shorter, the chips go under the chart so it starts in the
 first screen, and a sideways swipe moves the window earlier or later (P5.15f).
 
+## One spec for every chart over time
+
+Every chart over time is drawn from one config, a trend spec, that the server builds and the browser only draws
+(`analysis/trend_spec.py`, `GET /entities/{id}/trend-spec`). A spec has the time window, its panels (each listing
+its series by key, with an axis mode), its series (each worded once: label, printed unit, tag, role, the neighbour it
+is on, line or steps, values, limits), the series it opens on (`focus`, by key, point, tag or role), the marks drawn on
+the chart itself (the 12 h leading into an incident, a case's window) and the event lanes under it. Because a panel
+names series by key, a series keeps its identity and colour whatever else is switched on. It is built on the trend
+view, so the template, window, centre, limits and provider are the trend view's own.
+
 ## Operating limits, IOWs and excursions
 
 An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI
