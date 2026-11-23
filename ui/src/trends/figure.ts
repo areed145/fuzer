@@ -3,8 +3,8 @@
 // The readability rules live here, so no page can get them wrong:
 // - a series' colour runs on across panels, so the first line of every panel is not the same blue;
 // - a panel carries one unit, or a pair of series on two scales (speed and power); more units start a panel of their own;
-// - a series' limits draw when it is the one the chart is about, alone in its panel, or on a scale of its own; a limit
-//   far from the line is named at the panel's edge instead of flattening the line;
+// - a series' limits draw when it is the one the chart is about or alone in its panel, so two scales never stack two
+//   sets of limits; a limit far from the line is named at the panel's edge instead of flattening the line;
 // - only what falls in the window is drawn: an event before it is counted on its lane's name, not drawn clipped;
 // - times read as the rest of Fuzer reads them.
 import type { TimelineData, TimelineEvent, TimelineLane, TrendLimit, TrendMark, TrendSeries, TrendSpec } from "./spec";
@@ -311,14 +311,14 @@ export function buildFigure(spec: TrendSpec, timeline: TimelineData | null, on: 
         // What it is compared with: the same colour, thin and dashed, a dash pattern per window, on the same scale.
         (t.compare ?? []).forEach((c, i) => data.push({
           type: "scatter", mode: "lines", x: c.values.map(([at]) => at), y: c.values.map(([, v]) => v), yaxis: ref,
-          legend, showlegend: k === 0 && j === 0 && t === series[0], legendgroup: `compare:${c.label}`, name: c.label,
+          legend, showlegend: k === 0 && j === 0 && t === series[0], legendgroup: `compare:${c.label}`, legendrank: 2000, name: c.label,
           line: { width: 1.2, color: colour.get(t.key), dash: COMPARE_DASH[i % COMPARE_DASH.length] }, opacity: 0.6,
           hovertemplate: `%{y:.4~g} ${t.unit}<extra>${c.label} · ${t.label}</extra>`,
         }));
       }
-      // Limits draw where they can't be mistaken for another line's: the series the chart is about, the panel's one
-      // series, or a series on a scale of its own. Near ones are lines; far ones are named at the panel's edge.
-      const limited = series.filter((t) => focus.has(t.key) || g.series.length === 1 || own);
+      // Limits draw where they can't be mistaken for another line's: the series the chart is about or the panel's one
+      // series. Near ones are lines; far ones are named at the panel's edge.
+      const limited = series.filter((t) => focus.has(t.key) || g.series.length === 1);
       for (const t of limited) {
         const { near, far } = nearLimits(t);
         const urgent = (l: TrendLimit) => l.type === "hihi" || l.type === "lolo";
@@ -351,7 +351,7 @@ export function buildFigure(spec: TrendSpec, timeline: TimelineData | null, on: 
     // Each row is named inside the chart, above its markers.
     for (const l of lanes) {
       annotations.push({ text: rowLabel(l), xref: "paper", yref: ref, x: 0, y: rowLabel(l), xanchor: "left", yanchor: "bottom",
-                         yshift: 5, showarrow: false, font: { size: 10, color: palette.text }, opacity: 0.85 });
+                         xshift: 12, yshift: 5, showarrow: false, font: { size: 10, color: palette.text }, opacity: 0.85 });
     }
     lowest = ref;
     const hover = (e: TimelineEvent) =>
