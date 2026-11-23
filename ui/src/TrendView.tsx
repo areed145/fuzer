@@ -17,6 +17,8 @@ import { Badge, Button, Card, Disclosure, Input, Table, ErrorText, Text, List, T
 
 const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
 const PHONE_PANELS = 3; // panels a phone opens on; the rest are one tap away
+/** What the window can be compared with, lined up on it: the same hours a week earlier, or around past incidents. */
+const COMPARE = [{ key: "", label: "No comparison" }, { key: "7d", label: "Last week" }, { key: "incidents", label: "Past incidents" }];
 const local = (iso: string) => iso.slice(0, 16);
 const fmt = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(2));
 
@@ -72,11 +74,13 @@ export function TrendView({ id, start, end, linked = false, focus, focusKeys, ca
   const [pins, setPins] = useState<string[]>([]);
   const [chosen, setChosen] = useState<TimelineEvent[] | null>(null);
   const [morePanels, setMorePanels] = useState(false);
+  const [compare, setCompare] = useState(() => q.get("cmp") ?? "");
   const [redraw, setRedraw] = useState(0);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const before = Math.round((hours * 2) / 3);
   const keys = focusKeys?.join(",") ?? "";
-  const v = useAsync(() => api.trendSpec(id, at, before, hours - before, focusKeys, caseId), [id, at, hours, keys, caseId]);
+  const v = useAsync(() => api.trendSpec(id, at, before, hours - before, focusKeys, caseId, compare || undefined),
+                     [id, at, hours, keys, caseId, compare]);
   const d = v.data;
   const t = useAsync(() => (d && !d.error ? api.timeline(id, d.time.start, d.time.end) : Promise.resolve(null)), [id, d?.time.start, d?.time.end]);
   // The chart is drawn once its event lanes are read too, in the space it takes, so the page moves once.
@@ -84,7 +88,7 @@ export function TrendView({ id, start, end, linked = false, focus, focusKeys, ca
   useEffect(() => { setZoom(null); setPins([]); setChosen(null); }, [d]); // a new window draws unzoomed, unpinned
   // Zoomed in, the values are read again for the range at the finest step that keeps it to a chart's worth.
   const zoomHours = zoom ? Math.max(1, Math.ceil((Date.parse(`${zoom[1]}Z`) - Date.parse(`${zoom[0]}Z`)) / 3600000)) : 0;
-  const fine = useAsync(() => (zoom && d && zoomHours < hours ? api.trendSpec(id, zoom[0], 0, zoomHours, focusKeys, caseId) : Promise.resolve(null)),
+  const fine = useAsync(() => (zoom && d && zoomHours < hours ? api.trendSpec(id, zoom[0], 0, zoomHours, focusKeys, caseId, compare || undefined) : Promise.resolve(null)),
                         [id, zoom?.[0], zoomHours]);
   const shown = fine.data && !fine.data.error && zoom ? fine.data : d;
   const all = useMemo(() => (d && !d.error ? fromQuery(d, q.get("show"), q.get("hide")) : new Set<string>()), [d, q]);
@@ -110,12 +114,13 @@ export function TrendView({ id, start, end, linked = false, focus, focusKeys, ca
     if (!linked || !d || d.error) return;
     const [path, query] = location.hash.split("?");
     const next = new URLSearchParams(query ?? "");
-    const keep = { ...toQuery(d, base), at: at !== first ? at : undefined, w: hours !== (around?.hours ?? 72) ? String(hours) : undefined };
+    const keep = { ...toQuery(d, base), at: at !== first ? at : undefined, w: hours !== (around?.hours ?? 72) ? String(hours) : undefined,
+                   cmp: compare || undefined };
     for (const [k, v] of Object.entries(keep)) (v ? next.set(k, v) : next.delete(k));
     const hash = `${path}${next.size ? `?${next}` : ""}`;
     // replaceState: a toggle is not a page to go back to, and it fires no hashchange to re-render the route
     if (hash !== location.hash) history.replaceState(history.state, "", hash);
-  }, [linked, d, base, at, hours]);
+  }, [linked, d, base, at, hours, compare]);
   const toggle = (keys: string[], value: boolean) => {
     const next = new Set(on);
     keys.forEach((k) => (value ? next.add(k) : next.delete(k)));
@@ -219,6 +224,13 @@ export function TrendView({ id, start, end, linked = false, focus, focusKeys, ca
           <TrendChart key={redraw} spec={shown} timeline={t.data ?? null} on={on} pins={pins} zoom={zoom} compact={compact}
                       onEvents={setChosen} onZoom={zoomed} onTime={pin}
                       label={`${d?.title ?? id}: ${shownSeries.length} series and ${lanes.length} event lanes from ${when(shown.time.start)} to ${when(shown.time.end)}`} />
+        </div>
+      )}
+      {d && !d.error && d.provider !== "measurements" && (
+        <div className="row trend-compare">
+          <Tabs small label="Compare the window with" items={COMPARE.map((c) => ({ key: c.key || "none", label: c.label,
+            current: c.key === compare, onSelect: () => setCompare(c.key) }))} />
+          {compare && d.compare && !d.compare.labels.length && <Text small muted>Nothing earlier to compare with</Text>}
         </div>
       )}
       {!pending && (opened || capped) && hiddenSeries > 0 && (

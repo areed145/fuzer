@@ -152,11 +152,13 @@ def entity_trend_view(fuzer_id: str, at: str | None = None, hours_before: int = 
 
 @router.get("/entities/{fuzer_id}/trend-spec")
 def entity_trend_spec(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
-                      focus: str | None = None, case: int | None = None, conn=Depends(get_conn)):
+                      focus: str | None = None, case: int | None = None, compare: str | None = None,
+                      conn=Depends(get_conn)):
     """An entity's trend as a spec, the one config every chart over time draws: its template's panels, every series
     worded with its unit and limits, the marks on the chart and the event lanes under it. `focus` (comma-separated
     series keys, points or roles) opens it on those series; `case` opens it on what the case's event was seen on,
-    with the event shaded and its start marked (`ops.around.trend`)."""
+    with the event shaded and its start marked (`ops.around.trend`). `compare` ("1d", "7d", "28d", "incidents") adds
+    each series' values over the same hours earlier, or around the unit's past incidents, lined up on this window."""
     from ..analysis import trend_spec
     from ..ops import around
 
@@ -164,7 +166,7 @@ def entity_trend_spec(fuzer_id: str, at: str | None = None, hours_before: int = 
     context = around.trend(conn, case) if case is not None else None
     return trend_spec.spec(conn, fuzer_id, at, min(hours_before, TREND_SIDE_MAX_HOURS),
                            min(hours_after, TREND_SIDE_MAX_HOURS), focus=[*keys, *(context or {}).get("focus", [])] or None,
-                           marks=(context or {}).get("marks"), pack=deps.pack())
+                           marks=(context or {}).get("marks"), compare=compare, pack=deps.pack())
 
 
 @router.get("/entities/{fuzer_id}/timeline")
@@ -202,6 +204,14 @@ def limit_issues(conn=Depends(get_conn)):
     """Limits that look wrong or are missing across the asset (#101)."""
     from ..analysis import limits
     return limits.issues(conn, deps.pack())
+
+
+@router.get("/entities/{fuzer_id}/measurements/spec")
+def entity_measurements_spec(fuzer_id: str, conn=Depends(get_conn)):
+    """An entity's landed readings over their whole history as a trend spec: a panel per quantity and location."""
+    from ..analysis import trend_spec
+    from ..graph import measurements
+    return trend_spec.from_measurements(measurements.for_entity(conn, fuzer_id))
 
 
 @router.get("/entities/{fuzer_id}/measurements")

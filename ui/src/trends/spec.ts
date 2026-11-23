@@ -19,8 +19,9 @@ export interface TrendSeries {
   on: { id: string; label: string | null; relation: string } | null;
   /** The record the series opens. */
   link: string;
-  /** `step`: a landed reading (a well test, a lab sample), drawn as steps with a marker per reading. */
-  as: "line" | "step";
+  /** `step`: a landed reading carried across the window (a well test), drawn as steps with a marker per reading;
+   * `points`: irregular readings over their whole history (wall thickness at a CML), a marker each on a thin line. */
+  as: "line" | "step" | "points";
   /** Series in a panel with the same axis share a scale. */
   axis: string;
   values: [string, number][];
@@ -32,6 +33,8 @@ export interface TrendSeries {
   methods?: (string | null)[];
   modelled?: boolean;
   show: boolean;
+  /** The same series over the windows it is compared with, moved onto this window's times. */
+  compare?: { label: string; values: [string, number][] }[];
 }
 
 export interface TrendPanel { key: string; label: string; show: boolean; axis: "auto"; series: string[] }
@@ -58,4 +61,8 @@ export interface TrendSpec {
   missing: { role: string; role_label: string; relation: string }[];
   errors?: string[];
   error?: string;
+  /** What the window is compared with: the same hours a period earlier ("7d") or around past incidents. */
+  compare?: { mode: string; labels: string[] };
+  /** Only the latest readings were read. */
+  truncated?: boolean;
 }

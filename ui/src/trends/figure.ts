@@ -26,6 +26,8 @@ const ALARM_ROWS = 8;
 const LANE_PX = 34;
 const GAP_PX = 30;
 const KEY_ROW_PX = 20;
+/** One dash pattern per compared window, so three past incidents read apart in one colour. */
+const COMPARE_DASH = ["dash", "dot", "dashdot"];
 /** Plotly's time format for the hover and the spike label: "Nov 22, 1:20 PM", as `when` reads. */
 export const HOVER_TIME = "%b %-d, %-I:%M %p";
 
@@ -296,14 +298,23 @@ export function buildFigure(spec: TrendSpec, timeline: TimelineData | null, on: 
       if (j === 0) lowest = ref;
       for (const t of series) {
         const step = t.as === "step";
+        const marked = step || t.as === "points";
         data.push({
-          type: "scatter", mode: step ? "lines+markers" : "lines", x: t.values.map(([at]) => at),
+          type: "scatter", mode: marked ? "lines+markers" : "lines", x: t.values.map(([at]) => at),
           y: t.values.map(([, v]) => v), yaxis: ref, legend, showlegend: true,
           name: `${short(t.label, compact)} <b>${reading(t.last)}</b>${t.unit ? ` ${t.unit}` : ""}`,
-          line: { width: focus.has(t.key) ? 2.2 : 1.6, color: colour.get(t.key), ...(step ? { shape: "hv", dash: "dot" } : {}) },
-          ...(step ? { marker: { size: 7, color: colour.get(t.key) }, text: (t.methods ?? []).map((m) => m ?? "") } : {}),
-          hovertemplate: `%{y:.4~g} ${t.unit}${step ? " %{text}" : ""}<extra>${t.label}</extra>`,
+          line: { width: t.as === "points" ? 1 : focus.has(t.key) ? 2.2 : 1.6, color: colour.get(t.key),
+                  ...(step ? { shape: "hv", dash: "dot" } : {}) },
+          ...(marked ? { marker: { size: 7, color: colour.get(t.key) }, text: (t.methods ?? []).map((m) => m ?? "") } : {}),
+          hovertemplate: `%{y:.4~g} ${t.unit}${marked ? " %{text}" : ""}<extra>${t.label}</extra>`,
         });
+        // What it is compared with: the same colour, thin and dashed, a dash pattern per window, on the same scale.
+        (t.compare ?? []).forEach((c, i) => data.push({
+          type: "scatter", mode: "lines", x: c.values.map(([at]) => at), y: c.values.map(([, v]) => v), yaxis: ref,
+          legend, showlegend: k === 0 && j === 0 && t === series[0], legendgroup: `compare:${c.label}`, name: c.label,
+          line: { width: 1.2, color: colour.get(t.key), dash: COMPARE_DASH[i % COMPARE_DASH.length] }, opacity: 0.6,
+          hovertemplate: `%{y:.4~g} ${t.unit}<extra>${c.label} · ${t.label}</extra>`,
+        }));
       }
       // Limits draw where they can't be mistaken for another line's: the series the chart is about, the panel's one
       // series, or a series on a scale of its own. Near ones are lines; far ones are named at the panel's edge.

@@ -164,3 +164,15 @@ test("panels are shorter on a phone", () => {
   const px = (f) => (f.layout.yaxis.domain[1] - f.layout.yaxis.domain[0]) * (f.layout.height - f.layout.margin.t - f.layout.margin.b);
   assert.ok(px(phone) < px(desk) - 20, `${px(phone)} vs ${px(desk)}`);
 });
+
+test("what the window is compared with draws in the series' colour, thin and dashed, named once in the key", () => {
+  const earlier = [["2024-07-24T10:00", 1.5], ["2024-07-24T11:00", 1.7]];
+  const s = { ...compressor, series: compressor.series.map((x) => (x.key === "lube" ? x : { ...x,
+    compare: [{ label: "Mar 3 incident", values: earlier }, { label: "Feb 9 incident", values: earlier }] })) };
+  const f = buildFigure(s, null, defaults(s), palette);
+  const overlays = f.data.filter((d) => d.legendgroup?.startsWith("compare:"));
+  assert.equal(overlays.length, 8); // four series, two windows each
+  assert.deepEqual(plain(overlays.slice(0, 2).map((d) => [d.line.color, d.line.dash])), [["a", "dash"], ["a", "dot"]]);
+  assert.deepEqual(plain(overlays.filter((d) => d.showlegend).map((d) => d.name)), ["Mar 3 incident", "Feb 9 incident"]);
+  assert.ok(overlays[0].hovertemplate.includes("Mar 3 incident · suction"));
+});

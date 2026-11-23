@@ -11,11 +11,14 @@ export const historianApi = {
     request<TrendViewData>("GET", `/entities/${encodeURIComponent(id)}/trend-view`,
                            { at, hours_before: hoursBefore, hours_after: hoursAfter }),
   /** The trend as a spec, the one config every chart over time draws; `focus` opens it on those series, and `caseId` on
-   * what the case's event was seen on, with the event marked. */
-  trendSpec: (id: string, at?: string, hoursBefore?: number, hoursAfter?: number, focus?: string[], caseId?: number) =>
+   * what the case's event was seen on, with the event marked; `compare` ("7d", "incidents") adds earlier windows. */
+  trendSpec: (id: string, at?: string, hoursBefore?: number, hoursAfter?: number, focus?: string[], caseId?: number,
+              compare?: string) =>
     request<TrendSpec>("GET", `/entities/${encodeURIComponent(id)}/trend-spec`,
                        { at, hours_before: hoursBefore, hours_after: hoursAfter, focus: focus?.length ? focus.join(",") : undefined,
-                         case: caseId }),
+                         case: caseId, compare }),
+  /** The entity's landed readings over their whole history, as a spec: a panel per quantity and location. */
+  measurementsSpec: (id: string) => request<TrendSpec>("GET", `/entities/${encodeURIComponent(id)}/measurements/spec`),
   timeline: (id: string, start: string, end: string) =>
     request<TimelineData>("GET", `/entities/${encodeURIComponent(id)}/timeline`, { start, end }),
 };

@@ -1,4 +1,8 @@
 /* One trend with event lanes (TrendView.tsx): chips per group above one chart (below it on a phone). */
+.trend-controls { flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.trend-controls input { font: inherit; }
+.trend-controls .spacer { flex: 1; }
+.trend-compare { flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .trend-view-chips .chips { align-items: center; margin: 4px 0; gap: 2px 14px; }
 .trend-view-group { min-width: 9em; text-align: left; }
 .trend-view-chips .chip .dot { display: inline-block; width: 8px; height: 8px; margin-right: 2px; border-radius: 50%; }
