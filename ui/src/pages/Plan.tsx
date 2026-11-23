@@ -139,6 +139,7 @@ function PlanTimeline({ query, person }: { query: URLSearchParams; person: strin
               {i.clashes.some((c) => c.kind === "bundle") && <Badge tone="ok">bundle</Badge>}
               {i.needs_shutdown && <Badge tone="warn">shutdown</Badge>}
               {i.place === "desk" && <Badge>desk</Badge>}
+              {i.stage === "released" && <Badge tone="ok">released</Badge>}
               {!!i.parts_short?.length && <Badge tone="warn">parts short</Badge>}
             </button>
             <div className="plan-track" aria-hidden="true">

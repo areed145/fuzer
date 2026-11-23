@@ -945,6 +945,8 @@ export interface PlanItem {
   item_id?: number | null; place?: "field" | "desk";
   /** Released to the field (step 5 of the work model): when, by whom, and why if it went though not ready. */
   released_at?: string | null; released_by?: string | null; release_reason?: string | null;
+  /** Where the job stands on the field job's flow: planned, scheduled, released, in progress, done or cancelled. */
+  stage?: "planned" | "scheduled" | "released" | "in_progress" | "done" | "cancelled";
   assets: { fuzer_id: string; label: string | null }[];
   clashes: { kind: "same_asset" | "crew" | "bundle" | "simops"; with: number; title: string; say: string }[];
   /** Spare parts for its assets recorded with zero stock, for active work starting within 30 days. */

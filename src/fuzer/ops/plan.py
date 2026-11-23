@@ -195,7 +195,22 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
     shown = [r for r in rows if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)
              and (crew is None or r["crew"] == crew)]
     short = _parts_short(conn, shown, now)
-    return [{**r, "clashes": clashes[r["id"]], "parts_short": short.get(r["id"], [])} for r in shown]
+    return [{**r, "clashes": clashes[r["id"]], "parts_short": short.get(r["id"], []), "stage": job_stage(r)}
+            for r in shown]
+
+
+JOB_STAGES = ("planned", "scheduled", "released", "in_progress", "done", "cancelled")
+
+
+def job_stage(row: dict) -> str:
+    """Where a job stands on the field job's flow (docs/work-model.md): planned (proposed), scheduled (booked),
+    released (sent to the field through Release), in progress, done or cancelled. Ready sits between scheduled and
+    released and is read from its prerequisites (`prerequisites`), not stored."""
+    if row["status"] in ("in_progress", "done", "cancelled"):
+        return row["status"]
+    if row.get("released_at"):
+        return "released"
+    return "scheduled" if row["status"] == "scheduled" else "planned"
 
 
 def _parts_short(conn, rows: list[dict], now: datetime) -> dict[int, list[dict]]:
