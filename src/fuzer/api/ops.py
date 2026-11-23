@@ -1467,12 +1467,90 @@ def plan_reschedule(item_id: int, r: PlanReschedule, conn=Depends(get_conn)):
 def plan_sync(conn=Depends(get_conn)):
     """Bring the plan's SAP work orders, maintenance plans and planning-system schedules up to date with the register
     now (the rebuild does it too)."""
-    from ..ops import plan, schedule
+    from ..ops import containers, plan, schedule
 
     def both(c):
         return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c),
-                "planning_system": schedule.sync_activities(c)}
+                "planning_system": schedule.sync_activities(c), "containers": containers.sync(c)}
     return _plan_call(conn, both)
+
+
+# ---- containers (step 6 of the work model) ------------------------------------------------------------------------
+
+def _container_call(conn, fn, *args, **kwargs):
+    from ..ops.containers import ContainerError
+    try:
+        out = fn(conn, *args, **kwargs)
+    except ContainerError as e:
+        conn.rollback()
+        raise HTTPException(404 if str(e).startswith(("no container", "no case")) else 400, str(e)) from e
+    conn.commit()
+    return out
+
+
+@router.get("/containers")
+def containers_list(kind: str | None = None, status: str | None = "open", conn=Depends(get_conn)):
+    """Every container (business plan, program, project, turnaround, package, campaign), parents first, each with
+    its jobs by stage, its cases and its children."""
+    from ..ops import containers
+    return containers.listing(conn, kind, status or None)
+
+
+@router.get("/containers/{container_id}")
+def container_get(container_id: int, conn=Depends(get_conn)):
+    """One container with its parents, children, jobs and cases."""
+    from ..ops import containers
+    return _container_call(conn, containers.get, container_id)
+
+
+class ContainerNew(BaseModel):
+    by: str
+    kind: str
+    title: str
+    code: str | None = None
+    parent: int | None = None
+    owner: str | None = None
+    start_at: datetime | None = None
+    finish_by: datetime | None = None
+
+
+@router.post("/containers")
+def container_create(c: ContainerNew, conn=Depends(get_conn)):
+    """Make a container, with the governing case its gates run on."""
+    from ..ops import containers
+    return _container_call(conn, containers.create, c.kind, c.title, c.by, code=c.code, parent=c.parent,
+                           owner=c.owner, start_at=c.start_at, finish_by=c.finish_by)
+
+
+class ContainerMove(BaseModel):
+    by: str
+    parent: int | None = None
+
+
+@router.patch("/containers/{container_id}")
+def container_move(container_id: int, m: ContainerMove, conn=Depends(get_conn)):
+    """Put a container under another (or at the top)."""
+    from ..ops import containers
+    return _container_call(conn, containers.move, container_id, m.by, m.parent)
+
+
+class ContainerCase(BaseModel):
+    by: str
+    item_id: int
+
+
+@router.post("/containers/{container_id}/cases")
+def container_add_case(container_id: int, c: ContainerCase, conn=Depends(get_conn)):
+    """Put a case in a container (a case is in one)."""
+    from ..ops import containers
+    return _container_call(conn, containers.add_case, container_id, c.item_id, c.by)
+
+
+@router.post("/containers/{container_id}/govern")
+def container_govern(container_id: int, c: ContainerMove, conn=Depends(get_conn)):
+    """Open a container's governing case if it has none."""
+    from ..ops import containers
+    return _container_call(conn, containers.govern, container_id, c.by)
 
 
 class ScheduleApply(BaseModel):

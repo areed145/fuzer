@@ -2157,6 +2157,37 @@ A choice made between an event's options (P5.20, #1251): what was offered and re
 | `at` | timestamptz |  |
 | `offered` | jsonb | the options as they stood, with their figures |
 
+### `work_container`
+
+One container (step 6 of docs/work-model.md): a business plan, program, project, turnaround, package or campaign, with a parent and a governing case that runs its gates. Jobs (plan_item.container_id) and cases (work_container_case) belong to one each. Schedules (plan_project), board projects and SAP revisions are containers too (source, key).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `kind` | text |  |
+| `code` | text |  |
+| `title` | text |  |
+| `parent_id` | bigint |  |
+| `item_id` | bigint, | its governing case |
+| `owner` | text |  |
+| `status` | text | open \| closed |
+| `start_at` | timestamptz |  |
+| `finish_by` | timestamptz |  |
+| `source` | text, | plan_project \| board_project \| sap_revision; null when made here |
+| `source_key` | text |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
+### `work_container_case`
+
+| Column | Type | Note |
+|---|---|---|
+| `item_id` | bigint | a case is in one container |
+| `container_id` | bigint |  |
+| `added_by` | text |  |
+| `added_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

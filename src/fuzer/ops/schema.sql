@@ -766,3 +766,33 @@ create table if not exists option_choice (
 );
 create index if not exists option_choice_exception on option_choice (exception_id, id desc);
 create index if not exists option_choice_at on option_choice (at);
+
+-- One container (step 6 of docs/work-model.md): a business plan, program, project, turnaround, package or campaign,
+-- with a parent and a governing case that runs its gates. Jobs (plan_item.container_id) and cases (work_container_case)
+-- belong to one each. Schedules (plan_project), board projects and SAP revisions are containers too (source, key).
+create table if not exists work_container (
+    id          bigserial primary key,
+    kind        text not null,
+    code        text not null unique,
+    title       text not null,
+    parent_id   bigint references work_container (id),
+    item_id     bigint,                          -- its governing case
+    owner       text,
+    status      text not null default 'open',   -- open | closed
+    start_at    timestamptz,
+    finish_by   timestamptz,
+    source      text,                            -- plan_project | board_project | sap_revision; null when made here
+    source_key  text,
+    created_by  text not null,
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz not null default now()
+);
+create index if not exists work_container_parent on work_container (parent_id);
+alter table plan_item add column if not exists container_id bigint;
+create index if not exists plan_item_container on plan_item (container_id) where container_id is not null;
+create table if not exists work_container_case (
+    item_id      bigint primary key,             -- a case is in one container
+    container_id bigint not null references work_container (id) on delete cascade,
+    added_by     text not null,
+    added_at     timestamptz not null default now()
+);
