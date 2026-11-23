@@ -15,6 +15,7 @@ at them by `source` and `source_key`, so the schedule and the board work as befo
 import re
 
 from ..core import events, work
+from . import routing
 
 KINDS = ("business_plan", "program", "project", "turnaround", "package", "campaign")
 CASE_TYPE = "container"
@@ -70,8 +71,9 @@ def govern(conn, container_id: int, by: str) -> dict:
     row = _row(conn, container_id)
     if row["item_id"]:
         return row
-    case = work.open_case(conn, CASE_TYPE, f"{row['title']} ({row['kind'].replace('_', ' ')})", by,
-                          assignee=row["owner"] or by, source="fuzer", payload={"container_id": container_id})
+    case = routing.open_task(conn, CASE_TYPE, f"{row['title']} ({row['kind'].replace('_', ' ')})", by,
+                             key=f"container:{container_id}", assignee=row["owner"] or by, source="fuzer",
+                             data={"container_id": container_id})
     return conn.execute("update work_container set item_id = %s, updated_at = now() where id = %s returning *",
                         (case["id"], container_id)).fetchone()
 
