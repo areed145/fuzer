@@ -104,7 +104,7 @@ whether it joins an open event and within how many hours, what it starts, and wh
 |---|---|---|
 | a process | that BPMN workflow, step by step | A process upset: triage by an engineer, then a field check if needed |
 | a queue | the standard one-step **queue item** workflow in that role's queue, with the role's SLA and escalation | A round finding goes to the ops lead queue |
-| neither | waits on **To dispatch** on the List for the IOC | An SAP notification |
+| neither | opens its case at **To dispatch**, held by nobody, and waits on the List for the IOC; sending it sends that case | An SAP notification |
 
 **Settings > Routing** shows the table. Pick a type to see its workflow drawn with who holds each lane (lanes nobody
 holds are flagged), and dry-run an intake: the entities its references match, the case it would join, where it
@@ -122,7 +122,7 @@ Each row's **stage** is decided once, on the server:
 
 | Stage | Means |
 |---|---|
-| To dispatch | Open, held by nobody, and not planned for a later day |
+| To dispatch | Open, its case (opened when it arrived) held by nobody, and not planned for a later day |
 | With a desk | A case held by a person or queue that is not the field |
 | On the plan | Planned for a later day; it comes back to To dispatch on its day |
 | With the field | Held by a field operator or the operator queue, or the field said On site |

@@ -222,11 +222,16 @@ def coming_up(conn, person: str, days: int = 14) -> list[dict]:
     today: scheduled and started plan items with them, or a role they hold, as crew, in start order (proposals
     aren't commitments yet)."""
     from ..core import work
+    from .routing import TO_DISPATCH
 
     crews = {person, *(f"role:{r}" for r in work.roles_of(conn, person))}
     now = datetime.now(UTC)
-    return [i for i in items(conn, now, now + timedelta(days=days))
-            if i["crew"] in crews and i["status"] in ("scheduled", "in_progress") and not i.get("item_id")]
+    mine = [i for i in items(conn, now, now + timedelta(days=days))
+            if i["crew"] in crews and i["status"] in ("scheduled", "in_progress")]
+    # a job whose case was sent shows on their field jobs instead; one whose case still waits to be sent shows here
+    sent = {r["id"] for r in conn.execute("select id from work_item where id = any(%s) and step is distinct from %s",
+                                          ([i["item_id"] for i in mine if i.get("item_id")], TO_DISPATCH))}
+    return [i for i in mine if i.get("item_id") not in sent]
 
 
 # ---- sources of plan items ---------------------------------------------------------------------------------------

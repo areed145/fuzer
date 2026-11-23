@@ -2,7 +2,7 @@
 
     routes(conn)                     the routing table: one row per type of work, wherever the type is declared
     route_for(conn, type)            one row of it
-    route(conn, intake, by, ...)     open (or feed) the case that works an intake; returns its work item id or None
+    route(conn, intake, by, ...)     open (or feed) the case that works an intake; returns its work item id
     open_task(conn, case_type, ...)  open the case for work no exception raised (an opportunity, a posted task)
     adopt_open_cases(conn)           move cases opened plain before every kind of work ran as a process onto one
     due(conn, intake)                when the case is due, by the type's due policy
@@ -10,8 +10,8 @@
 
 Phase 1 of #509 wraps what Fuzer already does, unchanged: a type is declared in code (`exception_type()`), as data
 (`exception_kind`) or by a source pack (data with its `source_system`), and its row here reads the same fields. A
-type either starts (or feeds) a published BPMN process, opens a case in a role's queue, or waits for the IOC to
-dispatch it. Since phase 2 a queue type runs as the standard `queue_item` process; phase 3 put the shift handover and
+type either starts (or feeds) a published BPMN process, opens a case in a role's queue, or opens a case at To
+dispatch that waits for the IOC to send it (step 4 of docs/work-model.md: every need has its case from arrival). Since phase 2 a queue type runs as the standard `queue_item` process; phase 3 put the shift handover and
 the source close-out on their own processes; phase 4 made the due policy a field of every type (`due_hours`, a
 priority-to-hours map, or for SAP notifications the `intake.sap_notifications.due_hours` setting, #494), applied when
 the IOC dispatches one, and sends opportunities, assistant tasks and `POST /work/items` through the `task` process.
@@ -182,9 +182,41 @@ def queue_case(conn, item_id: int | None) -> bool:
         "select 1 from work_process where item_id = %s and process_key = %s limit 1", (item_id, QUEUE_PROCESS)).fetchone())
 
 
+TO_DISPATCH = "To dispatch"  # the step of a case that arrived and waits for the IOC to send it (step 4)
+
+
+def _waiting_case(conn, t, intake: dict, by: str, common: dict) -> int:
+    """The case a need opens when it arrives and nothing routes it (docs/work-model.md, step 4): every piece of work
+    has its case from the start, held by nobody, at the To dispatch step until the IOC sends it."""
+    row = work.open_case(conn, t.case_type or t.name, intake["title"], by, **common)
+    conn.execute("update work_item set step = %s where id = %s", (TO_DISPATCH, row["id"]))
+    return row["id"]
+
+
+def open_waiting(conn, intake: dict, by: str) -> int:
+    """Open the To dispatch case of an event that has none (one that arrived before step 4)."""
+    from . import exceptions
+
+    t = exceptions.types(conn).get(intake["type"]) or exceptions.ExceptionType(intake["type"], intake["type"])
+    return _waiting_case(conn, t, intake, by, {"subjects": intake["subjects"], "priority": intake["priority"],
+                                               "source": intake["source"],
+                                               "payload": {**_data(intake), "exception_id": intake["id"]}})
+
+
+def waiting_case(conn, item_id: int | None) -> bool:
+    """Whether a case is one that arrived and still waits for the IOC to send it."""
+    return bool(item_id) and bool(conn.execute(
+        "select 1 from work_item where id = %s and step = %s and closed_at is null", (item_id, TO_DISPATCH)).fetchone())
+
+
+def _sent(conn, item_id: int) -> None:
+    conn.execute("update work_item set step = null, updated_at = now() where id = %s and step = %s",
+                 (item_id, TO_DISPATCH))
+
+
 def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | None = None,
           to: str | None = None, reason: str | None = None) -> int | None:
-    """Open the case that works an intake and return its work item id, or None when it waits for the IOC.
+    """Open the case that works an intake and return its work item id; one nothing routes opens at To dispatch.
 
     The intake is what arrived: `id` (its exception), `type`, `key`, `title`, `source`, `subjects`, `priority`,
     `evidence` and `first_seen`. With `to` (a person or `role:<name>`) the IOC is dispatching it: the case opens for
@@ -198,8 +230,17 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
     payload = {**_data(intake), "exception_id": intake["id"]}
     common = {"subjects": intake["subjects"], "priority": intake["priority"], "source": intake["source"],
               "payload": payload}
-    if to and (item_id := _dispatched(conn, t, intake, by, to, reason)):
+    waiting = intake.get("item_id") if waiting_case(conn, intake.get("item_id")) else None
+    if to and (item_id := _dispatched(conn, t, intake, by, to, reason, waiting)):
         return item_id
+    if to and waiting:  # its case opened when it arrived: the IOC sends that case, it doesn't open another
+        _sent(conn, waiting)
+        if not to.startswith("role:") and not by.startswith("agent:") and by != to:
+            work.dispatch(conn, waiting, by, by, f"to send it to {to}")  # the IOC holds it, so a hand-back returns it
+        work.dispatch(conn, waiting, by, to, reason)
+        if when := due(conn, intake):
+            work.set_due(conn, waiting, by, when, reason="due by its priority")
+        return waiting
     if to:
         queue = to.startswith("role:")
         return work.open_case(conn, t.case_type or t.name, intake["title"], by, due=due(conn, intake),
@@ -210,7 +251,7 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
         return work.start_or_correlate(conn, t.process, data, by=by, title=intake["title"],
                                        subjects=intake["subjects"], priority=intake["priority"])["item_id"]
     if not (assignee or role or t.role):
-        return None
+        return _waiting_case(conn, t, intake, by, common)
     queue = None if assignee else (role or t.role)
     if queue and queue_process(conn) and queue.removeprefix("role:") in work.person_roles(conn):  # the standard process: the queue's SLA, escalation and monitor (#509)
         data = {**_data(intake), **queue_data(t, intake, queue)}
@@ -232,16 +273,23 @@ def _dispatch_lane(conn, t, to: str) -> str | None:
     return own if own in theirs else (theirs[0] if theirs else None)
 
 
-def _dispatched(conn, t, intake: dict, by: str, to: str, reason: str | None) -> int | None:
+def _dispatched(conn, t, intake: dict, by: str, to: str, reason: str | None,
+                waiting: int | None = None) -> int | None:
     """A dispatch from All work as the queue_item process (#509): the step opens in the lane `to` belongs to and is
     handed to them by the dispatcher, with the reason, so a hand-back returns it to the dispatcher; due by the type's
-    policy when it has one, else by the role's SLA. None when queue_item isn't published or no person role fits."""
+    policy when it has one, else by the role's SLA. The case it waited in since it arrived (`waiting`) is put on the
+    process, so it stays one case. None when queue_item isn't published or no person role fits."""
     lane = _dispatch_lane(conn, t, to) if queue_process(conn) else None
     if not lane:
         return None
     data = {**_data(intake), **queue_data(t, intake, lane)}
-    item_id = work.start_or_correlate(conn, QUEUE_PROCESS, data, by=by, title=intake["title"],
-                                      subjects=intake["subjects"], priority=intake["priority"])["item_id"]
+    if waiting:
+        _sent(conn, waiting)
+        work.attach_process(conn, waiting, QUEUE_PROCESS, data, by)
+        item_id = waiting
+    else:
+        item_id = work.start_or_correlate(conn, QUEUE_PROCESS, data, by=by, title=intake["title"],
+                                          subjects=intake["subjects"], priority=intake["priority"])["item_id"]
     if not to.startswith("role:") and not by.startswith("agent:") and by != to:
         work.dispatch(conn, item_id, by, by, f"to send it to {to}")  # the IOC holds it, then sends it
     work.dispatch(conn, item_id, by, to, reason)

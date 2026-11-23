@@ -306,6 +306,8 @@ create index if not exists exception_record_subjects on exception_record using g
 alter table exception_record add column if not exists shelved_until timestamptz;
 alter table exception_record add column if not exists shelved_by text;
 alter table exception_record add column if not exists shelved_reason text;
+-- why the work should happen (docs/work-model.md, step 4): condition, obligation or intent
+alter table exception_record add column if not exists need text not null default 'condition';
 -- Photos the field attached to a report (P5.3b): resized on the phone, kept with the exception they were taken for.
 create table if not exists field_photo (
     id           bigserial primary key,

@@ -114,6 +114,10 @@ export const plannedLater = (r: ExceptionRow) => {
 export const waitingToDispatch = (r: ExceptionRow) =>
   r.stage ? r.stage === "dispatch" : r.state === "open" && !r.item_id && !plannedLater(r);
 
+/** Not sent to anyone yet: its case (opened when it arrived) waits at To dispatch or on the plan. */
+export const notSent = (r: ExceptionRow) =>
+  r.stage ? r.stage === "dispatch" || r.stage === "planned" : !r.item_id;
+
 /** Open, its case held by a field operator (a person with the operator role, or the operator queue) or the field said
  * they are on site, and not yet back from the field. */
 export const withTheField = (r: ExceptionRow, operators: Set<string>) => {
@@ -223,7 +227,7 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
           {canAct && <MatchRef value={u} busy={!!busy} onPick={(fid, remember) =>
             run("Matching", () => api.resolveRef(r.id, person!, u, fid, remember), onChange)} />}</div>)}</td>
       <td className="small">{place.area}</td>
-      <td className="work-row-with small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
+      <td className="work-row-with small">{r.item_id && !notSent(r) ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
         : r.planned ? <a href={planItemHref(r.planned)}>planned {whenDay(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
         : <Text muted>not dispatched</Text>}
         {fieldSaid && <div title={fieldSaid.note ?? undefined}>
@@ -315,8 +319,8 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
     {to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
       placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => setWhy(e.target.value)} />}
     <Line>
-      <Button size="sm" variant="primary" disabled={!to.trim() || !!busy || (!r.item_id && !ask.trim()) || (blocked && !why.trim())}
-        title={!r.item_id && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job"
+      <Button size="sm" variant="primary" disabled={!to.trim() || !!busy || (notSent(r) && !ask.trim()) || (blocked && !why.trim())}
+        title={notSent(r) && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job"
           : blocked && !why.trim() ? "Not ready: say why it should go anyway" : undefined}
         onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
           blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onDone(); })}>

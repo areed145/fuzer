@@ -491,10 +491,14 @@ def _row(conn, exception_id: int) -> dict:
 
 def _visible(conn, row: dict, route: dict) -> str:
     """Where someone can see the work: a person's or queue's Inbox, or the board."""
-    if not row["item_id"]:
-        if route["starts"] != "dispatch":
-            raise Step(f"no case opened, but its route {route['starts']}s")
+    from ..ops import routing
+
+    if route["starts"] == "dispatch":
+        if not routing.waiting_case(conn, row["item_id"]):
+            raise Step("its route waits for the IOC, but no case waits at To dispatch")
         return "on the board, to dispatch"
+    if not row["item_id"]:
+        raise Step(f"no case opened, but its route {route['starts']}s")
     mine = work._engine().my_work(conn, IOC)
     ids = {w["item_id"] for w in mine.get("mine", []) + mine.get("queue", [])}
     if row["item_id"] in ids:
@@ -506,9 +510,11 @@ def _visible(conn, row: dict, route: dict) -> str:
 
 
 def _routed(conn, row: dict, route: dict) -> str:
-    if route["starts"] == "dispatch":
-        if row["item_id"]:
-            raise Step("opened a case, but its route waits for the IOC to dispatch")
+    from ..ops import routing
+
+    if route["starts"] == "dispatch":  # its case opens when it arrives and waits for the IOC (step 4)
+        if not routing.waiting_case(conn, row["item_id"]):
+            raise Step("its route waits for the IOC to dispatch, but its case isn't waiting at To dispatch")
         return "waits on the board"
     if not row["item_id"]:
         raise Step(f"no case, but its route {route['starts']}s")

@@ -269,7 +269,7 @@ def _proof_type():
     from ..core.exceptions import TYPES, exception_type
 
     return TYPES.get("proof_test_overdue") or exception_type(
-        "proof_test_overdue", "Proof test overdue", role="role:engineer", audience=("ioc",), joins=False,
+        "proof_test_overdue", "Proof test overdue", role="role:engineer", audience=("ioc",), joins=False, need="obligation",
         description="A safeguard past its proof test interval, or with no proof test on file. Until it is tested "
                     "the protection it claims is not shown to work. Plan the test, or record the one done. It clears "
                     "when a test within the interval is on file.")

@@ -80,7 +80,7 @@ def test_an_unmatched_ref_is_resolved_in_place_and_remembered(monkeypatch):
 
                 # one no case works yet, resolved, joins the open case about that asset
                 note = raise_("N1", "FLARE TIP NINE", t="flare_note")
-                assert note["item_id"] is None and note["unmatched"] == ["FLARE TIP NINE"]
+                assert note["unmatched"] == ["FLARE TIP NINE"] and not note.get("joined")  # waits in its own case
                 joined = ok(client.post(f"/exceptions/{note['id']}/resolve", json={
                     "by": "ann", "ref": "FLARE TIP NINE", "fuzer_id": flare["fuzer_id"], "remember": False}))
                 assert joined["joined_to"] and joined["item_id"]

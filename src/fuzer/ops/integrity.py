@@ -28,7 +28,7 @@ def _type():
     from ..core.exceptions import TYPES, exception_type
 
     return TYPES.get("inspection_due") or exception_type(
-        "inspection_due", "Inspection or wall loss finding", role="role:engineer", audience=("ioc",), joins=False,
+        "inspection_due", "Inspection or wall loss finding", role="role:engineer", audience=("ioc",), joins=False, need="obligation",
         description="A line or vessel whose wall is running out, or whose inspection is overdue for its wall loss or "
                     "its plan. Review the readings, plan the inspection or repair, and tell the IOC if the item "
                     "should be derated. It clears when a later survey or plan date takes the finding away.")
