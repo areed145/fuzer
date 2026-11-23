@@ -10,6 +10,9 @@ what it needs, is done by a person (or an agent) on another page, and is closed 
 trip for every source, and names the page in the menu where each stage happens. Use it to answer "where would I
 see that?" and "where does it go next?".
 
+This is how work moves today. [The work model](work-model.md) is where it is going: every source's work as a case,
+field work through plan, schedule and release, and each system's statuses mapped both ways.
+
 [Every source of work](work-sources.md) takes each source in turn; [how work is routed](work-routing.md) explains
 the machinery behind it; [work types](work-types.md) lists every type with its queue, generated from the code.
 
