@@ -59,9 +59,14 @@ class ExceptionType:
     joins: bool = True                   # about an asset another open exception's case already works: join that case
     due_hours: str | None = None         # its due policy: priority -> hours ("1:24,2:72"), or a setting that holds one
     suppress: bool = False               # a detection planned work or a shutdown on its asset explains: counted, no case
+    need: str = "condition"              # why work should happen (docs/work-model.md): condition, obligation or intent
 
 
 TYPES: dict[str, ExceptionType] = {}
+
+# The kinds of need (docs/work-model.md): a condition seen (an exception, a round finding), an obligation falling due
+# (an inspection, a report, a proof test) or an intent (project scope, an opportunity, a business plan line).
+NEEDS = ("condition", "obligation", "intent")
 
 
 def exception_type(name: str, label: str, **kw) -> ExceptionType:
@@ -71,6 +76,8 @@ def exception_type(name: str, label: str, **kw) -> ExceptionType:
     t = ExceptionType(name, label, **kw)
     if bad := set(t.audience) - set(AUDIENCES):
         raise ValueError(f"audience must be among {AUDIENCES}, not {sorted(bad)}")
+    if t.need not in NEEDS:
+        raise ValueError(f"need must be one of {NEEDS}, not {t.need}")
     TYPES[name] = t
     return t
 

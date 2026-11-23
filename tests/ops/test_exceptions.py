@@ -20,6 +20,15 @@ from fuzer.ops import exceptions as impl
 from fuzer.resources import PACKAGE
 
 
+def waits(conn, row: dict) -> bool:
+    """Its case opened when it arrived and waits at To dispatch, held by nobody (step 4 of docs/work-model.md)."""
+    from fuzer.ops import routing
+
+    case = conn.execute("select assignee, role, step from work_item where id = %s", (row["item_id"],)).fetchone()
+    return routing.waiting_case(conn, row["item_id"]) and case == {"assignee": None, "role": None,
+                                                                    "step": routing.TO_DISPATCH}
+
+
 def pairs(row: dict) -> list[tuple[str, str]]:
     """A row's finding as a person reads it: each item's label and its value as text."""
     return [(i["label"], text(i)) for i in row["finding"]["items"]]
@@ -94,7 +103,8 @@ def test_an_exception_nobody_is_routed_to_waits_on_the_board(conn, types):
     types("field_report", audience=("ioc", "field"))
     e = raise_exception(conn, "field_report", "walkdown-3", "Leak at well A-12 flowline", "olga",
                         refs=["fz-well-a12"], value_usd=1200)
-    assert e["item_id"] is None
+    assert waits(conn, e) and e["need"] == "condition"  # its case is open from the start, at To dispatch
+    assert next(r for r in impl.listing(conn) if r["id"] == e["id"])["stage"] == "dispatch"
     card = next(c for c in board._exception_cards(conn) if c["key"] == f"exception:{e['id']}")
     assert card["unit_id"] == "fz-well-a12" and card["value_usd"] == 1200
     assert any(r["id"] == e["id"] for r in impl.listing(conn, audience="field"))
@@ -221,9 +231,9 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
     types("leak", audience=("ioc", "field"))
     e = raise_exception(conn, "leak", "walk-9", "Leak at P-101", "olga", refs=["tag:P-101"],
                         finding=external("test", {"seen_by": "walkdown", "drips_per_min": 12.0, "detail": {"x": 1}}))
-    assert e["item_id"] is None
+    assert waits(conn, e)
     sent = ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="nearest operator")
-    assert sent["item_id"] and conn.execute("select assignee from work_item where id = %s",
+    assert sent["item_id"] == e["item_id"] and conn.execute("select assignee from work_item where id = %s",
                                             (sent["item_id"],)).fetchone()["assignee"] == "fred"
     [job] = [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
     assert job["assets"][0]["fuzer_id"] == "fz-pump-1" and job["assets"][0]["lat"] == 52.1  # located via its well
@@ -956,21 +966,28 @@ def test_the_ioc_splits_a_source_that_was_a_different_event(conn, compressor, th
 
 
 def test_a_waiting_exception_joins_the_case_another_source_opens(conn, compressor, three_sources, types):
-    """An SAP notification waits on Exceptions to be dispatched (no case). When the IOW check opens a case on the same
-    compressor, the notification joins it; two notifications both waiting join when the IOC dispatches one."""
+    """An SAP notification waits at To dispatch in a case of its own. When the IOW check opens a case on the same
+    compressor, the notification joins it and the case it waited in is cancelled; two notifications both waiting join
+    when the IOC dispatches one."""
     types("note_waiting")  # no queue: waits to be dispatched
     waiting = raise_exception(conn, "note_waiting", "W-1", "Vibration trip", "sap", refs=[compressor["equipment"]])
-    assert waiting["item_id"] is None
+    assert waits(conn, waiting)
     iow = raise_exception(conn, "iow_hi", "IOW-7", "Inlet pressure IOW breach", "limits", refs=[compressor["point"]])
     row = conn.execute("select joined_to, item_id from exception_record where id = %s", (waiting["id"],)).fetchone()
     assert row["joined_to"] == iow["id"] and row["item_id"] == iow["item_id"]
-    impl.split(conn, waiting["id"], "ann")  # its type routes nowhere: split out, it waits again
-    assert conn.execute("select item_id from exception_record where id = %s", (waiting["id"],)).fetchone()["item_id"] is None
+    assert conn.execute("select state from work_item where id = %s", (waiting["item_id"],)).fetchone()["state"] == \
+        "cancelled"  # one event, one case
+    impl.split(conn, waiting["id"], "ann")  # its type routes nowhere: split out, it waits again in a case of its own
+    waiting = impl._row(conn, waiting["id"])
+    assert waits(conn, waiting) and waiting["item_id"] != iow["item_id"]
     clear_exception(conn, "iow_hi", "IOW-7", "limits")  # the breach is over, its case closes
     other = raise_exception(conn, "note_waiting", "W-2", "Seal leak", "sap", refs=[compressor["pt"]])
+    assert waits(conn, other) and not other.get("joined")  # two waiting: each in its own case until one is sent
     sent = impl.dispatch(conn, other["id"], "ann", "fred")
     row = conn.execute("select joined_to, item_id from exception_record where id = %s", (waiting["id"],)).fetchone()
-    assert row["joined_to"] == other["id"] and row["item_id"] == sent["item_id"]
+    assert row["joined_to"] == other["id"] and row["item_id"] == sent["item_id"] == other["item_id"]
+    assert conn.execute("select state from work_item where id = %s", (waiting["item_id"],)).fetchone()["state"] == \
+        "cancelled"
     conn.commit()
 
 
@@ -1203,11 +1220,11 @@ def test_a_queue_type_runs_as_the_queue_item_process(conn, types):
     engine.set_person(conn, "fred", ["operator"])
     types("leak", audience=("ioc", "field"))
     w = raise_exception(conn, "leak", "walk-QI", "Leak at the meter run", "olga", refs=["tag:NOPE-4"])
-    assert w["item_id"] is None  # no queue: waits for the IOC
+    assert waits(conn, w)  # no queue: its case waits for the IOC
     explained = routing.explain(conn, "leak", key="walk-QI2", to="fred")
     assert explained["process"]["key"] == "queue_item" and "hands it to fred" in explained["summary"]
     sent = ex.dispatch(conn, w["id"], "ioc-ann", "fred", reason="nearest operator")
-    assert routing.queue_case(conn, sent["item_id"])  # a dispatch runs as queue_item too (#509)
+    assert sent["item_id"] == w["item_id"] and routing.queue_case(conn, sent["item_id"])  # as queue_item too (#509)
     step = conn.execute("select assignee, role, due_at from work_token where item_id = %s and kind = 'user' "
                         "and state = 'waiting'", (sent["item_id"],)).fetchone()
     assert step["assignee"] == "fred" and step["due_at"] is not None
@@ -1413,3 +1430,15 @@ def test_a_row_waiting_in_your_queue_offers_take_it(conn, types):
     engine.claim(conn, step, "ivy")
     assert row("ivy")["take"] is None
     conn.rollback()
+
+
+def test_an_event_from_before_every_need_had_a_case_gets_one_at_reconcile(conn, types):
+    """Step 4 of docs/work-model.md: an open event left with no case (raised before the step) has its case opened at
+    To dispatch by the next reconcile, and only once."""
+    types("old_walkdown", audience=("ioc", "field"), joins=False)
+    e = raise_exception(conn, "old_walkdown", "old-1", "Drip under P-101", "olga", refs=["tag:P-101"])
+    conn.execute("update exception_record set item_id = null where id = %s", (e["id"],))  # as it was before the step
+    assert impl.reconcile(conn)["cases_opened"] >= 1
+    assert waits(conn, impl._row(conn, e["id"]))
+    assert impl.open_missing_cases(conn) == 0
+    conn.commit()

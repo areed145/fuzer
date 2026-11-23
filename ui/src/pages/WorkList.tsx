@@ -369,7 +369,7 @@ function BoardCard({ r, person, people, queues, onChange }: {
   return <article className={said?.status === "could_not_do" ? "work-card attention" : "work-card"}>
     <div className="work-card-title" title={r.title}>{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
     <Text small muted>{r.kind_label}{r.value_usd ? ` · ${money(r.value_usd)}` : ""}</Text>
-    <div className="work-card-meta small"><span>{r.item_id ? holderWords(r.assignee, r.role) : "not dispatched"}</span>
+    <div className="work-card-meta small"><span>{r.item_id && r.stage !== "dispatch" && r.stage !== "planned" ? holderWords(r.assignee, r.role) : "not dispatched"}</span>
       <span>{r.overdue ? <Badge tone="danger">overdue</Badge> : r.due_at ? `due ${whenDay(r.due_at)}` : age(Date.now() - new Date(r.opened).getTime())}</span></div>
     {said && r.stage === "back" && <Text small muted>{said.status === "could_not_do" ? "Could not do" : "Done"}{said.note ? `: ${said.note}` : ""}</Text>}
     {(send || closeOut || take != null) && <div className="row work-card-actions">

@@ -22,6 +22,7 @@ from psycopg.types.json import Jsonb
 from ..core import clock
 from ..core.jsonsafe import plain as _plain
 from ..core.wording import money
+from .routing import TO_DISPATCH
 
 PAGE = 50
 
@@ -69,7 +70,8 @@ def _work_item_cards(conn, pack) -> list[dict]:
     cfg = value.config(pack)
     rate = cfg["compliance"]["usd_per_day_overdue"].get("IOW", 0)
     out = []
-    for r in conn.execute("select id, type, title, subjects, priority, payload from work_item where state = 'open'"):
+    for r in conn.execute("select id, type, title, subjects, priority, payload from work_item where state = 'open' "
+                          "and step is distinct from %s", (TO_DISPATCH,)):  # a case waiting to be sent: its event's card
         v = r["priority"]
         if r["type"] == "iow_breach":
             hours = (r["payload"] or {}).get("hours_outside") or 0
@@ -93,7 +95,8 @@ def _exception_cards(conn) -> list[dict]:
             for r in conn.execute(
                 "select e.*, (select min(p.start_at) from plan_item p where p.exception_id = e.id "
                 "and p.status in ('proposed', 'scheduled', 'in_progress')) as planned "
-                "from exception_record e where e.state = 'open' and e.item_id is null")]
+                "from exception_record e left join work_item w on w.id = e.item_id "
+                "where e.state = 'open' and e.joined_to is null and (e.item_id is null or w.step = %s)", (TO_DISPATCH,))]
 
 
 def _review_cards(conn) -> list[dict]:

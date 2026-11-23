@@ -115,7 +115,7 @@ def test_a_closed_order_leaves_the_plan_and_people_choices_stick(conn):
 def test_an_exception_can_be_planned_instead_of_worked_now(conn, monkeypatch):
     from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
 
-    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak"))
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak", joins=False))
     e = raise_exception(conn, "minor_leak", "P-101 drip", "P-101 drip", "olga", refs=["tag:P-101"], value_usd=300)
     item = plan.plan_exception(conn, e["id"], "ann", "2026-11-21", "2026-11-21T04:00:00+00:00")
     assert item["exception_id"] == e["id"] and item["subjects"] == ["fz-pump-1"] and item["status"] == "scheduled"
@@ -198,7 +198,7 @@ def test_a_bar_closes_with_its_work_and_taking_one_off_leaves_the_work_open(conn
     from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
     from fuzer.ops import exceptions
 
-    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak"))
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak", joins=False))
     cleared = raise_exception(conn, "minor_leak", "P-101 drip", "P-101 drip", "olga", refs=["tag:P-101"])
     bar = plan.plan_exception(conn, cleared["id"], "ann", "2026-11-21", "2026-11-21T04:00:00+00:00")
     exceptions.clear(conn, "minor_leak", "P-101 drip", "olga", reason="tightened")
@@ -225,13 +225,13 @@ def test_a_bar_becomes_its_cases_job_and_closes_with_the_case(conn, monkeypatch)
     from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
     from fuzer.ops import exceptions
 
-    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak"))
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak", joins=False))
     e = raise_exception(conn, "minor_leak", "P-104 drip", "P-104 drip", "olga", refs=["tag:P-101"])
     bar = plan.plan_exception(conn, e["id"], "ann", "2026-11-24", "2026-11-24T04:00:00+00:00")
-    assert bar["item_id"] is None and bar["place"] == "field"
+    assert bar["item_id"] == e["item_id"] and bar["place"] == "field"  # its case opened when it arrived (step 4)
     sent = exceptions.dispatch(conn, e["id"], "ann", "fred")
     linked = conn.execute("select item_id from plan_item where id = %s", (bar["id"],)).fetchone()["item_id"]
-    assert linked == sent["item_id"]  # once the work has a case, the bar is that case's job
+    assert linked == sent["item_id"] == e["item_id"]  # the bar is that case's job, sent or not
     update(conn, bar["id"], "ann", place="desk")
     with pytest.raises(PlanError, match="place must be"):
         update(conn, bar["id"], "ann", place="moon")
@@ -274,7 +274,7 @@ def test_work_sent_out_now_takes_its_crews_time_and_the_ready_check_reads_the_pl
 
     _crew(conn)
     assert readiness.crew(conn, ["fz-pump-1"])["ready"]  # nobody booked on the crew today
-    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak"))
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak", joins=False))
     e = raise_exception(conn, "minor_leak", "P-105 drip", "P-105 drip", "olga", refs=["tag:P-101"])
     sent = exceptions.dispatch(conn, e["id"], "ann", "role:operator")
     bar = conn.execute("select * from plan_item where exception_id = %s", (e["id"],)).fetchone()

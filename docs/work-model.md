@@ -231,8 +231,10 @@ flow before the larger moves.
 2. **The plan item becomes a job.** `plan_item` gains its case (`item_id`), where it happens (field or desk) and a link to its result.
 3. **Bookings and one crew capacity.** Crew is picked from the resources, with capacity and clashes shown on booking.
    Urgent dispatches and released jobs book demand, and the ready check reads that one ledger.
-4. **Needs, and cases from arrival.** `exception_record` gains a need kind and opens its case when it arrives; To
-   dispatch, shelved and planned become stages of cases.
+4. **Needs, and cases from arrival.** `exception_record` gains a need kind (condition, obligation or intent) and opens
+   its case when it arrives; To dispatch and planned become stages of cases. A case nothing routes opens at the To
+   dispatch step, held by nobody; sending it puts that same case on its process, and an event that joins another's
+   case has its waiting case cancelled. Events from before this step get their case at the next reconcile.
 5. **Prerequisites, the field job workflow and Release.** Ready is computed from prerequisites; a `field_job` workflow
    enforces the stages; Release, Reschedule and the SAP confirmation draft arrive.
 6. **One container.** `plan_project`, `board_project` and turnaround revisions become containers with a parent and a

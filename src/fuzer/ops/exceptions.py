@@ -27,6 +27,7 @@ from psycopg.types.json import Jsonb
 
 from ..core import clock, events, findings, gates, work
 from ..core.exceptions import TYPES, ExceptionError, ExceptionType
+from .routing import TO_DISPATCH
 
 OPEN = "open"
 
@@ -98,16 +99,22 @@ def resolve_ref(conn, exception_id: int, ref: str, fuzer_id: str, by: str, remem
                  (subjects, unmatched, Jsonb([resolved]), exception_id))
     if remember:
         aliases.add(conn, ref, fuzer_id, by, source=row["source"], reason=reason or f"resolved on exception {exception_id}")
-    if row["item_id"]:
+    from . import routing
+
+    waiting = routing.waiting_case(conn, row["item_id"])
+    t = types(conn).get(row["type"])
+    host = (_host(conn, t, row["type"], row["key"], subjects)
+            if t and not row["joined_to"] and (waiting or not row["item_id"]) else None)
+    if host and host["id"] != row["id"]:  # no one was sent yet: it joins the open case about that asset
+        conn.execute("update exception_record set joined_to = %s, item_id = %s where id = %s",
+                     (host["id"], host["item_id"], exception_id))
+        if waiting:
+            work.cancel_case(conn, row["item_id"], by, reason=f"Joined case {host['item_id']}: the same event")
+        _joined(conn, t, _row(conn, exception_id), host, by, unmatched)
+    elif row["item_id"]:
         conn.execute("update work_item set subjects = (select array_agg(distinct s) from unnest(subjects || %s) s), "
                      "updated_at = now() where id = %s", ([fuzer_id], row["item_id"]))
         work.comment(conn, row["item_id"], by, f"Matched {ref} to {fuzer_id}" + (" (remembered)" if remember else ""))
-    elif not row["joined_to"]:
-        t = types(conn).get(row["type"])
-        if t and (host := _host(conn, t, row["type"], row["key"], subjects)):
-            conn.execute("update exception_record set joined_to = %s, item_id = %s where id = %s",
-                         (host["id"], host["item_id"], exception_id))
-            _joined(conn, t, _row(conn, exception_id), host, by, unmatched)
     row = _row(conn, exception_id)
     events.publish(conn, "exception.updated", f"exception:{row['id']}", {**_payload(row), "resolved": resolved})
     return row
@@ -143,7 +150,7 @@ def _unmatched_note(conn, unmatched: list[str]) -> str | None:
 
 def _payload(row: dict, t: ExceptionType | None = None) -> dict:
     keep = ("id", "type", "key", "title", "source", "state", "priority", "value_usd", "subjects", "unmatched",
-            "item_id", "raised_count", "joined_to")
+            "item_id", "raised_count", "joined_to", "need")
     out = {k: row.get(k) for k in keep}
     t = t or TYPES.get(row["type"])  # its declaring module may not be loaded in this process (the work tick)
     out["audience"] = list(t.audience) if t else []
@@ -218,8 +225,11 @@ def _host(conn, t: ExceptionType, type: str, key: str, subjects: list[str]) -> d
         where e.state = 'open' and e.joined_to is null and w.state not in ('done', 'cancelled')
           and not (e.type = %s and e.key = %s) and e.type = any(%s) and cardinality(e.subjects) > 0
           and e.last_seen >= now() - make_interval(hours => %s)
+          -- one whose case still waits to be sent hosts nothing yet: the case that is worked takes the waiting
+          -- ones in (_adopt), when it opens or when the IOC sends one (step 4)
+          and w.step is distinct from %s
         order by e.value_usd desc nulls last, e.first_seen
-        """, (type, key, joinable, hours)).fetchall():
+        """, (type, key, joinable, hours, TO_DISPATCH)).fetchall():
         if mine & anchors(conn, h["subjects"]):
             return h
     return None
@@ -239,15 +249,19 @@ def _adopt(conn, row: dict, by: str) -> int:
     n = 0
     for o in conn.execute(
         """
-        select * from exception_record where state = 'open' and item_id is null and joined_to is null and id <> %s
+        select * from exception_record where state = 'open' and joined_to is null and id <> %s
+          and (item_id is null or exists (select 1 from work_item w where w.id = item_id and w.step = %s
+                                          and w.closed_at is null))
           and type = any(%s) and cardinality(subjects) > 0 and last_seen >= now() - make_interval(hours => %s)
           and not exists (select 1 from plan_item p where p.exception_id = exception_record.id
                           and p.status in ('proposed', 'scheduled', 'in_progress'))
         order by first_seen
-        """, (row["id"], joinable, hours)).fetchall():
+        """, (row["id"], TO_DISPATCH, joinable, hours)).fetchall():
         if mine & anchors(conn, o["subjects"]):
             conn.execute("update exception_record set joined_to = %s, item_id = %s, updated_at = now() where id = %s",
                          (row["id"], row["item_id"], o["id"]))
+            if o["item_id"]:  # the case it waited in since it arrived: it is this case now
+                work.cancel_case(conn, o["item_id"], by, reason=f"Joined case {row['item_id']}: the same event")
             work.comment(conn, row["item_id"], by, f"Also reported: {_label(conn, o['type'])} from {o['source']}: "
                                                    f"{o['title']}")
             conn.execute("update exception_record set value_usd = greatest(value_usd, %s), "
@@ -398,14 +412,16 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
         if mute:
             w = {"kind": "muted", "id": 0, "reason": mute, "until": None}
             return suppression.record(conn, w, type, key, title, source or by, subjects, evidence, value_usd)
+    from . import routing
+
     host = _host(conn, t, type, key, subjects) if not (assignee or role) else None
     row = conn.execute(
         """
         insert into exception_record (type, key, title, source, priority, value_usd, subjects, unmatched, evidence,
-                                      joined_to, item_id)
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning *
+                                      joined_to, item_id, need)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning *
         """, (type, key, title, source or by, priority, value_usd, subjects, unmatched, Jsonb(evidence),
-              host["id"] if host else None, host["item_id"] if host else None)).fetchone()
+              host["id"] if host else None, host["item_id"] if host else None, t.need)).fetchone()
     if host:
         return _joined(conn, t, row, host, by, unmatched)
     # The work engine runs each operation as its own transaction: a case that can't open rolls this insert back
@@ -414,7 +430,7 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
     if item_id:
         row = conn.execute("update exception_record set item_id = %s where id = %s returning *",
                            (item_id, row["id"])).fetchone()
-        if not (assignee or role):
+        if not (assignee or role) and not routing.waiting_case(conn, item_id):  # a worked case takes in the waiting
             _adopt(conn, row, by)
     case = conn.execute("select assignee, role from work_item where id = %s", (item_id,)).fetchone() if item_id else None
     events.publish(conn, "exception.raised", f"exception:{row['id']}", {**_payload(row, t), **(case or {})})
@@ -434,7 +450,10 @@ def clear(conn, type: str, key: str, by: str, reason: str | None = None, closeou
                           (row["item_id"], row["id"])).fetchone() if row["item_id"] else None
     if shared and not row["joined_to"]:
         _promote(conn, row)
-    if row["item_id"] and t.close_case_on_clear and not t.process and not shared:
+    from . import routing
+
+    waiting = routing.waiting_case(conn, row["item_id"])  # nobody was sent: nothing is left to review on it
+    if row["item_id"] and (t.close_case_on_clear or waiting) and not t.process and not shared:
         from ..core import gates
 
         item = conn.execute("select state, type from work_item where id = %s", (row["item_id"],)).fetchone()
@@ -468,7 +487,22 @@ def reconcile(conn) -> dict:
         events.publish(conn, "exception.closed", f"exception:{row['id']}", _payload(row))
     from . import plan
     finished = plan.finish_closed_work(conn)  # every bar whose work is over, older ones included
-    return {"closed": len(rows), "plan_done": len(finished), "unshelved": len(unshelve_expired(conn))}
+    return {"closed": len(rows), "plan_done": len(finished), "unshelved": len(unshelve_expired(conn)),
+            "cases_opened": open_missing_cases(conn)}
+
+
+def open_missing_cases(conn, by: str = "fuzer") -> int:
+    """Open the case of each open event that arrived before every need had its case (step 4 of docs/work-model.md):
+    it waits at To dispatch, as one raised now would."""
+    from . import routing
+
+    n = 0
+    for row in conn.execute("select * from exception_record where state = 'open' and item_id is null "
+                            "and joined_to is null order by id for update skip locked").fetchall():
+        item_id = routing.open_waiting(conn, row, by)
+        conn.execute("update exception_record set item_id = %s, updated_at = now() where id = %s", (item_id, row["id"]))
+        n += 1
+    return n
 
 
 def shelve(conn, exception_id: int, by: str, reason: str, until) -> dict:
@@ -539,7 +573,7 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
     names = [n for n, t in types(conn).items() if audience is None or audience in t.audience]
     rows = conn.execute(
         """
-        select e.*, w.state as case_state, w.assignee, w.role,
+        select e.*, w.state as case_state, w.assignee, w.role, w.step as case_step,
                e.raised_count + coalesce((select sum(j.raised_count) from exception_record j where j.joined_to = e.id), 0)::int as reports,
                -- back from the field: the case's last hand-on was the field's report returning it to the IOC. Said
                -- by the hand-on, not by who holds it, since the person it came back to can be the one who went
@@ -601,7 +635,7 @@ def stage(r: dict, field_people: set[str], now: datetime | None = None) -> str:
     `closed`: no longer open."""
     if r["state"] != OPEN:
         return "closed"
-    if not r["item_id"]:
+    if not r["item_id"] or r.get("case_step") == TO_DISPATCH:  # its case waits for the IOC to send it
         start = (r.get("planned") or {}).get("start_at")
         if start:
             day_end = datetime.combine(clock.today(), datetime.max.time(), tzinfo=clock.zone())
@@ -663,11 +697,11 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
     if row["state"] != OPEN:
         raise ExceptionError(f"exception {exception_id} is {row['state']}")
     t = types(conn).get(row["type"]) or ExceptionType(row["type"], row["type"])
-    if row["item_id"]:
-        work.dispatch(conn, row["item_id"], by, to, reason)
-    else:
-        from . import routing
+    from . import routing
 
+    if row["item_id"] and not routing.waiting_case(conn, row["item_id"]):
+        work.dispatch(conn, row["item_id"], by, to, reason)
+    else:  # sends the case it waited in since it arrived (step 4), or opens one for an event that had none
         item_id = routing.route(conn, row, by, to=to, reason=reason)
         conn.execute("update exception_record set item_id = %s, updated_at = now() where id = %s", (item_id, row["id"]))
         _adopt(conn, _row(conn, exception_id), by)

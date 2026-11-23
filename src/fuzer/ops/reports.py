@@ -500,7 +500,7 @@ def submit(conn, name: str, period: str, by: str, system: str | None = None) -> 
 
 def _due_type():
     return TYPES.get("report_due") or exception_type(
-        "report_due", "Regulatory report coming due", role="role:hse_specialist", audience=("ioc",), joins=False,
+        "report_due", "Regulatory report coming due", role="role:hse_specialist", audience=("ioc",), joins=False, need="obligation",
         description="A regulatory report whose due date is coming with no draft started, or that is past its due date "
                     "and not submitted. Draft it from its records, review and approve it, and submit it; the work "
                     "clears once a draft is in progress before the due date, or once it is submitted.")

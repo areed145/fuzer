@@ -8,7 +8,7 @@ import pytest
 from psycopg.types.json import Jsonb
 
 from fuzer.core import db, work
-from fuzer.ops import intake
+from fuzer.ops import intake, routing
 
 TODAY = date.today().isoformat()
 OLD = (date.today() - timedelta(days=200)).isoformat()
@@ -60,7 +60,8 @@ def test_open_notifications_without_an_order_are_raised_once_and_matched(conn):
     rows = _open(conn)
     assert set(rows) == {"1001"}  # not the closed one, the one with an order, or the old backlog
     n = rows["1001"]
-    assert n["subjects"] == ["fz-pump-1"] and n["priority"] == 3 and n["item_id"] is None  # waits to be dispatched
+    assert n["subjects"] == ["fz-pump-1"] and n["priority"] == 3
+    assert routing.waiting_case(conn, n["item_id"])  # its case waits at To dispatch
     assert n["evidence"]["failure_mode"] == "ELU" and "P-101 seal weeping" in n["title"]
     assert intake.sync_notifications(conn, enabled=True) == {"raised": 0, "cleared": 0, "held": 0}
     assert _open(conn)["1001"]["raised_count"] == 1  # a refresh is not a repeat sighting
@@ -78,9 +79,17 @@ def test_an_order_or_completion_clears_it(conn):
     row = conn.execute("select state, evidence from exception_record where key = '1001'").fetchone()
     assert row["state"] == "cleared"
     conn.rollback()
+    # closing its case commits (the work engine runs each operation as its own transaction): put the order back
+    # off and raise it again
+    conn.execute("delete from edge where src = 'fz-wo-9' and rel = 'for_notification' and dst = 'fz-n-1'")
+    conn.commit()
+    intake.sync_notifications(conn, enabled=True)
+    assert "1001" in _open(conn)
     conn.execute("update golden set value = '\"NOCO\"' where fuzer_id = 'fz-n-1' and field = 'status'")
     assert intake.sync_notifications(conn, enabled=True)["cleared"] == 1
     conn.rollback()
+    conn.execute("update golden set value = '\"OSNO\"' where fuzer_id = 'fz-n-1' and field = 'status'")
+    conn.commit()
 
 
 def test_a_notification_done_in_the_field_is_held_until_sap_moves(conn):
