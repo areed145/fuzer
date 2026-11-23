@@ -143,6 +143,10 @@ def test_search_lists_places_and_drawings_before_instrument_tags(api):
     assert kinds.index("area") < kinds.index("tag"), "the flare system area comes before flare tags (#1075)"
     browse = [h["kind"] for h in api.get("/entities", params={"limit": 40}).json()]
     assert browse[0] == "facility" and "tag" not in browse, "Browse opens on facilities and areas, not tags"
+    # Explore asks for several kinds at once (its assets), and each row says what it sits in.
+    assets = api.get("/entities", params={"kind": "well,area", "limit": 300}).json()
+    assert {h["kind"] for h in assets} == {"area", "well"}
+    assert all(h["parent_label"] for h in assets if h["kind"] == "well"), "a well says which jacket or platform it is on"
 
 
 def test_part_of_a_tag_finds_the_tag_before_records_named_after_it(api):

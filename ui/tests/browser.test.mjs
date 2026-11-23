@@ -272,7 +272,7 @@ test("Home guides empty-register setup and routes recover instead of silently sh
   await page.getByText("Connect data before exploring", { exact: true }).waitFor();
   assert.match(await page.getByRole("link", { name: "Open source setup" }).getAttribute("href"), /view=add/);
   await page.goto(`${url}/#/?q=pump`);
-  await page.getByRole("heading", { name: "Browse", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Explore", exact: true }).waitFor();
   await page.goto(`${url}/#/unknown`);
   await page.getByText("Page not found", { exact: true }).waitFor();
   await page.goto(`${url}/#/%E0%A4%A`);
@@ -1284,8 +1284,10 @@ test("reader Settings and Sources do not request protected configuration or conn
   await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
   assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
-  await page.getByRole("navigation", { name: "Explore pages" }).waitFor();
-  assert.equal(await page.getByRole("navigation", { name: "Explore pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
+  await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
+  // Ask runs a paid model: no menu entry and no top-bar button without AI access.
+  assert.equal(await nav.getByRole("link", { name: "Ask", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("link", { name: "Ask the assistant", exact: true }).count(), 0);
   await page.goto(`${url}/#/settings`);
   assert.equal(await page.getByRole("link", { name: "Users", exact: true }).count(), 0);
 });
@@ -2152,11 +2154,11 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.getByRole("link", { name: "Explore", exact: true }).waitFor();
-  const expected = ["#/", "#/list", "#/plan", "#/browse", "#/downtime", "#/sources", "#/jobs", "#/settings"];
+  const expected = ["#/", "#/list", "#/plan", "#/browse", "#/ask", "#/downtime", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a .nav-tile-label").allTextContents(), ["Tower", "Work", "Plan", "Explore", "Reports", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a .nav-tile-label").allTextContents(), ["Tower", "Work", "Plan", "Explore", "Ask", "Reports", "Sources", "Jobs", "Settings"]);
   // Demo left the menu; its page still opens from a direct link.
   await page.goto(`${url}/#/demo`);
   await page.getByRole("heading", { level: 1, name: "Demo", exact: true }).waitFor();
@@ -2167,11 +2169,14 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   await reports.waitFor();
   assert.deepEqual(await reports.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
     ["#/downtime", "#/incidents", "#/reports", "#/metrics", "#/lessons", "#/studies"]);
-  // Ask is under Explore now, after the views of the register.
+  // Explore is one page, the entity list; the plant-wide map, network and 3D keep their links and light Explore.
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
-  await page.getByRole("navigation", { name: "Explore pages", exact: true }).waitFor();
-  assert.deepEqual(await page.getByRole("navigation", { name: "Explore pages", exact: true }).locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/browse", "#/map", "#/network", "#/3d", "#/ask"]);
+  await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Explore pages", exact: true }).count(), 0);
+  for (const route of ["#/map", "#/network", "#/3d"]) {
+    await page.goto(`${url}/${route}`);
+    await nav.locator('a[href="#/browse"][aria-current="page"]').waitFor();
+  }
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/list\?waiting_on=me$/);
   // My work and Master data are presets on the list now; their pages keep their links and light List.
@@ -2213,7 +2218,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   // them, so Map or Incidents is one tap from anywhere.
   await menu.click();
   assert.deepEqual(await page.locator('#sidebar nav[aria-label="Main"] .nav-tile:visible .nav-tile-label').allTextContents(),
-    ["Plan", "Sources", "Jobs", "Settings"]);
+    ["Plan", "Ask", "Sources", "Jobs", "Settings"]);
   const pages = page.getByRole("navigation", { name: "All pages", exact: true });
   await pages.getByRole("link", { name: "Incidents", exact: true }).click();
   await page.waitForURL(/#\/incidents$/);
@@ -2228,7 +2233,7 @@ test("primary destination navigation keeps page headings and active context alig
   await nav.locator("a").first().waitFor();
   const destinations = [
     { label: "Tower", href: "#/", heading: "Tower" },
-    { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
+    { label: "Explore", href: "#/browse", heading: "Explore" },
     { label: "Reports", href: "#/downtime", heading: "Downtime", area: "Reports pages", current: "Downtime" },
     { label: "Work", href: "#/list", heading: "All work", area: "Work pages", current: "List" },
     { label: "Plan", href: "#/plan", heading: "Plan", area: "Plan pages", current: "Plan" },
@@ -2238,11 +2243,11 @@ test("primary destination navigation keeps page headings and active context alig
   ];
   await nav.getByRole("link", { name: "Explore", exact: true }).focus();
   await page.keyboard.press("Enter");
-  await page.getByRole("heading", { level: 1, name: "Browse", exact: true }).waitFor();
+  await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
   await page.waitForFunction(() =>
     document.querySelector('#sidebar nav[aria-label="Main"] a[aria-current="page"]')?.getAttribute("href") === "#/browse");
   assert.equal(await page.evaluate(() => document.activeElement?.tagName), "H1");
-  assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Browse");
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Explore");
   for (const destination of destinations) {
     await page.goto(`${url}/${destination.href}`);
     await page.waitForFunction((href) =>
@@ -2883,7 +2888,7 @@ test("API failures remain visible and offer guided recovery rather than breaking
   await page.route("**/entities?*", (route) => route.fulfill({ status: 503, json: { detail: "Register unavailable" } }));
   await page.goto(`${url}/#/browse?q=pump`);
   await page.getByRole("alert").filter({ hasText: "Register unavailable" }).waitFor();
-  await page.getByRole("heading", { name: "Browse", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Explore", exact: true }).waitFor();
   await page.getByRole("link", { name: "Tower", exact: true }).first().click();
   await page.getByRole("heading", { name: "Tower", exact: true }).waitFor();
 });
@@ -4595,15 +4600,13 @@ test("P5.16a the Network page draws a facility in 3D: a shape opens its card and
   });
   await page.route("**/network*", (route) => route.fulfill({ json: { rels: [], nodes: [], edges: [], truncated: false } }));
 
-  // 3D is its own Explore tab: the Network diagram doesn't carry the 3D library.
+  // 3D is its own page: the Network diagram doesn't carry the 3D library.
   await page.goto(`${url}/#/network`);
-  const explore = page.getByRole("navigation", { name: "Explore pages" });
-  await explore.getByRole("link", { name: "3D", exact: true }).waitFor();
+  await page.getByRole("heading", { level: 1, name: "Network", exact: true }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Views of the network" }).count(), 0);
   assert.equal(scripts.some((u) => /Scene3D/.test(u)), false);
 
-  await explore.getByRole("link", { name: "3D", exact: true }).click();
-  await page.waitForFunction(() => location.hash.startsWith("#/3d"));
+  await page.goto(`${url}/#/3d`);
   const canvas = page.locator("[data-scene-items]");
   await canvas.waitFor();
   assert.equal(await canvas.getAttribute("data-scene-items"), "3");

@@ -28,6 +28,7 @@ import { MeasurementsCard } from "../Trend";
 import { TrendView } from "../TrendView";
 import { MemoryCard } from "../Memory";
 import { WorkHere, readWork } from "../WorkHere";
+import { Beneath, Breadcrumb, useHierarchy } from "../Hierarchy";
 import { EntityStatus, readStatus } from "../EntityStatus";
 import { AssetProfile, readProfile } from "../AssetProfile";
 import { LiveReadings, readLatest } from "../LiveReadings";
@@ -118,6 +119,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
     ]);
     return { status, latest, work, profile };
   }, [oid, okind, onOverview]);
+  const tree = useHierarchy(id).data;
 
   // No signal and not kept on this phone (P5.17c): say so, and go back to the jobs that are.
   if (!ent.data && ent.error && ent.error.startsWith("Not kept on this phone")) return <section>
@@ -155,6 +157,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
       {kept && <Notice tone="warn">No signal: kept on this phone {when(kept)}. Parts not kept say so.</Notice>}
       <header className="entity-head">
         <div>
+          <Breadcrumb tree={tree} />
           <PageHeader record className="mono" detail={description}>{e.label ?? fid}</PageHeader>
           <Line>
             {/* The kind links to where it is defined, for those who can see the ontology. */}
@@ -196,6 +199,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             {operated && <EntityStatus id={fid} data={overview.data?.status} />}
             {["tag", "equipment", "well"].includes(e.kind) && <LiveReadings id={fid} data={overview.data?.latest} />}
             {operated && <WorkHere id={fid} area={e.kind === "area"} data={overview.data?.work} />}
+            <Beneath tree={tree} />
             {["tag", "equipment", "equipment_model"].includes(e.kind) && <AssetProfile id={fid} data={overview.data?.profile} />}
           {e.kind === "incident" && <IncidentDetail id={fid} />}
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={fid} />}
