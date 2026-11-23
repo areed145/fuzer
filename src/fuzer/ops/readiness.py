@@ -4,7 +4,9 @@ its equipment type:
     spares   the BOM's parts (SAP `uses_part`) against stock, with open purchase orders and their delivery dates
              (P5.5a): a part short is a blocker; one on order names the date it is due
     crew     the work center (SAP `arbpl`) that does the equipment's work orders, its crew size, and the jobs
-             already sent to it and still open (P5.5b): a full crew is a blocker naming the jobs holding it
+             already sent to it and still open (P5.5b): a full crew is a blocker naming the jobs holding it. A work
+             center with a crew resource on the plan is read from the plan's one capacity ledger instead: everyone
+             booked on it today, planned or sent out (step 3 of the work model)
 
 A check with no records to read says so and does not block. A blocked job is sent only with a reason (enforced where
 people dispatch: the dispatch route and card), and the reason goes on the case's history.
@@ -127,6 +129,15 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
                 holding[c["id"]].append({"id": s["id"], "title": s["title"], "assignee": s["assignee"]})
     out, blockers = [], []
     for c in centers:
+        booked = _booked(conn, c, job)
+        if booked is not None:  # a crew on the plan: read the one capacity ledger planned work is booked against
+            out.append(booked)
+            if booked["full"]:
+                name = c["description"] or c["label"]
+                held = "; ".join(j["title"] for j in booked["jobs"][:5]) + ("; ..." if len(booked["jobs"]) > 5 else "")
+                blockers.append(f"{name} ({c['label']}): {_n(booked['busy'])} of {_n(booked['crew'])} booked today"
+                                + (f": {held}" if held else ""))
+            continue
         jobs = holding[c["id"]]
         size = float(c["crew"]) if c["crew"] is not None else None
         full = size is not None and len(jobs) >= size
@@ -137,6 +148,35 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
             blockers.append(f"{name} ({c['label']}): all {_n(size)} busy on open jobs: {held}")
     return {"check": "crew", "label": "Crew", "ready": not blockers, "blockers": blockers, "centers": out,
             "checked": True, "note": None}
+
+
+def _booked(conn, center: dict, job: int | None) -> dict | None:
+    """A work center's crew read from the plan (step 3 of the work model): the plan resource of kind crew on it, the
+    people booked on it today by every source (planned jobs, schedules, work already sent out), less this job's own
+    booking, against its capacity today. None when the work center has no crew resource on the plan."""
+    from datetime import timedelta
+
+    from .plan import ACTIVE
+
+    res = conn.execute("select * from plan_resource where kind = 'crew' and work_center = %s order by code limit 1",
+                       (center["label"],)).fetchone()
+    if res is None:
+        return None
+    start = datetime.combine(clock.today(), datetime.min.time(), tzinfo=clock.zone())
+    end = start + timedelta(days=1)
+    rows = conn.execute(
+        """
+        select i.id, i.title, i.exception_id, d.quantity from plan_demand_all d join plan_item i on i.id = d.item_id
+        where d.resource = %s and i.status = any(%s) and i.start_at < %s and i.end_at > %s and d.quantity > 0
+        order by i.start_at, i.id
+        """, (res["code"], list(ACTIVE), end, start)).fetchall()
+    others = [r for r in rows if job is None or r["exception_id"] != job]
+    window = conn.execute("select min(capacity) as c from plan_resource_capacity where resource = %s and start_at < %s "
+                          "and end_at > %s", (res["code"], end, start)).fetchone()
+    size = float(window["c"]) if window and window["c"] is not None else float(res["capacity"])
+    busy = sum(float(r["quantity"]) for r in others)
+    return {**center, "resource": res["code"], "crew": size, "busy": busy, "full": busy + 1 > size,
+            "jobs": [{"id": r["exception_id"], "item_id": r["id"], "title": r["title"]} for r in others]}
 
 
 LIVE = ("issued", "live", "active")

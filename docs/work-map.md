@@ -232,7 +232,7 @@ field, back from the field and closed today.
 | **Master data** (the Data questions preset links to it) | Fixing the register | Questions, references on open work that matched nothing, gaps, decisions |
 | **Plan** | Scheduling | One timeline of every planned job from every source, with clashes, bundling chances and parts readiness |
 | **Plan > Schedules** | Scheduling | A turnaround, project or campaign as a Gantt with logic, critical path and levelling |
-| **Plan > Resources** | Scheduling | Crews, cranes, beds, seats, vessel support, operator rounds and production capacity against demand |
+| **Plan > Resources** | Scheduling | Crews, cranes, beds, seats, vessel support, operator rounds and production capacity against demand: planned jobs, schedules and work sent to the field now, on one ledger that the ready check at dispatch also reads. A job is booked on a crew from its bar on Plan, and over capacity only with a reason |
 | **Plan > Logistics** | Scheduling | Each day's crews and jobs, who travels and who stays aboard, seats and beds needed, cranes and vessels booked, materials to send |
 | **Sources** | Intake, and going back | Each system's datasets, loads and held loads; how each system's updates go back |
 | **Settings > Routing** | Configuring | The routing table, and a dry run of any intake |

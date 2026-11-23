@@ -1367,6 +1367,9 @@ def _plan_call(conn, fn, *args, **kwargs):
         out = fn(conn, *args, **kwargs)
     except PlanError as e:
         conn.rollback()
+        from ..core.plan import PlanOverload
+        if isinstance(e, PlanOverload):
+            raise HTTPException(409, str(e)) from e
         raise HTTPException(404 if re.match(r"no (plan item|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
@@ -1407,6 +1410,22 @@ def plan_change(item_id: int, c: PlanChange, conn=Depends(get_conn)):
     if c.clear_not_before:
         fields["not_before"] = None
     return _plan_call(conn, plan.update, item_id, c.by, **fields)
+
+
+class PlanBook(BaseModel):
+    by: str
+    resource: str
+    quantity: float = 1
+    person: str | None = None   # the person or role:<role> it goes to
+    reason: str | None = None   # why it is booked over capacity
+
+
+@router.post("/plan/{item_id}/book")
+def plan_book(item_id: int, b: PlanBook, conn=Depends(get_conn)):
+    """Book a job on a crew or other resource for its dates, checked against capacity with every other source's
+    demand. Over capacity it is refused (409, naming the overload) unless `reason` says why it goes anyway."""
+    from ..ops import plan
+    return _plan_call(conn, plan.book, item_id, b.by, b.resource, b.quantity, person=b.person, reason=b.reason)
 
 
 @router.post("/plan/sync")

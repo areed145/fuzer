@@ -1113,6 +1113,9 @@ export const workApi = {
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string; place: "field" | "desk" }>,
     project?: string) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }, project),
+  /** Book a job on a crew (or other resource) for its dates; refused with 409 over capacity unless a reason is given. */
+  planBook: (id: number, by: string, b: { resource: string; quantity?: number; person?: string; reason?: string }) =>
+    request<PlanItem>("POST", `/plan/${id}/book`, undefined, { by, ...b }),
   planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),
   schedules: () => request<ScheduleSummary[]>("GET", "/plan/schedules"),
   schedule: (code: string) => request<ScheduleAnalysis>("GET", `/plan/schedules/${encodeURIComponent(code)}`),

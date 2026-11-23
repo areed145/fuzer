@@ -5,8 +5,8 @@ import { acronyms } from "../wording";
 import { money, whenDay, estimate } from "../format";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog } from "../ui";
-import { Status, entityHref, href, useAsync, useAction } from "../lib";
+import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog, promptDialog } from "../ui";
+import { Status, entityHref, errorMessage, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
 import { ResourcesPage } from "./Resources";
@@ -166,6 +166,20 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
   const [end, setEnd] = useState(item.end_at.slice(0, 10));
   const [crew, setCrew] = useState(item.crew ?? "");
   const change = (c: Parameters<typeof api.planChange>[2]) => person && run("Saving", () => api.planChange(item.id, person, c), onChange);
+  const resources = useAsync(() => api.planResources(), []);
+  const crews = (resources.data ?? []).filter((r) => r.kind === "crew");
+  const [resource, setResource] = useState("");
+  const [people, setPeople] = useState("1");
+  // a booking over the crew's capacity is refused with what it clashes with; it goes ahead only with a reason
+  const book = () => person && resource && run("Booking", async () => {
+    const b = { resource, quantity: Number(people) || 1, person: crew.trim() || undefined };
+    try { return await api.planBook(item.id, person, b); }
+    catch (e) {
+      if ((e as { status?: number }).status !== 409) throw e;
+      const why = await promptDialog(errorMessage(e), { confirm: "Book anyway" });
+      return why ? api.planBook(item.id, person, { ...b, reason: why }) : null;
+    }
+  }, onChange);
   return (
     <div className="plan-detail">
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
@@ -187,6 +201,14 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
           <option value="field">in the field</option><option value="desk">at a desk</option>
         </Select></Field>
         <Button size="sm" disabled={!!busy} onClick={() => change({ start, end: end < start ? start : end, crew })}>Reschedule</Button>
+        {crews.length > 0 && <>
+          <Field inline label="Book on"><Select aria-label="Crew to book" value={resource} onChange={(e) => setResource(e.target.value)}>
+            <option value="">choose a crew</option>
+            {crews.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.capacity})</option>)}
+          </Select></Field>
+          <Field inline label="People"><Input type="number" min={1} value={people} onChange={(e) => setPeople(e.target.value)} /></Field>
+          <Button size="sm" disabled={!!busy || !resource} onClick={book}>Book</Button>
+        </>}
         <Select aria-label="Status" value={item.status} disabled={!!busy} onChange={async (e) => {
           const status = e.target.value;
           // taking planned work off the plan leaves the work itself open, for the IOC to decide again

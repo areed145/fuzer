@@ -239,3 +239,52 @@ def test_a_bar_becomes_its_cases_job_and_closes_with_the_case(conn, monkeypatch)
     plan.finish_closed_work(conn)
     assert conn.execute("select status from plan_item where id = %s", (bar["id"],)).fetchone()["status"] == "cancelled"
     conn.rollback()
+
+
+def _crew(conn, capacity=1):
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-wc-mech', 'work_center') on conflict do nothing")
+    conn.execute("insert into entity_label (fuzer_id, label) values ('fz-wc-mech', 'MECH-WC') on conflict do nothing")
+    conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-wo-1', 'done_by', 'fz-wc-mech', "
+                 "'{t}', 1) on conflict do nothing")
+    conn.execute("insert into plan_resource (code, name, kind, capacity, work_center, created_by, updated_by) "
+                 "values ('MECH', 'Mechanical crew', 'crew', %s, 'MECH-WC', 't', 't') "
+                 "on conflict (code) do update set capacity = excluded.capacity", (capacity,))
+    conn.execute("delete from plan_demand where resource = 'MECH'")  # what an earlier test left committed
+
+
+def test_booking_a_crew_is_checked_against_its_capacity(conn):
+    from fuzer.core.plan import PlanOverload
+
+    _crew(conn)
+    a = propose(conn, "maintenance", "Seal job", "ann", "2026-12-01T08:00:00+00:00", "2026-12-01T16:00:00+00:00")
+    b = propose(conn, "maintenance", "Filter job", "ann", "2026-12-01T10:00:00+00:00", "2026-12-01T14:00:00+00:00")
+    booked = plan.book(conn, a["id"], "ann", "MECH", 1, person="fred")
+    assert booked["status"] == "scheduled" and booked["crew"] == "fred" and not booked["over_capacity"]
+    with pytest.raises(PlanOverload, match="Mechanical crew would be over capacity.*Seal job"):
+        plan.book(conn, b["id"], "ann", "MECH", 1)
+    over = plan.book(conn, b["id"], "ann", "MECH", 1, reason="vendor tech joins the crew")
+    assert over["over_capacity"] and "vendor tech joins the crew" in over["notes"]
+    conn.rollback()
+
+
+def test_work_sent_out_now_takes_its_crews_time_and_the_ready_check_reads_the_plan(conn, monkeypatch):
+    from fuzer.core import clock
+    from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
+    from fuzer.ops import exceptions, readiness
+
+    _crew(conn)
+    assert readiness.crew(conn, ["fz-pump-1"])["ready"]  # nobody booked on the crew today
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak"))
+    e = raise_exception(conn, "minor_leak", "P-105 drip", "P-105 drip", "olga", refs=["tag:P-101"])
+    sent = exceptions.dispatch(conn, e["id"], "ann", "role:operator")
+    bar = conn.execute("select * from plan_item where exception_id = %s", (e["id"],)).fetchone()
+    assert bar["status"] == "in_progress" and bar["item_id"] == sent["item_id"] and bar["start_at"] <= clock.aware(clock.now())
+    assert conn.execute("select resource, quantity from plan_demand where item_id = %s", (bar["id"],)).fetchone() == \
+        {"resource": "MECH", "quantity": 1}
+    assert plan.coming_up(conn, "fred") == [] or all(i["id"] != bar["id"] for i in plan.coming_up(conn, "fred"))
+    # the next job for the same crew sees it booked: the crew of one is full today
+    check = readiness.crew(conn, ["fz-pump-1"])
+    assert not check["ready"] and "1 of 1 booked today" in check["blockers"][0] and "P-105 drip" in check["blockers"][0]
+    # but the job itself does not count against itself
+    assert readiness.crew(conn, ["fz-pump-1"], job=e["id"])["ready"]
+    conn.rollback()
