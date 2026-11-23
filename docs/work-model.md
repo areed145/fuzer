@@ -236,7 +236,10 @@ flow before the larger moves.
    dispatch step, held by nobody; sending it puts that same case on its process, and an event that joins another's
    case has its waiting case cancelled. Events from before this step get their case at the next reconcile.
 5. **Prerequisites, the field job workflow and Release.** Ready is computed from prerequisites; a `field_job` workflow
-   enforces the stages; Release, Reschedule and the SAP confirmation draft arrive.
+   enforces the stages; Release, Reschedule and the SAP confirmation draft arrive. First part done: a bar's prerequisites (scheduled, the ready
+   checks, no clash, the unit down when it needs it) decide Ready on Plan; Release sends its waiting case to the crew,
+   with a reason when one is open; Reschedule keeps its reason and sends a released job back to wait. The `field_job`
+   workflow and the SAP confirmation draft follow.
 6. **One container.** `plan_project`, `board_project` and turnaround revisions become containers with a parent and a
    governing case.
 7. **Routines.** SAP maintenance plans, rounds and routine duties become routines raising obligation needs.

@@ -9,7 +9,7 @@ from psycopg.types.json import Jsonb
 
 from fuzer.core import db, events
 from fuzer.core.plan import PlanError, propose, update
-from fuzer.ops import plan
+from fuzer.ops import plan, readiness
 
 T = "2026-11-10T08:00:00+00:00"
 
@@ -287,4 +287,62 @@ def test_work_sent_out_now_takes_its_crews_time_and_the_ready_check_reads_the_pl
     assert not check["ready"] and "1 of 1 booked today" in check["blockers"][0] and "P-105 drip" in check["blockers"][0]
     # but the job itself does not count against itself
     assert readiness.crew(conn, ["fz-pump-1"], job=e["id"])["ready"]
+    conn.rollback()
+
+
+def test_a_job_is_released_to_the_field_when_its_prerequisites_are_met_or_with_a_reason(conn, monkeypatch):
+    """Step 5 of the work model: prerequisites decide Ready, and Release sends the job's waiting case to its crew."""
+    from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
+    from fuzer.core.plan import PlanNotReady
+    from fuzer.ops import exceptions, routing
+
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak", joins=False))
+    e = raise_exception(conn, "minor_leak", "P-106 drip", "P-106 drip", "olga", refs=["tag:P-101"])
+    monkeypatch.setattr(readiness, "CHECKS", (readiness.permits,))  # the plan's own prerequisites, and one check
+    bar = plan.plan_exception(conn, e["id"], "ann", "2026-12-08", "2026-12-08T04:00:00+00:00")
+    update(conn, bar["id"], "ann", status="proposed")
+    pre = plan.prerequisites(conn, bar["id"])
+    assert not pre["ready"] and [p["kind"] for p in pre["prerequisites"] if not p["satisfied"]] == ["scheduled"]
+    with pytest.raises(PlanNotReady, match="Not ready: Scheduled: not booked on a crew yet"):
+        plan.release(conn, bar["id"], "ann")
+    update(conn, bar["id"], "ann", status="scheduled", crew="fred")
+    assert plan.prerequisites(conn, bar["id"])["ready"]
+    out = plan.release(conn, bar["id"], "ann")
+    assert out["released_by"] == "ann" and out["release_reason"] is None
+    assert out["start_at"].isoformat().startswith("2026-12-08")  # released ahead, its dates and booking stay
+    row = exceptions._row(conn, e["id"])
+    assert not routing.waiting_case(conn, row["item_id"]) and row["item_id"] == e["item_id"]
+    assert conn.execute("select assignee from work_item where id = %s", (row["item_id"],)).fetchone()["assignee"] == "fred"
+    with pytest.raises(PlanError, match="was released"):
+        plan.release(conn, bar["id"], "ann")
+    with pytest.raises(PlanError, match="say why it moves"):
+        plan.reschedule(conn, bar["id"], "ann", "2026-12-09T00:00:00+00:00", "2026-12-09T04:00:00+00:00", " ")
+    moved = plan.reschedule(conn, bar["id"], "ann", "2026-12-09T00:00:00+00:00", "2026-12-09T04:00:00+00:00",
+                            "scaffold not up")
+    assert moved["released_at"] is None and moved["start_at"].day == 9
+    note = conn.execute("select data->>'text' as t from work_event where item_id = %s and kind = 'commented' "
+                        "order by id desc limit 1", (row["item_id"],)).fetchone()["t"]
+    assert "Why: scaffold not up" in note and "release it again" in note
+    conn.rollback()
+
+
+def test_a_job_not_ready_goes_only_with_a_reason_kept_on_its_notes(conn, monkeypatch):
+    from fuzer.core.plan import PlanNotReady
+
+    monkeypatch.setattr(readiness, "CHECKS", ())
+
+    job = propose(conn, "maintenance", "Valve job", "ann", "2026-12-10T08:00:00+00:00", "2026-12-10T16:00:00+00:00",
+                  needs_shutdown=True)
+    pre = plan.prerequisites(conn, job["id"])
+    assert {p["kind"] for p in pre["prerequisites"] if not p["satisfied"]} == {"scheduled", "unit_down"}
+    with pytest.raises(PlanNotReady, match="Unit down"):
+        plan.release(conn, job["id"], "ann")
+    out = plan.release(conn, job["id"], "ann", reason="the unit is down for the compressor swap anyway")
+    assert out["release_reason"].startswith("the unit is down") and out["status"] == "scheduled"
+    assert "Why: the unit is down" in conn.execute("select notes from plan_item where id = %s",
+                                                   (job["id"],)).fetchone()["notes"]
+    desk = propose(conn, "maintenance", "Paperwork", "ann", "2026-12-10T08:00:00+00:00", "2026-12-10T09:00:00+00:00")
+    update(conn, desk["id"], "ann", place="desk")
+    with pytest.raises(PlanError, match="done at a desk"):
+        plan.release(conn, desk["id"], "ann")
     conn.rollback()

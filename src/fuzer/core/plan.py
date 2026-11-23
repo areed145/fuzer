@@ -28,6 +28,10 @@ class PlanOverload(PlanError):
     """A booking that would take a resource over its capacity: made only with a reason."""
 
 
+class PlanNotReady(PlanOverload):
+    """A release with a prerequisite still open: made only with a reason (step 5 of docs/work-model.md)."""
+
+
 def use(module: str | ModuleType | None) -> None:
     global _impl
     _impl = import_module(module) if isinstance(module, str) else module

@@ -684,16 +684,16 @@ def _due(conn, row: dict):
 
 
 def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = None, *, override: str | None = None,
-             blockers: list[str] | None = None) -> dict:
+             blockers: list[str] | None = None, planned: bool = False) -> dict:
     """Send an exception to someone (a person, `role:<role>`): open its case for them if it has none, else hand
     its case (or the case's open person step) to them. Publishes exception.dispatched. Dispatching is a fixed gate
-    (P5.10): only a named person dispatches."""
+    (P5.10): only a named person dispatches. `planned`: released from the plan, whose bar already holds its booking."""
     from ..core import gates
 
     gates.require_person(conn, "field_dispatch", by, ref=f"exception:{exception_id}")
     row = _row(conn, exception_id, lock=True)
     if row["joined_to"]:  # part of another's case: the event is dispatched once, through its host
-        return dispatch(conn, row["joined_to"], by, to, reason, override=override, blockers=blockers)
+        return dispatch(conn, row["joined_to"], by, to, reason, override=override, blockers=blockers, planned=planned)
     if row["state"] != OPEN:
         raise ExceptionError(f"exception {exception_id} is {row['state']}")
     t = types(conn).get(row["type"]) or ExceptionType(row["type"], row["type"])
@@ -708,7 +708,7 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
         from . import plan
         plan.link_case(conn, row["id"], item_id)  # a bar it was planned as is now this case's job
     row = _row(conn, exception_id)
-    if to == f"role:{OPERATOR_ROLE}" or to in operators(conn):  # to the field now: it takes its crew's time (step 3)
+    if not planned and (to == f"role:{OPERATOR_ROLE}" or to in operators(conn)):  # to the field now: crew time (step 3)
         from . import plan
         plan.book_dispatch(conn, row["id"], row["item_id"], to, by)
     if override:  # sent though not ready (P5.5): what blocked it and why it went anyway, on the case's history
