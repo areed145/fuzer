@@ -41,7 +41,7 @@ Keep account approval, application authorization, workflow assignments and Work 
 Work context is presentation focus, never a permission grant, assignment change or impersonation.
 Do not add a context selector/registry until it drives meaningful supported behavior.
 Home personalization is a future direction, not permission to add a ranking/widget engine.
-Keep the user-selected primary destinations Tower (the first page, once Home), Work, Plan, Explore, Reports, Sources, Jobs and
+Keep the user-selected primary destinations Tower (the first page, once Home), Work, Plan, Explore, Ask, Reports, Sources, Jobs and
 Settings, in that order. Put specialist routes in their owner's secondary navigation, preserving URLs and access
 rules; do not replace this with a catch-all Manage section or duplicate primary specialist entries.
 Shared API requests use the bounded browser queue and coalesce only in-flight read-only calls.

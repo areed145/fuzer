@@ -69,8 +69,12 @@ travels with the job.
 **Detection.** One thing the SRE found in the process data: an excursion, a stop, a step, a drift, a bad instrument.
 
 **Entity.** One real-world thing (a tag, a pump, a well, a work order) with a stable Fuzer ID (`fz-...`), however
-many sources describe it. Everything under Browse is an entity, shown with its **kind**; its page is `#/e/<id>`.
+many sources describe it. Everything under Explore is an entity, shown with its **kind**; its page is `#/e/<id>`.
 Not item, record or asset as a general word.
+
+**Beneath.** What sits in an entity, at any depth, along the register's containment (part of, installed at,
+located at): a facility's areas and their wells, machines and tags. An entity page's tabs and counts roll up
+everything beneath it. The chain the other way is where it sits.
 
 **Equipment.** The physical item installed at a tag, known by its serial number. Pumps get swapped; tags stay.
 

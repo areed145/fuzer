@@ -36,6 +36,17 @@ def entity(fuzer_id: str, as_of: date | None = None, per_group: int = 100, conn=
     return ent
 
 
+@router.get("/entities/{fuzer_id}/hierarchy")
+def entity_hierarchy(fuzer_id: str, levels: int = Query(2, ge=1, le=3), conn=Depends(get_conn)):
+    """Where it sits (the chain above it) and what sits in it, `levels` deep, each node with the open work about it or
+    anything in it and how many things in it are down now."""
+    from ..ops import beneath
+
+    if conn.execute("select 1 from entity where fuzer_id = %s", (fuzer_id,)).fetchone() is None:
+        raise HTTPException(404, "unknown fuzer_id")
+    return beneath.view(conn, fuzer_id, levels)
+
+
 @router.get("/entities/{fuzer_id}/members")
 def entity_members(fuzer_id: str, kind: str | None = None, limit: int = 100, offset: int = 0,
                    conn=Depends(get_conn)):

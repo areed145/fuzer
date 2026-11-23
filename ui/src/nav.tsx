@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
 import { href, refreshAll, useKept, usePhone, useRefreshing } from "./lib";
 import { ago } from "./format";
-import { Button, Heading } from "./ui";
+import { Button, ButtonLink, Heading } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
 import { SyncStatus } from "./SyncStatus";
@@ -49,6 +49,9 @@ export interface NavGroup {
   demo?: boolean;
 }
 
+/** The assistant's mark: a speech bubble with a spark in it. */
+export const ASK_ICON = "M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM12 7.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z";
+
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
   // The control tower: the field map with what needs you over it (#/ keeps its URL).
@@ -81,14 +84,12 @@ export const NAV: NavGroup[] = [
   {
     label: "Explore",
     icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z",
-    items: [
-      { label: "Browse", section: "browse", also: ["e"] },
-      { label: "Map", section: "map" },
-      { label: "Network", section: "network" },
-      { label: "3D", section: "3d" },
-      { label: "Ask", section: "ask", permission: "ai" },
-    ],
+    // Every entity in the register, and each one's page with everything about it and beneath it. The plant-wide map,
+    // network and 3D views keep their links and light Explore; an entity's Map, 3D and Connections tabs show them.
+    items: [{ label: "Explore", section: "browse", also: ["e", "map", "network", "3d"] }],
   },
+  // The operations assistant, its own destination: it answers from the register, the work and the readings.
+  { label: "Ask", icon: ASK_ICON, permission: "ai", items: [{ label: "Ask", section: "ask", permission: "ai" }] },
   {
     label: "Reports",
     icon: "M4 20h16M7 16v-5M12 16V7M17 16v-8",
@@ -199,6 +200,15 @@ function ShareButton() {
   </>;
 }
 
+/** Ask, a tap away on every page for those who may ask (AI access). */
+function AskButton() {
+  const ai = usePermission("ai");
+  if (!ai) return null;
+  return <ButtonLink variant="ghost" className="ask-button" href={href("/ask")} aria-label="Ask the assistant" title="Ask the assistant">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ASK_ICON} /></svg>
+  </ButtonLink>;
+}
+
 /** The in-app Back for the installed app, where the browser's own buttons are gone. */
 export function BackButton({ path, className }: { path: string[]; className?: string }) {
   const depth = useAppDepth();
@@ -302,6 +312,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
         <span className="topbar-title" aria-hidden="true" />
         <div className="topbar-end">
           <SyncStatus />
+          <AskButton />
           <ShareButton />
           {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). Every view reads again in place. */}
           <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" aria-busy={refreshing}

@@ -19,6 +19,9 @@ export interface SearchHit {
   kind: string;
   label: string | null;
   description: string | null;
+  /** what it sits in (its nearest container), when it sits in anything */
+  parent?: string | null;
+  parent_label?: string | null;
 }
 
 export interface Edge {
@@ -310,7 +313,20 @@ export interface Lineage {
   note: string;
 }
 
+/** One node of an entity's tree (`/entities/{id}/hierarchy`): what sits in it, with the work rolled up through it. */
+export interface TreeNode {
+  id: string; kind: string; label: string; description: string | null;
+  /** how many things sit in it at any depth */
+  beneath: number; open_work: number; work_band: "high" | "medium" | "low" | null; down: number;
+  children: TreeNode[]; more: number;
+}
+export interface Hierarchy {
+  up: { id: string; kind: string; label: string }[];
+  children: TreeNode[]; more: number; total: number; kinds: Record<string, number>; open_work: number; down: number;
+}
+
 export const exploreApi = {
+  hierarchy: (id: string) => request<Hierarchy>("GET", `/entities/${encodeURIComponent(id)}/hierarchy`),
   stats: () => request<Stats>("GET", "/stats"),
   entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`),
   search: (q: string, kind?: string, limit = 200) => request<SearchHit[]>("GET", "/entities", { q, kind, limit }),

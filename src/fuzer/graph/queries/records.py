@@ -5,6 +5,7 @@ from datetime import date
 
 from ...core import nel
 from ...core.pack import Pack
+from ..hierarchy import CONTAINMENT
 
 
 class AmbiguousRef(LookupError):
@@ -41,20 +42,30 @@ _KIND_RANK = ("coalesce(array_position(%(order)s::text[], e.kind), "
               "case when e.kind = any(%(last)s::text[]) then 100 + array_position(%(last)s::text[], e.kind) else 50 end)")
 
 
+# What each row sits in (the nearest container), so a list of tags says which area each is on.
+_PARENT = """left join lateral (
+                select x.dst as id, coalesce(pl.label, x.dst) as label from edge x
+                left join entity_label pl on pl.fuzer_id = x.dst
+                where x.src = e.fuzer_id and x.rel = any(%(rels)s) and x.valid_to is null
+                order by x.rel, x.dst limit 1) p on true"""
+
+
 def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 50) -> list[dict]:
     """Exact key matches first (any tag / well style), then labels that start with the text, shortest first (so part
     of a tag finds the tag before the incidents named after it), then anything whose label, source key or searchable
     field contains the text, places and drawings before equipment and instrument tags (KIND_ORDER). Each part stops
     early, so common words stay fast on large registers."""
-    params = {"kind": kind, "limit": limit, "order": KIND_ORDER, "last": LAST_KINDS}
+    kinds = [k for k in (kind or "").split(",") if k] or None
+    params = {"kinds": kinds, "limit": limit, "order": KIND_ORDER, "last": LAST_KINDS, "rels": list(CONTAINMENT)}
     if not q:
         return conn.execute(
             """
-            select e.fuzer_id, e.kind, l.label, g.value as description
+            select e.fuzer_id, e.kind, l.label, g.value as description, p.id as parent, p.label as parent_label
             from entity_label l
             join entity e on e.fuzer_id = l.fuzer_id
             left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
-            where e.merged_into is null and e.retired_at is null and (%(kind)s::text is null or e.kind = %(kind)s)
+            """ + _PARENT + """
+            where e.merged_into is null and e.retired_at is null and (%(kinds)s::text[] is null or e.kind = any(%(kinds)s))
             order by """ + _KIND_RANK + """, l.label limit %(limit)s
             """,
             params,
@@ -66,7 +77,7 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
         keys.append(well)
     params |= {"keys": keys, "like": f"%{q}%", "prefix": f"{q}%", "fields": list(SEARCH_FIELDS), "probe": limit * 10}
     # With a kind filter, filter before the early stop so it can't fill up on other kinds.
-    kf = "and fuzer_id in (select fuzer_id from entity where kind = %(kind)s)" if kind else ""
+    kf = "and fuzer_id in (select fuzer_id from entity where kind = any(%(kinds)s))" if kinds else ""
     return conn.execute(
         f"""
         with hits as (
@@ -81,12 +92,13 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
         ), best as (
             select fuzer_id, min(rank) as rank from hits group by fuzer_id
         )
-        select e.fuzer_id, e.kind, l.label, g.value as description
+        select e.fuzer_id, e.kind, l.label, g.value as description, p.id as parent, p.label as parent_label
         from best b
         join entity e on e.fuzer_id = b.fuzer_id
         left join entity_label l on l.fuzer_id = e.fuzer_id
         left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
-        where e.merged_into is null and e.retired_at is null and (%(kind)s::text is null or e.kind = %(kind)s)
+        {_PARENT}
+        where e.merged_into is null and e.retired_at is null and (%(kinds)s::text[] is null or e.kind = any(%(kinds)s))
         order by b.rank > 0, case when l.label ilike %(prefix)s then length(l.label) end nulls last, {_KIND_RANK},
                  b.rank, l.label
         limit %(limit)s

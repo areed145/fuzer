@@ -223,6 +223,10 @@ main[data-width="reading"] { max-width: 1200px; }
   background: var(--rail-hover); color: var(--rail-text); }
 .sidebar .search-button svg { width: 18px; height: 18px; stroke-width: 1.8; }
 .sidebar .search-button:hover { color: #ffffff; }
+/* Ask, beside the account on every page (nav.tsx AskButton). */
+.topbar .ask-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0;
+  box-shadow: none; color: var(--accent); }
+.ask-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .app-search-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(16 24 32 / .45); }
 .app-search { position: fixed; z-index: 1301; top: 72px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column;
   width: min(640px, calc(100vw - 32px)); max-height: min(560px, calc(100dvh - 120px)); overflow: hidden;
