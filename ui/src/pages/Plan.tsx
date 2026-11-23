@@ -180,7 +180,8 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       return why ? api.planBook(item.id, person, { ...b, reason: why }) : null;
     }
   }, onChange);
-  const pre = useAsync(() => api.planPrerequisites(item.id), [item.id, item.status, item.released_at, item.start_at]);
+  const asked = useAsync(() => api.planPrerequisites(item.id), [item.id, item.status, item.released_at, item.start_at]);
+  const pre = Array.isArray(asked.data?.prerequisites) ? asked.data : null;  // nothing shown until it reads
   const fieldJob = (item.place ?? "field") === "field" && ["proposed", "scheduled", "in_progress"].includes(item.status);
   // field work reaches the field through Release; with a prerequisite open it goes only with a reason
   const release = () => person && run("Releasing", async () => {
@@ -205,12 +206,12 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
   };
   return (
     <div className="plan-detail">
-      {fieldJob && pre.data && <Text as="div" small>
+      {fieldJob && pre && <Text as="div" small>
         {item.released_at
           ? <Badge tone="ok">Released {whenDay(item.released_at)}{item.released_by ? ` by ${item.released_by}` : ""}</Badge>
-          : <Badge tone={pre.data.ready ? "ok" : "warn"}>{pre.data.ready ? "Ready" : "Not ready"}</Badge>}
+          : <Badge tone={pre.ready ? "ok" : "warn"}>{pre.ready ? "Ready" : "Not ready"}</Badge>}
         {item.release_reason && <Text as="span" small muted> Why it went anyway: {item.release_reason}</Text>}
-        <List>{pre.data.prerequisites.map((p) => <li key={p.kind} className={p.satisfied ? "" : "error"}>
+        <List>{pre.prerequisites.map((p) => <li key={p.kind} className={p.satisfied ? "" : "error"}>
           {p.satisfied ? "✓" : "✗"} {p.label}{p.detail.length ? `: ${p.detail.join("; ")}` : ""}</li>)}</List>
       </Text>}
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
