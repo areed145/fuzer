@@ -6,6 +6,8 @@
     sync_maintenance_plans(conn) the next due date of each SAP maintenance and inspection plan, as plan items
     plan_exception(conn, id, ...)  an exception the IOC chose to plan rather than work now
     link_case(conn, id, item)    the case working an exception, on the bars it was planned as (a bar is its case's job)
+    book(conn, id, by, resource) book a job on a crew (or any resource): checked against capacity, over it only with a reason
+    book_dispatch(conn, ...)     work sent to the field now takes a day of its crew, on the same capacity as planned work
     finish_closed_work(conn)     bars whose work closed are done (or cancelled with a cancelled case), never left behind
 
 Clashes: two active items on one asset at the same time (simultaneous operations on it), and one person booked on
@@ -17,7 +19,7 @@ its assets' spare parts recorded with zero stock (`parts_short`), so stores can 
 from datetime import UTC, date, datetime, time, timedelta
 
 from ..core import clock, events
-from ..core.plan import KINDS, STATUSES, PlanError
+from ..core.plan import KINDS, STATUSES, PlanError, PlanOverload
 
 ACTIVE = ("proposed", "scheduled", "in_progress")
 SHUTDOWNS = ("turnaround", "shutdown")  # the items other work can be bundled into
@@ -224,7 +226,7 @@ def coming_up(conn, person: str, days: int = 14) -> list[dict]:
     crews = {person, *(f"role:{r}" for r in work.roles_of(conn, person))}
     now = datetime.now(UTC)
     return [i for i in items(conn, now, now + timedelta(days=days))
-            if i["crew"] in crews and i["status"] in ("scheduled", "in_progress")]
+            if i["crew"] in crews and i["status"] in ("scheduled", "in_progress") and not i.get("item_id")]
 
 
 # ---- sources of plan items ---------------------------------------------------------------------------------------
@@ -423,3 +425,100 @@ def finish_closed_work(conn, exception_ids: list[int] | None = None, by: str = "
                         "start": r["start_at"].isoformat(), "end": r["end_at"].isoformat(), "status": r["status"],
                         "reason": "its work closed"})
     return rows
+
+
+DISPATCH_HOURS = 4.0  # what work sent to the field now is booked for on its crew, until it comes back
+
+
+def crew_for(conn, subjects: list[str]) -> dict | None:
+    """The crew resource that does a job's work: the plan resource of kind crew on the work center of its equipment's
+    work orders (the same work center the ready check reads), if one is set up."""
+    from .readiness import _centers
+
+    labels = [c["label"] for c in _centers(conn, subjects) if c["label"]]
+    if not labels:
+        return None
+    return conn.execute("select * from plan_resource where kind = 'crew' and work_center = any(%s) order by code limit 1",
+                        (labels,)).fetchone()
+
+
+def _overloads(conn, resource: str, item: dict) -> list[dict]:
+    """The runs of hours over capacity on `resource` that include `item`, as the plan stands in this transaction."""
+    from . import schedule
+
+    start = item["start_at"].astimezone(clock.zone())
+    days = max(1, (item["end_at"] - item["start_at"]).days + 2)
+    load = schedule.resource_load(conn, resource, start, days)
+    return [o for r in load["resources"] for o in r["overloads"]
+            if any(j["item_id"] == item["id"] for j in o["jobs"])]
+
+
+def book(conn, item_id: int, by: str, resource: str, quantity: float = 1, person: str | None = None,
+         reason: str | None = None) -> dict:
+    """Book a job on a resource, usually a crew: `quantity` of it for the job's dates, and optionally the person (or
+    `role:<role>`) it goes to. Checked against the resource's capacity with every other source's demand on those days;
+    a booking that takes it over is refused (PlanOverload, naming the overload) unless `reason` says why it goes
+    anyway, and the reason is kept on the job's case or its notes. A proposed job becomes scheduled."""
+    row = conn.execute("select * from plan_item where id = %s for update", (item_id,)).fetchone()
+    if row is None:
+        raise PlanError(f"no plan item {item_id}")
+    res = conn.execute("select * from plan_resource where code = %s", (resource,)).fetchone()
+    if res is None:
+        raise PlanError(f"no resource {resource}")
+    if not quantity or quantity <= 0:
+        raise PlanError("book at least one")
+    conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, %s, %s) "
+                 "on conflict (item_id, resource) do update set quantity = excluded.quantity", (item_id, resource, quantity))
+    over = _overloads(conn, resource, row)
+    reason = (reason or "").strip()
+    if over and not reason:
+        worst = max(over, key=lambda o: o["over_by"])
+        others = ", ".join(j["title"] for j in worst["jobs"] if j["item_id"] != item_id)[:200]
+        raise PlanOverload(f"{res['name']} would be over capacity: {worst['peak']:g} of {worst['capacity']:g} "
+                           f"from {worst['from']:%a %d %b %H:%M}" + (f", with {others}" if others else "")
+                           + ". Say why it should be booked anyway.")
+    fields = {"status": "scheduled"} if row["status"] == "proposed" else {}
+    if person is not None:
+        fields["crew"] = person.strip() or None
+    if fields:
+        update(conn, item_id, by, **fields)
+    if over:
+        note = f"Booked on {res['name']} over its capacity. Why: {reason}"
+        if row["item_id"]:
+            from ..core import work
+            work.comment(conn, row["item_id"], by, note)
+        else:
+            conn.execute("update plan_item set notes = concat_ws(' · ', notes, %s::text) where id = %s", (note, item_id))
+    events.publish(conn, "plan.changed", f"plan_item:{item_id}",
+                   {"id": item_id, "change": "booked", "by": by, "resource": resource, "quantity": quantity,
+                    "over_capacity": bool(over), "title": row["title"]})
+    return {**conn.execute("select * from plan_item where id = %s", (item_id,)).fetchone(), "over_capacity": over}
+
+
+def book_dispatch(conn, exception_id: int, item_id: int, to: str, by: str) -> dict | None:
+    """Work sent to the field now (an urgent dispatch) takes its crew's time like planned work does: its bar starts now,
+    runs DISPATCH_HOURS and books one of the crew that does the equipment's work, so Plan, Resources, Logistics and the
+    next dispatch's ready check all see it. A bar it was already planned as is brought forward to now. The bar closes
+    with the case."""
+    e = conn.execute("select * from exception_record where id = %s", (exception_id,)).fetchone()
+    if e is None:
+        return None
+    now = clock.now()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=clock.zone())
+    end = now + timedelta(hours=DISPATCH_HOURS)
+    bar = conn.execute("select * from plan_item where source = 'exceptions' and source_key = %s",
+                       (str(exception_id),)).fetchone()
+    if bar is None:
+        bar = propose(conn, "exception", e["title"], by, now, end, refs=e["subjects"], source="exceptions",
+                      source_key=str(exception_id), crew=to, exception_id=exception_id, status="in_progress",
+                      deferment_usd=e["value_usd"])
+    elif bar["status"] not in ACTIVE or bar["start_at"] > now:
+        bar = conn.execute("update plan_item set status = 'in_progress', start_at = %s, end_at = greatest(end_at, %s), "
+                           "crew = %s, updated_by = %s, updated_at = now() where id = %s returning *",
+                           (now, end, to, by, bar["id"])).fetchone()
+    conn.execute("update plan_item set item_id = %s where id = %s", (item_id, bar["id"]))
+    crew = crew_for(conn, list(e["subjects"] or []))
+    if crew and not conn.execute("select 1 from plan_demand where item_id = %s", (bar["id"],)).fetchone():
+        conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, %s, 1)", (bar["id"], crew["code"]))
+    return conn.execute("select * from plan_item where id = %s", (bar["id"],)).fetchone()

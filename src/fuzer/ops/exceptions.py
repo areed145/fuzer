@@ -584,9 +584,12 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
 STAGES = ("dispatch", "planned", "field", "back", "desk", "closed")
 
 
+OPERATOR_ROLE = "operator"
+
+
 def operators(conn) -> set[str]:
     """The people who work in the field: those holding the operator role."""
-    return set(work.role_holders(conn, "operator"))
+    return set(work.role_holders(conn, OPERATOR_ROLE))
 
 
 def stage(r: dict, field_people: set[str], now: datetime | None = None) -> str:
@@ -671,6 +674,9 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
         from . import plan
         plan.link_case(conn, row["id"], item_id)  # a bar it was planned as is now this case's job
     row = _row(conn, exception_id)
+    if to == f"role:{OPERATOR_ROLE}" or to in operators(conn):  # to the field now: it takes its crew's time (step 3)
+        from . import plan
+        plan.book_dispatch(conn, row["id"], row["item_id"], to, by)
     if override:  # sent though not ready (P5.5): what blocked it and why it went anyway, on the case's history
         work.comment(conn, row["item_id"], by, f"Sent though not ready ({'; '.join(blockers or [])}). Why: {override}")
     events.publish(conn, "exception.dispatched", f"exception:{row['id']}", {**_payload(row, t), "to": to, "by": by,

@@ -24,6 +24,10 @@ class PlanError(ValueError):
     """A plan change the contract refused: an unknown kind or status, an end before its start."""
 
 
+class PlanOverload(PlanError):
+    """A booking that would take a resource over its capacity: made only with a reason."""
+
+
 def use(module: str | ModuleType | None) -> None:
     global _impl
     _impl = import_module(module) if isinstance(module, str) else module
