@@ -192,3 +192,29 @@ def test_work_starting_soon_shows_spare_parts_with_no_stock(conn):
     assert rows[soon["id"]]["parts_short"][0]["label"] == "10001 seal kit"
     assert rows[later["id"]]["parts_short"] == []  # too far out to chase yet
     conn.rollback()
+
+
+def test_a_bar_closes_with_its_work_and_taking_one_off_leaves_the_work_open(conn, monkeypatch):
+    from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
+    from fuzer.ops import exceptions
+
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak"))
+    cleared = raise_exception(conn, "minor_leak", "P-101 drip", "P-101 drip", "olga", refs=["tag:P-101"])
+    bar = plan.plan_exception(conn, cleared["id"], "ann", "2026-11-21", "2026-11-21T04:00:00+00:00")
+    exceptions.clear(conn, "minor_leak", "P-101 drip", "olga", reason="tightened")
+    assert conn.execute("select status from plan_item where id = %s", (bar["id"],)).fetchone()["status"] == "done"
+
+    # a bar left behind before this rule existed is swept up by the work tick
+    other = raise_exception(conn, "minor_leak", "P-102 drip", "P-102 drip", "olga", refs=["tag:P-101"])
+    old = plan.plan_exception(conn, other["id"], "ann", "2026-11-22", "2026-11-22T04:00:00+00:00")
+    conn.execute("update exception_record set state = 'closed', closed_at = now() where id = %s", (other["id"],))
+    assert exceptions.reconcile(conn)["plan_done"] >= 1
+    assert conn.execute("select status from plan_item where id = %s", (old["id"],)).fetchone()["status"] == "done"
+
+    # taking a bar off the plan cancels the bar only: the work stays open and is waiting for a decision again
+    still = raise_exception(conn, "minor_leak", "P-103 drip", "P-103 drip", "olga", refs=["tag:P-101"])
+    off = plan.plan_exception(conn, still["id"], "ann", "2026-11-23", "2026-11-23T04:00:00+00:00")
+    update(conn, off["id"], "ann", status="cancelled")
+    listed = next(x for x in exceptions.listing(conn) if x["id"] == still["id"])
+    assert listed["state"] == "open" and listed["planned"] is None and listed["stage"] == "dispatch"
+    conn.rollback()

@@ -5,6 +5,7 @@
     sync_work_orders(conn)       open SAP work orders with dates in the register, as plan items
     sync_maintenance_plans(conn) the next due date of each SAP maintenance and inspection plan, as plan items
     plan_exception(conn, id, ...)  an exception the IOC chose to plan rather than work now
+    finish_closed_work(conn)     bars whose work closed are done (or cancelled with a cancelled case), never left behind
 
 Clashes: two active items on one asset at the same time (simultaneous operations on it), and one person booked on
 two items at once. Bundling: an item due within BUNDLE_DAYS of a turnaround or shutdown of its area could be
@@ -114,10 +115,21 @@ def update(conn, item_id: int, by: str, **fields) -> dict:
     row = conn.execute(
         "update plan_item set " + ", ".join(f"{k} = %({k})s" for k in sets) +
         ", updated_by = %(by)s, updated_at = now() where id = %(id)s returning *", {**sets, "by": by, "id": item_id}).fetchone()
+    if fields.get("status") == "cancelled" and row["exception_id"]:
+        _off_the_plan(conn, row, by)
     events.publish(conn, "plan.changed", f"plan_item:{item_id}",
                    {"id": item_id, "change": "updated", "by": by, "fields": sorted(fields), "title": row["title"],
                     "start": row["start_at"].isoformat(), "end": row["end_at"].isoformat(), "status": row["status"]})
     return row
+
+
+def _off_the_plan(conn, row: dict, by: str) -> None:
+    """A bar taken off the plan while its work is still open: the work goes back to waiting for a decision, and its
+    case, when it has one, says who took it off."""
+    e = conn.execute("select state, item_id from exception_record where id = %s", (row["exception_id"],)).fetchone()
+    if e and e["state"] == "open" and e["item_id"]:
+        from ..core import work
+        work.comment(conn, e["item_id"], by, f"Taken off the plan ({row['start_at']:%d %b}); the work is still open.")
 
 
 def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
@@ -371,3 +383,25 @@ def plan_exception(conn, exception_id: int, by: str, start, end, crew: str | Non
     events.publish(conn, "exception.planned", f"exception:{exception_id}",
                    {"id": exception_id, "plan_item": row["id"], "by": by, "start": row["start_at"].isoformat()})
     return row
+
+
+def finish_closed_work(conn, exception_ids: list[int] | None = None, by: str = "fuzer") -> list[dict]:
+    """Close the bars of work that is over: an active plan item whose exception is no longer open (its case was
+    closed, or the condition cleared) is done, or cancelled when its case was cancelled. Without this a closed case
+    left its bar scheduled, and Plan, Logistics and crew load counted a job nobody would do (step 1 of the work
+    model). `exception_ids` limits it to those; with none every bar is checked, so the work tick sweeps up the rest."""
+    rows = conn.execute(
+        """
+        update plan_item p set status = case when w.state = 'cancelled' then 'cancelled' else 'done' end,
+               updated_by = %(by)s, updated_at = now()
+        from exception_record e left join work_item w on w.id = e.item_id
+        where p.exception_id = e.id and e.state <> 'open' and p.status = any(%(active)s)
+          and (%(ids)s::bigint[] is null or e.id = any(%(ids)s))
+        returning p.id, p.title, p.status, p.start_at, p.end_at, p.exception_id
+        """, {"by": by, "active": list(ACTIVE), "ids": exception_ids}).fetchall()
+    for r in rows:
+        events.publish(conn, "plan.changed", f"plan_item:{r['id']}",
+                       {"id": r["id"], "change": "updated", "by": by, "fields": ["status"], "title": r["title"],
+                        "start": r["start_at"].isoformat(), "end": r["end_at"].isoformat(), "status": r["status"],
+                        "reason": f"its work closed (exception {r['exception_id']})"})
+    return rows

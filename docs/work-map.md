@@ -205,7 +205,8 @@ flowchart TB
 Planned work and routed work meet in three places:
 
 - **Plan for a day** on a List row, or **Ride along with the next visit** in its Options, turns routed work into a
-  bar on Plan, linked to its case. On its day it comes back to To dispatch.
+  bar on Plan, linked to its case. On its day it comes back to To dispatch. When its work closes
+  (closed out, or the condition cleared) the bar is done; taking the bar off the plan leaves the work open.
 - **Planned work holds back what it explains.** A trip on a compressor that is down for a scheduled shutdown is
   counted under that shutdown and opens no case. The List shows how many findings were held back.
 - **Parts not ready** is raised as routed work for the planner when a planned job's parts will not arrive in time.

@@ -5,7 +5,7 @@ import { acronyms } from "../wording";
 import { money, whenDay, estimate } from "../format";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field } from "../ui";
+import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog } from "../ui";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
@@ -181,7 +181,14 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         <Field inline label="End"><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
         <Field inline label="Crew"><Input value={crew} placeholder="person or role:…" onChange={(e) => setCrew(e.target.value)} /></Field>
         <Button size="sm" disabled={!!busy} onClick={() => change({ start, end: end < start ? start : end, crew })}>Reschedule</Button>
-        <Select aria-label="Status" value={item.status} disabled={!!busy} onChange={(e) => change({ status: e.target.value })}>
+        <Select aria-label="Status" value={item.status} disabled={!!busy} onChange={async (e) => {
+          const status = e.target.value;
+          // taking planned work off the plan leaves the work itself open, for the IOC to decide again
+          if (status === "cancelled" && item.exception_id != null
+              && !(await confirmDialog("Take this off the plan? The work itself stays open on All work.",
+                                       { confirm: "Take it off", danger: true }))) return;
+          change({ status });
+        }}>
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </Select>
       </Line> : <Text as="p" small>Choose who you are to change the plan.</Text>}
