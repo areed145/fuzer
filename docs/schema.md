@@ -2273,6 +2273,20 @@ Skill versions (P6.4b): a skill's playbook as drafted, published, retired or rol
 | `published_by` | text |  |
 | `published_at` | timestamptz |  |
 
+### `entity_summary`
+
+An entity page's summary (Explore): what matters about an entity and everything beneath it, written by the summary specialist from the facts it was given (kept with it), shared with everyone who opens the page until it is agents.summary_hours old.
+
+| Column | Type | Note |
+|---|---|---|
+| `fuzer_id` | text |  |
+| `headline` | text |  |
+| `points` | jsonb |  |
+| `facts` | jsonb |  |
+| `usage` | jsonb |  |
+| `by_user` | text |  |
+| `created_at` | timestamptz |  |
+
 ## Evals
 
 [`src/fuzer/evals/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals/schema.sql)

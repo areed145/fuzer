@@ -325,7 +325,24 @@ export interface Hierarchy {
   children: TreeNode[]; more: number; total: number; kinds: Record<string, number>; open_work: number; down: number;
 }
 
+/** An entity page's summary, written by the summary specialist and kept for everyone (`/entities/{id}/summary`). */
+export interface EntitySummary {
+  headline: string; points: { text: string; cites: string[] }[]; facts_as_of: string | null; written_at: string;
+  by: string; model: string | null; cost_usd: number | null; stale: boolean;
+}
+
+/** What each of an entity page's tabs holds, counting everything beneath it (`/entities/{id}/tabs`). */
+export interface EntityTabCounts {
+  work: number; schedule: number; documents: number; map: boolean; scene: boolean; trends: boolean; connections: boolean;
+  beneath: number;
+}
+
 export const exploreApi = {
+  entitySummary: (id: string) =>
+    request<{ summary: EntitySummary | null; can_write: boolean }>("GET", `/entities/${encodeURIComponent(id)}/summary`),
+  writeEntitySummary: (id: string) =>
+    request<{ summary: EntitySummary; written: boolean }>("POST", `/entities/${encodeURIComponent(id)}/summary/generate`),
+  entityTabs: (id: string) => request<EntityTabCounts>("GET", `/entities/${encodeURIComponent(id)}/tabs`),
   hierarchy: (id: string) => request<Hierarchy>("GET", `/entities/${encodeURIComponent(id)}/hierarchy`),
   stats: () => request<Stats>("GET", "/stats"),
   entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`),
@@ -353,7 +370,8 @@ export const exploreApi = {
     request<{ highlight: string[]; drawings: { id: string; label: string | null; title: string | null }[] }>(
       "GET", `/entities/${encodeURIComponent(id)}/drawings`),
   drawing: (id: string) => request<Drawing>("GET", `/documents/${encodeURIComponent(id)}/drawing`),
-  documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
+  documentsFor: (id: string, beneath?: boolean) =>
+    request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`, beneath ? { beneath: "true" } : undefined),
   entityProfile: (id: string) => request<EntityProfile>("GET", `/entities/${encodeURIComponent(id)}/profile`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   ontologyDeclared: () => request<OntologyDeclared>("GET", "/ontology/declared"),
@@ -374,8 +392,8 @@ export const exploreApi = {
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),
   /** Every link of the given types (default: the ontology's flow view); the answer says which types it drew. */
-  network: (asOf?: string, rels?: string[]) =>
-    request<Subgraph & { rels: string[] }>("GET", "/network", { as_of: asOf, rels: rels?.join(",") }),
+  network: (asOf?: string, rels?: string[], within?: string) =>
+    request<Subgraph & { rels: string[] }>("GET", "/network", { as_of: asOf, rels: rels?.join(","), within }),
   /** The schematic scene of a facility, an area, or the area of anything inside one (default: the main facility). */
   scene: (at?: string, rels?: string[], layout?: "geo", asOf?: string) =>
     request<Scene>("GET", "/scene", { at, rels: rels?.join(","), layout, as_of: asOf }),

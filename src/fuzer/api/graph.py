@@ -29,16 +29,26 @@ def neighborhood(fuzer_id: str, depth: int = 1, rels: str | None = None, as_of: 
 
 
 @router.get("/network")
-def network(rels: str | None = None, rel: str | None = None, as_of: date | None = None, conn=Depends(get_conn)):
+def network(rels: str | None = None, rel: str | None = None, as_of: date | None = None, within: str | None = None,
+            conn=Depends(get_conn)):
     """One network of any link types: `rels` is a comma-separated list of relations from the ontology (default:
     its flow view, e.g. flows_to production/allocation, lift_gas_to gas lift and pipes_to P&ID piping). `rel`
-    names a single one, for older links."""
+    names a single one, for older links. `within` keeps an entity, everything beneath it and what they link to
+    directly (an entity page's Connections)."""
     wanted = [r for r in (rels or "").split(",") if r] + ([rel] if rel else [])
     known = {r["name"] for r in ontology.relations(conn)}
     unknown = sorted(set(wanted) - known)
     if unknown:
         raise HTTPException(422, f"unknown link type: {', '.join(unknown)}")
-    return queries.network(conn, wanted or None, as_of)
+    out = queries.network(conn, wanted or None, as_of)
+    if within:
+        from ..graph import hierarchy
+
+        inside = {within, *hierarchy.subtree(conn, within)}
+        edges = [e for e in out["edges"] if e["src"] in inside or e["dst"] in inside]
+        ends = {x for e in edges for x in (e["src"], e["dst"])} | (inside & {n["id"] for n in out["nodes"]})
+        out = {**out, "nodes": [n for n in out["nodes"] if n["id"] in ends], "edges": edges}
+    return out
 
 
 @router.get("/scene")

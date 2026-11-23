@@ -158,6 +158,15 @@ def features(conn, bbox: tuple[float, float, float, float] | None = None, kinds:
     return _features(conn, " and ".join(where), params, limit)
 
 
+def among(conn, ids: list[str], limit: int = 2000) -> dict:
+    """The located things among `ids` (an entity and everything beneath it) and the pipelines that start or end at
+    one of them, so a facility's map holds its platforms, jackets, wells and the lines between them."""
+    return _features(conn, """
+        gi.fuzer_id = any(%(ids)s)
+        or gi.fuzer_id in (select src from edge where dst = any(%(ids)s) and rel in ('starts_at', 'ends_at'))
+        """, {"ids": list(ids)}, limit)
+
+
 def around(conn, fuzer_id: str, limit: int = 500) -> dict:
     """An entity's map: its own geometry, or where it sits (the nearest place up its part_of chain),
     plus things with geometry linked to that place (pipelines that start or end there, wells on it)."""

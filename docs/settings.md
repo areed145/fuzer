@@ -27,6 +27,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `agents.specialist_model` | str | `` |  | Model for the specialists (empty: the orchestrator's). Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_MODEL`. |
 | `agents.specialist_effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the specialists. Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_EFFORT`. |
 | `agents.fallbacks` | bool | `True` |  | On a policy decline, let the API re-run the request on a fallback model. Takes effect on restart. Replaces `FUZER_AGENT_FALLBACKS`. |
+| `agents.summary_model` | str | `claude-haiku-5-5` |  | Model that writes an entity page's summary: a small, cheap one, as the summary is one short call per entity a day. Replaces `FUZER_AGENT_SUMMARY_MODEL`. |
+| `agents.summary_hours` | int | `24` | ≥ 1 | How long an entity's summary is kept before the next visit by someone with AI access writes a new one. |
 | `agents.case_cap_usd` | float | `2.0` | ≥ 0 | Agent spend a case may reach (USD) before its next agent step goes to a person, with the spend and the cap on the case (0: no cap). |
 | `agents.briefs` | bool | `True` |  | Have the owning specialist brief each new case of a type a pack briefs, when the agent worker has no step to run. |
 | `agents.skill_drafts` | bool | `False` |  | Have a skill's specialist draft a change to its playbook once it has fallen short twice since its live version, as work for the skill's owner, when the agent worker has nothing else to do. |

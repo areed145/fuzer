@@ -212,16 +212,16 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 
 | Agent | Tools |
 |---|---|
-| Orchestrator | 26 |
-| Production & Surveillance | 80 |
-| Wells & Subsurface | 73 |
-| Field Operations & Facilities | 97 |
-| Maintenance & Integrity | 88 |
-| Work Management & Supply Chain | 42 |
-| HSE & Incident Management | 51 |
-| Asset Performance & Reporting | 50 |
+| Orchestrator | 27 |
+| Production & Surveillance | 81 |
+| Wells & Subsurface | 74 |
+| Field Operations & Facilities | 98 |
+| Maintenance & Integrity | 89 |
+| Work Management & Supply Chain | 43 |
+| HSE & Incident Management | 52 |
+| Asset Performance & Reporting | 51 |
 
-## Shared (132)
+## Shared (133)
 
 Used by every agent or by several specialists.
 
@@ -239,6 +239,7 @@ Used by every agent or by several specialists.
 | `spare_parts` | query | ref | Spare parts for a tag, piece of equipment or equipment model: SAP material, manufacturer part number, stock on hand (0 = none in stock), storage bin, how many units use it, and manual sections naming it. |
 | `link_text` | query | text | Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities. |
 | `recall` | query | ref, include_ended? | What the assistant learned in earlier conversations about an entity and the units it is part of: short dated facts from answers engineers rated useful (or statements they marked to remember). |
+| `entity_rollup` | query | ref | What matters about an entity and everything beneath it in the register, rolled up: what it is and where it sits, what is beneath it by kind, the children carrying open work or down, the open work (most valuable first), what is down now and the jobs planned in the next 14 days. |
 | `bad_actors` | query | since?, until?, limit? | Equipment ranked by failures (SAP notifications), downtime caused and repeat ISO 14224 failure modes, with MTBF per unit and per class. |
 | `work_order_backlog` | query | as_of?, limit? | Open SAP work orders by priority, type and age; overdue orders (past basic finish); the oldest; open notifications with no order planned yet. |
 | `backlog_burn` | calc | since?, until?, days? | Is the backlog under control (#348)? Per month: work orders created (by start) against closed (by finish) and the orders open at the month's end, with whether the backlog is growing, steady or shrinking; then the days from a notification to the order raised for it (median, 90th percentile, longest). |

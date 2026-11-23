@@ -1,8 +1,8 @@
 import "../styles/entity.css";
 import { when, whenDay, count } from "../format";
-import { Bar, Button, ButtonLink, Notice, PageHeader, Table, Tabs, Input, Card as UICard, Badge as UIBadge, ErrorText, Line, Text, List, Heading } from "../ui";
+import { Bar, Button, ButtonLink, Empty, Notice, PageHeader, Table, Tabs, Input, Card as UICard, Badge as UIBadge, ErrorText, Line, Text, List, Heading } from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
-import { api, type Edge, type EntityDetail } from "../api";
+import { api, type Edge, type EntityDetail, type EntityTabCounts } from "../api";
 import { DrawingViewer, SheetThumb } from "../DrawingViewer";
 import { DocumentPages, documentHref, openDocument } from "../DocumentViewer";
 import { NotThisRecord, SameAs } from "./masterdata/Curation";
@@ -13,13 +13,15 @@ const EntityMapView = lazy(() => import("../MapView").then((m) => ({ default: m.
 const LiveFigure = lazy(() => import("../analytics/LiveFigure").then((m) => ({ default: m.LiveFigure })));
 
 /** Where this thing is (or the place it belongs to) and the located things linked to it. */
-function EntityMap({ id }: { id: string }) {
+function EntityMap({ id, tall }: { id: string; tall?: boolean }) {
   const m = useAsync(() => api.entityMap(id), [id]);
-  if (!m.data?.features.length) return null;
+  if (!m.data) return <Status of={m} />;
+  if (!m.data.features.length) return <Empty>Nothing here has a location.</Empty>;
   const own = m.data.focus === id;
   return (
-    <UICard as="section" title="Map" detail={own ? "its location and what connects to it" : "where it sits, and what connects there"}>
-      <EntityMapView data={m.data} focus={m.data.focus} height="380px" />
+    <UICard as="section" title="Map" detail={own ? "its location and what connects to it" : m.data.focus ? "where it sits, and what connects there"
+      : "everything in it that has a location"}>
+      <EntityMapView data={m.data} focus={m.data.focus} height={tall ? "70vh" : "380px"} />
     </UICard>
   );
 }
@@ -29,6 +31,7 @@ import { TrendView } from "../TrendView";
 import { MemoryCard } from "../Memory";
 import { WorkHere, readWork } from "../WorkHere";
 import { Beneath, Breadcrumb, useHierarchy } from "../Hierarchy";
+import { EntitySummary } from "../EntitySummary";
 import { EntityStatus, readStatus } from "../EntityStatus";
 import { AssetProfile, readProfile } from "../AssetProfile";
 import { LiveReadings, readLatest } from "../LiveReadings";
@@ -41,6 +44,11 @@ import { keptAt } from "../fieldPack";
 import { ASSET_KINDS, kindWord, person as personName } from "../wording";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, useAsync } from "../lib";
 
+// The Work and Schedule tabs are the List's rows and the Plan's timeline, only what is about this entity or in it.
+import { WorkWithin } from "./WorkList";
+import { PlanWithin } from "./Plan";
+const SceneWithin = lazy(() => import("./Scene").then((m) => ({ default: m.SceneWithin })));
+const NetworkWithin = lazy(() => import("./Network").then((m) => ({ default: ({ within }: { within: string }) => <m.Network within={within} /> })));
 // The graph tab pulls in Cytoscape; load it only when opened.
 const EntityGraph = lazy(() => import("./EntityGraph").then((m) => ({ default: m.EntityGraph })));
 const GraphCanvas = lazy(() => import("../graph").then((m) => ({ default: m.GraphCanvas })));
@@ -78,25 +86,43 @@ const REL_LABELS: Record<string, [string, string]> = {
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1]
   ?? `${e.rel.charAt(0).toUpperCase()}${e.rel.slice(1).replaceAll("_", " ")} (${e.direction === "out" ? "to" : "from"})`;
 
-type EntityTab = "overview" | "maintenance" | "trends" | "connections" | "documents" | "record" | "graph";
+type EntityTab = "overview" | "work" | "schedule" | "map" | "scene" | "trends" | "documents" | "connections" | "record";
+/** One order for every entity; a tab shows only when the entity or something beneath it has data for it. */
+const TAB_ORDER: EntityTab[] = ["overview", "work", "schedule", "map", "scene", "trends", "documents", "connections", "record"];
 const TAB_LABELS: Record<EntityTab, string> = {
-  overview: "Overview", maintenance: "Maintenance", trends: "Timeline", connections: "Connections", documents: "Documents", record: "Data",
-  graph: "Data",
+  overview: "Overview", work: "Work", schedule: "Schedule", map: "Map", scene: "3D", trends: "Timeline", documents: "Documents",
+  connections: "Connections", record: "Sources",
 };
+/** Old tab links still open: Maintenance is under Work now, Data and Graph are Sources. */
+const OLD_TABS: Record<string, EntityTab> = { maintenance: "work", graph: "record", data: "record", sources: "record", "3d": "scene" };
 const NO_TRENDS = ["document", "document_section", "log_entry"];
 const MAINTAINED = ["tag", "equipment", "equipment_model", "equipment_class"];
 
-/** The views this kind of record has, in order. Each view loads only its own data. */
-function entityTabs(e: EntityDetail): EntityTab[] {
-  const trends = !NO_TRENDS.includes(e.kind) && e.kind !== "timeseries";
-  // Connections is the flow diagram, so only a record on the piping or allocation network has it; its links are on Graph.
+/** The tabs this entity has, in TAB_ORDER: each one that its counts (`/entities/{id}/tabs`, everything beneath it
+ * included) say has something. Until they answer, Overview and Sources; where they can't be read (no signal, the
+ * phone keeps the entity but not its counts), the tabs its kind and its own links say it has. */
+function entityTabs(e: EntityDetail, counts: EntityTabCounts | null | undefined): EntityTab[] {
+  if (counts === undefined) return ["overview", "record"];
   const flow = e.edges.some((x) => x.rel === "flows_to" || x.rel === "pipes_to");
-  const documents = [...MAINTAINED, "area", "well", "facility", "pipeline"].includes(e.kind);
-  // Maintenance is the field technician's view: work orders and notifications, spare parts, and downtime.
-  const maintained = MAINTAINED.includes(e.kind);
-  return ["overview", ...(maintained ? ["maintenance" as const] : []), ...(trends ? ["trends" as const] : []), ...(flow ? ["connections" as const] : []),
-    // Record and Graph serve the data steward; they are one Data tab, and a `tab=graph` link still opens it (#1076).
-    ...(documents ? ["documents" as const] : []), "record"];
+  if (counts === null) {
+    const trends = !NO_TRENDS.includes(e.kind) && e.kind !== "timeseries";
+    const documents = [...MAINTAINED, "area", "well", "facility", "pipeline"].includes(e.kind);
+    return TAB_ORDER.filter((t) => t === "overview" || t === "record" || (t === "work" && MAINTAINED.includes(e.kind))
+      || (t === "trends" && trends) || (t === "documents" && documents) || (t === "connections" && flow));
+  }
+  const has: Record<EntityTab, boolean> = {
+    overview: true, record: true,
+    // Work is the cases about it or anything in it; a machine's work order and spares history sits there too.
+    work: counts.work > 0 || MAINTAINED.includes(e.kind),
+    schedule: counts.schedule > 0,
+    map: counts.map,
+    scene: counts.scene,
+    trends: counts.trends && !NO_TRENDS.includes(e.kind) && e.kind !== "timeseries",
+    // a tag's or a machine's P&ID sheets are documents too
+    documents: counts.documents > 0 || MAINTAINED.includes(e.kind),
+    connections: counts.connections || flow,
+  };
+  return TAB_ORDER.filter((t) => has[t]);
 }
 
 export function Entity({ id, tab }: { id: string; tab: string }) {
@@ -120,6 +146,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
     return { status, latest, work, profile };
   }, [oid, okind, onOverview]);
   const tree = useHierarchy(id).data;
+  const counts = useAsync(() => api.entityTabs(id).then((c) => (typeof c?.work === "number" ? c : null), () => null), [id]);
 
   // No signal and not kept on this phone (P5.17c): say so, and go back to the jobs that are.
   if (!ent.data && ent.error && ent.error.startsWith("Not kept on this phone")) return <section>
@@ -142,9 +169,12 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
     );
   }
 
-  const tabs = entityTabs(e);
-  const asked = tab === "graph" ? "record" : tab;
-  const view: EntityTab = tabs.includes(asked as EntityTab) ? (asked as EntityTab) : "overview";
+  const asked = (OLD_TABS[tab] ?? tab) as EntityTab;
+  // A link to a tab opens it at once; the counts only decide which other tabs to offer.
+  const counted = counts.data === undefined ? undefined : counts.data;
+  const tabs = entityTabs(e, counted).concat(counted === undefined && TAB_ORDER.includes(asked) && !["overview", "record"].includes(asked) ? [asked] : [])
+    .sort((a, b) => TAB_ORDER.indexOf(a) - TAB_ORDER.indexOf(b));
+  const view: EntityTab = tabs.includes(asked) ? asked : "overview";
   const fid = e.fuzer_id;
   // Assets people work on open on their work and history; any other record opens on its values.
   const operated = ASSET_KINDS.includes(e.kind);
@@ -196,6 +226,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
           {/* Everything else waits for the overview too: drawn first, the cards below sat at the top and were pushed
               down when it answered (#1069). */}
           {(overview.data !== undefined || overview.error) && <>
+            {operated && <EntitySummary id={fid} />}
             {operated && <EntityStatus id={fid} data={overview.data?.status} />}
             {["tag", "equipment", "well"].includes(e.kind) && <LiveReadings id={fid} data={overview.data?.latest} />}
             {operated && <WorkHere id={fid} area={e.kind === "area"} data={overview.data?.work} />}
@@ -209,7 +240,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
               actions={<ButtonLink href={documentHref(fid)} onClick={(ev) => { ev.preventDefault(); openDocument(fid); }}>
                   Read full screen</ButtonLink>}>
               {e.golden.status?.value === "superseded" && (
-                <ErrorText>This revision is superseded; see "Superseded by" under Data.</ErrorText>
+                <ErrorText>This revision is superseded; see "Superseded by" under Sources.</ErrorText>
               )}
               <DocumentPages id={fid} className="doc-preview" />
             </UICard>
@@ -227,10 +258,8 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
           {["well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
           {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={fid} />}
           {e.kind !== "event" && <Events id={fid} />}
-          {/* A machine is placed on its P&ID, ringed; a map zoomed out to the export line said little (#1076). */}
-          {["tag", "equipment"].includes(e.kind)
-            ? <LinkedDrawings id={fid} fallback={<Suspense fallback={null}><EntityMap id={fid} /></Suspense>} />
-            : <Suspense fallback={null}><EntityMap id={fid} /></Suspense>}
+          {/* A machine is placed on its P&ID, ringed (#1076); where things are is the Map tab. */}
+          {["tag", "equipment"].includes(e.kind) && <LinkedDrawings id={fid} />}
           {!operated && <div className="grid">
             <Fields e={e} />
             <Records e={e} />
@@ -239,13 +268,21 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
         </>
       )}
 
-      {view === "maintenance" && (
+      {view === "work" && (
         <>
-          <MaintenanceCard id={fid} />
+          {/* the cases about it or anything in it, as the List's rows; then a machine's maintenance history */}
+          <WorkWithin within={fid} />
+          {MAINTAINED.includes(e.kind) && <MaintenanceCard id={fid} />}
           {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={fid} />}
-          <DowntimeCard id={fid} />
+          {MAINTAINED.includes(e.kind) && <DowntimeCard id={fid} />}
         </>
       )}
+
+      {view === "schedule" && <PlanWithin within={fid} />}
+
+      {view === "map" && <Suspense fallback={<Status loading />}><EntityMap id={fid} tall /></Suspense>}
+
+      {view === "scene" && <Suspense fallback={<Status loading />}><SceneWithin at={fid} /></Suspense>}
 
       {view === "trends" && (
         <>
@@ -258,13 +295,16 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
       {view === "connections" && (
         <>
-          <Trace id={fid} label={e.label ?? fid} kind={e.kind} asOf={asOf || undefined} />
+          {e.edges.some((x) => x.rel === "flows_to" || x.rel === "pipes_to")
+            && <Trace id={fid} label={e.label ?? fid} kind={e.kind} asOf={asOf || undefined} />}
+          {/* a place: the network of everything in it and what that links to */}
+          {!!counts.data?.beneath && <Suspense fallback={<Status loading />}><NetworkWithin within={fid} /></Suspense>}
         </>
       )}
 
       {view === "documents" && (
         <>
-          <KnowledgeCard id={fid} />
+          <KnowledgeCard id={fid} beneath={!!counts.data?.beneath} />
           <LinkedDrawings id={fid} />
         </>
       )}
@@ -694,8 +734,8 @@ function Highlighted({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
-function KnowledgeCard({ id }: { id: string }) {
-  const docs = useAsync(() => api.documentsFor(id), [id]);
+function KnowledgeCard({ id, beneath }: { id: string; beneath?: boolean }) {
+  const docs = useAsync(() => api.documentsFor(id, beneath), [id, beneath]);
   const [q, setQ] = useState("");
   const [asked, setAsked] = useState("");
   const results = useAsync(() => (asked ? api.knowledgeSearch(asked, id) : Promise.resolve([])), [asked, id]);

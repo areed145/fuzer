@@ -167,11 +167,16 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
 
 
 def items(conn, start=None, end=None, area: str | None = None, status: str | None = None,
-          subject: str | None = None, crew: str | None = None) -> list[dict]:
+          subject: str | None = None, crew: str | None = None, within: str | None = None) -> list[dict]:
     """The plan between start and end (default: from a week ago to eight weeks ahead), in start order, each item
     with its subjects' and area's labels, its clashes and bundling chances. Items just outside the window that
-    touch the same areas are compared too, so a clash at its edge still shows."""
+    touch the same areas are compared too, so a clash at its edge still shows. `within` keeps the items about an
+    entity or anything beneath it (an entity page's Schedule)."""
     now = datetime.now(UTC)
+    inside = None
+    if within:
+        from ..graph import hierarchy
+        inside = [within, *hierarchy.subtree(conn, within)]
     start = _when(start) if start else now - timedelta(days=7)
     end = _when(end) if end else now + timedelta(days=56)
     margin = timedelta(days=BUNDLE_DAYS)
@@ -185,8 +190,10 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
         where p.start_at < %(end)s and p.end_at > %(start)s
           and (%(area)s::text is null or p.area_id = %(area)s)
           and (%(subject)s::text is null or %(subject)s = any(p.subjects))
+          and (%(inside)s::text[] is null or p.subjects && %(inside)s or p.area_id = any(%(inside)s))
         order by p.start_at, p.id
-        """, {"start": start - margin, "end": end + margin, "area": area, "subject": subject}).fetchall()
+        """, {"start": start - margin, "end": end + margin, "area": area, "subject": subject,
+              "inside": inside}).fetchall()
     clashes = _clashes(rows)
     from . import simops
 

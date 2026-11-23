@@ -47,6 +47,47 @@ def entity_hierarchy(fuzer_id: str, levels: int = Query(2, ge=1, le=3), conn=Dep
     return beneath.view(conn, fuzer_id, levels)
 
 
+@router.get("/entities/{fuzer_id}/tabs")
+def entity_tabs(fuzer_id: str, conn=Depends(get_conn)):
+    """What each of an entity page's tabs holds, counting everything beneath it, so an empty tab is left off."""
+    from ..ops import beneath
+
+    if not (out := beneath.tabs(conn, fuzer_id)):
+        raise HTTPException(404, "unknown fuzer_id")
+    return out
+
+
+@router.get("/entities/{fuzer_id}/summary")
+def entity_summary(fuzer_id: str, conn=Depends(get_conn)):
+    """The kept summary of this entity and everything beneath it, with whether it is past agents.summary_hours, and
+    whether a new one can be written here (a provider is set up). Reading never calls a model."""
+    from ..agents import summary
+    from ..core import llm
+
+    return {"summary": summary.latest(conn, fuzer_id), "can_write": llm.has_credentials("agents")}
+
+
+@router.post("/entities/{fuzer_id}/summary/generate")
+def entity_summary_generate(fuzer_id: str, by: str = "anonymous", conn=Depends(get_conn)):
+    """Write a new summary, unless the kept one is still fresh (then that one comes back and nothing is called).
+    Needs AI access: one short call on agents.summary_model."""
+    from ..agents import summary
+    from ..core import llm, usage
+
+    if (kept := summary.fresh(conn, fuzer_id)) is not None:
+        return {"summary": kept, "written": False}
+    if not llm.configured("agents", person=True):
+        raise HTTPException(503, "No AI provider is set up here, so a summary can't be written.")
+    try:
+        with usage.person():
+            out = summary.write(conn, fuzer_id, by)
+    except (RuntimeError, *llm.provider_errors("agents")) as e:
+        raise HTTPException(502, f"The summary could not be written: {e}") from None
+    if out is None:
+        raise HTTPException(404, "unknown fuzer_id")
+    return {"summary": out, "written": True}
+
+
 @router.get("/entities/{fuzer_id}/members")
 def entity_members(fuzer_id: str, kind: str | None = None, limit: int = 100, offset: int = 0,
                    conn=Depends(get_conn)):
@@ -249,9 +290,16 @@ def mapkit_token(response: Response):
 
 @router.get("/entities/{fuzer_id}/map")
 def entity_map(fuzer_id: str, conn=Depends(get_conn)):
-    """An entity's location and the located things linked to it, as GeoJSON (`focus` is the place shown)."""
-    from ..graph import spatial
+    """An entity's location and the located things linked to it, as GeoJSON (`focus` is the place shown). An entity
+    with located things beneath it (a facility, an area) shows them all and the pipelines between them."""
+    from ..graph import hierarchy, spatial
 
+    beneath = hierarchy.subtree(conn, fuzer_id)
+    if beneath:
+        out = spatial.among(conn, [fuzer_id, *beneath])
+        if len(out["features"]) > 1:
+            own = any(f["id"] == fuzer_id for f in out["features"])
+            return {**out, "focus": fuzer_id if own else None}
     return spatial.around(conn, fuzer_id)
 
 
@@ -435,5 +483,7 @@ def knowledge_search(q: str, ref: str | None = None, limit: int = 10, include_su
 
 
 @router.get("/entities/{fuzer_id}/documents")
-def entity_documents(fuzer_id: str, conn=Depends(get_conn)):
-    return knowledge.documents_for(conn, fuzer_id)
+def entity_documents(fuzer_id: str, beneath: bool = False, conn=Depends(get_conn)):
+    """The documents in this entity's scope, closest first; with `beneath`, then those that apply to anything in it."""
+    own = knowledge.documents_for(conn, fuzer_id)
+    return own + knowledge.documents_beneath(conn, fuzer_id) if beneath else own

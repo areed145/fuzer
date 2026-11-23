@@ -263,3 +263,18 @@ def recall(ref: str, include_ended: bool = False) -> dict[str, Any]:
                          "replaced_by": f"fact:{r['invalidated_by']}" if r["invalidated_by"] else None}
                         for r in rows if r["status"] == "ended"]
     return _plain(out)
+
+
+@capability("all", kind="query")
+def entity_rollup(ref: str) -> dict[str, Any]:
+    """What matters about an entity and everything beneath it in the register, rolled up: what it is and where it
+    sits, what is beneath it by kind, the children carrying open work or down, the open work (most valuable first),
+    what is down now and the jobs planned in the next 14 days. The facts the entity page's summary is written from;
+    use it for "how is this area / facility / well doing" before digging into one thing."""
+    from ...ops import beneath
+
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain(beneath.picture(conn, fid))
