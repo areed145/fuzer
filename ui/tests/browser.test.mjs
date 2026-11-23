@@ -8033,7 +8033,7 @@ test("P5.14a The installed app has its own Back, never leaves the app, and resum
   const back = page.locator(".topbar").getByRole("button", { name: /^Back/ });
   // The bar redraws a moment after the route changes, so wait for the label rather than read it at once.
   const backReads = (label) => page.locator(".topbar").getByRole("button", { name: label, exact: true }).waitFor();
-  await backReads("Back to Browse");
+  await backReads("Back to Explore");
   const box = await back.boundingBox();
   assert.ok(box.height >= 44 && box.width >= 44, "Back is big enough for a gloved thumb");
   const entries = await page.evaluate(() => history.length);
