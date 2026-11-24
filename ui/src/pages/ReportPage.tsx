@@ -88,6 +88,6 @@ function Slot({ panel, view, scope, inColumn }: { panel: Panel; view: ReportView
   const className = ["report-slot", !inColumn && `report-size-${panel.size}`, `report-type-${panel.type}`,
     panel.phone === false && "report-no-phone"].filter(Boolean).join(" ");
   return <div className={className}>
-    <Component report={view} panel={panel} scope={scope.id} window={view.window.key} at={view.window.at} />
+    <Component report={view} panel={panel} scope={scope.id} window={view.window.key} at={view.window.asked ? view.window.at : null} />
   </div>;
 }

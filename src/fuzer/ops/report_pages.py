@@ -78,7 +78,13 @@ def _window(d: dict, window: str | None, at) -> dict:
     window = window or d["window"]["default"]
     if window not in d["window"]["options"]:
         raise ReportError(f"{d['title']} reads {', '.join(d['window']['options'])}, not {window}")
-    return windows.resolve(window, at)
+    # `asked`: the day was named in the link; without it each measure reads its own latest day (a production day)
+    return {**windows.resolve(window, at), "asked": at is not None}
+
+
+def _at(w: dict) -> date | None:
+    """The day to read measures for: the one asked for, else None so each reads its own latest."""
+    return date.fromisoformat(w["at"]) if w.get("asked") else None
 
 
 def view(conn, pack, key: str, scope: str | None = None, window: str | None = None, at=None) -> dict:
@@ -128,7 +134,7 @@ def panel_data(conn, pack, key: str, panel_id: str, scope: str | None = None, wi
 
 def _value(conn, pack, key: str, scope: dict, w: dict, grain: str | None = None, history: bool = False) -> dict:
     m = metrics.registry()[key]
-    at = date.fromisoformat(w["at"]) if m.dated else None
+    at = _at(w) if m.dated else None
     return metrics.value(conn, pack, key, scope=scope["id"], window=w["key"], at=at, grain=grain, history=history)
 
 
@@ -171,7 +177,7 @@ def stat(conn, pack, d, panel, scope, w) -> dict:
 def trend(conn, pack, d, panel, scope, w) -> dict:
     from ..analysis import trend_spec
 
-    spec = trend_spec.from_measures(conn, pack, panel["measures"], scope["id"], w["key"], w["at"])
+    spec = trend_spec.from_measures(conn, pack, panel["measures"], scope["id"], w["key"], _at(w))
     whole = [e for e in spec.get("errors") or [] if "whole register" in e]
     return {"title": spec.get("title"), "spec": spec, "scoped": scope["id"] is None or not whole,
             "note": "; ".join((["Whole register"] if whole else []) + [e for e in spec.get("errors") or [] if e not in whole])
@@ -222,7 +228,8 @@ def figure(conn, pack, d, panel, scope, w) -> dict:
 @panel_type("table")
 def table(conn, pack, d, panel, scope, w) -> dict:
     if panel.get("rows"):
-        out = import_module("fuzer.core.rowsets").read(conn, pack, panel["rows"], scope["id"], w["key"], w["at"], panel.get("limit", 20))
+        out = import_module("fuzer.core.rowsets").read(conn, pack, panel["rows"], scope["id"], w["key"], _at(w),
+                                                    panel.get("limit", 20))
         return {"columns": out["columns"], "rows": out["rows"], "total": out["total"], "note": out.get("note"),
                 "scoped": out.get("scoped", False)}
     m, rows = _grain_rows(conn, pack, panel, scope, w)
