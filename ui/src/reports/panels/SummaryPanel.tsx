@@ -37,19 +37,18 @@ export function SummaryPanel(props: PanelProps) {
   const ai = usePermission("ai");
   const period = { scope, window, at };
   const kept = usePanel<SummaryPanelResult>(props);
-  const [written, setWritten] = useState<ReportSummary | null>(null);
+  const [written, setWritten] = useState<{ here: string; summary: ReportSummary } | null>(null);
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const asked = useRef<string | null>(null);
   const here = `${key}|${period.scope}|${window}|${at}`;
-  const summary = written?.at === at && written.window === window && written.scope === period.scope
-    ? written : kept.data?.summary ?? null;
+  const summary = written?.here === here ? written.summary : kept.data?.summary ?? null;
   const names = useEntityNames([...new Set((summary?.points ?? []).flatMap((p) => p.cites).filter((c) => c.startsWith("fz-")))]);
   const write = (rewrite = false) => {
     asked.current = here;
     setWriting(true);
     setError(null);
-    api.writeReportSummary(key, period, rewrite).then((r) => setWritten(r.summary), (e) => setError(errorMessage(e)))
+    api.writeReportSummary(key, period, rewrite).then((r) => setWritten({ here, summary: r.summary }), (e) => setError(errorMessage(e)))
       .finally(() => setWriting(false));
   };
   useEffect(() => {
