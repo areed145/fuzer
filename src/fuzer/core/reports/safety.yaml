@@ -2,7 +2,7 @@
 schema: 1
 key: safety
 title: Safety and integrity
-version: 1
+version: 2
 for: [HSE, operations manager, IOC]
 scope:
   kinds: [facility, area]
@@ -20,7 +20,7 @@ rows:
     panels:
       - {id: permits, type: stat, measure: safety.permits_open}
       - {id: demands, type: stat, measure: safety.demands}
-      - {id: inspections, type: stat, measure: safety.inspections_overdue}
+      - {id: inspections, type: stat, measure: safety.inspections_overdue, history: false}
       - {id: leaks, type: stat, measure: safety.ldar_leaks}
   - id: commentary
     panels:

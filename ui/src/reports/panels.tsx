@@ -70,7 +70,7 @@ function TrendPanel(props: PanelProps) {
     {spec && (spec.series.length
       ? <TrendChart spec={spec} timeline={null} on={on} compact={isCompact()}
         label={`${spec.title} from ${whenDay(spec.time.start)} to ${whenDay(spec.time.end)}`} />
-      : <Empty>No values in this window.</Empty>)}
+      : <Empty className="report-empty">No values in this window.</Empty>)}
   </PanelFrame>;
 }
 
@@ -80,7 +80,7 @@ function FigurePanel(props: PanelProps) {
   return <PanelFrame title={props.panel.title ?? d?.title ?? ""} result={d} loading={r} className="report-chart">
     {d && (d.rows.length
       ? <PlotlyChart spec={d.figure as never} label={`${d.title}: ${d.rows.map((x) => `${x.label} ${quantity(x.value, d.unit)}`).join(", ")}`} />
-      : <Empty>Nothing to show for this scope and window.</Empty>)}
+      : <Empty className="report-empty">Nothing to show for this scope and window.</Empty>)}
   </PanelFrame>;
 }
 
