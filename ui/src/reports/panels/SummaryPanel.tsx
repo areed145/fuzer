@@ -7,10 +7,11 @@ import { api } from "../../api";
 import type { ReportSummary, SummaryPanelResult } from "../../api/commentary";
 import { usePermission } from "../../Auth";
 import { ago } from "../../format";
-import { entityHref, errorMessage, href, useAsync } from "../../lib";
+import { entityHref, errorMessage, href } from "../../lib";
 import { display } from "../../entityRefs";
 import { useEntityNames } from "../../useEntityNames";
-import { Badge, Button, Card, ErrorText, List, Text } from "../../ui";
+import { Badge, Button, ErrorText, List, Text } from "../../ui";
+import { PanelFrame, usePanel } from "../panels";
 import type { PanelProps } from "../spec";
 
 function Cite({ c, names }: { c: string; names: ReturnType<typeof useEntityNames> }) {
@@ -30,17 +31,18 @@ function checked(s: ReportSummary): string | null {
     c.unknown_citations.length > 0 && `cites ${c.unknown_citations.join(", ")}, not on the page`].filter(Boolean).join(" · ");
 }
 
-export function SummaryPanel({ report, panel, scope, window, at }: PanelProps) {
+export function SummaryPanel(props: PanelProps) {
+  const { report, panel, scope, window, at } = props;
   const key = report.definition.key;
   const ai = usePermission("ai");
-  const period = { scope: scope ?? report.scope.id, window, at };
-  const kept = useAsync(() => api.reportPanel<SummaryPanelResult>(key, panel.id, period), [key, panel.id, period.scope, window, at]);
+  const period = { scope, window, at };
+  const kept = usePanel<SummaryPanelResult>(props);
   const [written, setWritten] = useState<ReportSummary | null>(null);
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const asked = useRef<string | null>(null);
   const here = `${key}|${period.scope}|${window}|${at}`;
-  const summary = written?.at === at && written.window === window && written.scope === (period.scope ?? null)
+  const summary = written?.at === at && written.window === window && written.scope === period.scope
     ? written : kept.data?.summary ?? null;
   const names = useEntityNames([...new Set((summary?.points ?? []).flatMap((p) => p.cites).filter((c) => c.startsWith("fz-")))]);
   const write = (rewrite = false) => {
@@ -51,27 +53,26 @@ export function SummaryPanel({ report, panel, scope, window, at }: PanelProps) {
       .finally(() => setWriting(false));
   };
   useEffect(() => {
-    // Once per period per visit, never retried, and only on the report's own default view (no scope in the link).
-    if (!ai || scope !== null || !kept.data?.due || !kept.data.can_write || asked.current === here) return;
+    // Once per period per visit, never retried, and only on the report's own view (the server says when: `due`).
+    if (!ai || !kept.data?.due || !kept.data.can_write || asked.current === here) return;
     write();
   }, [ai, here, kept.data?.due, kept.data?.can_write]);
   const flag = summary && checked(summary);
   const canWrite = ai && !!kept.data?.can_write;
-  return <Card as="section" className="report-summary" title={panel.title ?? "Summary"}
-    detail={summary ? <>Claude · {ago(summary.written_at)} · shared</> : undefined}
-    actions={summary && canWrite && !writing ? <Button variant="link" size="sm" onClick={() => write(true)}>Write again</Button> : undefined}>
-    <ErrorText>{kept.error}</ErrorText>
+  return <PanelFrame title={panel.title ?? "Summary"} result={kept.data} loading={kept} className="report-summary"
+    detail={summary ? <>Claude · {ago(summary.written_at)} · shared</> : undefined}>
     {summary && <>
       <Text as="p"><strong>{summary.headline}</strong></Text>
       {summary.points.length > 0 && <List>{summary.points.map((p, i) => <li key={i}>{p.text}
         {p.cites.length > 0 && <Text small muted> {p.cites.map((c, j) => <span key={c}>{j > 0 ? " · " : ""}<Cite c={c} names={names} /></span>)}</Text>}
       </li>)}</List>}
       {flag && <Text as="p" small><Badge tone="warn">Check</Badge> {flag}</Text>}
+      {canWrite && !writing && <Button variant="link" size="sm" onClick={() => write(true)}>Write again</Button>}
     </>}
     {writing && <Text small muted>{summary ? "Writing a newer one…" : "Writing the note…"}</Text>}
     {!summary && !writing && kept.data && (canWrite
       ? <Button size="sm" onClick={() => write()}>Write the note</Button>
       : <Text small muted>No note for this period.</Text>)}
     <ErrorText>{error}</ErrorText>
-  </Card>;
+  </PanelFrame>;
 }

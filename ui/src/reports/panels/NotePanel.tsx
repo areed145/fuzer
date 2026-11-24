@@ -6,11 +6,12 @@ import { api } from "../../api";
 import type { LiveValue, NotePanelResult, PersonNote } from "../../api/commentary";
 import { usePermission } from "../../Auth";
 import { ago, quantity, whenDay } from "../../format";
-import { useAsync, useAction } from "../../lib";
+import { useAction } from "../../lib";
 import { Markdown } from "../../Markdown";
 import { usePerson } from "../../work";
 import { person } from "../../wording";
-import { ActionStatus, Button, Card, ErrorText, Line, List, Text, Textarea, confirmDialog } from "../../ui";
+import { ActionStatus, Button, Line, List, Text, Textarea, confirmDialog } from "../../ui";
+import { PanelFrame, usePanel } from "../panels";
 import type { PanelProps } from "../spec";
 
 const TOKEN = /\{[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+(?:@[A-Za-z0-9_.:-]+)?\}/g;
@@ -51,12 +52,13 @@ function Note({ n, mine, onSave, onRemove, busy }: { n: PersonNote; mine: boolea
   </li>;
 }
 
-export function NotePanel({ report, panel, scope, window, at }: PanelProps) {
+export function NotePanel(props: PanelProps) {
+  const { report, panel, scope, window, at } = props;
   const key = report.definition.key;
   const operate = usePermission("operate");
   const [me] = usePerson();
-  const where = { scope: scope ?? report.scope.id, window, at };
-  const r = useAsync(() => api.reportPanel<NotePanelResult>(key, panel.id, where), [key, panel.id, where.scope, window, at]);
+  const where = { scope, window, at };
+  const r = usePanel<NotePanelResult>(props);
   const [draft, setDraft] = useState("");
   const { busy, error, run } = useAction();
   const fixed = "text" in panel && panel.text;
@@ -71,8 +73,7 @@ export function NotePanel({ report, panel, scope, window, at }: PanelProps) {
     if (!(await confirmDialog("Remove this note? It stays in the record.", { confirm: "Remove", danger: true }))) return;
     await run("remove", () => api.removeReportNote(key, n.id), r.reload);
   };
-  return <Card as="section" className="report-note" title={panel.title ?? "Notes"} detail={report.window.label}>
-    <ErrorText>{r.error}</ErrorText>
+  return <PanelFrame title={panel.title ?? "Notes"} detail={report.window.label} result={r.data} loading={r} className="report-note">
     {notes.length > 0 && <List plain>{notes.map((n) => <Note key={n.id} n={n} mine={!!me && n.by === me} busy={!!busy}
       onSave={(body) => run("edit", () => api.editReportNote(key, n.id, body), r.reload)} onRemove={() => remove(n)} />)}</List>}
     {r.data && notes.length === 0 && !operate && <Text small muted>No notes for this period.</Text>}
@@ -85,5 +86,5 @@ export function NotePanel({ report, panel, scope, window, at }: PanelProps) {
       </Line>
     </>}
     <ActionStatus busy={busy} error={error} />
-  </Card>;
+  </PanelFrame>;
 }

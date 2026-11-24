@@ -223,13 +223,15 @@ def write(conn, pack, key: str, scope: str | None, window: str, at: date, by: st
 @report_pages.panel_type("summary")
 def panel(conn, pack, report: dict, panel: dict, scope: dict, window: dict) -> dict:
     """The `summary` panel's result: the kept note for the period, whether one can be written here, and whether this
-    visit should write it unasked (none kept, the report's default window, ending today). Never calls a model."""
+    visit should write it unasked (none kept, the report's default scope and window, ending today). Never calls a
+    model."""
     from ..core import windows
 
     at = date.fromisoformat(window["at"])
     kept = latest(conn, report["key"], scope.get("id"), window["key"], at)
     today = windows.resolve(window["key"])["at"] == window["at"]
     return {"summary": kept, "can_write": llm.has_credentials("agents"),
-            "due": kept is None and today and window["key"] == report["window"]["default"],
+            "due": kept is None and today and window["key"] == report["window"]["default"]
+            and scope.get("id") == report_pages._scope(conn, report, None, pack=pack)["id"],
             "as_of": kept["at"] if kept else None, "refs": sorted({c for p in (kept or {}).get("points") or []
                                                                    for c in p["cites"] if REF.match(c)})}
