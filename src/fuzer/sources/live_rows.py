@@ -54,7 +54,7 @@ def _read(path: Path) -> list[dict]:
 
 
 def _floc(code: str, unit: str) -> str:
-    """The SAP functional location of a model unit: `B1-K-2001` at KRGP is `KRGP-B1-K2001`."""
+    """The SAP functional location of a model unit: `B1-K-2001` at site `XX` is `XX-B1-K2001`."""
     head, _, tail = unit.rpartition("-")
     return f"{code}-{head}{tail}" if head else f"{code}-{unit}"
 
