@@ -2,7 +2,7 @@
 schema: 1
 key: safety
 title: Safety and integrity
-version: 2
+version: 3
 for: [HSE, operations manager, IOC]
 scope:
   kinds: [facility, area]
@@ -40,5 +40,5 @@ rows:
       - {id: by-area, type: figure, size: 2, title: Incidents by area, measure: safety.incidents, grain: area, chart: bar}
   - id: alarms
     panels:
-      - {id: alarm-performance, type: view, view: alarm-performance, size: 2}
-      - {id: leak-surveys, type: view, view: leak-surveys, size: 2}
+      - {id: alarm-performance, type: view, view: alarm-performance, size: 2, phone: false}
+      - {id: leak-surveys, type: view, view: leak-surveys, size: 2, phone: false}
