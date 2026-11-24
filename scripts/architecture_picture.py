@@ -115,7 +115,7 @@ def people(t):
 
 def screen_tile(x, y, w, h, name, glyph, t):
     out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{t["tile"]}" stroke="{t["line"]}"/>']
-    gx, gy = x + 12, y + 12
+    gx, gy = x + 12, y + h / 2 - 14
     ink, hub, wire = t["ink"], t["hub"], t["wire"]
     if glyph == "map":
         out.append(f'<path d="M{gx} {gy + 6} l12 -5 12 5 12 -5 v24 l-12 5 -12 -5 -12 5z" fill="none" stroke="{wire}"/>')
@@ -157,11 +157,14 @@ def surfaces(t):
     # IOC and field surfaces
     x, y, w, h = 40, 128, 470, 196
     out += [label(x, y - 10, "IOC and field surfaces", t), card(x, y, w, h, t)]
-    tiles = [("Tower map", "map"), ("Work list", "list"), ("Work board", "board"),
-             ("Plan", "plan"), ("Explore", "explore"), ("Reports", "reports")]
+    tiles = [("Tower", "map"), ("Work", "list"), ("Plan", "plan"), ("Explore", "explore"), ("Reports", "reports")]
     tw, th = 140, 52
     for i, (name, g) in enumerate(tiles):
-        out += screen_tile(x + 16 + (i % 3) * (tw + 13), y + 18 + (i // 3) * (th + 12), tw, th, name, g, t)
+        if i == 0:  # Tower, the first page, gets the tall tile
+            out += screen_tile(x + 16, y + 18, tw, 2 * th + 12, name, g, t)
+            continue
+        col, row = 1 + (i - 1) % 2, (i - 1) // 2
+        out += screen_tile(x + 16 + col * (tw + 13), y + 18 + row * (th + 12), tw, th, name, g, t)
     out.append(text(x + 16, y + h - 26, "Triage, dispatch, hand over, close out", 12.5, 500, "muted", t=t))
     out.append(text(x + 16, y + h - 10, "Phone, iPad and desktop; installable for the field", 12.5, 400, "muted",
                     t=t))
