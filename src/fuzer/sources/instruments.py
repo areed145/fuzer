@@ -23,6 +23,7 @@ API reader leaves out values that aren't good.
 """
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -100,12 +101,40 @@ class Faults:
 
 
 def load(data_dir) -> Faults | None:
-    path = Path(data_dir) / "instrument_faults.json" if data_dir else None
-    if not path or not path.is_file():
+    """The plant's planted faults, and on a live facility the faults of its days so far (live_events)."""
+    if not data_dir:
         return None
-    from .relative_dates import offset
+    path = Path(data_dir) / "instrument_faults.json"
+    model = Path(data_dir) / "process_model.json"
+    from .live_events import ENV
+    from .relative_dates import day, offset
 
-    return _cached(str(path), path.stat().st_mtime, offset())
+    live = _live(str(model), model.stat().st_mtime, day(), os.environ.get(ENV, "")) if model.is_file() else None
+    if not path.is_file():
+        return live
+    planted = _cached(str(path), path.stat().st_mtime, offset())
+    return Faults({"faults": planted.faults + live.faults, "outages": planted.outages}) if live else planted
+
+
+_LIVE: dict[tuple, "Faults | None"] = {}
+
+
+def _live(model: str, mtime: float, today: str, switch: str = "") -> Faults | None:
+    """A live facility's instrument faults over its live history (None when the facility is not live)."""
+    key = (model, mtime, today, switch)
+    if key not in _LIVE:
+        from datetime import date, timedelta
+
+        from . import live_events
+
+        spec = json.loads(Path(model).read_text())
+        end = date.fromisoformat(today)
+        found = live_events.faults(spec, end - timedelta(days=live_events.LOOKBACK_DAYS), end) \
+            if live_events.enabled(spec) else []
+        for old in [k for k in _LIVE if k[0] == model]:  # yesterday's, or the file before it changed
+            del _LIVE[old]
+        _LIVE[key] = Faults({"faults": found}) if found else None
+    return _LIVE[key]
 
 
 _CACHE: dict[tuple[str, float, int], Faults] = {}

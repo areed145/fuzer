@@ -1,4 +1,5 @@
 {
+  "live": true,
   "version": 1,
   "seed": 23,
   "climate": {"mean": 10.0, "diurnal": 7.0, "annual": 12.0, "peak_day": 200, "coolant": "air"},

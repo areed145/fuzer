@@ -18,7 +18,7 @@ from typing import NamedTuple
 
 from psycopg.types.json import Jsonb
 
-from . import catalog, connections, connectors, mappings, quality, relative_dates
+from . import catalog, connections, connectors, live_rows, mappings, quality, relative_dates
 
 
 class DatasetNotFound(ValueError):
@@ -290,6 +290,7 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
                     "and recorded runs before deliberately retrying")
             report["missing"].append(name)
             continue
+        c = live_rows.wrap(name, c)  # a live facility's systems record its live events (live_rows)
         fp = c.fingerprint()
         if not full and d["fingerprint"] == fp:
             report["unchanged"].append(name)
