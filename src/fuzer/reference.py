@@ -395,29 +395,53 @@ def detectors_md() -> str:
 
 
 def metrics_md() -> str:
-    """Every registered metric: what it measures, how, in what unit, by what grains, and the records behind it."""
-    from .core import metrics
+    """Every registered metric: what it measures, how, in what unit, by what grains, and the records behind it; and every
+    row set."""
+    from .core import metrics, rowsets
 
     reg = metrics.registry()
-    out = ["# Metrics", "", HEADER.format(what="the metric registry (`core/metrics.py`)"),
+    out = ["# Metrics", "", HEADER.format(what="the metric registry (`core/metrics.py`, `core/measures.yaml`)"),
            "Every KPI is declared once, with its definition, formula, unit, the standard it follows where there is one, "
-           "the grains it can be cut by and the records behind it. Pages, the daily report and agents read the same "
-           "registered metric (`GET /metrics/{key}`, the `get_metric` tool), so a number is the same wherever it "
+           "the grains it can be cut by and the records behind it. Pages, the daily report, reports and agents read the "
+           "same registered metric (`GET /metrics/{key}`, the `get_metric` tool), so a number is the same wherever it "
            "is shown, and every number drills to its cases or records. The Metrics page (under Reports) lists them "
-           "with their value now and opens each one by any of its grains. A dated metric also takes `at`, the day "
-           "its period ends (`?at=YYYY-MM-DD`): the daily report reads it for its own day, so a report rebuilt later "
-           "keeps its number. No page computes a KPI of its own (`tests/core/test_page_kpis.py`).", "",
-           "| Metric | Group | Unit | Cut by | Period |", "|---|---|---|---|---|"]
+           "with their value now and opens each one by any of its grains. No page computes a KPI of its own "
+           "(`tests/core/test_page_kpis.py`).", "",
+           "A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everything beneath it, as the "
+           "entity pages roll work up. A **windowed** one answers for a named window (`?window=7d`: `1d`, `7d`, `30d`, "
+           "`90d`, `qtd`, `ytd`) ending on a day (`?at=YYYY-MM-DD`); its cut-off says what that day is when none is "
+           "given (today, or the last production day), so a report read again later for the same day gives the same "
+           "number. A **stock** is what is open at the window's end; the rest add up what happened inside it. A "
+           "metric that isn't scoped answers for the whole register and says so. Measures over the register's "
+           "records are declared in `core/measures.yaml`, and a pack adds or rebinds one under `measures:` in its "
+           "pack.yaml (see [Reports](reports.md)).", "",
+           "| Metric | Group | Unit | Cut by | Scope | Window |", "|---|---|---|---|---|---|"]
     for m in reg.values():
+        window = (f"{m.default_window}, at the end" if m.stock else m.default_window) if m.windowed else m.period
         out.append(f"| [`{m.key}`](#{m.key.replace('.', '')}) {m.label} | {m.group} | {m.unit} | "
-                   f"{', '.join(m.grains) or '-'} | {m.period} |")
+                   f"{', '.join(m.grains) or '-'} | {'any entity' if m.scoped else 'whole register'} | {window} |")
     for m in reg.values():
         out += ["", f"## {m.key}", "", f"**{m.label}.** {m.definition}", "", f"- **Formula:** {m.formula}",
                 f"- **Unit:** {m.unit} ({ {'higher': 'higher is better', 'lower': 'lower is better'}.get(m.better, 'neither better nor worse') })",
                 f"- **Records:** {m.records}"]
         out += [f"- **Standard:** {m.standard}"] if m.standard else []
         out += [f"- **Cut by:** {', '.join(m.grains)}"] if m.grains else []
-        out += ["- **Dated:** takes `at`, the day its period ends"] if m.dated else []
+        out += [f"- **Target:** {m.target:g} {m.unit}"] if m.target is not None else []
+        if m.windowed:
+            day = {"production_day": "the last production day", "rebuild": "the latest rebuild"}.get(m.cutoff, "today")
+            out += [f"- **Window:** {m.default_window} by default, ending on {day} when no day is given"
+                    + ("; counts what is open at the window's end" if m.stock else "")]
+        else:
+            out += [f"- **Period:** {m.period}"]
+        out += ["- **Scope:** any entity, rolling up what is beneath it" if m.scoped else "- **Scope:** the whole register"]
+        out += [f"- **Declared in:** {'`core/measures.yaml`' if m.compute.__module__ == 'fuzer.ops.measures' else '`' + m.compute.__module__.removeprefix('fuzer.').replace('.', '/') + '.py`'}"]
+    out += ["", "## Row sets", "", "A row set is a registered list with fixed columns, each row opening its case or entity "
+            "(`GET /row-sets/{key}`); a report's table names one by key. Declared in `core/row_sets.yaml` and in code, "
+            "and a pack adds or rebinds one under `row_sets:`.", "", "| Row set | Rows | Columns | Window |",
+            "|---|---|---|---|"]
+    for r in rowsets.registry().values():
+        out.append(f"| `{r.key}` {r.label} | {r.definition} | {', '.join(c['label'] for c in r.columns)} | "
+                   f"{r.default_window if r.windowed else '-'} |")
     return "\n".join(out) + "\n"
 
 

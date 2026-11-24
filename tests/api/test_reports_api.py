@@ -41,7 +41,7 @@ def test_the_work_report_reads_the_registered_numbers_and_the_work_list(okan_db)
         view = client.get("/reports/work").json()
         fid = view["scope"]["id"]
         stat = client.get("/reports/work/panels/backlog", params={"scope": fid}).json()
-        metric = client.get("/metrics/work.backlog").json()
+        metric = client.get("/metrics/work.backlog", params={"scope": fid, "window": view["window"]["key"]}).json()
         assert stat["value"] == metric["value"] and stat["unit"] == metric["unit"]  # one value, one source
         cases = client.get("/reports/work/panels/overdue", params={"scope": fid}).json()
         listed = client.get("/cases", params={"within": fid, "overdue": "true", "sort": "due"}).json()

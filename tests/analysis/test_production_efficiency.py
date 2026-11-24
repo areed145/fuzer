@@ -115,7 +115,7 @@ def test_daily_switches_and_no_capacity_carry_forward_or_future_leakage():
 
 @pytest.mark.parametrize("end", [date.min, date.max])
 def test_date_boundaries_are_rejected(end):
-    with pytest.raises(ValueError, match="fourteen daily samples"):
+    with pytest.raises(ValueError, match="14 daily samples"):
         calculate([], [], end)
 
 
