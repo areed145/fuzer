@@ -12,6 +12,7 @@ import { SchedulePage } from "./Schedule";
 import { ResourcesPage } from "./Resources";
 import { LogisticsPage } from "./Logistics";
 import { SchedulesPage } from "./Schedules";
+import { PortfolioPage } from "./Portfolio";
 import { usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { commonName } from "../entityRefs";
@@ -31,6 +32,8 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
   if (query.has("logistics")) return <LogisticsPage />;
   // `?schedules=1` lists the schedules (Plan's Schedules page).
   if (query.has("schedules")) return <SchedulesPage />;
+  // `?portfolio=1` is every container from the business plan down (`&container=` opens one, `&tab=plan` its plan).
+  if (query.has("portfolio")) return <PortfolioPage query={query} />;
   return schedule ? <SchedulePage code={schedule} person={person} view={query.get("view")} /> : <PlanTimeline query={query} person={person} />;
 }
 

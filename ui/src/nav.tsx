@@ -75,6 +75,7 @@ export const NAV: NavGroup[] = [
     icon: "M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 9h16M8 2v4M16 2v4M7 13h5M10 17h7",
     items: [
       { label: "Plan", section: "plan", also: ["turnaround"] },
+      { label: "Portfolio", section: "plan", path: "/plan?portfolio=1", view: "portfolio" },
       { label: "Schedules", section: "plan", path: "/plan?schedules=1", view: "schedules" },
       { label: "Resources", section: "plan", path: "/plan?resources=1", view: "resources" },
       { label: "Logistics", section: "plan", path: "/plan?logistics=1", view: "logistics" },
