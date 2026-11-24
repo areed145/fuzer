@@ -74,7 +74,17 @@ ARRIVE: dict[str, dict] = {
 
 # A source's sync that raises its own work, by the name a bundle's evals/loop.yaml uses.
 SOURCES = {"sap_notifications": lambda conn: __import__("fuzer.ops.intake", fromlist=["intake"]).sync_notifications(
-    conn, enabled=True)}
+    conn, enabled=True), "routines": lambda conn: _routines(conn)}
+
+
+def _routines(conn) -> dict:
+    """SAP's maintenance plans as routines, and their next occurrences raised (as the register follow-up does), looking
+    a year ahead: a bundle's next due dates can be further out than a routine's lead time."""
+    from ..ops import plan, routines
+
+    plan.sync_maintenance_plans(conn)  # SAP's next due tasks as bars first, as the register follow-up runs them
+    routines.sync_sap(conn)
+    return routines.raise_due(conn, horizon_days=366)
 
 # A check production runs on a schedule or after each load that raises data work, by the name evals/loop.yaml uses.
 SYNCS = {
@@ -746,9 +756,10 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
 def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict:
     """Every type in the routing table (or `only` these) through the loop on this database. `arrive` is how each type
     comes in (the bundle's evals/loop.yaml when not given; {} raises every type synthetically)."""
-    from ..ops import routing
+    from ..ops import routines, routing
     from ..workflow import engine
 
+    routines._type()  # registered, as the API's start registers it
     engine.load_defaults(conn)
     routing.adopt_open_cases(conn, by=BY)  # as the API's start does: work raised before the processes loaded runs them
     _people(conn)

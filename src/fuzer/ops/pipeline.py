@@ -334,6 +334,8 @@ def follow_register(conn, pack: Pack) -> dict:
     planned["planning_system"] = schedule.sync_activities(conn)  # after the templates: planners' own schedules stay
     from . import containers
     planned["containers"] = containers.sync(conn)  # schedules, board projects and SAP revisions as containers
+    from . import routines
+    planned["routines"] = {"sap": routines.sync_sap(conn), **routines.raise_due(conn)}  # occurrences due: needs, cases
     notified = intake.sync_notifications(conn)
     board.refresh(conn, pack)  # last, so the exceptions just raised are on it
     return {"plan": planned, "notifications": notified}

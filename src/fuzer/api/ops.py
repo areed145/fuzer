@@ -615,7 +615,7 @@ class FieldReport(BaseModel):
 def _loaded_types() -> None:
     """Exception types are declared by the modules that raise them; load those so labels and audiences resolve."""
     from ..analysis import limits, records, rotating, trips  # noqa: F401
-    from ..ops import intake, sre_handoff  # noqa: F401
+    from ..ops import intake, routines, sre_handoff  # noqa: F401
     from ..sources import alerts  # noqa: F401
 
 
@@ -1473,6 +1473,53 @@ def plan_sync(conn=Depends(get_conn)):
         return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c),
                 "planning_system": schedule.sync_activities(c), "containers": containers.sync(c)}
     return _plan_call(conn, both)
+
+
+# ---- routines (step 7 of the work model) --------------------------------------------------------------------------
+
+@router.get("/routines")
+def routines_list(conn=Depends(get_conn)):
+    """Every routine (SAP's maintenance plans and those kept here), with its next due date, open occurrence and
+    whether it is late."""
+    from ..ops import routines
+    return routines.listing(conn)
+
+
+class RoutineNew(BaseModel):
+    by: str
+    title: str
+    interval_days: float
+    next_due: date
+    targets: list[str] = []
+    anchor: Literal["fixed", "floating"] = "fixed"
+    template: dict = {}
+    lead_days: float = 14
+    tolerance_days: float = 0
+    owner_role: str = "maintenance_planner"
+
+
+@router.post("/routines")
+def routine_create(r: RoutineNew, conn=Depends(get_conn)):
+    """A routine kept in Fuzer (a routine duty): each due date becomes a need, a case and a job within its lead time."""
+    from ..ops import routines
+    try:
+        out = routines.create(conn, r.title, r.by, r.interval_days, r.next_due, targets=r.targets, anchor=r.anchor,
+                              template=r.template, lead_days=r.lead_days, tolerance_days=r.tolerance_days,
+                              owner_role=r.owner_role)
+    except routines.RoutineError as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return out
+
+
+@router.post("/routines/run")
+def routines_run(conn=Depends(get_conn)):
+    """Raise what is due now (the register follow-up does it too)."""
+    from ..ops import routines
+    out = {"sap": routines.sync_sap(conn), **routines.raise_due(conn)}
+    conn.commit()
+    return out
 
 
 # ---- containers (step 6 of the work model) ------------------------------------------------------------------------

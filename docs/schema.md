@@ -2188,6 +2188,31 @@ One container (step 6 of docs/work-model.md): a business plan, program, project,
 | `added_by` | text |  |
 | `added_at` | timestamptz |  |
 
+### `work_routine`
+
+Routines (step 7 of docs/work-model.md): a standing rule that raises an obligation need each time it falls due. SAP keeps its maintenance and inspection plans (source 'sap', read here); a routine kept in Fuzer has source 'fuzer'.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `code` | text |  |
+| `title` | text |  |
+| `source` | text | sap \| fuzer |
+| `source_key` | text |  |
+| `interval_days` | double precision, | the trigger: every n days |
+| `anchor` | text | fixed (from the last due date) \| floating (from the last completion) |
+| `targets` | text[] | the assets it is about |
+| `template` | jsonb | the job it makes: kind, place, crew, hours, instruction |
+| `lead_days` | double precision |  |
+| `tolerance_days` | double precision |  |
+| `owner_role` | text |  |
+| `next_due` | date |  |
+| `last_done` | date |  |
+| `active` | boolean |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)
