@@ -343,7 +343,21 @@ test("a report waiting on an agent no worker has claimed says the agent worker m
   let current = report(true, 90);
   await page.route("**/reports/daily", route => route.fulfill({ json: [{ day: "2025-12-30", status: "drafting" }] }));
   await page.route("**/reports/daily/2025-12-30*", route => route.fulfill({ json: current }));
+  // The daily report is Daily operations' narrative now: an old link lands on that report at the same day.
+  const win = { key: "1d", at: "2025-12-30", start: "2025-12-30", end: "2025-12-30", days: 1, label: "30 Dec 2025", asked: true,
+    previous: { start: "2025-12-29", end: "2025-12-29" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const view = { scope, window: win, repeats: {}, scopes: [scope], definition: { schema: 1, key: "operations",
+    title: "Daily operations", version: 1, for: [], scope: { kinds: ["facility"] }, source: "platform",
+    window: { default: "1d", options: ["1d"], at: "production_day" },
+    rows: [{ id: "report", panels: [{ id: "narrative", type: "narrative", size: 2 }] }] } };
+  await page.route("**/reports/operations?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/operations/panels/**", (route) => route.fulfill({ json: { id: "narrative", type: "narrative",
+    title: "Daily report", scope, window: win, as_of: "2025-12-30", note: null, scoped: true, refs: [], href: "/cases/5",
+    day: "2025-12-30", status: "drafting", version: 1, ok: true } }));
   await page.goto(`${url}/#/reports?day=2025-12-30`);
+  await page.waitForURL(/#\/reports\/operations\?at=2025-12-30/);
+  await page.getByRole("heading", { name: "Daily operations" }).waitFor();
   const note = page.getByRole("note").filter({ hasText: "Waiting for an agent worker" });
   await note.waitFor();
   assert.match(await note.innerText(), /none has picked this step up in 90 min/);
@@ -392,6 +406,94 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.getByRole("combobox", { name: "Window" }).selectOption("30d");
   await page.waitForFunction(() => location.hash.includes("window=30d"));
   assert.ok(asked.some((q) => q.includes("window=30d")));
+  await page.setViewportSize({ width: 1440, height: 900 });
+});
+
+test("a report's AI note cites what it rests on and flags what the checks found; a note shows its live values and adds for the period", async () => {
+  const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
+    previous: { start: "2026-11-11", end: "2026-11-17" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const view = { scope, window: win, repeats: {}, scopes: [scope],
+    definition: { schema: 1, key: "work", title: "Work and dispatch", version: 1, for: [], scope: { kinds: ["facility"] },
+      window: { default: "7d", options: ["7d"] }, source: "platform", rows: [
+        { id: "commentary", panels: [{ id: "summary", type: "summary", size: 2 }, { id: "notes", type: "note", size: 2 }] }] } };
+  const note = { id: 7, report: "work", scope: "fz-f1", window: "7d", at: "2026-11-24", start: "2026-11-18",
+    body: "Backlog at {work.backlog} after the trip.", by: "Dana", written_at: "2026-11-24T08:00:00Z", edited_at: null, own: true,
+    values: { "{work.backlog}": { key: "work.backlog", scope: "fz-f1", value: 1250, unit: "cases", error: null } } };
+  const added = [];
+  await page.route("**/reports/work?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/work", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/work/notes", (route) => { added.push(route.request().postDataJSON()); return route.fulfill({ json: { ...note, id: 8 } }); });
+  await page.route("**/reports/work/panels/**", (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").pop();
+    const base = { id, title: "", scope, window: win, as_of: null, note: null, scoped: true, refs: [], href: null };
+    if (id === "notes") return route.fulfill({ json: { ...base, type: "note", text: null, values: {}, notes: [note] } });
+    return route.fulfill({ json: { ...base, type: "summary", can_write: false, due: false, summary: {
+      report: "work", scope: "fz-f1", window: "7d", at: "2026-11-24", headline: "Backlog up to 42 cases this week",
+      points: [{ text: "Most of it waits for dispatch.", cites: ["work.backlog", "case:12"] }],
+      checks: { ok: false, uncited_points: [], unknown_citations: [], unknown_numbers: ["12%"] },
+      written_at: "2026-11-24T07:00:00Z", by: "user:a", model: "m", cost_usd: 0.001 } } });
+  });
+  await page.goto(`${url}/#/reports/work`);
+  await page.getByText("Backlog up to 42 cases this week").waitFor();
+  await page.getByRole("link", { name: "case 12" }).waitFor();
+  await page.getByText("12% not on the page").waitFor();
+  await page.getByText("1,250 cases", { exact: true }).waitFor();
+  await page.getByRole("textbox", { name: "Add a note" }).fill("Compressor back on Thursday.");
+  await page.getByRole("button", { name: "Add note" }).click();
+  await page.waitForFunction(() => true);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepEqual(added.map((a) => [a.body, a.window, a.at ?? null, a.scope]), [["Compressor back on Thursday.", "7d", null, "fz-f1"]]);
+});
+
+test("a custom report is edited in place on a desk: move, size, add a panel from the model, check the definition and save a version; a phone only reads", async () => {
+  const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
+    previous: { start: "2026-11-11", end: "2026-11-17" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const stat = (id, measure) => ({ id, type: "stat", size: 1, measure });
+  const definition = { schema: 1, key: "custom-5", title: "My work", version: 2, for: [], scope: { kinds: ["facility", "area"] },
+    window: { default: "7d", options: ["7d", "30d"] }, source: "custom",
+    rows: [{ id: "r0", panels: [stat("backlog", "work.backlog"), stat("closed", "work.closed")] }] };
+  const custom = { key: "custom-5", title: "My work", for: [], scope: definition.scope, window: { default: "7d" }, source: "custom",
+    version: 2, owner: "user:me", mine: true, shared: "", updated_at: "2026-11-24T08:00:00Z", updated_by: "user:me", can_share: false,
+    origin: { key: "work", title: "Work and dispatch", version: 3, copied_version: 1 } };
+  const view = { scope, window: win, repeats: {}, scopes: [scope], definition, custom };
+  const saved = [], drafts = [];
+  await page.route("**/reports/custom-5?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/custom-5", (route) => {
+    if (route.request().method() === "PUT") { saved.push(route.request().postDataJSON()); return route.fulfill({ json: { ...custom, version: 3 } }); }
+    return route.fulfill({ json: view });
+  });
+  const result = (id) => ({ id, type: "stat", title: id, scope, window: win, as_of: "2026-11-23", note: null, scoped: true, refs: [],
+    href: null, measure: "work.backlog", value: 12, unit: "cases", target: null, better: "lower", previous: null, history: [] });
+  await page.route("**/reports/custom-5/panels/**", (route) => route.fulfill({ json: result(new URL(route.request().url()).pathname.split("/").pop()) }));
+  await page.route("**/reports/custom-5/draft/panels/**", (route) => { drafts.push(route.request().postDataJSON()); return route.fulfill({ json: result("draft") }); });
+  await page.route("**/model?*", (route) => route.fulfill({ json: { kinds: ["facility", "area"], types: ["stat", "trend", "figure", "table", "cases", "note", "summary"],
+    charts: ["bar", "pareto", "share"], case_filters: [], views: [], row_sets: [{ key: "cases.open", label: "Open cases", definition: "", scoped: true }],
+    measures: [{ key: "work.arrivals", label: "Cases opened", group: "Work", unit: "cases", definition: "", grains: ["queue"], scoped: true, windowed: true }] } }));
+  await page.route("**/reports/check", (route) => route.fulfill({ json: { definition: route.request().postDataJSON().definition, text: "title: My work" } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/reports/custom-5`);
+  await page.getByText("copied from").waitFor();
+  await page.getByText("(changed since: version 3)").waitFor();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Move closed up" }).click();
+  await page.getByRole("combobox", { name: "Size of backlog" }).selectOption("2");
+  await page.getByRole("button", { name: "+ Add panel" }).last().click();
+  await page.getByRole("combobox", { name: "Measure" }).selectOption("work.arrivals");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".report-type-stat").length === 3);
+  assert.ok(drafts.length && drafts[0].definition.rows.at(-1).panels[0].measure === "work.arrivals", "an unsaved panel is read from the draft");
+  await page.getByRole("button", { name: "Definition" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.waitForFunction(() => !location.hash.includes("edit=1"));
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].base, 2, "a save names the version it was edited from");
+  assert.deepEqual(saved[0].definition.rows.map((r) => r.panels.map((p) => `${p.id}:${p.size}`)), [["closed:1", "backlog:2"], ["arrivals:1"]]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByText("copied from").waitFor();
+  await page.getByRole("button", { name: "Edit" }).waitFor({ state: "detached" });  // a phone reads
+  assert.equal(await page.getByRole("button", { name: "Copy to my reports" }).count(), 0);
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
@@ -458,7 +560,7 @@ test("P7.6b a marked report is approved by a person with their reason, then expo
   await approve.waitFor();
   await page.getByText("for the regulator: due 2026-11-15, in 2 days; not started", { exact: false }).waitFor();
   assert.equal(await page.getByRole("link", { name: "flaring_return, 2026-10" }).getAttribute("href"),
-    "#/reports?report=flare_emissions_monthly%3A2026-10");
+    "#/regulatory?report=flare_emissions_monthly%3A2026-10");
   assert.equal(await approve.isDisabled(), true);  // a marked figure needs the approver's reason first
   await page.getByRole("textbox", { name: "Why it can go as it is" }).fill("The estimates are the system's own.");
   await approve.click();
@@ -1356,9 +1458,10 @@ test("reader Settings and Sources do not request protected configuration or conn
   assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
-  // Ask runs a paid model: no menu entry and no top-bar button without AI access.
-  assert.equal(await nav.getByRole("link", { name: "Ops IQ", exact: true }).count(), 0);
-  assert.equal(await page.getByRole("link", { name: "Ops IQ", exact: true }).count(), 0);
+  // Ask runs a paid model: no top-bar button without AI access, and Ops IQ's menu entry opens its Skills, which read
+  // and change what the agents follow without calling one.
+  assert.equal(await page.locator(".iq-button").count(), 0);
+  assert.equal(await nav.getByRole("link", { name: "Ops IQ", exact: true }).getAttribute("href"), "#/skills");
   await page.goto(`${url}/#/settings`);
   assert.equal(await page.getByRole("link", { name: "Users", exact: true }).count(), 0);
 });
@@ -2241,7 +2344,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   const reports = page.getByRole("navigation", { name: "Reports pages", exact: true });
   await reports.waitFor();
   assert.deepEqual(await reports.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/reports", "#/downtime", "#/incidents", "#/reports?day=", "#/metrics", "#/lessons", "#/studies"]);
+    ["#/reports", "#/downtime", "#/incidents", "#/metrics", "#/regulatory", "#/lessons", "#/studies"]);
   // Explore is one page, the entity list; the plant-wide map, network and 3D keep their links and light Explore.
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
@@ -6878,66 +6981,32 @@ const ACCOUNTS_NONE = { reconciliation: { since: "", until: "", tolerance_pct: 1
   differs: 0, preliminary: 0, incomplete: 0, no_accounting: 0, no_operational: 0 }, sources: { operational: "", accounting: "" },
   note: "" }, unit_cost: { since: "", until: "", currencies: [], months: [], window: {}, sources: { cost: "", volume: "" }, note: "" } };
 
-// P7.3a (#353): from Metrics, how the plant is running: each KPI this period against the one before, with its window,
-// unit and source; a KPI the records can't say reads unknown, never zero, and every value opens its records.
-test("How the plant is running compares each KPI with the period before and shows unknown, not zero (#353)", async () => {
-  const side = (value, over = {}) => ({ since: "2025-12-01", through: "2025-12-30", value, records: value == null ? 0 : 2,
-    refs: value == null ? [] : ["fz-tag-1", "fz-tag-2"], note: null, ...over });
-  await page.route("**/metrics", (route) => route.fulfill({ json: [] }));
-  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
-    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
-    unknown: ["Flare"], note: "Internal evidence from the loaded records, not an approved report.",
-    kpis: [
-      { key: "failures", label: "Failures", unit: "notifications", better: "lower", source: "SAP notifications on equipment",
-        definition: "Failure notifications raised on equipment in the period.", now: side(3), before: side(6),
-        change: -3, verdict: "better" },
-      { key: "flare", label: "Flare", unit: "Mscf", better: "lower", source: "daily production reports (EC DAY001)",
-        definition: "Gas flared.", now: side(null, { note: "no daily report in the period states flare" }), before: side(1200),
-        change: null, verdict: "unknown" },
-    ],
-  } }));
-  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
-    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_bbld: 0, actual_bbld: 0,
-      gap_bbld: 0, below_forecast: [], above_forecast: [] } } }));
-  await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
-    left_out: [], kpis: [], note: "" } }));
-  await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
-  await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
-  await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
-  await page.route("**/plant/quality", (route) => route.fulfill({ json: QUALITY_NONE }));
-  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
-  await page.route("**/plant/work-execution", (route) => route.fulfill({ json: WE_NONE }));
-  await page.route("**/plant/water-injection", (route) => route.fulfill({ json: WI_NONE }));
-  await page.route("**/plant/gas-balance", (route) => route.fulfill({ json: GB_NONE }));
-  await page.route("**/plant/reservoir-pressure", (route) => route.fulfill({ json: RP_NONE }));
-  await page.route("**/plant/ldar", (route) => route.fulfill({ json: LDAR_NONE }));
-  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
-  await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
-    note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
-      net_gain_bbld: null } } }));
-  await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
-    price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
-  await page.goto(`${url}/#/metrics`);
-  await page.getByRole("link", { name: "How the plant is running" }).click();
-  await page.getByRole("heading", { name: "How the plant is running" }).waitFor();
-  await page.getByRole("columnheader", { name: "2025-12-01 to 2025-12-30" }).waitFor();
-  const failures = page.locator('tr[data-kpi="failures"]');
-  await failures.getByText("3 notifications", { exact: true }).waitFor();
-  await failures.getByText("-3 notifications", { exact: true }).waitFor();
-  await failures.locator(".ui-badge").getByText("better").waitFor();
-  await failures.getByText("SAP notifications on equipment").waitFor();
-  const flare = page.locator('tr[data-kpi="flare"]');
-  assert.equal(await flare.locator(".kpi-unknown").innerText(), "unknown");  // not 0
-  await flare.getByText("no daily report in the period states flare").waitFor();
-  await flare.locator(".ui-badge").getByText("unknown").waitFor();
-  await failures.getByRole("button", { name: "2 records" }).first().click();
-  assert.equal(await failures.getByRole("link", { name: "fz-tag-1" }).first().getAttribute("href"), "#/e/fz-tag-1");
-  await page.getByRole("link", { name: "90 days" }).click();
-  await page.waitForURL(/days=90/);
-  assert.equal(await page.getByRole("link", { name: "Metrics", exact: true }).first().getAttribute("aria-current"), "page");
-  await page.setViewportSize({ width: 390, height: 844 });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-  await page.setViewportSize({ width: 1280, height: 800 });
+// The plant's own analyses moved from the retired Scorecard into the reports they belong to (`view` panels). Each test
+// below opens a report drawing every one of them, its own reads mocked by the test.
+const VIEW_NAMES = ["across-assets", "wells-forecast", "well-screen", "allocation-factor", "intervention-gains", "gas-balance",
+  "gas-lift-heading", "water-injection", "reservoir-pressure", "quality", "cost-of-unreliability", "leak-surveys",
+  "alarm-performance", "backlog-burn", "work-execution", "accounts"];
+async function openViews(page, path = "#/reports/production") {
+  const win = { key: "30d", at: "2025-12-30", start: "2025-12-01", end: "2025-12-30", days: 30, label: "30 days to 30 Dec 2025",
+    previous: { start: "2025-11-01", end: "2025-11-30" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const view = { scope, window: win, repeats: {}, scopes: [scope], definition: { schema: 1, key: "production",
+    title: "Production and deferment", version: 1, for: [], scope: { kinds: ["facility"] },
+    window: { default: "30d", options: ["30d"] }, source: "platform",
+    rows: [{ id: "views", panels: VIEW_NAMES.map((v) => ({ id: v, type: "view", view: v, size: 2 })) }] } };
+  await page.route("**/reports/production?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/production", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/production/panels/**", (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").pop();
+    return route.fulfill({ json: { id, type: "view", view: id, title: id, scope, window: win, as_of: null, note: null,
+      scoped: true, refs: [], href: null } });
+  });
+  await page.goto(`${url}/${path}`);
+}
+
+test("Scorecard's old links open Production and deferment for the same window and day", async () => {
+  await openViews(page, "#/scorecard?days=90&until=2025-12-30");
+  await page.waitForURL(/#\/reports\/production\?window=90d&at=2025-12-30$/);
 });
 
 // P7.3b (#336): on How the plant is running, wells under their own forecast stand apart from natural decline, with the
@@ -6976,7 +7045,7 @@ test("Wells under their own forecast are listed with the field line, and thin we
       net_gain_bbld: null } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
     price: { oil_bbl: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".wells-forecast");
   await card.getByText("Across 2 wells the latest tests make 135 bbl/d against a forecast of 170 bbl/d", { exact: false }).waitFor();
   const row = card.locator('tr[data-well="OK-J03-02"]');
@@ -7027,7 +7096,7 @@ test("Cost of unreliability shows each part with its currency and never adds an 
       { id: "fz-tag-2", unit: "20-K-2300A", description: null, lost_oil_bbl: 200, lost_oil_value: 94000,
         order_cost: { USD: 6000 }, orders: 2, orders_without_cost: 1, total: 100000, total_currency: "USD", why_no_total: null },
     ] } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".cost-unreliability");
   await card.getByText("Lost oil at 470 USD per bbl (pack okan)", { exact: false }).waitFor();
   const sep = card.locator('tr[data-unit="40-V-2002"]');
@@ -7078,7 +7147,7 @@ test("Interventions show their gain net of decline, and unknown where a side has
         verdict: "unknown", why: "too few tests before it to net out decline: 1 reading, fewer than the 3 it needs",
         tests_before: 1, tests_after: 4, water_cut_change_pct: 1.4, gor_change: null },
     ] } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".intervention-gains");
   await card.getByText("2 interventions, 0 gained, 0 lost, 1 no clear change, 1 unknown", { exact: false }).waitFor();
   const one = card.locator('tr[data-intervention="OK-J20-01 2024-04-04"]');
@@ -7125,7 +7194,7 @@ test("Across assets compares granted fields on the same KPIs and names the ones 
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
       net_gain_bbld: null } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const fleet = page.locator(".across-assets");
   await fleet.getByRole("columnheader", { name: /ridge/ }).waitFor();
   const row = fleet.locator('tr[data-kpi="production_efficiency"]');
@@ -7194,7 +7263,7 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
         { period: "2025-11", currency: "NGN", cost: 382107919, by_element: { Logistics: 382107919 }, oil_bbl: 226142,
           oil_status: "final", per_bbl: 1689.68, why_unknown: null, refs: [] },
       ] } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".against-accounts");
   await card.getByText("1 months agree within 1%, 1 differ, 1 preliminary", { exact: false }).waitFor();
   const aug = card.locator('tr[data-month="2025-08 oil"]');
@@ -7285,7 +7354,7 @@ test("The backlog burn shows created against closed and the lag, leaving out ord
     lag: { orders: 17, with_notification: 7, without_notification: 10, ordered_before_notified: 0, median_days: 1,
       p90_days: 7, max_days: 16, longest: [{ order: "fz-work_order-1", label: "50000271", notification: "fz-notification-1",
         notified: "2025-09-29", ordered: "2025-10-15", lag_days: 16, type: "PM01", priority: "2" }] } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".backlog-burn");
   await card.getByText("17 orders created, 8 closed; open went from 23 to 32", { exact: false }).waitFor();
   await card.locator(".ui-badge").getByText("growing").waitFor();
@@ -7340,7 +7409,7 @@ test("The well screen shows water cut steps, GOR climbs and stale tests, with cu
         { id: "fz-well-3", well: "OK-J07-04", tests: 12, latest_test: "2025-09-01", age_days: 120, status: "stale" },
         { id: "fz-well-4", well: "OK-NWP-G1", tests: 0, latest_test: null, age_days: null, status: "no_test_on_file" },
         { id: "fz-well-1", well: "OK-J03-02", tests: 40, latest_test: "2025-12-01", age_days: 29, status: "current" }] } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".well-screen");
   await card.getByText("1 of 3 wells tested within 90 days at 2025-12-30", { exact: false }).waitFor();
   await card.getByText("latest test 2025-09-01, 120 days old", { exact: false }).waitFor();
@@ -7388,7 +7457,7 @@ test("Allocated oil against well tests shows the monthly factor, its flags and t
     flags: ["low", "drifting"], months: [m("2025-11", 0.795, 0.79, 30, 0, 16), m("2025-12", 0.789, 0.785, 29, 1, 17)],
     summary: { months: 12, factor: 0.766, first_months_factor: 0.727, latest_months_factor: 0.795, drift: 0.068,
       days_used: 352, days_left_out: 12, band: [0.9, 1.1], drift_threshold: 0.05, drift_months: 3, test_days: 120 } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".allocation-factor");
   await card.getByText("allocated over tested oil 0.766 (band 0.9 to 1.1)", { exact: false }).waitFor();
   await card.getByText("first 3 months 0.727, latest 0.795", { exact: false }).waitFor();
@@ -7435,7 +7504,7 @@ test("Gas lift heading lists the heading wells with their cycle and the signals 
         casing_swing_pct: 4.2, r: 99, cycling_together: ["casing_pressure", "wellhead_pressure"] },
       { well_id: "fz-well-2", well: "OK-J19-04", verdict: "steady", period_min: null, casing_swing_psi: 0.26,
         casing_swing_pct: 0.4, r: 2.3, cycling_together: [] }] } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".gas-lift-heading");
   await card.getByText("1 of 142 gas lifted wells heading, 0 unstable", { exact: false }).waitFor();
   const row = card.locator('tr[data-well="OK-J12-08"]');
@@ -7484,7 +7553,7 @@ test("Separator and export quality shows each analyte against itself, gaps and d
       s("HP separator water outlet", "oil_in_water", 20.7, 43.3, 109.2, [],
         { direction: "up", level: 43.3, baseline: 20.7, change: 1.09, since: "2025-11-20T09:00" }),
       s("Export oil", "bsw", 0.35, 0.36, 4.6, [{ from: "2025-07-01", to: "2025-08-20", days: 50 }], null)] } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".quality-trend");
   await card.getByText("2 analytes at 2 sample points, 1 drifting off their own level, 1 with gaps",
     { exact: false }).waitFor();
@@ -7572,7 +7641,7 @@ test("Alarm performance shows the rate, floods and bad actors with their cases, 
       { point: "10LT2004", point_id: "p2", kinds: ["repeating"], limits: [], since: "2025-06-23T01:00", alarms: 15,
         case: 42 }],
     open_cases: [] } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".alarm-performance");
   await card.getByText("258 alarms, 5.38 an hour against a target of 6", { exact: false }).waitFor();
   assert.equal(await card.getByText("over target").count(), 0);  // under target
@@ -7627,7 +7696,7 @@ test("Schedule compliance and repeat repairs per quarter, with too little data s
           after: "fz-work_order-8", previous_finish: "2025-08-02", text: "Repeat repair: replace seal" }] },
       { period: "2025-Q4", finished: 13, on_time: 11, no_due_date: 0, corrective: 3, schedule_compliance_pct: 84.6,
         repeat_rate_pct: null, late: [], repeats: [] }] } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".work-execution");
   await card.getByText("24 of 28 closed orders finished by their basic finish (85.7%)", { exact: false }).waitFor();
   await card.locator('tr[data-period="2025-Q4"] td[data-label="Repeat repairs"]').getByText("too little data", { exact: false }).waitFor();
@@ -7680,7 +7749,7 @@ test("Water injection: voidage replacement and the Hall slope per injector, and 
         { well: "OK-NWP-W1", months: 18, early_slope: 0.0246, late_slope: 0.0246, slope_ratio: 1, verdict: "steady", reads: "taking water as it did" },
         { well: "OK-NWP-W2", months: 16, early_slope: 0.0218, late_slope: 0.0337, slope_ratio: 1.55, verdict: "rising",
           reads: "harder to inject: plugging or skin build-up near the well" }] } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".water-injection");
   await card.getByText("0.62 over the latest 3 months, 0.5 since injection started", { exact: false }).waitFor();
   await card.locator(".ui-badge").getByText("under-replacing").waitFor();
@@ -7733,7 +7802,7 @@ test("Gas balance: the closure gap always shown, the open stretch with its zero 
     episodes: [{ start: "2025-09-15", end: "2025-10-08", days: 24, median_gap_pct: 6.05, gap_mscf: 4500,
       direction: "unaccounted", terms_reading_zero: ["fuel"] }],
     summary: { days: 365, days_said: 365, days_open: 25, median_gap_pct: 0.1, episodes: 1, gas_in_mscf: 1131500, gap_mscf: 5000 } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".gas-balance");
   await card.getByText("median closure gap 0.1% of the gas handled, 25 of 365 days open past ±2%", { exact: false }).waitFor();
   await card.locator(".ui-badge").getByText("closes, with open stretches").waitFor();
@@ -7780,7 +7849,7 @@ test("Reservoir pressure: the material balance and each well’s productivity in
         { well: "OK-J05-02", first_pi: 3.9, latest_pi: 2.4, ratio: 0.61, verdict: "fallen" }] },
     material_balance: { since: "2024-01-01", until: "2025-12-31", verdict: "fitted", note: "", assumptions: ["One tank: every surveyed well sees the same reservoir."],
       psi_per_million_rb: 2.56, compressible_volume_rb_per_psi: 390649, r2: 0.991, wells: 12, decline_psi_per_year: 5.9 } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".reservoir-pressure");
   await card.getByText("2.56 psi per million reservoir barrels taken out net of injection (r² 0.991, 12 wells): about 5.9 psi a year", { exact: false }).waitFor();
   await card.locator('tr[data-well="OK-J05-02"]').getByText("fallen").waitFor();
@@ -7826,7 +7895,7 @@ test("Leak surveys: the repeat leaker, the surveys and what they missed, and uns
       max_ppm: 8800, consecutive: 3 }],
     coverage: { in_scope: 45, covered: 39, covered_pct: 86.7, unknown: [{ tag: "30-V-2001", class: "Vessel" }, { tag: "50-V-2002", class: "Vessel" }],
       not_recent: [] } } }));
-  await page.goto(`${url}/#/scorecard`);
+  await openViews(page);
   const card = page.locator(".leak-surveys");
   await card.getByText("2 surveys 2024-01-01 to 2025-12-31; 39 of 45 tags screened in the last 365 days", { exact: false }).waitFor();
   await card.locator(".ui-badge").getByText("1 repeat leaker").waitFor();
@@ -8249,8 +8318,8 @@ test("App search at the top left finds pages, tabs and entities, and sends a que
     await box.fill("dispatch");
     const results = page.getByRole("listbox", { name: "Results" });
     await results.getByRole("option", { name: /To dispatch/ }).waitFor();
-    await box.fill("reports");
-    await results.getByRole("group", { name: "Pages" }).getByRole("option", { name: /Daily reports/ }).waitFor();
+    await box.fill("regulatory");
+    await results.getByRole("group", { name: "Pages" }).getByRole("option", { name: /Regulatory/ }).waitFor();
     await box.fill("P-101");
     const record = results.getByRole("group", { name: "Entities" }).getByRole("option", { name: /P-101/ });
     assert.equal(await record.getAttribute("href"), "#/e/equipment%3AP-101");
@@ -9507,6 +9576,73 @@ test("A planner reads the portfolio as one tree, opens a business plan, writes a
     await page.setViewportSize({ width: w, height: h });
     await sap.waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the mapping fits ${w} px`);
+  }
+  assert.deepEqual(errors, []);
+});
+
+test("Skills lists each skill by area, and a draft reads against the live playbook before it is published (Ops IQ)", async () => {
+  const row = (over = {}) => ({ skill: "maintenance-integrity/compression", name: "compression", title: "Compression",
+    area: "maintenance-integrity", area_label: "Maintenance & Integrity", owner: "maintenance-integrity",
+    owner_label: "Maintenance & Integrity", agents: ["maintenance-integrity"], shared: false,
+    purpose: "Compressor health", live: { version: 0, by: null, at: null },
+    draft: { version: 2, by: "agent:maintenance-integrity", at: "2026-11-20T10:00:00+00:00", note: "strainer first", review_case: 41 },
+    shortfalls: 2, questions: 3, score: null, ...over });
+  const detail = { ...row(), agents: ["Maintenance & Integrity"], personas: ["Reliability Engineer"], data: "", output: "", boundary: "",
+    playbook: "---\nname: compression\n---\n# Compression\nStart with `rotating_screen(at)`.\n", body: "# Compression\nStart with `rotating_screen(at)`.\n",
+    pack: { classes: ["CO"], tools: ["rotating_screen"], methods: [], detectors: [], briefs: [] }, tools: ["rotating_screen"],
+    named_tools: ["rotating_screen"], questions: [{ question: "Q1" }, { question: "Q2" }, { question: "Q3" }],
+    shortfalls: [{ kind: "brief", case: 41, title: "K-1 surge", followed: "no", note: "the strainer was blocked", by: "olga", at: "2026-11-19T10:00:00+00:00" }],
+    ai: { available: false, why: "AI is paused: this month's model spend has reached its budget." } };
+  const versions = [
+    { version: 2, status: "draft", playbook: "x", cases: [{ kind: "brief", case: 41 }], questions: [], note: "strainer first", created_by: "agent:maintenance-integrity", created_at: "2026-11-20T10:00:00+00:00", eval: {} },
+    { version: 1, status: "refused", playbook: "y", cases: [], questions: [], note: "(set aside by olga)", created_by: "olga", created_at: "2026-11-18T10:00:00+00:00", eval: {} },
+    { version: 0, status: "published", playbook: detail.playbook, cases: [], questions: [], note: "as shipped" },
+  ];
+  const lines = [...Array.from({ length: 20 }, (_, i) => ({ op: "same", text: `line ${i}` })),
+    { op: "remove", text: "Start with `rotating_screen(at)`." }, { op: "add", text: "Check the suction strainer first." },
+    ...Array.from({ length: 20 }, (_, i) => ({ op: "same", text: `after ${i}` }))];
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: {
+    id: "u1", actor: "user:u1", display_name: "Olga", enabled: true, owner: false, permissions: ["read", "operate", "ai"], roles: ["engineer"] } } }));
+  await page.route("**/work/skills", (route) => route.fulfill({ json: { skills: [row(), row({ skill: "shared/charts", name: "charts", title: "Charts",
+    area: "shared", area_label: "Shared by every agent", draft: null, shortfalls: 0 })], ai: detail.ai } }));
+  await page.route("**/work/skills/detail?*", (route) => route.fulfill({ json: detail }));
+  await page.route("**/work/skills/versions?*", (route) => route.fulfill({ json: versions }));
+  await page.route("**/work/skills/diff?*", (route) => route.fulfill({ json: { skill: detail.skill, version: 2, against: 0, added: 1, removed: 1, questions: 3, lines } }));
+  await page.goto(`${url}/#/skills`);
+  await page.getByRole("heading", { name: "Maintenance & Integrity", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Shared by every agent", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Draft waiting", exact: true }).click();
+  await page.waitForURL(/#\/skills\?show=draft$/);
+  await page.getByRole("link", { name: "Charts", exact: true }).waitFor({ state: "detached" });
+  await page.getByRole("link", { name: "Draft v2", exact: true }).click();
+  await page.waitForURL(/tab=versions&v=2/);
+  const diff = page.getByRole("group", { name: "Changes against the live playbook" });
+  await diff.getByText("Check the suction strainer first.").waitFor();
+  await diff.getByText("18 unchanged lines").first().waitFor();  // the long same stretches either side fold
+  // AI is paused: Publish says why rather than failing after the click.
+  assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(), true);
+  await page.getByText("AI is paused: this month's model spend has reached its budget.").waitFor();
+  await page.getByRole("link", { name: "Fell short (1)" }).click();
+  await page.getByRole("link", { name: "K-1 surge" }).waitFor();
+  await page.getByText("brief not followed").waitFor();
+  await page.getByRole("link", { name: "Playbook", exact: true }).click();
+  await page.getByRole("button", { name: "Edit playbook" }).click();
+  const box = page.getByRole("textbox", { name: "Playbook" });
+  assert.match(await box.inputValue(), /^---\nname: compression/);
+  assert.equal(await page.getByRole("button", { name: "Save draft" }).isDisabled(), true);  // nothing changed yet
+  let sent = null;
+  await page.route("**/work/skills/versions", (route) => { sent = route.request().postDataJSON(); return route.fulfill({ json: { skill: detail.skill, version: 3, status: "draft" } }); });
+  await box.fill(`${detail.playbook}Then the lube oil.\n`);
+  await page.getByRole("textbox", { name: "What changed and why" }).fill("lube oil after the strainer");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForURL(/tab=versions&v=3/);
+  assert.equal(sent.note, "lube oil after the strainer");
+  assert.match(sent.playbook, /Then the lube oil/);
+  for (const [width, height] of [[390, 844], [820, 1180]]) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${url}/#/skills`);
+    await page.getByRole("heading", { name: "Maintenance & Integrity", exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${width}px`);
   }
   assert.deepEqual(errors, []);
 });

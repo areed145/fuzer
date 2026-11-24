@@ -213,7 +213,7 @@ flowchart TD
 
 | Job | When (cron) | What it does |
 |---|---|---|
-| `refresh_logs` | `0 * * * *` | Load the operator logs and rebuild. |
+| `refresh_logs` | `0 * * * *` | Load the operator logs and live records, and rebuild. |
 | `refresh_all` | `0 2 * * *` | Load every export and rebuild. |
 | `claude_reading` | `0 3 * * *` | Claude reads new log entries and drawings (costs money). |
 | `work_tick` | `*/5 * * * *` | Work engine timers and SLAs: re-checks that are due, reminders and escalations. |
@@ -392,6 +392,8 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `board_project`
     - `case_disposition`
     - `case_repeat`
+    - `custom_report`
+    - `custom_report_version`
     - `daily_ops_report`
     - `detection`
     - `detector_tier_run`
@@ -412,6 +414,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `promoted_rule`
     - `register_summary`
     - `regulatory_report`
+    - `report_note`
     - `report_obligation`
     - `review_item`
     - `round_reading`
@@ -444,6 +447,8 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `board_project`
     - `case_disposition`
     - `case_repeat`
+    - `custom_report`
+    - `custom_report_version`
     - `daily_ops_report`
     - `detection`
     - `detector_run`
@@ -463,6 +468,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `point_daily`
     - `promoted_rule`
     - `regulatory_report`
+    - `report_note`
     - `report_obligation`
     - `round_reading`
     - `round_run`
@@ -566,6 +572,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
     - `assistant_message`
     - `entity_summary`
     - `lesson`
+    - `report_summary`
     - `skill_version`
     - `work_event`
     - `work_token`
@@ -576,6 +583,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
     - `assistant_image`
     - `assistant_message`
     - `entity_summary`
+    - `report_summary`
     - `skill_version`
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `agents.summary_hours`, `agents.summary_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
 - **Tools:** asset-performance-reporting 51, field-operations-facilities 98, hse-incident-management 52, maintenance-integrity 89, orchestrator 27, production-surveillance 81, wells-subsurface 74, work-management-supply-chain 43 ([capabilities](capabilities.md))

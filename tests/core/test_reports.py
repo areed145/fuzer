@@ -32,6 +32,9 @@ def test_the_platform_reports_are_checked_with_defaults_filled():
     (_d({"id": "a", "type": "stat", "measure": "work.backlog"}, scope={"kinds": ["planet"]}), "aren't kinds"),
     (_d({"id": "a", "type": "stat", "measure": "work.backlog"}, window={"default": "2w"}), "no window '2w'"),
     ({**_d(), "rows": [{"panels": [{"type": "column", "panels": [{"type": "column", "panels": []}]}]}]}, "one level"),
+    (_d({"id": "a", "type": "view", "view": "horoscope"}), "no view 'horoscope'"),
+    (_d({"id": "a", "type": "table", "measures": ["work.backlog", "work.closed"], "grain": "well"}), "can't be cut by 'well'"),
+    (_d({"id": "a", "type": "stat", "measure": "work.backlog"}, window={"default": "1d", "at": "payday"}), "a window ends on"),
 ])
 def test_a_definition_that_cant_be_drawn_is_refused_with_why(bad, why):
     with pytest.raises(reports.ReportError, match=why):
@@ -47,3 +50,13 @@ def test_a_pack_adds_and_replaces_reports():
     assert got["work"]["title"] == "Ours" and got["work"]["source"] == "bundle" and "mine" in got
     with pytest.raises(reports.ReportError, match="no report"):
         reports.get(None, "mine")
+
+
+def test_the_standard_reports_are_the_six_in_the_design():
+    got = reports.builtin()
+    assert {"operations", "production", "work", "safety", "plan", "data"} <= set(got)
+    assert got["operations"]["window"] == {"default": "1d", "options": ["1d", "7d"], "at": "production_day"}
+    assert any(p["type"] == "narrative" for p in reports.panels(got["operations"]))
+    assert {r["repeat"]["kind"] for r in got["production"]["rows"] if r.get("repeat")} == {"well"}
+    views = [p["view"] for d in got.values() for p in reports.panels(d) if p["type"] == "view"]
+    assert sorted(views) == sorted(reports.VIEWS)  # every analysis from the retired Scorecard has one home

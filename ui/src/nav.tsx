@@ -86,8 +86,13 @@ export const NAV: NavGroup[] = [
     // network and 3D views keep their links and light Explore; an entity's Map, 3D and Connections tabs show them.
     items: [{ label: "Explore", section: "browse", also: ["e", "map", "network", "3d"] }],
   },
-  // Ops IQ, the operations agent, its own destination: it answers from the register, the work and the readings.
-  { label: OPS_IQ, icon: IQ_SPARK, permission: "ai", items: [{ label: OPS_IQ, section: "ask", permission: "ai" }] },
+  // Ops IQ, the operations agent, its own destination: it answers from the register, the work and the readings. Beside
+  // it, what it knows: the skills its specialists follow, for the engineers who own them. Asking needs AI access;
+  // reading and changing a skill does not, so the group shows for everyone and opens on Skills without it.
+  { label: OPS_IQ, icon: IQ_SPARK, items: [
+    { label: OPS_IQ, section: "ask", permission: "ai" },
+    { label: "Skills", section: "skills", desk: true },
+  ] },
   {
     label: "Reports",
     icon: "M4 20h16M7 16v-5M12 16V7M17 16v-8",
@@ -95,8 +100,8 @@ export const NAV: NavGroup[] = [
       { label: "Reports", section: "reports" },
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
-      { label: "Daily reports", section: "reports", path: "/reports?day=", view: "day" },
-      { label: "Metrics", section: "metrics", also: ["scorecard"] },
+      { label: "Metrics", section: "metrics" },
+      { label: "Regulatory", section: "regulatory" },
       { label: "Lessons learned", section: "lessons" },
       { label: "Studies", section: "studies" },
     ],

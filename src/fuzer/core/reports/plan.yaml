@@ -1,0 +1,45 @@
+# Plan against actual: the business plan's estimates against the hours and cost booked to its work, and how much work
+# the plan did not foresee, for the maintenance planner and the operations manager.
+schema: 1
+key: plan
+title: Plan against actual
+version: 1
+for: [planner, operations manager]
+scope:
+  kinds: [facility, area]
+window:
+  default: qtd
+  options: [qtd, ytd, 30d, 90d]
+rows:
+  - id: headline
+    panels:
+      - {id: est-hours, type: stat, measure: plan.estimate_hours}
+      - {id: act-hours, type: stat, measure: plan.actual_hours}
+      - {id: est-cost, type: stat, measure: plan.estimate_cost}
+      - {id: act-cost, type: stat, measure: plan.actual_cost}
+  - id: execution
+    panels:
+      - {id: unplanned, type: stat, measure: plan.unplanned_share}
+      - {id: compliance, type: stat, measure: work.schedule_compliance}
+      - {id: planned, type: stat, measure: work.planned_share}
+      - {id: backlog, type: stat, measure: work.backlog}
+  - id: commentary
+    panels:
+      - {id: summary, type: summary, size: 2}
+      - {id: notes, type: note, size: 2}
+  - id: per-program
+    title: By program
+    panels:
+      - {id: by-program, type: table, size: 4, title: Plan against actual by program,
+         measures: [plan.estimate_hours, plan.actual_hours, plan.estimate_cost, plan.actual_cost], grain: program}
+  - id: lines
+    panels:
+      - {id: plan-lines, type: table, size: 4, title: Plan lines, rows: plan.lines, limit: 20}
+  - id: work
+    panels:
+      - {id: backlog-trend, type: trend, size: 2, title: Open cases, measures: [work.backlog]}
+      - {id: planned-trend, type: trend, size: 2, title: Planned work and schedule compliance, measures: [work.planned_share, work.schedule_compliance]}
+  - id: maintenance
+    panels:
+      - {id: backlog-burn, type: view, view: backlog-burn, size: 2}
+      - {id: accounts, type: view, view: accounts, size: 2}

@@ -68,6 +68,20 @@ def configured(scope: str = "llm", *, person: bool = False) -> bool:
     return person or metering.asked_by_person() or not metering.over_budget()
 
 
+def availability(scope: str = "llm") -> dict:
+    """Whether an automated feature may call a model now, and if not, why in a person's words: no key, or the month's
+    budget spent. Reading it calls nothing. Evals and the eval gate ask it before they spend."""
+    if not has_credentials(scope):
+        return {"available": False, "why": "No AI provider key is configured. An administrator sets it on Settings."}
+    from . import usage as metering
+
+    if metering.over_budget():
+        return {"available": False,
+                "why": f"AI is paused: this month's model spend (${metering.month_spend():.2f}) has reached its budget "
+                       f"of ${metering.budget():.2f}. An administrator can raise it on Settings, AI usage."}
+    return {"available": True, "why": None}
+
+
 def _resource(obj, path: str):
     for part in path.split("."):
         obj = getattr(obj, part, None)

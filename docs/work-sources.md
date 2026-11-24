@@ -142,7 +142,7 @@ case, not new work. Done or Could not do sends the job back to whoever dispatche
 | Work | Where it comes from | Matched to | Routed to | Field | Closes |
 |---|---|---|---|---|---|
 | **Regulatory report coming due** `report_due` | A report whose due date is near with no draft, or past due and not submitted | No asset: the report and its period | HSE specialist queue | No | When drafted and submitted |
-| **Regulatory report to review** `regulatory_report` | A regulatory or emissions report drafted from its records for one period | No asset | HSE specialist queue; reviewed under **Reports > Daily reports** | No | When submitted |
+| **Regulatory report to review** `regulatory_report` | A regulatory or emissions report drafted from its records for one period | No asset | HSE specialist queue; reviewed under **Reports > Regulatory** | No | When submitted |
 | **Daily operations report** | Each production day closing | No asset | The **daily_report** workflow: Draft report (agent), Review report (ops lead) | No | When published |
 
 ## The register and sources

@@ -6,7 +6,7 @@ import { quantity, when } from "../format";
 import { api, type RegulatoryListing, type RegulatoryReport, type ReportBasis, type ReportFigure, type ReportRow } from "../api";
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
-import { Badge, Button, Card, ConfirmAction, Input, Table, ErrorText, Line, Text, Notice } from "../ui";
+import { Badge, Button, Card, ConfirmAction, Input, Table, ErrorText, Line, PageHeader, Text, Notice } from "../ui";
 import "../styles/reports.css";
 import { person as personName } from "../wording";
 
@@ -188,7 +188,7 @@ export function RegulatoryList({ data, selected, onChange }: { data: RegulatoryL
         const id = `${x.template}:${x.period}`;
         return (
           <a key={id} aria-current={id === selected ? "true" : undefined}
-            href={href("/reports", { report: id })} title={`${x.title}; ${x.marked} figure(s) on estimated or missing data`}>
+            href={href("/regulatory", { report: id })} title={`${x.title}; ${x.marked} figure(s) on estimated or missing data`}>
             <Badge tone={id === selected ? "info" : x.marked ? "warn" : "ok"}><Badge tone={id === selected ? "info" : x.marked ? "warn" : "ok"}>{x.title}, {x.coverage.label}{x.version > 1 ? ` v${x.version}` : ""}{x.marked ? " ⚠" : ""}</Badge></Badge>
           </a>
         );
@@ -197,7 +197,7 @@ export function RegulatoryList({ data, selected, onChange }: { data: RegulatoryL
         <Button key={t.name} size="sm" disabled={!person || !!a.busy} title={t.description}
           onClick={() => a.run("draft", () => api.draftRegulatoryReport(t.name, month, person), () => {
             onChange();
-            window.location.assign(href("/reports", { report: `${t.name}:${month}` }));
+            window.location.assign(href("/regulatory", { report: `${t.name}:${month}` }));
           })}>Draft {t.title.toLowerCase()} for {month}</Button>
       ))}
       <ErrorText inline>{a.error}</ErrorText>
@@ -217,7 +217,7 @@ export function ObligationsDue() {
         <ul>
           {due.map((c) => (
             <li key={`${c.obligation}:${c.period}`}>
-              <a href={href("/reports", { report: `${c.template}:${c.period}` })}>{c.obligation}, {c.period}</a>
+              <a href={href("/regulatory", { report: `${c.template}:${c.period}` })}>{c.obligation}, {c.period}</a>
               {c.regulator ? ` for ${c.regulator}` : ""}: {c.overdue ? <ErrorText inline>overdue since {c.due}</ErrorText>
                 : `due ${c.due}, in ${c.days_left} days`}; {c.report ? `version ${c.report.version} ${c.report.status}` : "not started"}
             </li>
@@ -225,5 +225,24 @@ export function ObligationsDue() {
         </ul>
       )}
     </Text>
+  );
+}
+
+/** Regulatory reports, a page of their own under Reports: filed documents, not dashboards. `report` in the link opens
+ * one (template:period). */
+export function RegulatoryPage({ query }: { query: URLSearchParams }) {
+  const regulatory = useAsync(() => api.regulatoryReports(), []);
+  const report = query.get("report") ?? undefined;
+  const [template, period] = report ? report.split(":") : [];
+  return (
+    <section>
+      <PageHeader>Regulatory reports</PageHeader>
+      <Status of={regulatory} />
+      {regulatory.data && <RegulatoryList data={regulatory.data} selected={report} onChange={regulatory.reload} />}
+      <ObligationsDue />
+      {template && period && (
+        <RegulatoryReportView key={report} template={template} period={period} onChange={regulatory.reload} />
+      )}
+    </section>
   );
 }

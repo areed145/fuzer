@@ -12,6 +12,11 @@ a desk, On the plan, With the field, Back from the field, Closed) is decided onc
 named set of these filters (Waiting on me, To dispatch, Data questions); presets are added once they prove useful,
 and a role can save its own. See [where work goes](work-map.md).
 
+**AI note.** What a report's panels show for one scope, window and day, in a headline and a few points, written by
+Claude from those panels only and kept for everyone (the `summary` panel). Each point cites what it rests on; the daily
+report's checks flag a number or a citation that is not on the page. Not "insight" or "AI summary". See
+[reports](reports.md).
+
 **Asset pack.** Asset-specific tag grammar, entity kinds, limits, source priorities and match thresholds that seed
 the source catalog's rules. Okan is the main demo; Kestrel Ridge (a gas plant) and Harrier (a pipeline and
 terminal) have their own. See [overview](overview.md).
@@ -59,6 +64,10 @@ project, turnaround or package. Shown by its kind, never as "container". Its own
 references. A system can have several. See [sources](sources.md).
 
 **Connector.** Reads one source table in one format (CSV, Parquet, Delta, Excel, JSON, GeoJSON, a live system).
+
+**Custom report.** A report a person made by copying one or starting blank, listed under My reports. Its owner changes
+it on the page and shares it with everyone or a workflow role; each save is a new version, and an earlier one can be
+restored. See [reports](reports.md).
 
 **Dataset.** One table or feed a system delivers: where it is, its key, how it loads (snapshot, incremental,
 append), its schedule, owner and status (draft, active, paused, retired).
@@ -118,6 +127,9 @@ versions in the source catalog (the latest approved one is in use); the files in
 
 **Need.** Why work should happen: a condition seen, an obligation falling due, or an intent to change something. A
 need opens a case or joins an open one. In code; on screen it is shown by its type (a notification, a due date).
+
+**Note.** What a person writes on a report, pinned to its scope and period, kept with who wrote it and when (the `note`
+panel). A note may carry live values, `{production.oil}`, that read the measure for the note's own period.
 
 **Ops IQ.** The operations agent: it answers a question from the register, the work and the readings, citing what
 it used. Its sign is its gradient, Fuzer's teal running into indigo: the search button wears it (search and asking
@@ -190,6 +202,11 @@ as a Gantt under Plan > Schedules. A planning system such as Primavera P6 can de
 
 **Shelve.** Take a standing condition that can wait off the list until a date, with a reason. It comes back by
 itself. Safety work cannot be shelved.
+
+**Skill.** A playbook (its SKILL.md) an agent follows for one kind of work, with the tools it may call and the eval
+questions it is held to. A skill's owner changes it on Ops IQ, Skills: a change is a **draft**, and a person
+**publishes** it behind the skill's eval (it goes live only if it scores no lower than the live version) or **sets it
+aside**; **roll back** makes the version before it live again. Not "prompt" or "pack" on screen. See [agents](agents.md).
 
 **Source catalog.** The systems of record, their connections, datasets, mapping versions, runs, profiles,
 checks and rules, as rows edited on the Sources page with history. See [sources](sources.md).

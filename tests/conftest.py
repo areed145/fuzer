@@ -36,6 +36,9 @@ atexit.register(shutil.rmtree, os.environ["FUZER_PGDATA"], ignore_errors=True)
 # Nor a Claude key: tests run on recorded or fake answers, so one that forgets its fake fails instead of paying.
 os.environ.pop("ANTHROPIC_API_KEY", None)
 os.environ.pop("FUZER_ANTHROPIC_API_KEY", None)
+# Nor a live facility's daily events (sources/live_events): the suites check each facility's fixed story; the live
+# events have their own tests, which turn them on.
+os.environ["FUZER_LIVE_EVENTS"] = "off"
 os.environ["FUZER_AUTH_MODE"] = "local"  # Legacy API fixtures opt into trusted loopback attribution explicitly.
 
 PLANTS = {"okan": ("okan", "okan")}  # name: (generator module, pack)

@@ -621,9 +621,11 @@ def providers_poll():
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
                                   description="Load every export and rebuild.")
-refresh_logs = dg.define_asset_job("refresh_logs", selection=dg.AssetSelection.assets(
-                                       *(["oplogs"] if "oplogs" in DATASETS else []), register),
-                                   description="Load the operator logs and rebuild.")
+# Hourly: the operator logs, and what a live facility's systems recorded about its live events since (sources/
+# live_rows: downtime, notifications); a dataset with nothing new is skipped by its fingerprint.
+HOURLY = [d for d in ("oplogs", "ec_downtime", "sap_notifications") if d in DATASETS]
+refresh_logs = dg.define_asset_job("refresh_logs", selection=dg.AssetSelection.assets(*HOURLY, register),
+                                   description="Load the operator logs and live records, and rebuild.")
 claude_reading = dg.define_asset_job("claude_reading", selection=dg.AssetSelection.groups("claude"),
                                      description="Claude reads new log entries and drawings (costs money).")
 

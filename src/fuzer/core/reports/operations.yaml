@@ -1,0 +1,46 @@
+# Daily operations: how the last production day went, for the IOC shift lead's morning call, the operations manager and,
+# scoped to an area, the field supervisor on a phone. The day's narrative and its review lead the commentary.
+schema: 1
+key: operations
+title: Daily operations
+version: 1
+for: [IOC shift lead, operations manager, field supervisor]
+scope:
+  kinds: [facility, area]
+window:
+  default: 1d
+  options: [1d, 7d]
+  at: production_day
+rows:
+  - id: headline
+    panels:
+      - {id: oil, type: stat, measure: production.oil}
+      - {id: efficiency, type: stat, measure: production.efficiency}
+      - {id: gas, type: stat, measure: production.gas}
+      - {id: deferred, type: stat, measure: production.deferred}
+  - id: day
+    panels:
+      - {id: incidents, type: stat, measure: safety.incidents}
+      - {id: stops, type: stat, measure: downtime.events}
+      - {id: opened, type: stat, measure: work.arrivals}
+      - {id: closed, type: stat, measure: work.closed}
+  - id: report
+    panels:
+      - {id: narrative, type: narrative, size: 2}
+      - type: column
+        size: 2
+        panels:
+          - {id: summary, type: summary}
+          - {id: notes, type: note}
+  - id: now
+    panels:
+      - {id: down, type: table, size: 2, title: Still down, rows: downtime.open, limit: 10}
+      - {id: to-dispatch, type: cases, size: 2, title: Waiting for dispatch, filter: {stage: dispatch}, limit: 6}
+  - id: deferment
+    panels:
+      - {id: by-cause, type: figure, size: 2, title: Oil deferred by cause, measure: production.deferred, grain: cause, chart: pareto}
+      - {id: stops-list, type: table, size: 2, title: Downtime events, rows: downtime.events, limit: 10}
+  - id: field
+    panels:
+      - {id: in-field, type: cases, size: 2, title: In the field, filter: {stage: field, sort: due}, limit: 6}
+      - {id: overdue, type: cases, size: 2, title: Overdue, filter: {overdue: true, sort: due}, limit: 6, phone: false}

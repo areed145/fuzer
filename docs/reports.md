@@ -25,6 +25,7 @@ scope:
 window:
   default: 7d
   options: [1d, 7d, 30d, 90d]     # optional; every named window when left out
+  at: day                         # optional: the day it ends on when the link names none, day (today) or production_day
 rows:
   - id: headline                  # optional; r0, r1, ... when left out
     panels:
@@ -56,10 +57,12 @@ Every panel has an `id` (unique in the report, kept across versions so notes and
 | `stat` | `measure` | The value, its target, the change against the window before and a sparkline | engine |
 | `trend` | `measures` (one or more) | The measures over the window on the one trend chart, from `trend_spec.from_measures` | engine |
 | `figure` | `measure`, `grain`, `chart` (`bar`, `pareto` or `share`), `limit` | The measure cut by one of its grains | engine |
-| `table` | `rows` (a row set) or `measure` + `grain`, `limit` | Rows, each opening its case or entity | engine |
+| `table` | `rows` (a row set), or `measure` (or `measures`, a column each) + `grain`, `limit` | Rows, each opening its case or entity | engine |
 | `cases` | `filter` (the Work list's filters: `state`, `kind`, `stage`, `holder`, `queue`, `source`, `overdue`, `q`, `sort`), `limit` | Live case rows, the same rows as Work (`ops/worklist.rows`, scoped with `within`), with a link to that list | engine |
 | `note` | `text` (fixed markdown, optional) | Written commentary for the report and period, with live values | commentary |
 | `summary` | none | The AI note for this report, scope, window and day | commentary |
+| `narrative` | none | The daily report for the window's last day: its narrative, versions and checks; Publish and Send back go in the report's header | engine |
+| `view` | `view` (one of `core/reports.VIEWS`) | One of the plant's own analyses (wells against forecast, gas balance, alarm performance...), with its own card and read, for the whole register over its own period | engine |
 
 ### Layout
 
@@ -68,10 +71,29 @@ A row wraps. On desktop (above 1100 px) a row has four columns and a panel takes
 across. The order on a phone is the definition's order, so the answer goes first. Rows size to their content; charts
 take a fixed height per width. There are no separate phone, iPad or desktop layouts to keep in step.
 
+## The standard reports
+
+Six definitions in `core/reports/`, in the gallery's order. Each answers its role's question on the first screen; the
+rest is the drill-down. Downtime, Incidents, Metrics and Regulatory stay pages of their own, opened from the panels.
+
+| Key | Report | For | Window | What it holds |
+|---|---|---|---|---|
+| `operations` | Daily operations | IOC shift lead, operations manager, field supervisor | 1d, ending on the last production day | Oil, efficiency, gas, deferred; incidents, stops, cases opened and closed; the daily narrative with its review, the AI note and notes; what is still down and waiting for dispatch; deferment by cause and the stops; the field and the overdue |
+| `production` | Production and deferment | production engineer, operations manager | 30d | Oil against target, efficiency, deferred by cause and by well, downtime, gas and flare, the plant's well and facility analyses, then each well (deferred, downtime, oil rate at test) |
+| `work` | Work and dispatch | IOC lead, maintenance supervisor, field supervisor | 7d | Arrivals, closed, backlog, steps late; dispatch and overdue cases; by queue and type; the field; schedule compliance and repeat repairs |
+| `safety` | Safety and integrity | HSE, operations manager, IOC | 30d | Incidents, days since, safeguards bypassed and their age, permits, demands, inspections overdue, leaks; incidents by severity and area; the bypass and permit lists; alarm performance and leak surveys |
+| `plan` | Plan against actual | planner, operations manager | qtd | Planned against actual hours and cost, unplanned share, schedule compliance; the same by program (a table, since a program is a plan container, not an entity) and by line; backlog burn and the accounts |
+| `data` | Data health | data steward | 7d | Source completeness, timeliness, agreement and validity, loads held, records decided without a steward, asset context; the same by dataset and system; the cases waiting on a steward |
+
+Daily operations takes the daily report's place: `#/reports?day=<day>` opens it at that day, and its review moved
+into its header. `#/reports?report=<template:period>` opens the regulatory report on `#/regulatory`. Scorecard's
+analyses are `view` panels on the report they belong to, and `#/scorecard` opens Production and deferment.
+
 ### Scope and window
 
 The scope is an entity from the register; every measure and row set answers for it and rolls up what is beneath it.
-The window is named: `1d`, `7d`, `30d`, `90d`, `qtd`, `ytd`, ending on `at` (a day, today when left out). Both live in
+The window is named: `1d`, `7d`, `30d`, `90d`, `qtd`, `ytd`, ending on `at` (a day; when left out, today, or the last
+production day for a report whose window says `at: production_day`). Both live in
 the URL, so a link opens what the sender saw: `#/reports/work?scope=fz-...&window=30d&at=2026-11-23`.
 
 `core/windows.resolve(window, at)` turns a name and a day into dates, the one place that does:
@@ -137,3 +159,73 @@ Every panel result carries the same envelope, then its type's own fields:
 ```
 
 The types are in `ui/src/reports/spec.ts`.
+
+## Commentary
+
+Two kinds of text sit beside the figures: the AI note says what the numbers show, and a person's note says what people
+know that the numbers do not. Both are kept per report, scope, window and the day the window ends, and both are read
+as panel results, so reading a report never calls a model.
+
+**AI note (`summary` panel, `agents/report_summary.py`).** The facts are the report's own panel results for that scope,
+window and day (`report_pages.panel_data` of every panel except the commentary and the repeat rows), made small enough
+for one short call on `agents.summary_model` at low effort. It writes a headline and two to five points; each point
+cites the measure keys, entity ids or `case:<n>` it rests on. The daily report's checks run on it and are kept with it:
+a number not in the facts, a citation not in them or a point with no citation is flagged on the note, not hidden.
+Notes are kept in `report_summary`, shared with everyone. The panel's result says `due` when none is kept for the
+report's default window ending today: the first visit with AI access to the report's own view writes it. Any other
+scope, window or day shows "Write the note" to someone with AI access and nothing to write for anyone else.
+
+**People's notes (`note` panel, `ops/report_notes.py`).** Markdown with live values bound to measures, resolved by the
+server for the note's own scope and period: `{production.oil}`, `{work.backlog@area}` (the area the scope sits in, or
+any kind), `{work.backlog@fz-...}` (that entity). A note is pinned to one period; a report shows its own period's notes
+first, then those pinned to shorter periods inside it with their dates (Tuesday's line shows on that week). Only the
+author edits or removes a note, and a removed one is kept. A `note` panel with `text` in the definition is a fixed line
+with the same live values, such as a section's heading.
+
+| Route | Does |
+|---|---|
+| `POST /reports/{key}/summary/generate?scope&window&at&rewrite` | Writes the AI note, or returns the kept one (AI access) |
+| `POST /reports/{key}/notes` | Pins a note: `{body, scope, window, at}` |
+| `PATCH /reports/{key}/notes/{id}` | Changes your own note: `{body}` |
+| `DELETE /reports/{key}/notes/{id}` | Takes down your own note |
+
+## Custom reports
+
+A custom report is the same definition, kept in the database (`custom_report`, every version in
+`custom_report_version`) by `ops/custom_reports.py`. Its key is `custom-<id>`, so its link, its panels and its notes
+work as any report's do; the page, the panels and the commentary read every definition through
+`report_pages.definition`, and a custom one is checked by the same `reports.check` (it may have no rows yet).
+
+- **Copy.** Every report has Copy to my reports. The copy is private to its maker and keeps the report and version it
+  came from; the page says when that report has changed since, and links to it. Nothing is merged by itself.
+- **Start blank.** My reports in the gallery starts one with a title, for facilities and areas, and no panels.
+- **Edit in place** (iPad and desktop; a phone reads). Edit shows each panel with move up and down, its size (a quarter
+  to the full width) and Remove, and Add panel between rows. Adding picks a type, then a measure, a series (up to three
+  measures) or a row set from `GET /model` for the report's scope kinds: measures that only answer for the whole
+  register are listed apart, and grains at or above the scope are left out. A panel not saved yet is read from the
+  definition being edited (`POST /reports/{key}/draft/panels/{id}`), so the preview is the real page at the current
+  scope.
+- **Definition.** The definition as YAML (JSON is read too), checked by the server with the same checks as a save.
+- **Save.** Each save is the next version and names the version it was edited from; a save over a newer version is
+  refused (409). Versions lists every one; Restore brings one back as the newest, keeping those in between.
+- **Share.** Private by default; shared with everyone or with the holders of a workflow role. Only accounts with
+  configure access share beyond themselves; anyone can make their own report private again. Only the owner changes a
+  report; a reader copies it to change it. A report someone can't open answers 404, as if it weren't there.
+- **Take down.** The owner removes it; it and its versions are kept, marked removed.
+
+| Route | Does |
+|---|---|
+| `GET /model?kinds` | The measures (grains, scoped or whole register), row sets and panel types an editor can pick |
+| `POST /reports/{key}/copy` | A private copy of any report the person can open: `{title?}` |
+| `POST /reports/custom` | A blank report: `{title, kinds?}` |
+| `PUT /reports/{key}` | Save the next version: `{definition}` or `{text}` (YAML or JSON), and `base`, the version edited |
+| `POST /reports/check` | Check a definition as a save would, without keeping it; answers it with its YAML |
+| `GET /reports/{key}/definition` | Any report's definition as YAML |
+| `POST /reports/{key}/draft/panels/{id}` | One panel of a definition being edited: `{definition, scope, window, at}` |
+| `POST /reports/{key}/share` | `{shared}`: "" (private), "everyone" or "role:<name>"; anything but private needs configure |
+| `GET /reports/{key}/versions` | Every kept version, newest first |
+| `POST /reports/{key}/versions/{version}/restore` | Bring a version back as the newest |
+| `DELETE /reports/{key}` | Take down your own custom report |
+
+`GET /reports` lists the custom reports a person can open after the standard ones (`source: custom`, with `mine`,
+`owner`, `shared` and `version`), and `GET /reports/{key}` adds `custom` (owner, sharing, origin, `can_share`) for one.

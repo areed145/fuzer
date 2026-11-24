@@ -18,13 +18,37 @@ from .. import windows
 
 HERE = Path(__file__).parent
 SCHEMA = 1
-TYPES = ("stat", "trend", "figure", "table", "cases", "note", "summary")
+TYPES = ("stat", "trend", "figure", "table", "cases", "note", "summary", "narrative", "view")
+# The plant's own analyses, each answered by its own read for the whole register over its own period, drawn on a report
+# by a `view` panel: they moved here from the retired Scorecard page and keep their own cards.
+VIEWS = {
+    "across-assets": "Across assets",
+    "wells-forecast": "Wells against their own forecast",
+    "well-screen": "Water, gas and test age",
+    "allocation-factor": "Allocated oil against well tests",
+    "intervention-gains": "Did the well work pay off?",
+    "gas-balance": "Gas balance",
+    "gas-lift-heading": "Gas lift heading",
+    "water-injection": "Water injection",
+    "reservoir-pressure": "Reservoir pressure",
+    "quality": "Separator and export quality",
+    "cost-of-unreliability": "Cost of unreliability by unit",
+    "leak-surveys": "Leak surveys",
+    "alarm-performance": "Alarm system performance",
+    "backlog-burn": "Is the backlog under control?",
+    "work-execution": "Does work finish when planned, and do repairs hold?",
+    "accounts": "Against the accounts",
+}
+# The day a window ends on when the link names none: today, or the last production day (the daily report's day).
+WINDOW_AT = ("day", "production_day")
 CHARTS = ("bar", "pareto", "share")
 SIZE = {"stat": 1, "table": 4, "cases": 4}
 CASE_FILTERS = ("state", "kind", "stage", "holder", "queue", "source", "overdue", "q", "sort")
 REPEAT_LIMIT = 24
-# The daily and regulatory reports' own routes sit under /reports.
-RESERVED = ("daily", "regulatory", "obligations")
+# The daily and regulatory reports' own routes, and the custom reports' (api/reports.py), sit under /reports.
+RESERVED = ("daily", "regulatory", "obligations", "custom", "check")
+# A custom report's key (ops/custom_reports.py): kept in the database, never a platform or pack key.
+CUSTOM_PREFIX = "custom-"
 
 
 class ReportError(ValueError):
@@ -98,15 +122,22 @@ def _panel(where: str, p: dict, ids: set) -> dict:
             known = _rowsets()
             if known is None or p["rows"] not in known:
                 raise ReportError(f"{where}: no row set {p['rows']!r}")
+        elif p.get("measures") and p.get("grain"):  # one row per grain value, one column per measure
+            if not isinstance(p["measures"], list):
+                raise ReportError(f"{where}: measures is a list")
+            for k in p["measures"]:
+                _measure(where, k, p["grain"])
         elif p.get("measure") and p.get("grain"):
             _measure(where, p["measure"], p["grain"])
         else:
-            raise ReportError(f"{where}: a table names a row set, or a measure and a grain")
+            raise ReportError(f"{where}: a table names a row set, or a measure (or measures) and a grain")
     elif t == "cases":
         f = p.get("filter") or {}
         if not isinstance(f, dict) or (bad := set(f) - set(CASE_FILTERS)):
             raise ReportError(f"{where}: the cases filter takes {', '.join(CASE_FILTERS)}; not {sorted(bad) if isinstance(f, dict) else f}")
         out["filter"] = f
+    elif t == "view" and p.get("view") not in VIEWS:
+        raise ReportError(f"{where}: no view {p.get('view')!r}; it is one of {', '.join(VIEWS)}")
     elif t == "note" and "text" in p and not isinstance(p["text"], str):
         raise ReportError(f"{where}: a note's text is markdown")
     if "limit" in p and (not isinstance(p["limit"], int) or p["limit"] < 1):
@@ -118,18 +149,28 @@ def check(d: dict, source: str = "platform") -> dict:
     """A definition with its defaults filled (row ids, sizes, window options), or ReportError with the reason."""
     if not isinstance(d, dict):
         raise ReportError("a report definition is a mapping")
+    if not isinstance(d.get("rows") or [], list) or not all(isinstance(r, dict) for r in d.get("rows") or []):
+        raise ReportError("rows is a list, each row a mapping with its panels")
     key = d.get("key")
     where = f"report {key}"
     if not key or not isinstance(key, str) or not key.replace("-", "").replace("_", "").isalnum():
         raise ReportError("a report needs a key of letters, digits, - and _")
     if key in RESERVED:
         raise ReportError(f"report key {key} is taken by the {key} reports' own pages")
+    if key.startswith(CUSTOM_PREFIX) != (source == "custom"):
+        raise ReportError(f"report keys starting {CUSTOM_PREFIX} are custom reports' and only theirs")
     if d.get("schema", SCHEMA) != SCHEMA:
         raise ReportError(f"{where}: schema {d.get('schema')} isn't {SCHEMA}")
     if not d.get("title"):
         raise ReportError(f"{where}: needs a title")
     scope = d.get("scope") or {}
+    if not isinstance(scope, dict) or not isinstance(d.get("window") or {}, dict):
+        raise ReportError(f"{where}: scope and window are mappings")
+    if not isinstance(d.get("version", 1), int) or not isinstance(d.get("for") or [], list):
+        raise ReportError(f"{where}: version is a whole number and for is a list")
     kinds = scope.get("kinds") or []
+    if not isinstance(kinds, list):
+        raise ReportError(f"{where}: scope kinds is a list")
     if not kinds or (bad := set(kinds) - _kinds()):
         raise ReportError(f"{where}: scope kinds {sorted(bad) if kinds else '(none)'} aren't kinds in the ontology")
     win = d.get("window") or {}
@@ -139,6 +180,9 @@ def check(d: dict, source: str = "platform") -> dict:
         raise ReportError(f"{where}: no window {bad[0]!r}; it is one of {', '.join(windows.WINDOWS)}")
     if default not in options:
         raise ReportError(f"{where}: the default window {default} isn't one of its options")
+    ends = win.get("at", "day")
+    if ends not in WINDOW_AT:
+        raise ReportError(f"{where}: a window ends on {' or '.join(WINDOW_AT)} when the link names no day, not {ends!r}")
     rows, ids = [], set()
     for i, r in enumerate(d.get("rows") or []):
         rid = r.get("id") or f"r{i}"
@@ -160,17 +204,19 @@ def check(d: dict, source: str = "platform") -> dict:
             raise ReportError(f"{rw}: a row holds at least one panel")
         row = {"id": rid, "panels": panels, **({"title": r["title"]} if r.get("title") else {})}
         if rep := r.get("repeat"):
+            if not isinstance(rep, dict) or not isinstance(rep.get("limit", 8), int):
+                raise ReportError(f"{rw}: repeat is {{kind, limit}}")
             if rep.get("kind") not in _kinds():
                 raise ReportError(f"{rw}: repeat kind {rep.get('kind')!r} isn't a kind in the ontology")
             row["repeat"] = {"kind": rep["kind"], "limit": min(int(rep.get("limit", 8)), REPEAT_LIMIT)}
         rows.append(row)
-    if not rows:
+    if not rows and source != "custom":  # a custom report starts blank and is filled on the page
         raise ReportError(f"{where}: a report holds at least one row")
     if len({r["id"] for r in rows}) != len(rows):
         raise ReportError(f"{where}: two rows share an id")
     return {"schema": SCHEMA, "key": key, "title": d["title"], "version": int(d.get("version", 1)),
             "for": list(d.get("for") or []), "scope": {"kinds": list(kinds)},
-            "window": {"default": default, "options": options}, "rows": rows, "source": source}
+            "window": {"default": default, "options": options, "at": ends}, "rows": rows, "source": source}
 
 
 def panels(d: dict) -> list[dict]:

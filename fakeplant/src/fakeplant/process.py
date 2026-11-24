@@ -366,7 +366,7 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
         other = next((j for j in sorted(u for u in units if u.startswith("jacket:")) if j != units[moved]["jacket"]), None)
         if other:
             events.append({"unit": moved, "kind": "reroute", "at": "2025-12-05T10:00", "to": other})
-    return {"version": 1, "seed": seed, "points": pts, "units": units, "events": events}
+    return {"version": 1, "seed": seed, "live": True, "points": pts, "units": units, "events": events}
 
 
 STORY_WELLS = {"OK-J07-03", "OK-J12-02", "OK-J03-02", "OK-NWP-G3"}

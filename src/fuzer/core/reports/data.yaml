@@ -1,0 +1,38 @@
+# Data health: are the sources landing, matching and complete, for the data steward.
+schema: 1
+key: data
+title: Data health
+version: 1
+for: [data steward]
+scope:
+  kinds: [facility]
+window:
+  default: 7d
+  options: [1d, 7d, 30d]
+rows:
+  - id: headline
+    panels:
+      - {id: completeness, type: stat, measure: sources.completeness}
+      - {id: timeliness, type: stat, measure: sources.timeliness}
+      - {id: agreement, type: stat, measure: sources.agreement}
+      - {id: validity, type: stat, measure: sources.validity}
+  - id: stewardship
+    panels:
+      - {id: held, type: stat, measure: sources.held_loads}
+      - {id: straight-through, type: stat, measure: sources.straight_through}
+      - {id: context, type: stat, measure: context.completeness}
+  - id: commentary
+    panels:
+      - {id: summary, type: summary, size: 2}
+      - {id: notes, type: note, size: 2}
+  - id: by-dataset
+    panels:
+      - {id: datasets, type: table, size: 4, title: By dataset,
+         measures: [sources.completeness, sources.timeliness, sources.agreement, sources.validity], grain: dataset, limit: 30}
+  - id: by-system
+    panels:
+      - {id: by-system, type: figure, size: 2, title: Records decided without a steward by system, measure: sources.straight_through, grain: system, chart: bar}
+      - {id: context-area, type: figure, size: 2, title: Asset context completeness by area, measure: context.completeness, grain: area, chart: bar}
+  - id: waiting
+    panels:
+      - {id: waiting, type: cases, size: 4, title: Waiting on a steward, filter: {queue: data_steward, sort: opened}, limit: 10}

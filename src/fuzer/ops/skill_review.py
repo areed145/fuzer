@@ -9,8 +9,10 @@ person publishes the draft or sets it aside.
     close_review(conn, skill, version, by, reason)                         the work, cleared
 """
 
+from urllib.parse import quote
+
 from ..core.exceptions import TYPES, clear_exception, exception_type, raise_exception
-from ..core.findings import DETERMINISTIC, Finding, fact
+from ..core.findings import DETERMINISTIC, Finding, fact, page
 
 
 def _type():
@@ -34,7 +36,9 @@ def open_review(conn, skill: str, version: int, title: str, by: str, cases: list
     found = Finding(
         "skills.change", DETERMINISTIC, method="Shortfalls gathered per skill, a change drafted by its agent",
         data={"skill": skill, "version": version, "cases": cases, "questions": questions},
-        items=(fact("Skill", skill), fact("Draft version", version), fact("Why", note),
+        items=(page("Draft", f"#/skills?skill={quote(skill, safe='')}&tab=versions&v={version}",
+                    "Read the draft against the live playbook"),
+               fact("Skill", skill), fact("Draft version", version), fact("Why", note),
                fact("Cases behind it", len(cases) or None), fact("New eval questions", len(questions) or None),
                *(fact(f"Case: {c.get('kind')} {c.get('case') or c.get('answer') or ''}".strip(),
                       c.get("note") or c.get("title") or c.get("question")) for c in cases[:6])))

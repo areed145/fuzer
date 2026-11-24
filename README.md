@@ -515,9 +515,10 @@ Screens:
   by link type, choose a layout).
 - **Network**: the whole production / allocation flow, left to right, as of
   any date.
-- **Downtime**, **Incidents**, **Daily reports**: deferment by cause, upsets on
-  one unit with their events and downtime, and the daily operations report,
-  reviewed and published on its page.
+- **Reports**: Daily operations, Production and deferment, Work and dispatch,
+  Safety and integrity, Plan against actual and Data health, each for any
+  scope and window; the daily narrative is reviewed and published on Daily
+  operations. **Downtime** and **Incidents** are the drill-downs.
 - **Ask**: the operations assistant. **Lessons**: lessons learned. **Studies**:
   correlation and clustering studies.
 - **All work** (Work): the IOC's one list of everything that came in, with views for to dispatch, with the field,

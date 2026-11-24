@@ -19,9 +19,15 @@
 .report-size-3 { grid-column: span 3; }
 .report-size-4 { grid-column: span 4; }
 .report-column { display: flex; flex-direction: column; gap: 1rem; }
-.report-slot > .report-panel { margin: 0; height: 100%; }
+/* above the iOS card margin (:root.ios .ui-card), which otherwise opens a gap under a panel shorter than its row */
+:root .report-row .report-slot > .report-panel { margin: 0; height: 100%; }
 .report-slot { min-width: 0; }
 .report-row > .report-type-stat { align-self: stretch; }
+/* An analysis that has nothing to show draws no card: its slot goes, not a gap. */
+.report-type-view:not(:has(.card)) { display: none; }
+.report-view > .card { margin: 0; }
+.report-review { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; }
+.report-review .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 .report-stat-value { display: block; font-size: 1.9rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .report-off-target { color: var(--danger); }
@@ -64,4 +70,51 @@
   .report-size-4 { grid-column: span 4; }
   .report-no-phone { display: block; }
   .report-slot { break-inside: avoid; }
+}
+
+/* The editor (reports/editor.tsx): iPad and desktop only; a phone reads. */
+.report-editbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.report-editing .report-row > .report-slot {
+  outline: 1px dashed var(--line);
+  outline-offset: 4px;
+  border-radius: var(--radius);
+}
+.report-slot-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.report-slot-tools select { max-width: 9rem; }
+.report-add-between { display: flex; justify-content: center; margin: 0.5rem 0; }
+.report-add { margin: 0.75rem 0; }
+.report-add-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: end;
+  margin-bottom: 0.75rem;
+}
+.report-definition-text { font-family: var(--mono, ui-monospace, monospace); font-size: 0.85rem; min-height: 24rem; }
+.report-versions-card li + li { margin-top: 0.4rem; }
+
+@media (max-width: 600px) {
+  .report-editbar, .report-slot-tools, .report-add-between { display: none; }
+}
+@media print {
+  .report-editbar, .report-slot-tools, .report-add-between, .report-add { display: none !important; }
 }
