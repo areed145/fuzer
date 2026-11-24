@@ -1,3 +1,4 @@
+import { AskOpsIq } from "../../OpsIq";
 import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Notice } from "../../ui";
 import { when } from "../../format";
 import { confirmDialog } from "../../ui";
@@ -153,7 +154,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
             </span>}
             <span className="case-opened"><Text muted>opened by</Text> <Actor who={it.created_by} /> <Text muted>{when(it.created_at)}</Text></span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
-            {!demo && canAsk && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
+            {!demo && canAsk && <AskOpsIq about={{ case: String(it.id) }} what="case" />}
           </Line>
           {it.parent && <Text as="p" small>Part of <a href={caseHref(it.parent.id)}>{say(it.parent.title)}</a></Text>}
         </div>

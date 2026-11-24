@@ -23,6 +23,10 @@
 .ui-button-ghost { background: transparent; color: var(--text); border-color: transparent; }
 .ui-button-link { background: transparent; border-color: transparent; color: var(--accent); padding-inline: 4px; }
 .ui-button-link.muted { color: var(--muted); }
+/* Ops IQ: every way to ask the operations agent carries its gradient, and nothing else does. */
+.ui-button-iq { background: var(--iq-gradient); color: var(--iq-ink); border-color: transparent; }
+.ui-button-iq:hover:not(:disabled) { border-color: transparent; filter: brightness(1.08); }
+.ui-button-iq svg { width: 14px; height: 14px; flex: none; fill: currentColor; stroke: none; }
 .ui-button-danger { background: var(--danger); color: var(--accent-text); border-color: var(--danger); }
 .ui-button:hover:not(:disabled) { border-color: var(--accent); }
 .ui-button:disabled { opacity: .5; cursor: default; }

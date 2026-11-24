@@ -185,7 +185,7 @@ main[data-width="reading"] { max-width: 1200px; }
    of the page and opens a popover under it. The sidebar no longer carries the account. */
 .account-sheet, .account-scrim { display: none; }
 .account-button.ui-button { display: inline-flex; min-height: 0; min-width: 0; box-shadow: none; align-items: center; justify-content: center; flex: none; width: 36px; height: 36px;
-  margin-left: auto; padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-text, #fff);
+  margin-left: auto; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--text);
   font: 600 14px/1 inherit; cursor: pointer; position: relative; }
 .account-button::after { content: ""; position: absolute; inset: -4px; }
 .account-button + * { margin-left: 0; }
@@ -223,18 +223,19 @@ main[data-width="reading"] { max-width: 1200px; }
   background: var(--rail-hover); color: var(--rail-text); }
 .sidebar .search-button svg { width: 18px; height: 18px; stroke-width: 1.8; }
 .sidebar .search-button:hover { color: #ffffff; }
-/* Ops IQ (brand.tsx IqMark): the spark on its gradient tile, beside search (nav.tsx IqButton) and on its search row. */
+/* Ops IQ's sign: the search button on its gradient, with the spark at the glass's shoulder (AppSearch.tsx). */
+.iq-search .search-glyph { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 36px; height: 36px;
+  border-radius: 50%; background: var(--iq-gradient); color: var(--iq-ink); }
+.iq-search .search-glyph svg { width: 20px; height: 20px; }
+.search-button .spark { fill: currentColor; stroke: none; }
+.sidebar .iq-search .search-glyph { width: 26px; height: 26px; margin-left: -6px; }
+.sidebar .iq-search .search-glyph svg { width: 16px; height: 16px; }
+/* Ops IQ's spark tile (brand.tsx IqMark): its menu entry's page and its row in app search. */
 .iq-mark { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px;
-  background: linear-gradient(135deg, var(--iq-from), var(--iq-to)); color: var(--iq-ink); }
+  background: var(--iq-gradient); color: var(--iq-ink); }
 .iq-mark svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
 .iq-mark.small { width: 24px; height: 24px; border-radius: 7px; }
 .iq-mark.small svg { width: 16px; height: 16px; }
-.iq-button.ui-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0;
-  border: 0; background: none; box-shadow: none; }
-.iq-button:hover .iq-mark { filter: brightness(1.1); }
-.sidebar-search { display: flex; align-items: center; gap: 6px; }
-.sidebar-search .search-button { flex: 1; min-width: 0; }
-.sidebar-search .iq-button.ui-button { min-width: 38px; min-height: 38px; }
 .app-search-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(16 24 32 / .45); }
 .app-search { position: fixed; z-index: 1301; top: 72px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column;
   width: min(640px, calc(100vw - 32px)); max-height: min(560px, calc(100dvh - 120px)); overflow: hidden;
@@ -256,7 +257,7 @@ main[data-width="reading"] { max-width: 1200px; }
 .app-search-note { margin: 8px 16px; color: var(--muted); font-size: 13px; }
 @media (max-width: 900px) {
   .topbar .search-button { display: inline-flex; }
-  .sidebar .search-button, .sidebar .iq-button { display: none; }
+  .sidebar .search-button { display: none; }
   /* On a phone the sheet is the whole screen, with the box at the top. */
   .app-search { inset: 0; transform: none; width: 100%; max-height: none; border: 0; border-radius: 0; }
   .app-search-bar { padding-top: max(10px, env(safe-area-inset-top)); }

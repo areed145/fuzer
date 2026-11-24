@@ -132,8 +132,9 @@ need opens a case or joins an open one. In code; on screen it is shown by its ty
 panel). A note may carry live values, `{production.oil}`, that read the measure for the note's own period.
 
 **Ops IQ.** The operations agent: it answers a question from the register, the work and the readings, citing what
-it used. Its mark is a spark on a teal-to-violet tile, beside search on every page and on its row in app search; its page
-is `#/ask`. To ask is the verb ("Ask Ops IQ"); Ops IQ is the name, never "the assistant" or "Ask" as a page.
+it used. Its sign is its gradient, Fuzer's teal running into indigo: the search button wears it (search and asking
+are one way in), and so does every way to ask it ("Ask Ops IQ about this asset") and its row in app search; nothing
+else in the app does. Its page is `#/ask`. To ask is the verb ("Ask Ops IQ"); Ops IQ is the name, never "the assistant" or "Ask" as a page.
 
 **Options.** The choices for a piece of field work, side by side on a case in To dispatch, With a desk or Back from
 the field (and from its row on All work): **Dispatch now**, **Ride along with the next visit** (a scheduled plan

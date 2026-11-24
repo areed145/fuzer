@@ -224,7 +224,7 @@ settings and never in the repository or chat. Microsoft stays the sign-in for pe
 - While it is on, the sign-in page also takes the username `demo` and password `demo`
   (`POST /auth/password`), so the site can be shown and checked without Microsoft. Set
   `FUZER_DEMO_PASSWORD` to use another password. Both sign-ins open the same account.
-- The first sign-in creates the account enabled with the `operator` role in the
+- The first sign-in creates the account enabled with the `operator` and `ai_user` roles in the
   projects named by `FUZER_DEMO_PROJECTS` (comma-separated; default every project the
   database holds, which on the demo deployment are Okan, Kestrel and Harrier).
   It cannot open other projects unless an owner grants them.
@@ -236,8 +236,9 @@ settings and never in the repository or chat. Microsoft stays the sign-in for pe
   it, add a suggested check, pause or resume it, test a connection, approve, discard or
   roll back a mapping version, rematch and rebuild (`STEWARD_ACTIONS` in
   `api/security.py`), so the data steward's jobs can be shown end to end. The Users page
-  shows it accounts without their Microsoft identifiers. It gets no `ai` permission
-  unless an owner grants it `ai_user` on Users.
+  shows it accounts without their Microsoft identifiers. It holds `ai_user` too, so a
+  demonstration can ask Ops IQ (each question is a paid model call); an account made before
+  this gets it once on its next sign-in, and an owner can take it away on Users.
 - It can be any role. It holds every human workflow role, so My work shows every
   queue, until someone picks one under **Acting as** in the sidebar (an operator, the
   ops lead, a data steward). The pick is kept on that sign-in's session, per project, so
