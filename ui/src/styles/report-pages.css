@@ -48,7 +48,7 @@
   .report-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
   .report-slot, .report-size-1 { grid-column: span 2; }
   .report-slot.report-type-stat { grid-column: span 1; }
-  .report-no-phone { display: none; }
+  .report-no-phone, .report-print { display: none; }
   .report-stat-value { font-size: 1.5rem; }
   .report-chart { min-height: 14rem; }
   .report-controls { gap: 0.5rem; }

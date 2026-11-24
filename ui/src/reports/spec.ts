@@ -87,6 +87,8 @@ export interface ResolvedWindow {
   days: number;
   label: string;
   previous: { start: string; end: string };
+  /** The day was named in the link; without it each measure reads its own latest day. */
+  asked?: boolean;
 }
 
 /** GET /reports/{key}?scope&window&at */
@@ -171,5 +173,6 @@ export interface PanelProps {
   panel: Panel;
   scope: string | null;
   window: WindowKey;
-  at: string;
+  /** Null when the link names no day: each measure reads its own latest. */
+  at: string | null;
 }
