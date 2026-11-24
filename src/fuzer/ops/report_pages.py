@@ -215,8 +215,8 @@ def _figure(chart: str, rows: list[dict], unit: str) -> dict:
             cum.append(round(100 * run / total, 1))
         data.append({"type": "scatter", "mode": "lines+markers", "y": labels[::-1], "x": cum[::-1], "xaxis": "x2",
                      "name": "cumulative %", "hovertemplate": "%{y}: %{x}% of the total<extra></extra>"})
-    layout = {"showlegend": chart == "pareto", "height": 90 + 34 * max(len(rows), 2), "bargap": 0.35,
-              "margin": {"t": 8, "r": 16, "b": 36, "l": 8},
+    layout = {"showlegend": chart == "pareto", "height": 122 + 34 * max(len(rows), 2), "bargap": 0.35,
+              "margin": {"t": 40, "r": 16, "b": 36, "l": 8},  # room for the full-screen button
               "yaxis": {"automargin": True}, "xaxis": {"title": {"text": unit}},
               **({"xaxis2": {"overlaying": "x", "side": "top", "range": [0, 100], "ticksuffix": "%"}}
                  if chart == "pareto" else {})}
