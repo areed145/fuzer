@@ -134,6 +134,9 @@ with its reason. Choosing another needs a reason; the choice is kept on the case
 **Plan.** The one timeline of every planned job from every source: SAP orders and maintenance plans, inspections,
 schedules, and work the IOC planned for a day. A bar on it is a **plan item**.
 
+**Panel.** One figure, chart, list or note on a report, sized in quarters of the width. It reads a registered
+measure, a trend or the Work list's rows; it never adds up a number of its own. See [reports](reports.md).
+
 **Prerequisite.** Something a job needs before it can be released: parts covered, crew within capacity, a permit,
 isolations, seats, beds and lifts, the unit down. A job is ready when every prerequisite is satisfied.
 
@@ -159,6 +162,10 @@ scoring them against what really happened. See [evals](evals.md).
 
 **Review item.** A question for a person: an uncertain match, a held source (a changed schema or a failing
 check), a suggested mapping, a reading by Claude to check.
+
+**Report.** A page of panels in rows for a **scope** (an entity in the register and what is beneath it) and a
+**window** (7 days, 30 days, quarter to date, ending on a day), both kept in its link. Reports are listed on the
+Reports page; a daily report is the day's written narrative. See [reports](reports.md).
 
 **Resource.** Something planned work shares and can run out of: a crew, a crane, beds, helicopter seats, vessel
 support, operator rounds, production capacity. Plan > Resources sets demand against its capacity. Production

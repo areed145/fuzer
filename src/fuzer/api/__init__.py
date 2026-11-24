@@ -27,6 +27,7 @@ from . import (
     onboarding,
     ontology,
     ops,
+    reports,
     settings,
     sources,
     standards,
@@ -80,7 +81,7 @@ if (UI_DIST / "assets").is_dir():
     # the build's files, then earlier deploys' kept in Postgres, for pages opened before this one (P5.18a)
     app.mount("/assets", kept_assets.Kept(directory=UI_DIST / "assets"), name="assets")
 
-for module in (home, investigation, entities, knowledge, ops, metrics, assistant, ontology, graph, workflow, settings, catalog, sources, stewardship, jobs, onboarding, standards):  # in this order: FastAPI matches routes in the order they were added
+for module in (home, investigation, entities, knowledge, ops, metrics, reports, assistant, ontology, graph, workflow, settings, catalog, sources, stewardship, jobs, onboarding, standards):  # in this order: FastAPI matches routes in the order they were added
     app.include_router(module.router)
 app.add_exception_handler(work.WorkError, workflow.work_error)
 app.add_exception_handler(GateRefused, workflow.work_error)

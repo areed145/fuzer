@@ -96,6 +96,8 @@ export interface ReportView {
   window: ResolvedWindow;
   /** The entities each repeat row draws for, by row id. */
   repeats: Record<string, ScopeRef[]>;
+  /** The entities the report can be scoped to, the one shown first. */
+  scopes: ScopeRef[];
 }
 
 /** What every panel result carries, then its type's own fields. */
@@ -153,6 +155,8 @@ export interface CasesResult extends PanelResultBase {
   cases: Record<string, unknown>[];
   total: number;
   overdue: number;
+  /** The names of the places and entities the rows name. */
+  labels: Record<string, string>;
 }
 
 /** The commentary's panels add their own fields. */

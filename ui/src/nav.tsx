@@ -92,9 +92,10 @@ export const NAV: NavGroup[] = [
     label: "Reports",
     icon: "M4 20h16M7 16v-5M12 16V7M17 16v-8",
     items: [
+      { label: "Reports", section: "reports" },
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
-      { label: "Daily reports", section: "reports" },
+      { label: "Daily reports", section: "reports", path: "/reports?day=", view: "day" },
       { label: "Metrics", section: "metrics", also: ["scorecard"] },
       { label: "Lessons learned", section: "lessons" },
       { label: "Studies", section: "studies" },
