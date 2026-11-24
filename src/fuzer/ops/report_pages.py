@@ -6,6 +6,7 @@ the Work list, so a figure on a report is the figure everywhere else.
                                                               from and the entities each repeat row draws for
     panel_data(conn, pack, key, panel_id, scope, window, at)  one panel's result: the envelope and its type's fields
     panel_type(name)                                          register fn(conn, pack, report, panel, scope, window)
+    default_scope(conn, pack, report)                         the scope a report opens on when its link names none
 
 A panel type's function gets the definition, the panel, the scope as {id, label, kind} and the resolved window
 (`core/windows.resolve`) and returns its own fields; the envelope (title, as_of, note, scoped, refs, href) is filled
@@ -72,6 +73,11 @@ def _scope(conn, d: dict, scope: str | None, also: str | None = None, pack=None)
     first = scopes(conn, d["scope"]["kinds"][:1])
     own = next((s for s in first if s["kind"] == "facility" and s["label"] == getattr(pack, "facility", None)), None)
     return own or (first[0] if first else {"id": None, "label": "Everything", "kind": None})
+
+
+def default_scope(conn, pack, d: dict) -> dict:
+    """The scope a report opens on when its link names none: the project's own facility, else the first by name."""
+    return _scope(conn, d, None, pack=pack)
 
 
 def _window(d: dict, window: str | None, at) -> dict:
