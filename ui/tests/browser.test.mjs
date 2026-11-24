@@ -1317,8 +1317,8 @@ test("reader Settings and Sources do not request protected configuration or conn
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
   // Ask runs a paid model: no menu entry and no top-bar button without AI access.
-  assert.equal(await nav.getByRole("link", { name: "Ask", exact: true }).count(), 0);
-  assert.equal(await page.getByRole("link", { name: "Ask the assistant", exact: true }).count(), 0);
+  assert.equal(await nav.getByRole("link", { name: "Ops IQ", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("link", { name: "Ops IQ", exact: true }).count(), 0);
   await page.goto(`${url}/#/settings`);
   assert.equal(await page.getByRole("link", { name: "Users", exact: true }).count(), 0);
 });
@@ -2191,7 +2191,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a .nav-tile-label").allTextContents(), ["Tower", "Work", "Plan", "Explore", "Ask", "Reports", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a .nav-tile-label").allTextContents(), ["Tower", "Work", "Plan", "Explore", "Ops IQ", "Reports", "Sources", "Jobs", "Settings"]);
   // Demo left the menu; its page still opens from a direct link.
   await page.goto(`${url}/#/demo`);
   await page.getByRole("heading", { level: 1, name: "Demo", exact: true }).waitFor();
@@ -2251,7 +2251,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   // them, so Map or Incidents is one tap from anywhere.
   await menu.click();
   assert.deepEqual(await page.locator('#sidebar nav[aria-label="Main"] .nav-tile:visible .nav-tile-label').allTextContents(),
-    ["Plan", "Ask", "Sources", "Jobs", "Settings"]);
+    ["Plan", "Ops IQ", "Sources", "Jobs", "Settings"]);
   const pages = page.getByRole("navigation", { name: "All pages", exact: true });
   await pages.getByRole("link", { name: "Incidents", exact: true }).click();
   await page.waitForURL(/#\/incidents$/);
@@ -2623,7 +2623,7 @@ test("Demo prepares a registered specialist question and confirms paid execution
   await page.getByText("No transport records loaded", { exact: false }).waitFor();
   await page.getByRole("button", { name: /Registered specialist/ }).click();
   await page.getByRole("link", { name: "Prepare a question for Registered specialist", exact: true }).click();
-  await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Ops IQ", exact: true }).waitFor();
   assert.match(await page.getByRole("textbox", { name: "Question for the operations assistant" }).inputValue(), /Registered specialist/);
   assert.deepEqual(writes, []);
   await page.getByRole("textbox", { name: "Question for the operations assistant" }).press("Enter");
@@ -3180,7 +3180,7 @@ test("Mermaid loads only for an answer with a diagram", async () => {
 
 test("Ask opens and can be left without DOM effect-cleanup crashes", async () => {
   await page.goto(`${url}/#/ask`);
-  await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Ops IQ", exact: true }).waitFor();
   await page.getByRole("link", { name: "Tower", exact: true }).first().click();
   await page.getByRole("heading", { name: "Tower", exact: true }).waitFor();
 });
@@ -8183,7 +8183,7 @@ test("P7.4 Work performance shows by detector and by skill which earn their keep
   await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
 });
 
-test("App search at the top left finds pages, tabs and records, and sends a question to Ask", async () => {
+test("App search at the top left finds pages, tabs and entities, and sends a question to Ops IQ", async () => {
   let asked = null;
   await page.route("**/entities*", (route) => route.fulfill({ json: new URL(route.request().url()).searchParams.get("q") === "P-101"
     ? [{ fuzer_id: "equipment:P-101", kind: "equipment", label: "P-101", description: "Export pump" }] : [] }));
@@ -8199,8 +8199,17 @@ test("App search at the top left finds pages, tabs and records, and sends a ques
       assert.ok(glass.x < logo.x && logo.x + logo.width < account.x);
       assert.ok(Math.abs(logo.x + logo.width / 2 - 195) < 4);
     }
+    // Ops IQ sits right beside search, on the phone's top bar and in the sidebar.
+    const iq = page.locator(`${bar} .iq-button`);
+    assert.equal(await iq.getAttribute("aria-label"), "Ops IQ");
+    assert.equal(await iq.getAttribute("href"), "#/ask");
+    const [glassBox, iqBox] = await Promise.all([page.locator(`${bar} .search-button`).boundingBox(), iq.boundingBox()]);
+    assert.ok(iqBox.x > glassBox.x && iqBox.x - (glassBox.x + glassBox.width) < 16 && Math.abs(iqBox.y + iqBox.height / 2 - (glassBox.y + glassBox.height / 2)) < 4);
     await page.locator(bar).getByRole("button", { name: "Search", exact: true }).click();
-    const box = page.getByRole("combobox", { name: "Search pages, entities, or ask a question" });
+    const box = page.getByRole("combobox", { name: "Search pages and entities, or ask Ops IQ" });
+    // Before anything is typed, Ops IQ is the first row.
+    await box.fill("");
+    assert.equal(await page.locator(".app-search-results [role=option]").first().getAttribute("href"), "#/ask");
     await box.fill("dispatch");
     const results = page.getByRole("listbox", { name: "Results" });
     await results.getByRole("option", { name: /To dispatch/ }).waitFor();
@@ -8209,16 +8218,24 @@ test("App search at the top left finds pages, tabs and records, and sends a ques
     await box.fill("P-101");
     const record = results.getByRole("group", { name: "Entities" }).getByRole("option", { name: /P-101/ });
     assert.equal(await record.getAttribute("href"), "#/e/equipment%3AP-101");
+    // A name lists what it finds first, and Ops IQ waits, in view, at the foot.
+    const last = page.locator(".app-search-results [role=option]").last();
+    assert.equal(await last.getAttribute("href"), "#/ask?q=P-101&send=1");
+    await last.getByText("Ask Ops IQ", { exact: true }).waitFor();
+    assert.ok(await last.isVisible());
     await box.press("Escape");
     assert.equal(await page.locator(".app-search").count(), 0);
   }
-  // A question puts Ask first; Enter asks it on the Ask page, once.
+  // A question puts Ops IQ first, with or without a question word; Enter asks it on Ops IQ's page, once.
   await page.keyboard.press("/");
-  const box = page.getByRole("combobox", { name: "Search pages, entities, or ask a question" });
+  const box = page.getByRole("combobox", { name: "Search pages and entities, or ask Ops IQ" });
+  await box.fill("P-101 trips after the restart");
+  assert.equal(await page.locator(".app-search-results [role=option]").first().getAttribute("href"),
+    "#/ask?q=P-101+trips+after+the+restart&send=1");
   await box.fill("why did P-101 trip?");
   assert.equal(await page.locator(".app-search-results [role=option]").first().getAttribute("href"), "#/ask?q=why+did+P-101+trip%3F&send=1");
   await box.press("Enter");
-  await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Ops IQ", exact: true }).waitFor();
   await page.waitForFunction(() => location.hash === "#/ask");
   await page.getByText("why did P-101 trip?", { exact: true }).first().waitFor();
   assert.equal(asked?.question, "why did P-101 trip?");
@@ -9356,4 +9373,104 @@ test("#23 sending to the field can say when it is wanted back", async () => {
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "Sent to sam, wanted back by" }).waitFor();
   assert.equal(sent[0].due, "2026-11-12T09:00");
+});
+
+test("A planner reads the portfolio as one tree, opens a business plan, writes a line and matches the unplanned case to it, and a data steward maps a status, at phone, iPad and desktop widths (work model 6, 8, 9)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olga"));
+  const tree = [
+    { id: 1, kind: "business_plan", code: "BP-2027", title: "2027 business plan", parent_id: null, item_id: null, owner: "olga", status: "open",
+      start_at: "2027-01-01T00:00:00Z", finish_by: "2027-12-31T00:00:00Z", source: null, source_key: null, jobs: {}, cases: 0, children: [2] },
+    { id: 2, kind: "turnaround", code: "TA-SPRING", title: "Spring outage", parent_id: 1, item_id: 40, owner: "olga", status: "open",
+      start_at: "2027-03-01T00:00:00Z", finish_by: "2027-03-31T00:00:00Z", source: null, source_key: null,
+      jobs: { scheduled: 2, done: 1 }, cases: 3, children: [] },
+  ];
+  const plan = () => ({ container: { id: 1, kind: "business_plan", title: "2027 business plan" },
+    lines: [{ id: 7, container_id: 1, title: "Overhaul pump 1", kind: "maintenance", subjects: ["fz-pump-1"], period_start: "2027-03-01",
+      period_end: "2027-03-31", estimate_hours: 10, estimate_cost: 5000, estimate_value_usd: null, owner: "olga", note: null, status: "open",
+      actual: { cases: 2, cases_closed: 1, jobs: 2, jobs_done: 1, hours_done: 6, hours_booked: 8, cost: null }, state: "in progress",
+      case_ids: [11, 12], hours_variance: 4, cost_variance: null }],
+    totals: { lines: 1, estimate_hours: 10, estimate_cost: 5000, hours_done: 6, hours_booked: 8, not_started: 0, done: 0, unplanned_cases: 1,
+      unplanned: { cases: 1, cases_closed: 0, jobs: 1, jobs_done: 0, hours_done: 0, hours_booked: 3, cost: null } },
+    unplanned: [{ id: 13, title: "Seal on pump 2", state: "open", type: "task" }] });
+  const posted = { lines: [], matches: [], maps: [] };
+  await page.route("**/containers?*", (route) => route.fulfill({ json: tree }));
+  await page.route("**/containers/1", (route) => route.fulfill({ json: { ...tree[0], parents: [],
+    children: [{ id: 2, kind: "turnaround", title: "Spring outage", status: "open" }], jobs: [], cases: [] } }));
+  await page.route("**/containers/1/plan", (route) => route.fulfill({ json: plan() }));
+  await page.route("**/containers/1/plan-lines", (route) => { posted.lines.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  await page.route("**/plan-lines/7/cases", (route) => { posted.matches.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  const rows = [
+    { id: 1, system: "sap", object_type: "order", status: "REL", user_status: "", state: "scheduled", move: null, note: "Released", updated_by: "fuzer", updated_at: "2026-11-01T00:00:00Z" },
+    { id: 2, system: "sap", object_type: "order", status: "TECO", user_status: "", state: "done", move: "CNF", note: null, updated_by: "fuzer", updated_at: "2026-11-01T00:00:00Z" },
+    { id: 3, system: "p6", object_type: "activity", status: "In Progress", user_status: "", state: "in_progress", move: null, note: null, updated_by: "fuzer", updated_at: "2026-11-01T00:00:00Z" },
+  ];
+  await page.route("**/status-map", (route) => {
+    if (route.request().method() === "PUT") { posted.maps.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); }
+    return route.fulfill({ json: rows });
+  });
+
+  // The portfolio: the business plan, the outage under it with its jobs by stage.
+  await page.goto(`${url}/#/plan?portfolio=1`);
+  await page.getByRole("heading", { name: "Portfolio", level: 1 }).waitFor();
+  const table = page.getByRole("table", { name: "Portfolio" });
+  await table.getByRole("link", { name: "Spring outage" }).waitFor();
+  assert.deepEqual(await table.locator(".portfolio-depth").evaluateAll((ns) => ns.map((n) => [n.textContent, n.dataset.depth])),
+    [["2027 business plan", "0"], ["Spring outage", "1"]]);
+  await table.getByText("2 scheduled").waitFor();
+  await page.getByRole("button", { name: "Add a business plan, program or project" }).waitFor();
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the portfolio fits ${w} px`);
+  }
+
+  // The business plan's plan against actual: the line read against its cases, the case no line covers.
+  await table.getByRole("link", { name: "2027 business plan" }).click();
+  await page.getByRole("heading", { name: "2027 business plan", level: 1 }).waitFor();
+  await page.getByRole("table", { name: "Under it" }).getByRole("link", { name: "Spring outage" }).waitFor();
+  await page.getByRole("link", { name: "Plan against actual" }).click();
+  const line = page.locator(".ui-card", { hasText: "Overhaul pump 1" });
+  await line.getByText("in progress").waitFor();
+  await page.getByRole("table", { name: "Unplanned work" }).getByRole("link", { name: "Seal on pump 2" }).waitFor();
+  await line.getByLabel("Add a case").selectOption("13");
+  await line.getByRole("button", { name: "Add", exact: true }).click();
+  await expectReports(posted.matches, 1);
+  assert.deepEqual(posted.matches[0], { by: "olga", item_id: 13 });
+  await page.getByRole("button", { name: "Add a line" }).click();
+  const form = page.locator(".ui-card", { hasText: "What the plan means to do" });
+  await form.getByLabel("What the plan means to do").fill("Paint the deck");
+  await form.getByLabel("Hours", { exact: true }).fill("40");
+  await form.getByRole("button", { name: "Add the line" }).click();
+  await expectReports(posted.lines, 1);
+  assert.equal(posted.lines[0].title, "Paint the deck");
+  assert.equal(posted.lines[0].estimate_hours, 40);
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await line.waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the plan fits ${w} px`);
+  }
+
+  // The data steward's status mapping: each system's statuses, the Fuzer state, what a move sends back.
+  await page.goto(`${url}/#/sources?view=statuses`);
+  const sap = page.locator(".ui-card", { hasText: "SAP order" });
+  await sap.getByRole("table", { name: "SAP order statuses" }).waitFor();
+  await sap.getByText("CNF").waitFor();
+  await page.getByRole("table", { name: "P6 activity statuses" }).waitFor();
+  await sap.getByRole("button", { name: "Change REL" }).click();
+  await sap.getByLabel("Fuzer state for REL").selectOption("in_progress");
+  await sap.getByRole("button", { name: "Save" }).click();
+  await expectReports(posted.maps, 1);
+  assert.deepEqual([posted.maps[0].system, posted.maps[0].status, posted.maps[0].state, posted.maps[0].by], ["sap", "REL", "in_progress", "olga"]);
+  await page.getByRole("button", { name: "Map a status" }).click();
+  const add = page.locator(".ui-card", { hasText: "With user status" });
+  await add.getByLabel("Status there").fill("CRTD");
+  await add.getByLabel("Fuzer state").selectOption("proposed");
+  await add.getByRole("button", { name: "Map it" }).click();
+  await expectReports(posted.maps, 2);
+  assert.deepEqual([posted.maps[1].status, posted.maps[1].state, posted.maps[1].object_type], ["CRTD", "proposed", "order"]);
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await sap.waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the mapping fits ${w} px`);
+  }
+  assert.deepEqual(errors, []);
 });

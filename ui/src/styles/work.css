@@ -74,3 +74,9 @@ ol.timeline > li.ev-handed_off::before, ol.timeline > li.ev-message::before { bo
 .field-photos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .field-photo { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 64px; min-height: 64px; }
 .field-photo img { width: 96px; height: 96px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+
+/* Portfolio (work model steps 6 and 9): a container's depth in the tree, and its plan's lines. */
+.portfolio-depth[data-depth="1"] { padding-left: 0.75rem; }
+.portfolio-depth[data-depth="2"] { padding-left: calc(2 * 0.75rem); }
+.portfolio-depth[data-depth="3"], .portfolio-depth[data-depth="4"] { padding-left: calc(3 * 0.75rem); }
+.plan-lines { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); }

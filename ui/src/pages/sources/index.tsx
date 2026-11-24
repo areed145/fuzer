@@ -11,6 +11,7 @@ import { HealthBadge, RebuildBanner, STATE, scheduleText } from "./common";
 import { DatasetPage, type Tab } from "./DatasetPage";
 import { Rules } from "./Rules";
 import { Systems } from "./Systems";
+import { StatusMapping } from "./StatusMapping";
 import { SOURCES_VIEWS } from "../../pageTabs";
 
 export function SourcesPage({ query }: { query: URLSearchParams }) {
@@ -51,6 +52,7 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
       {view === "datasets" && <Datasets />}
       {view === "systems" && <Systems />}
       {view === "rules" && <Rules />}
+      {view === "statuses" && <StatusMapping system={query.get("system")} />}
     </section>
   );
 }

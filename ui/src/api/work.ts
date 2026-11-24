@@ -1133,6 +1133,23 @@ export const workApi = {
     request<PlanItem>("POST", `/plan/${id}/reschedule`, undefined, { by, start, end, reason }),
   planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),
   schedules: () => request<ScheduleSummary[]>("GET", "/plan/schedules"),
+  containers: (status: string | null = "open") =>
+    request<WorkContainer[]>("GET", "/containers", status === null ? undefined : { status }),
+  container: (id: number) => request<WorkContainerDetail>("GET", `/containers/${id}`),
+  containerCreate: (c: { by: string; kind: string; title: string; parent?: number | null; owner?: string | null;
+    start_at?: string | null; finish_by?: string | null }) => request<WorkContainer>("POST", "/containers", undefined, c),
+  containerPlan: (id: number) => request<PlanAgainstActual>("GET", `/containers/${id}/plan`),
+  planLineAdd: (id: number, line: PlanLineNew) => request<PlanLine>("POST", `/containers/${id}/plan-lines`, undefined, line),
+  planLineUpdate: (id: number, by: string, fields: Partial<PlanLineNew> & { status?: "open" | "dropped" }) =>
+    request<PlanLine>("PUT", `/plan-lines/${id}`, undefined, { by, fields }),
+  planLineMatch: (id: number, by: string, item_id: number) =>
+    request<unknown>("POST", `/plan-lines/${id}/cases`, undefined, { by, item_id }),
+  planLineUnmatch: (item_id: number, by: string) => request<unknown>("DELETE", `/plan-lines/cases/${item_id}`, { by }),
+  containerPlanMatch: (id: number, by: string) => request<{ matched: number }>("POST", `/containers/${id}/plan/match`, { by }),
+  statusMap: (system?: string) => request<StatusMapRow[]>("GET", "/status-map", system ? { system } : undefined),
+  statusMapSet: (row: { by: string; system: string; object_type: string; status: string; state: string;
+    user_status?: string; move?: string | null; note?: string | null }) =>
+    request<StatusMapRow>("PUT", "/status-map", undefined, row),
   schedule: (code: string) => request<ScheduleAnalysis>("GET", `/plan/schedules/${encodeURIComponent(code)}`),
   scheduleApply: (code: string, by: string) =>
     request<{ project: string; finish: string; unconstrained_finish: string }>("POST", `/plan/schedules/${encodeURIComponent(code)}/apply`, undefined, { by }),
@@ -1367,4 +1384,53 @@ export interface SkillEarning {
 export interface SkillPerformance {
   skills: SkillEarning[]; min_rated: number;
   specialists: { specialist: string; steps: number; cases: number; cost_usd: number; cost_per_case: number | null }[];
+}
+
+/** A container (step 6 of the work model): one level a site groups work at, with a parent and a governing case. */
+export interface WorkContainer {
+  id: number; kind: string; code: string; title: string; parent_id: number | null; item_id: number | null;
+  owner: string | null; status: string; start_at: string | null; finish_by: string | null; source: string | null;
+  source_key: string | null; jobs: Record<string, number>; cases: number; children: number[];
+}
+
+export interface WorkContainerDetail extends Omit<WorkContainer, "jobs" | "cases" | "children"> {
+  parents: { id: number; kind: string; title: string }[];
+  children: { id: number; kind: string; title: string; status: string }[];
+  jobs: { id: number; title: string; start_at: string; end_at: string; crew: string | null; item_id: number | null;
+    stage: string }[];
+  cases: { id: number; title: string; state: string; assignee: string | null; role: string | null }[];
+}
+
+export interface PlanLineNew {
+  by: string; title: string; kind?: string | null; subjects?: string[]; period_start?: string | null;
+  period_end?: string | null; estimate_hours?: number | null; estimate_cost?: number | null;
+  estimate_value_usd?: number | null; owner?: string | null; note?: string | null;
+}
+
+export interface PlanActual {
+  cases: number; cases_closed: number; jobs: number; jobs_done: number; hours_done: number; hours_booked: number;
+  cost: number | null;
+}
+
+/** An intent line of a business plan (step 9), with its cases' actuals. */
+export interface PlanLine {
+  id: number; container_id: number; title: string; kind: string | null; subjects: string[];
+  period_start: string | null; period_end: string | null; estimate_hours: number | null; estimate_cost: number | null;
+  estimate_value_usd: number | null; owner: string | null; note: string | null; status: "open" | "dropped";
+  actual?: PlanActual; state?: "not started" | "in progress" | "done" | "dropped"; case_ids?: number[];
+  hours_variance?: number | null; cost_variance?: number | null;
+}
+
+export interface PlanAgainstActual {
+  container: { id: number; kind: string; title: string };
+  lines: PlanLine[];
+  totals: { lines: number; estimate_hours: number; estimate_cost: number; hours_done: number; hours_booked: number;
+    not_started: number; done: number; unplanned_cases: number; unplanned: PlanActual };
+  unplanned: { id: number; title: string; state: string; type: string }[];
+}
+
+/** One row of a system's status mapping (step 8): its status, the Fuzer state it means, what a move sends back. */
+export interface StatusMapRow {
+  id: number; system: string; object_type: string; status: string; user_status: string; state: string;
+  move: string | null; note: string | null; updated_by: string; updated_at: string;
 }

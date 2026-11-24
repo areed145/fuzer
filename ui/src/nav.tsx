@@ -1,6 +1,6 @@
 // The app's navigation: one list of pages, drawn as a grid of app icons in a sidebar (a sheet below 900 px).
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Logo } from "./brand";
+import { IQ_SPARK, IqMark, Logo, OPS_IQ } from "./brand";
 import { href, refreshAll, useKept, usePhone, useRefreshing } from "./lib";
 import { ago } from "./format";
 import { Button, ButtonLink, Heading } from "./ui";
@@ -49,9 +49,6 @@ export interface NavGroup {
   demo?: boolean;
 }
 
-/** The assistant's mark: a speech bubble with a spark in it. */
-export const ASK_ICON = "M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM12 7.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z";
-
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
   // The control tower: the field map with what needs you over it (#/ keeps its URL).
@@ -75,6 +72,7 @@ export const NAV: NavGroup[] = [
     icon: "M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 9h16M8 2v4M16 2v4M7 13h5M10 17h7",
     items: [
       { label: "Plan", section: "plan", also: ["turnaround"] },
+      { label: "Portfolio", section: "plan", path: "/plan?portfolio=1", view: "portfolio" },
       { label: "Schedules", section: "plan", path: "/plan?schedules=1", view: "schedules" },
       { label: "Resources", section: "plan", path: "/plan?resources=1", view: "resources" },
       { label: "Logistics", section: "plan", path: "/plan?logistics=1", view: "logistics" },
@@ -88,8 +86,8 @@ export const NAV: NavGroup[] = [
     // network and 3D views keep their links and light Explore; an entity's Map, 3D and Connections tabs show them.
     items: [{ label: "Explore", section: "browse", also: ["e", "map", "network", "3d"] }],
   },
-  // The operations assistant, its own destination: it answers from the register, the work and the readings.
-  { label: "Ask", icon: ASK_ICON, permission: "ai", items: [{ label: "Ask", section: "ask", permission: "ai" }] },
+  // Ops IQ, the operations agent, its own destination: it answers from the register, the work and the readings.
+  { label: OPS_IQ, icon: IQ_SPARK, permission: "ai", items: [{ label: OPS_IQ, section: "ask", permission: "ai" }] },
   {
     label: "Reports",
     icon: "M4 20h16M7 16v-5M12 16V7M17 16v-8",
@@ -200,12 +198,13 @@ function ShareButton() {
   </>;
 }
 
-/** Ask, a tap away on every page for those who may ask (AI access). */
-function AskButton() {
+/** Ops IQ, beside search on every page for those who may ask (AI access): the phone's top bar, the sidebar on a wider
+ * screen. */
+function IqButton() {
   const ai = usePermission("ai");
   if (!ai) return null;
-  return <ButtonLink variant="ghost" className="ask-button" href={href("/ask")} aria-label="Ask the assistant" title="Ask the assistant">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ASK_ICON} /></svg>
+  return <ButtonLink variant="ghost" className="iq-button" href={href("/ask")} aria-label={OPS_IQ} title={`Ask ${OPS_IQ}`}>
+    <IqMark />
   </ButtonLink>;
 }
 
@@ -304,6 +303,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
       <header className="topbar">
         <div className="topbar-start">
           <SearchButton />
+          <IqButton />
           <BackButton path={path} />
         </div>
         <a className="brand" href={href("/")}>
@@ -312,7 +312,6 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
         <span className="topbar-title" aria-hidden="true" />
         <div className="topbar-end">
           <SyncStatus />
-          <AskButton />
           <ShareButton />
           {/* The installed app has no reload and, on iOS, no pull to refresh (P5.14c). Every view reads again in place. */}
           <Button className="refresh-button" aria-label="Refresh this page" title="Refresh this page" aria-busy={refreshing}
@@ -370,7 +369,10 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           </a>
           <span className="sidebar-account"><AccountButton /></span>
         </div>
-        <SearchButton wide />
+        <div className="sidebar-search">
+          <SearchButton wide />
+          <IqButton />
+        </div>
         {/* Every page an app icon in a grid, as on an iPhone's home screen. The names under them are a setting; with
             them off the name is still the link's name, and a tooltip on a wide screen. */}
         <nav aria-label="Main">

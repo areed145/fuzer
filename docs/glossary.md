@@ -119,6 +119,10 @@ versions in the source catalog (the latest approved one is in use); the files in
 **Need.** Why work should happen: a condition seen, an obligation falling due, or an intent to change something. A
 need opens a case or joins an open one. In code; on screen it is shown by its type (a notification, a due date).
 
+**Ops IQ.** The operations agent: it answers a question from the register, the work and the readings, citing what
+it used. Its mark is a spark on a teal-to-violet tile, beside search on every page and on its row in app search; its page
+is `#/ask`. To ask is the verb ("Ask Ops IQ"); Ops IQ is the name, never "the assistant" or "Ask" as a page.
+
 **Options.** The choices for a piece of field work, side by side on a case in To dispatch, With a desk or Back from
 the field (and from its row on All work): **Dispatch now**, **Ride along with the next visit** (a scheduled plan
 item on the same area or assets), **Shelve** (until the area's turnaround, or for at most the longest shelving) and

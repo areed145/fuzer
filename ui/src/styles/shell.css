@@ -223,10 +223,18 @@ main[data-width="reading"] { max-width: 1200px; }
   background: var(--rail-hover); color: var(--rail-text); }
 .sidebar .search-button svg { width: 18px; height: 18px; stroke-width: 1.8; }
 .sidebar .search-button:hover { color: #ffffff; }
-/* Ask, beside the account on every page (nav.tsx AskButton). */
-.topbar .ask-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0;
-  box-shadow: none; color: var(--accent); }
-.ask-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* Ops IQ (brand.tsx IqMark): the spark on its gradient tile, beside search (nav.tsx IqButton) and on its search row. */
+.iq-mark { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--iq-from), var(--iq-to)); color: var(--iq-ink); }
+.iq-mark svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+.iq-mark.small { width: 24px; height: 24px; border-radius: 7px; }
+.iq-mark.small svg { width: 16px; height: 16px; }
+.iq-button.ui-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0;
+  border: 0; background: none; box-shadow: none; }
+.iq-button:hover .iq-mark { filter: brightness(1.1); }
+.sidebar-search { display: flex; align-items: center; gap: 6px; }
+.sidebar-search .search-button { flex: 1; min-width: 0; }
+.sidebar-search .iq-button.ui-button { min-width: 38px; min-height: 38px; }
 .app-search-scrim { position: fixed; inset: 0; z-index: 1300; background: rgb(16 24 32 / .45); }
 .app-search { position: fixed; z-index: 1301; top: 72px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column;
   width: min(640px, calc(100vw - 32px)); max-height: min(560px, calc(100dvh - 120px)); overflow: hidden;
@@ -242,11 +250,13 @@ main[data-width="reading"] { max-width: 1200px; }
 .app-search-results a.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .app-search-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .app-search-detail { margin-left: auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
-.app-search-ask { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: var(--accent-text, #fff); font-size: 12px; font-weight: 600; }
+.app-search-iq { flex: none; font-weight: 600; }
+/* The Ops IQ row stays in view at the foot of the list when a name search fills it, so a question is always one tap away. */
+.app-search-results section.iq-foot { position: sticky; bottom: -8px; background: var(--panel); padding-bottom: 8px; }
 .app-search-note { margin: 8px 16px; color: var(--muted); font-size: 13px; }
 @media (max-width: 900px) {
   .topbar .search-button { display: inline-flex; }
-  .sidebar .search-button { display: none; }
+  .sidebar .search-button, .sidebar .iq-button { display: none; }
   /* On a phone the sheet is the whole screen, with the box at the top. */
   .app-search { inset: 0; transform: none; width: 100%; max-height: none; border: 0; border-radius: 0; }
   .app-search-bar { padding-top: max(10px, env(safe-area-inset-top)); }
