@@ -478,7 +478,7 @@ test("a custom report is edited in place on a desk: move, size, add a panel from
   assert.deepEqual(saved[0].definition.rows.map((r) => r.panels.map((p) => `${p.id}:${p.size}`)), [["closed:1", "backlog:2"], ["arrivals:1"]]);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByText("copied from").waitFor();
-  assert.equal(await page.getByRole("button", { name: "Edit" }).count(), 0, "a phone reads");
+  await page.getByRole("button", { name: "Edit" }).waitFor({ state: "detached" });  // a phone reads
   assert.equal(await page.getByRole("button", { name: "Copy to my reports" }).count(), 0);
   await page.setViewportSize({ width: 1440, height: 900 });
 });
