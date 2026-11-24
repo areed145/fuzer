@@ -58,6 +58,12 @@ facility's dated events and slow changes moved on to today's calendar (#1085).""
                 spec[part] = relative_dates.roll_all(spec[part], days)
     if "events" in spec:
         spec["events"] = relative_dates.resolve_all(spec["events"], today)
+    from . import live_events
+
+    if live_events.enabled(spec):  # a live facility: each day brings its own events on top of its story
+        end = today or relative_dates.plant_today()
+        spec["events"] = spec.get("events", []) + live_events.generate(
+            spec, end - timedelta(days=live_events.LOOKBACK_DAYS), end)
     return spec
 
 
