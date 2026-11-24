@@ -7,7 +7,7 @@ import { api } from "../api";
 import { ago } from "../format";
 import { Status, useAction, useAsync } from "../lib";
 import { Button, Card, Checkbox, ErrorText, Field, Input, List, Line, Select, Text, Textarea, confirmDialog } from "../ui";
-import { kindWord, person, say } from "../wording";
+import { cap, kindWord, person, say } from "../wording";
 import { addRow, canMove, move, newPanelId, remove, resize, type Place } from "./edit";
 import type {
   CasesFilter, CustomReport, FigurePanel, Panel, PanelColumn, PanelSize, PanelType, ReportDefinition, ReportModel,
@@ -108,8 +108,8 @@ export function AddPanel({ definition, onAdd, onCancel }: {
     actions={<Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>}>
     <Status of={model} />
     {m && <div className="report-add-fields">
-      <Field label="Type">
-        <Select value={type} onChange={(e) => { setType(e.target.value as PanelType); setSize(0); }} aria-label="Type">
+      <Field label="Panel type">
+        <Select value={type} onChange={(e) => { setType(e.target.value as PanelType); setSize(0); }} aria-label="Panel type">
           {m.types.map((t) => <option key={t} value={t}>{TYPE_WORDS[t]}</option>)}
         </Select>
       </Field>
@@ -276,7 +276,7 @@ export function CustomLine({ report }: { report: CustomReport }) {
   const o = report.origin;
   const changed = o?.version != null && o.copied_version != null && o.version > o.copied_version;
   return <Text as="div" small muted>
-    {[report.mine ? `Yours, ${sharedWith}` : `${person(report.owner)}'s, ${sharedWith}`, `version ${report.version}`].join(" · ")}
+    {[report.mine ? cap(sharedWith) : `${person(report.owner)}'s, ${sharedWith}`, `version ${report.version}`].join(" · ")}
     {o && <> · copied from <a href={`#/reports/${encodeURIComponent(o.key)}`}>{o.title ?? "a report"}</a>
       {changed && ` (changed since: version ${o.version})`}</>}
   </Text>;

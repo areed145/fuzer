@@ -244,8 +244,20 @@ def parse(text: str) -> dict:
 ORDER = ("schema", "title", "for", "scope", "window", "rows")
 
 
+PANEL_ORDER = ("id", "type", "title", "size")
+
+
+def _panel_order(p: dict) -> dict:
+    out = {k: p[k] for k in PANEL_ORDER if k in p} | {k: v for k, v in p.items() if k not in PANEL_ORDER}
+    if isinstance(out.get("panels"), list):  # a column's panels
+        out["panels"] = [_panel_order(q) if isinstance(q, dict) else q for q in out["panels"]]
+    return out
+
+
 def dump(d: dict) -> str:
-    """The definition as YAML, the fields in the order a person reads them, without what the store keeps."""
+    """The definition as YAML, the fields in the order a person reads them (a panel's id, type, title and size first),
+    without what the store keeps."""
     plain = _plain(d)
+    plain["rows"] = [{**r, "panels": [_panel_order(p) for p in r.get("panels") or []]} for r in plain.get("rows") or []]
     ordered = {k: plain[k] for k in ORDER if k in plain} | {k: v for k, v in plain.items() if k not in ORDER}
     return yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True, width=120)
