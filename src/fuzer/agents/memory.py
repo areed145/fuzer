@@ -13,6 +13,10 @@ The shape follows Graphiti / Zep (arXiv 2501.13956), in Postgres:
   answer's entities and says which ones each new fact replaces. Only a replaced fact that shares an entity
   with the new one is ended.
 
+**Review:** with the setting `agents.memory_review` on (the default), a learned fact waits as `proposed` on Ops IQ,
+Knowledge, and the facts it would replace stay current until a person approves it (`approve`); a rejected one is kept
+as `rejected` with who and why (`reject`). Only current facts are recalled.
+
 Facts that read as reusable lessons (what to check or do for a failure mode on a model or class) also go to
 the lessons review queue as suggestions, not straight into anyone's practice. Facts from an answer rated not
 useful are never kept. People stay in charge: an engineer can correct, end or delete any fact.
@@ -78,21 +82,24 @@ SCHEMA = {
 }
 
 COLUMNS = ("id", "text", "subject", "entity_ids", "valid_from", "valid_to", "learned_at", "episode", "sources",
-           "status", "invalidated_by", "by_user", "edited_by", "ended_by", "ended_at")
+           "status", "invalidated_by", "by_user", "edited_by", "ended_by", "ended_at", "replaces", "reviewed_by",
+           "reviewed_at", "review_note")
 
 
 # ---- reading
 
 
 def facts(conn, ids: list[str] | None = None, status: str | None = "current", limit: int = 50) -> list[dict]:
-    """Facts about any of these entities (all with ids=None), newest first, with entity labels."""
+    """Facts about any of these entities (all with ids=None), newest first, with entity labels. status=None is every
+    fact but the rejected ones."""
     rows = conn.execute(
         f"""
         select {', '.join('f.' + c for c in COLUMNS)}, a.question as episode_question, a.created_at as episode_at,
                (select coalesce(jsonb_agg(jsonb_build_object('id', x, 'label', l.label)), '[]')
                 from unnest(f.entity_ids) x left join entity_label l on l.fuzer_id = x) as entities
         from assistant_fact f left join assistant_answer a on a.id = f.episode
-        where (%(ids)s::text[] is null or f.entity_ids && %(ids)s) and (%(status)s::text is null or f.status = %(status)s)
+        where (%(ids)s::text[] is null or f.entity_ids && %(ids)s)
+          and (f.status = %(status)s or %(status)s::text is null and f.status <> 'rejected')
         order by f.status = 'current' desc, f.learned_at desc limit %(limit)s
         """, {"ids": ids, "status": status, "limit": limit}).fetchall()
     return rows
@@ -154,9 +161,12 @@ def entities_of(conn, pack: Pack, answer: dict) -> list[str]:
 
 
 def learn(conn, pack: Pack, answer_id: str, statement: str | None = None, by: str = "anonymous",
-          client=None, model: str | None = None) -> dict:
-    """Extract facts from one answer (or one statement in it) and store them, ending the facts they replace.
-    Skipped for an answer rated not useful by anyone."""
+          client=None, model: str | None = None, review: bool | None = None) -> dict:
+    """Extract facts from one answer (or one statement in it) and store them. Under review (the setting
+    agents.memory_review, unless `review` says) each waits as proposed with the facts it would replace; otherwise it is
+    current at once and ends them. Skipped for an answer rated not useful by anyone."""
+    if review is None:
+        review = bool(settings.get(conn, "agents.memory_review"))
     answer = conn.execute("select * from assistant_answer where id = %s", (answer_id,)).fetchone()
     if answer is None or not answer["answer"]:
         return {"error": "unknown answer"}
@@ -192,25 +202,26 @@ def learn(conn, pack: Pack, answer_id: str, statement: str | None = None, by: st
         entity_ids = _resolve(conn, pack, f.get("refs") or [], labels) or ids[:1]
         if not entity_ids or not (f.get("text") or "").strip():
             continue
+        replaces = [old for old in f.get("replaces") or []
+                    if old in known_ids and set(known_ids[old]["entity_ids"]) & set(entity_ids)]
         row = conn.execute(
             """
-            insert into assistant_fact (text, subject, entity_ids, valid_from, valid_to, episode, sources, by_user)
-            values (%s, %s, %s, %s, %s, %s, %s, %s) returning id
+            insert into assistant_fact (text, subject, entity_ids, valid_from, valid_to, episode, sources, by_user,
+                                        status, replaces)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning id
             """,
             (f["text"].strip(), (f.get("subject") or "").strip().lower(), entity_ids, _date(f.get("valid_from")),
-             _date(f.get("valid_to")), answer_id, Jsonb([f"answer:{answer_id}", *(f.get("sources") or [])]), by),
+             _date(f.get("valid_to")), answer_id, Jsonb([f"answer:{answer_id}", *(f.get("sources") or [])]), by,
+             "proposed" if review else "current", replaces),
         ).fetchone()
         stored.append(row["id"])
-        for old in f.get("replaces") or []:
-            if old in known_ids and set(known_ids[old]["entity_ids"]) & set(entity_ids):
-                end(conn, old, by="assistant", valid_to=_date(f.get("valid_from")), invalidated_by=row["id"],
-                    commit=False)
-                ended.append(old)
+        if not review:
+            ended += _end_replaced(conn, row["id"], replaces, _date(f.get("valid_from")))
         if f.get("lesson") and (lesson := _suggest_lesson(conn, entity_ids, f, answer_id)):
             lessons.append(lesson)
     conn.commit()
     measured = llm.usage(message)
-    return {"facts": stored, "ended": ended, "lessons": lessons, "usage": {
+    return {"facts": stored, "ended": ended, "lessons": lessons, "proposed": review, "usage": {
         "model": model, **measured, **llm.cost_report(model, measured, "agents")}}
 
 
@@ -243,10 +254,10 @@ _DEFAULT_CLIENT = _client
 
 
 def forget_episode(conn, answer_id: str) -> int:
-    """An answer was rated not useful: drop the facts learned from it that no engineer has touched. Facts they
-    ended stay ended."""
-    n = conn.execute("delete from assistant_fact where episode = %s and edited_by is null and status = 'current'",
-                     (answer_id,)).rowcount
+    """An answer was rated not useful: drop the facts learned from it that no engineer has touched, waiting or
+    current. Facts they ended or rejected stay."""
+    n = conn.execute("delete from assistant_fact where episode = %s and edited_by is null and reviewed_by is null "
+                     "and status in ('current', 'proposed')", (answer_id,)).rowcount
     conn.commit()
     return n
 
@@ -294,6 +305,34 @@ def _suggest_lesson(conn, entity_ids: list[str], f: dict, answer_id: str) -> int
 
 
 # ---- people in charge
+
+
+def _end_replaced(conn, fact_id: int, replaces: list[int], valid_from) -> list[int]:
+    return [old for old in replaces or []
+            if end(conn, old, by="assistant", valid_to=valid_from, invalidated_by=fact_id, commit=False)]
+
+
+def approve(conn, fact_id: int, by: str) -> dict | None:
+    """A person approves a proposed fact: it is current, so later answers recall it, and the facts it replaces end
+    now. None when there is no proposed fact with that id."""
+    row = conn.execute("update assistant_fact set status = 'current', reviewed_by = %s, reviewed_at = now(), "
+                       "updated_at = now() where id = %s and status = 'proposed' returning id, replaces, valid_from",
+                       (by, fact_id)).fetchone()
+    if row is None:
+        conn.rollback()
+        return None
+    ended = _end_replaced(conn, fact_id, row["replaces"], row["valid_from"])
+    conn.commit()
+    return {**get(conn, fact_id), "ended": ended}
+
+
+def reject(conn, fact_id: int, by: str, note: str | None = None) -> dict | None:
+    """A person rejects a proposed fact: kept as rejected, with who and why, and never recalled."""
+    row = conn.execute("update assistant_fact set status = 'rejected', reviewed_by = %s, reviewed_at = now(), "
+                       "review_note = %s, updated_at = now() where id = %s and status = 'proposed' returning id",
+                       (by, note, fact_id)).fetchone()
+    conn.commit()
+    return get(conn, fact_id) if row else None
 
 
 def correct(conn, fact_id: int, by: str, text: str | None = None, valid_from=None, valid_to=None,

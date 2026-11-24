@@ -210,7 +210,7 @@ export interface Lesson {
   draft: string;
   failure_mode: string;
   status: string;
-  stats: { incidents: number; fixed: number; fix_rate: number };
+  stats: { incidents: number; fixed?: number; fix_rate?: number; from_conversation?: boolean };
   evidence: { id: string; label: string; start: string; unit: string; recurred: boolean }[];
   decided_by: string | null;
   version: number;
@@ -401,12 +401,18 @@ export interface AssistantFact {
   episode: string | null;
   episode_question: string | null;
   sources: string[];
-  status: "current" | "ended";
+  /** proposed: waiting on Knowledge for a person; rejected facts are left out of an entity's list */
+  status: "proposed" | "current" | "ended" | "rejected";
   invalidated_by: number | null;
   by_user: string;
   edited_by: string | null;
   ended_by: string | null;
   ended_at: string | null;
+  /** the facts it ends once approved */
+  replaces: number[];
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
 }
 
 export interface DailyReport {
@@ -624,7 +630,7 @@ export const investigateApi = {
     request<{ item_id: number; figures: string[] }>("POST", `/assistant/answers/${encodeURIComponent(answerId)}/attach`,
       undefined, { item_id: itemId, by }),
   remember: (answerId: string, statement: string, by: string) =>
-    request<{ facts: number[]; ended: number[]; items: AssistantFact[] }>(
+    request<{ facts: number[]; ended: number[]; items: AssistantFact[]; proposed?: boolean }>(
       "POST", `/assistant/answers/${encodeURIComponent(answerId)}/remember`, undefined, { statement, by }),
   deleteConversation: (id: string) =>
     request<{ deleted: string }>("DELETE", `/assistant/conversations/${encodeURIComponent(id)}`),

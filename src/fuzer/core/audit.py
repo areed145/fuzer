@@ -29,6 +29,7 @@ EXCLUDED = {
     ("assistant_fact", "invalidated_by"): "account-private assistant memory, never shared",
     ("assistant_fact", "edited_by"): "account-private assistant memory, never shared",
     ("assistant_fact", "ended_by"): "account-private assistant memory, never shared",
+    ("assistant_fact", "reviewed_by"): "assistant memory; who decided a learned fact shows on Ops IQ, Knowledge",
     ("assistant_figure", "by_source"): "names the source that produced a figure, not a person",
     ("feedback", "by_user"): "a person's own rating of an answer or brief, account-scoped",
     ("value_ranking", "by_user"): "a person's own ranking, account-scoped",
@@ -43,6 +44,7 @@ EXCLUDED = {
 }
 # Actor columns whose time column is not named after them.
 TIMES = {
+    ("ai_eval_run", "by_user"): "started_at",
     ("custom_report_version", "by_user"): "created_at",
     ("daily_ops_report", "drafted_by"): "created_at",
     ("entity_summary", "by_user"): "created_at",

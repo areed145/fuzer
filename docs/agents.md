@@ -295,6 +295,50 @@ and how many eval questions its gate asks. A skill opens on three tabs:
 
 A drafted change opens as `skill_change` work for the skill's owner (P6.4c), and its case links to the draft here.
 
+## Knowledge review
+
+Ops IQ › Knowledge (`#/knowledge`, `agents/knowledge_review.py`, `GET /knowledge/review`) is one queue for what the
+agents propose to know, for the engineers and data stewards who decide it:
+
+- **Facts** the assistant learned from a conversation (an answer rated useful, or a statement someone asked it to
+  remember). With `agents.memory_review` on (the default) each waits as `proposed`: no answer recalls it, and the facts
+  it would replace stay current. Each shows what it says, the entities it is about, the period it holds for, the answer
+  it came from, and the facts approving it would end. **Approve** makes it current and ends those
+  (`POST /assistant/facts/{id}/approve`); **Edit wording** then approve; **Reject** keeps it as `rejected` with the
+  reason (`/reject`), off every list and never recalled. An answer later rated not useful drops its facts that no one
+  has touched, waiting or current. An entity's page shows a waiting fact with a link here.
+- **Lessons** suggested from incidents and conversations, decided as on Lessons learned (approve, edit, reject).
+  Lessons learned keeps the approved and rejected ones; its old Suggested link opens this tab.
+- **Skill drafts** waiting, each opening its draft on Skills, where it is published behind the eval or set aside.
+- **Decided**: the latest decisions on all three, with who, when and why.
+
+The memory eval (`fuzer eval --memory`) learns without review, since it asks what memory recalls straight after.
+
+## Evals page
+
+Ops IQ › Evals (`#/evals`, `agents/eval_runs.py`, `api/evals.py`) shows how well each skill answers and how sound
+what the agents wrote is, for the engineers who own the skills and the stewards who check the outputs. Every subject
+shows its latest run, its checks score, its grade and the trend of its last eight runs. Two kinds of subject:
+
+- **A skill** (Ops IQ answers first, then each skill by its owner). **Run now** asks the skill's active eval questions
+  of its live version through the operations assistant, after the request returns, and scores each answer as the eval
+  gate does (the facts named, the right specialist; `skill_gate.score_answer`). It asks a model, so it needs AI access
+  and is refused before spending when no model may be called (503). Runs recorded with the code (`fuzer eval --agents`,
+  `--packs --record`, `evals/runs/`) show in the history beside the runs made here. The **Questions** tab keeps the
+  skill's questions (`agents/eval_questions.py`): its pack's answer keys for the project's bundle, those people added
+  and those drawn from the cases behind a published version. Each says what a good answer must name (alternatives on
+  one line split by `|`) and which specialists should answer it. A shipped key is edited or retired as an override
+  kept in `eval_question`; the eval gate asks the same active questions when a draft is published.
+- **What the agents wrote** (`agents/output_checks.py`): the latest entity summaries, report notes and daily reports,
+  each checked against the facts kept beside it with no model: every point cites what it rests on, every citation and
+  number is in the facts, the headline is short, and nothing tells anyone to operate the plant. These run for anyone
+  who may operate.
+
+Then a model grades each result on a rubric for its kind (`agents/grader.py`, one call on `evals.grade_model`, else
+the summary model): 1 to 5 with one sentence of why, shown beside each result, and the run's grade from 0 to 1. While
+no model may be called (no key, or the month's budget spent, `llm.availability`) the run keeps its checks and its
+grade **waits** with why; **Grade now** grades it later (AI access). A run's cost is the answers' and the grade's.
+
 ## Views and agent tools
 
 **Charts:**

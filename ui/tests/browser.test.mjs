@@ -9646,3 +9646,111 @@ test("Skills lists each skill by area, and a draft reads against the live playbo
   }
   assert.deepEqual(errors, []);
 });
+
+test("Knowledge holds each learned fact for a person, with what it would end, beside suggested lessons and skill drafts (Ops IQ)", async () => {
+  const fact = (over = {}) => ({ id: 7, text: "OK-J07-05 lifts through GLV-4.", subject: "lift valve", entity_ids: ["fz-well-1"],
+    entities: [{ id: "fz-well-1", label: "OK-J07-05" }], valid_from: "2025-07-02", valid_to: null, learned_at: "2026-11-23T09:00:00+00:00",
+    episode: "a1", episode_question: "What changed on OK-J07-05's gas lift?", sources: [], status: "proposed", invalidated_by: null,
+    by_user: "olga", edited_by: null, ended_by: null, ended_at: null, replaces: [3], reviewed_by: null, reviewed_at: null, review_note: null,
+    replaced: [{ id: 3, text: "OK-J07-05 lifts through GLV-3." }], ...over });
+  let queue = { facts: [fact(), fact({ id: 8, text: "OK-J07-05 makes sand.", replaces: [], replaced: [], valid_from: null })],
+    lessons: [{ id: 4, title: "Check the strainer", text: "- Check the strainer", draft: "", failure_mode: "PLU", status: "suggested",
+      stats: { incidents: 0, from_conversation: true }, evidence: [], decided_by: null, version: 1, owner: null, review_by: null, review_overdue: null }],
+    skills: [{ skill: "maintenance-integrity/compression", name: "compression", title: "Compression", area: "maintenance-integrity",
+      area_label: "Maintenance & Integrity", owner: "maintenance-integrity", owner_label: "Maintenance & Integrity", agents: [], shared: false,
+      purpose: "", live: { version: 0, by: null, at: null }, draft: { version: 2, by: "agent:maintenance-integrity", at: "2026-11-20T10:00:00+00:00",
+      note: "strainer first", review_case: 41 }, shortfalls: 2, questions: 3, score: null }],
+    recent: [{ kind: "fact", ref: "2", title: "OK-J12-02's choke trim was replaced.", status: "current", by: "olga", at: "2026-11-22T10:00:00+00:00", note: null }],
+    counts: { facts: 2, lessons: 1, skills: 1, total: 4 } };
+  const sent = [];
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: {
+    id: "u1", actor: "user:u1", display_name: "Olga", enabled: true, owner: false, permissions: ["read", "operate"], roles: ["engineer"] } } }));
+  await page.route("**/knowledge/review", (route) => route.fulfill({ json: queue }));
+  await page.route("**/assistant/facts/*/approve", (route) => {
+    sent.push(["approve", route.request().url()]);
+    queue = { ...queue, facts: queue.facts.slice(1), counts: { ...queue.counts, facts: 1 } };
+    return route.fulfill({ json: { ...fact(), status: "current", ended: [3] } });
+  });
+  await page.route("**/assistant/facts/*/reject", (route) => { sent.push(["reject", route.request().postDataJSON().note]); return route.fulfill({ json: fact({ status: "rejected" }) }); });
+  await page.goto(`${url}/#/knowledge`);
+  // Without AI access the Ops IQ group still holds Knowledge: deciding calls no model.
+  await page.getByRole("link", { name: "Facts (2)" }).waitFor();
+  const first = page.locator(".knowledge-fact").first();
+  await first.getByText("OK-J07-05 lifts through GLV-3.").waitFor();  // what approving it ends
+  await first.getByText("What changed on OK-J07-05's gas lift?", { exact: false }).waitFor();
+  assert.equal(await first.getByRole("link", { name: "OK-J07-05" }).getAttribute("href"), "#/e/fz-well-1");
+  await first.getByRole("button", { name: "Approve", exact: true }).click();
+  await page.getByRole("link", { name: "Facts (1)" }).waitFor();
+  assert.match(sent[0][1], /\/assistant\/facts\/7\/approve$/);
+  await page.locator(".knowledge-fact").first().getByRole("button", { name: "Reject" }).click();
+  await page.getByRole("dialog").getByRole("textbox").fill("no sand in the separator reports");
+  await page.getByRole("dialog").getByRole("button", { name: "Reject" }).click();
+  for (let i = 0; i < 50 && sent.length < 2; i++) await page.waitForTimeout(20);
+  assert.deepEqual(sent[1], ["reject", "no sand in the separator reports"]);
+  await page.getByRole("link", { name: "Lessons (1)" }).click();
+  await page.getByText("from a conversation", { exact: false }).waitFor();
+  await page.getByRole("link", { name: "Skill drafts (1)" }).click();
+  assert.equal(await page.getByRole("link", { name: "Compression" }).getAttribute("href"),
+    "#/skills?skill=maintenance-integrity%2Fcompression&tab=versions&v=2");
+  await page.getByRole("link", { name: "Decided" }).click();
+  await page.getByText("OK-J12-02's choke trim was replaced.").waitFor();
+  // The old suggested lessons link opens the queue.
+  await page.goto(`${url}/#/lessons?status=suggested`);
+  await page.waitForURL(/#\/knowledge\?tab=lessons$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/knowledge?tab=facts`);
+  await page.locator(".knowledge-fact").first().waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.deepEqual(errors, []);
+});
+
+test("Evals shows each skill and kind of output with its latest checks and grade, a run's results, and the questions an engineer keeps (Ops IQ)", async () => {
+  const paused = { available: false, why: "AI is paused: this month's model spend ($50.00) has reached its budget of $50.00." };
+  const run = (over = {}) => ({ id: 5, origin: "run", subject: "outputs:daily_report", status: "done", by: "olga", at: "2026-11-24T08:00:00+00:00",
+    finished_at: "2026-11-24T08:00:01+00:00", scores: { score: 0.5, items: 2, passed: 1, operating_instructions: 1 }, score: 0.5,
+    grade_status: "waiting", grade: null, grade_why: paused.why, error: null, cost_usd: 0, ...over });
+  const question = { key: "shipped:0", origin: "shipped", shipped: "Why is K-1 surging?", question: "Why is K-1 surging?",
+    must_mention: ["strainer", ["suction", "inlet"]], specialists: ["maintenance-integrity"], charts: [], status: "active",
+    edited: false, by: null, at: null, note: null };
+  const sent = [];
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: {
+    id: "u1", actor: "user:u1", display_name: "Olga", enabled: true, owner: false, permissions: ["read", "operate"], roles: ["engineer"] } } }));
+  await page.route("**/evals", (route) => route.fulfill({ json: { ai: paused, subjects: [
+    { subject: "outputs:daily_report", label: "Daily reports", kind: "outputs", group: "What the agents wrote", questions: null,
+      latest: run(), trend: [0.4, 0.5] },
+    { subject: "skill:maintenance-integrity/compression", label: "Compression", kind: "skill", group: "Maintenance & Integrity",
+      questions: 1, latest: null, trend: [] }] } }));
+  await page.route("**/evals/subject?*", (route) => {
+    const subject = new URL(route.request().url()).searchParams.get("subject");
+    return route.fulfill({ json: subject.startsWith("skill:")
+      ? { subject, label: "Compression", kind: "skill", runs: [], questions: [question], ai: paused }
+      : { subject, label: "Daily reports", kind: "outputs", runs: [run()], questions: null, ai: paused } });
+  });
+  await page.route("**/evals/runs/5", (route) => route.fulfill({ json: { ...run(), label: "Daily reports", results: [
+    { ref: "2026-11-23", label: "2026-11-23 v1 (agent)", href: "#/reports?day=2026-11-23", text: "- Open 20-XV-3100 now",
+      checks: { ok: false, uncited_lines: [], unknown_numbers: [], operating_instructions: ["- Open 20-XV-3100"] }, grade: null }] } }));
+  await page.route("**/evals/questions", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: question }); });
+  await page.goto(`${url}/#/evals`);
+  await page.getByText("AI is paused", { exact: false }).waitFor();
+  await page.getByRole("link", { name: "Daily reports" }).click();
+  await page.getByRole("button", { name: "Run now" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Run now" }).isDisabled(), false);  // the checks ask no model
+  await page.getByRole("link", { name: /8:00|Nov/ }).first().click();
+  await page.getByText("Tells someone to operate the plant: - Open 20-XV-3100").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Grade now" }).isDisabled(), true);  // no AI access
+  await page.goto(`${url}/#/evals?subject=skill%3Amaintenance-integrity%2Fcompression`);
+  assert.equal(await page.getByRole("button", { name: "Run now" }).isDisabled(), true);
+  await page.getByRole("link", { name: "Questions (1)" }).click();
+  await page.getByText("strainer; suction or inlet").waitFor();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Must name").fill("strainer\nsuction | inlet\ndifferential pressure");
+  await page.getByRole("button", { name: "Save" }).click();
+  for (let i = 0; i < 50 && !sent.length; i++) await page.waitForTimeout(20);
+  assert.deepEqual(sent[0].must_mention, ["strainer", ["suction", "inlet"], "differential pressure"]);
+  assert.equal(sent[0].key, "shipped:0");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/evals`);
+  await page.getByRole("link", { name: "Compression" }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.deepEqual(errors, []);
+});

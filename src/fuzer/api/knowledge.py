@@ -18,6 +18,14 @@ def lesson_list(status: str | None = "suggested", limit: int = 100, conn=Depends
     return lessons.listing(conn, status if status != "all" else None, min(limit, 1000))
 
 
+@router.get("/knowledge/review")
+def knowledge_review(conn=Depends(get_conn)):
+    """Ops IQ, Knowledge: the facts, lessons and skill drafts waiting for a person, and the latest decisions."""
+    from ..agents import knowledge_review as review
+
+    return review.queue(conn)
+
+
 @router.get("/lessons/{lesson_id}/history")
 def lesson_history(lesson_id: int, conn=Depends(get_conn)):
     """Every version of a lesson: who approved, rejected or edited it, when, and the wording it had."""

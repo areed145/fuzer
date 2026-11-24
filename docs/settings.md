@@ -32,6 +32,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `agents.case_cap_usd` | float | `2.0` | ≥ 0 | Agent spend a case may reach (USD) before its next agent step goes to a person, with the spend and the cap on the case (0: no cap). |
 | `agents.briefs` | bool | `True` |  | Have the owning specialist brief each new case of a type a pack briefs, when the agent worker has no step to run. |
 | `agents.skill_drafts` | bool | `False` |  | Have a skill's specialist draft a change to its playbook once it has fallen short twice since its live version, as work for the skill's owner, when the agent worker has nothing else to do. |
+| `evals.grade_model` | str | `` |  | Model that grades an eval run on Ops IQ, Evals (empty: the summary model). |
+| `agents.memory_review` | bool | `True` |  | Hold each fact the assistant learns from a conversation for a person to approve on Ops IQ, Knowledge before it is recalled in later answers. |
 | `agents.brief_cap_usd` | float | `0.5` | ≥ 0 | What one agent brief on a case may cost (USD); a brief that costs more says so on the case (0: no budget). |
 | `assistant.retention_days` | int | `0` | ≥ 0 | Days the assistant keeps a conversation after its last message, with its images and answers (0: keep them). |
 | `assistant.concurrent_questions` | int | `1` | 1 to 8 | Questions the web assistant can run at once per server process; prevents overlapping model/tool workloads. |

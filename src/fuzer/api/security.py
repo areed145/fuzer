@@ -123,7 +123,8 @@ STEWARD_ACTIONS = frozenset({
 
 # Routes that call a model for whoever asks, beyond /generate and /remember: they need AI access as well as their own.
 # Publishing a skill draft asks its eval questions of the live version and of the draft (agents.skill_gate).
-PAID_PATHS = frozenset({"/assistant/ask", "/work/skills/publish"})
+# Running a skill's eval asks its questions of the agents, and grading a run asks the grader (agents.eval_runs).
+PAID_PATHS = frozenset({"/assistant/ask", "/work/skills/publish", "/evals/skills/run", "/evals/runs/{run_id}/grade"})
 
 
 def steward_action(path: str, method: str) -> bool:

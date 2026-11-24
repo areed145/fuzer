@@ -2405,7 +2405,7 @@ The assistant's conversations (#93): each message as MAF wrote it, in order. `js
 
 ### `assistant_fact`
 
-Facts the assistant learned from answers rated useful, or statements an engineer marked "remember this" (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A newer fact that contradicts one ends it (status 'ended', invalidated_by); it is never deleted, except by an engineer.
+Facts the assistant learned from answers rated useful, or statements an engineer marked "remember this" (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A new fact waits as 'proposed' for a person on Ops IQ, Knowledge; once approved it is current and ends the facts it contradicts (status 'ended', invalidated_by). A fact is never deleted, except by an engineer.
 
 | Column | Type | Note |
 |---|---|---|
@@ -2477,6 +2477,45 @@ A report's AI note (docs/reports.md, the `summary` panel): what one report's pan
 | `usage` | jsonb |  |
 | `by_user` | text |  |
 | `created_at` | timestamptz |  |
+
+### `eval_question`
+
+The eval questions people keep for a skill (Ops IQ, Evals): one they added, or a shipped answer key (the bundle's evals/<pack eval>.yaml) they edited or retired, named by its shipped question. The eval gate and a skill's eval run ask the active ones, beside the shipped keys nobody changed and the questions drawn from cases.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `skill` | text |  |
+| `shipped` | text, | the shipped question this one overrides; null when added |
+| `question` | text |  |
+| `must_mention` | jsonb | a list entry is met by any one of its terms |
+| `specialists` | jsonb |  |
+| `status` | text |  |
+| `note` | text |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
+### `ai_eval_run`
+
+An AI eval run (Ops IQ, Evals): a skill's questions asked of its live version, or the checks on the entity summaries, report notes or daily reports Fuzer kept. `scores` and each result's checks need no model; `grade` is the model's reading of the same results, graded when a model may be called, else waiting with why.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `subject` | text | skill:<path>, or outputs:entity_summary\|report_summary\|daily_report |
+| `status` | text |  |
+| `scores` | jsonb |  |
+| `results` | jsonb |  |
+| `grade_status` | text |  |
+| `grade` | jsonb |  |
+| `grade_why` | text |  |
+| `error` | text |  |
+| `cost_usd` | numeric |  |
+| `by_user` | text |  |
+| `started_at` | timestamptz |  |
+| `finished_at` | timestamptz |  |
 
 ## Evals
 

@@ -88,7 +88,7 @@ def test_learn_dated_facts_and_end_the_contradicted_one(conn):
     first = FakeExtractor([{"text": "OK-J07-05's gas lift valve failed open in November 2024.",
                             "subject": "Gas lift valve condition", "refs": ["OK-J07-05"], "valid_from": "2024-11-02",
                             "sources": ["EC:WT-OK-J07-05-20241102"]}])
-    out = memory.learn(conn, PACK, "m-a1", by="tester", client=first)
+    out = memory.learn(conn, PACK, "m-a1", review=False, by="tester", client=first)
     assert len(out["facts"]) == 1 and out["ended"] == []
     old = memory.get(conn, out["facts"][0])
     assert old["entity_ids"] == [well] and old["subject"] == "gas lift valve condition"
@@ -103,7 +103,7 @@ def test_learn_dated_facts_and_end_the_contradicted_one(conn):
     second = FakeExtractor([{"text": "OK-J07-05's gas lift valve was replaced by slickline on 2024-12-14.",
                              "subject": "gas lift valve condition", "refs": ["OK-J07-05"], "valid_from": "2024-12-14",
                              "replaces": lambda remembered: [f["id"] for f in remembered]}])
-    out2 = memory.learn(conn, PACK, "m-a2", client=second)
+    out2 = memory.learn(conn, PACK, "m-a2", review=False, client=second)
     assert json.loads(second.requests[0]["messages"][0]["content"])["remembered"][0]["id"] == old["id"]
     assert out2["ended"] == [old["id"]]
     ended, new = memory.get(conn, old["id"]), memory.get(conn, out2["facts"][0])
@@ -121,11 +121,11 @@ def test_learn_dated_facts_and_end_the_contradicted_one(conn):
 def test_a_replaced_fact_on_another_entity_is_left_alone(conn):
     other = queries.resolve_ref(conn, PACK, "20-K-2200B")
     _answer(conn, "m-b1", "Train B trips?", "20-K-2200B tripped on bearing wear.", "20-K-2200B")
-    a = memory.learn(conn, PACK, "m-b1", client=FakeExtractor([{"text": "20-K-2200B trips were bearing wear.",
+    a = memory.learn(conn, PACK, "m-b1", review=False, client=FakeExtractor([{"text": "20-K-2200B trips were bearing wear.",
                                                                  "subject": "trip cause", "refs": ["20-K-2200B"]}]))
     fact = a["facts"][0]
     _answer(conn, "m-b2", "OK-J07-05?", "OK-J07-05 note.", "OK-J07-05")
-    b = memory.learn(conn, PACK, "m-b2", client=FakeExtractor([{"text": "OK-J07-05 note.", "subject": "trip cause",
+    b = memory.learn(conn, PACK, "m-b2", review=False, client=FakeExtractor([{"text": "OK-J07-05 note.", "subject": "trip cause",
                                                                  "refs": ["OK-J07-05"], "replaces": [fact]}]))
     assert b["ended"] == [] and memory.get(conn, fact)["status"] == "current"
     assert memory.get(conn, fact)["entity_ids"] == [other]
@@ -139,7 +139,7 @@ def test_not_useful_answers_are_never_kept(conn):
     assert memory.learn(conn, PACK, "m-c1", client=fake)["skipped"] and fake.requests == []
 
     _answer(conn, "m-c2", "OK-J07-05 again?", "Another.", "OK-J07-05")
-    out = memory.learn(conn, PACK, "m-c2", client=FakeExtractor([{"text": "OK-J07-05 z.", "subject": "z",
+    out = memory.learn(conn, PACK, "m-c2", review=False, client=FakeExtractor([{"text": "OK-J07-05 z.", "subject": "z",
                                                                    "refs": ["OK-J07-05"]}]))
     assert memory.forget_episode(conn, "m-c2") == 1 and memory.get(conn, out["facts"][0]) is None
 
@@ -150,7 +150,7 @@ def test_lessons_go_to_the_review_queue(conn):
     equipment = rows[0]["src"]
     label = conn.execute("select label from entity_label where fuzer_id = %s", (equipment,)).fetchone()["label"]
     _answer(conn, "m-d1", f"{label} seal?", f"{label} ({equipment}) leaks at the seal.")
-    out = memory.learn(conn, PACK, "m-d1", client=FakeExtractor([{
+    out = memory.learn(conn, PACK, "m-d1", review=False, client=FakeExtractor([{
         "text": f"{label} leaked at the mechanical seal.", "subject": "seal condition", "refs": [equipment],
         "lesson": {"failure_mode": "ELP-memory-test", "title": "Seal leaks after restarts",
                    "steps": ["Check seal flush flow", "Check alignment"]}}]))
@@ -203,6 +203,13 @@ def test_people_stay_in_charge_over_the_api(conn, okan_pack, monkeypatch):
             time.sleep(0.05)
         fact = mine[0]
         assert fact["text"] == "OK-J07-05's choke was set to 40/64." and fact["by_user"] == "tester"
+        # held for review: not recalled until a person approves it on Knowledge
+        assert fact["status"] == "proposed"
+        assert fact["id"] in [f["id"] for f in client.get("/knowledge/review").json()["facts"]]
+        assert client.post(f"/assistant/facts/{fact['id']}/end", json={"by": "engineer"}).status_code == 404
+        approved = client.post(f"/assistant/facts/{fact['id']}/approve", json={"by": "engineer"}).json()
+        assert approved["status"] == "current" and approved["reviewed_by"] == "engineer"
+        assert client.post(f"/assistant/facts/{fact['id']}/approve", json={"by": "engineer"}).status_code == 404
 
         fixed = client.patch(f"/assistant/facts/{fact['id']}", json={"text": "OK-J07-05's choke was set to 42/64.",
                                                                      "by": "engineer"}).json()
@@ -215,7 +222,8 @@ def test_people_stay_in_charge_over_the_api(conn, okan_pack, monkeypatch):
             [{"text": "OK-J07-05 flows to the test separator.", "subject": "routing", "refs": ["OK-J07-05"]}]))
         r = client.post("/assistant/answers/m-e1/remember", json={"statement": "OK-J07-05 is on the test separator.",
                                                                   "by": "engineer"}).json()
-        assert r["items"][0]["text"] == "OK-J07-05 flows to the test separator."
+        assert r["items"][0]["text"] == "OK-J07-05 flows to the test separator." and r["proposed"]
+        assert r["items"][0]["status"] == "proposed"
         assert client.post("/assistant/answers/nope/remember", json={"statement": "x"}).status_code == 404
         assert client.delete(f"/assistant/facts/{r['facts'][0]}").status_code == 200
         assert client.delete(f"/assistant/facts/{r['facts'][0]}").status_code == 404
@@ -223,6 +231,32 @@ def test_people_stay_in_charge_over_the_api(conn, okan_pack, monkeypatch):
         # rated not useful later: the untouched facts from it go, the engineer's ended one stays
         client.post("/feedback", json={"target": "answer:m-e1", "useful": False, "by": "other"})
         assert client.get("/assistant/facts", params={"ref": "OK-J07-05", "status": "ended"}).json()
+
+
+def test_a_proposed_fact_ends_what_it_replaces_only_once_approved_and_a_rejected_one_is_kept_unrecalled(conn):
+    _answer(conn, "m-r1", "OK-J07-05 lift?", "OK-J07-05 runs on gas lift valve GLV-3.", "OK-J07-05")
+    _answer(conn, "m-r2", "OK-J07-05 lift now?", "OK-J07-05's GLV-3 was replaced by GLV-4.", "OK-J07-05")
+    _answer(conn, "m-r3", "OK-J07-05 sand?", "OK-J07-05 makes sand.", "OK-J07-05")
+    old = memory.learn(conn, PACK, "m-r1", review=False, client=FakeExtractor(
+        [{"text": "OK-J07-05 lifts through GLV-3.", "subject": "lift valve", "refs": ["OK-J07-05"]}]))["facts"][0]
+    new = memory.learn(conn, PACK, "m-r2", review=True, client=FakeExtractor(
+        [{"text": "OK-J07-05 lifts through GLV-4.", "subject": "lift valve", "refs": ["OK-J07-05"],
+          "replaces": lambda known: [f["id"] for f in known if "GLV-3" in f["text"]]}]))
+    assert new["proposed"] and new["ended"] == []
+    fid = new["facts"][0]
+    assert memory.get(conn, fid)["status"] == "proposed" and memory.get(conn, fid)["replaces"] == [old]
+    assert memory.get(conn, old)["status"] == "current"  # still recalled while the new one waits
+    ids = memory.units(conn, _well(conn))
+    assert fid not in (memory.context(conn, ids) or {}).get("ids", [])
+    out = memory.approve(conn, fid, "engineer")
+    assert out["status"] == "current" and out["ended"] == [old]
+    assert memory.get(conn, old)["status"] == "ended" and memory.get(conn, old)["invalidated_by"] == fid
+    sand = memory.learn(conn, PACK, "m-r3", review=True, client=FakeExtractor(
+        [{"text": "OK-J07-05 makes sand.", "subject": "sand", "refs": ["OK-J07-05"]}]))["facts"][0]
+    got = memory.reject(conn, sand, "engineer", "no sand in the separator reports")
+    assert got["status"] == "rejected" and got["review_note"] == "no sand in the separator reports"
+    assert sand not in [f["id"] for f in memory.facts(conn, ids, None, 200)]  # gone from the entity's list
+    assert memory.reject(conn, sand, "engineer") is None
 
 
 class CitingClaude(PlainClaude):

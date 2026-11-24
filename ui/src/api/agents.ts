@@ -1,4 +1,5 @@
 import { request } from "./transport";
+import type { AssistantFact, Lesson } from "./investigate";
 
 /** Whether an automated feature may call a model now, and if not, why (no key, or the month's budget spent). */
 export interface AiAvailability { available: boolean; why: string | null }
@@ -53,7 +54,70 @@ export interface SkillDiff {
   lines: { op: "same" | "add" | "remove"; text: string }[];
 }
 
+/** A proposed fact on Knowledge, with the wording of the facts it would end. */
+export interface ProposedFact extends AssistantFact { replaced: { id: number; text: string }[] }
+
+/** A decision taken on Knowledge or a skill's page, newest first. */
+export interface KnowledgeDecision {
+  kind: "fact" | "lesson" | "skill"; ref: string; title: string; status: string; by: string | null; at: string | null; note: string | null;
+}
+
+export interface KnowledgeQueue {
+  facts: ProposedFact[]; lessons: Lesson[]; skills: SkillRow[]; recent: KnowledgeDecision[];
+  counts: { facts: number; lessons: number; skills: number; total: number };
+}
+
+/** One check result on a kept output (agents/output_checks), or one answer of a skill's eval (agents/skill_gate). */
+export interface EvalResult {
+  // a skill's answer
+  question?: string; mentions?: number | null; missing?: (string | string[])[]; routed?: boolean; specialists?: string[];
+  must_mention?: (string | string[])[]; answer?: string; cost_usd?: number;
+  // a kept output
+  ref?: string; label?: string; href?: string; at?: string; text?: string;
+  checks?: { ok: boolean; uncited_points?: string[]; uncited_lines?: string[]; unknown_citations?: string[];
+    unknown_numbers?: string[]; operating_instructions?: string[]; long_headline?: boolean };
+  grade: { score: number | null; why: string } | null;
+}
+
+export interface EvalRun {
+  id: number | string; origin: "run" | "recorded"; subject: string; status: "running" | "done" | "failed";
+  by: string | null; at: string; finished_at: string | null; scores: Record<string, number | null>;
+  /** checks or facts named, 0 to 1 */ score: number | null;
+  grade_status: "waiting" | "grading" | "graded" | "failed" | "not_graded"; /** the model's grade, 0 to 1 */ grade: number | null;
+  grade_why: string | null; error: string | null; cost_usd: number;
+  results?: EvalResult[]; label?: string; grade_model?: string | null;
+}
+
+export interface EvalSubject {
+  subject: string; label: string; kind: "skill" | "outputs"; group: string; questions: number | null;
+  latest: EvalRun | null; trend: number[];
+}
+
+/** One question a skill's eval asks (agents/eval_questions). `key` is null for a question drawn from a case. */
+export interface KeptQuestion {
+  key: string | null; origin: "shipped" | "added" | "case"; shipped: string | null; question: string;
+  must_mention: (string | string[])[]; specialists: string[]; charts: string[]; status: "active" | "retired";
+  edited: boolean; by: string | null; at: string | null; note: string | null; version?: number;
+}
+
+export interface EvalSubjectDetail {
+  subject: string; label: string; kind: "skill" | "outputs"; runs: EvalRun[]; questions: KeptQuestion[] | null; ai: AiAvailability;
+}
+
 export const agentsApi = {
+  evals: () => request<{ subjects: EvalSubject[]; ai: AiAvailability }>("GET", "/evals"),
+  evalSubject: (subject: string) => request<EvalSubjectDetail>("GET", "/evals/subject", { subject }),
+  evalRun: (id: number | string) => request<EvalRun>("GET", `/evals/runs/${encodeURIComponent(String(id))}`),
+  runSkillEval: (skill: string) => request<EvalRun>("POST", "/evals/skills/run", undefined, { skill, by: "" }),
+  runOutputsEval: (subject: string) => request<EvalRun>("POST", "/evals/outputs/run", undefined, { subject, by: "" }),
+  gradeEvalRun: (id: number) => request<EvalRun>("POST", `/evals/runs/${id}/grade`),
+  saveEvalQuestion: (q: { skill: string; key: string | null; question: string; must_mention: (string | string[])[]; specialists: string[] }) =>
+    request<KeptQuestion>("PUT", "/evals/questions", undefined, { ...q, by: "" }),
+  retireEvalQuestion: (skill: string, key: string) => request<KeptQuestion>("POST", "/evals/questions/retire", undefined, { skill, key, by: "" }),
+  restoreEvalQuestion: (skill: string, key: string) => request<KeptQuestion>("POST", "/evals/questions/restore", undefined, { skill, key, by: "" }),
+  knowledgeReview: () => request<KnowledgeQueue>("GET", "/knowledge/review"),
+  approveFact: (id: number, by: string) => request<AssistantFact & { ended: number[] }>("POST", `/assistant/facts/${id}/approve`, undefined, { by }),
+  rejectFact: (id: number, by: string, note: string) => request<AssistantFact>("POST", `/assistant/facts/${id}/reject`, undefined, { by, note }),
   skills: () => request<{ skills: SkillRow[]; ai: AiAvailability }>("GET", "/work/skills"),
   skill: (skill: string) => request<SkillDetail>("GET", "/work/skills/detail", { skill }),
   skillVersions: (skill: string) => request<SkillVersion[]>("GET", "/work/skills/versions", { skill }),

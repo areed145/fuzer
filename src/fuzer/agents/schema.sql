@@ -50,8 +50,9 @@ create table if not exists assistant_image (
 );
 
 -- Facts the assistant learned from answers rated useful, or statements an engineer marked "remember this"
--- (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A newer fact that contradicts
--- one ends it (status 'ended', invalidated_by); it is never deleted, except by an engineer.
+-- (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A new fact waits as 'proposed' for a
+-- person on Ops IQ, Knowledge; once approved it is current and ends the facts it contradicts (status 'ended',
+-- invalidated_by). A fact is never deleted, except by an engineer.
 create table if not exists assistant_fact (
     id             bigserial primary key,
     text           text not null,
@@ -71,6 +72,16 @@ create table if not exists assistant_fact (
     updated_at     timestamptz not null default now()
 );
 create index if not exists assistant_fact_entities on assistant_fact using gin (entity_ids);
+-- Knowledge review: a learned fact waits as 'proposed' until a person approves it (then 'current', ending the facts it
+-- `replaces`) or rejects it ('rejected', kept with who and why). Recall reads current facts only.
+alter table assistant_fact add column if not exists replaces bigint[] not null default '{}';
+alter table assistant_fact add column if not exists reviewed_by text;
+alter table assistant_fact add column if not exists reviewed_at timestamptz;
+alter table assistant_fact add column if not exists review_note text;
+alter table assistant_fact drop constraint if exists assistant_fact_status_check;
+alter table assistant_fact add constraint assistant_fact_status_check
+    check (status in ('proposed', 'current', 'ended', 'rejected'));
+create index if not exists assistant_fact_proposed on assistant_fact (learned_at) where status = 'proposed';
 create index if not exists assistant_fact_episode on assistant_fact (episode);
 
 -- Skill versions (P6.4b): a skill's playbook as drafted, published, retired or rolled back. Version 0 is the folder
@@ -125,3 +136,42 @@ create table if not exists report_summary (
     created_at  timestamptz not null default now()
 );
 create index if not exists report_summary_latest on report_summary (report_key, scope, span, at, created_at desc);
+
+-- The eval questions people keep for a skill (Ops IQ, Evals): one they added, or a shipped answer key (the bundle's
+-- evals/<pack eval>.yaml) they edited or retired, named by its shipped question. The eval gate and a skill's eval run
+-- ask the active ones, beside the shipped keys nobody changed and the questions drawn from cases.
+create table if not exists eval_question (
+    id           bigserial primary key,
+    skill        text not null,
+    shipped      text,                               -- the shipped question this one overrides; null when added
+    question     text not null,
+    must_mention jsonb not null default '[]',        -- a list entry is met by any one of its terms
+    specialists  jsonb not null default '[]',
+    status       text not null default 'active' check (status in ('active', 'retired')),
+    note         text,
+    created_by   text not null,
+    created_at   timestamptz not null default now(),
+    updated_by   text,
+    updated_at   timestamptz not null default now()
+);
+create unique index if not exists eval_question_shipped on eval_question (skill, shipped) where shipped is not null;
+
+-- An AI eval run (Ops IQ, Evals): a skill's questions asked of its live version, or the checks on the entity summaries,
+-- report notes or daily reports Fuzer kept. `scores` and each result's checks need no model; `grade` is the model's
+-- reading of the same results, graded when a model may be called, else waiting with why.
+create table if not exists ai_eval_run (
+    id           bigserial primary key,
+    subject      text not null,                      -- skill:<path>, or outputs:entity_summary|report_summary|daily_report
+    status       text not null default 'running' check (status in ('running', 'done', 'failed')),
+    scores       jsonb not null default '{}',
+    results      jsonb not null default '[]',
+    grade_status text not null default 'waiting' check (grade_status in ('waiting', 'grading', 'graded', 'failed')),
+    grade        jsonb not null default '{}',
+    grade_why    text,
+    error        text,
+    cost_usd     numeric not null default 0,
+    by_user      text not null,
+    started_at   timestamptz not null default now(),
+    finished_at  timestamptz
+);
+create index if not exists ai_eval_run_subject on ai_eval_run (subject, started_at desc);
