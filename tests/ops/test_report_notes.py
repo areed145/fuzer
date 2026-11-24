@@ -24,31 +24,31 @@ def test_a_note_shows_on_its_own_period_and_the_longer_ones_that_hold_it(okan_db
     from fuzer.core.pack import current_pack
 
     pack = current_pack()
-    tue = rn.add(conn, "work", None, "1d", date(2026, 11, 18), "Low on Tuesday: the compressor tripped.", "user:ana")
-    week = rn.add(conn, "work", None, "7d", DAY, "A quiet week.", "user:ben")
-    rn.add(conn, "work", None, "1d", date(2026, 11, 10), "Outside the week.", "user:ana")
-    rn.add(conn, "other", None, "7d", DAY, "Another report.", "user:ana")
+    tue = rn.add(conn, "notes-periods", None, "1d", date(2026, 11, 18), "Low on Tuesday: the compressor tripped.", "user:ana")
+    week = rn.add(conn, "notes-periods", None, "7d", DAY, "A quiet week.", "user:ben")
+    rn.add(conn, "notes-periods", None, "1d", date(2026, 11, 10), "Outside the week.", "user:ana")
+    rn.add(conn, "notes-other", None, "7d", DAY, "Another report.", "user:ana")
 
-    weekly = rn.for_period(conn, pack, "work", None, "7d", DAY)
+    weekly = rn.for_period(conn, pack, "notes-periods", None, "7d", DAY)
     assert [n["id"] for n in weekly] == [week["id"], tue["id"]]
     assert weekly[0]["own"] and not weekly[1]["own"] and weekly[1]["start"] == "2026-11-18"
-    assert [n["id"] for n in rn.for_period(conn, pack, "work", None, "1d", date(2026, 11, 18))] == [tue["id"]]
-    assert rn.for_period(conn, pack, "work", "fz-elsewhere", "7d", DAY) == []
+    assert [n["id"] for n in rn.for_period(conn, pack, "notes-periods", None, "1d", date(2026, 11, 18))] == [tue["id"]]
+    assert rn.for_period(conn, pack, "notes-periods", "fz-elsewhere", "7d", DAY) == []
 
 
 def test_only_the_author_changes_a_note_and_a_removed_one_is_kept(okan_db):
     conn = okan_db.conn
-    n = rn.add(conn, "work", None, "7d", DAY, "First go.", "user:ana")
+    n = rn.add(conn, "notes-authors", None, "7d", DAY, "First go.", "user:ana")
     with pytest.raises(rn.NotYours):
-        rn.edit(conn, "work", n["id"], "Not mine.", "user:ben")
-    assert rn.edit(conn, "work", n["id"], "Second go.", "user:ana")["edited_at"]
+        rn.edit(conn, "notes-authors", n["id"], "Not mine.", "user:ben")
+    assert rn.edit(conn, "notes-authors", n["id"], "Second go.", "user:ana")["edited_at"]
     with pytest.raises(rn.NoteError):
-        rn.edit(conn, "work", n["id"], "   ", "user:ana")
-    rn.remove(conn, "work", n["id"], "user:ana")
-    assert n["id"] not in [x["id"] for x in rn.for_period(conn, None, "work", None, "7d", DAY)]
+        rn.edit(conn, "notes-authors", n["id"], "   ", "user:ana")
+    rn.remove(conn, "notes-authors", n["id"], "user:ana")
+    assert n["id"] not in [x["id"] for x in rn.for_period(conn, None, "notes-authors", None, "7d", DAY)]
     assert conn.execute("select deleted_at from report_note where id = %s", (n["id"],)).fetchone()["deleted_at"]
     with pytest.raises(rn.NoteError):
-        rn.add(conn, "work", None, "2w", DAY, "Bad window.", "user:ana")
+        rn.add(conn, "notes-authors", None, "2w", DAY, "Bad window.", "user:ana")
 
 
 def test_live_values_are_the_measure_for_the_scope_and_period(okan_db):
