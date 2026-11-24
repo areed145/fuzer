@@ -190,6 +190,9 @@ def _list_href(f: dict) -> str:
 
 
 def _row_href(key: str, grain: str, value: str, scope: dict) -> str:
+    if grain == "dataset":  # the dataset's own page on Sources: its runs for a held load, else its quality
+        return "/sources?" + urlencode({"view": "dataset", "name": value,
+                                        "tab": "runs" if key == "sources.held_loads" else "quality"})
     if grain in LIST_FILTER and key.startswith("work."):
         return _list_href({LIST_FILTER[grain]: value, "within": scope["id"],
                            **({"state": "all"} if key in ("work.arrivals", "work.closed") else {})})
@@ -198,7 +201,8 @@ def _row_href(key: str, grain: str, value: str, scope: dict) -> str:
 
 @panel_type("stat")
 def stat(conn, pack, d, panel, scope, w) -> dict:
-    m = _value(conn, pack, panel["measure"], scope, w, history=True)
+    # history: false for a measure too slow to read once per sparkline point (a stat without its sparkline)
+    m = _value(conn, pack, panel["measure"], scope, w, history=panel.get("history", True))
     past = m.get("history") or []
     previous = m.get("previous")
     if previous is None and len(past) >= 2 and str(past[-1]["at"])[:10] == str(m.get("as_of") or "")[:10]:
@@ -303,7 +307,9 @@ def _measures_table(conn, pack, panel, scope, w) -> dict:
         for r in m["rows"]:
             row = cells.setdefault(r["key"], {"label": r["label"]})
             row[f"m{i}"] = r["value"]
-    order = [r["key"] for r in sorted(first["rows"], key=lambda r: -(r["value"] or 0))]
+    # the worst first where the first measure has a better direction (the steward's lowest scores), else the largest
+    worst_first = first.get("better") == "higher"
+    order = [r["key"] for r in sorted(first["rows"], key=lambda r: (r["value"] or 0) * (1 if worst_first else -1))]
     order += sorted(k for k in cells if k not in order)
     limit = panel.get("limit", FIGURE_ROWS)
     whole = [m for m in ms if not _scoped(scope, m)]

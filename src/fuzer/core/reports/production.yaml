@@ -3,7 +3,7 @@
 schema: 1
 key: production
 title: Production and deferment
-version: 1
+version: 2
 for: [production engineer, operations manager]
 scope:
   kinds: [facility, area, well]
@@ -60,9 +60,8 @@ rows:
       - {id: cost-of-unreliability, type: view, view: cost-of-unreliability, size: 2}
       - {id: across-assets, type: view, view: across-assets, size: 4}
   - id: per-well
-    repeat: {kind: well, limit: 12}
+    repeat: {kind: well, limit: 8}
     panels:
       - {id: well-deferred, type: stat, measure: production.deferred}
       - {id: well-hours, type: stat, measure: downtime.hours}
-      - {id: well-stops, type: stat, measure: downtime.events}
       - {id: well-tests, type: stat, measure: production.test_rate}

@@ -106,6 +106,8 @@ def _panel(where: str, p: dict, ids: set) -> dict:
         raise ReportError(f"{where}: phone is true or false")
     if t == "stat":
         _measure(where, p.get("measure"))
+        if "history" in p and not isinstance(p["history"], bool):
+            raise ReportError(f"{where}: history is true or false")
     elif t == "trend":
         keys = p.get("measures")
         if not isinstance(keys, list) or not keys:
