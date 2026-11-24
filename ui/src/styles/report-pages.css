@@ -1,0 +1,67 @@
+/* Report pages (docs/reports.md): rows wrap on one grid. Four columns above 1100 px, two from 601 to 1100 px, one at
+   600 px and below (stats two across); a panel's size is its quarters of the desk width. */
+.report-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.report-row-block + .report-row-block { margin-top: 1rem; }
+.report-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.report-size-1 { grid-column: span 1; }
+.report-size-2 { grid-column: span 2; }
+.report-size-3 { grid-column: span 3; }
+.report-size-4 { grid-column: span 4; }
+.report-column { display: flex; flex-direction: column; gap: 1rem; }
+.report-slot > .report-panel { margin: 0; height: 100%; }
+.report-slot { min-width: 0; }
+.report-row > .report-type-stat { align-self: stretch; }
+
+.report-stat-value { display: block; font-size: 1.9rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.report-off-target { color: var(--danger); }
+.report-stat .sparkline { margin-top: 0.35rem; }
+.report-chart { min-height: 18rem; }
+.report-case-cards { display: grid; gap: 0.5rem; margin-bottom: 0.5rem; }
+.report-panel .num { text-align: end; font-variant-numeric: tabular-nums; }
+.report-print-only { display: none; }
+
+.report-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+.report-card { margin: 0; }
+
+@media (max-width: 1100px) {
+  .report-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-size-1 { grid-column: span 1; }
+  .report-size-2, .report-size-3, .report-size-4 { grid-column: span 2; }
+}
+
+@media (max-width: 600px) {
+  .report-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+  .report-slot, .report-size-1 { grid-column: span 2; }
+  .report-slot.report-type-stat { grid-column: span 1; }
+  .report-no-phone, .report-print { display: none; }
+  .report-stat-value { font-size: 1.5rem; }
+  .report-chart { min-height: 14rem; }
+  .report-controls { gap: 0.5rem; }
+}
+
+@media print {
+  .sidebar, .topbar, .bottombar, .report-controls, .report-print, .page-account, .page-back, .area-navigation { display: none !important; }
+  .report-print-only { display: block; margin-bottom: 0.75rem; }
+  .report-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .report-size-1 { grid-column: span 1; }
+  .report-size-2 { grid-column: span 2; }
+  .report-size-3 { grid-column: span 3; }
+  .report-size-4 { grid-column: span 4; }
+  .report-no-phone { display: block; }
+  .report-slot { break-inside: avoid; }
+}

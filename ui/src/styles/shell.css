@@ -202,18 +202,18 @@ main[data-width="reading"] { max-width: 1200px; }
 .account-sheet .identity p { margin: 4px 0; }
 .account-sheet .project-picker { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .account-sheet .project-picker select { width: auto; }
-.page-account { display: none; }
+/* The account badge: in the top bar on a phone, at the top right of the left panel on a wider screen, where its sheet
+   opens beside the panel. */
+.sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sidebar-account { display: none; }
 @media (min-width: 901px) {
-  #main-content { position: relative; }
-  .page-account { display: block; position: absolute; top: 25px; right: 24px; z-index: 5; }
+  .sidebar-account { display: block; margin-right: 2px; }
   .account-scrim { background: transparent; }
-  .page-account .account-sheet { position: absolute; left: auto; right: 0; top: 46px; bottom: auto; width: 340px; max-height: calc(100dvh - 90px); padding: 16px;
-    border-radius: 16px; border: .5px solid var(--line); }
+  .sidebar-account .account-sheet { position: fixed; left: 268px; right: auto; top: 20px; bottom: auto; width: 340px; max-height: calc(100dvh - 40px);
+    padding: 16px; border-radius: 16px; border: .5px solid var(--line); color: var(--text); }
 }
 .account-sheet-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-sheet .identity > strong:first-child { display: none; }  /* the sheet's heading already names the account */
-/* The section tabs leave room for the account badge beside them. */
-@media (min-width: 901px) { #main-content > .area-navigation { max-width: calc(100% - 52px); } }
 
 /* App search (AppSearch.tsx): the magnifying glass and the search sheet. */
 .topbar .search-button, .sidebar .search-button { align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px;

@@ -79,6 +79,9 @@ def read_pending(conn, pack: Pack, report: Callable[[str], None]) -> None:
         rebuild(conn, pack)
 
 
+REGISTER_TABLES = ("entity", "entity_key", "entity_label", "crosswalk", "golden", "edge", "measurement")
+
+
 def rebuild(conn, pack: Pack) -> dict:
     timings = {}
     t = time.perf_counter()
@@ -242,6 +245,12 @@ def rebuild(conn, pack: Pack) -> dict:
     lap("steward work")
     conn.commit()
     lap("commit")
+    # Fresh planner statistics for what the rebuild rewrote: on a register the planner has never sampled (a new
+    # deploy, every test database) the dated graph walks plan as nested loops, and production efficiency over 90 days
+    # took minutes instead of a quarter of a second. Sampled, so it takes a moment; reads and writes carry on meanwhile.
+    conn.execute(f"analyze {', '.join(REGISTER_TABLES)}")
+    conn.commit()
+    lap("statistics")
     stats["seconds"] = timings
     return stats
 

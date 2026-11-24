@@ -35,7 +35,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
   const regulatory = useAsync(() => api.regulatoryReports(), []);
   const report = query.get("report") ?? undefined;
   const [template, period] = report ? report.split(":") : [];
-  const day = report ? undefined : query.get("day") ?? days.data?.[0]?.day;
+  const day = report ? undefined : query.get("day") || days.data?.[0]?.day;
   const waiting = days.data?.filter((d) => d.status === "awaiting review").length ?? 0;
   return (
     <section>

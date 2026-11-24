@@ -75,6 +75,11 @@ def reach(conn, subjects: list[str], system: bool = False, plant=None) -> list[s
     return sorted(near)
 
 
+def records(conn) -> list[dict]:
+    """Every bypass on file with its safeguard and what that protects and acts on, in place or not."""
+    return _rows(conn)
+
+
 def _rows(conn) -> list[dict]:
     return [dict(r) for r in conn.execute(
         """
@@ -114,14 +119,17 @@ def _names(conn, ids: list[str]) -> list[str]:
 
 
 def bypasses(conn, subjects: list[str] | None = None, at_time: datetime | None = None, *, system: bool = False,
-             in_place: bool = True, plant=None) -> list[dict]:
+             in_place: bool = True, plant=None, on_file: list[dict] | None = None) -> list[dict]:
     """The bypasses in place at `at_time` (default now), each with its safeguard, what that protects and acts on,
     whether it is overdue and by how long; on `subjects` (see `reach`) when given. `in_place=False` returns every
-    bypass on file."""
+    bypass on file. A caller asking for many jobs passes `on_file` (`records`) read once."""
     now = at_time or datetime.now(UTC)
+    rows = records(conn) if on_file is None else on_file
+    if not rows:  # nothing on file: no need to walk the plant around the subjects
+        return []
     near = set(reach(conn, subjects, system, plant)) if subjects is not None else None
     out = []
-    for r in _rows(conn):
+    for r in rows:
         start, end = _when(r["bypassed_from"]), _when(r["expires"])
         live = (r["state"] or "").lower() in IN_PLACE and (start is None or start <= now)
         if in_place and not live:

@@ -355,6 +355,46 @@ test("a report waiting on an agent no worker has claimed says the agent worker m
   await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).waitFor({ state: "detached" });
 });
 
+test("a report page wraps its rows four, two and one across, keeps scope and window in its link, and drops phone: false panels", async () => {
+  const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
+    previous: { start: "2026-11-11", end: "2026-11-17" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const stat = (id) => ({ id, type: "stat", size: 1, measure: "work.backlog" });
+  const view = { scope, window: win, repeats: {}, scopes: [scope, { id: "fz-a1", label: "OKAN-10", kind: "area" }],
+    definition: { schema: 1, key: "work", title: "Work and dispatch", version: 1, for: [], scope: { kinds: ["facility", "area"] },
+      window: { default: "7d", options: ["7d", "30d"] }, source: "platform", rows: [
+        { id: "headline", panels: [stat("a"), stat("b"), stat("c"), stat("d")] },
+        { id: "more", panels: [{ id: "t", type: "table", size: 2, measure: "work.arrivals", grain: "type", phone: false },
+          { id: "w", type: "cases", size: 2, filter: { overdue: true } }] }] } };
+  const asked = [];
+  await page.route("**/reports/work?*", (route) => { asked.push(new URL(route.request().url()).searchParams.toString()); return route.fulfill({ json: view }); });
+  await page.route("**/reports/work", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/work/panels/**", (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").pop();
+    const base = { id, title: "", scope, window: win, as_of: "2026-11-23", note: null, scoped: true, refs: [], href: "/metrics/work.backlog" };
+    if (id === "t") return route.fulfill({ json: { ...base, type: "table", title: "Opened by type", columns: [{ key: "label", label: "Type" },
+      { key: "value", label: "Cases opened", unit: "cases", align: "end" }], rows: [{ key: "x", cells: { label: "context gap", value: 5 }, href: "/list?kind=x" }], total: 1 } });
+    if (id === "w") return route.fulfill({ json: { ...base, type: "cases", title: "Overdue", cases: [], total: 0, overdue: 0, labels: {}, href: "/list?overdue=true" } });
+    return route.fulfill({ json: { ...base, type: "stat", title: "Open cases", measure: "work.backlog", value: 12, unit: "cases", target: null,
+      better: "lower", previous: 10, history: [] } });
+  });
+  const tops = async () => page.locator(".report-type-stat").evaluateAll((ns) => ns.map((n) => Math.round(n.getBoundingClientRect().top)));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/reports/work`);
+  await page.getByRole("heading", { level: 1, name: "Work and dispatch" }).waitFor();
+  await page.getByText("12 cases").first().waitFor();
+  assert.equal(new Set(await tops()).size, 1, "four stats share a row on a desk");
+  await page.setViewportSize({ width: 820, height: 1180 });
+  assert.equal(new Set(await tops()).size, 2, "two across on an iPad");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(new Set(await tops()).size, 2, "stats two across on a phone");
+  assert.equal(await page.getByRole("table", { name: "Opened by type" }).isVisible(), false, "a phone: false panel is left out on a phone");
+  await page.getByRole("combobox", { name: "Window" }).selectOption("30d");
+  await page.waitForFunction(() => location.hash.includes("window=30d"));
+  assert.ok(asked.some((q) => q.includes("window=30d")));
+  await page.setViewportSize({ width: 1440, height: 900 });
+});
+
 test("P7.6 a regulatory report marks figures on estimated or missing data and drills each figure to its records", async () => {
   const report = { id: 1, template: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "2026-11",
     version: 2, versions: [1, 2], status: "draft", drafted_by: "agent:reporter", item_id: 27, created_at: "2026-11-13T10:00:00Z",
@@ -1725,7 +1765,8 @@ test("the base map is Standard, Satellite or Terrain, and Standard follows the t
   await page.reload();
   const group = page.getByRole("group", { name: "Base map" });
   await group.waitFor();
-  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite", "Terrain"]);
+  // The picker is icons, each named for a screen reader and on hover.
+  assert.deepEqual(await group.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), ["Standard", "Satellite", "Terrain"]);
   assert.equal(await group.getByRole("button", { name: "Standard" }).getAttribute("aria-pressed"), "true");
   assert.equal(await page.locator(".map-controls select").count(), 0, "no dropdown");
   const box = await group.boundingBox();
@@ -1798,7 +1839,8 @@ test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the th
   await page.reload();
   const group = page.getByRole("group", { name: "Base map" });
   await group.waitFor();
-  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite"]);
+  // The picker is icons, each named for a screen reader and on hover.
+  assert.deepEqual(await group.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), ["Standard", "Satellite"]);
   const state = () => page.evaluate(() => { const m = window.__mk.maps.at(-1);
     return { type: m.mapType, scheme: m.colorScheme, tokens: window.__mk.tokens, overlays: m.overlays.length,
              dashes: m.overlays.map((o) => o.style.lineDash.join(" ")), span: m.region.span.longitudeDelta }; });
@@ -1826,7 +1868,7 @@ test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the th
   // Apple refuses the token later: the same map redraws on free tiles.
   await page.evaluate(() => window.mapkit.fail("Unauthorized"));
   await page.locator(".leaflet-container").waitFor();
-  assert.deepEqual(await page.getByRole("group", { name: "Base map" }).getByRole("button").allInnerTexts(),
+  assert.deepEqual(await page.getByRole("group", { name: "Base map" }).getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))),
                    ["Standard", "Satellite", "Terrain"]);
   await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.removeItem("fuzer.theme"); });
 });
@@ -2185,7 +2227,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.getByRole("link", { name: "Explore", exact: true }).waitFor();
-  const expected = ["#/", "#/list", "#/plan", "#/browse", "#/ask", "#/downtime", "#/sources", "#/jobs", "#/settings"];
+  const expected = ["#/", "#/list", "#/plan", "#/browse", "#/ask", "#/reports", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
@@ -2199,7 +2241,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   const reports = page.getByRole("navigation", { name: "Reports pages", exact: true });
   await reports.waitFor();
   assert.deepEqual(await reports.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/downtime", "#/incidents", "#/reports", "#/metrics", "#/lessons", "#/studies"]);
+    ["#/reports", "#/downtime", "#/incidents", "#/reports?day=", "#/metrics", "#/lessons", "#/studies"]);
   // Explore is one page, the entity list; the plant-wide map, network and 3D keep their links and light Explore.
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
@@ -2265,7 +2307,7 @@ test("primary destination navigation keeps page headings and active context alig
   const destinations = [
     { label: "Tower", href: "#/", heading: "Tower" },
     { label: "Explore", href: "#/browse", heading: "Explore" },
-    { label: "Reports", href: "#/downtime", heading: "Downtime", area: "Reports pages", current: "Downtime" },
+    { label: "Reports", href: "#/reports", heading: "Reports", area: "Reports pages", current: "Reports" },
     { label: "Work", href: "#/list", heading: "All work", area: "Work pages", current: "List" },
     { label: "Plan", href: "#/plan", heading: "Plan", area: "Plan pages", current: "Plan" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
@@ -3472,6 +3514,8 @@ test("Home's open work layer gathers work at places, and a marker opens its plac
     await page.reload();  // the same URL again would keep the last width's filter
     await page.locator(".hotspot").nth(1).waitFor();
     assert.equal(await page.locator(".hotspot-crew").count(), 1);
+    // On a phone the top drawer starts folded to its figures; the layers are a tap away.
+    if (width < 900) await page.getByRole("button", { name: "Open map layers" }).click();
     // Crews is a layer of its own.
     const crews = page.getByRole("group", { name: "Map layers" }).getByRole("button", { name: "Crews", exact: true });
     await crews.click();

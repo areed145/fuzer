@@ -8,6 +8,7 @@ create table if not exists entity (
 
 -- Set when no source record maps to an entity any more (the ID is kept and revived if one returns).
 alter table entity add column if not exists retired_at timestamptz;
+create index if not exists entity_kind on entity (kind);  -- "every well", "is there a permit": read all day
 
 create table if not exists id_event (
     id       bigserial primary key,

@@ -1,0 +1,60 @@
+# Row sets over the register's records (core/rowsets.py): registered lists with fixed columns, each row opening its
+# entity. A pack adds its own or rebinds one of these under `row_sets:` in its pack.yaml, in the same shape. Row sets
+# over cases and plan lines are declared in code (ops/metrics.py).
+
+row_sets:
+
+  downtime.events:
+    label: Downtime events
+    definition: Stops that started in the window, the largest loss first.
+    from: {kind: downtime, at: start, links: [affects, caused_by]}
+    cutoff: production_day
+    window: 30d
+    order: lost_oil_bbl desc
+    columns:
+      - {key: start, label: Start, field: start}
+      - {key: subject, label: "On", field: "@subjects"}
+      - {key: cause, label: Cause, field: reason}
+      - {key: hours, label: Hours, field: duration_h, unit: h, align: end}
+      - {key: oil, label: Oil lost, field: lost_oil_bbl, unit: bbl, align: end}
+
+  incidents:
+    label: Incidents
+    definition: Incidents that started in the window, newest first.
+    from: {kind: incident, at: start, links: [about]}
+    window: 30d
+    order: "@at desc"
+    columns:
+      - {key: start, label: Start, field: start}
+      - {key: unit, label: Unit, field: "@subjects"}
+      - {key: what, label: What happened, field: description}
+      - {key: oil, label: Oil lost, field: lost_oil_bbl, unit: bbl, align: end}
+
+  permits.open:
+    label: Permits in date
+    definition: Permits to work whose validity covers the window's end, the soonest to lapse first.
+    from: {kind: permit, at: valid_from, end: valid_to, links: [covers], unless: {state: [cancelled, canceled]}}
+    stock: true
+    window: 1d
+    order: "@at asc"
+    columns:
+      - {key: permit, label: Permit, field: "@label"}
+      - {key: type, label: Type, field: permit_type}
+      - {key: state, label: State, field: state}
+      - {key: subject, label: Covers, field: "@subjects"}
+      - {key: until, label: Valid to, field: valid_to}
+
+  bypasses.active:
+    label: Safeguards bypassed
+    definition: Safeguards out of service at the window's end, the longest out first.
+    from: {kind: bypass, at: bypassed_from, links: [bypasses, bypasses.protects, bypasses.acts_on],
+           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]}}
+    stock: true
+    window: 1d
+    order: "@at asc"
+    columns:
+      - {key: bypass, label: Bypass, field: "@label"}
+      - {key: since, label: In since, field: bypassed_from}
+      - {key: expires, label: Expires, field: expires}
+      - {key: why, label: Why, field: reason}
+      - {key: subject, label: "On", field: "@subjects"}

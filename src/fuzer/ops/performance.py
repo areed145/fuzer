@@ -50,7 +50,7 @@ def weeks(now: datetime) -> list[tuple[datetime, datetime]]:
 def _cases(conn, since: datetime) -> list[dict]:
     return conn.execute(
         """
-        select i.id, i.type, i.created_at, i.closed_at, i.created_by,
+        select i.id, i.type, i.created_at, i.closed_at, i.created_by, i.state, i.subjects,
                coalesce(i.role, (select t.role from work_token t where t.item_id = i.id and t.kind in ('user', 'fix')
                                  and t.role is not null order by t.id limit 1)) as role,
                (select min(e.at) from work_event e where e.item_id = i.id and e.kind = 'handed_off') as dispatched_at,

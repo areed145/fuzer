@@ -92,9 +92,10 @@ export const NAV: NavGroup[] = [
     label: "Reports",
     icon: "M4 20h16M7 16v-5M12 16V7M17 16v-8",
     items: [
+      { label: "Reports", section: "reports" },
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
-      { label: "Daily reports", section: "reports" },
+      { label: "Daily reports", section: "reports", path: "/reports?day=", view: "day" },
       { label: "Metrics", section: "metrics", also: ["scorecard"] },
       { label: "Lessons learned", section: "lessons" },
       { label: "Studies", section: "studies" },
@@ -351,9 +352,13 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <aside ref={drawer} id="sidebar" className={open ? "sidebar open" : "sidebar"}>
         {open && <Button className="drawer-close" onClick={() => setOpen(false)}>Close menu</Button>}
-        <a className="brand" href={href("/")}>
-          <Logo />
-        </a>
+        {/* On a wide screen the account sits at the panel's top right, beside the mark, so the page has the corner. */}
+        <div className="sidebar-head">
+          <a className="brand" href={href("/")}>
+            <Logo />
+          </a>
+          <span className="sidebar-account"><AccountButton /></span>
+        </div>
         <SearchButton wide />
         {/* Every page an app icon in a grid, as on an iPhone's home screen. The names under them are a setting; with
             them off the name is still the link's name, and a tooltip on a wide screen. */}

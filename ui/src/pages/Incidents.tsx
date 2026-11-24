@@ -78,8 +78,9 @@ const rater = () => loadPerson() || "anonymous";
 /** How far engineers are through rating briefs on past incidents, and the next ones to rate. */
 function RatingProgress() {
   const r = useAsync(() => api.briefRatings(), []);
-  if (!r.data || r.data.incidents === 0) return null;
-  const next = r.data.items.filter((i) => i.ratings === 0).slice(0, 5);
+  // Nothing to rate, or no tally to read (an unexpected answer), leaves the card out rather than failing the page.
+  if (!r.data?.incidents) return null;
+  const next = (r.data.items ?? []).filter((i) => i.ratings === 0).slice(0, 5);
   return (
     <UICard as="section" title="Rate the troubleshooting briefs"
       detail={<>{r.data.rated} of {r.data.incidents} incidents rated {r.data.useful_share !== null && ` · ${percent(r.data.useful_share)} of ratings useful`}</>}>

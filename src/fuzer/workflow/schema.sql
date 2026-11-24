@@ -203,6 +203,9 @@ create index if not exists work_token_assignee on work_token (assignee) where st
 create index if not exists work_token_role on work_token (role) where state = 'waiting';
 create index if not exists work_token_attached on work_token (attached_to) where state = 'waiting';
 create index if not exists work_token_process on work_token (process_id, id);
+-- a case's steps: the List, My work and every case page read them per case (without it each case scanned every
+-- open step, 0.4 s for the List's 440 open cases on the live demo)
+create index if not exists work_token_item on work_token (item_id, id);
 
 create table if not exists work_event (
     id            bigserial primary key,
@@ -220,6 +223,8 @@ create table if not exists work_event (
 );
 create index if not exists work_event_item on work_event (item_id, id);
 create index if not exists work_event_process on work_event (process_id, id);
+-- a step's last hand-on, read for every row of My work and the queue (a full scan of the history per row before)
+create index if not exists work_event_token on work_event (token_id, id) where token_id is not null;
 
 -- Telling the assignee (P5.2, #604): dispatch, hand-back, escalation, automatic assignment and due-soon each tell the
 -- person concerned (workflow/notify.py), read from work_event by a cursor so every path that moves work is covered.

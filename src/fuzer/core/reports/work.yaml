@@ -1,0 +1,38 @@
+# Work and dispatch: how the work is flowing for the IOC lead, the maintenance supervisor and the field supervisor.
+# Every number is a registered measure (core/metrics.py) and every list the Work list's own rows.
+schema: 1
+key: work
+title: Work and dispatch
+version: 1
+for: [IOC lead, maintenance supervisor, field supervisor]
+scope:
+  kinds: [facility, area]
+window:
+  default: 7d
+  options: [7d, 30d, 90d]
+rows:
+  - id: headline
+    panels:
+      - {id: arrivals, type: stat, measure: work.arrivals}
+      - {id: closed, type: stat, measure: work.closed}
+      - {id: backlog, type: stat, measure: work.backlog}
+      - {id: late, type: stat, measure: work.sla_misses}
+  - id: flow
+    panels:
+      - {id: flow, type: trend, size: 2, title: Opened and closed, measures: [work.arrivals, work.closed]}
+      - {id: open-trend, type: trend, size: 2, title: Open cases, measures: [work.backlog]}
+  - id: dispatch
+    panels:
+      - {id: to-dispatch, type: cases, size: 2, title: Waiting for dispatch, filter: {stage: dispatch}, limit: 8}
+      - {id: overdue, type: cases, size: 2, title: Overdue, filter: {overdue: true, sort: due}, limit: 8}
+  - id: by-queue
+    panels:
+      - {id: backlog-queue, type: figure, size: 2, title: Open cases by queue, measure: work.backlog, grain: queue, chart: bar}
+      - {id: late-queue, type: figure, size: 2, title: Steps late by queue, measure: work.sla_misses, grain: queue, chart: bar}
+  - id: by-type
+    panels:
+      - {id: arrivals-type, type: table, size: 2, title: Opened by type, measure: work.arrivals, grain: type, limit: 10}
+      - {id: closed-type, type: table, size: 2, title: Closed by type, measure: work.closed, grain: type, limit: 10, phone: false}
+  - id: field
+    panels:
+      - {id: in-field, type: cases, size: 4, title: In the field, filter: {stage: field, sort: due}, limit: 10}

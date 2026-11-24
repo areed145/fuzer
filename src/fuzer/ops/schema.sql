@@ -424,6 +424,7 @@ alter table plan_item add column if not exists moved_by text;
 create unique index if not exists plan_item_source on plan_item (source, source_key) where source_key is not null;
 create index if not exists plan_item_window on plan_item (start_at, end_at);
 create index if not exists plan_item_subjects on plan_item using gin (subjects);
+create index if not exists plan_item_exception on plan_item (exception_id) where exception_id is not null;  -- per listed event
 
 -- Schedules on the integrated plan (P5.18, ops/schedule.py): a turnaround, project or campaign whose activities are plan
 -- items with a duration, links between them and the shared resources they need, so a critical path and a levelled

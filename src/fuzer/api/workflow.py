@@ -518,8 +518,8 @@ def work_item_gates(item_id: int, conn=Depends(get_conn)):
 def work_item_around(item_id: int, conn=Depends(get_conn)):
     """The alarms that sounded and the operator log entries written about the case's event, around its window
     (P3.5a): shown beside the exceptions that joined it."""
+    from ..core.shared_reads import shared
     from ..ops import around
-    from .shared_reads import shared
 
     # Computed from the historian: everyone opening the case at once shares one computation (#1069).
     return shared(conn, "around", (item_id,), lambda: around.context(conn, item_id))

@@ -1,0 +1,211 @@
+# Measures over the register's records (core/measures.py): each a registered metric, scoped to any entity (it rolls up
+# what is beneath it) and read for any named window. A pack adds its own or rebinds one of these to its own records
+# under `measures:` in its pack.yaml, in the same shape (a target bound to its business plan, oil read from its own
+# allocation). Measures that need more than a count or a sum over records are declared in code (ops/metrics.py).
+
+measures:
+
+  # --- production: the daily reports, dated by their production day ---------------------------------------------------
+
+  production.oil:
+    label: Oil produced
+    group: Production
+    unit: bbl
+    definition: Oil allocated to the facility on the production days in the window, as the daily reports state it.
+    formula: sum(oil_bbl) over the production days in the window
+    records: production days (daily reports)
+    cutoff: production_day
+    window: 30d
+    from: {kind: production_day, at: report_date, links: [reports_on], value: oil_bbl}
+    aggregate: sum
+    grains: [facility]
+
+  production.target:
+    label: Oil target
+    group: Production
+    unit: bbl
+    better: none
+    definition: >-
+      The oil the facility was expected to deliver on the same days. By default the potential each daily report states;
+      a pack binds it to its business plan or forecast by declaring production.target in its own measures.
+    formula: sum(oil_potential_bbl) over the production days in the window
+    records: production days (daily reports)
+    cutoff: production_day
+    window: 30d
+    from: {kind: production_day, at: report_date, links: [reports_on], value: oil_potential_bbl}
+    aggregate: sum
+    grains: [facility]
+
+  production.gas:
+    label: Gas produced
+    group: Production
+    unit: Mscf
+    definition: Gas produced at the facility on the production days in the window, as the daily reports state it.
+    formula: sum(gas_mscf) over the production days in the window
+    records: production days (daily reports)
+    cutoff: production_day
+    window: 30d
+    from: {kind: production_day, at: report_date, links: [reports_on], value: gas_mscf}
+    aggregate: sum
+    grains: [facility]
+
+  production.water_injected:
+    label: Water injected
+    group: Production
+    unit: bbl
+    better: none
+    definition: Water injected at the facility on the production days in the window, as the daily reports state it.
+    formula: sum(water_inj_bbl) over the production days in the window
+    records: production days (daily reports)
+    cutoff: production_day
+    window: 30d
+    from: {kind: production_day, at: report_date, links: [reports_on], value: water_inj_bbl}
+    aggregate: sum
+    grains: [facility]
+
+  production.flare:
+    label: Gas flared
+    group: Production
+    unit: Mscf
+    better: lower
+    definition: Gas flared at the facility on the production days in the window, as the daily reports state it.
+    formula: sum(flare_mscf) over the production days in the window
+    records: production days (daily reports)
+    cutoff: production_day
+    window: 30d
+    from: {kind: production_day, at: report_date, links: [reports_on], value: flare_mscf}
+    aggregate: sum
+    grains: [facility]
+
+  production.deferred:
+    label: Oil deferred
+    group: Production
+    unit: bbl
+    better: lower
+    definition: >-
+      Oil lost to downtime that started in the window, as each downtime record states it, by its cause and by what it
+      stopped. The deferment by cause and by entity on a report is this measure cut by cause or by kind.
+    formula: sum(lost_oil_bbl) over downtime starting in the window
+    records: downtime records (start, cause, lost volume) and what each affects or was caused by
+    cutoff: production_day
+    window: 30d
+    from: {kind: downtime, at: start, links: [affects, caused_by], value: lost_oil_bbl}
+    aggregate: sum
+    grains: [facility, area, well, tag, cause]
+    cuts: {cause: reason_category}
+
+  # --- downtime ----------------------------------------------------------------------------------------------------------
+
+  downtime.events:
+    label: Downtime events
+    group: Downtime
+    unit: events
+    better: lower
+    definition: Stops that started in the window, each a downtime record against what it affects or was caused by.
+    formula: count(downtime starting in the window)
+    records: downtime records and what each affects or was caused by
+    cutoff: production_day
+    window: 30d
+    from: {kind: downtime, at: start, links: [affects, caused_by]}
+    aggregate: count
+    grains: [facility, area, well, tag, cause]
+    cuts: {cause: reason_category}
+
+  downtime.hours:
+    label: Downtime hours
+    group: Downtime
+    unit: h
+    better: lower
+    definition: The hours of the stops that started in the window, as each downtime record states its duration.
+    formula: sum(duration_h) over downtime starting in the window
+    records: downtime records (start, duration) and what each affects or was caused by
+    cutoff: production_day
+    window: 30d
+    from: {kind: downtime, at: start, links: [affects, caused_by], value: duration_h}
+    aggregate: sum
+    grains: [facility, area, well, tag, cause]
+    cuts: {cause: reason_category}
+
+  # --- safety and integrity ------------------------------------------------------------------------------------------------
+
+  safety.incidents:
+    label: Incidents
+    group: Safety
+    unit: incidents
+    better: lower
+    target: 0
+    definition: Incidents that started in the window, against the unit they are about, by severity where the source gives one.
+    formula: count(incidents starting in the window)
+    records: incident records and the unit each is about
+    window: 30d
+    from: {kind: incident, at: start, links: [about]}
+    aggregate: count
+    grains: [facility, area, severity]
+    cuts: {severity: severity}
+
+  safety.permits_open:
+    label: Permits in date
+    group: Safety
+    unit: permits
+    better: none
+    stock: true
+    definition: >-
+      Permits to work whose validity covers the window's end, by permit type. A permit closed early still counts until
+      its valid-to time: the permit system gives no closing time to place it by.
+    formula: count(permits with valid_from <= the window's end < valid_to, not cancelled)
+    records: permit records (validity, state, type) and the equipment each covers
+    window: 1d
+    from: {kind: permit, at: valid_from, end: valid_to, links: [covers], unless: {state: [cancelled, canceled]}}
+    aggregate: count
+    grains: [facility, area, type]
+    cuts: {type: permit_type}
+
+  safety.bypasses_active:
+    label: Safeguards bypassed
+    group: Safety
+    unit: bypasses
+    better: lower
+    target: 0
+    stock: true
+    definition: >-
+      Safeguards (trips, interlocks, shutdowns) taken out of service and still in place at the window's end, against
+      what the safeguard protects. The bypass register gives the time each went in, not when it came out, so a past
+      window counts the ones still in place now.
+    formula: count(bypasses in place that went in before the window's end)
+    records: bypass register (state, in since) and the safeguard each bypasses
+    window: 1d
+    from: {kind: bypass, at: bypassed_from, links: [bypasses, bypasses.protects, bypasses.acts_on],
+           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]}}
+    aggregate: count
+    grains: [facility, area]
+
+  safety.bypass_age:
+    label: Bypass age
+    group: Safety
+    unit: days
+    better: lower
+    stock: true
+    definition: How long the safeguards bypassed at the window's end have been out of service, on average.
+    formula: mean(days from going in to the window's end) over bypasses in place
+    records: bypass register (state, in since) and the safeguard each bypasses
+    window: 1d
+    from: {kind: bypass, at: bypassed_from, links: [bypasses, bypasses.protects, bypasses.acts_on],
+           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]}}
+    aggregate: age_days
+    grains: [facility, area]
+
+  safety.demands:
+    label: Safeguard demands
+    group: Safety
+    unit: demands
+    better: lower
+    definition: >-
+      Times a safeguard was called on to act in the window, from the site's demand log (IEC 61511-1). A spurious trip
+      is not a demand.
+    formula: count(demands in the window, not spurious)
+    records: the demand log and the safeguard each demanded
+    standard: IEC 61511-1 demand log
+    window: 30d
+    from: {kind: demand, at: at, links: [demands, demands.protects, demands.acts_on], unless: {outcome: [spurious, false]}}
+    aggregate: count
+    grains: [facility, area]
