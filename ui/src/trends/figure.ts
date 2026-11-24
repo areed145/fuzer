@@ -329,12 +329,13 @@ export function buildFigure(spec: TrendSpec, timeline: TimelineData | null, on: 
           annotations.push({ text: limitName(l), xref: "paper", yref: ref, x: 1, y: l.value, xanchor: "right", yanchor: "bottom",
                              showarrow: false, font: { size: 10, color: urgent(l) ? palette.danger : palette.limit } });
         }
+        // Far limits are named on the left, so they never sit on a near limit's name at the right edge.
         const above = far.filter((l) => l.value > t.max).sort((a, b) => a.value - b.value);
         const below = far.filter((l) => l.value < t.min).sort((a, b) => b.value - a.value);
-        if (above.length) annotations.push({ text: `${above.map(limitName).join(", ")} ↑`, xref: "paper", yref: "paper", x: 1, y: top,
-                                             xanchor: "right", yanchor: "top", showarrow: false, font: { size: 10, color: palette.limit } });
-        if (below.length) annotations.push({ text: `${below.map(limitName).join(", ")} ↓`, xref: "paper", yref: "paper", x: 1, y: bottom,
-                                             xanchor: "right", yanchor: "bottom", showarrow: false, font: { size: 10, color: palette.limit } });
+        if (above.length) annotations.push({ text: `${above.map(limitName).join(", ")} ↑`, xref: "paper", yref: "paper", x: 0, y: top,
+                                             xanchor: "left", yanchor: "top", xshift: 4, showarrow: false, font: { size: 10, color: palette.limit } });
+        if (below.length) annotations.push({ text: `${below.map(limitName).join(", ")} ↓`, xref: "paper", yref: "paper", x: 0, y: bottom,
+                                             xanchor: "left", yanchor: "bottom", xshift: 4, showarrow: false, font: { size: 10, color: palette.limit } });
       }
     });
     top = bottom;
@@ -402,7 +403,8 @@ export function buildFigure(spec: TrendSpec, timeline: TimelineData | null, on: 
       }
     } else if (m.kind === "time" && m.at && local(m.at) >= local(start) && local(m.at) <= local(end)) {
       shapes.push({ type: "line", xref: "x", yref: "paper", x0: m.at, x1: m.at, y0: 0, y1: 1, line: { color: c, width: 1.5, dash: "dot" } });
-      annotations.push({ text: m.label, xref: "x", yref: "paper", x: m.at, y: 1, xanchor: "left", yanchor: "top", xshift: 3,
+      // A line below a window's name: a case's moment and its window often start together.
+      annotations.push({ text: m.label, xref: "x", yref: "paper", x: m.at, y: 1, xanchor: "left", yanchor: "top", xshift: 3, yshift: -14,
                          showarrow: false, font: { size: 10, color: c } });
     }
   }
