@@ -73,6 +73,42 @@ export interface ReportListing {
   scope: { kinds: string[] };
   window: { default: WindowKey };
   source: ReportDefinition["source"];
+  /** Custom reports only (`source: "custom"`): owner, sharing, version and origin. */
+  mine?: boolean;
+  owner?: string;
+  shared?: string;
+  version?: number;
+}
+
+/** Where a custom report was copied from; `version` is that report's version now, `copied_version` when copied. */
+export interface ReportOrigin { key: string; title: string | null; version: number | null; copied_version: number | null }
+
+/** A custom report's own facts (ops/custom_reports.py). `shared`: "" private, "everyone" or "role:<workflow role>". */
+export interface CustomReport extends ReportListing {
+  source: "custom";
+  version: number;
+  owner: string;
+  mine: boolean;
+  shared: string;
+  origin: ReportOrigin | null;
+  updated_at: string;
+  updated_by: string;
+  /** May share beyond themselves (configure access). */
+  can_share: boolean;
+}
+
+/** GET /reports/{key}/versions */
+export interface ReportVersion { version: number; title: string; by: string; note: string | null; at: string; panels: number; current: boolean }
+
+/** GET /model: what an editor can put on a report, filtered to its scope kinds. */
+export interface ReportModel {
+  kinds: string[];
+  types: PanelType[];
+  charts: FigurePanel["chart"][];
+  case_filters: (keyof CasesFilter)[];
+  measures: { key: string; label: string; group: string; unit: string; definition: string; grains: string[];
+    /** False: it answers for the whole register only, not a scope. */ scoped: boolean; windowed: boolean }[];
+  row_sets: { key: string; label: string; definition: string; scoped: boolean }[];
 }
 
 export interface ScopeRef { id: string | null; label: string; kind: string | null }
@@ -100,6 +136,8 @@ export interface ReportView {
   repeats: Record<string, ScopeRef[]>;
   /** The entities the report can be scoped to, the one shown first. */
   scopes: ScopeRef[];
+  /** A custom report's owner, sharing and origin; null for a standard report. */
+  custom?: CustomReport | null;
 }
 
 /** What every panel result carries, then its type's own fields. */
@@ -175,4 +213,6 @@ export interface PanelProps {
   window: WindowKey;
   /** Null when the link names no day: each measure reads its own latest. */
   at: string | null;
+  /** A panel added in the editor and not saved yet: read from `report.definition`, the definition being edited. */
+  draft?: boolean;
 }

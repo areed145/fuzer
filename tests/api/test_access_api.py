@@ -175,6 +175,8 @@ def test_reader_cannot_mutate_spend_or_configure(runtime):
         ("POST", "/board/pins", {"key": "x", "rank": 1, "reason": "x", "by": "system"}),
         ("POST", "/reports/work/summary/generate?window=7d", None),  # the AI note costs a call
         ("POST", "/reports/work/notes", {"body": "x", "window": "7d", "by": "system"}),
+        ("POST", "/reports/work/copy", {"by": "system"}),
+        ("POST", "/reports/custom", {"title": "x", "by": "system"}),
     ]:
         assert runtime.request(method, path, json=body).status_code == 403, path
     assert runtime.get("/settings").status_code == 403
@@ -198,6 +200,20 @@ def test_operator_audit_actor_is_server_bound_and_sort_by_is_not_rewritten(runti
     runtime.headers.pop("Origin")
     runtime.headers.pop("X-Fuzer-CSRF")
     assert runtime.post("/board/pins", json={"key": "access-test"}).status_code == 403
+
+
+def test_custom_reports_are_owned_by_the_signed_in_account_and_sharing_needs_configure(runtime):
+    person, _ = signed_in(runtime, roles=("operator",))
+    made = runtime.post("/reports/work/copy", json={"by": "system"})
+    assert made.status_code == 200, made.text
+    key = made.json()["key"]
+    assert made.json()["owner"] == person.actor and made.json()["can_share"] is False
+    refused = runtime.post(f"/reports/{key}/share", json={"shared": "everyone", "by": "system"})
+    assert refused.status_code == 403 and "configure" in refused.json()["detail"]
+    assert runtime.post(f"/reports/{key}/share", json={"shared": "", "by": "system"}).status_code == 200
+    # a client-named actor is not who reads it: another account can't open a private report
+    signed_in(runtime, roles=("operator",), subject="00000000-0000-0000-0000-0000000000ee")
+    assert runtime.get(f"/reports/{key}", params={"by": person.actor}).status_code == 404
 
 
 def test_owner_roles_are_dynamic_and_only_human_across_inbox_roster_and_routing(runtime):

@@ -903,3 +903,30 @@ create table if not exists report_note (
     deleted_at  timestamptz
 );
 create index if not exists report_note_period on report_note (report_key, scope, at);
+
+-- Custom reports (docs/reports.md, ops/custom_reports.py): a report definition kept per account, private until its
+-- owner shares it with everyone or a workflow role. Each save is a new version; every version is kept.
+create table if not exists custom_report (
+    id              bigserial primary key,
+    owner           text not null,                       -- the account actor that made it; only it changes it
+    title           text not null,
+    definition      jsonb not null,                      -- the checked definition without key, version and source
+    version         integer not null default 1,
+    origin          text,                                -- the report it was copied from
+    origin_version  integer,                             -- that report's version when copied
+    shared          text not null default '',            -- '' private, 'everyone', or 'role:<workflow role>'
+    created_at      timestamptz not null default now(),
+    updated_by      text not null,
+    updated_at      timestamptz not null default now(),
+    deleted_at      timestamptz
+);
+create index if not exists custom_report_owner on custom_report (owner) where deleted_at is null;
+create table if not exists custom_report_version (
+    report_id   bigint not null references custom_report (id) on delete cascade,
+    version     integer not null,
+    definition  jsonb not null,
+    by_user     text not null,
+    note        text,
+    created_at  timestamptz not null default now(),
+    primary key (report_id, version)
+);

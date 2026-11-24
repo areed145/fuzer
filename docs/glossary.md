@@ -65,6 +65,10 @@ references. A system can have several. See [sources](sources.md).
 
 **Connector.** Reads one source table in one format (CSV, Parquet, Delta, Excel, JSON, GeoJSON, a live system).
 
+**Custom report.** A report a person made by copying one or starting blank, listed under My reports. Its owner changes
+it on the page and shares it with everyone or a workflow role; each save is a new version, and an earlier one can be
+restored. See [reports](reports.md).
+
 **Dataset.** One table or feed a system delivers: where it is, its key, how it loads (snapshot, incremental,
 append), its schedule, owner and status (draft, active, paused, retired).
 

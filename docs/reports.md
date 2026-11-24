@@ -166,3 +166,44 @@ with the same live values, such as a section's heading.
 | `POST /reports/{key}/notes` | Pins a note: `{body, scope, window, at}` |
 | `PATCH /reports/{key}/notes/{id}` | Changes your own note: `{body}` |
 | `DELETE /reports/{key}/notes/{id}` | Takes down your own note |
+
+## Custom reports
+
+A custom report is the same definition, kept in the database (`custom_report`, every version in
+`custom_report_version`) by `ops/custom_reports.py`. Its key is `custom-<id>`, so its link, its panels and its notes
+work as any report's do; the page, the panels and the commentary read every definition through
+`report_pages.definition`, and a custom one is checked by the same `reports.check` (it may have no rows yet).
+
+- **Copy.** Every report has Copy to my reports. The copy is private to its maker and keeps the report and version it
+  came from; the page says when that report has changed since, and links to it. Nothing is merged by itself.
+- **Start blank.** My reports in the gallery starts one with a title, for facilities and areas, and no panels.
+- **Edit in place** (iPad and desktop; a phone reads). Edit shows each panel with move up and down, its size (a quarter
+  to the full width) and Remove, and Add panel between rows. Adding picks a type, then a measure, a series (up to three
+  measures) or a row set from `GET /model` for the report's scope kinds: measures that only answer for the whole
+  register are listed apart, and grains at or above the scope are left out. A panel not saved yet is read from the
+  definition being edited (`POST /reports/{key}/draft/panels/{id}`), so the preview is the real page at the current
+  scope.
+- **Definition.** The definition as YAML (JSON is read too), checked by the server with the same checks as a save.
+- **Save.** Each save is the next version and names the version it was edited from; a save over a newer version is
+  refused (409). Versions lists every one; Restore brings one back as the newest, keeping those in between.
+- **Share.** Private by default; shared with everyone or with the holders of a workflow role. Only accounts with
+  configure access share beyond themselves; anyone can make their own report private again. Only the owner changes a
+  report; a reader copies it to change it. A report someone can't open answers 404, as if it weren't there.
+- **Take down.** The owner removes it; it and its versions are kept, marked removed.
+
+| Route | Does |
+|---|---|
+| `GET /model?kinds` | The measures (grains, scoped or whole register), row sets and panel types an editor can pick |
+| `POST /reports/{key}/copy` | A private copy of any report the person can open: `{title?}` |
+| `POST /reports/custom` | A blank report: `{title, kinds?}` |
+| `PUT /reports/{key}` | Save the next version: `{definition}` or `{text}` (YAML or JSON), and `base`, the version edited |
+| `POST /reports/check` | Check a definition as a save would, without keeping it; answers it with its YAML |
+| `GET /reports/{key}/definition` | Any report's definition as YAML |
+| `POST /reports/{key}/draft/panels/{id}` | One panel of a definition being edited: `{definition, scope, window, at}` |
+| `POST /reports/{key}/share` | `{shared}`: "" (private), "everyone" or "role:<name>"; anything but private needs configure |
+| `GET /reports/{key}/versions` | Every kept version, newest first |
+| `POST /reports/{key}/versions/{version}/restore` | Bring a version back as the newest |
+| `DELETE /reports/{key}` | Take down your own custom report |
+
+`GET /reports` lists the custom reports a person can open after the standard ones (`source: custom`, with `mine`,
+`owner`, `shared` and `version`), and `GET /reports/{key}` adds `custom` (owner, sharing, origin, `can_share`) for one.

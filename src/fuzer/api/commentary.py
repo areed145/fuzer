@@ -14,12 +14,13 @@ from .security import AuthenticatedRoute
 router = APIRouter(route_class=AuthenticatedRoute)
 
 
-def _period(key: str, window: str, at: date | None) -> tuple[str, date]:
+def _period(key: str, window: str, at: date | None, conn) -> tuple[str, date]:
     """The window and its end day, checked; 404 for an unknown report, 422 for an unknown window."""
     from ..core import reports, windows
+    from ..ops import report_pages
 
     try:
-        reports.get(deps.pack(), key)
+        report_pages.definition(conn, deps.pack(), key)
         return window, date.fromisoformat(windows.resolve(window, at)["at"])
     except reports.ReportError as e:
         raise HTTPException(404, str(e)) from None
@@ -35,7 +36,7 @@ def report_summary_generate(key: str, window: str, scope: str | None = None, at:
     from ..agents import report_summary as rs
     from ..core import llm, usage
 
-    w, a = _period(key, window, at)
+    w, a = _period(key, window, at, conn)
     if not rewrite and (kept := rs.latest(conn, key, scope, w, a)) is not None:
         return {"summary": kept, "written": False}
     if not llm.configured("agents", person=True):
@@ -68,7 +69,7 @@ def report_note_add(key: str, note: NoteIn, conn=Depends(get_conn)):
     """Pin a note to this report and period."""
     from ..ops import report_notes as rn
 
-    w, a = _period(key, note.window, note.at)
+    w, a = _period(key, note.window, note.at, conn)
     try:
         return rn.add(conn, key, note.scope, w, a, note.body, note.by)
     except rn.NoteError as e:

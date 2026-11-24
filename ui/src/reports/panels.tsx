@@ -21,9 +21,12 @@ import type {
 export const appLink = (path: string) => `#${path}`;
 
 /** One panel's result for the report's scope, window and day. */
-export function usePanel<T extends PanelResult>({ report, panel, scope, window, at }: PanelProps) {
+export function usePanel<T extends PanelResult>({ report, panel, scope, window, at, draft }: PanelProps) {
   const key = report.definition.key;
-  return useAsync(() => api.reportPanel(key, panel.id, { scope, window, at }) as Promise<T>, [key, panel.id, scope, window, at]);
+  // a panel added in the editor is read from the definition being edited, again whenever that panel changes
+  const changed = draft ? JSON.stringify(panel) : "";
+  return useAsync(() => (draft ? api.reportDraftPanel(key, panel.id, report.definition, { scope, window, at })
+    : api.reportPanel(key, panel.id, { scope, window, at })) as Promise<T>, [key, panel.id, scope, window, at, changed]);
 }
 
 /** The frame every panel shares: its title (opening what it is made of), its body, and the one line that says what the

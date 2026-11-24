@@ -432,6 +432,57 @@ test("a report's AI note cites what it rests on and flags what the checks found;
   assert.deepEqual(added.map((a) => [a.body, a.window, a.at ?? null, a.scope]), [["Compressor back on Thursday.", "7d", null, "fz-f1"]]);
 });
 
+test("a custom report is edited in place on a desk: move, size, add a panel from the model, check the definition and save a version; a phone only reads", async () => {
+  const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
+    previous: { start: "2026-11-11", end: "2026-11-17" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const stat = (id, measure) => ({ id, type: "stat", size: 1, measure });
+  const definition = { schema: 1, key: "custom-5", title: "My work", version: 2, for: [], scope: { kinds: ["facility", "area"] },
+    window: { default: "7d", options: ["7d", "30d"] }, source: "custom",
+    rows: [{ id: "r0", panels: [stat("backlog", "work.backlog"), stat("closed", "work.closed")] }] };
+  const custom = { key: "custom-5", title: "My work", for: [], scope: definition.scope, window: { default: "7d" }, source: "custom",
+    version: 2, owner: "user:me", mine: true, shared: "", updated_at: "2026-11-24T08:00:00Z", updated_by: "user:me", can_share: false,
+    origin: { key: "work", title: "Work and dispatch", version: 3, copied_version: 1 } };
+  const view = { scope, window: win, repeats: {}, scopes: [scope], definition, custom };
+  const saved = [], drafts = [];
+  await page.route("**/reports/custom-5?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/custom-5", (route) => {
+    if (route.request().method() === "PUT") { saved.push(route.request().postDataJSON()); return route.fulfill({ json: { ...custom, version: 3 } }); }
+    return route.fulfill({ json: view });
+  });
+  const result = (id) => ({ id, type: "stat", title: id, scope, window: win, as_of: "2026-11-23", note: null, scoped: true, refs: [],
+    href: null, measure: "work.backlog", value: 12, unit: "cases", target: null, better: "lower", previous: null, history: [] });
+  await page.route("**/reports/custom-5/panels/**", (route) => route.fulfill({ json: result(new URL(route.request().url()).pathname.split("/").pop()) }));
+  await page.route("**/reports/custom-5/draft/panels/**", (route) => { drafts.push(route.request().postDataJSON()); return route.fulfill({ json: result("draft") }); });
+  await page.route("**/model?*", (route) => route.fulfill({ json: { kinds: ["facility", "area"], types: ["stat", "trend", "figure", "table", "cases", "note", "summary"],
+    charts: ["bar", "pareto", "share"], case_filters: [], row_sets: [{ key: "cases.open", label: "Open cases", definition: "", scoped: true }],
+    measures: [{ key: "work.arrivals", label: "Cases opened", group: "Work", unit: "cases", definition: "", grains: ["queue"], scoped: true, windowed: true }] } }));
+  await page.route("**/reports/check", (route) => route.fulfill({ json: { definition: route.request().postDataJSON().definition, text: "title: My work" } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/reports/custom-5`);
+  await page.getByText("copied from").waitFor();
+  await page.getByText("(changed since: version 3)").waitFor();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Move closed up" }).click();
+  await page.getByRole("combobox", { name: "Size of backlog" }).selectOption("2");
+  await page.getByRole("button", { name: "+ Add panel" }).last().click();
+  await page.getByRole("combobox", { name: "Measure" }).selectOption("work.arrivals");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".report-type-stat").length === 3);
+  assert.ok(drafts.length && drafts[0].definition.rows.at(-1).panels[0].measure === "work.arrivals", "an unsaved panel is read from the draft");
+  await page.getByRole("button", { name: "Definition" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.waitForFunction(() => !location.hash.includes("edit=1"));
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].base, 2, "a save names the version it was edited from");
+  assert.deepEqual(saved[0].definition.rows.map((r) => r.panels.map((p) => `${p.id}:${p.size}`)), [["closed:1", "backlog:2"], ["arrivals:1"]]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByText("copied from").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Edit" }).count(), 0, "a phone reads");
+  assert.equal(await page.getByRole("button", { name: "Copy to my reports" }).count(), 0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+});
+
 test("P7.6 a regulatory report marks figures on estimated or missing data and drills each figure to its records", async () => {
   const report = { id: 1, template: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "2026-11",
     version: 2, versions: [1, 2], status: "draft", drafted_by: "agent:reporter", item_id: 27, created_at: "2026-11-13T10:00:00Z",
