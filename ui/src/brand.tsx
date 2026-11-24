@@ -40,3 +40,18 @@ export function Logo() {
     </svg>
   );
 }
+
+/** The operations agent's name, wherever it is offered: the menu, the top bar, app search and its own page. */
+export const OPS_IQ = "Ops IQ";
+
+/** Ops IQ's spark: a four-point star with a small one beside it. Drawn as a line in the menu, filled on its tile. */
+export const IQ_SPARK = "M10 3.5c.7 3.9 2.6 5.8 6.5 6.5-3.9.7-5.8 2.6-6.5 6.5-.7-3.9-2.6-5.8-6.5-6.5 3.9-.7 5.8-2.6 6.5-6.5zM18 13.5c.35 1.9 1.1 2.65 3 3-1.9.35-2.65 1.1-3 3-.35-1.9-1.1-2.65-3-3 1.9-.35 2.65-1.1 3-3z";
+
+/** Ops IQ's mark: the spark on its gradient tile. Decorative; the control or row beside it carries the name. */
+export function IqMark({ small = false }: { small?: boolean }) {
+  return (
+    <span className={small ? "iq-mark small" : "iq-mark"} aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d={IQ_SPARK} /></svg>
+    </span>
+  );
+}
