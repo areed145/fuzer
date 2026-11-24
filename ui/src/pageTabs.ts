@@ -48,6 +48,7 @@ export const MASTER_DATA_TABS: PageTab[] = [
 /** Sources' pages (`?view=`). The first is the default. */
 export const SOURCES_VIEWS: PageTab[] = [
   { key: "datasets", label: "Datasets" }, { key: "systems", label: "Systems & connections" }, { key: "rules", label: "Rules" },
+  { key: "statuses", label: "Status mapping" },
 ];
 
 /** Application settings' sections (`?view=`). Readiness is the default and has no key. */

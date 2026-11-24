@@ -9353,3 +9353,103 @@ test("#23 sending to the field can say when it is wanted back", async () => {
   await page.getByRole("status").filter({ hasText: "Sent to sam, wanted back by" }).waitFor();
   assert.equal(sent[0].due, "2026-11-12T09:00");
 });
+
+test("A planner reads the portfolio as one tree, opens a business plan, writes a line and matches the unplanned case to it, and a data steward maps a status, at phone, iPad and desktop widths (work model 6, 8, 9)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olga"));
+  const tree = [
+    { id: 1, kind: "business_plan", code: "BP-2027", title: "2027 business plan", parent_id: null, item_id: null, owner: "olga", status: "open",
+      start_at: "2027-01-01T00:00:00Z", finish_by: "2027-12-31T00:00:00Z", source: null, source_key: null, jobs: {}, cases: 0, children: [2] },
+    { id: 2, kind: "turnaround", code: "TA-SPRING", title: "Spring outage", parent_id: 1, item_id: 40, owner: "olga", status: "open",
+      start_at: "2027-03-01T00:00:00Z", finish_by: "2027-03-31T00:00:00Z", source: null, source_key: null,
+      jobs: { scheduled: 2, done: 1 }, cases: 3, children: [] },
+  ];
+  const plan = () => ({ container: { id: 1, kind: "business_plan", title: "2027 business plan" },
+    lines: [{ id: 7, container_id: 1, title: "Overhaul pump 1", kind: "maintenance", subjects: ["fz-pump-1"], period_start: "2027-03-01",
+      period_end: "2027-03-31", estimate_hours: 10, estimate_cost: 5000, estimate_value_usd: null, owner: "olga", note: null, status: "open",
+      actual: { cases: 2, cases_closed: 1, jobs: 2, jobs_done: 1, hours_done: 6, hours_booked: 8, cost: null }, state: "in progress",
+      case_ids: [11, 12], hours_variance: 4, cost_variance: null }],
+    totals: { lines: 1, estimate_hours: 10, estimate_cost: 5000, hours_done: 6, hours_booked: 8, not_started: 0, done: 0, unplanned_cases: 1,
+      unplanned: { cases: 1, cases_closed: 0, jobs: 1, jobs_done: 0, hours_done: 0, hours_booked: 3, cost: null } },
+    unplanned: [{ id: 13, title: "Seal on pump 2", state: "open", type: "task" }] });
+  const posted = { lines: [], matches: [], maps: [] };
+  await page.route("**/containers?*", (route) => route.fulfill({ json: tree }));
+  await page.route("**/containers/1", (route) => route.fulfill({ json: { ...tree[0], parents: [],
+    children: [{ id: 2, kind: "turnaround", title: "Spring outage", status: "open" }], jobs: [], cases: [] } }));
+  await page.route("**/containers/1/plan", (route) => route.fulfill({ json: plan() }));
+  await page.route("**/containers/1/plan-lines", (route) => { posted.lines.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  await page.route("**/plan-lines/7/cases", (route) => { posted.matches.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  const rows = [
+    { id: 1, system: "sap", object_type: "order", status: "REL", user_status: "", state: "scheduled", move: null, note: "Released", updated_by: "fuzer", updated_at: "2026-11-01T00:00:00Z" },
+    { id: 2, system: "sap", object_type: "order", status: "TECO", user_status: "", state: "done", move: "CNF", note: null, updated_by: "fuzer", updated_at: "2026-11-01T00:00:00Z" },
+    { id: 3, system: "p6", object_type: "activity", status: "In Progress", user_status: "", state: "in_progress", move: null, note: null, updated_by: "fuzer", updated_at: "2026-11-01T00:00:00Z" },
+  ];
+  await page.route("**/status-map", (route) => {
+    if (route.request().method() === "PUT") { posted.maps.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); }
+    return route.fulfill({ json: rows });
+  });
+
+  // The portfolio: the business plan, the outage under it with its jobs by stage.
+  await page.goto(`${url}/#/plan?portfolio=1`);
+  await page.getByRole("heading", { name: "Portfolio", level: 1 }).waitFor();
+  const table = page.getByRole("table", { name: "Portfolio" });
+  await table.getByRole("link", { name: "Spring outage" }).waitFor();
+  assert.deepEqual(await table.locator(".portfolio-depth").evaluateAll((ns) => ns.map((n) => [n.textContent, n.dataset.depth])),
+    [["2027 business plan", "0"], ["Spring outage", "1"]]);
+  await table.getByText("2 scheduled").waitFor();
+  await page.getByRole("button", { name: "Add a business plan, program or project" }).waitFor();
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the portfolio fits ${w} px`);
+  }
+
+  // The business plan's plan against actual: the line read against its cases, the case no line covers.
+  await table.getByRole("link", { name: "2027 business plan" }).click();
+  await page.getByRole("heading", { name: "2027 business plan", level: 1 }).waitFor();
+  await page.getByRole("table", { name: "Under it" }).getByRole("link", { name: "Spring outage" }).waitFor();
+  await page.getByRole("link", { name: "Plan against actual" }).click();
+  const line = page.locator(".ui-card", { hasText: "Overhaul pump 1" });
+  await line.getByText("in progress").waitFor();
+  await page.getByRole("table", { name: "Unplanned work" }).getByRole("link", { name: "Seal on pump 2" }).waitFor();
+  await line.getByLabel("Add a case").selectOption("13");
+  await line.getByRole("button", { name: "Add", exact: true }).click();
+  await expectReports(posted.matches, 1);
+  assert.deepEqual(posted.matches[0], { by: "olga", item_id: 13 });
+  await page.getByRole("button", { name: "Add a line" }).click();
+  const form = page.locator(".ui-card", { hasText: "What the plan means to do" });
+  await form.getByLabel("What the plan means to do").fill("Paint the deck");
+  await form.getByLabel("Hours", { exact: true }).fill("40");
+  await form.getByRole("button", { name: "Add the line" }).click();
+  await expectReports(posted.lines, 1);
+  assert.equal(posted.lines[0].title, "Paint the deck");
+  assert.equal(posted.lines[0].estimate_hours, 40);
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await line.waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the plan fits ${w} px`);
+  }
+
+  // The data steward's status mapping: each system's statuses, the Fuzer state, what a move sends back.
+  await page.goto(`${url}/#/sources?view=statuses`);
+  const sap = page.locator(".ui-card", { hasText: "SAP order" });
+  await sap.getByRole("table", { name: "SAP order statuses" }).waitFor();
+  await sap.getByText("CNF").waitFor();
+  await page.getByRole("table", { name: "P6 activity statuses" }).waitFor();
+  await sap.getByRole("button", { name: "Change REL" }).click();
+  await sap.getByLabel("Fuzer state for REL").selectOption("in_progress");
+  await sap.getByRole("button", { name: "Save" }).click();
+  await expectReports(posted.maps, 1);
+  assert.deepEqual([posted.maps[0].system, posted.maps[0].status, posted.maps[0].state, posted.maps[0].by], ["sap", "REL", "in_progress", "olga"]);
+  await page.getByRole("button", { name: "Map a status" }).click();
+  const add = page.locator(".ui-card", { hasText: "With user status" });
+  await add.getByLabel("Status there").fill("CRTD");
+  await add.getByLabel("Fuzer state").selectOption("proposed");
+  await add.getByRole("button", { name: "Map it" }).click();
+  await expectReports(posted.maps, 2);
+  assert.deepEqual([posted.maps[1].status, posted.maps[1].state, posted.maps[1].object_type], ["CRTD", "proposed", "order"]);
+  for (const [w, h] of [[390, 844], [834, 1194], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await sap.waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the mapping fits ${w} px`);
+  }
+  assert.deepEqual(errors, []);
+});
