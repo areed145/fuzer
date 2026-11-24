@@ -55,11 +55,13 @@ def test_saving_bumps_the_version_checks_it_and_restores(okan_db):
         # the definition view: YAML text, saved back as text
         text = client.get(f"/reports/{key}/definition", params={"by": ANA}).json()["text"]
         assert "work.backlog" in text and "key:" not in text
+        assert text.index("id: b") < text.index("type: stat") < text.index("size:")  # a panel reads id, type, size
         renamed = client.put(f"/reports/{key}", json={"text": text.replace("My morning", "Morning call"), "base": 2,
                                                       "by": ANA}).json()
         assert renamed["title"] == "Morning call" and renamed["version"] == 3
         checked = client.post("/reports/check", json={"text": "title: x\nscope: {kinds: [nowhere]}\nrows: []"})
         assert checked.status_code == 400 and "nowhere" in checked.json()["detail"]
+        assert "custom-0" not in checked.json()["detail"]  # a definition not saved yet isn't named by a made-up key
         assert client.post("/reports/check", json={"text": "title: [unclosed"}).status_code == 400
         # history and restore: restoring is a new version, the ones between stay kept
         versions = client.get(f"/reports/{key}/versions", params={"by": ANA}).json()

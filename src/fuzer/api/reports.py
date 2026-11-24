@@ -20,6 +20,7 @@ Custom reports (ops/custom_reports.py), each `custom-<id>`, open to their owner 
     DELETE /reports/{key}                            take it down (kept, marked removed)
 """
 
+import re
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -180,6 +181,9 @@ def _definition(body) -> dict:
     return body.definition
 
 
+DRAFT = re.compile(rf"report {reports.CUSTOM_PREFIX}0(?:\.|: )")  # how the checks name a definition not saved yet
+
+
 def _changing(fn):
     """Run a change to a custom report, answering its refusals with why."""
     from ..ops import custom_reports as cr
@@ -191,7 +195,7 @@ def _changing(fn):
     except cr.Stale as e:
         raise HTTPException(409, str(e)) from None
     except (reports.ReportError, WindowError) as e:
-        raise _refused(e) from None
+        raise _refused(type(e)(DRAFT.sub("", str(e)))) from None
 
 
 def _saved(conn, row: dict, by: str) -> dict:

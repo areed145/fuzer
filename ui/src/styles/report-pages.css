@@ -94,12 +94,12 @@
 }
 .report-slot-tools {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.25rem;
   align-items: center;
   margin-bottom: 0.4rem;
 }
-.report-slot-tools select { max-width: 9rem; }
+.report-slot-tools select { width: 6.75rem; min-width: 0; flex: 0 1 auto; }
 .report-add-between { display: flex; justify-content: center; margin: 0.5rem 0; }
 .report-add { margin: 0.75rem 0; }
 .report-add-fields {
