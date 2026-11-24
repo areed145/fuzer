@@ -43,8 +43,8 @@ App search (`ui/src/AppSearch.tsx`, the magnifying glass at the top left of ever
 the menu, the tabs pages declare in `ui/src/pageTabs.ts`, and records through the same `/entities` search Browse
 uses; a question (a question word, a question mark or four words or more) puts Ops IQ first and opens it with the question, asked once; any other search keeps Ask Ops IQ in view at the foot of the results. It is a way in, not an owner: each result opens its owning page. Sources secondary pages are Sources and configure-protected
 Ontology, the model each source maps onto.
-Demo is one route outside the menu, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Reports contains Downtime, Incidents, Daily reports, Metrics,
-Lessons and Studies. Work has two pages, List and Board: all the work as a table or as columns, with the same filters.
+Demo is one route outside the menu, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Reports opens on the report gallery and contains Downtime, Incidents,
+Metrics, Regulatory, Lessons and Studies; the daily report is the narrative on the Daily operations report. Work has two pages, List and Board: all the work as a table or as columns, with the same filters.
 My work and Master data's questions are presets on it, not menu entries. Workflows (formerly Processes; "process" means the plant in oil and gas) sit in Settings beside Routing:
 they are the playbooks the work follows; a case or task links to the workflow it
 is following. Plan contains Plan (the timeline), Schedules, Resources and Logistics (read-only: each day's crews and jobs, travel, crews aboard between jobs, seats, beds, lifts and materials to send, read from the plan and the work orders' reservations; changes are made on a schedule or on Resources). A work item planned for a day links to its

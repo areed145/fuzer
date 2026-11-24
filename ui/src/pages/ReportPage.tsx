@@ -5,6 +5,7 @@ import "../styles/report-pages.css";
 import { api } from "../api";
 import { Status, href, useAsync, useRouteState } from "../lib";
 import { PANELS } from "../reports/panels";
+import { DailyReview } from "../reports/panels/NarrativePanel";
 import type { Panel, PanelColumn, ReportRow, ReportView, ScopeRef, WindowKey } from "../reports/spec";
 import { Button, Card, Field, Heading, Input, PageHeader, Select, Text } from "../ui";
 import { kindWord } from "../wording";
@@ -22,9 +23,6 @@ export function ReportsGallery() {
       {list.data?.map((r) => <Card key={r.key} as="section" className="report-card" title={<a href={href(`/reports/${r.key}`)}>{r.title}</a>}>
         <Text small muted>{[r.for.join(", "), WINDOW_WORDS[r.window.default]].filter(Boolean).join(" · ")}</Text>
       </Card>)}
-      <Card as="section" className="report-card" title={<a href={href("/reports", { day: "" })}>Daily reports</a>}>
-        <Text small muted>Each production day's narrative and its review</Text>
-      </Card>
     </div>
   </section>;
 }
@@ -58,12 +56,17 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
         </Field>
       </div>
       <div className="report-print-only">{v.scope.label} · {v.window.label}</div>
+      {/* The daily report's review goes in the header of the report that draws its narrative. */}
+      {hasNarrative(v) && <DailyReview day={v.window.at} onDay={setAt} />}
       {v.definition.rows.map((row) => row.repeat
         ? (v.repeats[row.id] ?? []).map((e) => <Row key={`${row.id}:${e.id}`} row={row} view={v} scope={e} />)
         : <Row key={row.id} row={row} view={v} scope={v.scope} />)}
     </>}
   </section>;
 }
+
+const hasNarrative = (v: ReportView) =>
+  v.definition.rows.some((r) => r.panels.some((p) => p.type === "narrative" || (p.type === "column" && p.panels.some((q) => q.type === "narrative"))));
 
 function Row({ row, view, scope }: { row: ReportRow; view: ReportView; scope: ScopeRef }) {
   const repeated = !!row.repeat;

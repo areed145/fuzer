@@ -82,7 +82,7 @@ Things to try:
 - **Explore > Browse**: find `20-K-2300A` or the well `OK-J12-02` and follow the links.
 - **Work > Master data**: resolve uncertain links, conflicting values and held source loads.
 - **Explore > Ask**: the operations assistant. Try "Why does lift gas keep running short?"
-- **Reports > Daily reports**: what the scheduled loop drafts for each production day.
+- **Reports > Daily operations**: the last production day, with the narrative the scheduled loop drafts for it.
 - The [guides by role](guides/index.md) walk each role's jobs from start to finish.
 
 Choose **Settings -> Appearance** for System, Light or Dark mode. The choice is saved in your browser,

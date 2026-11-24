@@ -513,6 +513,22 @@ _scorecard("agreement", "Agreement", "Of a source's records that join an item an
            "with no open disagreement about them.", "(shared - in conflict) / shared x 100; mean over datasets")
 
 
+@metric("sources.held_loads", "Loads held", group="Sources", unit="datasets", better="lower", target=0,
+        grains=("dataset",), period="the latest load of each dataset",
+        definition="Datasets whose latest load was held at its checks (duplicate keys, a failing blocking check or "
+                   "changed columns) and waits for a steward to release or fix it.",
+        formula="count(datasets whose latest run is held)",
+        records="each dataset's runs (source_run), the latest first")
+def held_loads(conn, pack, grain=None) -> dict:
+    runs = [dict(r) for r in conn.execute(
+        "select distinct on (r.dataset_id) d.name, r.status from source_run r join source_dataset d on d.id = r.dataset_id "
+        "order by r.dataset_id, r.id desc")]
+    if not runs:
+        return {"note": "no dataset has loaded yet"}
+    held = sorted(r["name"] for r in runs if r["status"] == "held")
+    return {"value": len(held), "rows": _rows([(n, n, 1, []) for n in held]) if grain else []}
+
+
 # --- safety and integrity, from the modules that own them --------------------------------------------------------------
 
 @metric("safety.days_since_incident", "Days since the last incident", group="Safety", unit="days", better="higher",

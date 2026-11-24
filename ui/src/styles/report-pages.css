@@ -23,6 +23,11 @@
 :root .report-row .report-slot > .report-panel { margin: 0; height: 100%; }
 .report-slot { min-width: 0; }
 .report-row > .report-type-stat { align-self: stretch; }
+/* An analysis that has nothing to show draws no card: its slot goes, not a gap. */
+.report-type-view:not(:has(.card)) { display: none; }
+.report-view > .card { margin: 0; }
+.report-review { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; }
+.report-review .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 .report-stat-value { display: block; font-size: 1.9rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .report-off-target { color: var(--danger); }

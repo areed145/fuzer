@@ -56,6 +56,8 @@ HISTORY_WEEKS = 8  # points in a metric's history: its last eight periods
 TREND_MIN_DAYS = 14  # a trend of a shorter window draws this many days, so the line has a shape
 
 
+WHOLE = "For the whole register: it isn't cut by entity."  # said on a value asked for a scope it can't be cut by
+
 class MetricError(ValueError):
     """A metric that isn't registered, a grain it can't be cut by, or a scope that isn't in the register."""
 
@@ -311,7 +313,7 @@ def value(conn, pack, key: str, scope: str | None = None, window: str | None = N
     out = _queried(conn, pack, m, scope, window, at, grain, history) if m.queried else \
         _legacy(conn, pack, m, window, at, grain, history)
     if scope and not out["scope"]:
-        out["note"] = " ".join(x for x in (out.get("note"), "For the whole register: it isn't cut by entity.") if x)
+        out["note"] = " ".join(x for x in (out.get("note"), WHOLE) if x)
     return {**m.describe(), "value": out.get("value"), "rows": out.get("rows") or [], "refs": out.get("refs") or [],
             "as_of": out.get("as_of"), "note": out.get("note"), "grain": grain, "history": out["history"],
             "scope": out["scope"], "window": out["window"], "previous": out["previous"], "span": out.get("span")}
