@@ -192,7 +192,7 @@ function useNear(): [RefObject<HTMLDivElement | null>, boolean] {
   useEffect(() => {
     if (near || !ref.current) return;
     const seen = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setNear(true); },
-      { rootMargin: "100% 0px" });
+      { rootMargin: "50% 0px" });
     seen.observe(ref.current);
     return () => seen.disconnect();
   }, [near]);
