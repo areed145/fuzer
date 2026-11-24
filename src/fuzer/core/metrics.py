@@ -21,7 +21,8 @@ a page can say at a glance whether it is on target (#1078). Targets are the plat
 
     metric(key, label, ...)      declare one (decorates its compute function)
     registry()                   every metric, by key
-    value(conn, pack, key, grain=None, at=None)   one metric now (or for the period ending at), with its declaration
+    value(conn, pack, key, scope=None, window=None, at=None, grain=None, history=False)
+                                 one metric for a scope and window (docs/reports.md), with its declaration
 """
 
 from collections.abc import Callable
@@ -86,9 +87,15 @@ def registry() -> dict[str, Metric]:
 HISTORY_WEEKS = 8
 
 
-def value(conn, pack, key: str, grain: str | None = None, at=None, history: bool = False) -> dict:
+def value(conn, pack, key: str, scope: str | None = None, window: str | None = None, at=None, grain: str | None = None,
+          history: bool = False) -> dict:
     """One metric now (a dated one for the period ending `at`, a date): its declaration, its headline value and, with a
-    grain, its rows. With `history`, its values over earlier periods, oldest first, where it has them."""
+    grain, its rows. With `history`, its values over earlier periods, oldest first, where it has them.
+
+    `scope` (an entity id, None for the whole register) and `window` (a name in core/windows, None for the metric's own
+    period) are the report contract (docs/reports.md). The result says what it was computed for in `scope` and
+    `window`; a metric not yet cut by scope or window answers for the whole register and its own period, and says so
+    with None."""
     m = registry().get(key)
     if m is None:
         raise MetricError(f"no metric {key}")
@@ -108,4 +115,5 @@ def value(conn, pack, key: str, grain: str | None = None, at=None, history: bool
             if v is not None:
                 past.append({"at": day.isoformat(), "value": v})
     return {**m.describe(), "value": out.get("value"), "rows": out.get("rows") or [], "refs": out.get("refs") or [],
-            "as_of": out.get("as_of"), "note": out.get("note"), "grain": grain, "history": past}
+            "as_of": out.get("as_of"), "note": out.get("note"), "grain": grain, "history": past,
+            "scope": out.get("scope"), "window": out.get("window")}
