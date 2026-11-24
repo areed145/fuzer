@@ -132,6 +132,21 @@ def _all(conn, state: str) -> list[dict]:
     return out
 
 
+def _shared(conn, state: str) -> tuple[list[dict], dict[str, str]]:
+    """Every row in the state (`_all`) with its facility, area and asset (`_place`), and their names.
+    One computation serves the reads asked for together and after, until anything is written (core.shared_reads):
+    a page asks for the counts, the List and an entity's tabs at once, and each built every row on the 1-CPU server.
+    Each caller gets its own copy of every row, so it may set and drop a row's keys."""
+    from ..core.shared_reads import shared
+
+    def read():
+        rows = _all(conn, state)
+        return rows, _place(conn, rows)
+
+    rows, labels = shared(conn, "worklist", (state,), read)
+    return [dict(r) for r in rows], dict(labels)
+
+
 def _place(conn, rows: list[dict]) -> dict[str, str]:
     """Each row's facility, area and asset (the nearest of each kind among its subjects and what they sit in, else
     `none`) and the set of everything it is about or in (`_within`); returns the names of what it found."""
@@ -187,7 +202,7 @@ def figures(conn, person: str | None = None) -> dict:
     same open rows: `open` is the List with no filter, `overdue` its Overdue toggle, `stages` its Stage picker (and the
     Board's columns), `waiting_on_you` its Waiting on me preset. The badge, Home, My work, the handover and the List
     all read these, so they can't disagree."""
-    everything = _all(conn, "open")
+    everything, _ = _shared(conn, "open")
     stages = dict.fromkeys(OPEN_STAGES, 0)
     for r in everything:
         stages[r["stage"]] = stages.get(r["stage"], 0) + 1
@@ -210,11 +225,14 @@ def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=No
         raise ValueError(f"state must be one of {', '.join(STATES)}")
     if sort not in SORTS:
         raise ValueError(f"sort must be one of {', '.join(SORTS)}")
-    everything = _all(conn, state)
+    everything, every_label = _shared(conn, state)
     if at:
         from . import attention
         everything = attention.only_at(conn, everything, ",".join(_list(at)))
-    labels = _place(conn, everything)
+        kept = {e for r in everything for e in (r["facility"], r["area"], r["asset"])}
+        labels = {k: v for k, v in every_label.items() if k in kept}
+    else:
+        labels = every_label
     chosen = {"kind": set(_list(kind)), "stage": set(_list(stage)), "holder": set(_list(holder)),
               "queue": set(_list(queue)), "source": set(_list(source)), "facility": set(_list(facility)),
               "area": set(_list(area)), "asset": set(_list(asset))}
