@@ -46,7 +46,7 @@ SCHEMA = {
     },
 }
 
-COMMENTARY = ("summary", "note")  # panels that are text about the figures, not figures
+COMMENTARY = ("summary", "note", "narrative", "view")  # text about the figures, or analyses with their own reads
 LIST_CAP = 12   # rows of a table or cut kept for the call
 SERIES_CAP = 4  # points of a long series kept: its first, its last, its lowest and its highest
 FACTS_CAP = 24_000
@@ -225,13 +225,11 @@ def write(conn, pack, key: str, scope: str | None, window: str, at: date, by: st
 @report_pages.panel_type("summary")
 def panel(conn, pack, report: dict, panel: dict, scope: dict, window: dict) -> dict:
     """The `summary` panel's result: the kept note for the period, whether one can be written here, and whether this
-    visit should write it unasked (none kept, the report's default scope and window, ending today). Never calls a
+    visit should write it unasked (none kept, the report's default scope and window, ending on its default day). Never calls a
     model."""
-    from ..core import windows
-
     at = date.fromisoformat(window["at"])
     kept = latest(conn, report["key"], scope.get("id"), window["key"], at)
-    today = windows.resolve(window["key"])["at"] == window["at"]
+    today = report_pages.default_at(conn, report) == window["at"]  # today, or the last production day
     return {"summary": kept, "can_write": llm.has_credentials("agents"),
             "due": kept is None and today and window["key"] == report["window"]["default"]
             and scope.get("id") == report_pages.default_scope(conn, pack, report)["id"],

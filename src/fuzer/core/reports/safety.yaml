@@ -1,0 +1,44 @@
+# Safety and integrity: incidents, safeguards out of service and permits, for HSE, the operations manager and the IOC.
+schema: 1
+key: safety
+title: Safety and integrity
+version: 1
+for: [HSE, operations manager, IOC]
+scope:
+  kinds: [facility, area]
+window:
+  default: 30d
+  options: [7d, 30d, 90d, qtd, ytd]
+rows:
+  - id: headline
+    panels:
+      - {id: incidents, type: stat, measure: safety.incidents}
+      - {id: days-since, type: stat, measure: safety.days_since_incident}
+      - {id: bypasses, type: stat, measure: safety.bypasses_active}
+      - {id: bypass-age, type: stat, measure: safety.bypass_age}
+  - id: barriers
+    panels:
+      - {id: permits, type: stat, measure: safety.permits_open}
+      - {id: demands, type: stat, measure: safety.demands}
+      - {id: inspections, type: stat, measure: safety.inspections_overdue}
+      - {id: leaks, type: stat, measure: safety.ldar_leaks}
+  - id: commentary
+    panels:
+      - {id: summary, type: summary, size: 2}
+      - {id: notes, type: note, size: 2}
+  - id: incidents
+    panels:
+      - {id: by-severity, type: figure, size: 2, title: Incidents by severity, measure: safety.incidents, grain: severity, chart: bar}
+      - {id: incident-list, type: table, size: 2, title: Incidents, rows: incidents, limit: 10}
+  - id: safeguards
+    panels:
+      - {id: bypass-list, type: table, size: 2, title: Safeguards bypassed, rows: bypasses.active, limit: 10}
+      - {id: permit-list, type: table, size: 2, title: Permits in date, rows: permits.open, limit: 10, phone: false}
+  - id: trends
+    panels:
+      - {id: incident-trend, type: trend, size: 2, title: Incidents and safeguard demands, measures: [safety.incidents, safety.demands]}
+      - {id: by-area, type: figure, size: 2, title: Incidents by area, measure: safety.incidents, grain: area, chart: bar}
+  - id: alarms
+    panels:
+      - {id: alarm-performance, type: view, view: alarm-performance, size: 2}
+      - {id: leak-surveys, type: view, view: leak-surveys, size: 2}

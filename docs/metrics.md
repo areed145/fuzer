@@ -24,6 +24,7 @@ A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everythi
 | [`production.gas`](#productiongas) Gas produced | Production | Mscf | facility | any entity | 30d |
 | [`production.oil`](#productionoil) Oil produced | Production | bbl | facility | any entity | 30d |
 | [`production.target`](#productiontarget) Oil target | Production | bbl | facility | any entity | 30d |
+| [`production.test_rate`](#productiontest_rate) Oil rate at test | Production | bbl/d | facility, area, well | any entity | 30d |
 | [`production.uptime`](#productionuptime) Uptime | Production | % | facility | any entity | 30d |
 | [`production.water_injected`](#productionwater_injected) Water injected | Production | bbl | facility | any entity | 30d |
 | [`safety.bypass_age`](#safetybypass_age) Bypass age | Safety | days | facility, area | any entity | 1d, at the end |
@@ -36,6 +37,7 @@ A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everythi
 | [`safety.permits_open`](#safetypermits_open) Permits in date | Safety | permits | facility, area, type | any entity | 1d, at the end |
 | [`sources.agreement`](#sourcesagreement) Source agreement | Sources | % | dataset | whole register | the latest rebuild |
 | [`sources.completeness`](#sourcescompleteness) Source completeness | Sources | % | dataset | whole register | the latest rebuild |
+| [`sources.held_loads`](#sourcesheld_loads) Loads held | Sources | datasets | dataset | whole register | the latest load of each dataset |
 | [`sources.straight_through`](#sourcesstraight_through) Records decided without a steward | Sources | % | system | whole register | now |
 | [`sources.timeliness`](#sourcestimeliness) Source timeliness | Sources | % | dataset | whole register | the latest rebuild |
 | [`sources.validity`](#sourcesvalidity) Source validity | Sources | % | dataset | whole register | the latest rebuild |
@@ -257,6 +259,18 @@ A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everythi
 - **Scope:** any entity, rolling up what is beneath it
 - **Declared in:** `core/measures.yaml`
 
+## production.test_rate
+
+**Oil rate at test.** The oil rate the well tests in the window measured, on average: a well's own rate when the scope is a well, the mean over its wells' tests otherwise. Compare it with the well's forecast on Wells against their own forecast.
+
+- **Formula:** mean(oil_bbld) over well tests in the window
+- **Unit:** bbl/d (higher is better)
+- **Records:** well tests and the well each tests
+- **Cut by:** facility, area, well
+- **Window:** 30d by default, ending on today when no day is given
+- **Scope:** any entity, rolling up what is beneath it
+- **Declared in:** `core/measures.yaml`
+
 ## production.uptime
 
 **Uptime.** The share of the window's hours the facility was not stopped: no downtime against the facility itself was open. A well or a unit stopping alone is deferment, not facility downtime. For the whole register, the mean over the facilities the daily reports cover.
@@ -403,6 +417,19 @@ A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everythi
 - **Cut by:** dataset
 - **Target:** 95 %
 - **Period:** the latest rebuild
+- **Scope:** the whole register
+- **Declared in:** `ops/metrics.py`
+
+## sources.held_loads
+
+**Loads held.** Datasets whose latest load was held at its checks (duplicate keys, a failing blocking check or changed columns) and waits for a steward to release or fix it.
+
+- **Formula:** count(datasets whose latest run is held)
+- **Unit:** datasets (lower is better)
+- **Records:** each dataset's runs (source_run), the latest first
+- **Cut by:** dataset
+- **Target:** 0 datasets
+- **Period:** the latest load of each dataset
 - **Scope:** the whole register
 - **Declared in:** `ops/metrics.py`
 
@@ -601,6 +628,7 @@ A row set is a registered list with fixed columns, each row opening its case or 
 | `bypasses.active` Safeguards bypassed | Safeguards out of service at the window's end, the longest out first. | Bypass, In since, Expires, Why, On | 1d |
 | `cases.open` Open cases | Cases open at the window's end (now, for a window ending today), the highest priority first. | Case, Type, Queue, Opened, Due | 1d |
 | `downtime.events` Downtime events | Stops that started in the window, the largest loss first. | Start, On, Cause, Hours, Oil lost | 30d |
+| `downtime.open` Still down | Stops in progress at the window's end (now, for a window ending today), the longest down first. | On, Down since, Cause, Oil lost so far | 1d |
 | `incidents` Incidents | Incidents that started in the window, newest first. | Start, Unit, What happened, Oil lost | 30d |
 | `permits.open` Permits in date | Permits to work whose validity covers the window's end, the soonest to lapse first. | Permit, Type, State, Covers, Valid to | 1d |
 | `plan.lines` Plan lines | The business plan's open lines whose period meets the window, each estimate against its actuals. | Program, Line, Planned hours, Actual hours, Planned cost, Actual cost, Cases | qtd |

@@ -8,7 +8,7 @@ export const WINDOWS: readonly WindowKey[] = ["1d", "7d", "30d", "90d", "qtd", "
 /** Quarters of the desktop width: 4 columns above 1100 px, 2 from 601 to 1100 px, 1 at 600 px and below. */
 export type PanelSize = 1 | 2 | 3 | 4;
 
-export type PanelType = "stat" | "trend" | "figure" | "table" | "cases" | "note" | "summary";
+export type PanelType = "stat" | "trend" | "figure" | "table" | "cases" | "note" | "summary" | "narrative" | "view";
 
 interface PanelBase {
   /** Unique in the report and kept across versions, so notes and links stay attached. */
@@ -24,8 +24,10 @@ interface PanelBase {
 export interface StatPanel extends PanelBase { type: "stat"; measure: string }
 export interface TrendPanel extends PanelBase { type: "trend"; measures: string[] }
 export interface FigurePanel extends PanelBase { type: "figure"; measure: string; grain: string; chart: "bar" | "pareto" | "share"; limit?: number }
-/** Either a registered row set or a measure cut by one of its grains. */
-export interface TablePanel extends PanelBase { type: "table"; rows?: string; measure?: string; grain?: string; limit?: number }
+/** A registered row set, a measure cut by one of its grains, or several measures cut by the same grain (a column each). */
+export interface TablePanel extends PanelBase {
+  type: "table"; rows?: string; measure?: string; measures?: string[]; grain?: string; limit?: number;
+}
 /** The Work list's own filters (ops/worklist.rows); the report's scope is added as `within`. */
 export interface CasesFilter {
   state?: "open" | "closed" | "all"; kind?: string; stage?: string; holder?: string; queue?: string; source?: string;
@@ -35,8 +37,13 @@ export interface CasesPanel extends PanelBase { type: "cases"; filter: CasesFilt
 /** Written commentary; `text` is fixed markdown kept in the definition (a section's heading line). */
 export interface NotePanel extends PanelBase { type: "note"; text?: string }
 export interface SummaryPanel extends PanelBase { type: "summary" }
+/** The daily report for the window's last day: its narrative, checks and versions (its review is in the header). */
+export interface NarrativePanel extends PanelBase { type: "narrative" }
+/** One of the plant's own analyses (core/reports VIEWS), read for the whole register over its own period. */
+export interface ViewPanel extends PanelBase { type: "view"; view: string }
 
-export type Panel = StatPanel | TrendPanel | FigurePanel | TablePanel | CasesPanel | NotePanel | SummaryPanel;
+export type Panel = StatPanel | TrendPanel | FigurePanel | TablePanel | CasesPanel | NotePanel | SummaryPanel | NarrativePanel
+  | ViewPanel;
 
 /** A stack of panels beside the others in a row, one level deep. */
 export interface PanelColumn { type: "column"; size: PanelSize; panels: Panel[] }
@@ -60,7 +67,8 @@ export interface ReportDefinition {
   /** Who reads it. */
   for: string[];
   scope: { kinds: string[] };
-  window: { default: WindowKey; options: WindowKey[] };
+  /** `at`: the day the window ends on when the link names none, today or the last production day. */
+  window: { default: WindowKey; options: WindowKey[]; at?: "day" | "production_day" };
   rows: ReportRow[];
   source: "platform" | "bundle" | "custom";
 }
@@ -109,6 +117,8 @@ export interface ReportModel {
   measures: { key: string; label: string; group: string; unit: string; definition: string; grains: string[];
     /** False: it answers for the whole register only, not a scope. */ scoped: boolean; windowed: boolean }[];
   row_sets: { key: string; label: string; definition: string; scoped: boolean }[];
+  /** The analysis views a `view` panel can draw. */
+  views: { key: string; label: string }[];
 }
 
 export interface ScopeRef { id: string | null; label: string; kind: string | null }
@@ -199,11 +209,23 @@ export interface CasesResult extends PanelResultBase {
   labels: Record<string, string>;
 }
 
+export interface NarrativeResult extends PanelResultBase {
+  type: "narrative";
+  /** The production day the report is for. */
+  day: string;
+  /** Where its review stands; null when there is no daily report for the day. */
+  status: string | null;
+  version?: number;
+  ok?: boolean;
+}
+export interface ViewResult extends PanelResultBase { type: "view"; view: string }
+
 /** The commentary's panels add their own fields. */
 export interface NoteResult extends PanelResultBase { type: "note"; [field: string]: unknown }
 export interface SummaryResult extends PanelResultBase { type: "summary"; [field: string]: unknown }
 
-export type PanelResult = StatResult | TrendResult | FigureResult | TableResult | CasesResult | NoteResult | SummaryResult;
+export type PanelResult = StatResult | TrendResult | FigureResult | TableResult | CasesResult | NoteResult | SummaryResult
+  | NarrativeResult | ViewResult;
 
 /** What every panel component is handed (ui/src/reports/panels.tsx maps a type to its component). */
 export interface PanelProps {

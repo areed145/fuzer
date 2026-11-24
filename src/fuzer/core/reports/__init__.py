@@ -18,7 +18,29 @@ from .. import windows
 
 HERE = Path(__file__).parent
 SCHEMA = 1
-TYPES = ("stat", "trend", "figure", "table", "cases", "note", "summary")
+TYPES = ("stat", "trend", "figure", "table", "cases", "note", "summary", "narrative", "view")
+# The plant's own analyses, each answered by its own read for the whole register over its own period, drawn on a report
+# by a `view` panel: they moved here from the retired Scorecard page and keep their own cards.
+VIEWS = {
+    "across-assets": "Across assets",
+    "wells-forecast": "Wells against their own forecast",
+    "well-screen": "Water, gas and test age",
+    "allocation-factor": "Allocated oil against well tests",
+    "intervention-gains": "Did the well work pay off?",
+    "gas-balance": "Gas balance",
+    "gas-lift-heading": "Gas lift heading",
+    "water-injection": "Water injection",
+    "reservoir-pressure": "Reservoir pressure",
+    "quality": "Separator and export quality",
+    "cost-of-unreliability": "Cost of unreliability by unit",
+    "leak-surveys": "Leak surveys",
+    "alarm-performance": "Alarm system performance",
+    "backlog-burn": "Is the backlog under control?",
+    "work-execution": "Does work finish when planned, and do repairs hold?",
+    "accounts": "Against the accounts",
+}
+# The day a window ends on when the link names none: today, or the last production day (the daily report's day).
+WINDOW_AT = ("day", "production_day")
 CHARTS = ("bar", "pareto", "share")
 SIZE = {"stat": 1, "table": 4, "cases": 4}
 CASE_FILTERS = ("state", "kind", "stage", "holder", "queue", "source", "overdue", "q", "sort")
@@ -100,15 +122,22 @@ def _panel(where: str, p: dict, ids: set) -> dict:
             known = _rowsets()
             if known is None or p["rows"] not in known:
                 raise ReportError(f"{where}: no row set {p['rows']!r}")
+        elif p.get("measures") and p.get("grain"):  # one row per grain value, one column per measure
+            if not isinstance(p["measures"], list):
+                raise ReportError(f"{where}: measures is a list")
+            for k in p["measures"]:
+                _measure(where, k, p["grain"])
         elif p.get("measure") and p.get("grain"):
             _measure(where, p["measure"], p["grain"])
         else:
-            raise ReportError(f"{where}: a table names a row set, or a measure and a grain")
+            raise ReportError(f"{where}: a table names a row set, or a measure (or measures) and a grain")
     elif t == "cases":
         f = p.get("filter") or {}
         if not isinstance(f, dict) or (bad := set(f) - set(CASE_FILTERS)):
             raise ReportError(f"{where}: the cases filter takes {', '.join(CASE_FILTERS)}; not {sorted(bad) if isinstance(f, dict) else f}")
         out["filter"] = f
+    elif t == "view" and p.get("view") not in VIEWS:
+        raise ReportError(f"{where}: no view {p.get('view')!r}; it is one of {', '.join(VIEWS)}")
     elif t == "note" and "text" in p and not isinstance(p["text"], str):
         raise ReportError(f"{where}: a note's text is markdown")
     if "limit" in p and (not isinstance(p["limit"], int) or p["limit"] < 1):
@@ -151,6 +180,9 @@ def check(d: dict, source: str = "platform") -> dict:
         raise ReportError(f"{where}: no window {bad[0]!r}; it is one of {', '.join(windows.WINDOWS)}")
     if default not in options:
         raise ReportError(f"{where}: the default window {default} isn't one of its options")
+    ends = win.get("at", "day")
+    if ends not in WINDOW_AT:
+        raise ReportError(f"{where}: a window ends on {' or '.join(WINDOW_AT)} when the link names no day, not {ends!r}")
     rows, ids = [], set()
     for i, r in enumerate(d.get("rows") or []):
         rid = r.get("id") or f"r{i}"
@@ -184,7 +216,7 @@ def check(d: dict, source: str = "platform") -> dict:
         raise ReportError(f"{where}: two rows share an id")
     return {"schema": SCHEMA, "key": key, "title": d["title"], "version": int(d.get("version", 1)),
             "for": list(d.get("for") or []), "scope": {"kinds": list(kinds)},
-            "window": {"default": default, "options": options}, "rows": rows, "source": source}
+            "window": {"default": default, "options": options, "at": ends}, "rows": rows, "source": source}
 
 
 def panels(d: dict) -> list[dict]:

@@ -94,6 +94,20 @@ measures:
     grains: [facility, area, well, tag, cause]
     cuts: {cause: reason_category}
 
+  production.test_rate:
+    label: Oil rate at test
+    group: Production
+    unit: bbl/d
+    definition: >-
+      The oil rate the well tests in the window measured, on average: a well's own rate when the scope is a well, the
+      mean over its wells' tests otherwise. Compare it with the well's forecast on Wells against their own forecast.
+    formula: mean(oil_bbld) over well tests in the window
+    records: well tests and the well each tests
+    window: 30d
+    from: {kind: well_test, at: test_date, links: [tests], value: oil_bbld}
+    aggregate: mean
+    grains: [facility, area, well]
+
   # --- downtime ----------------------------------------------------------------------------------------------------------
 
   downtime.events:

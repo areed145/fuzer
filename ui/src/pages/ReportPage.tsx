@@ -9,6 +9,7 @@ import { api } from "../api";
 import { Status, href, useAction, useAsync, usePhone, useRouteState } from "../lib";
 import { AddPanelSlot, CustomLine, DefinitionView, ShareSelect, SlotTools, VersionHistory } from "../reports/editor";
 import { PANELS } from "../reports/panels";
+import { DailyReview } from "../reports/panels/NarrativePanel";
 import type {
   Panel, PanelColumn, ReportDefinition, ReportListing, ReportRow, ReportView, ScopeRef, WindowKey,
 } from "../reports/spec";
@@ -47,9 +48,6 @@ export function ReportsGallery() {
     <Status of={list} empty={list.data?.length === 0}>No reports.</Status>
     <div className="report-gallery">
       {standard.map((r) => <ReportCard key={r.key} r={r} />)}
-      <Card as="section" className="report-card" title={<a href={href("/reports", { day: "" })}>Daily reports</a>}>
-        <Text small muted>Each production day's narrative and its review</Text>
-      </Card>
     </div>
     {list.data && (mine.length > 0 || !phone) && <>
       <Heading actions={!phone && <Button size="sm" disabled={!!a.busy} onClick={start}>Start blank</Button>}>My reports</Heading>
@@ -157,6 +155,8 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
         </Field>
       </div>
       <div className="report-print-only">{shown.scope.label} · {shown.window.label}</div>
+      {/* The daily report's review goes in the header of the report that draws its narrative. */}
+      {!editor && hasNarrative(shown) && <DailyReview day={shown.window.at} onDay={setAt} />}
       {editor && <AddPanelSlot definition={editor.definition} index={0} open={editor.adding === 0} onOpen={editor.onAdding} onChange={editor.onChange} />}
       {!editor && shown.definition.rows.length === 0 && <Empty>No panels yet.</Empty>}
       {shown.definition.rows.map((row, ri) => <Fragment key={row.id}>
@@ -170,6 +170,9 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
     </>}
   </section>;
 }
+
+const hasNarrative = (v: ReportView) =>
+  v.definition.rows.some((r) => r.panels.some((p) => p.type === "narrative" || (p.type === "column" && p.panels.some((q) => q.type === "narrative"))));
 
 function panelsOf(d: ReportDefinition): Panel[] {
   return d.rows.flatMap((r) => r.panels.flatMap((p) => (p.type === "column" ? p.panels : [p])));

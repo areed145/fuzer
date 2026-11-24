@@ -1,0 +1,68 @@
+# Production and deferment: where barrels are lost and why, for the production engineer and the operations manager.
+# The plant's own analyses (wells against forecast, gas balance, injection) sit below the deferment, then each well.
+schema: 1
+key: production
+title: Production and deferment
+version: 1
+for: [production engineer, operations manager]
+scope:
+  kinds: [facility, area, well]
+window:
+  default: 30d
+  options: [7d, 30d, 90d, qtd, ytd]
+rows:
+  - id: headline
+    panels:
+      - {id: oil, type: stat, measure: production.oil}
+      - {id: target, type: stat, measure: production.target}
+      - {id: efficiency, type: stat, measure: production.efficiency}
+      - {id: deferred, type: stat, measure: production.deferred}
+  - id: against-target
+    panels:
+      - {id: oil-trend, type: trend, size: 2, title: Oil against target, measures: [production.oil, production.target]}
+      - {id: deferred-trend, type: trend, size: 2, title: Oil deferred, measures: [production.deferred]}
+  - id: commentary
+    panels:
+      - {id: summary, type: summary, size: 2}
+      - {id: notes, type: note, size: 2}
+  - id: deferment
+    panels:
+      - {id: by-cause, type: figure, size: 2, title: Oil deferred by cause, measure: production.deferred, grain: cause, chart: pareto}
+      - {id: by-well, type: figure, size: 2, title: Oil deferred by well, measure: production.deferred, grain: well, chart: bar}
+  - id: downtime
+    panels:
+      - {id: hours, type: stat, measure: downtime.hours}
+      - {id: stops, type: stat, measure: downtime.events}
+      - {id: repeats, type: stat, measure: downtime.repeat_stops}
+      - {id: uptime, type: stat, measure: production.uptime}
+  - id: stops
+    panels:
+      - {id: stops-list, type: table, size: 4, title: Top downtime events, rows: downtime.events, limit: 10}
+  - id: gas
+    panels:
+      - {id: gas, type: stat, measure: production.gas}
+      - {id: flare, type: stat, measure: production.flare}
+      - {id: injected, type: stat, measure: production.water_injected}
+      - {id: flare-trend, type: trend, size: 1, title: Gas flared, measures: [production.flare], phone: false}
+  - id: wells
+    panels:
+      - {id: wells-forecast, type: view, view: wells-forecast, size: 2}
+      - {id: well-screen, type: view, view: well-screen, size: 2}
+      - {id: allocation-factor, type: view, view: allocation-factor, size: 2}
+      - {id: intervention-gains, type: view, view: intervention-gains, size: 2}
+  - id: facilities
+    panels:
+      - {id: gas-balance, type: view, view: gas-balance, size: 2}
+      - {id: gas-lift-heading, type: view, view: gas-lift-heading, size: 2}
+      - {id: water-injection, type: view, view: water-injection, size: 2}
+      - {id: reservoir-pressure, type: view, view: reservoir-pressure, size: 2}
+      - {id: quality, type: view, view: quality, size: 2}
+      - {id: cost-of-unreliability, type: view, view: cost-of-unreliability, size: 2}
+      - {id: across-assets, type: view, view: across-assets, size: 4}
+  - id: per-well
+    repeat: {kind: well, limit: 12}
+    panels:
+      - {id: well-deferred, type: stat, measure: production.deferred}
+      - {id: well-hours, type: stat, measure: downtime.hours}
+      - {id: well-stops, type: stat, measure: downtime.events}
+      - {id: well-tests, type: stat, measure: production.test_rate}

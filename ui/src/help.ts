@@ -4,7 +4,7 @@ const DOCS = "https://areed145.github.io/fuzer/";
 const PAGE: Record<string, string> = {
   inbox: "workflow", work: "workflow", cases: "workflow", processes: "workflow", workflows: "workflow", handover: "workflow",
   exceptions: "workflow", teams: "workflow", routing: "work-routing",
-  metrics: "metrics", scorecard: "metrics", studies: "analyses", downtime: "analyses",
+  metrics: "metrics", reports: "reports", regulatory: "reports", studies: "analyses", downtime: "analyses",
   ontology: "data-model", e: "data-model", sources: "sources", settings: "settings", users: "identity", ask: "agents",
 };
 

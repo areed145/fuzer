@@ -133,7 +133,8 @@ def model(kinds: str | None = None):
     sets = [{"key": r.key, "label": r.label, "definition": r.definition, "scoped": r.scoped}
             for r in rowsets.registry(pack).values()]
     return {"kinds": asked, "types": list(reports.TYPES), "charts": list(reports.CHARTS),
-            "case_filters": list(reports.CASE_FILTERS), "measures": measures, "row_sets": sets}
+            "case_filters": list(reports.CASE_FILTERS), "measures": measures, "row_sets": sets,
+            "views": [{"key": k, "label": v} for k, v in reports.VIEWS.items()]}
 
 
 # --- custom reports ----------------------------------------------------------------------------------------------------

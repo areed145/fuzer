@@ -7,6 +7,7 @@ the Work list, so a figure on a report is the figure everywhere else.
     panel_data(conn, pack, key, panel_id, scope, window, at)  one panel's result: the envelope and its type's fields
     panel_type(name)                                          register fn(conn, pack, report, panel, scope, window)
     default_scope(conn, pack, report)                         the scope a report opens on when its link names none
+    default_at(conn, report)                                  the day its window ends on when the link names none
 
 A panel type's function gets the definition, the panel, the scope as {id, label, kind} and the resolved window
 (`core/windows.resolve`) and returns its own fields; the envelope (title, as_of, note, scoped, refs, href) is filled
@@ -28,6 +29,10 @@ SCOPES = 300
 FIGURE_ROWS = 12
 # A measure's grain and the Work list filter that shows the same rows.
 LIST_FILTER = {"queue": "queue", "type": "kind"}
+# The page a row set's table opens from its title: the list the same rows come from.
+ROWSET_PAGE = {"downtime.events": "/downtime", "downtime.open": "/downtime", "incidents": "/incidents",
+               "cases.open": "/list", "plan.lines": "/plan", "permits.open": "/browse?kind=permit",
+               "bypasses.active": "/browse?kind=bypass"}
 
 
 def panel_type(name: str):
@@ -81,10 +86,20 @@ def default_scope(conn, pack, d: dict) -> dict:
     return _scope(conn, d, None, pack=pack)
 
 
-def _window(d: dict, window: str | None, at) -> dict:
+def default_at(conn, d: dict) -> str:
+    """The day a report's window ends on when its link names none: today, or the last production day."""
+    day = metrics.cutoff_day(conn, "production_day") if d["window"].get("at") == "production_day" else None
+    return windows.resolve(d["window"]["default"], day)["at"]
+
+
+def _window(d: dict, window: str | None, at, conn=None) -> dict:
     window = window or d["window"]["default"]
     if window not in d["window"]["options"]:
         raise ReportError(f"{d['title']} reads {', '.join(d['window']['options'])}, not {window}")
+    # A report that ends on the last production day (Daily operations) reads every panel for that day, as if named.
+    if at is None and d["window"].get("at") == "production_day" and conn is not None:
+        return {**windows.resolve(window, metrics.cutoff_day(conn, "production_day")), "asked": True,
+                "ends": "production_day"}
     # `asked`: the day was named in the link; without it each measure reads its own latest day (a production day)
     return {**windows.resolve(window, at), "asked": at is not None}
 
@@ -110,7 +125,7 @@ def view(conn, pack, key: str, scope: str | None = None, window: str | None = No
 
     d = draft or definition(conn, pack, key)
     ref = _scope(conn, d, scope, pack=pack)
-    w = _window(d, window, at)
+    w = _window(d, window, at, conn)
     repeats = {}
     for r in d["rows"]:
         if rep := r.get("repeat"):
@@ -134,7 +149,7 @@ def panel_data(conn, pack, key: str, panel_id: str, scope: str | None = None, wi
     # a repeat row's panels are read for each entity it draws for, of the repeat's kind
     row = next(r for r in d["rows"] if r["id"] == panel["row"])
     ref = _scope(conn, d, scope, (row.get("repeat") or {}).get("kind"), pack)
-    w = _window(d, window, at)
+    w = _window(d, window, at, conn)
     out = {"id": panel_id, "type": panel["type"], "title": panel.get("title") or "", "scope": ref, "window": w,
            "as_of": None, "note": None, "scoped": ref["id"] is None, "refs": [], "href": None}
     fn = types().get(panel["type"])
@@ -163,8 +178,11 @@ def _note(scope: dict, m: dict) -> str | None:
     """What a figure leaves out: why it is empty, and the scope or period it is for when not the report's."""
     whole = not _scoped(scope, m)
     period = m["period"] if m.get("window") is None and m.get("period") not in (None, "now") else None
+    own = (m.get("note") or "").strip()
+    if whole and "whole register" in own.lower():  # the measure already says so: say only its period
+        own = own.replace(metrics.WHOLE, "").strip(" ;")
     said = ("Whole register" if whole else "") + (f", {period}" if whole and period else period.capitalize() if period else "")
-    return "; ".join(p for p in (m.get("note"), said) if p) or None
+    return "; ".join(p for p in (own, said) if p) or None
 
 
 def _list_href(f: dict) -> str:
@@ -247,8 +265,10 @@ def table(conn, pack, d, panel, scope, w) -> dict:
     if panel.get("rows"):
         out = import_module("fuzer.core.rowsets").read(conn, pack, panel["rows"], scope["id"], w["key"], _at(w),
                                                     panel.get("limit", 20))
-        return {"columns": out["columns"], "rows": out["rows"], "total": out["total"], "note": out.get("note"),
-                "scoped": out.get("scoped", False)}
+        return {"title": out.get("label"), "columns": out["columns"], "rows": out["rows"], "total": out["total"],
+                "note": out.get("note"), "scoped": out.get("scoped", False), "href": ROWSET_PAGE.get(panel["rows"])}
+    if panel.get("measures"):
+        return _measures_table(conn, pack, panel, scope, w)
     m, rows = _grain_rows(conn, pack, panel, scope, w)
     return {"title": f"{m['label']} by {panel['grain']}",
             "columns": [{"key": "label", "label": panel["grain"].capitalize()},
@@ -271,3 +291,52 @@ def cases(conn, pack, d, panel, scope, w) -> dict:
     return {"cases": rows, "total": out["total"], "overdue": out["facets"].get("overdue", 0), "labels": labels,
             "scoped": True, "as_of": w["at"], "href": _list_href(f),
             "refs": [f"case:{r['item_id']}" for r in rows if r.get("item_id")]}
+
+
+def _measures_table(conn, pack, panel, scope, w) -> dict:
+    """Several measures cut by one grain: a row per grain value (in the first measure's order), a column per measure."""
+    grain = panel["grain"]
+    ms = [_value(conn, pack, k, scope, w, grain=grain) for k in panel["measures"]]
+    first = ms[0]
+    cells: dict[str, dict] = {}
+    for i, m in enumerate(ms):
+        for r in m["rows"]:
+            row = cells.setdefault(r["key"], {"label": r["label"]})
+            row[f"m{i}"] = r["value"]
+    order = [r["key"] for r in sorted(first["rows"], key=lambda r: -(r["value"] or 0))]
+    order += sorted(k for k in cells if k not in order)
+    limit = panel.get("limit", FIGURE_ROWS)
+    whole = [m for m in ms if not _scoped(scope, m)]
+    notes = [n for n in dict.fromkeys((m.get("note") or "").replace(metrics.WHOLE, "")
+                                      .strip(" ;") for m in ms) if n]
+    return {"title": f"{' and '.join(m['label'] for m in ms)} by {grain}",
+            "columns": [{"key": "label", "label": grain.capitalize()},
+                        *({"key": f"m{i}", "label": m["label"], "unit": m["unit"], "align": "end"} for i, m in enumerate(ms))],
+            "rows": [{"key": k, "cells": cells[k], "href": _row_href(first["key"], grain, k, scope)} for k in order[:limit]],
+            "total": len(order), "as_of": first.get("as_of"), "scoped": not whole,
+            "note": "; ".join((["Whole register"] if whole else []) + notes) or None,
+            "refs": sorted({x for m in ms for x in m["refs"]}), "href": f"/metrics/{first['key']}?grain={grain}"}
+
+
+@panel_type("narrative")
+def narrative(conn, pack, d, panel, scope, w) -> dict:
+    """The daily report for the window's last day: its narrative, review and checks are read by the page from the
+    daily report's own routes; this says which day and where its review stands."""
+    from . import daily_report
+
+    day = w["at"]
+    listed = next((r for r in daily_report.days(conn, 400) if str(r["day"]) == day), None)
+    if listed is None:
+        return {"title": "Daily report", "day": day, "status": None, "scoped": True,
+                "note": f"No daily report for {day}: `fuzer report` closes a day.", "as_of": day}
+    return {"title": "Daily report", "day": day, "status": listed["status"], "version": listed["version"],
+            "ok": listed["ok"], "as_of": day, "scoped": True,
+            "href": f"/cases/{listed['item_id']}" if listed.get("item_id") else None}
+
+
+@panel_type("view")
+def view_panel(conn, pack, d, panel, scope, w) -> dict:
+    """One of the plant's own analyses (reports.VIEWS): the page draws it from its own read, for the whole register
+    over its own period, whatever the report's scope and window."""
+    return {"title": reports.VIEWS[panel["view"]], "view": panel["view"], "scoped": scope["id"] is None,
+            "note": None if scope["id"] is None else "Whole register, over its own period"}

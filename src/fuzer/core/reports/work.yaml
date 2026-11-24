@@ -3,7 +3,7 @@
 schema: 1
 key: work
 title: Work and dispatch
-version: 1
+version: 2
 for: [IOC lead, maintenance supervisor, field supervisor]
 scope:
   kinds: [facility, area]
@@ -40,3 +40,6 @@ rows:
   - id: field
     panels:
       - {id: in-field, type: cases, size: 4, title: In the field, filter: {stage: field, sort: due}, limit: 10}
+  - id: execution
+    panels:
+      - {id: work-execution, type: view, view: work-execution, size: 4}

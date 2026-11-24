@@ -25,6 +25,7 @@ scope:
 window:
   default: 7d
   options: [1d, 7d, 30d, 90d]     # optional; every named window when left out
+  at: day                         # optional: the day it ends on when the link names none, day (today) or production_day
 rows:
   - id: headline                  # optional; r0, r1, ... when left out
     panels:
@@ -56,10 +57,12 @@ Every panel has an `id` (unique in the report, kept across versions so notes and
 | `stat` | `measure` | The value, its target, the change against the window before and a sparkline | engine |
 | `trend` | `measures` (one or more) | The measures over the window on the one trend chart, from `trend_spec.from_measures` | engine |
 | `figure` | `measure`, `grain`, `chart` (`bar`, `pareto` or `share`), `limit` | The measure cut by one of its grains | engine |
-| `table` | `rows` (a row set) or `measure` + `grain`, `limit` | Rows, each opening its case or entity | engine |
+| `table` | `rows` (a row set), or `measure` (or `measures`, a column each) + `grain`, `limit` | Rows, each opening its case or entity | engine |
 | `cases` | `filter` (the Work list's filters: `state`, `kind`, `stage`, `holder`, `queue`, `source`, `overdue`, `q`, `sort`), `limit` | Live case rows, the same rows as Work (`ops/worklist.rows`, scoped with `within`), with a link to that list | engine |
 | `note` | `text` (fixed markdown, optional) | Written commentary for the report and period, with live values | commentary |
 | `summary` | none | The AI note for this report, scope, window and day | commentary |
+| `narrative` | none | The daily report for the window's last day: its narrative, versions and checks; Publish and Send back go in the report's header | engine |
+| `view` | `view` (one of `core/reports.VIEWS`) | One of the plant's own analyses (wells against forecast, gas balance, alarm performance...), with its own card and read, for the whole register over its own period | engine |
 
 ### Layout
 
@@ -68,10 +71,29 @@ A row wraps. On desktop (above 1100 px) a row has four columns and a panel takes
 across. The order on a phone is the definition's order, so the answer goes first. Rows size to their content; charts
 take a fixed height per width. There are no separate phone, iPad or desktop layouts to keep in step.
 
+## The standard reports
+
+Six definitions in `core/reports/`, in the gallery's order. Each answers its role's question on the first screen; the
+rest is the drill-down. Downtime, Incidents, Metrics and Regulatory stay pages of their own, opened from the panels.
+
+| Key | Report | For | Window | What it holds |
+|---|---|---|---|---|
+| `operations` | Daily operations | IOC shift lead, operations manager, field supervisor | 1d, ending on the last production day | Oil, efficiency, gas, deferred; incidents, stops, cases opened and closed; the daily narrative with its review, the AI note and notes; what is still down and waiting for dispatch; deferment by cause and the stops; the field and the overdue |
+| `production` | Production and deferment | production engineer, operations manager | 30d | Oil against target, efficiency, deferred by cause and by well, downtime, gas and flare, the plant's well and facility analyses, then each well (deferred, downtime, oil rate at test) |
+| `work` | Work and dispatch | IOC lead, maintenance supervisor, field supervisor | 7d | Arrivals, closed, backlog, steps late; dispatch and overdue cases; by queue and type; the field; schedule compliance and repeat repairs |
+| `safety` | Safety and integrity | HSE, operations manager, IOC | 30d | Incidents, days since, safeguards bypassed and their age, permits, demands, inspections overdue, leaks; incidents by severity and area; the bypass and permit lists; alarm performance and leak surveys |
+| `plan` | Plan against actual | planner, operations manager | qtd | Planned against actual hours and cost, unplanned share, schedule compliance; the same by program (a table, since a program is a plan container, not an entity) and by line; backlog burn and the accounts |
+| `data` | Data health | data steward | 7d | Source completeness, timeliness, agreement and validity, loads held, records decided without a steward, asset context; the same by dataset and system; the cases waiting on a steward |
+
+Daily operations takes the daily report's place: `#/reports?day=<day>` opens it at that day, and its review moved
+into its header. `#/reports?report=<template:period>` opens the regulatory report on `#/regulatory`. Scorecard's
+analyses are `view` panels on the report they belong to, and `#/scorecard` opens Production and deferment.
+
 ### Scope and window
 
 The scope is an entity from the register; every measure and row set answers for it and rolls up what is beneath it.
-The window is named: `1d`, `7d`, `30d`, `90d`, `qtd`, `ytd`, ending on `at` (a day, today when left out). Both live in
+The window is named: `1d`, `7d`, `30d`, `90d`, `qtd`, `ytd`, ending on `at` (a day; when left out, today, or the last
+production day for a report whose window says `at: production_day`). Both live in
 the URL, so a link opens what the sender saw: `#/reports/work?scope=fz-...&window=30d&at=2026-11-23`.
 
 `core/windows.resolve(window, at)` turns a name and a day into dates, the one place that does:

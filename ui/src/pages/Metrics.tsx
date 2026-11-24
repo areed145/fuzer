@@ -25,8 +25,7 @@ function MetricList() {
   for (const m of list.data ?? []) groups.set(m.group, [...(groups.get(m.group) ?? []), m]);
   return (
     <section>
-      <PageHeader
-        actions={<a href={href("/scorecard")}>How the plant is running</a>}>Metrics</PageHeader>
+      <PageHeader>Metrics</PageHeader>
       <Status of={list} />
       {list.data && !list.data.length && <Empty>No metrics are registered.</Empty>}
       {[...groups].map(([group, ms]) => (

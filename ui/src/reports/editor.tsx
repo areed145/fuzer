@@ -15,6 +15,7 @@ import type {
 
 export const TYPE_WORDS: Record<PanelType, string> = {
   stat: "Number", trend: "Trend", figure: "Breakdown", table: "Table", cases: "Cases", note: "Note", summary: "AI note",
+  narrative: "Daily report", view: "Analysis view",
 };
 const SIZE_WORDS: Record<PanelSize, string> = { 1: "Quarter", 2: "Half", 3: "Three quarters", 4: "Full width" };
 const DEFAULT_SIZE: Partial<Record<PanelType, PanelSize>> = { stat: 1, table: 4, cases: 4 };
@@ -73,7 +74,8 @@ export function AddPanel({ definition, onAdd, onCancel }: {
   const [more, setMore] = useState(["", ""]);
   const [grain, setGrain] = useState("");
   const [chart, setChart] = useState<FigurePanel["chart"]>("bar");
-  const [list, setList] = useState("");  // a row set's key, or "" for a measure by grain
+  const [list, setList] = useState("");
+  const [view, setView] = useState("");  // a row set's key, or "" for a measure by grain
   const [filter, setFilter] = useState<CasesFilter>({ state: "open", sort: "due" });
   const [text, setText] = useState("");
   const [title, setTitle] = useState("");
@@ -84,7 +86,7 @@ export function AddPanel({ definition, onAdd, onCancel }: {
   const byGrain = type === "figure" || (type === "table" && !list);
   const ready = type === "stat" || type === "trend" ? !!measure
     : byGrain ? !!measure && grains.includes(grain)
-      : true;
+      : type === "view" ? !!view : true;
 
   const build = (): Panel => {
     const base = { size: (size || DEFAULT_SIZE[type] || 2) as PanelSize, ...(title.trim() ? { title: title.trim() } : {}) };
@@ -95,6 +97,8 @@ export function AddPanel({ definition, onAdd, onCancel }: {
       case "figure": return { ...base, id: id(`${measure}-${grain}`), type, measure, grain, chart };
       case "table": return list ? { ...base, id: id(list), type, rows: list } : { ...base, id: id(`${measure}-${grain}`), type, measure, grain };
       case "cases": return { ...base, id: id("cases"), type, filter: Object.fromEntries(Object.entries(filter).filter(([, v]) => v !== "" && v !== undefined && v !== false)) as CasesFilter, limit: 10 };
+      case "view": return { ...base, id: id(view), type, view };
+      case "narrative": return { ...base, id: id("narrative"), type };
       case "note": return { ...base, id: id("note"), type, ...(text.trim() ? { text: text.trim() } : {}) };
       default: return { ...base, id: id("summary"), type: "summary" };
     }
@@ -154,6 +158,12 @@ export function AddPanel({ definition, onAdd, onCancel }: {
         </Field>
         <Checkbox checked={!!filter.overdue} onChange={(v) => setFilter({ ...filter, overdue: v || undefined })}>Overdue only</Checkbox>
       </>}
+      {type === "view" && <Field label="View">
+        <Select value={view} onChange={(e) => setView(e.target.value)} aria-label="View">
+          <option value="">Pick a view</option>
+          {m.views.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
+        </Select>
+      </Field>}
       {type === "note" && <Field label="Fixed text" width="full">
         <Textarea rows={2} width="full" value={text} onChange={(e) => setText(e.target.value)}
           placeholder="Leave empty for people's notes. {work.backlog} shows a live value." />
