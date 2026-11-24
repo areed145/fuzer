@@ -887,3 +887,19 @@ create table if not exists work_plan_match (
     matched_by   text not null,
     matched_at   timestamptz not null default now()
 );
+
+-- Human notes on a report (docs/reports.md, the `note` panel): markdown with live measure values, pinned to one
+-- report, scope and period (the named window `span` ending `at`), kept with author and time; removed ones are kept.
+create table if not exists report_note (
+    id          bigserial primary key,
+    report_key  text not null,
+    scope       text not null default '',                -- the entity the report was scoped to ('' for its default)
+    span        text not null,                           -- the named window: 1d 7d 30d 90d qtd ytd
+    at          date not null,                           -- the day the window ends
+    body        text not null,
+    by_user     text not null,
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz,
+    deleted_at  timestamptz
+);
+create index if not exists report_note_period on report_note (report_key, scope, at);

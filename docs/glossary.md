@@ -12,6 +12,11 @@ a desk, On the plan, With the field, Back from the field, Closed) is decided onc
 named set of these filters (Waiting on me, To dispatch, Data questions); presets are added once they prove useful,
 and a role can save its own. See [where work goes](work-map.md).
 
+**AI note.** What a report's panels show for one scope, window and day, in a headline and a few points, written by
+Claude from those panels only and kept for everyone (the `summary` panel). Each point cites what it rests on; the daily
+report's checks flag a number or a citation that is not on the page. Not "insight" or "AI summary". See
+[reports](reports.md).
+
 **Asset pack.** Asset-specific tag grammar, entity kinds, limits, source priorities and match thresholds that seed
 the source catalog's rules. Okan is the main demo; Kestrel Ridge (a gas plant) and Harrier (a pipeline and
 terminal) have their own. See [overview](overview.md).
@@ -118,6 +123,9 @@ versions in the source catalog (the latest approved one is in use); the files in
 
 **Need.** Why work should happen: a condition seen, an obligation falling due, or an intent to change something. A
 need opens a case or joins an open one. In code; on screen it is shown by its type (a notification, a due date).
+
+**Note.** What a person writes on a report, pinned to its scope and period, kept with who wrote it and when (the `note`
+panel). A note may carry live values, `{production.oil}`, that read the measure for the note's own period.
 
 **Ops IQ.** The operations agent: it answers a question from the register, the work and the readings, citing what
 it used. Its mark is a spark on a teal-to-violet tile, beside search on every page and on its row in app search; its page

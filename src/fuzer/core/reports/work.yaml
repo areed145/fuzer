@@ -17,6 +17,10 @@ rows:
       - {id: closed, type: stat, measure: work.closed}
       - {id: backlog, type: stat, measure: work.backlog}
       - {id: late, type: stat, measure: work.sla_misses}
+  - id: commentary
+    panels:
+      - {id: summary, type: summary, size: 2}
+      - {id: notes, type: note, size: 2}
   - id: flow
     panels:
       - {id: flow, type: trend, size: 2, title: Opened and closed, measures: [work.arrivals, work.closed]}

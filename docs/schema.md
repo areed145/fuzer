@@ -2283,6 +2283,23 @@ The business plan (step 9 of docs/work-model.md): intent lines with estimates un
 | `matched_by` | text |  |
 | `matched_at` | timestamptz |  |
 
+### `report_note`
+
+Human notes on a report (docs/reports.md, the `note` panel): markdown with live measure values, pinned to one report, scope and period (the named window `span` ending `at`), kept with author and time; removed ones are kept.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `report_key` | text |  |
+| `scope` | text | the entity the report was scoped to ('' for its default) |
+| `span` | text | the named window: 1d 7d 30d 90d qtd ytd |
+| `at` | date | the day the window ends |
+| `body` | text |  |
+| `by_user` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+| `deleted_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)
@@ -2409,6 +2426,24 @@ An entity page's summary (Explore): what matters about an entity and everything 
 | `headline` | text |  |
 | `points` | jsonb |  |
 | `facts` | jsonb |  |
+| `usage` | jsonb |  |
+| `by_user` | text |  |
+| `created_at` | timestamptz |  |
+
+### `report_summary`
+
+A report's AI note (docs/reports.md, the `summary` panel): what one report's panels show for one scope, window and day, written by the summary specialist from those panel results (kept with it as its facts, with the checks run on it), shared with everyone who opens that report. One per period; a rewrite adds a newer row.
+
+| Column | Type | Note |
+|---|---|---|
+| `report_key` | text |  |
+| `scope` | text |  |
+| `span` | text |  |
+| `at` | date |  |
+| `headline` | text |  |
+| `points` | jsonb |  |
+| `facts` | jsonb |  |
+| `checks` | jsonb |  |
 | `usage` | jsonb |  |
 | `by_user` | text |  |
 | `created_at` | timestamptz |  |
