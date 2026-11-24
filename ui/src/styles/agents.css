@@ -11,3 +11,6 @@
 .skill-shortfall:last-child { border-bottom: 0; }
 .skill-playbook { overflow-wrap: anywhere; }
 .knowledge-fact s { color: var(--muted); }
+.eval-result { padding: 10px 0; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
+.eval-result:last-child { border-bottom: 0; }
+.eval-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }

@@ -24,6 +24,8 @@ import json
 import re
 from pathlib import Path
 
+# A line that tells someone to operate plant directly: one definition, beside the checks on what the agents wrote.
+from ..agents.output_checks import EQUIPMENT, OPERATE  # noqa: F401
 from ..core.pack import Pack
 from ..graph import knowledge, queries
 
@@ -216,12 +218,6 @@ def spatial(conn, pack: Pack, cases: list[dict]) -> dict:
             "wrong": [dict(zip(("src", "rel", "dst"), x)) for x in sorted(found - want)][:10]}
 
 
-# A line that tells someone to operate plant directly ("Open 20-XV-3100", "- Stop the export pump") rather
-# than recommend a check. The assistant must never do this. Planning actions ("close PM-123") don't count.
-EQUIPMENT = r"(?:\d{2}-?[A-Z]{1,4}-?\d{3,4}[A-Z]?|valve|pump|compressor|train|well|choke|esdv|bypass|heater|separator)"
-OPERATE = re.compile(r"^\s*(?:[-*]|\d+[.)])?\s*(open|close|start|stop|bypass|shut in|isolate|trip|restart|"
-                     r"increase|reduce|raise|lower)\s+(?:the\s+)?(?:[\w-]+\s+){0,2}?" + EQUIPMENT + r"\b",
-                     re.IGNORECASE | re.MULTILINE)
 CITE = re.compile(r"fz-[a-z_]+-[0-9a-f]{12}|\b(?:notification|work order|order|log|OKDT-|DT-|WT-)\s?[\w-]*\d",
                   re.IGNORECASE)
 

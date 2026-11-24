@@ -565,27 +565,31 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents)
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes** ([schema](schema.md)):
+    - `ai_eval_run`
     - `assistant_answer`
     - `assistant_conversation`
     - `assistant_fact`
     - `assistant_image`
     - `assistant_message`
     - `entity_summary`
+    - `eval_question`
     - `lesson`
     - `report_summary`
     - `skill_version`
     - `work_event`
     - `work_token`
 - **Owns** (its `schema.sql`):
+    - `ai_eval_run`
     - `assistant_answer`
     - `assistant_conversation`
     - `assistant_fact`
     - `assistant_image`
     - `assistant_message`
     - `entity_summary`
+    - `eval_question`
     - `report_summary`
     - `skill_version`
-- **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.memory_review`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `agents.summary_hours`, `agents.summary_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
+- **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.memory_review`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `agents.summary_hours`, `agents.summary_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `evals.grade_model`, `work.lease_seconds` ([settings](settings.md))
 - **Tools:** asset-performance-reporting 51, field-operations-facilities 98, hse-incident-management 52, maintenance-integrity 89, orchestrator 27, production-surveillance 81, wells-subsurface 74, work-management-supply-chain 43 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
@@ -622,6 +626,7 @@ The HTTP API the app uses. More in [deployment](deployment.md).
 - **Writes** ([schema](schema.md)):
     - `access_login`
     - `access_session`
+    - `ai_eval_run`
     - `feedback`
     - `pinned_link`
     - `value_ranking`

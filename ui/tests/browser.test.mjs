@@ -9707,3 +9707,54 @@ test("Knowledge holds each learned fact for a person, with what it would end, be
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
 });
+
+test("Evals shows each skill and kind of output with its latest checks and grade, a run's results, and the questions an engineer keeps (Ops IQ)", async () => {
+  const paused = { available: false, why: "AI is paused: this month's model spend ($50.00) has reached its budget of $50.00." };
+  const run = (over = {}) => ({ id: 5, origin: "run", subject: "outputs:daily_report", status: "done", by: "olga", at: "2026-11-24T08:00:00+00:00",
+    finished_at: "2026-11-24T08:00:01+00:00", scores: { score: 0.5, items: 2, passed: 1, operating_instructions: 1 }, score: 0.5,
+    grade_status: "waiting", grade: null, grade_why: paused.why, error: null, cost_usd: 0, ...over });
+  const question = { key: "shipped:0", origin: "shipped", shipped: "Why is K-1 surging?", question: "Why is K-1 surging?",
+    must_mention: ["strainer", ["suction", "inlet"]], specialists: ["maintenance-integrity"], charts: [], status: "active",
+    edited: false, by: null, at: null, note: null };
+  const sent = [];
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: {
+    id: "u1", actor: "user:u1", display_name: "Olga", enabled: true, owner: false, permissions: ["read", "operate"], roles: ["engineer"] } } }));
+  await page.route("**/evals", (route) => route.fulfill({ json: { ai: paused, subjects: [
+    { subject: "outputs:daily_report", label: "Daily reports", kind: "outputs", group: "What the agents wrote", questions: null,
+      latest: run(), trend: [0.4, 0.5] },
+    { subject: "skill:maintenance-integrity/compression", label: "Compression", kind: "skill", group: "Maintenance & Integrity",
+      questions: 1, latest: null, trend: [] }] } }));
+  await page.route("**/evals/subject?*", (route) => {
+    const subject = new URL(route.request().url()).searchParams.get("subject");
+    return route.fulfill({ json: subject.startsWith("skill:")
+      ? { subject, label: "Compression", kind: "skill", runs: [], questions: [question], ai: paused }
+      : { subject, label: "Daily reports", kind: "outputs", runs: [run()], questions: null, ai: paused } });
+  });
+  await page.route("**/evals/runs/5", (route) => route.fulfill({ json: { ...run(), label: "Daily reports", results: [
+    { ref: "2026-11-23", label: "2026-11-23 v1 (agent)", href: "#/reports?day=2026-11-23", text: "- Open 20-XV-3100 now",
+      checks: { ok: false, uncited_lines: [], unknown_numbers: [], operating_instructions: ["- Open 20-XV-3100"] }, grade: null }] } }));
+  await page.route("**/evals/questions", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: question }); });
+  await page.goto(`${url}/#/evals`);
+  await page.getByText("AI is paused", { exact: false }).waitFor();
+  await page.getByRole("link", { name: "Daily reports" }).click();
+  await page.getByRole("button", { name: "Run now" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Run now" }).isDisabled(), false);  // the checks ask no model
+  await page.getByRole("link", { name: /8:00|Nov/ }).first().click();
+  await page.getByText("Tells someone to operate the plant: - Open 20-XV-3100").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Grade now" }).isDisabled(), true);  // no AI access
+  await page.goto(`${url}/#/evals?subject=skill%3Amaintenance-integrity%2Fcompression`);
+  assert.equal(await page.getByRole("button", { name: "Run now" }).isDisabled(), true);
+  await page.getByRole("link", { name: "Questions (1)" }).click();
+  await page.getByText("strainer; suction or inlet").waitFor();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Must name").fill("strainer\nsuction | inlet\ndifferential pressure");
+  await page.getByRole("button", { name: "Save" }).click();
+  for (let i = 0; i < 50 && !sent.length; i++) await page.waitForTimeout(20);
+  assert.deepEqual(sent[0].must_mention, ["strainer", ["suction", "inlet"], "differential pressure"]);
+  assert.equal(sent[0].key, "shipped:0");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/evals`);
+  await page.getByRole("link", { name: "Compression" }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.deepEqual(errors, []);
+});

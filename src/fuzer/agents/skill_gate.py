@@ -16,7 +16,7 @@ evaluation saying it was not evaluated. Every question costs a model call per ve
 assistant with the skill loaded at that playbook (skill_versions.trying).
 """
 
-from . import packs, skill_versions
+from . import skill_versions
 
 
 class Unavailable(RuntimeError):
@@ -43,22 +43,16 @@ def _ask(question: str, skill: str, playbook: str) -> dict:
 
 
 _ASK = _ask
+ANSWER_KEPT = 6000  # characters of each answer kept with a run, for people and the grader to read
 
 
 def questions(conn, skill: str, version: int) -> list[dict]:
-    from ..core.pack import resolve
+    from . import eval_questions
 
     versions = skill_versions.history(conn, skill)
     if not any(v["version"] == version for v in versions):
         raise ValueError(f"{skill} has no version {version}")
-    keys = []
-    if skill in packs.shipped():
-        try:
-            bundle = resolve(conn).name
-        except Exception:  # a database with no project: no bundle, so none of the pack's answer keys apply
-            conn.rollback()
-            bundle = None
-        keys = list((packs.load(skill).get("questions") or {}).get(bundle) or [])
+    keys = eval_questions.active(conn, skill)  # the pack's answer keys as people keep them, and the ones they added
     # a question drawn from a case stays in the eval once its version went live, so a later draft cannot lose it
     for v in sorted(versions, key=lambda v: v["version"]):
         if v["version"] == version or v.get("published_at"):
@@ -77,7 +71,8 @@ def score_answer(q: dict, out: dict) -> dict:
     missing = [m for m in must if not _mentions(text, m)]
     return {"question": q["question"], "mentions": round(1 - len(missing) / len(must), 2) if must else None,
             "missing": missing, "routed": set(q.get("specialists") or []) <= set(out.get("specialists") or []),
-            "cost_usd": (out.get("usage") or {}).get("cost_usd") or 0}
+            "specialists": list(out.get("specialists") or []), "must_mention": must,
+            "cost_usd": (out.get("usage") or {}).get("cost_usd") or 0, "answer": text[:ANSWER_KEPT]}
 
 
 def _score(qs: list[dict], skill: str, playbook: str, answer) -> dict:

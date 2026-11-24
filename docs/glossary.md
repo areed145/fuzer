@@ -87,6 +87,10 @@ everything beneath it. The chain the other way is where it sits.
 
 **Equipment.** The physical item installed at a tag, known by its serial number. Pumps get swapped; tags stay.
 
+**Eval.** How well a skill answers its eval questions (the facts a good answer must name, the right specialist) or
+how sound what the agents wrote is against its facts, run on Ops IQ, Evals and kept with its history. Its **grade** is
+a model's reading of each result from 1 to 5, which waits while no model may be called.
+
 **Exception.** Anything that should be worked, raised the same way by every source: one per open condition, with
 its evidence and references to the assets it is about. An exception opens a case or joins one.
 See [how work is routed](work-routing.md).

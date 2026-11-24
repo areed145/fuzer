@@ -199,6 +199,10 @@ def test_operator_audit_actor_is_server_bound_and_sort_by_is_not_rewritten(runti
     assert runtime.post("/work/skills/publish", json={"skill": "maintenance-integrity/compression", "version": 1,
                                                       "by": "system"}).status_code == 403
     assert runtime.get("/work/skills").status_code == 200  # reading the skills calls no model
+    # running a skill's eval or grading a run asks a model; reading the evals and the checks on outputs do not
+    assert runtime.post("/evals/skills/run", json={"skill": "maintenance-integrity/compression"}).status_code == 403
+    assert runtime.post("/evals/runs/1/grade").status_code == 403
+    assert runtime.get("/evals").status_code == 200
     runtime.headers["Origin"] = "https://not-fuzer.example"
     assert runtime.post("/board/pins", json={"key": "access-test"}).status_code == 403
     runtime.headers.pop("Origin")

@@ -136,3 +136,42 @@ create table if not exists report_summary (
     created_at  timestamptz not null default now()
 );
 create index if not exists report_summary_latest on report_summary (report_key, scope, span, at, created_at desc);
+
+-- The eval questions people keep for a skill (Ops IQ, Evals): one they added, or a shipped answer key (the bundle's
+-- evals/<pack eval>.yaml) they edited or retired, named by its shipped question. The eval gate and a skill's eval run
+-- ask the active ones, beside the shipped keys nobody changed and the questions drawn from cases.
+create table if not exists eval_question (
+    id           bigserial primary key,
+    skill        text not null,
+    shipped      text,                               -- the shipped question this one overrides; null when added
+    question     text not null,
+    must_mention jsonb not null default '[]',        -- a list entry is met by any one of its terms
+    specialists  jsonb not null default '[]',
+    status       text not null default 'active' check (status in ('active', 'retired')),
+    note         text,
+    created_by   text not null,
+    created_at   timestamptz not null default now(),
+    updated_by   text,
+    updated_at   timestamptz not null default now()
+);
+create unique index if not exists eval_question_shipped on eval_question (skill, shipped) where shipped is not null;
+
+-- An AI eval run (Ops IQ, Evals): a skill's questions asked of its live version, or the checks on the entity summaries,
+-- report notes or daily reports Fuzer kept. `scores` and each result's checks need no model; `grade` is the model's
+-- reading of the same results, graded when a model may be called, else waiting with why.
+create table if not exists ai_eval_run (
+    id           bigserial primary key,
+    subject      text not null,                      -- skill:<path>, or outputs:entity_summary|report_summary|daily_report
+    status       text not null default 'running' check (status in ('running', 'done', 'failed')),
+    scores       jsonb not null default '{}',
+    results      jsonb not null default '[]',
+    grade_status text not null default 'waiting' check (grade_status in ('waiting', 'grading', 'graded', 'failed')),
+    grade        jsonb not null default '{}',
+    grade_why    text,
+    error        text,
+    cost_usd     numeric not null default 0,
+    by_user      text not null,
+    started_at   timestamptz not null default now(),
+    finished_at  timestamptz
+);
+create index if not exists ai_eval_run_subject on ai_eval_run (subject, started_at desc);

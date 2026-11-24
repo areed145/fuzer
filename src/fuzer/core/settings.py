@@ -136,6 +136,8 @@ register(
     Setting("agents.skill_drafts", "bool", False, "Have a skill's specialist draft a change to its playbook once it "
             "has fallen short twice since its live version, as work for the skill's owner, when the agent worker has "
             "nothing else to do", "Agents"),
+    Setting("evals.grade_model", "str", "", "Model that grades an eval run on Ops IQ, Evals (empty: the summary model)",
+            "Agents"),
     Setting("agents.memory_review", "bool", True, "Hold each fact the assistant learns from a conversation for a person "
             "to approve on Ops IQ, Knowledge before it is recalled in later answers", "Agents"),
     Setting("agents.brief_cap_usd", "float", 0.5, "What one agent brief on a case may cost (USD); a brief that costs more "

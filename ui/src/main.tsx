@@ -22,6 +22,7 @@ import { IncidentsPage } from "./pages/Incidents";
 import { LessonsPage } from "./pages/Lessons";
 import { SkillsPage } from "./pages/Skills";
 import { KnowledgePage } from "./pages/Knowledge";
+import { EvalsPage } from "./pages/Evals";
 import { Search } from "./pages/Search";
 import { InboxPage } from "./pages/workflows/Inbox";
 import { WorkListPage } from "./pages/WorkList";
@@ -240,6 +241,8 @@ function App() {
             <SkillsPage query={query} />
           ) : section === "knowledge" ? (
             <KnowledgePage query={query} />
+          ) : section === "evals" ? (
+            <EvalsPage query={query} />
           ) : section === "lessons" ? (
             <LessonsPage query={query} />
           ) : section === "inbox" && path[1] === "task" && path[2] ? (
