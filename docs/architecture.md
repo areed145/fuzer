@@ -213,7 +213,7 @@ flowchart TD
 
 | Job | When (cron) | What it does |
 |---|---|---|
-| `refresh_logs` | `0 * * * *` | Load the operator logs and rebuild. |
+| `refresh_logs` | `0 * * * *` | Load the operator logs and live records, and rebuild. |
 | `refresh_all` | `0 2 * * *` | Load every export and rebuild. |
 | `claude_reading` | `0 3 * * *` | Claude reads new log entries and drawings (costs money). |
 | `work_tick` | `*/5 * * * *` | Work engine timers and SLAs: re-checks that are due, reminders and escalations. |
