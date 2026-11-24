@@ -173,9 +173,19 @@ def idle_skill_draft(conn, ask=None) -> dict | None:
 def run(connect: Callable, agents: dict[str, Agent], worker: str | None = None, poll: float = 5.0,
         stop: Callable[[], bool] = lambda: False, ask=None) -> None:
     """Keep running agent steps; with none, write a pending case brief, then a skill draft; sleep `poll` seconds when there is neither."""
+    from ..core import usage
+
     worker = worker or default_worker()
+    said = False
     with connect() as conn:
         while not stop():
+            if usage.over_budget():  # the month's AI budget is spent: steps wait, and resume once it is raised
+                if not said:
+                    log.warning("The month's AI budget is spent: agent steps wait until it is raised or the month ends")
+                    said = True
+                time.sleep(max(poll, 60))
+                continue
+            said = False
             if run_once(conn, agents, worker) is None and idle_brief(conn, ask) is None \
                     and idle_skill_draft(conn, ask) is None:
                 time.sleep(poll)

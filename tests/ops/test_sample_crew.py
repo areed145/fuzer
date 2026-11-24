@@ -142,7 +142,7 @@ def test_desks_take_work_and_close_it_and_a_real_persons_work_is_theirs(crewed):
     closers = {e["actor"] for e in crewed.execute(
         "select actor from work_event where kind in ('state_changed', 'closed', 'completed') and item_id = any(%s)",
         ([rows[r["id"]]["item_id"] for r in others],))}
-    assert closers & {"casey"} and not closers & {"sam", "alex"}
+    assert closers & {"casey"} and not closers & set(sample_crew.FIELD)
 
 
 def test_most_rounds_are_walked_through_the_shift(crewed):
@@ -193,3 +193,53 @@ def test_desk_work_with_no_queue_goes_to_the_engineers_not_the_field(crewed):
             assert not (row["evidence"] or {}).get("field")
     finally:
         TYPES.pop("crew_desk_only", None)
+
+
+
+def test_what_the_field_found_does_not_wait_behind_the_leads_long_cases(crewed, monkeypatch):
+    """On the live demo the lead held five long cases, so every field report was "queued behind the work in hand" and
+    152 piled up (live demo, 24 Nov). What the field found (QUICK) is read and closed as it comes in, whatever the lead holds."""
+    exception_type("crew_lead_long", "Crew test: lead long case", role="role:ops_lead", audience=("ioc",))
+    exception_type("crew_lead_quick", "Crew test: lead quick read", role="role:ops_lead", audience=("ioc",))
+    monkeypatch.setattr(sample_crew, "QUICK", (*sample_crew.QUICK, "crew_lead_quick"))
+    monkeypatch.setattr(sample_crew, "LEFT", 0.0)
+    monkeypatch.setattr(sample_crew, "_desk_hours", lambda i, t=None: 2.0 if t == "crew_lead_quick" else 500.0)
+    try:
+        sample_crew.staff(crewed)
+        for i in range(12):  # more long cases on the lead's desk than any desk size
+            r = raise_exception(crewed, "crew_lead_long", f"crew-long-{i}", f"Crew test long {i}", "detector:test")
+            exceptions.dispatch(crewed, r["id"], "riley", "riley", "mine")
+        quick = [raise_exception(crewed, "crew_lead_quick", f"crew-quick-{i}", f"Crew test quick {i}",
+                                 "detector:test") for i in range(6)]
+        crewed.commit()
+        _run_for(crewed, 12, step_minutes=30)
+        rows = {r["id"]: r for r in exceptions.listing(crewed, state=None, type="crew_lead_quick", limit=100)}
+        assert all(rows[r["id"]]["state"] == "closed" for r in quick), [rows[r["id"]]["state"] for r in quick]
+    finally:
+        TYPES.pop("crew_lead_long", None)
+        TYPES.pop("crew_lead_quick", None)
+
+
+def test_the_crew_keeps_up_with_what_the_field_reports(crewed):
+    """At the old desk sizes the field's own reports came in at 16 a day and closed at under 2 (live demo, 24 Nov): open work only
+    grew. Over three days of ticks most of what the field reports is worked to closed, not left to pile up."""
+    exception_type("crew_lead_backlog", "Crew test: lead backlog", role="role:ops_lead", audience=("ioc",))
+    try:
+        backlog = [raise_exception(crewed, "crew_lead_backlog", f"crew-backlog-{i}", f"Crew test backlog {i}",
+                                   "detector:test") for i in range(30)]  # the lead's long cases, weeks in
+        sample_crew.staff(crewed)
+        for r in backlog[:6]:  # and a hand full of them on the lead's desk already
+            exceptions.dispatch(crewed, r["id"], "riley", "riley", "mine")
+        for i in range(12):
+            raise_exception(crewed, FIELD_TYPE, f"crew-keepup-{i}", f"Crew test keep up {i}", "detector:test")
+        crewed.commit()
+        start = _now(crewed)
+        _run_for(crewed, 72, step_minutes=30, start=start)
+    finally:
+        TYPES.pop("crew_lead_backlog", None)
+    rows = crewed.execute(
+        "select state from exception_record where type = %s and first_seen >= %s - interval '1 hour' "
+        "and first_seen < %s + interval '48 hours'", (sample_crew.FIELD_REPORT, start, start)).fetchall()
+    assert len(rows) >= 2 * sample_crew.REPORTS_PER_SHIFT, len(rows)
+    closed = sum(r["state"] == "closed" for r in rows)
+    assert closed >= 0.8 * len(rows), (closed, len(rows))

@@ -8,9 +8,10 @@ domain operations, as people would, every work tick:
     the desks                 riley (ops lead and engineer, HSE in a pinch), jordan (production engineer), pat
                               (maintenance planner) and casey (data steward) take work from their queues a few at a
                               time and close it after hours to days; what waits gets a realistic due date at triage
-    the field (sam, alex)     one job each at a time: on site after the drive out, then done or could not do with a
+    the field (sam, alex,     one job each at a time: on site after the drive out, then done or could not do with a
+    kai, morgan)
                               note; between jobs they take from the operator queue, and they walk this shift's rounds
-    field reports              a few times a shift sam or alex reports something they noticed on their way round (a
+    field reports              a few times a shift an operator reports something they noticed on their way round (a
                               weeping flange, an odd noise), raised as a `field_report` (labelled "sample crew"), so
                               new field work keeps arriving after the starting backlog is worked off: the demo's own
                               data is historical and raises little that is new (#1085 rolls it forward)
@@ -33,22 +34,27 @@ log = logging.getLogger(__name__)
 
 LEAD = "riley"
 LEAD_ROLE = "ops_lead"
-FIELD = ("sam", "alex")
+FIELD = ("sam", "alex", "kai", "morgan")
 # The shipped sample team (ui SAMPLE_TEAM, offered on a fresh local demo) and alex, a second field operator: the
 # roster template staffs two operator seats.
 CREW = {
     "riley": ["ops_lead", "engineer"],
     "sam": ["operator"],
     "alex": ["operator"],
+    "kai": ["operator"],
+    "morgan": ["operator"],
     "pat": ["maintenance_planner"],
     "jordan": ["production_engineer"],
     "casey": ["data_steward"],
 }
 DESK = {"ops_lead": "riley", "engineer": "riley", "hse_specialist": "riley", "production_engineer": "jordan",
         "maintenance_planner": "pat", "data_steward": "casey"}
-WIP = {"data_steward": 8}  # cases a desk person works at once: stewards work their questions in batches
+# Cases a desk person works at once: stewards work their questions in batches, the lead and the planner carry a
+# shift's worth. Sized so the queue holds level against what arrives (live demo, 24 Nov: at 4 each, okan's open work grew from 162
+# to 441 in ten days and the field's own reports were closed at a tenth of the rate they came in).
+WIP = {"data_steward": 8, "ops_lead": 10, "engineer": 10, "maintenance_planner": 10}
 WIP_DEFAULT = 4
-QUEUED = 3  # field jobs waiting in the operator queue before the lead holds the next back
+QUEUED = 6  # field jobs waiting in the operator queue before the lead holds the next back
 PER_TICK = 4  # of each kind of step the crew takes in one tick, so a cold start fills the board over the first hour
 
 LEFT = 0.10  # share of work nobody takes for days (genuinely overdue, or there for a visitor to take)
@@ -272,7 +278,7 @@ def work_queue(t: _Tick) -> None:
     queued = sum(1 for r in rows if r["item_id"] and r["role"] == "operator" and not r["assignee"])
     wip = {p: 0 for p in DESK.values()}
     for r in rows:
-        if r["assignee"] in wip and r["role"] != "operator":
+        if r["assignee"] in wip and r["role"] != "operator" and r["type"] not in QUICK:
             wip[r["assignee"]] += 1
     room = {p: max(WIP.get(q, WIP_DEFAULT) for q, d in DESK.items() if d == p) for p in wip}
     crew = set(CREW)
@@ -336,9 +342,9 @@ def work_queue(t: _Tick) -> None:
                 continue
             if last["status"] == "done":  # the lead closes it out, saying what it was (#1115)
                 t.act("close out", close_out, conn, r["item_id"], last.get("note") or "")
-            elif _visits(r) < 2:
+            elif _visits(r) < 2 and waited < timedelta(hours=24):
                 send_out(r, "redispatch", f"Try again when you can: {last.get('note') or 'could not do'}")
-            else:  # twice could not: it needs planning, not another visit
+            else:  # twice could not, or nobody free to go again within a day: it needs planning, not another visit
                 t.act("close", work.close_case, conn, r["item_id"], "done", LEAD,
                       reason=f"Handed to maintenance planning after two visits: {last.get('note') or 'could not do'}")
             continue
@@ -372,9 +378,9 @@ def work_queue(t: _Tick) -> None:
             share = 0.5 if r["type"] == FIELD_REPORT else FIELD_SHARE[field]  # some reports are for planning
             if r["role"] != "data_steward" and _u(r["id"], "field") < share:
                 send_out(r, "dispatch")
-            elif desk and wip[desk] < room[desk]:
+            elif desk and (r["type"] in QUICK or wip[desk] < room[desk]):
                 if t.act("take", work.take, conn, r["item_id"], desk):
-                    wip[desk] += 1
+                    wip[desk] += r["type"] not in QUICK
                     hours = _desk_hours(r["id"], r["type"])
                     if (due := dues.get(r["item_id"])) is not None and due < now + timedelta(hours=hours):
                         # taken late: the desk says when it will be done
@@ -391,10 +397,11 @@ def work_queue(t: _Tick) -> None:
             if waited >= timedelta(hours=hours):
                 if t.act("close", work.close_case, conn, r["item_id"], "done", r["assignee"],
                          reason=_pick(DESK_NOTES.get(r["role"]) or DESK_NOTES[None], r["id"], "desk-note")):
-                    wip[r["assignee"]] -= 1
+                    wip[r["assignee"]] -= r["type"] not in QUICK
 
 
 QUICK = ("field_report", "round_finding")  # what the field found: a desk plans or closes it within the shift
+PLANNED_DESK = ("routine_due",)  # the planner plans, books and releases a routine's job within a day or so
 
 
 def close_out(conn, item_id: int, note: str) -> dict:
@@ -419,6 +426,8 @@ def _desk_hours(exception_id: int, type: str | None = None) -> float:
     (about a day and a half on average)."""
     if type in QUICK:
         return 2 + 10 * _u(exception_id, "desk")
+    if type in PLANNED_DESK:
+        return 4 + 28 * _u(exception_id, "desk")
     return 4 + 92 * _u(exception_id, "desk") ** 2
 
 
