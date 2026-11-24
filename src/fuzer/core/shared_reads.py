@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from ..core import db
+from . import db
 
 SECONDS = 300.0  # an upper bound even when nothing is written; 0 turns sharing off
 
@@ -20,9 +20,13 @@ _locks: dict[tuple, threading.Lock] = {}
 _guard = threading.Lock()
 
 
-def _position(conn) -> str:
-    row = conn.execute("select pg_current_wal_lsn()::text as position").fetchone()
-    return row["position"] if isinstance(row, dict) else row[0]
+def _position(conn) -> str | None:
+    """Where the database's log stands, or None when this connection's transaction has written something: what it
+    reads then includes its own uncommitted changes, which no one else may be served."""
+    row = conn.execute("select pg_current_wal_lsn()::text as position, "
+                       "txid_current_if_assigned() is not null as writing").fetchone()
+    position, writing = (row["position"], row["writing"]) if isinstance(row, dict) else (row[0], row[1])
+    return None if writing else position
 
 
 def shared(conn, name: str, key: tuple, read: Callable[[], Any]) -> Any:
@@ -32,6 +36,8 @@ def shared(conn, name: str, key: tuple, read: Callable[[], Any]) -> Any:
         return read()
     k = (name, db.database_url(), db.scope().schema, *key)
     position = _position(conn)
+    if position is None:
+        return read()
     with _guard:
         now = time.monotonic()
         for old in [x for x, (until, _, _) in _values.items() if until <= now]:

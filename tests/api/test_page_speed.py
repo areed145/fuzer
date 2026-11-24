@@ -59,16 +59,16 @@ def test_one_read_of_a_scenes_status_serves_the_next_minute(monkeypatch):
 def test_one_computation_serves_everyone_until_the_database_changes(monkeypatch):
     import threading
 
-    from fuzer.api import shared_reads
+    from fuzer.core import shared_reads
 
-    class Conn:  # pg_current_wal_lsn(): moves when anything is written
-        position = "0/1"
+    class Conn:  # pg_current_wal_lsn(): moves when anything is written; writing: this transaction has written
+        position, writing = "0/1", False
 
         def execute(self, _sql):
             return self
 
         def fetchone(self):
-            return (self.position,)
+            return (self.position, self.writing)
 
     monkeypatch.setattr(shared_reads.db, "database_url", lambda: "postgresql:///test")
     shared_reads._values.clear()
@@ -89,6 +89,10 @@ def test_one_computation_serves_everyone_until_the_database_changes(monkeypatch)
     assert shared_reads.shared(conn, "around", (108,), read) == {"alarms": 2}  # another case is its own
     conn.position = "0/2"  # something was written
     assert shared_reads.shared(conn, "around", (113,), read) == {"alarms": 3}
+    conn.writing = True  # what this transaction reads includes its own uncommitted changes: neither served nor kept
+    assert shared_reads.shared(conn, "around", (113,), read) == {"alarms": 4}
+    conn.writing = False
+    assert shared_reads.shared(conn, "around", (113,), read) == {"alarms": 3}
     monkeypatch.setattr(shared_reads, "SECONDS", 0)  # off: every ask computes
     shared_reads.shared(conn, "around", (113,), read)
-    assert len(calls) == 4
+    assert len(calls) == 5

@@ -6,6 +6,7 @@ import hmac
 import inspect
 import json
 import re
+import time
 from contextvars import ContextVar
 
 from fastapi import HTTPException, Request
@@ -162,6 +163,7 @@ class AuthenticatedRoute(APIRoute):
             global _active
             if self.path in PUBLIC_SHELL:
                 return await handler(request)
+            began = time.perf_counter()
             person = await run_in_threadpool(identify, request)
             if person is None:
                 return await handler(request)
@@ -206,6 +208,7 @@ class AuthenticatedRoute(APIRoute):
             limit = await run_in_threadpool(settings.get, None, "access.api_concurrency")
             # A page opens with a handful of reads: one over the limit waits its turn for a few seconds rather
             # than fail the page, and is refused only when the server stays full.
+            checked = time.perf_counter()
             waited = 0.0
             while _active >= limit:
                 if waited >= ADMISSION_WAIT_SECONDS:
@@ -217,8 +220,15 @@ class AuthenticatedRoute(APIRoute):
             token = current.set(person)
             mutation = mutating.set(unsafe)
             try:
+                admitted = time.perf_counter()
                 response = await handler(request)
-                return _scrubbed(response, hidden) if hidden else response
+                response = _scrubbed(response, hidden) if hidden else response
+                # Where a read's time went, for the browser's network panel and for timing the live site: checking
+                # who asks, waiting for a place, and the read itself (`app` includes waiting for the interpreter).
+                response.headers["Server-Timing"] = (
+                    f"auth;dur={(checked - began) * 1000:.0f}, queue;dur={(admitted - checked) * 1000:.0f}, "
+                    f"app;dur={(time.perf_counter() - admitted) * 1000:.0f}")
+                return response
             finally:
                 current.reset(token)
                 mutating.reset(mutation)
