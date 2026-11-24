@@ -1,7 +1,7 @@
 /** The `summary` panel: the AI note for this report, scope, window and day, written by the summary specialist from the
  * report's own panel results and kept for everyone. The first visit with AI access to the report's default view (its
  * default window, ending today) writes it; another scope, window or day shows "Write the note" to someone with AI
- * access. Reading never calls a model. */
+ * access. A read only reads the kept note. */
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import type { ReportSummary, SummaryPanelResult } from "../../api/commentary";
