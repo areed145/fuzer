@@ -34,7 +34,6 @@ import { PlanPage } from "./pages/Plan";
 import { TaskPage } from "./pages/workflows/Task";
 import { CasePage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
-import { AccountButton } from "./Identity";
 import { AreaNavigation, BackButton, Sidebar } from "./nav";
 import { startAppHistory } from "./appHistory";
 import { startIos } from "./ios";
@@ -177,8 +176,6 @@ function App() {
         }
       />
       <main id="main-content" tabIndex={-1} data-width={pageWidth(section, path)}>
-        {/* The account is the round badge at the top right on every screen, as on the phone. */}
-        <div className="page-account"><AccountButton /></div>
         <BackButton path={path} className="page-back" />
         <AreaNavigation section={navSection} query={query} demoEnabled={demo.data?.enabled === true} roles={inbox.data?.roles} />
         <PageNote.Provider value={viewOnly && VIEW_ONLY_SECTIONS.has(section)

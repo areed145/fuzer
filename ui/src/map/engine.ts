@@ -60,6 +60,8 @@ export interface MapEngine {
   showLocation(at: LatLon, accuracyMetres: number, colors: { accent: string; panel: string }): void;
   /** The zoom level, in Leaflet's 256-pixel-tile terms, so clustering speaks the same on both engines. */
   zoom(): number;
+  /** One step in (1) or out (-1), from the map's own + and − buttons, which stand in the stack with its other tools. */
+  zoomBy(step: 1 | -1): void;
   /** Where a coordinate is drawn, in pixels from the map element's top left. */
   project(at: LatLon): { x: number; y: number };
   /** Whether one finger (or a mouse drag) pans the map. Off for a small map on a touch screen (Home on a phone), so a

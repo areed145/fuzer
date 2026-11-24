@@ -8,17 +8,14 @@
 html:has(.home-map), html:has(.home-map) body { overflow: hidden; overscroll-behavior: none; }
 /* Home is where Back leads, so it has none: in the installed app it took a row over the map. */
 main:has(> .home-map) > .page-back { display: none; }
-/* The account badge and its popover sit over the map's panels. */
-main:has(> .home-map) > .page-account { z-index: 1003; }
 .home-map { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
 .home-stage { position: absolute; inset: 0; --feed-w: 340px; --gap: 12px; }
 .home-stage > .mapview, .home-stage > .mapview > .map-frame { height: 100%; }
 .home-stage .map { height: 100% !important; border: 0; border-radius: 0; }
-/* The map's controls at the bottom, clear of the feed; the zoom buttons under the figures. */
-.home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { top: auto; bottom: 56px; left: auto; right: calc(var(--feed-w) + 2 * var(--gap)); }
+/* The map's tools in one stack at the bottom right of the open map, clear of the feed, the gap from the edges the
+   panels keep. */
+.home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { top: auto; bottom: var(--gap); left: auto; right: calc(var(--feed-w) + 2 * var(--gap)); }
 .home-map .home-stage .map-frame:not(.map-fullscreen) .map-basemaps { position: static; }
-.home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left { top: auto; bottom: 24px; }
-.home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left .leaflet-control { margin: 0 0 0 calc(var(--bar-left, 0px) + var(--gap)); }
 /* The map's notice and credits stay in the open map, between the menu and Needs you. */
 .home-map .home-stage .map-frame:not(.map-fullscreen) .map-message { left: calc(var(--bar-left, 0px) + var(--gap) + 52px); }
 .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-bottom.leaflet-right { right: calc(var(--feed-w) + 2 * var(--gap)); }
@@ -60,7 +57,6 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
 .home-feed { position: absolute; z-index: 1002; top: var(--gap); right: var(--gap); bottom: var(--gap); width: var(--feed-w);
   display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--panel); box-shadow: 0 6px 24px rgb(0 0 0 / .18); }
-@media (min-width: 901px) { .home-feed { top: 68px; } }  /* under the account badge */
 .home-feed-head { position: relative; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 2px 4px 2px 14px;
   border-bottom: 1px solid var(--line); cursor: pointer; }
 .home-feed-head .home-drawer-toggle { margin-left: auto; }
@@ -128,7 +124,6 @@ main:has(> .home-map) > .page-account { z-index: 1003; }
   .home-feed-grab { display: block; position: absolute; top: 6px; left: calc(50% - 20px); width: 40px; height: 5px; border-radius: 3px;
     background: color-mix(in srgb, var(--muted) 45%, transparent); }
   .home-map .home-stage .map-frame:not(.map-fullscreen) > .map-controls { right: var(--gap); bottom: calc(var(--bar-bottom, 0px) + 68px); }
-  .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-top.leaflet-left { bottom: calc(var(--bar-bottom, 0px) + 68px); }
   /* The map's notice and credits sit above the sheet, not under the tab bar. */
   .home-map .home-stage .map-frame:not(.map-fullscreen) .map-message { bottom: calc(var(--bar-bottom, 0px) + 72px); right: 64px; }
   .home-map .home-stage .map-frame:not(.map-fullscreen) .leaflet-bottom { bottom: calc(var(--bar-bottom, 0px) + 64px); }

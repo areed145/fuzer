@@ -24,8 +24,8 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
     showsMapTypeControl: false,
     showsCompass: mapkit.FeatureVisibility.Hidden,
     showsUserLocationControl: false,
-    // A finger pinches to zoom; the + and − pill only crowded the map's corner on a phone, behind Home's sheet.
-    showsZoomControl: !matchMedia("(pointer: coarse)").matches,
+    // Fuzer's own + and − stand in the map's tool stack (zoomBy), the same size as the tools beside them.
+    showsZoomControl: false,
     isRotationEnabled: false,
     ...(mapkit.PointOfInterestFilter ? { pointOfInterestFilter: mapkit.PointOfInterestFilter.excludingAllCategories }
                                      : { showsPointsOfInterest: false }),
@@ -273,6 +273,11 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
       }
     },
     zoom: zoomNow,
+    zoomBy(step) {
+      const r = map.region, k = step > 0 ? 0.5 : 2;
+      map.setRegionAnimated(new mapkit.CoordinateRegion(r.center,
+        new mapkit.CoordinateSpan(Math.min(r.span.latitudeDelta * k, 170), Math.min(r.span.longitudeDelta * k, 359))), true);
+    },
     project(at) {
       const p = map.convertCoordinateToPointOnPage(coord(at));
       const r = el.getBoundingClientRect();

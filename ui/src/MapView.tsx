@@ -405,6 +405,16 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
             </svg>
           </Button>}
           <FullscreenButton on={full.on} onClick={() => void full.toggle()} className="map-control-button" />
+          {engine && <div className="map-zoom" role="group" aria-label="Zoom">
+            <Button size="sm" className="map-control-button" aria-label="Zoom in" title="Zoom in" onClick={() => engine.zoomBy(1)}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" /></svg>
+            </Button>
+            <Button size="sm" className="map-control-button" aria-label="Zoom out" title="Zoom out" onClick={() => engine.zoomBy(-1)}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M5 12h14" /></svg>
+            </Button>
+          </div>}
         </div>
         {mapMessage && <div className="map-message" role="status">{mapMessage}</div>}
         {baseError && basemapName !== "none" && !compact && <div className="map-message" role="status">
