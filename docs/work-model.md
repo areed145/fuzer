@@ -261,4 +261,9 @@ flow before the larger moves.
    its dates and progress) and works the case of the order it executes, else its schedule container's governing case.
    A job done here that its system still holds open drafts the move the mapping names for done, for that system's
    approver: for an SAP order, its confirmation (CNF), once.
-9. **Business plan.** Intent lines with estimates under a plan container, matched to real cases for plan against actual.
+9. **Business plan.** Intent lines with estimates under a plan container, matched to real cases for plan against actual. Done as
+   `work_plan_line` and `work_plan_match` (`ops/business_plan.py`, `/containers/{id}/plan`, `/plan-lines`): a planner
+   writes each line's kind, assets, period and estimates; cases whose jobs are on its assets in its period match it
+   (a person can match or move any case, and a case counts against one line). Each line reads its estimate against
+   its cases' actuals (hours done and still booked, SAP's cost on their orders), and cases in the plan's containers
+   that no line covers are the unplanned work.

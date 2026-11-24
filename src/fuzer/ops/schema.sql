@@ -856,3 +856,33 @@ create table if not exists work_status_map (
     updated_at   timestamptz not null default now(),
     unique (system, object_type, status, user_status)
 );
+
+-- The business plan (step 9 of docs/work-model.md): intent lines with estimates under a plan container (a business
+-- plan or program), each matched to the real cases that do it, so the plan is read against actual.
+create table if not exists work_plan_line (
+    id                 bigserial primary key,
+    container_id       bigint not null references work_container (id) on delete cascade,
+    title              text not null,
+    kind               text,                            -- the kind of job it expects (maintenance, turnaround, ...)
+    subjects           text[] not null default '{}',    -- the assets it is about
+    period_start       date,
+    period_end         date,
+    estimate_hours     double precision,
+    estimate_cost      double precision,
+    estimate_value_usd double precision,                -- what doing it is worth
+    owner              text,
+    note               text,
+    status             text not null default 'open',    -- open | dropped
+    created_by         text not null,
+    created_at         timestamptz not null default now(),
+    updated_by         text not null,
+    updated_at         timestamptz not null default now()
+);
+create index if not exists work_plan_line_container on work_plan_line (container_id);
+create table if not exists work_plan_match (
+    item_id      bigint primary key,                    -- a case counts against one line
+    line_id      bigint not null references work_plan_line (id) on delete cascade,
+    how          text not null default 'person',        -- person | auto
+    matched_by   text not null,
+    matched_at   timestamptz not null default now()
+);
