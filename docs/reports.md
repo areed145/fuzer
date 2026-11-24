@@ -98,20 +98,24 @@ measure with its label and unit, so the one chart (`ui/src/trends/TrendChart.tsx
 
 ## The engine's Python API
 
+The definitions and their checks are in `core/reports` (no data); reading a report for a scope and window is in
+`ops/report_pages.py`, which reads the register, the work and the measures.
+
 ```python
-reports.load(pack) -> dict[str, dict]       # every definition, the platform's with the pack's on top, checked
-reports.get(pack, key) -> dict              # one definition; ReportError when there is none
-reports.check(definition) -> dict           # the definition with defaults filled, or ReportError with the reason
-reports.panels(definition) -> list[dict]    # every panel, flattened out of columns, each with its row id
-reports.panel_data(conn, pack, key, panel_id, scope, window, at) -> dict   # one panel's result
-reports.panel_type(name)                    # decorator: registers fn(conn, pack, report, panel, scope, window) -> dict
+reports.load(pack) -> dict[str, dict]       # core: every definition, the platform's with the pack's on top, checked
+reports.get(pack, key) -> dict              # core: one definition; ReportError when there is none
+reports.check(definition) -> dict           # core: the definition with defaults filled, or ReportError with the reason
+reports.panels(definition) -> list[dict]    # core: every panel, flattened out of columns, each with its row id
+
+report_pages.view(conn, pack, key, scope, window, at) -> dict              # the definition, scope, window, repeats
+report_pages.panel_data(conn, pack, key, panel_id, scope, window, at) -> dict   # one panel's result
+report_pages.panel_type(name)               # decorator: registers fn(conn, pack, report, panel, scope, window) -> dict
 ```
 
-The definitions and checks live in `core/reports`; the panel computations, which read the operations and analyses,
-live in `ops/report_panels.py`, which imports every module named in its `DECLARED_IN` so each registers its types.
-
-The commentary registers `note` and `summary` with `panel_type`; the AI note takes `panel_data` of every other panel
-as its facts.
+`panel_type` functions get the definition, the panel, the scope as `{id, label, kind}` and the resolved window, and
+return their type's own fields; `panel_data` wraps them in the envelope below. `report_pages.DECLARED_IN` names the
+modules that register types (like the metric registry): the commentary adds its module there and registers `note`
+and `summary`; the AI note takes `panel_data` of every other panel as its facts.
 
 ## API
 
