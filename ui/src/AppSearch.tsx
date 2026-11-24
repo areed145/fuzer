@@ -1,9 +1,10 @@
 // App search: one box for the whole app, opened from the magnifying glass at the top left (the phone's top bar, the
-// sidebar on a wider screen) or with / or Ctrl+K. It finds pages, the tabs inside pages and records in the register,
-// and sends a question to Ask the same way Ask's own box does.
+// sidebar on a wider screen) or with / or Ctrl+K. It finds pages, the tabs inside pages and entities in the register,
+// and sends a question to Ops IQ, the operations agent, the same way Ops IQ's own box does.
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { api } from "./api";
 import { usePermission } from "./Auth";
+import { IqMark, OPS_IQ } from "./brand";
 import { KindBadge, entityHref, href, useAsync, useDebounced } from "./lib";
 import { NAV, isActive, useNavigationAccess, type NavGroup, type NavItem } from "./nav";
 import { MASTER_DATA_TABS, SETTINGS_VIEWS, SOURCES_VIEWS, WORK_PRESETS } from "./pageTabs";
@@ -26,10 +27,12 @@ export function SearchButton({ wide = false }: { wide?: boolean }) {
   </Button>;
 }
 
-interface Result { id: string; group: "Ask" | "Pages" | "Tabs" | "Entities" | "More"; label: string; detail?: string; kind?: string; to: string }
+interface Result { id: string; group: typeof OPS_IQ | "Pages" | "Tabs" | "Entities" | "More"; label: string; detail?: string; kind?: string; to: string }
 
-/** A question rather than a name: ends in a question mark or starts like one. It puts Ask first. */
-const QUESTION = /\?\s*$|^(what|why|how|which|when|where|who|whose|is|are|was|were|does|do|did|can|could|should|will|show|list|compare|explain|summari[sz]e|tell)\b/i;
+/** A question rather than a name: ends in a question mark, starts like one, or runs to four words or more (a name
+ * rarely does). It puts Ops IQ first; otherwise Ops IQ's row waits at the foot of the list, still in view. */
+const QUESTION = /\?\s*$|^(what|what's|whats|why|how|how's|which|when|where|who|whose|is|are|was|were|does|do|did|has|have|had|can|could|should|would|will|any|show|list|find|give|compare|explain|summari[sz]e|tell|help|status)\b/i;
+const isQuestion = (q: string) => QUESTION.test(q) || q.split(/\s+/).filter(Boolean).length >= 4;
 
 const words = (text: string) => text.toLowerCase().split(/[^\p{L}\p{N}-]+/u).filter(Boolean);
 /** Every typed word starts a word of the label: "dis" finds To dispatch, "re" does not find Explore. A page's group counts
@@ -112,10 +115,14 @@ export function AppSearch() {
   const results = useMemo((): Result[] => {
     const w = words(q);
     const found: Result[] = [];
-    if (!w.length) return pages.filter(({ item }) => !item.external).map(({ group, item }) => ({
-      id: `p:${group.label}:${item.label}`, group: "Pages", label: item.label, detail: item.label === group.label ? undefined : group.label, to: pageHref(item) }));
-    const ask: Result[] = ai ? [{ id: "ask", group: "Ask", label: q, to: href("/ask", { q, send: "1" }) }] : [];
-    if (QUESTION.test(q)) found.push(...ask);
+    if (!w.length) return [
+      ...(ai ? [{ id: "ask", group: OPS_IQ, label: "", to: href("/ask") } as Result] : []),
+      ...pages.filter(({ item }) => !item.external && item.section !== "ask").map(({ group, item }): Result => ({
+        id: `p:${group.label}:${item.label}`, group: "Pages", label: item.label, detail: item.label === group.label ? undefined : group.label, to: pageHref(item) })),
+    ];
+    const ask: Result[] = ai ? [{ id: "ask", group: OPS_IQ, label: q, to: href("/ask", { q, send: "1" }) }] : [];
+    const question = isQuestion(q);
+    if (question) found.push(...ask);
     for (const { group, item } of pages) if (matches(w, item.label, group.label))
       found.push({ id: `p:${group.label}:${item.label}`, group: "Pages", label: item.label, detail: item.label === group.label ? undefined : group.label, to: pageHref(item) });
     for (const t of tabs) if (matches(w, t.label, t.page))
@@ -124,7 +131,7 @@ export function AppSearch() {
       found.push({ id: `e:${h.fuzer_id}`, group: "Entities", label: h.label ?? h.fuzer_id, detail: h.description ?? undefined, kind: h.kind, to: entityHref(h.fuzer_id) });
     if (debounced === q && (hits.data?.length ?? 0) > ENTITY_LIMIT)
       found.push({ id: "browse", group: "More", label: `All entities matching “${q}”`, to: href("/browse", { q }) });
-    if (!QUESTION.test(q)) found.push(...ask);
+    if (!question) found.push(...ask);
     return found;
   }, [q, debounced, pages, tabs, hits.data, ai]);
 
@@ -154,26 +161,28 @@ export function AppSearch() {
     <div ref={dialog} className="app-search" role="dialog" aria-modal="true" aria-label="Search">
         <div className="app-search-bar">
           <Input ref={input} type="search" role="combobox" aria-expanded aria-controls={listId} aria-autocomplete="list"
-            aria-activedescendant={results[current] ? `${listId}-${current}` : undefined} aria-label="Search pages, entities, or ask a question"
-            placeholder={ai ? "Search or ask a question" : "Search pages and entities"} enterKeyHint="go" autoComplete="off"
+            aria-activedescendant={results[current] ? `${listId}-${current}` : undefined} aria-label={ai ? `Search pages and entities, or ask ${OPS_IQ}` : "Search pages and entities"}
+            placeholder={ai ? `Search, or ask ${OPS_IQ} a question` : "Search pages and entities"} enterKeyHint="go" autoComplete="off"
             value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey} />
           <Button variant="link" className="app-search-close" onClick={() => setOpen(false)}>Cancel</Button>
         </div>
         <div id={listId} role="listbox" aria-label="Results" className="app-search-results">
-          {groups.map((group) => <section key={group} role="group" aria-label={group}>
-            <Heading>{group}</Heading>
+          {groups.map((group, n) => <section key={group} role="group" aria-label={group}
+            className={group === OPS_IQ && n > 0 ? "iq-foot" : undefined}>
+            {group !== OPS_IQ && <Heading>{group}</Heading>}
             {results.map((r, i) => r.group !== group ? null : (
               <a key={r.id} id={`${listId}-${i}`} data-index={i} role="option" aria-selected={i === current} href={r.to}
                 className={i === current ? "on" : undefined} onMouseMove={() => setActive(i)}
                 onClick={(e) => { e.preventDefault(); go(r.to); }}>
-                {r.group === "Ask" ? <><span className="app-search-ask">Ask</span><span className="app-search-label">{r.label}</span></>
+                {r.group === OPS_IQ ? <><IqMark small /><span className="app-search-iq">Ask {OPS_IQ}</span>
+                  {r.label && <span className="app-search-label">{r.label}</span>}</>
                   : <><span className="app-search-label">{r.label}</span>{r.kind && <KindBadge kind={r.kind} />}</>}
                 {r.detail && <span className="app-search-detail">{r.detail}</span>}
               </a>
             ))}
           </section>)}
           {searching && <p className="app-search-note">Searching entities…</p>}
-          {hits.error && <div className="app-search-note"><ErrorText>Records search failed: {hits.error}</ErrorText></div>}
+          {hits.error && <div className="app-search-note"><ErrorText>Entity search failed: {hits.error}</ErrorText></div>}
           {!searching && q && !results.length && <p className="app-search-note">No matches for “{q}”.</p>}
         </div>
     </div>

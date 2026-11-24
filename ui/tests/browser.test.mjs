@@ -1317,8 +1317,8 @@ test("reader Settings and Sources do not request protected configuration or conn
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
   // Ask runs a paid model: no menu entry and no top-bar button without AI access.
-  assert.equal(await nav.getByRole("link", { name: "Ask", exact: true }).count(), 0);
-  assert.equal(await page.getByRole("link", { name: "Ask the assistant", exact: true }).count(), 0);
+  assert.equal(await nav.getByRole("link", { name: "Ops IQ", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("link", { name: "Ops IQ", exact: true }).count(), 0);
   await page.goto(`${url}/#/settings`);
   assert.equal(await page.getByRole("link", { name: "Users", exact: true }).count(), 0);
 });
@@ -2189,7 +2189,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a .nav-tile-label").allTextContents(), ["Tower", "Work", "Plan", "Explore", "Ask", "Reports", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a .nav-tile-label").allTextContents(), ["Tower", "Work", "Plan", "Explore", "Ops IQ", "Reports", "Sources", "Jobs", "Settings"]);
   // Demo left the menu; its page still opens from a direct link.
   await page.goto(`${url}/#/demo`);
   await page.getByRole("heading", { level: 1, name: "Demo", exact: true }).waitFor();
@@ -2249,7 +2249,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   // them, so Map or Incidents is one tap from anywhere.
   await menu.click();
   assert.deepEqual(await page.locator('#sidebar nav[aria-label="Main"] .nav-tile:visible .nav-tile-label').allTextContents(),
-    ["Plan", "Ask", "Sources", "Jobs", "Settings"]);
+    ["Plan", "Ops IQ", "Sources", "Jobs", "Settings"]);
   const pages = page.getByRole("navigation", { name: "All pages", exact: true });
   await pages.getByRole("link", { name: "Incidents", exact: true }).click();
   await page.waitForURL(/#\/incidents$/);
@@ -2621,7 +2621,7 @@ test("Demo prepares a registered specialist question and confirms paid execution
   await page.getByText("No transport records loaded", { exact: false }).waitFor();
   await page.getByRole("button", { name: /Registered specialist/ }).click();
   await page.getByRole("link", { name: "Prepare a question for Registered specialist", exact: true }).click();
-  await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Ops IQ", exact: true }).waitFor();
   assert.match(await page.getByRole("textbox", { name: "Question for the operations assistant" }).inputValue(), /Registered specialist/);
   assert.deepEqual(writes, []);
   await page.getByRole("textbox", { name: "Question for the operations assistant" }).press("Enter");
@@ -3178,7 +3178,7 @@ test("Mermaid loads only for an answer with a diagram", async () => {
 
 test("Ask opens and can be left without DOM effect-cleanup crashes", async () => {
   await page.goto(`${url}/#/ask`);
-  await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Ops IQ", exact: true }).waitFor();
   await page.getByRole("link", { name: "Tower", exact: true }).first().click();
   await page.getByRole("heading", { name: "Tower", exact: true }).waitFor();
 });
@@ -8179,7 +8179,7 @@ test("P7.4 Work performance shows by detector and by skill which earn their keep
   await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
 });
 
-test("App search at the top left finds pages, tabs and records, and sends a question to Ask", async () => {
+test("App search at the top left finds pages, tabs and entities, and sends a question to Ops IQ", async () => {
   let asked = null;
   await page.route("**/entities*", (route) => route.fulfill({ json: new URL(route.request().url()).searchParams.get("q") === "P-101"
     ? [{ fuzer_id: "equipment:P-101", kind: "equipment", label: "P-101", description: "Export pump" }] : [] }));
@@ -8195,8 +8195,17 @@ test("App search at the top left finds pages, tabs and records, and sends a ques
       assert.ok(glass.x < logo.x && logo.x + logo.width < account.x);
       assert.ok(Math.abs(logo.x + logo.width / 2 - 195) < 4);
     }
+    // Ops IQ sits right beside search, on the phone's top bar and in the sidebar.
+    const iq = page.locator(`${bar} .iq-button`);
+    assert.equal(await iq.getAttribute("aria-label"), "Ops IQ");
+    assert.equal(await iq.getAttribute("href"), "#/ask");
+    const [glassBox, iqBox] = await Promise.all([page.locator(`${bar} .search-button`).boundingBox(), iq.boundingBox()]);
+    assert.ok(iqBox.x > glassBox.x && iqBox.x - (glassBox.x + glassBox.width) < 16 && Math.abs(iqBox.y + iqBox.height / 2 - (glassBox.y + glassBox.height / 2)) < 4);
     await page.locator(bar).getByRole("button", { name: "Search", exact: true }).click();
-    const box = page.getByRole("combobox", { name: "Search pages, entities, or ask a question" });
+    const box = page.getByRole("combobox", { name: "Search pages and entities, or ask Ops IQ" });
+    // Before anything is typed, Ops IQ is the first row.
+    await box.fill("");
+    assert.equal(await page.locator(".app-search-results [role=option]").first().getAttribute("href"), "#/ask");
     await box.fill("dispatch");
     const results = page.getByRole("listbox", { name: "Results" });
     await results.getByRole("option", { name: /To dispatch/ }).waitFor();
@@ -8205,16 +8214,24 @@ test("App search at the top left finds pages, tabs and records, and sends a ques
     await box.fill("P-101");
     const record = results.getByRole("group", { name: "Entities" }).getByRole("option", { name: /P-101/ });
     assert.equal(await record.getAttribute("href"), "#/e/equipment%3AP-101");
+    // A name lists what it finds first, and Ops IQ waits, in view, at the foot.
+    const last = page.locator(".app-search-results [role=option]").last();
+    assert.equal(await last.getAttribute("href"), "#/ask?q=P-101&send=1");
+    await last.getByText("Ask Ops IQ", { exact: true }).waitFor();
+    assert.ok(await last.isVisible());
     await box.press("Escape");
     assert.equal(await page.locator(".app-search").count(), 0);
   }
-  // A question puts Ask first; Enter asks it on the Ask page, once.
+  // A question puts Ops IQ first, with or without a question word; Enter asks it on Ops IQ's page, once.
   await page.keyboard.press("/");
-  const box = page.getByRole("combobox", { name: "Search pages, entities, or ask a question" });
+  const box = page.getByRole("combobox", { name: "Search pages and entities, or ask Ops IQ" });
+  await box.fill("P-101 trips after the restart");
+  assert.equal(await page.locator(".app-search-results [role=option]").first().getAttribute("href"),
+    "#/ask?q=P-101+trips+after+the+restart&send=1");
   await box.fill("why did P-101 trip?");
   assert.equal(await page.locator(".app-search-results [role=option]").first().getAttribute("href"), "#/ask?q=why+did+P-101+trip%3F&send=1");
   await box.press("Enter");
-  await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Ops IQ", exact: true }).waitFor();
   await page.waitForFunction(() => location.hash === "#/ask");
   await page.getByText("why did P-101 trip?", { exact: true }).first().waitFor();
   assert.equal(asked?.question, "why did P-101 trip?");

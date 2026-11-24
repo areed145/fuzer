@@ -1,5 +1,6 @@
 import "../styles/ask.css";
 import { money, when } from "../format";
+import { OPS_IQ } from "../brand";
 import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, List, Heading } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AskContext, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
@@ -155,7 +156,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
 
   return (
     <section className="ask">
-      <PageHeader>Ask</PageHeader>
+      <PageHeader>{OPS_IQ}</PageHeader>
       {demo && <DemoContext step="agents" />}
       {/* An account that can't ask sees why and who can grant it, not a prompt box it can't use (#1078). */}
       {!ai && (
