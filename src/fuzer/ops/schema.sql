@@ -819,3 +819,40 @@ create table if not exists work_routine (
     created_at     timestamptz not null default now(),
     updated_at     timestamptz not null default now()
 );
+
+-- Source links and status mapping (step 8 of docs/work-model.md). A source link ties a Fuzer object (a job, a case, a
+-- need, a container) to an object in another system: its key there, its status there and the Fuzer state that status
+-- means, and the fields that system owns, so a re-sync never overwrites what a person decided on the rest.
+create table if not exists work_source_link (
+    id           bigserial primary key,
+    object       text not null,                    -- job | case | need | container
+    object_id    bigint not null,
+    system       text not null,                    -- sap | p6 | maximo | jde ...
+    object_type  text not null,                    -- order | notification | activity ...
+    key          text not null,                    -- its identity there (an SAP order number, a P6 activity id)
+    status       text,                             -- its status there, as the system says it
+    state        text,                             -- the Fuzer state that status means; null while it has no mapping
+    owns         text[] not null default '{}',     -- the fields that system owns on the Fuzer object
+    seen_at      timestamptz not null default now(),
+    unique (system, object_type, key, object)
+);
+create index if not exists work_source_link_object on work_source_link (object, object_id);
+
+-- Each system's statuses and the Fuzer state each means, and the status sent back for a Fuzer move to that state. A
+-- row matches a system status, alone or with a user status (SAP's REL with WMAT); the most specific row wins. Seeded
+-- from source_links.SEED; a site edits its own.
+create table if not exists work_status_map (
+    id           bigserial primary key,
+    system       text not null,
+    object_type  text not null,
+    status       text not null,
+    user_status  text not null default '',
+    state        text not null,                    -- a plan_item status for a job; open | closed for a need
+    move         text,                             -- what a Fuzer move to this state sends back, if anything
+    note         text,
+    created_by   text not null,
+    created_at   timestamptz not null default now(),
+    updated_by   text not null,
+    updated_at   timestamptz not null default now(),
+    unique (system, object_type, status, user_status)
+);

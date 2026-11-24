@@ -2213,6 +2213,42 @@ Routines (step 7 of docs/work-model.md): a standing rule that raises an obligati
 | `created_at` | timestamptz |  |
 | `updated_at` | timestamptz |  |
 
+### `work_source_link`
+
+Source links and status mapping (step 8 of docs/work-model.md). A source link ties a Fuzer object (a job, a case, a need, a container) to an object in another system: its key there, its status there and the Fuzer state that status means, and the fields that system owns, so a re-sync never overwrites what a person decided on the rest.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `object` | text | job \| case \| need \| container |
+| `object_id` | bigint |  |
+| `system` | text | sap \| p6 \| maximo \| jde ... |
+| `object_type` | text | order \| notification \| activity ... |
+| `key` | text | its identity there (an SAP order number, a P6 activity id) |
+| `status` | text, | its status there, as the system says it |
+| `state` | text, | the Fuzer state that status means; null while it has no mapping |
+| `owns` | text[] | the fields that system owns on the Fuzer object |
+| `seen_at` | timestamptz |  |
+
+### `work_status_map`
+
+Each system's statuses and the Fuzer state each means, and the status sent back for a Fuzer move to that state. A row matches a system status, alone or with a user status (SAP's REL with WMAT); the most specific row wins. Seeded from source_links.SEED; a site edits its own.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `system` | text |  |
+| `object_type` | text |  |
+| `status` | text |  |
+| `user_status` | text |  |
+| `state` | text | a plan_item status for a job; open \| closed for a need |
+| `move` | text, | what a Fuzer move to this state sends back, if anything |
+| `note` | text |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)
