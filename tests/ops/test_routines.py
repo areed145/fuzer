@@ -37,7 +37,7 @@ def test_a_routine_kept_here_raises_its_occurrence_once_and_rolls_forward_when_d
         routines.create(conn, "x", "ann", 7, today, anchor="sometimes")
     assert routines.raise_due(conn)["raised"] == 1
     assert routines.raise_due(conn)["raised"] == 0  # once per due date
-    e = conn.execute("select * from exception_record where type = 'routine_due'").fetchone()
+    e = conn.execute("select * from exception_record where type = 'routine_due' and key like 'fuzer:%'").fetchone()
     assert e["need"] == "obligation" and e["key"] == f"{r['code']}:2026-12-04"
     assert conn.execute("select role from work_item where id = %s", (e["item_id"],)).fetchone()["role"] == "operator"
     bar = conn.execute("select * from plan_item where exception_id = %s", (e["id"],)).fetchone()

@@ -32,7 +32,7 @@ class RoutineError(ValueError):
 
 
 def _type():
-    return TYPES.get(TYPE) or exception_type(
+    return TYPES.get("routine_due") or exception_type(
         TYPE, "Routine due", role="role:maintenance_planner", audience=("ioc",), joins=False, need="obligation",
         description="A routine falling due: a maintenance or inspection plan's next date, or a routine duty kept in "
                     "Fuzer. Its job is on the plan; plan it, book it and release it. It closes when the job is done.")

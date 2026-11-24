@@ -33,6 +33,7 @@ from ..core.exceptions import ExceptionError
 SECTIONS = ["Open work", "In the field", "Open permits", "Active bypasses", "Rounds", "Back from the field", "Escalated or overdue", "Dispatched",
             "New exceptions", "Records to check"]
 RECORDS = "records_gap"  # its own section, so not repeated under Open work and New exceptions
+ROUTINE = "routine_due"  # planned work coming due, not news: on Plan and under Open work, never under New exceptions
 CASE_TYPE = "shift_handover"
 ROLE = "ops_lead"
 LIMIT = 25  # lines per section; the rest is counted
@@ -162,9 +163,9 @@ def facts(conn, start: datetime, end: datetime) -> dict:
     keep("New exceptions", conn.execute(
         """
         select id, title, type, source, item_id, state from exception_record
-        where first_seen >= %(s)s and first_seen < %(e)s and joined_to is null and type <> %(r)s
+        where first_seen >= %(s)s and first_seen < %(e)s and joined_to is null and type <> all(%(r)s)
         order by value_usd desc nulls last, id
-        """, {"s": start, "e": end, "r": RECORDS}).fetchall(),
+        """, {"s": start, "e": end, "r": [RECORDS, ROUTINE]}).fetchall(),
         lambda r: _line(f"{r['title']} ({r['type'].replace('_', ' ')} from {r['source']}, {r['state']})",
                         f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     keep("Records to check", conn.execute(
