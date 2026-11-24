@@ -12,7 +12,7 @@ import { href, useAsync, useRoute } from "./lib";
 import { api } from "./api";
 import { setPeopleNames } from "./wording";
 import { AskPage } from "./pages/Ask";
-import { ReportsPage } from "./pages/Reports";
+import { RegulatoryPage } from "./pages/RegulatoryReports";
 import { SettingsPage } from "./pages/Settings";
 import { SourcesPage } from "./pages/sources";
 import { StudiesPage } from "./pages/Studies";
@@ -27,7 +27,6 @@ import { BoardPage } from "./pages/Board";
 import { workHref, type WorkList } from "./pageTabs";
 import { PerformancePage } from "./pages/Performance";
 import { MetricsPage } from "./pages/Metrics";
-import { ScorecardPage } from "./pages/Scorecard";
 import { HandoverPage } from "./pages/Handover";
 import { MasterDataPage } from "./pages/masterdata";
 import { PlanPage } from "./pages/Plan";
@@ -103,6 +102,23 @@ function App() {
   useEffect(() => {
     if (section === "access") {
       location.replace(href("/users", Object.fromEntries(query.entries())));
+      return;
+    }
+    // The daily report is Daily operations' narrative now, and the regulatory reports a page of their own; Scorecard's
+    // charts moved into the reports they belong to. Old links land on the same day, report or period.
+    if (section === "reports" && !path[1] && query.has("day")) {
+      const day = query.get("day");
+      location.replace(href("/reports/operations", day ? { at: day } : {}));
+      return;
+    }
+    if (section === "reports" && !path[1] && query.has("report")) {
+      location.replace(href("/regulatory", { report: query.get("report") ?? "" }));
+      return;
+    }
+    if (section === "scorecard") {
+      const days = query.get("days"), until = query.get("until");
+      location.replace(href("/reports/production", {
+        ...(days && ["7", "30", "90"].includes(days) ? { window: `${days}d` } : {}), ...(until ? { at: until } : {}) }));
       return;
     }
     // Its charts moved to Home; old links land there.
@@ -248,14 +264,12 @@ function App() {
             <ProcessesPage />
           ) : section === "teams" ? (
             <TeamsPage query={query} />
-          ) : section === "scorecard" ? (
-            <ScorecardPage query={query} />
           ) : section === "metrics" ? (
             <MetricsPage metricKey={path[1]} query={query} />
           ) : section === "reports" && path[1] ? (
             <ReportPage key={path[1]} reportKey={path[1]} />
-          ) : section === "reports" && (query.has("day") || query.has("report")) ? (
-            <ReportsPage query={query} />
+          ) : section === "regulatory" ? (
+            <RegulatoryPage query={query} />
           ) : section === "reports" ? (
             <ReportsGallery />
           ) : section === "studies" ? (

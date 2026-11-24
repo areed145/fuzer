@@ -82,14 +82,14 @@ The same map as a table. Each row is one family of sources; each column is a sta
 | **A bypass, proof test or temporary change overdue** | Waiting on me: the ops lead or engineer queue | The case | The desk | By itself, when the register shows it done | Active bypasses are on every handover |
 | **A round finding**: a reading out of limits or a failed check | Waiting on me: the ops lead queue; the List | The case: Take it, then work it or Send to the field | My work: the field job | List: Back from the field: Close, Send again or Plan for a day | |
 | **A field report** | Waiting on me: the ops lead queue; the List | The case | My work: the field job | List: Back from the field: Close, Send again or Plan for a day | |
-| **Alarm, flare, lab, well test and emissions findings** | Waiting on me: the engineer, production engineer or HSE queue | The case | The desk | List: Closed | Regulatory reports are reviewed under Reports > Daily reports |
+| **Alarm, flare, lab, well test and emissions findings** | Waiting on me: the engineer, production engineer or HSE queue | The case | The desk | List: Closed | Regulatory reports are reviewed under Reports > Regulatory |
 | **The agentic watch** proposing something no detector raised | Kept and scored only (live mode is off by default); in live mode, Waiting on me: the engineer queue | The case | The desk, or the field | List: Closed | After three confirmed proposals of one pattern, the watch drafts a rule for it |
 | **Another system's own type** (`POST /exceptions`, a source pack) | Wherever its type says: List: To dispatch, a queue, or a workflow | As above | As above | As above | Its update goes back the way its system is set up on Sources |
 | **A register question**: a possible match, a conflict, a held load | Master data > Questions, and Waiting on me: the data steward queue | The question | Master data, or the dataset on Sources | By itself, when the question is answered | The answer is kept on every rebuild |
 | **An SAP work order or maintenance plan** | Plan | Plan: move it, bundle it with a shutdown, book a crew | My work > Coming up, once a person or a role is booked on it | Plan, when the crew says Done or SAP closes the order | Its work centre's crew counts on Plan > Resources |
 | **A P6 or turnaround schedule** | Plan > Schedules | The schedule's Gantt: logic, dates, resources | In the field, by the schedule | The Gantt, as each activity is progressed | A P6 schedule's progress follows its export; nothing is typed twice |
 | **A shift handover** | Waiting on me: a banner for the ops lead | | | When the incoming lead acknowledges it | Kept and readable under past handovers |
-| **A daily report** | Waiting on me: Review report, for the ops lead | | Reports > Daily reports | When it is published | |
+| **A daily report** | Waiting on me: Review report, for the ops lead | | Reports > Daily operations | When it is published | |
 | **An opportunity** the scan found | Waiting on me: the engineer queue; the List, sorted by value | The task, from Waiting on me | The desk | List: Closed | Not raised again unless the data changes |
 
 !!! note "Two things that are not a road of their own"

@@ -18,6 +18,20 @@ row_sets:
       - {key: hours, label: Hours, field: duration_h, unit: h, align: end}
       - {key: oil, label: Oil lost, field: lost_oil_bbl, unit: bbl, align: end}
 
+  downtime.open:
+    label: Still down
+    definition: Stops in progress at the window's end (now, for a window ending today), the longest down first.
+    from: {kind: downtime, at: start, end: end, links: [affects, caused_by]}
+    stock: true
+    cutoff: production_day
+    window: 1d
+    order: "@at asc"
+    columns:
+      - {key: subject, label: "On", field: "@subjects"}
+      - {key: since, label: Down since, field: start}
+      - {key: cause, label: Cause, field: reason}
+      - {key: oil, label: Oil lost so far, field: lost_oil_bbl, unit: bbl, align: end}
+
   incidents:
     label: Incidents
     definition: Incidents that started in the window, newest first.

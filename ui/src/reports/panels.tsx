@@ -11,8 +11,10 @@ import { Status, useAsync } from "../lib";
 import { BoardCard } from "../pages/WorkList";
 import { TrendChart, isCompact } from "../trends/TrendChart";
 import { Card, Empty, ErrorText, Table, Text } from "../ui";
+import { NarrativePanel } from "./panels/NarrativePanel";
 import { NotePanel } from "./panels/NotePanel";
 import { SummaryPanel } from "./panels/SummaryPanel";
+import { ViewPanel } from "./panels/ViewPanel";
 import type {
   CasesResult, FigureResult, PanelProps, PanelResult, PanelType, StatResult, TableResult, TrendResult,
 } from "./spec";
@@ -126,4 +128,6 @@ export const PANELS: Record<PanelType, ComponentType<PanelProps>> = {
   cases: CasesPanel,
   note: NotePanel,
   summary: SummaryPanel,
+  narrative: NarrativePanel,
+  view: ViewPanel,
 };

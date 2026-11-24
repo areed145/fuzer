@@ -18,7 +18,7 @@ flowchart TB
   home --> work["Work<br><small>All work, My work,<br>Workflows, Master data</small>"]
   home --> plan["Plan<br><small>Plan, Schedules,<br>Resources</small>"]
   home --> explore["Explore<br><small>Browse, Map,<br>Network, 3D, Ask</small>"]
-  home --> reports["Reports<br><small>Downtime, Incidents,<br>Daily reports, Metrics,<br>Lessons learned, Studies</small>"]
+  home --> reports["Reports<br><small>Downtime, Incidents,<br>Metrics, Regulatory,<br>Lessons learned, Studies</small>"]
   home --> sources["Sources<br><small>Sources, Ontology</small>"]
   home --> jobs["Jobs"]
   home --> settings["Settings<br><small>Application settings,<br>Users, Routing</small>"]
@@ -128,9 +128,9 @@ an AI provider configured by the owner, and each question is a deliberate, meter
 
 ![The Ask page](assets/screens/ask.png){ loading=lazy }
 
-**Daily reports** shows each production day's report: fixed sections built from the day's records, every line
-citing them, with checks for uncited lines and numbers that are not in the facts. Regulatory reports are reviewed
-on the same page. **Metrics** lists every KPI, defined once, with its value now and its drill-down. **Lessons
+**Daily operations** opens on the last production day: its figures, then the day's narrative, fixed sections built
+from the day's records, every line citing them, with checks for uncited lines and numbers that are not in the facts,
+and Publish or Send back in its header. Regulatory reports are reviewed on **Regulatory**. **Metrics** lists every KPI, defined once, with its value now and its drill-down. **Lessons
 learned** and **Studies** keep what closed cases and deeper analyses found.
 
 ![The daily report for a production day](assets/screens/daily-report.png){ loading=lazy }
