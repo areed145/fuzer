@@ -48,8 +48,8 @@ def report(key: str, scope: str | None = None, window: str | None = None, at: da
 def panel(key: str, panel_id: str, scope: str | None = None, window: str | None = None, at: date | None = None,
           conn=Depends(get_conn)):
     """One panel of a report for a scope and window: the same numbers the metric, the trend and the Work list show."""
+    from ..core.shared_reads import shared
     from ..ops import report_pages
-    from .shared_reads import shared
 
     try:
         return shared(conn, "report-panel", (key, panel_id, scope, window, at),
