@@ -257,6 +257,8 @@ flow before the larger moves.
    job carries its source link (SAP owns its status and text) and its status is read through the mapping, seeded with
    the rows below for SAP, P6 and Maximo; a status no row maps holds the job and asks the data steward, and clears
    when a row is added. Every order's job has one case: its notification's case, else a `sap_order` case in the
-   maintenance planner's queue that closes when SAP closes the order. P6 activities and the moves sent back (the
-   order confirmation draft) are next.
+   maintenance planner's queue that closes when SAP closes the order. Each P6 activity's job carries its link too (P6 owns
+   its dates and progress) and works the case of the order it executes, else its schedule container's governing case.
+   A job done here that its system still holds open drafts the move the mapping names for done, for that system's
+   approver: for an SAP order, its confirmation (CNF), once.
 9. **Business plan.** Intent lines with estimates under a plan container, matched to real cases for plan against actual.

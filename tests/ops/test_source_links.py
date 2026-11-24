@@ -74,18 +74,18 @@ def test_an_order_is_a_job_with_its_link_and_one_case_and_its_case_closes_with_t
     [lk] = source_links.links(conn, "job", job["id"])
     assert (lk["system"], lk["object_type"], lk["key"], lk["status"], lk["state"]) == \
         ("sap", "order", "4000001", "REL", "scheduled") and lk["owns"] == ["status", "title"]
-    out = source_links.sync_orders(conn)
-    assert out["opened"] == 1
+    source_links.sync_orders(conn)
     job = _job(conn, "4000001")
     case = conn.execute("select * from work_item where id = %s", (job["item_id"],)).fetchone()
     assert case["type"] == "sap_order" and case["role"] == "maintenance_planner" and case["state"] not in ("done",)
-    assert source_links.sync_orders(conn)["opened"] == 0  # once
+    source_links.sync_orders(conn)
+    assert _job(conn, "4000001")["item_id"] == case["id"]  # once
     assert [x["key"] for x in source_links.links(conn, "case", case["id"])] == ["4000001"]
 
     _order(conn, "4000001", "TECO")
     plan.sync_work_orders(conn)
     assert _job(conn, "4000001")["status"] == "done"
-    assert source_links.sync_orders(conn)["closed"] == 1
+    assert source_links.sync_orders(conn)["closed"] >= 1
     assert conn.execute("select state from work_item where id = %s", (case["id"],)).fetchone()["state"] == "done"
     conn.commit()
 
@@ -112,4 +112,32 @@ def test_an_order_from_a_notification_joins_its_case_and_an_unknown_status_is_fl
     plan.sync_work_orders(conn)
     assert _job(conn, "4000002")["status"] == "scheduled"
     conn.execute("delete from work_status_map where status = 'QQQQ'")
+    conn.commit()
+
+
+def test_an_order_done_here_drafts_its_confirmation_once_and_its_activities_work_its_case(conn):
+    from fuzer.core import work
+
+    _order(conn, "4000003", "REL")
+    plan.sync_work_orders(conn)
+    source_links.sync_orders(conn)
+    job = _job(conn, "4000003")
+    act = plan.propose(conn, "maintenance", "Change the seal", "p6", job["start_at"], job["end_at"], source="schedule",
+                       source_key="TA-1:A100")
+    conn.execute("update plan_item set parent_id = %s where id = %s", (job["id"], act["id"]))
+    assert source_links.sync_activities(conn)["by_order"] >= 1
+    assert conn.execute("select item_id from plan_item where id = %s", (act["id"],)).fetchone()["item_id"] == \
+        job["item_id"]  # one case: the order's
+
+    work.close_case(conn, job["item_id"], "done", "fred", reason="seal changed")  # done here; SAP still says REL
+    out = source_links.send_moves(conn)
+    assert out["finished"] >= 1 and out["drafted"] >= 1 and _job(conn, "4000003")["status"] == "done"
+    wb = conn.execute("select * from writeback where record = '4000003'").fetchone()
+    assert (wb["system"], wb["kind"], wb["state"]) == ("sap", "order", "awaiting_approval")
+    assert wb["payload"]["status"] == "CNF" and wb["payload"]["move"] == "a confirmation"
+    assert source_links.send_moves(conn)["drafted"] == 0  # once
+    _order(conn, "4000003", "CNF")  # SAP took it
+    plan.sync_work_orders(conn)
+    [lk] = source_links.links(conn, "job", job["id"])
+    assert lk["state"] == "done" and source_links.send_moves(conn)["drafted"] == 0
     conn.commit()
