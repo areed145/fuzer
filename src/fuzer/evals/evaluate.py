@@ -355,7 +355,7 @@ def memory(conn, pack: Pack, cases: list[dict], team=None, learn_client=None, sa
                              "values (%s, %s, %s, %s, 'eval')", (aid, f"eval-{run}", t["question"], t["answer"]))
                 conn.commit()
                 episodes.append(aid)
-                out = mem.learn(conn, pack, aid, by="eval", client=learn_client)
+                out = mem.learn(conn, pack, aid, by="eval", client=learn_client, review=False)
                 facts += out.get("facts", [])
                 ended += out.get("ended", [])
                 lessons += out.get("lessons", [])

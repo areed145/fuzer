@@ -295,6 +295,25 @@ and how many eval questions its gate asks. A skill opens on three tabs:
 
 A drafted change opens as `skill_change` work for the skill's owner (P6.4c), and its case links to the draft here.
 
+## Knowledge review
+
+Ops IQ › Knowledge (`#/knowledge`, `agents/knowledge_review.py`, `GET /knowledge/review`) is one queue for what the
+agents propose to know, for the engineers and data stewards who decide it:
+
+- **Facts** the assistant learned from a conversation (an answer rated useful, or a statement someone asked it to
+  remember). With `agents.memory_review` on (the default) each waits as `proposed`: no answer recalls it, and the facts
+  it would replace stay current. Each shows what it says, the entities it is about, the period it holds for, the answer
+  it came from, and the facts approving it would end. **Approve** makes it current and ends those
+  (`POST /assistant/facts/{id}/approve`); **Edit wording** then approve; **Reject** keeps it as `rejected` with the
+  reason (`/reject`), off every list and never recalled. An answer later rated not useful drops its facts that no one
+  has touched, waiting or current. An entity's page shows a waiting fact with a link here.
+- **Lessons** suggested from incidents and conversations, decided as on Lessons learned (approve, edit, reject).
+  Lessons learned keeps the approved and rejected ones; its old Suggested link opens this tab.
+- **Skill drafts** waiting, each opening its draft on Skills, where it is published behind the eval or set aside.
+- **Decided**: the latest decisions on all three, with who, when and why.
+
+The memory eval (`fuzer eval --memory`) learns without review, since it asks what memory recalls straight after.
+
 ## Views and agent tools
 
 **Charts:**

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { whenDay } from "./format";
 import { api, type AssistantFact } from "./api";
-import { entityHref, useAsync } from "./lib";
-import { Button, Input, Card as UICard, Textarea, ErrorText, Line, Text, List, Field } from "./ui";
+import { entityHref, href, useAsync } from "./lib";
+import { Badge, Button, Input, Card as UICard, Textarea, ErrorText, Line, Text, List, Field } from "./ui";
 import { loadPerson } from "./work";
 
 /** Who is editing: the name the Review page remembers. */
@@ -34,6 +34,7 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
   const [from, setFrom] = useState(f.valid_from ?? "");
   const [to, setTo] = useState(f.valid_to ?? "");
   const ended = f.status === "ended";
+  const proposed = f.status === "proposed";
   if (editing) {
     return (
       <li className="fact">
@@ -55,6 +56,7 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
   return (
     <li className={ended ? "fact muted" : "fact"}>
       <Text small mono>fact:{f.id}</Text> {ended ? <s>{f.text}</s> : f.text}
+      {proposed && <> <a href={href("/knowledge", { tab: "facts" })}><Badge tone="warn">waiting for review</Badge></a></>}
       <Text as="div" small muted>
         {period(f) && <span>{period(f)} · </span>}
         {ended && <span>ended{f.ended_at ? ` ${whenDay(f.ended_at)}` : ""} by {f.ended_by}
@@ -66,7 +68,7 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
           <a key={e.id} href={entityHref(e.id)}>{i ? ", " : ""}{e.label ?? e.id}</a>))}</span>}
         {" "}
         <Button variant="link" onClick={() => setEditing(true)}>correct</Button>
-        {!ended && <Button variant="link" title="No longer true: kept, with today as its end date"
+        {!ended && !proposed && <Button variant="link" title="No longer true: kept, with today as its end date"
                            onClick={() => act(api.endFact(f.id, person()))}>end</Button>}
         <Button variant="link" title="Wrong from the start" onClick={() => act(api.deleteFact(f.id))}>delete</Button>
       </Text>

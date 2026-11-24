@@ -87,11 +87,13 @@ export const NAV: NavGroup[] = [
     items: [{ label: "Explore", section: "browse", also: ["e", "map", "network", "3d"] }],
   },
   // Ops IQ, the operations agent, its own destination: it answers from the register, the work and the readings. Beside
-  // it, what it knows: the skills its specialists follow, for the engineers who own them. Asking needs AI access;
+  // it, what it knows: the skills its specialists follow, for the engineers who own them, and the facts, lessons and
+  // skill drafts waiting for a person (Knowledge). Asking needs AI access;
   // reading and changing a skill does not, so the group shows for everyone and opens on Skills without it.
   { label: OPS_IQ, icon: IQ_SPARK, items: [
     { label: OPS_IQ, section: "ask", permission: "ai" },
     { label: "Skills", section: "skills", desk: true },
+    { label: "Knowledge", section: "knowledge", desk: true },
   ] },
   {
     label: "Reports",

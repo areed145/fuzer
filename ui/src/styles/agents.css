@@ -10,3 +10,4 @@
 .skill-shortfall { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .skill-shortfall:last-child { border-bottom: 0; }
 .skill-playbook { overflow-wrap: anywhere; }
+.knowledge-fact s { color: var(--muted); }

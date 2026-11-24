@@ -257,6 +257,29 @@ def assistant_fact_end(fact_id: int, e: FactEnd, conn=Depends(get_conn)):
     return memory.get(conn, fact_id)
 
 
+class FactReview(BaseModel):
+    note: str | None = None
+    by: str = "anonymous"
+
+
+@router.post("/assistant/facts/{fact_id}/approve")
+def assistant_fact_approve(fact_id: int, r: FactReview, conn=Depends(get_conn)):
+    """A person approves a proposed fact: it is recalled from now on, and the facts it replaces end."""
+    from ..agents import memory
+    if (row := memory.approve(conn, fact_id, r.by)) is None:
+        raise HTTPException(404, "no proposed fact with that id")
+    return row
+
+
+@router.post("/assistant/facts/{fact_id}/reject")
+def assistant_fact_reject(fact_id: int, r: FactReview, conn=Depends(get_conn)):
+    """A person rejects a proposed fact: kept as rejected with their reason, never recalled."""
+    from ..agents import memory
+    if (row := memory.reject(conn, fact_id, r.by, (r.note or "").strip() or None)) is None:
+        raise HTTPException(404, "no proposed fact with that id")
+    return row
+
+
 @router.delete("/assistant/facts/{fact_id}")
 def assistant_fact_delete(fact_id: int, conn=Depends(get_conn)):
     """Wrong from the start: the fact is deleted."""

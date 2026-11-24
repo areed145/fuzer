@@ -1,4 +1,5 @@
 import { request } from "./transport";
+import type { AssistantFact, Lesson } from "./investigate";
 
 /** Whether an automated feature may call a model now, and if not, why (no key, or the month's budget spent). */
 export interface AiAvailability { available: boolean; why: string | null }
@@ -53,7 +54,23 @@ export interface SkillDiff {
   lines: { op: "same" | "add" | "remove"; text: string }[];
 }
 
+/** A proposed fact on Knowledge, with the wording of the facts it would end. */
+export interface ProposedFact extends AssistantFact { replaced: { id: number; text: string }[] }
+
+/** A decision taken on Knowledge or a skill's page, newest first. */
+export interface KnowledgeDecision {
+  kind: "fact" | "lesson" | "skill"; ref: string; title: string; status: string; by: string | null; at: string | null; note: string | null;
+}
+
+export interface KnowledgeQueue {
+  facts: ProposedFact[]; lessons: Lesson[]; skills: SkillRow[]; recent: KnowledgeDecision[];
+  counts: { facts: number; lessons: number; skills: number; total: number };
+}
+
 export const agentsApi = {
+  knowledgeReview: () => request<KnowledgeQueue>("GET", "/knowledge/review"),
+  approveFact: (id: number, by: string) => request<AssistantFact & { ended: number[] }>("POST", `/assistant/facts/${id}/approve`, undefined, { by }),
+  rejectFact: (id: number, by: string, note: string) => request<AssistantFact>("POST", `/assistant/facts/${id}/reject`, undefined, { by, note }),
   skills: () => request<{ skills: SkillRow[]; ai: AiAvailability }>("GET", "/work/skills"),
   skill: (skill: string) => request<SkillDetail>("GET", "/work/skills/detail", { skill }),
   skillVersions: (skill: string) => request<SkillVersion[]>("GET", "/work/skills/versions", { skill }),

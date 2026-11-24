@@ -2405,7 +2405,7 @@ The assistant's conversations (#93): each message as MAF wrote it, in order. `js
 
 ### `assistant_fact`
 
-Facts the assistant learned from answers rated useful, or statements an engineer marked "remember this" (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A newer fact that contradicts one ends it (status 'ended', invalidated_by); it is never deleted, except by an engineer.
+Facts the assistant learned from answers rated useful, or statements an engineer marked "remember this" (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A new fact waits as 'proposed' for a person on Ops IQ, Knowledge; once approved it is current and ends the facts it contradicts (status 'ended', invalidated_by). A fact is never deleted, except by an engineer.
 
 | Column | Type | Note |
 |---|---|---|

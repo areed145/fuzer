@@ -50,8 +50,9 @@ create table if not exists assistant_image (
 );
 
 -- Facts the assistant learned from answers rated useful, or statements an engineer marked "remember this"
--- (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A newer fact that contradicts
--- one ends it (status 'ended', invalidated_by); it is never deleted, except by an engineer.
+-- (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A new fact waits as 'proposed' for a
+-- person on Ops IQ, Knowledge; once approved it is current and ends the facts it contradicts (status 'ended',
+-- invalidated_by). A fact is never deleted, except by an engineer.
 create table if not exists assistant_fact (
     id             bigserial primary key,
     text           text not null,
@@ -71,6 +72,16 @@ create table if not exists assistant_fact (
     updated_at     timestamptz not null default now()
 );
 create index if not exists assistant_fact_entities on assistant_fact using gin (entity_ids);
+-- Knowledge review: a learned fact waits as 'proposed' until a person approves it (then 'current', ending the facts it
+-- `replaces`) or rejects it ('rejected', kept with who and why). Recall reads current facts only.
+alter table assistant_fact add column if not exists replaces bigint[] not null default '{}';
+alter table assistant_fact add column if not exists reviewed_by text;
+alter table assistant_fact add column if not exists reviewed_at timestamptz;
+alter table assistant_fact add column if not exists review_note text;
+alter table assistant_fact drop constraint if exists assistant_fact_status_check;
+alter table assistant_fact add constraint assistant_fact_status_check
+    check (status in ('proposed', 'current', 'ended', 'rejected'));
+create index if not exists assistant_fact_proposed on assistant_fact (learned_at) where status = 'proposed';
 create index if not exists assistant_fact_episode on assistant_fact (episode);
 
 -- Skill versions (P6.4b): a skill's playbook as drafted, published, retired or rolled back. Version 0 is the folder

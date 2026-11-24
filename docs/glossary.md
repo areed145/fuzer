@@ -94,6 +94,10 @@ See [how work is routed](work-routing.md).
 **Excursion.** A process value outside its alarm limits, integrity operating window or learned normal range while
 its unit runs.
 
+**Fact.** A short, dated statement about an entity that Ops IQ learned from a conversation, cited as `fact:<id>`.
+A new fact is **proposed** until a person **approves** it on Ops IQ, Knowledge (only then does an answer recall it,
+and it ends the facts it replaces) or **rejects** it. Not "memory item". See [agents](agents.md#knowledge-review).
+
 **Field job.** A case as a field operator sees it on My work: the instruction, where to go, what was found, what
 happened there lately, and **On site**, **Done** and **Could not do**.
 
@@ -113,6 +117,9 @@ work) or several. On screen a **field job** or a **desk job**; the **Jobs** page
 **Kind.** What sort of entity something is (a well, a tag, a work order, a document). The ontology names and labels
 every kind; a page shows that label, or the more specific word a record carries (a compressor's template, a
 drawing's document type).
+
+**Knowledge.** Ops IQ's review queue: the facts, lessons and skill drafts the agents propose, waiting for a person to
+decide. Not "inbox" or "approvals". See [agents](agents.md#knowledge-review).
 
 **Logistics.** What the plan asks to be sent each day: each crew's jobs, the crews that travel out and back, the
 seats and beds they take (a visiting crew keeps its beds aboard between its jobs until it flies back), the cranes,

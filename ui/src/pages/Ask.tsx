@@ -409,7 +409,12 @@ function Remember({ id }: { id: string }) {
   const send = () => {
     setState("Remembering…");
     api.remember(id, text, asker()).then(
-      (r) => { setState(r.items.length ? `Remembered: ${r.items.map((f) => f.text).join(" ")}` : "Nothing to remember in that."); setOpen(false); setText(""); },
+      (r) => {
+        setState(!r.items.length ? "Nothing to remember in that."
+          : r.proposed ? `Sent for review on Knowledge: ${r.items.map((f) => f.text).join(" ")}`
+          : `Remembered: ${r.items.map((f) => f.text).join(" ")}`);
+        setOpen(false); setText("");
+      },
       (e) => setState(String(e)));
   };
   return (
