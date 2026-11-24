@@ -108,8 +108,8 @@ export function AddPanel({ definition, onAdd, onCancel }: {
     actions={<Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>}>
     <Status of={model} />
     {m && <div className="report-add-fields">
-      <Field label="Type">
-        <Select value={type} onChange={(e) => { setType(e.target.value as PanelType); setSize(0); }} aria-label="Type">
+      <Field label="Panel type">
+        <Select value={type} onChange={(e) => { setType(e.target.value as PanelType); setSize(0); }} aria-label="Panel type">
           {m.types.map((t) => <option key={t} value={t}>{TYPE_WORDS[t]}</option>)}
         </Select>
       </Field>

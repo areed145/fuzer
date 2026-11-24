@@ -137,7 +137,8 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
     </div>}
     {editor && pane === "versions" && <VersionHistory reportKey={reportKey} onRestored={() => { setEdit(""); setDraft(null); view.reload(); }} />}
     {editor && pane === "definition" && <DefinitionView definition={editor.definition} onApply={setDraft} onClose={() => setPane("")} />}
-    {shown && pane !== "definition" && <>
+    {/* kept drawn under the definition view, so going back to the page reads nothing again */}
+    {shown && <div hidden={pane === "definition"}>
       <div className="report-controls" role="group" aria-label="Scope and window">
         <Field label="Scope" inline>
           <Select value={shown.scope.id ?? ""} onChange={(e) => setScope(e.target.value)} aria-label="Scope">
@@ -167,7 +168,7 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
         {editor && <AddPanelSlot definition={editor.definition} index={ri + 1} open={editor.adding === ri + 1}
           onOpen={editor.onAdding} onChange={editor.onChange} />}
       </Fragment>)}
-    </>}
+    </div>}
   </section>;
 }
 
