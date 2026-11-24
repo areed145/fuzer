@@ -1,5 +1,5 @@
 import { request } from "./transport";
-import type { NoteResult, PanelResultBase, SummaryResult, WindowKey } from "../reports/spec";
+import type { NoteResult, SummaryResult, WindowKey } from "../reports/spec";
 
 /** One point of a report's AI note, with what it rests on: measure keys, entity ids or "case:<n>". */
 export interface ReportNotePoint { text: string; cites: string[] }
@@ -37,8 +37,6 @@ export type CommentaryResult = SummaryPanelResult | NotePanelResult;
 interface Period { scope: string | null; window: WindowKey; at: string }
 
 export const commentaryApi = {
-  reportPanel: <T extends PanelResultBase>(key: string, id: string, p: Period) =>
-    request<T>("GET", `/reports/${encodeURIComponent(key)}/panels/${encodeURIComponent(id)}`, { ...p }),
   writeReportSummary: (key: string, p: Period, rewrite = false) =>
     request<{ summary: ReportSummary; written: boolean }>("POST", `/reports/${encodeURIComponent(key)}/summary/generate`,
       { ...p, rewrite: rewrite ? "true" : undefined }),
