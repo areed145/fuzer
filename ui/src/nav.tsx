@@ -363,9 +363,13 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <aside ref={drawer} id="sidebar" className={open ? "sidebar open" : "sidebar"}>
         {open && <Button className="drawer-close" onClick={() => setOpen(false)}>Close menu</Button>}
-        <a className="brand" href={href("/")}>
-          <Logo />
-        </a>
+        {/* On a wide screen the account sits at the panel's top right, beside the mark, so the page has the corner. */}
+        <div className="sidebar-head">
+          <a className="brand" href={href("/")}>
+            <Logo />
+          </a>
+          <span className="sidebar-account"><AccountButton /></span>
+        </div>
         <div className="sidebar-search">
           <SearchButton wide />
           <IqButton />

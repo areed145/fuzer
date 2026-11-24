@@ -12,16 +12,17 @@
 .map-basemap-terrain-dark .leaflet-tile-pane { filter: brightness(.62) contrast(1.12) saturate(.75); }
 .map-controls { position: absolute; z-index: 1000; top: 10px; right: 10px; display: flex; flex-wrap: wrap; align-items: end;
   justify-content: flex-end; gap: 6px; max-width: calc(100% - 20px); }
-/* Base map: a segmented control of three short words, as wide as a phone allows. */
+/* Base map: a segmented control of small icons, each named on hover and to a screen reader. */
 .map-basemaps { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--panel); box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
-.map-basemaps > .ui-button.map-basemap { min-height: 36px; padding: 0 12px; border: 0; box-shadow: none; border-radius: 7px; background: none; color: var(--muted);
+.map-basemaps > .ui-button.map-basemap { display: inline-grid; place-items: center; width: 36px; min-height: 36px; padding: 0; border: 0; box-shadow: none; border-radius: 7px; background: none; color: var(--muted);
   font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .map-basemaps > .ui-button.map-basemap:hover { color: var(--text); }
 .map-basemaps > .ui-button.map-basemap.on { background: var(--accent-soft); color: var(--text); font-weight: 600; }
 .map-basemaps > .ui-button.map-basemap:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .map-controls .ui-button { box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
 .map-controls .map-control-button { min-width: 44px; min-height: 44px; padding: 8px; }
+.map-zoom { display: flex; flex-direction: column; gap: 2px; }
 /* A finger gets a 44 px chip; a mouse gets the same compact chip as every other filter row. */
 @media (pointer: coarse), (max-width: 900px) { .map-legend .chip { min-height: 44px; } }
 /* A message sits at the foot of the map, so it never covers the controls or the field at the top (#1075). */
@@ -60,8 +61,6 @@ h2 select { font: inherit; font-size: 15px; }
   .map-legend::-webkit-scrollbar { display: none; }
   .map-legend .chip { flex: none; white-space: nowrap; }
   .map-controls { left: 10px; justify-content: flex-start; }
-  .map-basemaps { flex: 1; min-width: 0; }
-  .map-basemaps > .ui-button.map-basemap { flex: 1; min-height: 38px; padding: 0 6px; }
   /* The controls span the top, so the zoom buttons and any message start under them. */
   /* Clear of the controls' row at either size (the iOS look draws them taller, #1075). */
   .mapview:not(.mapview-compact) .leaflet-top.leaflet-left { top: 66px; }

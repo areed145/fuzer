@@ -277,10 +277,11 @@ export function Line({ as: Tag = "div", spread, wrap, small, muted, ...props }: 
   return <Tag {...props} className={classes({ row: true, spread, wrap, small, muted })} />;
 }
 /** A labelled figure. With `href` the whole figure links to the view that shows the same number; `tone="danger"` marks
- * one that needs acting on (work waiting to dispatch). */
-export function Stat({ label, value, detail, href, tone }: { label: ReactNode; value: ReactNode; detail?: ReactNode; href?: string;
-                                                          tone?: "danger" }) {
-  const className = `ui-stat${href ? " ui-stat-link" : ""}${tone ? ` ui-stat-${tone}` : ""}`;
+ * one that needs acting on (work waiting to dispatch). `compact` is the slim figure for a strip over a map: a small
+ * label on one line over a smaller number, with little padding. */
+export function Stat({ label, value, detail, href, tone, compact }: { label: ReactNode; value: ReactNode; detail?: ReactNode; href?: string;
+                                                          tone?: "danger"; compact?: boolean }) {
+  const className = `ui-stat${href ? " ui-stat-link" : ""}${tone ? ` ui-stat-${tone}` : ""}${compact ? " ui-stat-compact" : ""}`;
   const body = <><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</>;
   return href ? <a className={className} href={href}>{body}</a> : <div className={className}>{body}</div>;
 }

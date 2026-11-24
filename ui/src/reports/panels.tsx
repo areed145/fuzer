@@ -11,6 +11,8 @@ import { Status, useAsync } from "../lib";
 import { BoardCard } from "../pages/WorkList";
 import { TrendChart, isCompact } from "../trends/TrendChart";
 import { Card, Empty, ErrorText, Table, Text } from "../ui";
+import { NotePanel } from "./panels/NotePanel";
+import { SummaryPanel } from "./panels/SummaryPanel";
 import type {
   CasesResult, FigureResult, PanelProps, PanelResult, PanelType, StatResult, TableResult, TrendResult,
 } from "./spec";
@@ -115,9 +117,6 @@ function CasesPanel(props: PanelProps) {
   </PanelFrame>;
 }
 
-/** Until the commentary is in, its panels say nothing rather than stand empty. */
-const Later = () => null;
-
 /** Each panel type's component. */
 export const PANELS: Record<PanelType, ComponentType<PanelProps>> = {
   stat: StatPanel,
@@ -125,6 +124,6 @@ export const PANELS: Record<PanelType, ComponentType<PanelProps>> = {
   figure: FigurePanel,
   table: TablePanel,
   cases: CasesPanel,
-  note: Later,
-  summary: Later,
+  note: NotePanel,
+  summary: SummaryPanel,
 };

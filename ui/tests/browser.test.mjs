@@ -395,6 +395,43 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
+test("a report's AI note cites what it rests on and flags what the checks found; a note shows its live values and adds for the period", async () => {
+  const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
+    previous: { start: "2026-11-11", end: "2026-11-17" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const view = { scope, window: win, repeats: {}, scopes: [scope],
+    definition: { schema: 1, key: "work", title: "Work and dispatch", version: 1, for: [], scope: { kinds: ["facility"] },
+      window: { default: "7d", options: ["7d"] }, source: "platform", rows: [
+        { id: "commentary", panels: [{ id: "summary", type: "summary", size: 2 }, { id: "notes", type: "note", size: 2 }] }] } };
+  const note = { id: 7, report: "work", scope: "fz-f1", window: "7d", at: "2026-11-24", start: "2026-11-18",
+    body: "Backlog at {work.backlog} after the trip.", by: "Dana", written_at: "2026-11-24T08:00:00Z", edited_at: null, own: true,
+    values: { "{work.backlog}": { key: "work.backlog", scope: "fz-f1", value: 1250, unit: "cases", error: null } } };
+  const added = [];
+  await page.route("**/reports/work?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/work", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/work/notes", (route) => { added.push(route.request().postDataJSON()); return route.fulfill({ json: { ...note, id: 8 } }); });
+  await page.route("**/reports/work/panels/**", (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").pop();
+    const base = { id, title: "", scope, window: win, as_of: null, note: null, scoped: true, refs: [], href: null };
+    if (id === "notes") return route.fulfill({ json: { ...base, type: "note", text: null, values: {}, notes: [note] } });
+    return route.fulfill({ json: { ...base, type: "summary", can_write: false, due: false, summary: {
+      report: "work", scope: "fz-f1", window: "7d", at: "2026-11-24", headline: "Backlog up to 42 cases this week",
+      points: [{ text: "Most of it waits for dispatch.", cites: ["work.backlog", "case:12"] }],
+      checks: { ok: false, uncited_points: [], unknown_citations: [], unknown_numbers: ["12%"] },
+      written_at: "2026-11-24T07:00:00Z", by: "user:a", model: "m", cost_usd: 0.001 } } });
+  });
+  await page.goto(`${url}/#/reports/work`);
+  await page.getByText("Backlog up to 42 cases this week").waitFor();
+  await page.getByRole("link", { name: "case 12" }).waitFor();
+  await page.getByText("12% not on the page").waitFor();
+  await page.getByText("1,250 cases", { exact: true }).waitFor();
+  await page.getByRole("textbox", { name: "Add a note" }).fill("Compressor back on Thursday.");
+  await page.getByRole("button", { name: "Add note" }).click();
+  await page.waitForFunction(() => true);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepEqual(added.map((a) => [a.body, a.window, a.at ?? null, a.scope]), [["Compressor back on Thursday.", "7d", null, "fz-f1"]]);
+});
+
 test("P7.6 a regulatory report marks figures on estimated or missing data and drills each figure to its records", async () => {
   const report = { id: 1, template: "flare_emissions_monthly", title: "Monthly flare and emissions report", period: "2026-11",
     version: 2, versions: [1, 2], status: "draft", drafted_by: "agent:reporter", item_id: 27, created_at: "2026-11-13T10:00:00Z",
@@ -1765,7 +1802,8 @@ test("the base map is Standard, Satellite or Terrain, and Standard follows the t
   await page.reload();
   const group = page.getByRole("group", { name: "Base map" });
   await group.waitFor();
-  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite", "Terrain"]);
+  // The picker is icons, each named for a screen reader and on hover.
+  assert.deepEqual(await group.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), ["Standard", "Satellite", "Terrain"]);
   assert.equal(await group.getByRole("button", { name: "Standard" }).getAttribute("aria-pressed"), "true");
   assert.equal(await page.locator(".map-controls select").count(), 0, "no dropdown");
   const box = await group.boundingBox();
@@ -1838,7 +1876,8 @@ test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the th
   await page.reload();
   const group = page.getByRole("group", { name: "Base map" });
   await group.waitFor();
-  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite"]);
+  // The picker is icons, each named for a screen reader and on hover.
+  assert.deepEqual(await group.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), ["Standard", "Satellite"]);
   const state = () => page.evaluate(() => { const m = window.__mk.maps.at(-1);
     return { type: m.mapType, scheme: m.colorScheme, tokens: window.__mk.tokens, overlays: m.overlays.length,
              dashes: m.overlays.map((o) => o.style.lineDash.join(" ")), span: m.region.span.longitudeDelta }; });
@@ -1866,7 +1905,7 @@ test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the th
   // Apple refuses the token later: the same map redraws on free tiles.
   await page.evaluate(() => window.mapkit.fail("Unauthorized"));
   await page.locator(".leaflet-container").waitFor();
-  assert.deepEqual(await page.getByRole("group", { name: "Base map" }).getByRole("button").allInnerTexts(),
+  assert.deepEqual(await page.getByRole("group", { name: "Base map" }).getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))),
                    ["Standard", "Satellite", "Terrain"]);
   await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.removeItem("fuzer.theme"); });
 });
@@ -3512,6 +3551,8 @@ test("Home's open work layer gathers work at places, and a marker opens its plac
     await page.reload();  // the same URL again would keep the last width's filter
     await page.locator(".hotspot").nth(1).waitFor();
     assert.equal(await page.locator(".hotspot-crew").count(), 1);
+    // On a phone the top drawer starts folded to its figures; the layers are a tap away.
+    if (width < 900) await page.getByRole("button", { name: "Open map layers" }).click();
     // Crews is a layer of its own.
     const crews = page.getByRole("group", { name: "Map layers" }).getByRole("button", { name: "Crews", exact: true });
     await crews.click();

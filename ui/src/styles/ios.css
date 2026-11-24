@@ -683,7 +683,7 @@
 /* ================= Tools on a canvas: one stack (#1131 item 8) =================
    The map, Network and 3D share one tool look: 44-point rounded squares in the panel colour with a hairline, stacked
    down the right edge. Full screen is one of them, not a round glass button, and the map's zoom buttons are the same
-   squares. The base map picker is a segmented control like any other, top left, sized to its labels. */
+   squares. The base map picker is a segmented control of small icons, top left. */
 :root.ios :is(.map-controls, .graph-tools) .ui-button:not(.map-basemap),
 :root.ios :is(.map-frame, .graph-canvas, .scene3d) .ui-fullscreen-button,
 :root.ios .leaflet-bar {
@@ -695,12 +695,16 @@
 }
 :root.ios :is(.map-controls, .graph-tools) .ui-button[aria-pressed="true"]:not(.map-basemap) { color: var(--accent); border-color: var(--accent); }
 :root.ios .leaflet-bar a, :root.ios .leaflet-bar a:hover { background: none; border-bottom: var(--hair) solid var(--line); }
+/* Zoom is one tool of two halves, + over −, the same 44-point width as the tools above it. */
+:root.ios .map-zoom { display: flex; flex-direction: column; gap: 0; }
+:root.ios .map-zoom > .ui-button:first-child { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: 0; }
+:root.ios .map-zoom > .ui-button:last-child { border-top-left-radius: 0; border-top-right-radius: 0; }
 :root.ios .leaflet-bar a:last-child { border-bottom: 0; }
 :root.ios .map-controls { left: 10px; right: 10px; flex-direction: column; flex-wrap: nowrap; align-items: flex-end; gap: 6px; pointer-events: none; }
 :root.ios .map-controls > * { pointer-events: auto; }
 :root.ios .mapview-compact .map-controls { left: auto; }
 :root.ios .map-basemaps { position: absolute; top: 0; left: 0; flex: none; padding: 3px; gap: 0; border: 0; border-radius: 999px; background: var(--panel); }
-:root.ios .map-basemaps > .ui-button.map-basemap { flex: none; height: 32px; min-height: 32px; padding: 0 12px; border-radius: 999px;
+:root.ios .map-basemaps > .ui-button.map-basemap { flex: none; width: 38px; height: 38px; min-height: 38px; padding: 0; border-radius: 999px;
   font-size: var(--t-footnote); font-weight: 600; color: var(--muted); white-space: nowrap; }
 :root.ios .map-basemaps > .ui-button.map-basemap.on { background: var(--fill); color: var(--text); }
 :root.ios .mapview:not(.mapview-compact) .leaflet-top.leaflet-left { top: 56px; }

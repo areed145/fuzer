@@ -10,7 +10,8 @@ the Work list, so a figure on a report is the figure everywhere else.
 
 A panel type's function gets the definition, the panel, the scope as {id, label, kind} and the resolved window
 (`core/windows.resolve`) and returns its own fields; the envelope (title, as_of, note, scoped, refs, href) is filled
-here. The modules in `DECLARED_IN` register types: this one registers stat, trend, figure, table and cases.
+here. The modules in `DECLARED_IN` register types: this one registers stat, trend, figure, table and cases; the
+commentary registers note (ops/report_notes) and summary (agents/report_summary).
 """
 
 from collections.abc import Callable
@@ -21,7 +22,7 @@ from urllib.parse import urlencode
 from ..core import metrics, reports, windows
 from ..core.reports import ReportError
 
-DECLARED_IN = ("fuzer.ops.report_pages",)
+DECLARED_IN = ("fuzer.ops.report_pages", "fuzer.ops.report_notes", "fuzer.agents.report_summary")
 _TYPES: dict[str, Callable] = {}
 SCOPES = 300
 FIGURE_ROWS = 12

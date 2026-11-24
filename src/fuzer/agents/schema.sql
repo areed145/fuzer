@@ -107,3 +107,21 @@ create table if not exists entity_summary (
     created_at  timestamptz not null default now()
 );
 create index if not exists entity_summary_latest on entity_summary (fuzer_id, created_at desc);
+
+-- A report's AI note (docs/reports.md, the `summary` panel): what one report's panels show for one scope, window and
+-- day, written by the summary specialist from those panel results (kept with it as its facts, with the checks run on
+-- it), shared with everyone who opens that report. One per period; a rewrite adds a newer row.
+create table if not exists report_summary (
+    report_key  text not null,
+    scope       text not null default '',
+    span        text not null,
+    at          date not null,
+    headline    text not null,
+    points      jsonb not null default '[]',
+    facts       jsonb not null default '{}',
+    checks      jsonb not null default '{}',
+    usage       jsonb not null default '{}',
+    by_user     text not null default 'anonymous',
+    created_at  timestamptz not null default now()
+);
+create index if not exists report_summary_latest on report_summary (report_key, scope, span, at, created_at desc);

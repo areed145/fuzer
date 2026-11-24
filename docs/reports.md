@@ -137,3 +137,32 @@ Every panel result carries the same envelope, then its type's own fields:
 ```
 
 The types are in `ui/src/reports/spec.ts`.
+
+## Commentary
+
+Two kinds of text sit beside the figures: the AI note says what the numbers show, and a person's note says what people
+know that the numbers do not. Both are kept per report, scope, window and the day the window ends, and both are read
+as panel results, so reading a report never calls a model.
+
+**AI note (`summary` panel, `agents/report_summary.py`).** The facts are the report's own panel results for that scope,
+window and day (`report_pages.panel_data` of every panel except the commentary and the repeat rows), made small enough
+for one short call on `agents.summary_model` at low effort. It writes a headline and two to five points; each point
+cites the measure keys, entity ids or `case:<n>` it rests on. The daily report's checks run on it and are kept with it:
+a number not in the facts, a citation not in them or a point with no citation is flagged on the note, not hidden.
+Notes are kept in `report_summary`, shared with everyone. The panel's result says `due` when none is kept for the
+report's default window ending today: the first visit with AI access to the report's own view writes it. Any other
+scope, window or day shows "Write the note" to someone with AI access and nothing to write for anyone else.
+
+**People's notes (`note` panel, `ops/report_notes.py`).** Markdown with live values bound to measures, resolved by the
+server for the note's own scope and period: `{production.oil}`, `{work.backlog@area}` (the area the scope sits in, or
+any kind), `{work.backlog@fz-...}` (that entity). A note is pinned to one period; a report shows its own period's notes
+first, then those pinned to shorter periods inside it with their dates (Tuesday's line shows on that week). Only the
+author edits or removes a note, and a removed one is kept. A `note` panel with `text` in the definition is a fixed line
+with the same live values, such as a section's heading.
+
+| Route | Does |
+|---|---|
+| `POST /reports/{key}/summary/generate?scope&window&at&rewrite` | Writes the AI note, or returns the kept one (AI access) |
+| `POST /reports/{key}/notes` | Pins a note: `{body, scope, window, at}` |
+| `PATCH /reports/{key}/notes/{id}` | Changes your own note: `{body}` |
+| `DELETE /reports/{key}/notes/{id}` | Takes down your own note |
