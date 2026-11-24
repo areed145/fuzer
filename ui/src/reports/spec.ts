@@ -147,7 +147,7 @@ export interface TableColumn { key: string; label: string; unit?: string; align?
 export interface TableRow { key: string; cells: Record<string, string | number | null>; href: string | null }
 export interface TableResult extends PanelResultBase { type: "table"; columns: TableColumn[]; rows: TableRow[]; total: number }
 
-/** Rows exactly as the Work list (GET /worklist, ops/worklist.rows) returns them; `href` opens that list. */
+/** Rows exactly as the Work list (GET /cases, ops/worklist.rows) returns them; `href` opens that list. */
 export interface CasesResult extends PanelResultBase {
   type: "cases";
   cases: Record<string, unknown>[];
