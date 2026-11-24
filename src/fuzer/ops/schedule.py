@@ -424,6 +424,7 @@ def sync_activities(conn, by: str = P6) -> dict:
     from datetime import UTC, time
 
     from ..graph.operations import DONE, _day, _num
+    from . import source_links
 
     rows = conn.execute(
         """
@@ -492,7 +493,7 @@ def sync_activities(conn, by: str = P6) -> dict:
                                  (r["work_order"],)).fetchone() if r["work_order"] else None
             subjects = list(r["places"] or [])
             keys.append(f"{code}:{act}")
-            conn.execute(
+            item = conn.execute(
                 """
                 insert into plan_item (kind, title, source, source_key, subjects, area_id, start_at, end_at, status, project,
                                        code, wbs, parent_id, duration_hours, percent_complete, not_before, notes,
@@ -508,11 +509,17 @@ def sync_activities(conn, by: str = P6) -> dict:
                                           else plan_item.duration_hours end,
                     not_before = case when plan_item.updated_by = %(by)s then excluded.not_before else plan_item.not_before end,
                     updated_at = now()
+                returning id
                 """, {"title": str(f.get("description") or f.get("name") or r["label"]), "key": keys[-1], "subjects": subjects,
                       "area": plan._area(conn, subjects), "s": s, "e": e, "status": status, "project": code, "code": act,
                       "wbs": f.get("wbs"), "parent": order["id"] if order else None,
                       "hours": (e - s).total_seconds() / 3600, "pct": pct, "notes": f"Planning system activity {r['label']}",
-                      "by": by})
+                      "by": by}).fetchone()
+            # its source link (step 8): P6 owns the dates and progress; its status reads through the mapping
+            said = str(f.get("status") or "").strip() or {"done": "Completed", "in_progress": "In progress"}.get(
+                status, "Not started")
+            source_links.link(conn, "job", item["id"], P6, "activity", r["label"], said,
+                              owns=("start", "end", "percent_complete"), by=by)
         out["removed"] += conn.execute(
             "delete from plan_item where project = %s and source = 'schedule' and created_by = %s and not (source_key = any(%s))",
             (code, by, keys)).rowcount

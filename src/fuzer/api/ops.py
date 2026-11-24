@@ -1472,7 +1472,8 @@ def plan_sync(conn=Depends(get_conn)):
     def both(c):
         return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c),
                 "planning_system": schedule.sync_activities(c), "containers": containers.sync(c),
-                "cases": source_links.sync_orders(c)}
+                "cases": source_links.sync_orders(c), "activities": source_links.sync_activities(c),
+                "moves": source_links.send_moves(c)}
     return _plan_call(conn, both)
 
 

@@ -5,7 +5,9 @@ keep for it, and each system's statuses read into Fuzer's short list of states.
     link(conn, object, id, system, type, key, ...) tie a Fuzer object to another system's object, with its status
     links(conn, object, id)                       the links on one object
     status_map(conn, system) / set_status(...)    the mapping, as a site edits it
-    sync_orders(conn)                             each SAP order on the plan as a job with its source link and a case
+    sync_orders(conn)                             each SAP order's job with exactly one case
+    sync_activities(conn)                         each planning-system activity with its order's or container's case
+    send_moves(conn)                              a Fuzer move on a job another system owns, drafted back to it
 
 A status no row maps is flagged, not guessed: the object holds its last known state and the data steward gets a
 `source_issue` for the status. SAP carries system and user statuses in one field ("REL WMAT"); a row matches a system
@@ -229,3 +231,81 @@ def sync_orders(conn, by: str = "sap") -> dict:
                 work.close_case(conn, case_id, j["status"], by, reason=f"SAP {'closed' if j['status'] == 'done' else 'cancelled'} order {key}")
                 closed += 1
     return {"opened": opened, "joined": joined, "closed": closed}
+
+
+def sync_activities(conn, by: str = "p6") -> dict:
+    """Each planning-system activity with exactly one case: the case of the SAP order it executes, else its schedule
+    container's governing case when it has one. P6 owns the activity's dates and progress, so nothing here moves
+    them. Runs after the order cases and the containers."""
+    via_order = conn.execute(
+        """
+        update plan_item a set item_id = o.item_id from plan_item o
+        where a.source = 'schedule' and a.parent_id = o.id and o.item_id is not null
+          and a.item_id is distinct from o.item_id
+        """).rowcount
+    via_container = conn.execute(
+        """
+        update plan_item a set item_id = c.item_id from work_container c
+        where a.source = 'schedule' and a.parent_id is null and a.item_id is null and a.container_id = c.id
+          and c.item_id is not null
+        """).rowcount
+    return {"by_order": via_order, "by_container": via_container}
+
+
+# What kind of write-back a move on each system's object drafts (fuzer.ops.writeback.KINDS).
+WRITEBACK_KIND = {("sap", "order"): "order", ("maximo", "work_order"): "order"}
+
+
+def _move(conn, system: str, object_type: str, state: str) -> dict | None:
+    """The status a Fuzer move to `state` sends back: the first plain row for that state with a move."""
+    seed(conn)
+    return conn.execute(
+        "select * from work_status_map where system = %s and object_type = %s and state = %s and user_status = '' "
+        "and move is not null order by id limit 1", (system, object_type, state)).fetchone()
+
+
+def send_moves(conn, by: str = "fuzer") -> dict:
+    """A Fuzer move on a job another system owns the status of goes back as a drafted write-back, never silently.
+    A job whose case closed here (the field's work done, the notification closed out) is done; while its system still
+    says it is open, the move the mapping names for done is drafted for that system's approver: for an SAP order, its
+    confirmation. Once per object and status."""
+    from . import writeback
+
+    finished = conn.execute(
+        """
+        update plan_item p set status = 'done', updated_by = %s, updated_at = now()
+        from work_item w
+        where w.id = p.item_id and w.state = 'done' and p.status = any(%s)
+          and exists (select 1 from work_source_link l where l.object = 'job' and l.object_id = p.id
+                      and l.owns @> array['status'])
+          and p.source <> 'schedule'
+        returning p.id
+        """, (by, ["proposed", "scheduled", "in_progress"])).fetchall()
+    drafted = skipped = 0
+    for r in conn.execute(
+        """
+        select l.*, p.id as job_id, p.title, p.subjects, p.status as job_status, p.item_id
+        from work_source_link l join plan_item p on p.id = l.object_id
+        where l.object = 'job' and p.status = 'done' and l.state is distinct from 'done'
+          and l.state is distinct from 'cancelled'
+        """).fetchall():
+        kind = WRITEBACK_KIND.get((r["system"], r["object_type"]))
+        move = _move(conn, r["system"], r["object_type"], "done") if kind else None
+        if move is None:
+            continue
+        idem = f"{r['system']}:{kind}:{r['key']}:{move['status']}"
+        if conn.execute("select 1 from writeback where idem_key = %s", (idem,)).fetchone():
+            continue  # drafted already
+        payload = {"action": "set_status", "object": r["object_type"], "key": r["key"], "status": move["status"],
+                   "move": move["move"], "plan_item_id": r["job_id"], "case_id": r["item_id"]}
+        try:
+            wb = writeback.propose(conn, r["system"], kind, payload, by, record=r["key"],
+                                   key=idem,
+                                   title=f"{r['system'].upper()} {r['object_type'].replace('_', ' ')} {r['key']}: "
+                                         f"send {move['status']} ({move['move']})",
+                                   subjects=list(r["subjects"] or []), source_ref=f"plan_item:{r['job_id']}")
+        except writeback.WritebackError:
+            skipped += 1  # the system takes no such write-back: its pack says so
+            continue
+        drafted += bool(wb)
+    return {"finished": len(finished), "drafted": drafted, "skipped": skipped}
