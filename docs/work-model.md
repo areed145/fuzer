@@ -252,5 +252,11 @@ flow before the larger moves.
    routine rolls forward. Rounds, handovers and reports keep their own flows for now, and reserving routine load on
    crews comes later.
 8. **SAP orders and P6 activities as cases and jobs**, with source links, field ownership and the status mapping
-   (SAP's rows first). Another system such as JD Edwards or Maximo is then its own mapping table, not new code.
+   (SAP's rows first). Another system such as JD Edwards or Maximo is then its own mapping table, not new code. First part done:
+   `work_source_link` and `work_status_map` (`ops/source_links.py`, `/status-map`, `/source-links`). Each SAP order's
+   job carries its source link (SAP owns its status and text) and its status is read through the mapping, seeded with
+   the rows below for SAP, P6 and Maximo; a status no row maps holds the job and asks the data steward, and clears
+   when a row is added. Every order's job has one case: its notification's case, else a `sap_order` case in the
+   maintenance planner's queue that closes when SAP closes the order. P6 activities and the moves sent back (the
+   order confirmation draft) are next.
 9. **Business plan.** Intent lines with estimates under a plan container, matched to real cases for plan against actual.

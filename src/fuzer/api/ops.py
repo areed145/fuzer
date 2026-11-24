@@ -1467,11 +1467,12 @@ def plan_reschedule(item_id: int, r: PlanReschedule, conn=Depends(get_conn)):
 def plan_sync(conn=Depends(get_conn)):
     """Bring the plan's SAP work orders, maintenance plans and planning-system schedules up to date with the register
     now (the rebuild does it too)."""
-    from ..ops import containers, plan, schedule
+    from ..ops import containers, plan, schedule, source_links
 
     def both(c):
         return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c),
-                "planning_system": schedule.sync_activities(c), "containers": containers.sync(c)}
+                "planning_system": schedule.sync_activities(c), "containers": containers.sync(c),
+                "cases": source_links.sync_orders(c)}
     return _plan_call(conn, both)
 
 
@@ -1520,6 +1521,51 @@ def routines_run(conn=Depends(get_conn)):
     out = {"sap": routines.sync_sap(conn), **routines.raise_due(conn)}
     conn.commit()
     return out
+
+
+# ---- source links and status mapping (step 8 of the work model) ---------------------------------------------------
+
+@router.get("/status-map")
+def status_map(system: str | None = None, conn=Depends(get_conn)):
+    """Each system's statuses and the Fuzer state each means, with what a Fuzer move sends back."""
+    from ..ops import source_links
+    out = source_links.status_map(conn, system)
+    conn.commit()  # the seed rows, the first time
+    return out
+
+
+class StatusRow(BaseModel):
+    by: str
+    system: str
+    object_type: str
+    status: str
+    state: str
+    user_status: str = ""
+    move: str | None = None
+    note: str | None = None
+
+
+@router.put("/status-map")
+def status_map_set(r: StatusRow, conn=Depends(get_conn)):
+    """Add or change one row of a system's status mapping."""
+    from ..ops import source_links
+    try:
+        out = source_links.set_status(conn, r.system, r.object_type, r.status, r.state, r.by,
+                                      user_status=r.user_status, move=r.move, note=r.note)
+    except source_links.LinkError as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return out
+
+
+@router.get("/source-links/{object}/{object_id}")
+def source_links_of(object: str, object_id: int, conn=Depends(get_conn)):
+    """The objects other systems keep for one Fuzer job, case, need or container, with their status there."""
+    from ..ops import source_links
+    if object not in source_links.OBJECTS:
+        raise HTTPException(404, f"no such object kind {object}")
+    return source_links.links(conn, object, object_id)
 
 
 # ---- containers (step 6 of the work model) ------------------------------------------------------------------------

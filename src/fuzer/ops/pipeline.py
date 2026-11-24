@@ -337,6 +337,8 @@ def follow_register(conn, pack: Pack) -> dict:
     from . import routines
     planned["routines"] = {"sap": routines.sync_sap(conn), **routines.raise_due(conn)}  # occurrences due: needs, cases
     notified = intake.sync_notifications(conn)
+    from . import source_links
+    planned["orders"] = source_links.sync_orders(conn)  # after the notifications: an order joins its notification's case
     board.refresh(conn, pack)  # last, so the exceptions just raised are on it
     return {"plan": planned, "notifications": notified}
 

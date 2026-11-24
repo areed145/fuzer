@@ -258,7 +258,7 @@ def coming_up(conn, person: str, days: int = 14) -> list[dict]:
 
 # ---- sources of plan items ---------------------------------------------------------------------------------------
 
-OPEN_SAP = ("CRTD", "REL", "PCNF")
+SAP_OWNS = ("status", "title")  # what SAP owns on an order's job (step 8): the rest is the planner's
 
 
 def sync_work_orders(conn, by: str = "sap") -> dict:
@@ -278,15 +278,27 @@ def sync_work_orders(conn, by: str = "sap") -> dict:
         """).fetchall()
     crews = {r["work_center"]: r["code"] for r in conn.execute(
         "select code, work_center from plan_resource where kind = 'crew' and work_center is not null")}
-    added = updated = closed = skipped = 0
+    from . import source_links
+
+    added = updated = closed = skipped = held = 0
     for r in rows:
         f = {k: v for k, v in r["f"].items() if v not in (None, "")}
         key = r["number"] or r["fuzer_id"]
-        status = str(f.get("status", "")).split()[0].upper() if f.get("status") else ""
-        if status and status not in OPEN_SAP:
-            closed += conn.execute("update plan_item set status = 'done', updated_by = %s, updated_at = now() "
+        raw = str(f.get("status") or "").strip() or None
+        state = source_links.state_of(conn, "sap", "order", raw) if raw else "proposed"
+        known = conn.execute("select id from plan_item where source = 'sap' and source_key = %s", (key,)).fetchone()
+        if state is None:  # flagged, not guessed: the job holds its last known state
+            source_links.flag_unmapped(conn, "sap", "order", raw.split()[0].upper(), key, by)
+            if known:
+                source_links.link(conn, "job", known["id"], "sap", "order", key, raw, owns=SAP_OWNS, by=by)
+            held += 1
+            continue
+        if state in ("done", "cancelled"):
+            closed += conn.execute("update plan_item set status = %s, updated_by = %s, updated_at = now() "
                                    "where source = 'sap' and source_key = %s and status = any(%s)",
-                                   (by, key, list(ACTIVE))).rowcount
+                                   (state, by, key, list(ACTIVE))).rowcount
+            if known:
+                source_links.link(conn, "job", known["id"], "sap", "order", key, raw, owns=SAP_OWNS, by=by)
             continue
         try:
             if f.get("start") and f.get("finish"):
@@ -306,8 +318,9 @@ def sync_work_orders(conn, by: str = "sap") -> dict:
         row = propose(conn, "turnaround" if turnaround else "maintenance",
                       str(f.get("text") or f.get("description") or f"Work order {key}"), by, start, end,
                       refs=[r["fuzer_id"], *(r["concerns"] or [])], source="sap", source_key=key,
-                      needs_shutdown=turnaround, status="scheduled" if status == "REL" else "proposed",
+                      needs_shutdown=turnaround, status=state,
                       notes=f"SAP order {key}" + (f", revision {f['revision']}" if turnaround else ""))
+        source_links.link(conn, "job", row["id"], "sap", "order", key, raw, owns=SAP_OWNS, by=by)
         added += row["created"]
         updated += not row["created"]
         # The crew it takes counts against the same pool a schedule levels against (P5.18), unless the order is a
@@ -317,7 +330,8 @@ def sync_work_orders(conn, by: str = "sap") -> dict:
             conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, %s, %s) "
                          "on conflict (item_id, resource) do update set quantity = excluded.quantity",
                          (row["id"], crew, f["people"]))
-    return {"orders": len(rows), "added": added, "updated": updated, "closed": closed, "skipped": skipped}
+    return {"orders": len(rows), "added": added, "updated": updated, "closed": closed, "skipped": skipped,
+            "held": held}
 
 
 def sync_maintenance_plans(conn, by: str = "sap") -> dict:
