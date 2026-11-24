@@ -40,6 +40,8 @@ DEMO_SESSION_HOURS = 12
 # checked without Microsoft. Same switch as the token: off while FUZER_DEMO_TOKEN is unset. The password is "demo"
 # unless FUZER_DEMO_PASSWORD names another.
 DEMO_USERNAME = "demo"
+# It operates and asks Ops IQ (paid AI calls), so a demonstration shows the whole product.
+DEMO_ROLES = ("operator", "ai_user")
 
 
 class AccessError(ValueError):
@@ -274,6 +276,21 @@ def demo_projects(conn) -> list[str]:
     return [n for n in stored if n in wanted]
 
 
+def _grant_demo(conn, roles) -> list[str]:
+    """Give the demo account these roles in each demo project; the first project's are its memberships."""
+    first = _default_project(conn)
+    granted = demo_projects(conn)
+    for name in granted:
+        for role in roles:
+            if name == first:
+                conn.execute("insert into access_membership (account_id, role) values (%s, %s) on conflict do nothing",
+                             (DEMO_ID, role))
+            else:
+                conn.execute("insert into access_project_grant (account_id, project, role) values (%s, %s, %s) "
+                             "on conflict do nothing", (DEMO_ID, name, role))
+    return granted
+
+
 def demo_sign_in(conn, token: str) -> tuple[Principal, str]:
     """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN."""
     expected = os.environ.get("FUZER_DEMO_TOKEN", "")
@@ -295,26 +312,23 @@ def demo_password_sign_in(conn, username: str, password: str) -> tuple[Principal
 
 
 def _demo_session(conn, method: str) -> tuple[Principal, str]:
-    """Start a demo account session. The account is created enabled with the operator role in the demo projects
-    (demo_projects); an owner can disable it or change its roles on Users, and a disabled demo account stays signed
-    out. It never owns or changes configuration, and reads all of it (see principal)."""
+    """Start a demo account session. The account is created enabled with the operator and AI user roles in the demo
+    projects (demo_projects), so a demonstration can ask Ops IQ; an owner can disable it or change its roles on Users,
+    and a disabled demo account stays signed out. It never owns or changes configuration, and reads all of it (see
+    principal)."""
     created = conn.execute(
         "insert into access_account (id, tenant_id, object_id, display_name, enabled, owner) "
         "values (%s, %s, %s, %s, true, false) on conflict (id) do nothing returning id",
         (DEMO_ID, DEMO_TENANT, DEMO_ID, DEMO_NAME)).fetchone()
     if created:
-        first = _default_project(conn)
-        granted = demo_projects(conn)
-        for name in granted:
-            if name == first:
-                conn.execute("insert into access_membership (account_id, role) values (%s, 'operator') "
-                             "on conflict do nothing", (DEMO_ID,))
-            else:
-                conn.execute("insert into access_project_grant (account_id, project, role) "
-                             "values (%s, %s, 'operator') on conflict do nothing", (DEMO_ID, name))
+        granted = _grant_demo(conn, DEMO_ROLES)
         conn.execute("insert into work_person (name, roles) values (%s, '{}') on conflict do nothing",
                      (ACTOR_PREFIX + DEMO_ID,))
-        event(conn, ACTOR_PREFIX + DEMO_ID, "demo_account_created", projects=granted, roles=["operator"])
+        event(conn, ACTOR_PREFIX + DEMO_ID, "demo_account_created", projects=granted, roles=list(DEMO_ROLES))
+        event(conn, ACTOR_PREFIX + DEMO_ID, "demo_ai_granted", projects=granted)
+    elif not conn.execute("select 1 from access_event where action = 'demo_ai_granted' limit 1").fetchone():
+        # A demo account made before it could ask gets AI user once; an owner who later takes it away is not overruled.
+        event(conn, ACTOR_PREFIX + DEMO_ID, "demo_ai_granted", projects=_grant_demo(conn, ("ai_user",)))
     conn.execute("update access_account set owner = false where id = %s and owner", (DEMO_ID,))
     if not conn.execute("select enabled from access_account where id = %s", (DEMO_ID,)).fetchone()["enabled"]:
         conn.commit()
