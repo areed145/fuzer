@@ -9,6 +9,7 @@ import { jobsApi } from "./api/jobs";
 import { stewardshipApi } from "./api/stewardship";
 import { metricsApi } from "./api/metrics";
 import { historianApi } from "./api/historian";
+import { commentaryApi } from "./api/commentary";
 
 export type * from "./api/identity";
 export type * from "./api/explore";
@@ -20,6 +21,7 @@ export type * from "./api/jobs";
 export type * from "./api/stewardship";
 export type * from "./api/metrics";
 export type * from "./api/historian";
+export type * from "./api/commentary";
 export type * from "./api/transport";
 
 export const api = {
@@ -34,4 +36,5 @@ export const api = {
   ...stewardshipApi,
   ...metricsApi,
   ...historianApi,
+  ...commentaryApi,
 };
