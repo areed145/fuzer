@@ -160,10 +160,12 @@
   --brand-ink: #1d3b5c;
   --brand-hub: #0f8f9c;
   --brand-word: #1d3b5c;
-  /* Ops IQ, the operations agent: its mark is a spark on a teal-to-violet tile, the one gradient in the app. */
+  /* Ops IQ, the operations agent: Fuzer's teal running into indigo, the one gradient in the app. It fills the search
+     button (search and asking are one way in) and Ops IQ's spark tile. */
   --iq-from: #0f8f9c;
-  --iq-to: #5b4fd6;
+  --iq-to: #4c5fd0;
   --iq-ink: #ffffff;
+  --iq-gradient: linear-gradient(135deg, var(--iq-from) 0%, var(--iq-from) 45%, var(--iq-to) 100%);
   /* The menu rail is navy in both themes; cards lift off the page with a soft shadow. */
   --rail: #132a44;
   --rail-text: #c9d6e5;
@@ -245,7 +247,7 @@
     --brand-hub: #3fc6d4;
     --brand-word: #e6e9ee;
     --iq-from: #1fa9b8;
-    --iq-to: #7b6cf6;
+    --iq-to: #5d72e8;
     --iq-ink: #ffffff;
     --rail: #0e1217;
     --rail-text: #b6c2d0;

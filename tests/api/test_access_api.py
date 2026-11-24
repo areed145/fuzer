@@ -835,19 +835,19 @@ def test_demo_sign_in_is_off_unless_a_long_token_is_deployed(runtime, monkeypatc
         assert conn.execute("select count(*) as n from access_session").fetchone()["n"] == 0
 
 
-def test_demo_account_operates_and_audits_as_demo_but_cannot_configure_or_spend(runtime, monkeypatch):
+def test_demo_account_operates_asks_and_audits_as_demo_but_cannot_configure(runtime, monkeypatch):
     monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
     signed = demo_signed_in(runtime)
     assert signed["actor"] == "user:demo" and DEMO_TOKEN not in str(signed)
     me = runtime.get("/auth/me").json()["user"]
     assert me["display_name"] == "Demo account" and not me["owner"]
-    assert me["roles"] == ["operator"] and me["permissions"] == ["operate", "read"]
+    # It operates and asks Ops IQ, so a demonstration shows the whole product.
+    assert me["roles"] == ["ai_user", "operator"] and me["permissions"] == ["ai", "operate", "read"]
     assert runtime.get("/stats").status_code == 200
     result = runtime.post("/board/pins", json={"key": "demo-test", "rank": 2, "reason": "Demo", "by": "system"})
     assert result.status_code == 200, result.text
     for method, path, body in [
         ("PUT", "/settings/agents.model", {"value": "changed"}),
-        ("POST", "/assistant/ask", {"question": "charge", "by": "system"}),
         ("PUT", "/work/people/attacker", {"roles": ["workflow_admin"], "by": "system"}),
         ("POST", "/auth/bootstrap", {"token": "test-owner-code-that-is-long-enough-for-setup"}),
     ]:
@@ -864,11 +864,29 @@ def test_demo_account_operates_and_audits_as_demo_but_cannot_configure_or_spend(
     with db.connect() as conn:
         assert conn.execute("select pinned_by from board_pin where key='demo-test'").fetchone()["pinned_by"] == "user:demo"
         events = conn.execute("select actor, action, data::text as data from access_event order by id").fetchall()
-        assert [e["action"] for e in events] == ["demo_account_created", "signed_in"]
+        assert [e["action"] for e in events] == ["demo_account_created", "demo_ai_granted", "signed_in"]
         assert {e["actor"] for e in events} == {"user:demo"} and DEMO_TOKEN not in str(events)
         assert not conn.execute("select owner from access_account where id = 'demo'").fetchone()["owner"]
         conn.execute("delete from board_pin where key = 'demo-test'")
         conn.commit()
+
+
+def test_a_demo_account_made_before_it_could_ask_gets_ai_once(runtime, monkeypatch):
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
+    demo_signed_in(runtime)
+    with db.connect() as conn:  # as an account created before demos could ask
+        conn.execute("delete from access_membership where account_id = 'demo' and role = 'ai_user'")
+        conn.execute("delete from access_project_grant where account_id = 'demo' and role = 'ai_user'")
+        conn.execute("delete from access_event where action = 'demo_ai_granted'")
+        conn.commit()
+    demo_signed_in(runtime)
+    assert "ai" in runtime.get("/auth/me").json()["user"]["permissions"]
+    with db.connect() as conn:  # an owner takes it away: the next sign-in doesn't give it back
+        conn.execute("delete from access_membership where account_id = 'demo' and role = 'ai_user'")
+        conn.execute("delete from access_project_grant where account_id = 'demo' and role = 'ai_user'")
+        conn.commit()
+    demo_signed_in(runtime)
+    assert "ai" not in runtime.get("/auth/me").json()["user"]["permissions"]
 
 
 def test_demo_account_is_every_human_role_until_it_picks_which_to_act_as(runtime, monkeypatch):
@@ -959,6 +977,7 @@ def test_demo_account_signs_in_with_username_and_password_only_while_the_demo_is
                         domain="testserver.local", path="/")
     me = runtime.get("/auth/me").json()["user"]
     assert me["actor"] == "user:demo" and not me["owner"] and "configure" not in me["permissions"]
+    assert "ai" in me["permissions"]  # a demonstration can ask Ops IQ
     assert runtime.get("/stats").status_code == 200
     monkeypatch.setenv("FUZER_DEMO_PASSWORD", "another-password")
     assert runtime.post("/auth/password", json={"username": "demo", "password": "demo"}).status_code == 403

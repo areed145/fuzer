@@ -1,9 +1,9 @@
 // The app's navigation: one list of pages, drawn as a grid of app icons in a sidebar (a sheet below 900 px).
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { IQ_SPARK, IqMark, Logo, OPS_IQ } from "./brand";
+import { IQ_SPARK, Logo, OPS_IQ } from "./brand";
 import { href, refreshAll, useKept, usePhone, useRefreshing } from "./lib";
 import { ago } from "./format";
-import { Button, ButtonLink, Heading } from "./ui";
+import { Button, Heading } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 import { goBack, useAppDepth } from "./appHistory";
 import { SyncStatus } from "./SyncStatus";
@@ -207,16 +207,6 @@ function ShareButton() {
   </>;
 }
 
-/** Ops IQ, beside search on every page for those who may ask (AI access): the phone's top bar, the sidebar on a wider
- * screen. */
-function IqButton() {
-  const ai = usePermission("ai");
-  if (!ai) return null;
-  return <ButtonLink variant="ghost" className="iq-button" href={href("/ask")} aria-label={OPS_IQ} title={`Ask ${OPS_IQ}`}>
-    <IqMark />
-  </ButtonLink>;
-}
-
 /** The in-app Back for the installed app, where the browser's own buttons are gone. */
 export function BackButton({ path, className }: { path: string[]; className?: string }) {
   const depth = useAppDepth();
@@ -312,7 +302,6 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
       <header className="topbar">
         <div className="topbar-start">
           <SearchButton />
-          <IqButton />
           <BackButton path={path} />
         </div>
         <a className="brand" href={href("/")}>
@@ -378,10 +367,7 @@ export function Sidebar({ section, path, badges, status, demoEnabled }: {
           </a>
           <span className="sidebar-account"><AccountButton /></span>
         </div>
-        <div className="sidebar-search">
-          <SearchButton wide />
-          <IqButton />
-        </div>
+        <SearchButton wide />
         {/* Every page an app icon in a grid, as on an iPhone's home screen. The names under them are a setting; with
             them off the name is still the link's name, and a tooltip on a wide screen. */}
         <nav aria-label="Main">

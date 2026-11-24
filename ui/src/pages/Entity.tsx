@@ -1,4 +1,5 @@
 import "../styles/entity.css";
+import { AskOpsIq } from "../OpsIq";
 import { when, whenDay, count } from "../format";
 import { Bar, Button, ButtonLink, Empty, Notice, PageHeader, Table, Tabs, Input, Card as UICard, Badge as UIBadge, ErrorText, Line, Text, List, Heading } from "../ui";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
@@ -195,7 +196,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
               ? <a className="small" href={href("/ontology", { kind: e.kind })} title="See this kind in the ontology">{kindName}</a>
               : <KindBadge kind={e.kind} label={kindName} />}
             <WatchButton target={fid} label={operated ? "asset" : kindName.toLowerCase()} />
-            <a className="small" href={href("/ask", { subject: fid })}>Ask about this {operated ? "asset" : kindName.toLowerCase()}</a>
+            <AskOpsIq about={{ subject: fid }} what={operated ? "asset" : kindName.toLowerCase()} />
             {/* the work about it or about anything in it, on the List */}
             <a className="small" href={href("/list", { within: fid })}>Work here</a>
             {/* On a phone the date picker waits behind this, so the header leaves room for the page (#1076). */}
