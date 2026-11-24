@@ -24,6 +24,6 @@ def get_metric(key: str, grain: str | None = None, at: str | None = None) -> dic
 
     with db.connect() as conn:
         try:
-            return _plain(metrics.value(conn, mcp_server.PACK, key, grain, date.fromisoformat(at) if at else None))
+            return _plain(metrics.value(conn, mcp_server.PACK, key, at=date.fromisoformat(at) if at else None, grain=grain))
         except (metrics.MetricError, ValueError) as e:
             return {"error": str(e), "metrics": sorted(metrics.registry())}

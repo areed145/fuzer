@@ -3,6 +3,7 @@ shows and the browser only draws it, so the entity page, a case, an incident and
 (`ui/src/trends/TrendChart.tsx`) the same shape:
 
     spec(conn, fuzer_id, at=None, hours_before=48, hours_after=24, focus=None) -> TrendSpec
+    from_measures(conn, pack, keys, scope, window, at) -> TrendSpec   registered measures over a report window
 
     {"version": 1, "subject", "title", "unit", "unit_label", "provider", "step_minutes", "template",
      "time": {"start", "end", "centre"},
@@ -236,3 +237,42 @@ def from_measurements(data: dict, title: str = "Tests and samples") -> dict:
             "step_minutes": 0, "time": {"start": start, "end": end, "centre": end}, "panels": panels, "series": series,
             "focus": None, "events": [], "marks": [], "missing": [], "errors": [],
             **({"truncated": True} if data.get("truncated") else {})}
+
+
+def from_measures(conn, pack, keys: list[str], scope: str | None, window: str, at=None) -> dict:
+    """Registered measures over a window as a spec (docs/reports.md): one series per measure on one panel, each worded
+    by its declaration, so the one chart draws a report's trend like any other.
+
+    Each series is the measure's history (`metrics.value(..., history=True)`) up to the window's end; where a measure
+    keeps fewer than two points inside the window, its earlier points are kept too, so the line has a shape, and
+    the spec starts at its first point. A measure not cut by scope says so in `errors`."""
+    from ..core import metrics, windows
+
+    w = windows.resolve(window, at)
+    series, errors = [], []
+    for key in keys:
+        m = metrics.value(conn, pack, key, scope=scope, window=window, at=None, history=True)
+        points = [(p["at"][:10], p["value"]) for p in m.get("history") or [] if p["at"][:10] <= w["end"]]
+        inside = [p for p in points if p[0] >= w["start"]]
+        vals = [[d, v] for d, v in (inside if len(inside) >= 2 else points)]
+        if scope and m.get("scope") != scope:
+            errors.append(f"{m['label']} is for the whole register")
+        if not vals:
+            errors.append(f"{m['label']}: no history")
+            continue
+        nums = [v for _, v in vals]
+        unit = wording.unit(m.get("unit"))
+        series.append({
+            "key": f"measure:{key}", "point": key, "tag": key, "label": m["label"], "description": m.get("definition"),
+            "unit": unit, "uom": m.get("unit"), "role": None, "on": None, "link": f"/metrics/{key}", "as": "line",
+            "axis": (m.get("unit") or "value").lower(), "values": vals, "min": min(nums), "max": max(nums),
+            "mean": sum(nums) / len(nums), "last": nums[-1], "limits": [], "show": True,
+        })
+    start = min([s["values"][0][0] for s in series] + [w["start"]])
+    title = " · ".join(s["label"] for s in series) or "Measures"
+    return {"version": VERSION, "subject": scope, "unit": scope, "unit_label": None, "title": title,
+            "template": {"key": "measures", "title": title, "source": "platform"}, "provider": "metrics",
+            "step_minutes": 0, "time": {"start": start, "end": w["end"], "centre": w["end"]},
+            "panels": [{"key": "measures", "label": title, "show": True, "axis": "auto",
+                        "series": [s["key"] for s in series]}],
+            "series": series, "focus": None, "events": [], "marks": [], "missing": [], "errors": errors}

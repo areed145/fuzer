@@ -35,6 +35,6 @@ def one(key: str, grain: str | None = None, at: date | None = None, history: boo
         # The Metrics page asks for every metric's history at once, a fifth of a second of CPU each: people opening it
         # together share one computation of each until the data changes (#1069).
         return shared(conn, "metric", (key, grain, at, history),
-                      lambda: plain(metrics.value(conn, deps.pack(), key, grain, at, history)))
+                      lambda: plain(metrics.value(conn, deps.pack(), key, at=at, grain=grain, history=history)))
     except metrics.MetricError as e:
         raise HTTPException(404 if "no metric" in str(e) else 400, str(e)) from e

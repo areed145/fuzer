@@ -42,23 +42,41 @@ def hazard(permit_type: str | None) -> str | None:
 
 def _hazards(conn, subjects: list[str]) -> list[dict]:
     """The hazards of the permits (not closed or expired) covering a job's subjects and where they are installed."""
-    from .readiness import _locations
+    return _hazards_of(conn, {0: subjects})[0]
 
-    locations = _locations(conn, subjects)
-    if not locations:
-        return []
-    rows = conn.execute(
+
+def _hazards_of(conn, jobs: dict) -> dict:
+    """`_hazards` for many jobs ({key: subjects}) in two reads, not two per job. A job's places are its subjects,
+    what is installed at them and where they are installed (as readiness reads them)."""
+    every = sorted({s for subjects in jobs.values() for s in subjects or []})
+    if not every:
+        return {k: [] for k in jobs}
+    near: dict[str, set[str]] = {s: {s} for s in every}
+    for r in conn.execute(
+            "select dst as s, src as id from edge where rel = 'installed_at' and dst = any(%(s)s) and valid_to is null "
+            "union select src as s, dst as id from edge where rel = 'installed_at' and src = any(%(s)s) "
+            "and valid_to is null", {"s": every}).fetchall():
+        near[r["s"]].add(r["id"])
+    places = sorted({p for ps in near.values() for p in ps})
+    covering: dict[str, list[dict]] = {}
+    for r in conn.execute(
         """
-        select pl.label as permit, gt.value #>> '{}' as type, gs.value #>> '{}' as state
+        select c.dst as place, pl.label as permit, gt.value #>> '{}' as type, gs.value #>> '{}' as state
         from edge c join entity p on p.fuzer_id = c.src and p.kind = 'permit'
         left join entity_label pl on pl.fuzer_id = p.fuzer_id
         left join golden gt on gt.fuzer_id = p.fuzer_id and gt.field = 'permit_type'
         left join golden gs on gs.fuzer_id = p.fuzer_id and gs.field = 'state'
         where c.rel = 'covers' and c.dst = any(%s)
         order by pl.label
-        """, (locations,)).fetchall()
-    return [{"hazard": h, "permit": r["permit"], "type": r["type"]} for r in rows
-            if (r["state"] or "issued").lower() in LIVE_PERMIT and (h := hazard(r["type"]))]
+        """, (places,)).fetchall():
+        covering.setdefault(r["place"], []).append(r)
+    out = {}
+    for k, subjects in jobs.items():
+        mine = {p for s in subjects or [] for p in near.get(s, ())}
+        rows = sorted((r for p in mine for r in covering.get(p, [])), key=lambda r: (r["permit"] is None, r["permit"] or ""))
+        out[k] = [{"hazard": h, "permit": r["permit"], "type": r["type"]} for r in rows
+                  if (r["state"] or "issued").lower() in LIVE_PERMIT and (h := hazard(r["type"]))]
+    return out
 
 
 def _label(conn, ids: list[str]) -> str:
@@ -69,16 +87,16 @@ def _label(conn, ids: list[str]) -> str:
 
 
 def job(conn, title: str, subjects: list[str], area: str | None = None, ref: dict | None = None,
-        plant=None) -> dict:
+        plant=None, on_file: list[dict] | None = None, hazards: list[dict] | None = None) -> dict:
     """A job as the check sees it: its title, subjects, area and the hazards its permits bring. `plant` is
-    structure.load read once by a caller making several."""
+    structure.load and `on_file` the bypasses on file (safeguards.records), read once by a caller making several."""
     from .plan import _area
     from .safeguards import bypasses
 
     subjects = list(subjects or [])
     return {"title": title, "subjects": subjects, "area": area if area is not None else _area(conn, subjects),
-            "hazards": _hazards(conn, subjects), "ref": ref or {},
-            "bypasses": bypasses(conn, subjects, system=True, plant=plant) if subjects else []}
+            "hazards": _hazards(conn, subjects) if hazards is None else hazards, "ref": ref or {},
+            "bypasses": bypasses(conn, subjects, system=True, plant=plant, on_file=on_file) if subjects else []}
 
 
 def conflicts(conn, a: dict, b: dict, *, same_asset: bool = True) -> list[dict]:
@@ -92,7 +110,7 @@ def conflicts(conn, a: dict, b: dict, *, same_asset: bool = True) -> list[dict]:
         if x["id"] in theirs:
             out.append({"kind": "bypass", "bypass": x["label"], "say": (
                 f"“{b['title']}” is on the same system, where a safeguard is bypassed: {x['say']}")})
-    if a["area"] and a["area"] == b["area"]:
+    if a["area"] and a["area"] == b["area"] and a["hazards"] and b["hazards"]:
         area = _label(conn, [a["area"]])
         for x in a["hazards"]:
             for y in b["hazards"]:
@@ -114,9 +132,13 @@ def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now:
     if exception_id is not None:
         row = conn.execute("select title from exception_record where id = %s", (exception_id,)).fetchone()
         title = row and row["title"]
-    plant = structure.load(conn)  # once for this job and every job it is checked against
-    me = job(conn, title or "this job", subjects, plant=plant)
-    others = [job(conn, r["title"], list(r["subjects"] or []), ref={"exception": r["id"]}, plant=plant)
+    from .safeguards import records
+
+    on_file = records(conn)
+    plant = structure.load(conn) if on_file else None  # once for this job and every job it is checked against
+    me = job(conn, title or "this job", subjects, plant=plant, on_file=on_file)
+    others = [job(conn, r["title"], list(r["subjects"] or []), ref={"exception": r["id"]}, plant=plant,
+                  on_file=on_file)
               for r in conn.execute(
         """
         select e.id, e.title, e.subjects from exception_record e join work_item w on w.id = e.item_id
@@ -125,7 +147,8 @@ def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now:
           and exists (select 1 from event_outbox o where o.topic = 'exception.dispatched' and o.ref = 'exception:' || e.id)
         order by e.id
         """, (exception_id,)).fetchall()]
-    others += [job(conn, r["title"], list(r["subjects"] or []), r["area_id"], ref={"plan_item": r["id"]}, plant=plant)
+    others += [job(conn, r["title"], list(r["subjects"] or []), r["area_id"], ref={"plan_item": r["id"]}, plant=plant,
+                   on_file=on_file)
                for r in conn.execute(
         """
         select id, title, subjects, area_id from plan_item
@@ -153,8 +176,14 @@ def on_plan(conn, rows: list[dict]) -> dict[int, list[dict]]:
     if not pairs:  # nothing side by side: no need to read the plant or any item's permits
         return out
     paired = {r["id"]: r for pair in pairs for r in pair}
-    plant = structure.load(conn) if any(r["subjects"] for r in paired.values()) else None  # once, not once per item
-    jobs = {i: job(conn, r["title"], list(r["subjects"] or []), r["area_id"], plant=plant) for i, r in paired.items()}
+    from .safeguards import records
+
+    on_file = records(conn)
+    # the plant is read for the bypasses' systems: once, not once per item, and not at all with none on file
+    plant = structure.load(conn) if on_file and any(r["subjects"] for r in paired.values()) else None
+    hazards = _hazards_of(conn, {i: list(r["subjects"] or []) for i, r in paired.items()})
+    jobs = {i: job(conn, r["title"], list(r["subjects"] or []), r["area_id"], plant=plant, on_file=on_file,
+                   hazards=hazards[i]) for i, r in paired.items()}
     for a, b in pairs:
         for x, y in ((a, b), (b, a)):
             for c in conflicts(conn, jobs[x["id"]], jobs[y["id"]], same_asset=False):
