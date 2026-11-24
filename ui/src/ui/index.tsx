@@ -151,19 +151,19 @@ export function Heading({ level = 2, small, mono, detail, actions, id, tabIndex,
 }
 
 export function Button({ variant = "secondary", size = "md", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement>;
-  variant?: "primary" | "secondary" | "ghost" | "link" | "danger"; size?: "sm" | "md";
+  variant?: "primary" | "secondary" | "ghost" | "link" | "danger" | "iq"; size?: "sm" | "md";
 }) {
   return <button {...props} className={`ui-button ${`ui-button-${variant}`} ui-button-${size} ${className}`.trim()} />;
 }
 
 export function ButtonLink({ variant = "secondary", size = "md", className = "", ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "link" | "danger"; size?: "sm" | "md";
+  variant?: "primary" | "secondary" | "ghost" | "link" | "danger" | "iq"; size?: "sm" | "md";
 }) {
   return <a {...props} className={`ui-button ui-button-${variant} ui-button-${size} ${className}`.trim()} />;
 }
 
 export function ButtonLabel({ variant = "secondary", size = "md", className = "", ...props }: LabelHTMLAttributes<HTMLLabelElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "link" | "danger"; size?: "sm" | "md";
+  variant?: "primary" | "secondary" | "ghost" | "link" | "danger" | "iq"; size?: "sm" | "md";
 }) {
   return <label {...props} className={`ui-button ui-button-${variant} ui-button-${size} ${className}`.trim()} />;
 }

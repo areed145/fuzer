@@ -502,7 +502,7 @@ test("a case links to Ask about it and shows an answer attached from Ask in its 
       data: { answer_id: "a1", conversation_id: "c1", question: "Is it the bearing?", answer: "The 1x peak points at the coupling.", figures: [] } }] } }));
   await page.goto(`${url}/#/cases/8`);
   await page.getByRole("heading", { name: "Pump vibration rising" }).waitFor();
-  assert.equal(await page.getByRole("link", { name: "Ask about this case", exact: true }).getAttribute("href"), "#/ask?case=8");
+  assert.equal(await page.getByRole("link", { name: "Ask Ops IQ about this case", exact: true }).getAttribute("href"), "#/ask?case=8");
   const entry = page.locator(".ev-attached");
   await entry.getByText("attached an answer from Ask", { exact: false }).waitFor();
   await entry.getByText("Is it the bearing?", { exact: true }).waitFor();
@@ -3395,7 +3395,7 @@ test("Home is the map, with the app search in the shell and no horizontal scroll
   for (const width of [1440, 834, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${url}/#/`);
-    await page.locator(width > 900 ? ".sidebar" : ".topbar").getByRole("button", { name: "Search", exact: true }).waitFor();
+    await page.locator(width > 900 ? ".sidebar" : ".topbar").getByRole("button", { name: "Search or ask Ops IQ", exact: true }).waitFor();
     await page.locator(".home-map .mapview").waitFor();
     // The map fills the page under the shell: no card grid, no second menu.
     const map = await page.locator(".home-map").boundingBox();
@@ -8195,13 +8195,9 @@ test("App search at the top left finds pages, tabs and entities, and sends a que
       assert.ok(glass.x < logo.x && logo.x + logo.width < account.x);
       assert.ok(Math.abs(logo.x + logo.width / 2 - 195) < 4);
     }
-    // Ops IQ sits right beside search, on the phone's top bar and in the sidebar.
-    const iq = page.locator(`${bar} .iq-button`);
-    assert.equal(await iq.getAttribute("aria-label"), "Ops IQ");
-    assert.equal(await iq.getAttribute("href"), "#/ask");
-    const [glassBox, iqBox] = await Promise.all([page.locator(`${bar} .search-button`).boundingBox(), iq.boundingBox()]);
-    assert.ok(iqBox.x > glassBox.x && iqBox.x - (glassBox.x + glassBox.width) < 16 && Math.abs(iqBox.y + iqBox.height / 2 - (glassBox.y + glassBox.height / 2)) < 4);
-    await page.locator(bar).getByRole("button", { name: "Search", exact: true }).click();
+    // Search is Ops IQ's way in too: the glass on Ops IQ's gradient, with its spark.
+    assert.equal(await page.locator(`${bar} .search-button.iq-search .spark`).count(), 1);
+    await page.locator(bar).getByRole("button", { name: "Search or ask Ops IQ", exact: true }).click();
     const box = page.getByRole("combobox", { name: "Search pages and entities, or ask Ops IQ" });
     // Before anything is typed, Ops IQ is the first row.
     await box.fill("");
