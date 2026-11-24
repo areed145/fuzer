@@ -2300,6 +2300,36 @@ Human notes on a report (docs/reports.md, the `note` panel): markdown with live 
 | `updated_at` | timestamptz |  |
 | `deleted_at` | timestamptz |  |
 
+### `custom_report`
+
+Custom reports (docs/reports.md, ops/custom_reports.py): a report definition kept per account, private until its owner shares it with everyone or a workflow role. Each save is a new version; every version is kept.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `owner` | text | the account actor that made it; only it changes it |
+| `title` | text |  |
+| `definition` | jsonb | the checked definition without key, version and source |
+| `version` | integer |  |
+| `origin` | text, | the report it was copied from |
+| `origin_version` | integer, | that report's version when copied |
+| `shared` | text | '' private, 'everyone', or 'role:<workflow role>' |
+| `created_at` | timestamptz |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+| `deleted_at` | timestamptz |  |
+
+### `custom_report_version`
+
+| Column | Type | Note |
+|---|---|---|
+| `report_id` | bigint |  |
+| `version` | integer |  |
+| `definition` | jsonb |  |
+| `by_user` | text |  |
+| `note` | text |  |
+| `created_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

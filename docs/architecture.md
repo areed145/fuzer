@@ -392,6 +392,8 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `board_project`
     - `case_disposition`
     - `case_repeat`
+    - `custom_report`
+    - `custom_report_version`
     - `daily_ops_report`
     - `detection`
     - `detector_tier_run`
@@ -445,6 +447,8 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `board_project`
     - `case_disposition`
     - `case_repeat`
+    - `custom_report`
+    - `custom_report_version`
     - `daily_ops_report`
     - `detection`
     - `detector_run`

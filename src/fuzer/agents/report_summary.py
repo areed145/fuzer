@@ -89,7 +89,7 @@ def facts(conn, pack, key: str, scope: str | None, window: str, at: date, asked:
     Rows drawn once per entity beneath the scope (`repeat`) are left out: they are the drill-down, not the answer.
     Unless the day was `asked` for, the panels read each measure's own latest day, as the page does."""
     try:
-        defn = reports.get(pack, key)
+        defn = report_pages.definition(conn, pack, key)
     except reports.ReportError:
         return None
     repeated = {r["id"] for r in defn["rows"] if r.get("repeat")}

@@ -45,8 +45,10 @@ CHARTS = ("bar", "pareto", "share")
 SIZE = {"stat": 1, "table": 4, "cases": 4}
 CASE_FILTERS = ("state", "kind", "stage", "holder", "queue", "source", "overdue", "q", "sort")
 REPEAT_LIMIT = 24
-# The daily and regulatory reports' own routes sit under /reports.
-RESERVED = ("daily", "regulatory", "obligations")
+# The daily and regulatory reports' own routes, and the custom reports' (api/reports.py), sit under /reports.
+RESERVED = ("daily", "regulatory", "obligations", "custom", "check")
+# A custom report's key (ops/custom_reports.py): kept in the database, never a platform or pack key.
+CUSTOM_PREFIX = "custom-"
 
 
 class ReportError(ValueError):
@@ -147,18 +149,28 @@ def check(d: dict, source: str = "platform") -> dict:
     """A definition with its defaults filled (row ids, sizes, window options), or ReportError with the reason."""
     if not isinstance(d, dict):
         raise ReportError("a report definition is a mapping")
+    if not isinstance(d.get("rows") or [], list) or not all(isinstance(r, dict) for r in d.get("rows") or []):
+        raise ReportError("rows is a list, each row a mapping with its panels")
     key = d.get("key")
     where = f"report {key}"
     if not key or not isinstance(key, str) or not key.replace("-", "").replace("_", "").isalnum():
         raise ReportError("a report needs a key of letters, digits, - and _")
     if key in RESERVED:
         raise ReportError(f"report key {key} is taken by the {key} reports' own pages")
+    if key.startswith(CUSTOM_PREFIX) != (source == "custom"):
+        raise ReportError(f"report keys starting {CUSTOM_PREFIX} are custom reports' and only theirs")
     if d.get("schema", SCHEMA) != SCHEMA:
         raise ReportError(f"{where}: schema {d.get('schema')} isn't {SCHEMA}")
     if not d.get("title"):
         raise ReportError(f"{where}: needs a title")
     scope = d.get("scope") or {}
+    if not isinstance(scope, dict) or not isinstance(d.get("window") or {}, dict):
+        raise ReportError(f"{where}: scope and window are mappings")
+    if not isinstance(d.get("version", 1), int) or not isinstance(d.get("for") or [], list):
+        raise ReportError(f"{where}: version is a whole number and for is a list")
     kinds = scope.get("kinds") or []
+    if not isinstance(kinds, list):
+        raise ReportError(f"{where}: scope kinds is a list")
     if not kinds or (bad := set(kinds) - _kinds()):
         raise ReportError(f"{where}: scope kinds {sorted(bad) if kinds else '(none)'} aren't kinds in the ontology")
     win = d.get("window") or {}
@@ -192,11 +204,13 @@ def check(d: dict, source: str = "platform") -> dict:
             raise ReportError(f"{rw}: a row holds at least one panel")
         row = {"id": rid, "panels": panels, **({"title": r["title"]} if r.get("title") else {})}
         if rep := r.get("repeat"):
+            if not isinstance(rep, dict) or not isinstance(rep.get("limit", 8), int):
+                raise ReportError(f"{rw}: repeat is {{kind, limit}}")
             if rep.get("kind") not in _kinds():
                 raise ReportError(f"{rw}: repeat kind {rep.get('kind')!r} isn't a kind in the ontology")
             row["repeat"] = {"kind": rep["kind"], "limit": min(int(rep.get("limit", 8)), REPEAT_LIMIT)}
         rows.append(row)
-    if not rows:
+    if not rows and source != "custom":  # a custom report starts blank and is filled on the page
         raise ReportError(f"{where}: a report holds at least one row")
     if len({r["id"] for r in rows}) != len(rows):
         raise ReportError(f"{where}: two rows share an id")

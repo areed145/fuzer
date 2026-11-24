@@ -109,12 +109,21 @@ def _at(w: dict) -> date | None:
     return date.fromisoformat(w["at"]) if w.get("asked") else None
 
 
-def view(conn, pack, key: str, scope: str | None = None, window: str | None = None, at=None) -> dict:
+def definition(conn, pack, key: str) -> dict:
+    """Any report's checked definition: the platform's, the pack's, or a custom one (ops/custom_reports)."""
+    from . import custom_reports
+
+    return custom_reports.definition(conn, pack, key)
+
+
+def view(conn, pack, key: str, scope: str | None = None, window: str | None = None, at=None,
+         draft: dict | None = None) -> dict:
     """The report for a scope and window: its definition, what they resolve to, the scopes it can take and, for each
-    repeat row, the entities beneath the scope it draws for (by name, capped)."""
+    repeat row, the entities beneath the scope it draws for (by name, capped). `draft`: a checked definition being
+    edited, drawn in place of the saved one."""
     from ..graph import hierarchy
 
-    d = reports.get(pack, key)
+    d = draft or definition(conn, pack, key)
     ref = _scope(conn, d, scope, pack=pack)
     w = _window(d, window, at, conn)
     repeats = {}
@@ -130,9 +139,10 @@ def view(conn, pack, key: str, scope: str | None = None, window: str | None = No
 
 
 def panel_data(conn, pack, key: str, panel_id: str, scope: str | None = None, window: str | None = None,
-               at=None) -> dict:
-    """One panel's result: what every panel carries, then its type's own fields; `error` when it couldn't be read."""
-    d = reports.get(pack, key)
+               at=None, draft: dict | None = None) -> dict:
+    """One panel's result: what every panel carries, then its type's own fields; `error` when it couldn't be read.
+    `draft`: a checked definition being edited, read in place of the saved one (a panel not saved yet)."""
+    d = draft or definition(conn, pack, key)
     panel = next((p for p in reports.panels(d) if p["id"] == panel_id), None)
     if panel is None:
         raise ReportError(f"{d['title']} has no panel {panel_id}")

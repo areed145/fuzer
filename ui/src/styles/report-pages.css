@@ -71,3 +71,50 @@
   .report-no-phone { display: block; }
   .report-slot { break-inside: avoid; }
 }
+
+/* The editor (reports/editor.tsx): iPad and desktop only; a phone reads. */
+.report-editbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.report-editing .report-row > .report-slot {
+  outline: 1px dashed var(--line);
+  outline-offset: 4px;
+  border-radius: var(--radius);
+}
+.report-slot-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.report-slot-tools select { max-width: 9rem; }
+.report-add-between { display: flex; justify-content: center; margin: 0.5rem 0; }
+.report-add { margin: 0.75rem 0; }
+.report-add-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: end;
+  margin-bottom: 0.75rem;
+}
+.report-definition-text { font-family: var(--mono, ui-monospace, monospace); font-size: 0.85rem; min-height: 24rem; }
+.report-versions-card li + li { margin-top: 0.4rem; }
+
+@media (max-width: 600px) {
+  .report-editbar, .report-slot-tools, .report-add-between { display: none; }
+}
+@media print {
+  .report-editbar, .report-slot-tools, .report-add-between, .report-add { display: none !important; }
+}

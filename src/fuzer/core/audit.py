@@ -43,6 +43,7 @@ EXCLUDED = {
 }
 # Actor columns whose time column is not named after them.
 TIMES = {
+    ("custom_report_version", "by_user"): "created_at",
     ("daily_ops_report", "drafted_by"): "created_at",
     ("entity_summary", "by_user"): "created_at",
     ("exception_record", "shelved_by"): "updated_at",
@@ -55,7 +56,8 @@ TIMES = {
 }
 # Append-only logs: every change is a row. Everything else keeps only its latest value.
 LOGS = {"work_event", "writeback_event", "source_audit", "ontology_audit", "setting_history", "access_event",
-        "gate_decision", "field_photo", "round_reading", "board_history", "id_event", "report_summary"}
+        "gate_decision", "field_photo", "round_reading", "board_history", "id_event", "report_summary",
+        "custom_report_version"}
 # What happened, for tables whose row says it better than its column name.
 ACTIONS = {
     "work_event": "kind",
