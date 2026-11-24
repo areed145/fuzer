@@ -1725,7 +1725,8 @@ test("the base map is Standard, Satellite or Terrain, and Standard follows the t
   await page.reload();
   const group = page.getByRole("group", { name: "Base map" });
   await group.waitFor();
-  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite", "Terrain"]);
+  // The picker is icons, each named for a screen reader and on hover.
+  assert.deepEqual(await group.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), ["Standard", "Satellite", "Terrain"]);
   assert.equal(await group.getByRole("button", { name: "Standard" }).getAttribute("aria-pressed"), "true");
   assert.equal(await page.locator(".map-controls select").count(), 0, "no dropdown");
   const box = await group.boundingBox();
@@ -1798,7 +1799,8 @@ test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the th
   await page.reload();
   const group = page.getByRole("group", { name: "Base map" });
   await group.waitFor();
-  assert.deepEqual(await group.getByRole("button").allInnerTexts(), ["Standard", "Satellite"]);
+  // The picker is icons, each named for a screen reader and on hover.
+  assert.deepEqual(await group.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), ["Standard", "Satellite"]);
   const state = () => page.evaluate(() => { const m = window.__mk.maps.at(-1);
     return { type: m.mapType, scheme: m.colorScheme, tokens: window.__mk.tokens, overlays: m.overlays.length,
              dashes: m.overlays.map((o) => o.style.lineDash.join(" ")), span: m.region.span.longitudeDelta }; });
@@ -1826,7 +1828,7 @@ test("with a MapKit key the maps are Apple Maps: Standard or Satellite by the th
   // Apple refuses the token later: the same map redraws on free tiles.
   await page.evaluate(() => window.mapkit.fail("Unauthorized"));
   await page.locator(".leaflet-container").waitFor();
-  assert.deepEqual(await page.getByRole("group", { name: "Base map" }).getByRole("button").allInnerTexts(),
+  assert.deepEqual(await page.getByRole("group", { name: "Base map" }).getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))),
                    ["Standard", "Satellite", "Terrain"]);
   await page.evaluate(() => { localStorage.removeItem("fuzer.basemap"); localStorage.removeItem("fuzer.theme"); });
 });
@@ -3472,6 +3474,8 @@ test("Home's open work layer gathers work at places, and a marker opens its plac
     await page.reload();  // the same URL again would keep the last width's filter
     await page.locator(".hotspot").nth(1).waitFor();
     assert.equal(await page.locator(".hotspot-crew").count(), 1);
+    // On a phone the top drawer starts folded to its figures; the layers are a tap away.
+    if (width < 900) await page.getByRole("button", { name: "Open map layers" }).click();
     // Crews is a layer of its own.
     const crews = page.getByRole("group", { name: "Map layers" }).getByRole("button", { name: "Crews", exact: true });
     await crews.click();
