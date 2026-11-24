@@ -78,7 +78,7 @@ function SkillPage({ skill, query }: { skill: string; query: URLSearchParams }) 
     <section>
       <PageHeader record detail={d && <>{d.owner_label} · {d.live.version ? `v${d.live.version} live since ${when(d.live.at)}` : "as shipped"}</>}
         actions={<a href={href("/skills")}>All skills</a>}>
-        {d?.title ?? skill}
+        {d?.title ?? "Skill"}
       </PageHeader>
       <Status of={data} />
       {d && <>

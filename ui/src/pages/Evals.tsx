@@ -94,7 +94,7 @@ function SubjectPage({ subject, query }: { subject: string; query: URLSearchPara
   return (
     <section>
       <PageHeader record detail={d && (skill ? "Answers to its eval questions" : "Checks on what the agents kept")}
-        actions={<a href={evalHref()}>All evals</a>}>{d?.label ?? subject}</PageHeader>
+        actions={<a href={evalHref()}>All evals</a>}>{d?.label ?? "Eval"}</PageHeader>
       <Status of={data} />
       {d && <>
         <AiNotice ai={d.ai} />
