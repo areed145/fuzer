@@ -157,8 +157,8 @@ def surfaces(t):
     # IOC and field surfaces
     x, y, w, h = 40, 128, 470, 196
     out += [label(x, y - 10, "IOC and field surfaces", t), card(x, y, w, h, t)]
-    tiles = [("Tower map", "map"), ("My work", "list"), ("All work", "board"),
-             ("Plan", "plan"), ("Explore entity", "explore"), ("Reports", "reports")]
+    tiles = [("Tower map", "map"), ("Work list", "list"), ("Work board", "board"),
+             ("Plan", "plan"), ("Explore", "explore"), ("Reports", "reports")]
     tw, th = 140, 52
     for i, (name, g) in enumerate(tiles):
         out += screen_tile(x + 16 + (i % 3) * (tw + 13), y + 18 + (i // 3) * (th + 12), tw, th, name, g, t)
