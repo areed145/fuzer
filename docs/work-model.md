@@ -242,7 +242,9 @@ flow before the larger moves.
    its job stage (planned, scheduled, released, in progress, done, cancelled). The SAP order confirmation draft comes
    with SAP orders as jobs in step 8; a notification's close-out already drafts back to SAP.
 6. **One container.** `plan_project`, `board_project` and turnaround revisions become containers with a parent and a
-   governing case.
+   governing case. Done as `work_container` (`ops/containers.py`, `/containers`): schedules, open board
+   projects and SAP revisions become containers on each sync, their jobs placed in them; a container made here opens
+   its governing case, held by its owner. The source records stay where they are and the container points at them.
 7. **Routines.** SAP maintenance plans, rounds and routine duties become routines raising obligation needs.
 8. **SAP orders and P6 activities as cases and jobs**, with source links, field ownership and the status mapping
    (SAP's rows first). Another system such as JD Edwards or Maximo is then its own mapping table, not new code.
