@@ -25,15 +25,15 @@ def _percentage(allocated, maximum):
     return _number(allocated / maximum * 100) if maximum > 0 else None
 
 
-def calculate(reports: list[dict], limits: list[dict], end: date) -> dict:
+def calculate(reports: list[dict], limits: list[dict], end: date, days: int = DAYS) -> dict:
     """Bounds must describe total facility oil throughput, not individual parallel branches.
 
     A daily report's potential is a fallback reference, not evidence of a physical bottleneck.
     Missing/ambiguous inputs stay missing; the period PE is a ratio of paired daily volumes.
     """
-    if not date.min + timedelta(days=DAYS - 1) <= end < date.max:
-        raise ValueError("end must allow fourteen daily samples and an exclusive following day")
-    since = end - timedelta(days=DAYS - 1)
+    if days < 1 or not date.min + timedelta(days=days - 1) <= end < date.max:
+        raise ValueError(f"end must allow {days} daily samples and an exclusive following day")
+    since = end - timedelta(days=days - 1)
     daily, bounds = defaultdict(list), defaultdict(list)
     for row in reports:
         daily[str(row["date"])[:10]].append(row)
@@ -43,7 +43,7 @@ def calculate(reports: list[dict], limits: list[dict], end: date) -> dict:
     total_allocated = total_max = 0.0
     paired = 0
     paired_values = []
-    for offset in range(DAYS):
+    for offset in range(days):
         day = (since + timedelta(days=offset)).isoformat()
         rows = daily[day]
         flags, source_ids = [], []
@@ -203,8 +203,9 @@ def declared_limits(conn, params: dict) -> list[dict]:
     ).fetchall()
 
 
-def production_efficiency(conn, facility: str, end: date | None = None) -> dict:
-    """Read resolved reports and daily system-capacity measurements on the facility's graph."""
+def production_efficiency(conn, facility: str, end: date | None = None, days: int = DAYS) -> dict:
+    """Read resolved reports and daily system-capacity measurements on the facility's graph, over the `days` days
+    ending on `end` (a report window reads it for its own length)."""
     facility_row = conn.execute(
         """select e.fuzer_id as id, coalesce(l.label, e.fuzer_id) as label
            from entity e left join entity_label l using (fuzer_id)
@@ -214,14 +215,14 @@ def production_efficiency(conn, facility: str, end: date | None = None) -> dict:
     if not facility_row:
         raise ValueError("ref must resolve to a live facility")
     end = end or latest_report_date(conn, facility) or clock.today()
-    if not date.min + timedelta(days=DAYS - 1) <= end < date.max:
-        raise ValueError("end must allow fourteen daily samples and an exclusive following day")
-    since, until = end - timedelta(days=DAYS - 1), end + timedelta(days=1)
+    if days < 1 or not date.min + timedelta(days=days - 1) <= end < date.max:
+        raise ValueError(f"end must allow {days} daily samples and an exclusive following day")
+    since, until = end - timedelta(days=days - 1), end + timedelta(days=1)
     params = {"facility": facility, "since": since.isoformat(), "until": until.isoformat()}
     reports = conn.execute(
         REPORTS + " and d.value #>> '{}' >= %(since)s and d.value #>> '{}' < %(until)s", params,
     ).fetchall()
     return {
-        **calculate(reports, declared_limits(conn, params), end), "facility": dict(facility_row),
+        **calculate(reports, declared_limits(conn, params), end, days), "facility": dict(facility_row),
         "source": "Resolved production_day reports_on facility; dated asset graph and system_oil_capacity measurements",
     }

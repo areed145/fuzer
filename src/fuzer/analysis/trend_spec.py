@@ -239,40 +239,56 @@ def from_measurements(data: dict, title: str = "Tests and samples") -> dict:
             **({"truncated": True} if data.get("truncated") else {})}
 
 
+def _measure_series(key: str, m: dict, points: list[dict], label: str | None = None, line: str = "line") -> dict:
+    vals = [[p["at"][:10], p["value"]] for p in points]
+    nums = [v for _, v in vals]
+    return {
+        "key": key, "point": m["key"], "tag": m["key"], "label": label or m["label"], "description": m.get("definition"),
+        "unit": wording.unit(m.get("unit")), "uom": m.get("unit"), "role": None, "on": None,
+        "link": f"/metrics/{m['key']}", "as": line, "axis": (m.get("unit") or "value").lower(), "values": vals,
+        "min": min(nums), "max": max(nums), "mean": sum(nums) / len(nums), "last": nums[-1], "limits": [], "show": True,
+    }
+
+
 def from_measures(conn, pack, keys: list[str], scope: str | None, window: str, at=None) -> dict:
-    """Registered measures over a window as a spec (docs/reports.md): one series per measure on one panel, each worded
-    by its declaration, so the one chart draws a report's trend like any other.
+    """Registered measures over a window as a spec (docs/reports.md): one series per measure, worded by its
+    declaration, so the one chart draws a report's trend like any other.
 
-    Each series is the measure's history (`metrics.value(..., history=True)`) up to the window's end; where a measure
-    keeps fewer than two points inside the window, its earlier points are kept too, so the line has a shape, and
-    the spec starts at its first point. A measure not cut by scope says so in `errors`."""
-    from ..core import metrics, windows
+    A windowed measure gives its value for each day of the window (`metrics.series`: what happened that day, or what
+    was open at its end for a stock), at least 14 days so a one-day window still has a line; one that isn't windowed
+    gives its own history. A measure with a fixed target gets a flat target line beside it. Measures of different units
+    go on panels of their own, in the order asked. A measure that can't be cut by the scope asked says so in
+    `errors`, as does one with nothing in the window."""
+    from ..core import metrics
 
-    w = windows.resolve(window, at)
-    series, errors = [], []
+    series, panels, errors, starts, ends = [], {}, [], [], []
     for key in keys:
-        m = metrics.value(conn, pack, key, scope=scope, window=window, at=None, history=True)
-        points = [(p["at"][:10], p["value"]) for p in m.get("history") or [] if p["at"][:10] <= w["end"]]
-        inside = [p for p in points if p[0] >= w["start"]]
-        vals = [[d, v] for d, v in (inside if len(inside) >= 2 else points)]
-        if scope and m.get("scope") != scope:
-            errors.append(f"{m['label']} is for the whole register")
-        if not vals:
-            errors.append(f"{m['label']}: no history")
+        got = metrics.series(conn, pack, key, scope=scope, window=window, at=at)
+        m = got["metric"]
+        if scope and got["scope"] != scope:
+            errors.append(f"{m['label']} is for the whole register, not this scope")
+        if got["window"] is None and window:
+            errors.append(f"{m['label']} is for its own period, not this window")
+        if not got["points"]:
+            errors.append(f"{m['label']}: nothing in the window" + (f" ({got['note']})" if got.get("note") else ""))
             continue
-        nums = [v for _, v in vals]
-        unit = wording.unit(m.get("unit"))
-        series.append({
-            "key": f"measure:{key}", "point": key, "tag": key, "label": m["label"], "description": m.get("definition"),
-            "unit": unit, "uom": m.get("unit"), "role": None, "on": None, "link": f"/metrics/{key}", "as": "line",
-            "axis": (m.get("unit") or "value").lower(), "values": vals, "min": min(nums), "max": max(nums),
-            "mean": sum(nums) / len(nums), "last": nums[-1], "limits": [], "show": True,
-        })
-    start = min([s["values"][0][0] for s in series] + [w["start"]])
-    title = " · ".join(s["label"] for s in series) or "Measures"
+        s = _measure_series(f"measure:{key}", m, got["points"])
+        series.append(s)
+        panel = panels.setdefault(s["axis"], {"key": s["axis"], "label": s["unit"] or m["label"], "show": True,
+                                              "axis": "auto", "series": []})
+        panel["series"].append(s["key"])
+        if m.get("target") is not None:
+            flat = [{"at": p["at"], "value": m["target"]} for p in got["points"]]
+            t = _measure_series(f"target:{key}", m, flat, f"{m['label']} target", "step")
+            series.append(t)
+            panel["series"].append(t["key"])
+        span = got.get("span")
+        starts.append(span["start"] if span else got["points"][0]["at"])
+        ends.append(span["end"] if span else got["points"][-1]["at"])
+    title = " · ".join(s["label"] for s in series if s["key"].startswith("measure:")) or "Measures"
+    start, end = (min(starts), max(ends)) if starts else (None, None)
     return {"version": VERSION, "subject": scope, "unit": scope, "unit_label": None, "title": title,
             "template": {"key": "measures", "title": title, "source": "platform"}, "provider": "metrics",
-            "step_minutes": 0, "time": {"start": start, "end": w["end"], "centre": w["end"]},
-            "panels": [{"key": "measures", "label": title, "show": True, "axis": "auto",
-                        "series": [s["key"] for s in series]}],
-            "series": series, "focus": None, "events": [], "marks": [], "missing": [], "errors": errors}
+            "step_minutes": 24 * 60, "time": {"start": start, "end": end, "centre": end},
+            "panels": list(panels.values()), "series": series, "focus": None, "events": [], "marks": [],
+            "missing": [], "errors": errors}
