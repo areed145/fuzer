@@ -17,13 +17,18 @@ const ENTITY_LIMIT = 8;
 export const openSearch = () => window.dispatchEvent(new Event(OPEN));
 
 const GLASS = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16.5 16.5L21 21";
+/** Ops IQ's small spark at the glass's shoulder: search and asking are one way in. */
+const GLASS_SPARK = "M19 1.8c.3 1.7 1 2.4 2.7 2.7-1.7.3-2.4 1-2.7 2.7-.3-1.7-1-2.4-2.7-2.7 1.7-.3 2.4-1 2.7-2.7z";
 
-/** The magnifying glass. `wide` draws it as a search field (the sidebar); otherwise it is an icon (the top bar). */
+/** The magnifying glass. `wide` draws it as a search field (the sidebar); otherwise it is an icon (the top bar). For
+ * those who may ask, it is Ops IQ's sign too: the glass on Ops IQ's teal gradient with its spark. */
 export function SearchButton({ wide = false }: { wide?: boolean }) {
-  return <Button variant="ghost" className={wide ? "search-button wide" : "search-button"} aria-label="Search" title="Search (/)"
-    aria-haspopup="dialog" onClick={openSearch}>
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={GLASS} /></svg>
-    {wide && <span aria-hidden="true">Search</span>}
+  const ai = usePermission("ai");
+  const label = ai ? `Search or ask ${OPS_IQ}` : "Search";
+  return <Button variant="ghost" className={["search-button", wide && "wide", ai && "iq-search"].filter(Boolean).join(" ")}
+    aria-label={label} title={`${label} (/)`} aria-haspopup="dialog" onClick={openSearch}>
+    <span className="search-glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d={GLASS} />{ai && <path className="spark" d={GLASS_SPARK} />}</svg></span>
+    {wide && <span aria-hidden="true">{ai ? `Search or ask ${OPS_IQ}` : "Search"}</span>}
   </Button>;
 }
 

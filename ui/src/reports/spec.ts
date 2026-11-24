@@ -21,7 +21,8 @@ interface PanelBase {
   phone?: boolean;
 }
 
-export interface StatPanel extends PanelBase { type: "stat"; measure: string }
+/** `history: false` leaves out the sparkline, for a measure too slow to read once per point. */
+export interface StatPanel extends PanelBase { type: "stat"; measure: string; history?: boolean }
 export interface TrendPanel extends PanelBase { type: "trend"; measures: string[] }
 export interface FigurePanel extends PanelBase { type: "figure"; measure: string; grain: string; chart: "bar" | "pareto" | "share"; limit?: number }
 /** A registered row set, a measure cut by one of its grains, or several measures cut by the same grain (a column each). */

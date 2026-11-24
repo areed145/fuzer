@@ -4,7 +4,7 @@
 // standard ones, then the person's own and those shared with them. Any report can be copied to "my reports"; a
 // person's own report is edited in place on iPad and desktop (reports/editor.tsx). Phones read.
 import "../styles/report-pages.css";
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { api } from "../api";
 import { Status, href, useAction, useAsync, usePhone, useRouteState } from "../lib";
 import { AddPanelSlot, CustomLine, DefinitionView, ShareSelect, SlotTools, VersionHistory } from "../reports/editor";
@@ -107,10 +107,12 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
     a.run("remove", () => api.removeReport(reportKey), () => { location.hash = href("/reports"); });
   };
 
+  const [all, setAll] = useState(false);
+  const printAll = () => { setAll(true); setTimeout(() => print(), 2500); };  // every row read before the page prints
   const actions = editing ? null : <>
     {custom?.mine && !phone && <Button onClick={() => setEdit("1")}>Edit</Button>}
     {v && !phone && <Button disabled={!!a.busy} onClick={copy}>Copy to my reports</Button>}
-    <Button className="report-print" onClick={() => print()}>Print</Button>
+    <Button className="report-print" onClick={printAll}>Print</Button>
   </>;
   const shown: ReportView | undefined = v && d ? { ...v, definition: d } : undefined;
   const editor: Editing | null = editing && draft && v ? {
@@ -138,7 +140,7 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
     {editor && pane === "versions" && <VersionHistory reportKey={reportKey} onRestored={() => { setEdit(""); setDraft(null); view.reload(); }} />}
     {editor && pane === "definition" && <DefinitionView definition={editor.definition} onApply={setDraft} onClose={() => setPane("")} />}
     {/* kept drawn under the definition view, so going back to the page reads nothing again */}
-    {shown && <div hidden={pane === "definition"}>
+    {shown && <div hidden={pane === "definition"}><Everything.Provider value={all || !!editor}>
       <div className="report-controls" role="group" aria-label="Scope and window">
         <Field label="Scope" inline>
           <Select value={shown.scope.id ?? ""} onChange={(e) => setScope(e.target.value)} aria-label="Scope">
@@ -168,7 +170,7 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
         {editor && <AddPanelSlot definition={editor.definition} index={ri + 1} open={editor.adding === ri + 1}
           onOpen={editor.onAdding} onChange={editor.onChange} />}
       </Fragment>)}
-    </div>}
+    </Everything.Provider></div>}
   </section>;
 }
 
@@ -179,20 +181,40 @@ function panelsOf(d: ReportDefinition): Panel[] {
   return d.rows.flatMap((r) => r.panels.flatMap((p) => (p.type === "column" ? p.panels : [p])));
 }
 
+/** True once printing or editing asks for every row, whether or not it has been scrolled to. */
+const Everything = createContext(false);
+
+/** A row is read when it comes within a screen of the view, so a long report (a row per well) costs only what is
+ * looked at, and the browser's bounded request queue never overflows. */
+function useNear(): [RefObject<HTMLDivElement | null>, boolean] {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const all = useContext(Everything);
+  const [near, setNear] = useState(typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    if (near || !ref.current) return;
+    const seen = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setNear(true); },
+      { rootMargin: "100% 0px" });
+    seen.observe(ref.current);
+    return () => seen.disconnect();
+  }, [near]);
+  return [ref, near || all];
+}
+
 function Row({ row, index, view, scope, editor }: {
   row: ReportRow; index: number; view: ReportView; scope: ScopeRef; editor: Editing | null;
 }) {
   const repeated = !!row.repeat;
-  return <div className="report-row-block">
+  const [ref, near] = useNear();
+  return <div className="report-row-block" ref={ref}>
     {(row.title || repeated) && <Heading small>{[row.title, repeated && scope.label].filter(Boolean).join(" · ")}</Heading>}
-    <div className="report-row">
+    {!near ? <div className="report-row-waiting" aria-hidden="true" /> : <div className="report-row">
       {row.panels.map((p, i) => {
         const tools = editor && <SlotTools definition={editor.definition} place={{ row: index, item: i }} item={p} onChange={editor.onChange} />;
         return p.type === "column"
           ? <Column key={i} column={p} view={view} scope={scope} tools={tools} editor={editor} />
           : <Slot key={p.id} panel={p} view={view} scope={scope} tools={tools} editor={editor} />;
       })}
-    </div>
+    </div>}
   </div>;
 }
 

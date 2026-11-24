@@ -54,7 +54,7 @@ Every panel has an `id` (unique in the report, kept across versions so notes and
 
 | Type | Fields | Draws | Owner |
 |---|---|---|---|
-| `stat` | `measure` | The value, its target, the change against the window before and a sparkline | engine |
+| `stat` | `measure`, `history` (false: no sparkline, for a measure slow to read per point) | The value, its target, the change against the window before and a sparkline | engine |
 | `trend` | `measures` (one or more) | The measures over the window on the one trend chart, from `trend_spec.from_measures` | engine |
 | `figure` | `measure`, `grain`, `chart` (`bar`, `pareto` or `share`), `limit` | The measure cut by one of its grains | engine |
 | `table` | `rows` (a row set), or `measure` (or `measures`, a column each) + `grain`, `limit` | Rows, each opening its case or entity | engine |

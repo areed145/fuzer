@@ -18,6 +18,7 @@
 .report-size-2 { grid-column: span 2; }
 .report-size-3 { grid-column: span 3; }
 .report-size-4 { grid-column: span 4; }
+.report-row-waiting { min-height: 12rem; }
 .report-column { display: flex; flex-direction: column; gap: 1rem; }
 /* above the iOS card margin (:root.ios .ui-card), which otherwise opens a gap under a panel shorter than its row */
 :root .report-row .report-slot > .report-panel { margin: 0; height: 100%; }
@@ -33,6 +34,7 @@
 .report-off-target { color: var(--danger); }
 .report-stat .sparkline { margin-top: 0.35rem; }
 .report-chart { min-height: 18rem; }
+.report-chart:has(.report-empty) { min-height: 0; }
 .report-case-cards { display: grid; gap: 0.5rem; margin-bottom: 0.5rem; }
 .report-panel .num { text-align: end; font-variant-numeric: tabular-nums; }
 .report-print-only { display: none; }

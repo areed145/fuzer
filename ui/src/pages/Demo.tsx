@@ -64,7 +64,7 @@ export function DemoPage({ query, stats }: {
         <p>The catalog below comes from Fuzer's capability registry, not a claim that every required source
           or provider is ready. Ask shows agent/tool activity, citations and reported usage when a question runs.</p>
         {!ai && <p>Paid questions require AI access from an owner. You can still inspect the capability descriptions.</p>}
-        {ai && <ButtonLink href={href("/ask", { demo: "agents", q: "Using the loaded historical Okan records, compare production losses, equipment reliability and work-order readiness. Cite evidence with dates and units, identify missing inputs, and propose questions for human review, not operating instructions." })}>
+        {ai && <ButtonLink variant="iq" href={href("/ask", { demo: "agents", q: "Using the loaded historical Okan records, compare production losses, equipment reliability and work-order readiness. Cite evidence with dates and units, identify missing inputs, and propose questions for human review, not operating instructions." })}>
           Prepare a cross-domain question
         </ButtonLink>}
         <Status of={catalog} />
@@ -72,7 +72,7 @@ export function DemoPage({ query, stats }: {
           <Heading level={3}>Registered skills</Heading><ul>{agent.skills.map((s) => <li key={s}>{s}</li>)}</ul>
           <Heading level={3}>Limitations and human decisions</Heading>
           <ul>{[...agent.limits, ...agent.human_decisions].map((s) => <li key={s}>{s}</li>)}</ul>
-          {ai && <ButtonLink href={href("/ask", { demo: "agents", q: `Review the loaded historical Okan evidence from the perspective of ${agent.label}. ${agent.description} Cite supporting records, dates and units; state missing prerequisites and leave decisions to accountable people.` })}>
+          {ai && <ButtonLink variant="iq" href={href("/ask", { demo: "agents", q: `Review the loaded historical Okan evidence from the perspective of ${agent.label}. ${agent.description} Cite supporting records, dates and units; state missing prerequisites and leave decisions to accountable people.` })}>
             Prepare a question for {agent.label}
           </ButtonLink>}
         </Disclosure>) : <EmptyState title="Agent catalog unavailable">

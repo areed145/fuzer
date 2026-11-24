@@ -2,7 +2,7 @@
 schema: 1
 key: data
 title: Data health
-version: 1
+version: 2
 for: [data steward]
 scope:
   kinds: [facility]
@@ -27,8 +27,9 @@ rows:
       - {id: notes, type: note, size: 2}
   - id: by-dataset
     panels:
-      - {id: datasets, type: table, size: 4, title: By dataset,
-         measures: [sources.completeness, sources.timeliness, sources.agreement, sources.validity], grain: dataset, limit: 30}
+      - {id: held-list, type: table, size: 1, title: Loads held, measure: sources.held_loads, grain: dataset}
+      - {id: datasets, type: table, size: 3, title: By dataset, the lowest first,
+         measures: [sources.completeness, sources.timeliness, sources.agreement, sources.validity], grain: dataset, limit: 15}
   - id: by-system
     panels:
       - {id: by-system, type: figure, size: 2, title: Records decided without a steward by system, measure: sources.straight_through, grain: system, chart: bar}

@@ -631,12 +631,12 @@
 /* ================= Account badge and sheet, and the Menu's status =================
    A round badge with the initials, top right, as the App Store's; it opens a sheet of grouped rows. The Menu's status is
    one compact row: a coloured dot and one line that opens Jobs. */
-:root.ios .account-button.ui-button { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; background: var(--accent); color: var(--accent-text, #fff); border: 0; font-size: var(--t-subhead); }
+:root.ios .account-button.ui-button { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; background: var(--glass); background-image: var(--glass-sheen); color: var(--text); border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow); font-size: var(--t-subhead); }
 :root.ios .account-sheet-head h2 { font-size: var(--t-title3); font-weight: 600; }
 :root.ios .account-sheet .identity { border-radius: var(--radius); font-size: var(--t-body); }
 :root.ios .account-sheet .identity p { font-size: var(--t-subhead); color: var(--muted); }
 @media (max-width: 900px) {
-  :root.ios .topbar .account-button.ui-button { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; background: var(--accent); color: var(--accent-text, #fff); border: 0; font-size: var(--t-subhead); }
+  :root.ios .topbar .account-button.ui-button { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; background: var(--glass); background-image: var(--glass-sheen); color: var(--text); border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow); font-size: var(--t-subhead); }
   :root.ios .account-sheet { border-radius: 32px 32px 0 0; padding-top: 10px; }
   :root.ios .account-sheet::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px;
     background: color-mix(in srgb, var(--muted) 45%, transparent); }
@@ -835,6 +835,8 @@
     border: var(--hair) solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
   }
   :root.ios .topbar :is(.back-button, .search-button, .share-button, .refresh-button) svg { width: 20px; height: 20px; }
+  :root.ios .topbar .iq-search::before { display: none; }
+  :root.ios .topbar .iq-search .search-glyph { width: var(--control-h); height: var(--control-h); box-shadow: var(--glass-shadow); }
   :root.ios .topbar .brand { display: inline-flex; align-items: center; height: var(--control-h); }
   :root.ios .topbar .brand .logo { height: 22px; }
   :root.ios .bottombar { padding: 0 4px; }
