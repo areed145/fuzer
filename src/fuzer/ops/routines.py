@@ -20,6 +20,7 @@ from psycopg.types.json import Jsonb
 
 from ..core import clock, events
 from ..core.exceptions import TYPES, clear_exception, exception_type, raise_exception
+from ..core.findings import DETERMINISTIC, EXTERNAL, Finding, at, fact
 
 TYPE = "routine_due"
 ANCHORS = ("fixed", "floating")
@@ -109,8 +110,15 @@ def _occurrence(conn, routine: dict, due: date, bar: dict | None, by: str) -> di
     from . import plan
 
     key = f"{routine['code']}:{due.isoformat()}"
+    sap = routine["source"] == "sap"
+    found = Finding(
+        "sap.maintenance_plan" if sap else "routines", EXTERNAL if sap else DETERMINISTIC,
+        items=(fact("Routine", routine["title"]), at("Due", clock.aware(datetime.combine(due, datetime.min.time()))), fact("Every", routine["interval_days"], "days")),
+        method=("SAP maintenance plan: its next due task" if sap else
+                f"Routine kept in Fuzer: every {routine['interval_days']:g} days, raised {routine['lead_days']:g} days ahead"),
+        data={"routine": routine["code"], "due": due.isoformat()})
     e = raise_exception(conn, TYPE, key, f"{routine['title']} (due {due:%d %b})", by, source=routine["source"],
-                        refs=routine["targets"], role=f"role:{routine['owner_role']}")
+                        refs=routine["targets"], role=f"role:{routine['owner_role']}", finding=found)
     if bar is None:
         t = routine["template"] or {}
         start = clock.aware(datetime.combine(due, datetime.min.time()))

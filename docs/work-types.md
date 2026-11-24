@@ -1,7 +1,7 @@
 # Work types
 
 Generated from the work type registry (`core/exceptions.py`) and the detector registry; don't edit by hand (`uv run python -m fuzer.reference`).
-The 46 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
+The 47 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
 
 Every type is listed on the **List** (All work), whichever group it is in. *The field can be sent* means a case of the type can be dispatched to a field operator's **My work**; *joins one event's case* means it joins an open case about the same asset instead of opening another; *held back by planned work* means a finding during a shutdown or planned job on its asset is counted under that window and opens no case.
 
@@ -94,6 +94,15 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 | **Regulatory report coming due** `report_due` | A regulatory report whose due date is coming with no draft started, or that is past its due date and not submitted. | - | [`ops.reports`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/reports.py) | - |
 | **Regulatory report to review** `regulatory_report` | A regulatory or emissions report drafted from its records for one period. | - | [`ops.reports`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/reports.py) | - |
 
+### Maintenance planner queue
+
+`maintenance_planner`: Plans maintenance: raises and schedules SAP notifications. A step is due in 2 days, then escalates to `ops_lead`.
+
+| Type of work | What it is | Found by | Declared in | How it behaves |
+|---|---|---|---|---|
+| **Parts not ready for planned work** `parts_not_ready` | A planned work order with a reserved part that won't arrive by the day the job needs it: on order too late, or short with nothing on order and too little time to get it. | [`parts_not_ready`](detectors.md#parts_not_ready) | [`ops.materials`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/materials.py) | - |
+| **Routine due** `routine_due` | A routine falling due: a maintenance or inspection plan's next date, or a routine duty kept in Fuzer. | - | - | - |
+
 ### Production engineer queue
 
 `production_engineer`: Production engineering: wells, gas lift, deferment. A step is due in 1 day, then escalates to `ops_lead`.
@@ -102,11 +111,3 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 |---|---|---|---|---|
 | **Gas lift heading** `gas_lift_instability` | A gas-lifted well whose casing pressure surges and falls back regularly, as a well heading on lift does. | [`gas_lift_instability`](detectors.md#gas_lift_instability) | [`analysis.gas_lift`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis/gas_lift.py) | - |
 | **Well test to review** `well_test_review` | A well whose test is overdue against its own interval, or whose latest test moved its water cut or gas-oil ratio well past its recent tests. | [`well_tests`](detectors.md#well_tests) | [`analysis.well_tests`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis/well_tests.py) | - |
-
-### Maintenance planner queue
-
-`maintenance_planner`: Plans maintenance: raises and schedules SAP notifications. A step is due in 2 days, then escalates to `ops_lead`.
-
-| Type of work | What it is | Found by | Declared in | How it behaves |
-|---|---|---|---|---|
-| **Parts not ready for planned work** `parts_not_ready` | A planned work order with a reserved part that won't arrive by the day the job needs it: on order too late, or short with nothing on order and too little time to get it. | [`parts_not_ready`](detectors.md#parts_not_ready) | [`ops.materials`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/materials.py) | - |

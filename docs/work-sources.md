@@ -41,7 +41,7 @@ Every source on this page follows these rules unless its row says otherwise.
 
 | Family | Sources | Routed to | Field | Closes |
 |---|---|---|---|---|
-| [Maintenance and materials](#maintenance-and-materials) | SAP notifications, parts not ready | IOC (To dispatch); maintenance planner | SAP notifications | IOC close-out, then SAP hears back; parts by themselves |
+| [Maintenance and materials](#maintenance-and-materials) | SAP notifications, parts not ready, routines due | IOC (To dispatch); maintenance planner | SAP notifications | IOC close-out, then SAP hears back; parts by themselves |
 | [Process data](#process-data-fuzers-detectors) | Upsets, IOW breaches, trips, machine health, loops, gas lift, well tests, lab quality, gas balance, alarms, flare | Upset and IOW workflows; engineer, production engineer, HSE queues | Upsets, IOW breaches, trips, machine health | Last workflow step, desk close-out, or the condition clears |
 | [Other detection tools](#other-detection-tools) | Vendor condition monitoring, predictive health, leak detection | The type the tool raises, after its trust level | If its type allows | As its type; the close-out can go back to the tool |
 | [Integrity and inspection](#integrity-and-inspection) | Inspection or wall loss, pig run anomalies, repeat leaks | Engineer queue | Sent from the case | By themselves when a later survey or screening clears |
@@ -61,6 +61,7 @@ Every source on this page follows these rules unless its row says otherwise.
 |---|---|---|---|---|---|
 | **SAP notification** `sap_notification` | Each register refresh: open notifications (status OSNO or NOPR) with no work order, created in the last `intake.sap_notifications.max_age_days` (60) of data. Off with `intake.sap_notifications`. | The equipment and functional location the notification concerns | **To dispatch** for the IOC, due by SAP priority (`intake.sap_notifications.due_hours`) once dispatched. Joins the open event on the same asset. | Yes: Options, Send to, or Plan for a day | When an order is raised or SAP completes it, it clears. If the field does it, the IOC closes it out, the SAP completion (or a follow-up notification for Could not do) is drafted for the maintenance planner to approve, and the notification is held until SAP's status changes. |
 | **Parts not ready for planned work** `parts_not_ready` | After each refresh: a planned work order whose reserved part won't arrive by the job's day | The work order and the equipment it concerns | Maintenance planner queue | No | By itself when stock, or an order arriving in time, covers every line. The planner expedites or moves the job on Plan. |
+| **Routine due** `routine_due` | After each refresh: an SAP maintenance or inspection plan's next due task, or a routine kept in Fuzer, inside its lead time | The equipment the routine covers | Maintenance planner queue (or the routine's owner role) | No | By itself when its job on Plan is done or cancelled; a routine kept in Fuzer then rolls to its next date. The planner plans, books and releases the job. |
 
 SAP work orders and maintenance plans are planned work, not routed work: see [Planned work](#planned-work).
 
