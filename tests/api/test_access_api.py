@@ -193,6 +193,10 @@ def test_operator_audit_actor_is_server_bound_and_sort_by_is_not_rewritten(runti
     note = runtime.post("/reports/work/notes", json={"body": "Quiet week.", "window": "7d", "by": "system"})
     assert note.status_code == 200 and note.json()["by"] == person.actor, note.text
     assert runtime.post("/reports/work/summary/generate?window=7d").status_code == 403  # operating is not spending
+    # publishing a skill draft asks its eval of the live version and the draft: AI access, not only operating
+    assert runtime.post("/work/skills/publish", json={"skill": "maintenance-integrity/compression", "version": 1,
+                                                      "by": "system"}).status_code == 403
+    assert runtime.get("/work/skills").status_code == 200  # reading the skills calls no model
     runtime.headers["Origin"] = "https://not-fuzer.example"
     assert runtime.post("/board/pins", json={"key": "access-test"}).status_code == 403
     runtime.headers.pop("Origin")

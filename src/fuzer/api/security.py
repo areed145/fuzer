@@ -121,6 +121,11 @@ STEWARD_ACTIONS = frozenset({
     "/rebuild"})
 
 
+# Routes that call a model for whoever asks, beyond /generate and /remember: they need AI access as well as their own.
+# Publishing a skill draft asks its eval questions of the live version and of the draft (agents.skill_gate).
+PAID_PATHS = frozenset({"/assistant/ask", "/work/skills/publish"})
+
+
 def steward_action(path: str, method: str) -> bool:
     """`path` is the route's template, as `self.path` holds it."""
     return method == "POST" and path in STEWARD_ACTIONS
@@ -185,7 +190,7 @@ class AuthenticatedRoute(APIRoute):
                 claude = TypeAdapter(bool).validate_python(request.query_params.get("claude", "false"))
             except ValidationError as e:
                 raise HTTPException(422, "claude must be a boolean") from e
-            if (self.path == "/assistant/ask" or self.path.endswith(("/generate", "/remember"))
+            if (self.path in PAID_PATHS or self.path.endswith(("/generate", "/remember"))
                     or claude):
                 require(person, "ai")
                 csrf_check(request, person)

@@ -274,6 +274,27 @@ A skill **needs a change** when at least `MIN_RATED` (5) of its briefs and answe
 short. It is **earning its keep** under a quarter. Below it, a card gives each specialist's agent steps, the cases they
 were on and the spend per case, from the ledgers (P4.4).
 
+## Skills page
+
+Ops IQ › Skills (`#/skills`, `agents/skill_book.py`) is where the engineers who own the skills read and change them.
+The list groups every skill by the agent that owns it, with the version the agents load (as shipped, or the version
+published and when), a draft waiting, how often it fell short since its live version went live (`agents/shortfalls`)
+and how many eval questions its gate asks. A skill opens on three tabs:
+
+- **Playbook**: what it covers, the agents that load it, the personas it is written for, its equipment classes and the
+  tools it names, then the live playbook. **Edit playbook** opens it as text; saving makes a draft
+  (`POST /work/skills/versions`), never a live version. A playbook that names a tool its agents lack is refused.
+- **Versions**: every version newest first with who made it, its note and the eval it was published on. A version opens
+  against the live playbook line by line (`GET /work/skills/diff`), with unchanged stretches folded. A draft is
+  published (the eval gate, P6.4d: AI access, and refused with both scores when it scores lower), edited (the new draft
+  replaces it and keeps its cases and questions) or set aside with a reason. The live version rolls back in one action.
+  When no model can be called (no key, or the month's budget spent) Publish is off and says why, and the server refuses
+  before spending anything (`skill_gate.Unavailable`, 503).
+- **Fell short**: the briefs not followed and the answers rated not useful since the live version, each with the
+  person's note and its case.
+
+A drafted change opens as `skill_change` work for the skill's owner (P6.4c), and its case links to the draft here.
+
 ## Views and agent tools
 
 **Charts:**

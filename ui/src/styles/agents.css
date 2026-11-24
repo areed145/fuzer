@@ -1,0 +1,12 @@
+/* Skills, Knowledge review and Evals (Ops IQ's pages for the people who own what the agents know) */
+.skill-editor { font-family: var(--mono); font-size: 13px; line-height: 1.5; min-height: 50vh; }
+.skill-diff { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; border: 1px solid var(--line);
+  border-radius: 6px; overflow-x: auto; margin: 8px 0 12px; }
+.skill-diff > div { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.skill-diff > div > span[aria-hidden] { display: inline-block; width: 1.2em; color: var(--muted); user-select: none; }
+.skill-diff-add { background: var(--ok-soft); }
+.skill-diff-remove { background: var(--warn-soft); text-decoration: line-through; text-decoration-color: var(--muted); }
+.skill-diff-gap { color: var(--muted); font-family: inherit; padding: 4px 10px !important; border-block: 1px dashed var(--line); }
+.skill-shortfall { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.skill-shortfall:last-child { border-bottom: 0; }
+.skill-playbook { overflow-wrap: anywhere; }

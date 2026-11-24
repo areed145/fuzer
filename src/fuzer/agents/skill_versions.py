@@ -87,8 +87,10 @@ def _tools(text: str) -> set[str]:
 
 
 def draft(conn, path: str, playbook: str, by: str, cases: list | None = None, questions: list | None = None,
-          note: str | None = None) -> dict:
-    """A new draft version of a skill's playbook. It may not tell the agent to call a tool the skill's agents lack."""
+          note: str | None = None, replaces: int | None = None) -> dict:
+    """A new draft version of a skill's playbook. It may not tell the agent to call a tool the skill's agents lack.
+    `replaces` names a draft this one was written from: that draft is set aside, with its cases and questions kept on
+    the new one, so one draft waits for the skill's owner."""
     from .capabilities import tools_by_agent
 
     s = _skill(path)
@@ -98,14 +100,31 @@ def draft(conn, path: str, playbook: str, by: str, cases: list | None = None, qu
     extra = sorted(_tools(playbook) - allowed)
     if extra:
         raise ValueError(f"the playbook names tools the {s.owner} agent does not have: {', '.join(extra)}")
+    if playbook == live(conn, path)["playbook"]:
+        raise ValueError("the playbook is the same as the live one: change something before saving a draft")
+    base = None
+    if replaces is not None:
+        _person(by, "replaces a draft")
+        base = conn.execute("select cases, questions from skill_version where skill = %s and version = %s "
+                            "and status = 'draft'", (s.path, replaces)).fetchone()
+        if base is None:
+            raise ValueError(f"{s.path} has no draft version {replaces}")
+        cases = list(base["cases"] or []) + [c for c in cases or [] if c not in (base["cases"] or [])]
+        questions = list(base["questions"] or []) + [q for q in questions or [] if q not in (base["questions"] or [])]
     with conn.transaction():
         conn.execute("select pg_advisory_xact_lock(hashtext(%s))", (f"skill:{s.path}",))
         n = conn.execute("select coalesce(max(version), 0) + 1 as n from skill_version where skill = %s",
                          (s.path,)).fetchone()["n"]
+        if base is not None:
+            conn.execute("update skill_version set status = 'refused', note = concat_ws(' ', note, %s::text) "
+                         "where skill = %s and version = %s and status = 'draft'",
+                         (f"(replaced by v{n}, written from it by {by})", s.path, replaces))
         row = conn.execute(
             "insert into skill_version (skill, version, playbook, cases, questions, note, created_by) "
             "values (%s, %s, %s, %s, %s, %s, %s) returning version, status, created_by, created_at",
             (s.path, n, playbook, Jsonb(cases or []), Jsonb(questions or []), note, by)).fetchone()
+    if base is not None:
+        _reviewed(conn, s.path, replaces, by, f"replaced by draft v{n}")
     return {"skill": s.path, **_row(row)}
 
 

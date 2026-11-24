@@ -255,6 +255,7 @@ class SkillDraft(BaseModel):
     cases: list[dict] = Field(default_factory=list)
     questions: list[dict] = Field(default_factory=list)
     note: str | None = None
+    replaces: int | None = None
 
 
 class SkillAct(BaseModel):
@@ -275,6 +276,30 @@ def _skill_call(fn, *args):
         raise HTTPException(409, str(e)) from None
 
 
+@router.get("/work/skills")
+def work_skills(conn=Depends(get_conn)):
+    """The skills page: every skill with its live version, a draft waiting and its shortfalls since it went live."""
+    from ..agents import skill_book
+
+    return skill_book.listing(conn)
+
+
+@router.get("/work/skills/detail")
+def work_skill_detail(skill: str, conn=Depends(get_conn)):
+    """One skill: its live playbook, pack, tools, eval questions and shortfalls since its live version."""
+    from ..agents import skill_book
+
+    return _skill_call(skill_book.detail, conn, skill)
+
+
+@router.get("/work/skills/diff")
+def work_skill_diff(skill: str, version: int, conn=Depends(get_conn)):
+    """A version's playbook against the live one, line by line."""
+    from ..agents import skill_book
+
+    return _skill_call(skill_book.diff, conn, skill, version)
+
+
 @router.get("/work/skills/versions")
 def work_skill_versions(skill: str, conn=Depends(get_conn)):
     """Every version of a skill's playbook (P6.4b), newest first, ending with the one shipped."""
@@ -287,7 +312,7 @@ def work_skill_versions(skill: str, conn=Depends(get_conn)):
 def work_skill_draft(d: SkillDraft, conn=Depends(get_conn)):
     from ..agents import skill_versions
 
-    return _skill_call(skill_versions.draft, conn, d.skill, d.playbook, d.by, d.cases, d.questions, d.note)
+    return _skill_call(skill_versions.draft, conn, d.skill, d.playbook, d.by, d.cases, d.questions, d.note, d.replaces)
 
 
 @router.post("/work/skills/publish")
@@ -302,6 +327,8 @@ def work_skill_publish(a: SkillAct, conn=Depends(get_conn)):
         return _skill_call(skill_gate.publish, conn, a.skill, a.version, a.by)
     except skill_gate.GateRefused as e:
         raise HTTPException(409, {"refused": str(e), **e.result}) from None
+    except skill_gate.Unavailable as e:
+        raise HTTPException(503, str(e)) from None
 
 
 @router.post("/work/skills/rollback")
