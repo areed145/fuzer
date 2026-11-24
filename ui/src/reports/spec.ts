@@ -26,8 +26,11 @@ export interface TrendPanel extends PanelBase { type: "trend"; measures: string[
 export interface FigurePanel extends PanelBase { type: "figure"; measure: string; grain: string; chart: "bar" | "pareto" | "share"; limit?: number }
 /** Either a registered row set or a measure cut by one of its grains. */
 export interface TablePanel extends PanelBase { type: "table"; rows?: string; measure?: string; grain?: string; limit?: number }
-/** The Work list's own filters. */
-export interface CasesFilter { state?: string; type?: string; role?: string[]; assignee?: string; overdue?: boolean; q?: string }
+/** The Work list's own filters (ops/worklist.rows); the report's scope is added as `within`. */
+export interface CasesFilter {
+  state?: "open" | "closed" | "all"; kind?: string; stage?: string; holder?: string; queue?: string; source?: string;
+  overdue?: boolean; q?: string; sort?: "value" | "due" | "opened" | "updated" | "title";
+}
 export interface CasesPanel extends PanelBase { type: "cases"; filter: CasesFilter; limit?: number }
 /** Written commentary; `text` is fixed markdown kept in the definition (a section's heading line). */
 export interface NotePanel extends PanelBase { type: "note"; text?: string }
@@ -144,7 +147,7 @@ export interface TableColumn { key: string; label: string; unit?: string; align?
 export interface TableRow { key: string; cells: Record<string, string | number | null>; href: string | null }
 export interface TableResult extends PanelResultBase { type: "table"; columns: TableColumn[]; rows: TableRow[]; total: number }
 
-/** Rows exactly as GET /work/items returns them. */
+/** Rows exactly as the Work list (GET /worklist, ops/worklist.rows) returns them; `href` opens that list. */
 export interface CasesResult extends PanelResultBase {
   type: "cases";
   cases: Record<string, unknown>[];

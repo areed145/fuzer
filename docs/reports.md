@@ -57,7 +57,7 @@ Every panel has an `id` (unique in the report, kept across versions so notes and
 | `trend` | `measures` (one or more) | The measures over the window on the one trend chart, from `trend_spec.from_measures` | engine |
 | `figure` | `measure`, `grain`, `chart` (`bar`, `pareto` or `share`), `limit` | The measure cut by one of its grains | engine |
 | `table` | `rows` (a row set) or `measure` + `grain`, `limit` | Rows, each opening its case or entity | engine |
-| `cases` | `filter` (the Work list's filters: `state`, `type`, `role`, `assignee`, `overdue`, `q`), `limit` | Live case rows, the same as Work, with a link to the full list | engine |
+| `cases` | `filter` (the Work list's filters: `state`, `kind`, `stage`, `holder`, `queue`, `source`, `overdue`, `q`, `sort`), `limit` | Live case rows, the same rows as Work (`ops/worklist.rows`, scoped with `within`), with a link to that list | engine |
 | `note` | `text` (fixed markdown, optional) | Written commentary for the report and period, with live values | commentary |
 | `summary` | none | The AI note for this report, scope, window and day | commentary |
 
@@ -106,6 +106,9 @@ reports.panels(definition) -> list[dict]    # every panel, flattened out of colu
 reports.panel_data(conn, pack, key, panel_id, scope, window, at) -> dict   # one panel's result
 reports.panel_type(name)                    # decorator: registers fn(conn, pack, report, panel, scope, window) -> dict
 ```
+
+The definitions and checks live in `core/reports`; the panel computations, which read the operations and analyses,
+live in `ops/report_panels.py`, which imports every module named in its `DECLARED_IN` so each registers its types.
 
 The commentary registers `note` and `summary` with `panel_type`; the AI note takes `panel_data` of every other panel
 as its facts.
