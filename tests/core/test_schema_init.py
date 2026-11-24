@@ -106,3 +106,23 @@ def test_a_database_from_before_the_split_moves_shared_tables_in_place(url):
         assert c.execute("select name from project").fetchone()["name"] == "okan"
         c.execute("insert into setting_history (scope, key, new, by) values ('global', 'x', '1', 'ana')")  # sequence moved too
         c.rollback()
+
+
+def test_changed_schema_backs_off_from_live_traffic(url, monkeypatch, capsys):
+    """On a zero-downtime deploy the previous instance keeps writing while the new one migrates. A transaction
+    holding a table the migration alters made it wait, and once crossed with another table, deadlock and exit
+    the deploy (#1295). It now gives its locks back, waits and retries until the traffic moves on."""
+    monkeypatch.setattr(db, "SCHEMA_LOCK_TIMEOUT", "300ms")
+    with db.connect(url=url) as c:
+        c.execute("update schema_version set hash = 'old'")
+        c.commit()
+    with db.connect(url=url) as traffic, db.connect(url=url) as deploy:
+        traffic.execute("select count(*) from assertion").fetchone()  # held until rollback, as a live request
+        timer = threading.Timer(1.5, traffic.rollback)
+        timer.start()
+        try:
+            db.init_schema(deploy)
+        finally:
+            timer.cancel()
+        assert deploy.execute("select hash from schema_version").fetchone()["hash"] == db.schema_hash()
+    assert "retry 1" in capsys.readouterr().out  # it let go of its locks rather than queue behind traffic

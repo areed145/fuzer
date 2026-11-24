@@ -268,8 +268,33 @@ def init_schema(conn) -> None:
     # Commit first: waiting for the lock while holding locks from earlier reads in this transaction would
     # deadlock against the caller applying the schema (it needs exclusive locks on those tables).
     conn.commit()
+    for attempt in range(1, SCHEMA_ATTEMPTS + 1):
+        try:
+            _apply_schema(conn, current)
+            return
+        except (psycopg.errors.DeadlockDetected, psycopg.errors.LockNotAvailable) as e:
+            # The advisory lock orders schema appliers, not ordinary traffic: on a zero-downtime deploy the previous
+            # instance keeps writing, and one of its transactions can hold a table the migration needs while
+            # waiting on one the migration already locked (#1295). Give every lock back and try again shortly,
+            # rather than let the deploy exit.
+            conn.rollback()
+            if attempt == SCHEMA_ATTEMPTS:
+                raise
+            wait = min(2 ** attempt, 30) * 0.5
+            print(f"Schema update waited on live traffic ({type(e).__name__}); retry {attempt} in {wait:.0f}s",
+                  flush=True)
+            time.sleep(wait)
+
+
+SCHEMA_ATTEMPTS = 8
+SCHEMA_LOCK_TIMEOUT = "5s"  # each lock the migration waits for: a busy table makes it back off, not queue traffic
+
+
+def _apply_schema(conn, current: str) -> None:
     conn.execute("select pg_advisory_xact_lock(%s)", (SCHEMA_LOCK,))
     if not _schema_current(conn, current):  # another process may have applied it while we waited
+        # Set after the advisory lock, so waiting for another applier is not cut short.
+        conn.execute("select set_config('lock_timeout', %s, true)", (SCHEMA_LOCK_TIMEOUT,))
         conn.execute(schema_sql())
         from . import ontology
 
