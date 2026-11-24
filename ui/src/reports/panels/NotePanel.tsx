@@ -71,7 +71,7 @@ export function NotePanel(props: PanelProps) {
   // the live-value hint names a measure this report already shows
   const example = report.definition.rows.flatMap((row) => row.panels)
     .flatMap((p) => ("panels" in p ? p.panels : [p]))
-    .map((p) => ("measure" in p ? p.measure : "measures" in p ? p.measures[0] : undefined)).find(Boolean);
+    .map((p) => ("measure" in p ? p.measure : "measures" in p ? p.measures?.[0] : undefined)).find(Boolean);
   const add = () => run("add", () => api.addReportNote(key, where, draft), () => { setDraft(""); r.reload(); });
   const remove = async (n: PersonNote) => {
     if (!(await confirmDialog("Remove this note? It stays in the record.", { confirm: "Remove", danger: true }))) return;
