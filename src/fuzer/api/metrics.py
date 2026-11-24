@@ -29,7 +29,7 @@ def listing():
 def one(key: str, grain: str | None = None, at: date | None = None, history: bool = False, conn=Depends(get_conn)):
     """One metric now, the same value a page, the daily report or an agent reads; `history` adds its earlier values."""
     from ..core.jsonsafe import plain
-    from .shared_reads import shared
+    from ..core.shared_reads import shared
 
     try:
         # The Metrics page asks for every metric's history at once, a fifth of a second of CPU each: people opening it
