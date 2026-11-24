@@ -63,6 +63,10 @@
 .ui-stat-link { color: var(--text); }
 .ui-stat-link:hover { border-color: var(--accent); text-decoration: none; }
 .ui-stat-danger strong { color: var(--danger); }
+.ui-stat.ui-stat-compact { gap: 0; padding: 4px 10px; border: 0; background: none; }
+.ui-stat-compact > span { font-size: 11px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ui-stat-compact strong { font-size: 17px; line-height: 22px; }
+.ui-stat-compact.ui-stat-link:hover { background: var(--accent-soft); }
 .ui-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
 .ui-stats > * { min-width: 0; }
 .ui-card .ui-stats { gap: 12px 20px; }

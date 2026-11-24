@@ -19,7 +19,7 @@ const TILES: Record<BasemapName, Tiles> = {
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine {
-  const map = L.map(el, { preferCanvas: true, zoomSnap: 0.5 });
+  const map = L.map(el, { preferCanvas: true, zoomSnap: 0.5, zoomControl: false });
   const network = L.layerGroup().addTo(map);
   const location = L.layerGroup().addTo(map);
   const spots = L.layerGroup().addTo(map);
@@ -119,6 +119,7 @@ export function leafletEngine(el: HTMLElement, events: EngineEvents): MapEngine 
       map.setView(at, Math.max(map.getZoom(), 14));
     },
     zoom() { return map.getZoom(); },
+    zoomBy(step) { if (step > 0) map.zoomIn(); else map.zoomOut(); },
     project(at) { const p = map.latLngToContainerPoint(at); return { x: p.x, y: p.y }; },
     setPan(on) { if (on) map.dragging.enable(); else map.dragging.disable(); },
     resize() { map.invalidateSize(); },
