@@ -86,6 +86,7 @@ nav:
       - methods.md
       - detectors.md
       - metrics.md
+      - reports.md
       - settings.md
       - cli.md
       - schema.md
