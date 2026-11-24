@@ -34,9 +34,14 @@ def commands(added: list[str] | tuple[str, ...] = (), role: str = "all") -> list
                                             "-h", "127.0.0.1", "-p", "3000"]))
     if role != "web":
         tasks.append(("Dagster daemon", ["dagster-daemon", "run", "-m", "fuzer.ops.jobs"]))
-        if llm.configured("agents"):
+        # The worker starts on a key alone: while the month's AI budget is spent it waits (agents/worker.run), so
+        # raising the budget brings agent steps back without a redeploy.
+        if llm.has_credentials("agents"):
             tasks.append(("Agent worker", ["fuzer", "work", "worker"]))  # the database's first project
             tasks += [(f"Agent worker ({name})", ["fuzer", "--project", name, "work", "worker"]) for name in added]
+            if not llm.configured("agents"):
+                print("The month's AI budget (Settings > AI usage) is spent: the agent worker waits until it is "
+                      "raised or the month ends.", flush=True)
         else:
             print("The agents provider is not configured: Ask and workflow agent steps are unavailable. "
                   "Configure its key and redeploy to start the worker.", flush=True)

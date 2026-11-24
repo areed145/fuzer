@@ -24,6 +24,19 @@ def test_commands_share_runtime_environment(monkeypatch):
     assert "Agent worker" not in dict(deploy.commands())
 
 
+def test_worker_starts_when_the_ai_budget_is_spent(monkeypatch, capsys):
+    """A spent month's budget no longer keeps the worker from starting (it waits in agents/worker.run), and the log
+    says the budget is spent rather than that no provider is configured."""
+    from fuzer.core import usage
+
+    monkeypatch.setenv("PORT", "12345")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-real-key")
+    monkeypatch.setattr(usage, "over_budget", lambda: True)
+    assert "Agent worker" in dict(deploy.commands())
+    out = capsys.readouterr().out
+    assert "budget" in out and "not configured" not in out
+
+
 def test_supervisor_propagates_failure_and_stops_siblings(monkeypatch):
     killed = []
 
