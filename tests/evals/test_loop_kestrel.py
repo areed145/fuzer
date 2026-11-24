@@ -32,4 +32,5 @@ def test_every_type_of_work_on_kestrel_completes_the_loop(kestrel_db, field_jobs
     assert done["sap_notification"]["steps"]["write_back"].startswith("complete SAP "), done["sap_notification"]
     assert "approved by loop-planner, sent through sap_pm, confirmed" in done["sap_notification"]["steps"]["write_back"]
     assert done["upset"]["steps"]["write_back"] == "no source to write back to"
+    assert arrived["routine_due"] == "the routines sync", arrived  # SAP's next due task: a need, a case and its job
     field_jobs_kept("kestrel", res)  # its field jobs, rendered at 390 px like Okan's

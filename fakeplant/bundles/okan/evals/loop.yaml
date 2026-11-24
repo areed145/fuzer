@@ -26,6 +26,7 @@ arrive:
   iow_breach: {detector: iow_breaches, start: "2025-07-12T00:00", end: "2025-07-16T00:00"}
   records_gap: {detector: records_gaps}
   sap_notification: {source: sap_notifications}
+  routine_due: {source: routines}  # a maintenance plan's next due date (step 7)
   # The register build's own questions, open before the run (the stewards' queue holds them)
   conflicting_sources: {build: true}
   context_gap: {build: true}

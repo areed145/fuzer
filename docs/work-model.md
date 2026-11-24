@@ -245,7 +245,12 @@ flow before the larger moves.
    governing case. Done as `work_container` (`ops/containers.py`, `/containers`): schedules, open board
    projects and SAP revisions become containers on each sync, their jobs placed in them; a container made here opens
    its governing case, held by its owner. The source records stay where they are and the container points at them.
-7. **Routines.** SAP maintenance plans, rounds and routine duties become routines raising obligation needs.
+7. **Routines.** SAP maintenance plans, rounds and routine duties become routines raising obligation needs. Done for
+   SAP maintenance and inspection plans and routine duties kept in Fuzer (`work_routine`, `ops/routines.py`,
+   `/routines`): each occurrence within its lead time raises a `routine_due` obligation, its case in the owner role's
+   queue and its job on the plan (for SAP, the bar the plan sync made); it clears when the job is done, and a Fuzer
+   routine rolls forward. Rounds, handovers and reports keep their own flows for now, and reserving routine load on
+   crews comes later.
 8. **SAP orders and P6 activities as cases and jobs**, with source links, field ownership and the status mapping
    (SAP's rows first). Another system such as JD Edwards or Maximo is then its own mapping table, not new code.
 9. **Business plan.** Intent lines with estimates under a plan container, matched to real cases for plan against actual.

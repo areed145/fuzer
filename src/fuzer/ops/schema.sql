@@ -796,3 +796,26 @@ create table if not exists work_container_case (
     added_by     text not null,
     added_at     timestamptz not null default now()
 );
+
+-- Routines (step 7 of docs/work-model.md): a standing rule that raises an obligation need each time it falls due.
+-- SAP keeps its maintenance and inspection plans (source 'sap', read here); a routine kept in Fuzer has source 'fuzer'.
+create table if not exists work_routine (
+    id             bigserial primary key,
+    code           text not null unique,
+    title          text not null,
+    source         text not null default 'fuzer',   -- sap | fuzer
+    source_key     text,
+    interval_days  double precision,                 -- the trigger: every n days
+    anchor         text not null default 'fixed',   -- fixed (from the last due date) | floating (from the last completion)
+    targets        text[] not null default '{}',     -- the assets it is about
+    template       jsonb not null default '{}',      -- the job it makes: kind, place, crew, hours, instruction
+    lead_days      double precision not null default 14,
+    tolerance_days double precision not null default 0,
+    owner_role     text not null default 'maintenance_planner',
+    next_due       date,
+    last_done      date,
+    active         boolean not null default true,
+    created_by     text not null,
+    created_at     timestamptz not null default now(),
+    updated_at     timestamptz not null default now()
+);
