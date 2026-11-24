@@ -32,7 +32,7 @@ function Note({ n, mine, onSave, onRemove, busy }: { n: PersonNote; mine: boolea
   const [draft, setDraft] = useState<string | null>(null);
   if (draft !== null) {
     return <li>
-      <Textarea aria-label="Note" rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
+      <Textarea aria-label="Note" rows={3} width="full" value={draft} onChange={(e) => setDraft(e.target.value)} />
       <Line wrap>
         <Button size="sm" variant="primary" disabled={busy || !draft.trim()} onClick={() => onSave(draft).then(() => setDraft(null))}>Save</Button>
         <Button size="sm" disabled={busy} onClick={() => setDraft(null)}>Cancel</Button>
@@ -68,6 +68,10 @@ export function NotePanel(props: PanelProps) {
     </section>;
   }
   const notes = r.data?.notes ?? [];
+  // the live-value hint names a measure this report already shows
+  const example = report.definition.rows.flatMap((row) => row.panels)
+    .flatMap((p) => ("panels" in p ? p.panels : [p]))
+    .map((p) => ("measure" in p ? p.measure : "measures" in p ? p.measures[0] : undefined)).find(Boolean);
   const add = () => run("add", () => api.addReportNote(key, where, draft), () => { setDraft(""); r.reload(); });
   const remove = async (n: PersonNote) => {
     if (!(await confirmDialog("Remove this note? It stays in the record.", { confirm: "Remove", danger: true }))) return;
@@ -78,11 +82,11 @@ export function NotePanel(props: PanelProps) {
       onSave={(body) => run("edit", () => api.editReportNote(key, n.id, body), r.reload)} onRemove={() => remove(n)} />)}</List>}
     {r.data && notes.length === 0 && !operate && <Text small muted>No notes for this period.</Text>}
     {operate && <>
-      <Textarea aria-label="Add a note" rows={2} value={draft} placeholder="What the numbers don't show"
+      <Textarea aria-label="Add a note" rows={2} width="full" value={draft} placeholder="What the numbers don't show"
         onChange={(e) => setDraft(e.target.value)} />
       <Line wrap small muted>
         <Button size="sm" variant="primary" disabled={!!busy || !draft.trim()} onClick={add}>Add note</Button>
-        <span>{"{production.oil}"} shows a live value</span>
+        {example && <span>{`{${example}}`} shows a live value</span>}
       </Line>
     </>}
     <ActionStatus busy={busy} error={error} />
