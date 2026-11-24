@@ -18,8 +18,7 @@ import { WellScreen } from "../../pages/WellScreen";
 import { WellsAgainstForecast } from "../../pages/WellsAgainstForecast";
 import { WorkExecution } from "../../pages/WorkExecution";
 import { ErrorText, Text } from "../../ui";
-import { usePanel } from "../panels";
-import type { PanelProps, ViewPanel as ViewPanelSpec, ViewResult } from "../spec";
+import type { PanelProps, ViewPanel as ViewPanelSpec } from "../spec";
 
 /** Each view's component, by the name core/reports VIEWS gives it. Across assets reads the report's window in days. */
 const VIEWS: Record<string, ComponentType<{ days: number }>> = {
@@ -41,13 +40,14 @@ const VIEWS: Record<string, ComponentType<{ days: number }>> = {
   accounts: AgainstTheAccounts,
 };
 
+/** The view reads its own data, so the panel's own result (always "whole register, over its own period") isn't asked
+ * for: one request per analysis, not two, when a row of them comes into view. */
 export function ViewPanel(props: PanelProps) {
-  const r = usePanel<ViewResult>(props);
   const name = (props.panel as ViewPanelSpec).view;
   const View = VIEWS[name];
   if (!View) return <ErrorText>No view {name}</ErrorText>;
   return <div className="report-view">
     <View days={props.report.window.days} />
-    {r.data?.note && <Text as="div" small muted>{r.data.note}</Text>}
+    {props.scope && <Text as="div" small muted>Whole register, over its own period</Text>}
   </div>;
 }
