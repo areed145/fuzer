@@ -429,7 +429,7 @@ test("a report's AI note cites what it rests on and flags what the checks found;
   await page.getByRole("button", { name: "Add note" }).click();
   await page.waitForFunction(() => true);
   await new Promise((r) => setTimeout(r, 300));
-  assert.deepEqual(added.map((a) => [a.body, a.window, a.at, a.scope]), [["Compressor back on Thursday.", "7d", "2026-11-24", "fz-f1"]]);
+  assert.deepEqual(added.map((a) => [a.body, a.window, a.at ?? null, a.scope]), [["Compressor back on Thursday.", "7d", null, "fz-f1"]]);
 });
 
 test("P7.6 a regulatory report marks figures on estimated or missing data and drills each figure to its records", async () => {

@@ -60,8 +60,9 @@ def _scope_for(conn, scope: str | None, at_: str | None) -> tuple[str | None, st
     return (hit, None) if hit else (None, f"the scope sits in no {at_}")
 
 
-def values(conn, pack, body: str, scope: str | None, window: str, at: date) -> dict[str, dict]:
-    """Each `{...}` in `body`, resolved for the scope, window and day: the measure's value, unit and label, or why not."""
+def values(conn, pack, body: str, scope: str | None, window: str, at: date | None) -> dict[str, dict]:
+    """Each `{...}` in `body`, resolved for the scope, window and day (None: each measure's own latest day, as the
+    report reads it when its link names no day): the measure's value, unit and label, or why not."""
     out: dict[str, dict] = {}
     for m in TOKEN.finditer(body or ""):
         token, key, where = m.group(0), m.group(1), m.group(2)
@@ -89,9 +90,10 @@ def _row(r: dict) -> dict:
             "edited_at": r["updated_at"].isoformat(timespec="seconds") if r["updated_at"] else None}
 
 
-def for_period(conn, pack, key: str, scope: str | None, window: str, at: date) -> list[dict]:
+def for_period(conn, pack, key: str, scope: str | None, window: str, at: date, asked: bool = True) -> list[dict]:
     """The notes pinned to this period, then those pinned to shorter periods inside it, newest first, each with its
-    live values (resolved for the note's own period, so a day's line keeps the day's number on a weekly page)."""
+    live values (resolved for the note's own period, so a day's line keeps the day's number on a weekly page; a note
+    ending on the day shown reads each measure's latest day when the report's link named no day, as its panels do)."""
     first = start(window, at)
     rows = conn.execute(
         "select * from report_note where report_key = %s and scope = %s and at between %s and %s and deleted_at is null "
@@ -105,7 +107,8 @@ def for_period(conn, pack, key: str, scope: str | None, window: str, at: date) -
         elif start(r["span"], r["at"]) >= first:
             inside.append(r)
     mine = {r["id"] for r in own}
-    return [_row(r) | {"own": r["id"] in mine, "values": values(conn, pack, r["body"], scope, r["span"], r["at"])}
+    return [_row(r) | {"own": r["id"] in mine, "values": values(conn, pack, r["body"], scope, r["span"],
+                                                                    r["at"] if asked or r["at"] != at else None)}
             for r in own + inside]
 
 
@@ -155,7 +158,9 @@ def remove(conn, key: str, nid: int, by: str) -> None:
 def panel(conn, pack, report: dict, panel: dict, scope: dict, window: dict) -> dict:
     """The `note` panel's result: its fixed text with live values when the definition gives one (a section's heading
     line), else the people's notes for the period."""
-    at = date.fromisoformat(window["at"])
+    at, asked = date.fromisoformat(window["at"]), window.get("asked", True)
     if text := panel.get("text"):
-        return {"text": text, "values": values(conn, pack, text, scope.get("id"), window["key"], at), "notes": []}
-    return {"text": None, "values": {}, "notes": for_period(conn, pack, report["key"], scope.get("id"), window["key"], at)}
+        return {"text": text, "values": values(conn, pack, text, scope.get("id"), window["key"], at if asked else None),
+                "notes": []}
+    return {"text": None, "values": {},
+            "notes": for_period(conn, pack, report["key"], scope.get("id"), window["key"], at, asked)}

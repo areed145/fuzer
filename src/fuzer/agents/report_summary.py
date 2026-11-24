@@ -84,9 +84,10 @@ def _measures(panel: dict) -> list[str]:
     return [m for m in [panel.get("measure"), *(panel.get("measures") or []), panel.get("rows")] if m]
 
 
-def facts(conn, pack, key: str, scope: str | None, window: str, at: date) -> dict | None:
+def facts(conn, pack, key: str, scope: str | None, window: str, at: date, asked: bool = True) -> dict | None:
     """The report's figure panels, each with its result, for one scope, window and day; None for an unknown report.
-    Rows drawn once per entity beneath the scope (`repeat`) are left out: they are the drill-down, not the answer."""
+    Rows drawn once per entity beneath the scope (`repeat`) are left out: they are the drill-down, not the answer.
+    Unless the day was `asked` for, the panels read each measure's own latest day, as the page does."""
     try:
         defn = reports.get(pack, key)
     except reports.ReportError:
@@ -96,7 +97,7 @@ def facts(conn, pack, key: str, scope: str | None, window: str, at: date) -> dic
     for p in reports.panels(defn):
         if p["type"] in COMMENTARY or p.get("row") in repeated:
             continue
-        r = report_pages.panel_data(conn, pack, key, p["id"], scope, window, at)
+        r = report_pages.panel_data(conn, pack, key, p["id"], scope, window, at if asked else None)
         scope_ref, resolved = scope_ref or r.get("scope"), resolved or r.get("window")
         if r.get("error"):
             continue
@@ -191,9 +192,10 @@ def latest(conn, key: str, scope: str | None, window: str, at: date) -> dict | N
         "order by created_at desc limit 1", (key, scope or "", window, at)).fetchone())
 
 
-def write(conn, pack, key: str, scope: str | None, window: str, at: date, by: str, client=None) -> dict | None:
+def write(conn, pack, key: str, scope: str | None, window: str, at: date, by: str, client=None,
+          asked: bool = True) -> dict | None:
     """Write and keep a new note for the period; None for an unknown report."""
-    f = facts(conn, pack, key, scope, window, at)
+    f = facts(conn, pack, key, scope, window, at, asked)
     if f is None:
         return None
     model = settings.get(conn, "agents.summary_model") or settings.get(conn, "agents.model")
@@ -232,6 +234,6 @@ def panel(conn, pack, report: dict, panel: dict, scope: dict, window: dict) -> d
     today = windows.resolve(window["key"])["at"] == window["at"]
     return {"summary": kept, "can_write": llm.has_credentials("agents"),
             "due": kept is None and today and window["key"] == report["window"]["default"]
-            and scope.get("id") == report_pages._scope(conn, report, None, pack=pack)["id"],
+            and scope.get("id") == report_pages.default_scope(conn, pack, report)["id"],
             "as_of": kept["at"] if kept else None, "refs": sorted({c for p in (kept or {}).get("points") or []
                                                                    for c in p["cites"] if REF.match(c)})}

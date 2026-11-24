@@ -42,7 +42,7 @@ def report_summary_generate(key: str, window: str, scope: str | None = None, at:
         raise HTTPException(503, "No AI provider is set up here, so the note can't be written.")
     try:
         with usage.person():
-            out = rs.write(conn, deps.pack(), key, scope, w, a, by)
+            out = rs.write(conn, deps.pack(), key, scope, w, a, by, asked=at is not None)
     except (RuntimeError, *llm.provider_errors("agents")) as e:
         raise HTTPException(502, f"The note could not be written: {e}") from None
     if out is None:

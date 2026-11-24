@@ -34,7 +34,7 @@ export interface NotePanelResult extends NoteResult { text: string | null; value
 
 export type CommentaryResult = SummaryPanelResult | NotePanelResult;
 
-interface Period { scope: string | null; window: WindowKey; at: string }
+interface Period { scope: string | null; window: WindowKey; at: string | null }
 
 export const commentaryApi = {
   writeReportSummary: (key: string, p: Period, rewrite = false) =>
