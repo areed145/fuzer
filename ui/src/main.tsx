@@ -61,7 +61,8 @@ import "./styles/field-mode.css";
 const WIDE_SECTIONS = new Set(["list", "board", "ranked", "map", "network", "ontology", "plan", "3d", "downtime", "routing", "performance"]);
 const READING_SECTIONS = new Set(["ask", "investigate", "demo", "settings", "users", "access", "handover", "lessons"]);
 function pageWidth(section: string, path: string[]): "wide" | "reading" | undefined {
-  if (WIDE_SECTIONS.has(section) || ((section === "processes" || section === "workflows") && path[1] && path[1] !== "forms")) return "wide";
+  if (WIDE_SECTIONS.has(section) || ((section === "processes" || section === "workflows") && path[1] && path[1] !== "forms")
+    || (section === "reports" && path[1])) return "wide";
   if (READING_SECTIONS.has(section) || (section === "cases" && path[1]) || (section === "inbox" && path[1] === "task")
     || ((section === "processes" || section === "workflows") && path[1] === "forms")) return "reading";
   return undefined;
@@ -79,6 +80,8 @@ const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.M
 // The modeler pages pull in bpmn-js's modeler and the form-js editor; load them only when opened.
 const ProcessesPage = lazy(() => import("./pages/Processes").then((m) => ({ default: m.ProcessesPage })));
 const ProcessPage = lazy(() => import("./pages/Processes").then((m) => ({ default: m.ProcessPage })));
+const ReportPage = lazy(() => import("./pages/ReportPage").then((m) => ({ default: m.ReportPage })));
+const ReportsGallery = lazy(() => import("./pages/ReportPage").then((m) => ({ default: m.ReportsGallery })));
 const FormPage = lazy(() => import("./pages/Processes").then((m) => ({ default: m.FormPage })));
 
 function App() {
@@ -252,8 +255,12 @@ function App() {
             <ScorecardPage query={query} />
           ) : section === "metrics" ? (
             <MetricsPage metricKey={path[1]} query={query} />
-          ) : section === "reports" ? (
+          ) : section === "reports" && path[1] ? (
+            <ReportPage key={path[1]} reportKey={path[1]} />
+          ) : section === "reports" && (query.has("day") || query.has("report")) ? (
             <ReportsPage query={query} />
+          ) : section === "reports" ? (
+            <ReportsGallery />
           ) : section === "studies" ? (
             <StudiesPage query={query} />
           ) : section === "jobs" && path[1] === "run" && path[2] ? (

@@ -4,7 +4,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from . import measures, rowsets, shapes, trends
+from . import measures, reports, rowsets, shapes, trends
 from .tags import NoWellGrammar, PatternWellGrammar, TagGrammar, WellGrammar
 
 
@@ -30,6 +30,7 @@ class Pack:
     scene_shapes: dict = field(default_factory=dict)  # schematic 3D shapes the bundle adds or replaces (P5.16a)
     measures: dict = field(default_factory=dict)  # measures the bundle adds or rebinds (core/measures.py)
     row_sets: dict = field(default_factory=dict)  # row sets the bundle adds or rebinds (core/rowsets.py)
+    reports: dict = field(default_factory=dict)  # report definitions the bundle adds or replaces (docs/reports.md)
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
@@ -71,6 +72,7 @@ def pack_from_config(raw: dict) -> Pack:
         scene_shapes=shapes.checked(raw.get("scene_shapes") or {}),
         measures=measures.checked(raw.get("measures") or {}),
         row_sets=rowsets.checked(raw.get("row_sets") or {}),
+        reports=reports.checked(raw.get("reports") or {}),
     )
 
 
