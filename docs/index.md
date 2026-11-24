@@ -16,6 +16,9 @@ The register underneath pulls asset data from many systems (SAP, JDE, Maximo, PI
 P&IDs, operator logs), works out which records describe the same real thing, and links them into one graph that
 people, workflows and AI agents share.
 
+![Fuzer architecture: sources and logic feed the register and the common work model; IOC and field surfaces, Ops IQ and the APIs sit on top; approved updates go back to the systems of action](assets/diagrams/fuzer-architecture-light.svg#only-light)
+![Fuzer architecture: sources and logic feed the register and the common work model; IOC and field surfaces, Ops IQ and the APIs sit on top; approved updates go back to the systems of action](assets/diagrams/fuzer-architecture-dark.svg#only-dark)
+
 <div class="grid cards" markdown>
 
 - **Use it**

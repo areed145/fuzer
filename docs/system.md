@@ -3,6 +3,15 @@
 How Fuzer is put together and what runs where. For the package-by-package view generated from the code, see
 [architecture](architecture.md); for the design decisions behind it, [overview and principles](overview.md).
 
+## The picture
+
+Data sources, systems of action and the logic that runs on them sit below; the register of asset entities and the
+common work model are in the middle; the surfaces people and agents use are on top. Approved updates go back down to
+the system that owns the work. Drawn by `scripts/architecture_picture.py`.
+
+![Fuzer architecture: sources and logic feed the register and the common work model; IOC and field surfaces, Ops IQ and the APIs sit on top; approved updates go back to the systems of action](assets/diagrams/fuzer-architecture-light.svg#only-light)
+![Fuzer architecture: sources and logic feed the register and the common work model; IOC and field surfaces, Ops IQ and the APIs sit on top; approved updates go back to the systems of action](assets/diagrams/fuzer-architecture-dark.svg#only-dark)
+
 ## Layers
 
 Fuzer is a Postgres-first modular monolith. Each layer uses only the ones below it, and the layer contract is
