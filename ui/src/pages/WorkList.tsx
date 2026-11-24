@@ -384,7 +384,7 @@ function Board({ data, group, person, people, queues, onChange }: {
   </div>;
 }
 
-function BoardCard({ r, person, people, queues, onChange }: {
+export function BoardCard({ r, person, people, queues, onChange }: {
   r: WorkListRow; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
   const [sending, setSending] = useState(false);
