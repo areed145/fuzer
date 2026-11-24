@@ -18,7 +18,7 @@ import { loadMapKit } from "../map/mapkitLoader";
 /** How many open events wait at each stage, from the one count every page reads (GET /work/counts). */
 const iocCounts = (c: WorkFigures) => ({ dispatch: c.stages.dispatch, field: c.stages.field, back: c.stages.back, open: c.open });
 import { FILTERS, PlaceDetail, keep, type Filter } from "./HomeAttention";
-import { NeedsYou, type Ring } from "./HomeFeed";
+import { DrawerToggle, NeedsYou, type Ring } from "./HomeFeed";
 
 const MapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));  // Leaflet loads with the map
 
@@ -66,6 +66,17 @@ function savedFeed(): boolean {
   try { return localStorage.getItem(FEED_KEY) !== "folded"; } catch { return true; }
 }
 
+/** The top drawer: open shows the layer chips under the figures, folded only the figures. A phone starts folded so the
+ * map has the room; a person's choice is kept on each device. */
+const TOP_KEY = "fuzer.home.top";
+function savedTop(): boolean {
+  try {
+    const v = localStorage.getItem(TOP_KEY);
+    if (v === "open" || v === "folded") return v === "open";
+  } catch { /* storage blocked: the default */ }
+  return window.matchMedia(WIDE).matches;
+}
+
 export function HomePage({ stats, inbox, figures, jobsHealth }: {
   stats?: Stats;
   statsLoading: boolean;
@@ -111,6 +122,11 @@ export function HomePage({ stats, inbox, figures, jobsHealth }: {
     if (window.matchMedia(WIDE).matches) try { localStorage.setItem(FEED_KEY, was ? "folded" : "open"); } catch { /* this visit */ }
     return !was;
   });
+  const [top, setTop] = useState(savedTop);
+  const toggleTop = () => setTop((was) => {
+    try { localStorage.setItem(TOP_KEY, was ? "folded" : "open"); } catch { /* this visit */ }
+    return !was;
+  });
   const places = useMemo(() => layers.has("work") ? (spots.data?.places ?? []).filter((p) => keep(p, filter)) : [],
                          [spots.data, filter, layers]);
   const chosen = (spots.data?.places ?? []).find((p) => p.id === selected) ?? null;
@@ -134,11 +150,16 @@ export function HomePage({ stats, inbox, figures, jobsHealth }: {
           </Suspense>
         )}
         <div className="home-over">
-          <div className="home-top">
-            <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} tally={tally.data ?? undefined}
-                     work={spots.data ? { places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
+          <div className={`home-top${top ? " open" : ""}`}>
+            {/* The header is the drawer's handle, as Needs you's is: a tap on it, off a figure, folds or opens it. */}
+            <div className="home-top-head" onClick={toggleTop}>
+              <Figures seat={seat} dispatcher={dispatcher} stats={stats} ready={ready} tally={tally.data ?? undefined}
+                       work={spots.data ? { places: spots.data.places.length, unplaced: spots.data.unplaced } : undefined} />
+              <span className="home-top-name">Map layers</span>
+              <DrawerToggle open={top} name="map layers" onToggle={toggleTop} />
+            </div>
             {/* One row: the layers, then which places the open work layer shows. */}
-            <Scroller className="home-chips">
+            <Scroller className="home-chips home-top-body">
               <div className="home-layers chips" role="group" aria-label="Map layers">
                 {LAYERS.map((l) => (
                   <Button key={l.key} className={layers.has(l.key) ? "chip on" : "chip"} aria-pressed={layers.has(l.key)}
@@ -191,6 +212,8 @@ function useInset(stage: RefObject<HTMLDivElement | null>): Inset | undefined {
       const s = el.getBoundingClientRect();
       const over = el.querySelector(".home-top")?.getBoundingClientRect();
       const feed = el.querySelector(".home-feed")?.getBoundingClientRect();
+      // An open sheet on a phone stops under the top drawer rather than covering it.
+      el.style.setProperty("--top-end", `${over ? Math.round(over.bottom - s.top) : 0}px`);
       const sheet = !!feed && feed.left - s.left < 20;  // a phone's sheet across the bottom, else a panel down the right
       const next = { top: over ? Math.round(over.bottom - s.top) : 0, left,
                      // beside the feed panel, else clear of the map's own buttons down the right edge
@@ -234,7 +257,7 @@ function Figures({ seat, dispatcher, stats, tally, work, ready }: {
 
 /** A figure is a label and a number, so the strip stays one slim row; the page it links to has the detail. */
 function Tile({ to, label, value, late }: { to: string; label: string; value: string; late?: boolean }) {
-  return <div className="home-figure"><Stat href={to} label={label} value={value} tone={late ? "danger" : undefined} /></div>;
+  return <div className="home-figure" onClick={(e) => e.stopPropagation()}><Stat compact href={to} label={label} value={value} tone={late ? "danger" : undefined} /></div>;
 }
 
 /** A registered metric's latest value, left out while it has none (no reports loaded for it). Its trend is on its page,
@@ -244,8 +267,8 @@ function MetricTile({ metric, ready }: { metric: string; ready: boolean }) {
   const v = m.data;
   if (!v || v.value == null) return null;
   return (
-    <div className="home-figure">
-      <Stat href={href(`/metrics/${encodeURIComponent(metric)}`)} label={v.label} value={show(v.value, v.unit)} />
+    <div className="home-figure" onClick={(e) => e.stopPropagation()}>
+      <Stat compact href={href(`/metrics/${encodeURIComponent(metric)}`)} label={v.label} value={show(v.value, v.unit)} />
     </div>
   );
 }

@@ -61,6 +61,18 @@ function useArrivals(keys: string[] | null): Map<string, number> {
   return arrived;
 }
 
+/** The fold button both of Home's drawers carry at the end of their header: a chevron pointing the way the drawer
+ * will move (home.css turns it), with the drawer's name for a screen reader. */
+export function DrawerToggle({ open, name, onToggle }: { open: boolean; name: string; onToggle: () => void }) {
+  return (
+    <Button variant="ghost" size="sm" className="home-drawer-toggle" aria-expanded={open} aria-label={open ? `Fold ${name}` : `Open ${name}`}
+            onClick={(e) => { e.stopPropagation(); onToggle(); }}>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M6 15l6-6 6 6" /></svg>
+    </Button>
+  );
+}
+
 export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, steward, configure, onRing, top, open, onToggle }: {
   /** The person's own work here, read (and kept live) by Home, which takes their roles from it. */
   inbox: { data?: WorkInbox | null; error?: string; reload: () => void };
@@ -220,13 +232,7 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
       <div className="home-feed-head" onClick={onToggle}>
         <span className="home-feed-grab" aria-hidden="true" />
         <Heading>Needs you</Heading>
-        <span className="home-feed-toggle">
-          <Button variant="ghost" size="sm" aria-expanded={open} aria-label={open ? "Close Needs you" : "Open Needs you"}
-                  onClick={(e) => { e.stopPropagation(); onToggle(); }}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d={open ? "M6 9l6 6 6-6" : "M6 15l6-6 6 6"} /></svg>
-          </Button>
-        </span>
+        <DrawerToggle open={open} name="Needs you" onToggle={onToggle} />
       </div>
       <div className="home-feed-body">
         {top}

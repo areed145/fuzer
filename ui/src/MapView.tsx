@@ -32,6 +32,17 @@ const POINTS: { key: string; label: string; radius: number; square?: boolean }[]
  * are Google's public tiles, which add Terrain. See map/leafletEngine.ts and map/mapkitEngine.ts. */
 const BASEMAPS: Record<BasemapName, string> = { standard: "Standard", satellite: "Satellite", terrain: "Terrain" };
 /** MapKit JS has no terrain map, so Apple Maps offers two; a saved Terrain choice shows as Standard there. */
+/** The base map picker is three small icons, not words, so it fits beside the map's other buttons on a phone. */
+const icon = (d: ReactNode) => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"
+  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>;
+const BASEMAP_ICONS: Record<BasemapName, ReactNode> = {
+  // a folded paper map
+  standard: icon(<><path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5z" /><path d="M9 4v13.5M15 6.5V20" /></>),
+  // the globe seen from orbit
+  satellite: icon(<><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.6 2.3 3.8 5.1 3.8 8.5s-1.2 6.2-3.8 8.5c-2.6-2.3-3.8-5.1-3.8-8.5S9.4 5.8 12 3.5z" /></>),
+  // two peaks
+  terrain: icon(<path d="m2.5 19 6-10 4 6.5 2.5-3.5 6.5 7z" />),
+};
 const APPLE: BasemapName[] = ["standard", "satellite"];
 type Basemap = BasemapName | "none";
 const BASEMAP_KEY = "fuzer.basemap";
@@ -379,8 +390,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true, hotspots
             {choices.map((name) => (
               <Button key={name} type="button" variant="ghost" size="sm" aria-pressed={shown === name}
                       className={`map-basemap${shown === name ? " on" : ""}`}
-                      onClick={() => chooseBasemap(name)}>
-                {BASEMAPS[name]}</Button>
+                      onClick={() => chooseBasemap(name)} aria-label={BASEMAPS[name]} title={BASEMAPS[name]}>
+                {BASEMAP_ICONS[name]}</Button>
             ))}
           </div>}
           {!compact && data.features.some((f) => f.properties.kind === "facility") && (

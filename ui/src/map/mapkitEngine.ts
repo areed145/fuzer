@@ -24,7 +24,8 @@ export function mapkitEngine(mapkit: MapKit, el: HTMLElement, events: EngineEven
     showsMapTypeControl: false,
     showsCompass: mapkit.FeatureVisibility.Hidden,
     showsUserLocationControl: false,
-    showsZoomControl: true,
+    // A finger pinches to zoom; the + and − pill only crowded the map's corner on a phone, behind Home's sheet.
+    showsZoomControl: !matchMedia("(pointer: coarse)").matches,
     isRotationEnabled: false,
     ...(mapkit.PointOfInterestFilter ? { pointOfInterestFilter: mapkit.PointOfInterestFilter.excludingAllCategories }
                                      : { showsPointsOfInterest: false }),
