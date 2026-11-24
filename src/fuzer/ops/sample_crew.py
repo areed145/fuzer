@@ -50,8 +50,8 @@ CREW = {
 DESK = {"ops_lead": "riley", "engineer": "riley", "hse_specialist": "riley", "production_engineer": "jordan",
         "maintenance_planner": "pat", "data_steward": "casey"}
 # Cases a desk person works at once: stewards work their questions in batches, the lead and the planner carry a
-# shift's worth. Sized so the queue holds level against what arrives (live demo, 24 Nov: at 4 each, okan's open work grew from 162
-# to 441 in ten days and the field's own reports were closed at a tenth of the rate they came in).
+# shift's worth. Sized so the queue holds level against what arrives (live demo, 24 Nov: at 4 each, the open work grew
+# from 162 to 441 in ten days and the field's own reports were closed at a tenth of the rate they came in).
 WIP = {"data_steward": 8, "ops_lead": 10, "engineer": 10, "maintenance_planner": 10}
 WIP_DEFAULT = 4
 QUEUED = 6  # field jobs waiting in the operator queue before the lead holds the next back
