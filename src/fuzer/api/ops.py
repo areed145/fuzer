@@ -1597,6 +1597,85 @@ def container_get(container_id: int, conn=Depends(get_conn)):
     return _container_call(conn, containers.get, container_id)
 
 
+# ---- the business plan against actual (step 9 of the work model) --------------------------------------------------
+
+def _plan_line_call(conn, fn, *args, **kwargs):
+    from ..ops.business_plan import PlanLineError
+    try:
+        out = fn(conn, *args, **kwargs)
+    except PlanLineError as e:
+        conn.rollback()
+        raise HTTPException(404 if str(e).startswith(("no plan line", "no container", "no case")) else 400, str(e)) from e
+    conn.commit()
+    return out
+
+
+@router.get("/containers/{container_id}/plan")
+def container_plan(container_id: int, conn=Depends(get_conn)):
+    """The plan's intent lines, each estimate against its cases' actuals, the totals and the unplanned work."""
+    from ..ops import business_plan
+    return _plan_line_call(conn, business_plan.against_actual, container_id)
+
+
+class PlanLineNew(BaseModel):
+    by: str
+    title: str
+    kind: str | None = None
+    subjects: list[str] = []
+    period_start: date | None = None
+    period_end: date | None = None
+    estimate_hours: float | None = None
+    estimate_cost: float | None = None
+    estimate_value_usd: float | None = None
+    owner: str | None = None
+    note: str | None = None
+
+
+@router.post("/containers/{container_id}/plan-lines")
+def plan_line_add(container_id: int, r: PlanLineNew, conn=Depends(get_conn)):
+    """An intent line on the plan: what it means to do, where, when and for how much."""
+    from ..ops import business_plan
+    return _plan_line_call(conn, business_plan.add_line, container_id, r.title, r.by,
+                           **r.model_dump(exclude={"by", "title"}))
+
+
+class PlanLineChange(BaseModel):
+    by: str
+    fields: dict[str, Any]
+
+
+@router.put("/plan-lines/{line_id}")
+def plan_line_update(line_id: int, r: PlanLineChange, conn=Depends(get_conn)):
+    """Change a line, or drop it (status dropped)."""
+    from ..ops import business_plan
+    return _plan_line_call(conn, business_plan.update_line, line_id, r.by, **r.fields)
+
+
+class PlanLineMatch(BaseModel):
+    by: str
+    item_id: int
+
+
+@router.post("/plan-lines/{line_id}/cases")
+def plan_line_match(line_id: int, r: PlanLineMatch, conn=Depends(get_conn)):
+    """This case does that line's work; a case counts against one line."""
+    from ..ops import business_plan
+    return _plan_line_call(conn, business_plan.match, line_id, r.item_id, r.by)
+
+
+@router.delete("/plan-lines/cases/{item_id}")
+def plan_line_unmatch(item_id: int, by: str, conn=Depends(get_conn)):
+    from ..ops import business_plan
+    return {"unmatched": _plan_line_call(conn, business_plan.unmatch, item_id, by)}
+
+
+@router.post("/containers/{container_id}/plan/match")
+def container_plan_match(container_id: int, by: str = "fuzer", conn=Depends(get_conn)):
+    """Match the cases whose jobs are on a line's assets in its period to that line."""
+    from ..ops import business_plan
+    return _plan_line_call(conn, business_plan.auto_match, container_id, by)
+
+
 class ContainerNew(BaseModel):
     by: str
     kind: str

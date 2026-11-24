@@ -2249,6 +2249,40 @@ Each system's statuses and the Fuzer state each means, and the status sent back 
 | `updated_by` | text |  |
 | `updated_at` | timestamptz |  |
 
+### `work_plan_line`
+
+The business plan (step 9 of docs/work-model.md): intent lines with estimates under a plan container (a business plan or program), each matched to the real cases that do it, so the plan is read against actual.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `container_id` | bigint |  |
+| `title` | text |  |
+| `kind` | text, | the kind of job it expects (maintenance, turnaround, ...) |
+| `subjects` | text[] | the assets it is about |
+| `period_start` | date |  |
+| `period_end` | date |  |
+| `estimate_hours` | double precision |  |
+| `estimate_cost` | double precision |  |
+| `estimate_value_usd` | double precision, | what doing it is worth |
+| `owner` | text |  |
+| `note` | text |  |
+| `status` | text | open \| dropped |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
+### `work_plan_match`
+
+| Column | Type | Note |
+|---|---|---|
+| `item_id` | bigint | a case counts against one line |
+| `line_id` | bigint |  |
+| `how` | text | person \| auto |
+| `matched_by` | text |  |
+| `matched_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

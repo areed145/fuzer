@@ -430,6 +430,8 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `work_container`
     - `work_container_case`
     - `work_item`
+    - `work_plan_line`
+    - `work_plan_match`
     - `work_routine`
     - `work_source_link`
     - `work_status_map`
@@ -477,6 +479,8 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `watch_spend`
     - `work_container`
     - `work_container_case`
+    - `work_plan_line`
+    - `work_plan_match`
     - `work_routine`
     - `work_source_link`
     - `work_status_map`
