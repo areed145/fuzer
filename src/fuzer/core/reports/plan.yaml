@@ -3,7 +3,7 @@
 schema: 1
 key: plan
 title: Plan against actual
-version: 1
+version: 2
 for: [planner, operations manager]
 scope:
   kinds: [facility, area]
@@ -41,5 +41,5 @@ rows:
       - {id: planned-trend, type: trend, size: 2, title: Planned work and schedule compliance, measures: [work.planned_share, work.schedule_compliance]}
   - id: maintenance
     panels:
-      - {id: backlog-burn, type: view, view: backlog-burn, size: 2}
-      - {id: accounts, type: view, view: accounts, size: 2}
+      - {id: backlog-burn, type: view, view: backlog-burn, size: 2, phone: false}
+      - {id: accounts, type: view, view: accounts, size: 2, phone: false}

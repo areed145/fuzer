@@ -87,7 +87,8 @@ rest is the drill-down. Downtime, Incidents, Metrics and Regulatory stay pages o
 
 Daily operations takes the daily report's place: `#/reports?day=<day>` opens it at that day, and its review moved
 into its header. `#/reports?report=<template:period>` opens the regulatory report on `#/regulatory`. Scorecard's
-analyses are `view` panels on the report they belong to, and `#/scorecard` opens Production and deferment.
+analyses are `view` panels on the report they belong to, and `#/scorecard` opens Production and deferment. They are wide tables
+made for a desk, so they are left out on phones (`phone: false`).
 
 ### Scope and window
 

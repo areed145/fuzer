@@ -3,7 +3,7 @@
 schema: 1
 key: production
 title: Production and deferment
-version: 2
+version: 3
 for: [production engineer, operations manager]
 scope:
   kinds: [facility, area, well]
@@ -46,19 +46,19 @@ rows:
       - {id: flare-trend, type: trend, size: 1, title: Gas flared, measures: [production.flare], phone: false}
   - id: wells
     panels:
-      - {id: wells-forecast, type: view, view: wells-forecast, size: 2}
-      - {id: well-screen, type: view, view: well-screen, size: 2}
-      - {id: allocation-factor, type: view, view: allocation-factor, size: 2}
-      - {id: intervention-gains, type: view, view: intervention-gains, size: 2}
+      - {id: wells-forecast, type: view, view: wells-forecast, size: 2, phone: false}
+      - {id: well-screen, type: view, view: well-screen, size: 2, phone: false}
+      - {id: allocation-factor, type: view, view: allocation-factor, size: 2, phone: false}
+      - {id: intervention-gains, type: view, view: intervention-gains, size: 2, phone: false}
   - id: facilities
     panels:
-      - {id: gas-balance, type: view, view: gas-balance, size: 2}
-      - {id: gas-lift-heading, type: view, view: gas-lift-heading, size: 2}
-      - {id: water-injection, type: view, view: water-injection, size: 2}
-      - {id: reservoir-pressure, type: view, view: reservoir-pressure, size: 2}
-      - {id: quality, type: view, view: quality, size: 2}
-      - {id: cost-of-unreliability, type: view, view: cost-of-unreliability, size: 2}
-      - {id: across-assets, type: view, view: across-assets, size: 4}
+      - {id: gas-balance, type: view, view: gas-balance, size: 2, phone: false}
+      - {id: gas-lift-heading, type: view, view: gas-lift-heading, size: 2, phone: false}
+      - {id: water-injection, type: view, view: water-injection, size: 2, phone: false}
+      - {id: reservoir-pressure, type: view, view: reservoir-pressure, size: 2, phone: false}
+      - {id: quality, type: view, view: quality, size: 2, phone: false}
+      - {id: cost-of-unreliability, type: view, view: cost-of-unreliability, size: 2, phone: false}
+      - {id: across-assets, type: view, view: across-assets, size: 4, phone: false}
   - id: per-well
     repeat: {kind: well, limit: 8}
     panels:
