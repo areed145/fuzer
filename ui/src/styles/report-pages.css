@@ -19,7 +19,8 @@
 .report-size-3 { grid-column: span 3; }
 .report-size-4 { grid-column: span 4; }
 .report-column { display: flex; flex-direction: column; gap: 1rem; }
-.report-slot > .report-panel { margin: 0; height: 100%; }
+/* above the iOS card margin (:root.ios .ui-card), which otherwise opens a gap under a panel shorter than its row */
+:root .report-row .report-slot > .report-panel { margin: 0; height: 100%; }
 .report-slot { min-width: 0; }
 .report-row > .report-type-stat { align-self: stretch; }
 
