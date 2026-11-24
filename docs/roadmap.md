@@ -43,7 +43,7 @@ built left to right.
 | 5 Compounding | P7.3, P7.5, P7.6, P5.12, P5.13, P5.14, P5.15, P5.16, P5.17, P5.19 | P6.3, P3.4, P7.4, P3.11 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
 | 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
 | *Gate C* (passed 2026-11-13) | | | Third asset type live, no code | |
-| 7 After the alert | P5.20, P5.21, P5.22, P5.23 | | P2.8 | P4.8, P4.7, P6.6 |
+| 7 After the alert | P5.24, P5.20, P5.21, P5.22, P5.23 | | P2.8 | P4.8, P4.7, P6.6 |
 
 Gate A was signed off on 2026-11-12. One gap is logged for Phase 2: in the loop eval, steward questions and source
 and mapping problems are still raised by the loop instead of arriving on their own (#747).
@@ -178,6 +178,18 @@ taken. This was built on 2026-11-20 and 21, ahead of its epic, and filed afterwa
 | Epic | Build | Done when |
 |---|---|---|
 | P5.19 All work as a List and Board, with checklists on cases | One definition of open, waiting on you and overdue (#1230); one page per case (#1225); a List and Board over all work, filtered and sorted on any dimension, with presets instead of views (#1232, #1236, #1240); My work as the "Waiting on me" preset (#1233, #1239); checklists on a case, with items sent to other queues as their own cases (#1234, #1237); closing a field job from its row (#1223) | Counts agree on every page; the List and Board filter on facility, area, asset, queue, state and source; nothing waiting on a person is counted twice; a checklist item can be ticked or sent on; browser tests at 390 px and on desktop; loop eval green |
+
+## Plan, schedule and dispatch on one work model (P5.24 #1299)
+
+Work reaches IOC staff from many sources, and before this each kind was planned, booked and dispatched its own way.
+The [work model](work-model.md) gives every piece of work the same shape: a need opens a case, the case has a job on
+the plan, the job is booked against one crew capacity, released when its prerequisites are met, and closes back with
+its result. Steps 0 to 7 were built on 2026-11-23 and 24, ahead of the epic, and filed afterwards so they are tracked
+here. P5.21 re-plans on this model.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P5.24 Plan, schedule and dispatch on one work model | The work model (#1282); a bar closes with its work (#1283); a bar is its case's job, field or desk (#1284); crews booked against one capacity (#1285); every event opens its case on arrival (#1286); prerequisites decide Ready, Release and job stages (#1287, #1289); one container for every level (#1292); routines raise obligation needs (#1296); SAP orders and P6 activities as cases and jobs with the status mapping; business plan against actual | Closing a case closes its bar; every event has a case from arrival; one crew capacity is read by booking and the ready check; Release and Reschedule move a job through its stages; containers and routines raise cases and jobs; SAP orders map status both ways and another system is a mapping table; browser tests at 390 px and on desktop; loop eval green |
 
 ## After the alert (P5.20 #1251, P5.21 #1252, P5.22 #1253, P2.8 #1254, P5.23 #1255)
 
