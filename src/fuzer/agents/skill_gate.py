@@ -19,6 +19,10 @@ assistant with the skill loaded at that playbook (skill_versions.trying).
 from . import packs, skill_versions
 
 
+class Unavailable(RuntimeError):
+    """The gate has questions to ask but no model may be called now (no key, or the month's budget spent)."""
+
+
 class GateRefused(Exception):
     """A candidate that scores lower than the live version."""
 
@@ -36,6 +40,9 @@ def _ask(question: str, skill: str, playbook: str) -> dict:
     with skill_versions.trying(skill, playbook):
         team = agents.team()
     return asyncio.run(agents.ask(question, team))
+
+
+_ASK = _ask
 
 
 def questions(conn, skill: str, version: int) -> list[dict]:
@@ -85,8 +92,15 @@ def _score(qs: list[dict], skill: str, playbook: str, answer) -> dict:
 
 def evaluate(conn, skill: str, version: int, answer=None) -> dict:
     """Ask the gate's questions of the live version and of `version`; `allowed` when the candidate scores no lower."""
-    answer = answer or _ask
     qs = questions(conn, skill, version)
+    if answer is None and qs and _ask is _ASK:  # a stand-in (a test's) needs no model
+        from ..core import llm
+
+        if not (ai := llm.availability("agents"))["available"]:
+            conn.commit()
+            raise Unavailable(f"The draft can't be published yet: its eval asks {len(qs)} questions of the live version "
+                              f"and the draft, and no model can be called now. {ai['why']}")
+    answer = answer or _ask
     live = skill_versions.live(conn, skill)
     cand = next(v for v in skill_versions.history(conn, skill) if v["version"] == version)
     conn.commit()  # end the reads before the model calls

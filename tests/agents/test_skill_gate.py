@@ -74,3 +74,25 @@ def test_the_api_publishes_behind_the_gate(conn, monkeypatch):
     conn.commit()
     r = client.post("/work/skills/publish", json={"skill": SKILL, "by": "olga", "version": bad["version"]})
     assert r.status_code == 409 and r.json()["detail"]["candidate"]["score"] < r.json()["detail"]["live"]["score"]
+
+
+def test_with_no_model_to_ask_the_gate_refuses_before_spending_and_says_why(conn, monkeypatch):
+    from fuzer.core import llm
+
+    v = skill_versions.draft(conn, SKILL, skill_versions.shipped(SKILL) + STRAINER, "olga", questions=[ASKED])["version"]
+    monkeypatch.setattr(llm, "availability", lambda scope="llm": {"available": False, "why": "AI is paused."})
+    with pytest.raises(skill_gate.Unavailable, match="AI is paused"):
+        skill_gate.publish(conn, SKILL, v, "olga")
+    assert skill_versions.history(conn, SKILL)[0]["status"] == "draft"
+
+
+def test_a_draft_written_from_a_draft_replaces_it_and_keeps_its_cases(conn):
+    first = skill_versions.draft(conn, SKILL, skill_versions.shipped(SKILL) + STRAINER, "agent:maintenance-integrity",
+                                 cases=[{"kind": "brief", "case": 1}], questions=[ASKED])["version"]
+    with pytest.raises(ValueError, match="same as the live"):
+        skill_versions.draft(conn, SKILL, skill_versions.shipped(SKILL), "olga")
+    second = skill_versions.draft(conn, SKILL, skill_versions.shipped(SKILL) + STRAINER + "Then the lube oil.\n",
+                                  "olga", replaces=first)
+    by = {v["version"]: v for v in skill_versions.history(conn, SKILL)}
+    assert by[first]["status"] == "refused" and f"replaced by v{second['version']}" in by[first]["note"]
+    assert by[second["version"]]["cases"] == [{"kind": "brief", "case": 1}] and by[second["version"]]["questions"] == [ASKED]

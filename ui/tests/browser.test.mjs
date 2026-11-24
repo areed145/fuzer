@@ -1458,9 +1458,10 @@ test("reader Settings and Sources do not request protected configuration or conn
   assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "Explore", exact: true }).waitFor();
-  // Ask runs a paid model: no menu entry and no top-bar button without AI access.
-  assert.equal(await nav.getByRole("link", { name: "Ops IQ", exact: true }).count(), 0);
-  assert.equal(await page.getByRole("link", { name: "Ops IQ", exact: true }).count(), 0);
+  // Ask runs a paid model: no top-bar button without AI access, and Ops IQ's menu entry opens its Skills, which read
+  // and change what the agents follow without calling one.
+  assert.equal(await page.locator(".iq-button").count(), 0);
+  assert.equal(await nav.getByRole("link", { name: "Ops IQ", exact: true }).getAttribute("href"), "#/skills");
   await page.goto(`${url}/#/settings`);
   assert.equal(await page.getByRole("link", { name: "Users", exact: true }).count(), 0);
 });
@@ -9579,6 +9580,73 @@ test("A planner reads the portfolio as one tree, opens a business plan, writes a
     await page.setViewportSize({ width: w, height: h });
     await sap.waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the mapping fits ${w} px`);
+  }
+  assert.deepEqual(errors, []);
+});
+
+test("Skills lists each skill by area, and a draft reads against the live playbook before it is published (Ops IQ)", async () => {
+  const row = (over = {}) => ({ skill: "maintenance-integrity/compression", name: "compression", title: "Compression",
+    area: "maintenance-integrity", area_label: "Maintenance & Integrity", owner: "maintenance-integrity",
+    owner_label: "Maintenance & Integrity", agents: ["maintenance-integrity"], shared: false,
+    purpose: "Compressor health", live: { version: 0, by: null, at: null },
+    draft: { version: 2, by: "agent:maintenance-integrity", at: "2026-11-20T10:00:00+00:00", note: "strainer first", review_case: 41 },
+    shortfalls: 2, questions: 3, score: null, ...over });
+  const detail = { ...row(), agents: ["Maintenance & Integrity"], personas: ["Reliability Engineer"], data: "", output: "", boundary: "",
+    playbook: "---\nname: compression\n---\n# Compression\nStart with `rotating_screen(at)`.\n", body: "# Compression\nStart with `rotating_screen(at)`.\n",
+    pack: { classes: ["CO"], tools: ["rotating_screen"], methods: [], detectors: [], briefs: [] }, tools: ["rotating_screen"],
+    named_tools: ["rotating_screen"], questions: [{ question: "Q1" }, { question: "Q2" }, { question: "Q3" }],
+    shortfalls: [{ kind: "brief", case: 41, title: "K-1 surge", followed: "no", note: "the strainer was blocked", by: "olga", at: "2026-11-19T10:00:00+00:00" }],
+    ai: { available: false, why: "AI is paused: this month's model spend has reached its budget." } };
+  const versions = [
+    { version: 2, status: "draft", playbook: "x", cases: [{ kind: "brief", case: 41 }], questions: [], note: "strainer first", created_by: "agent:maintenance-integrity", created_at: "2026-11-20T10:00:00+00:00", eval: {} },
+    { version: 1, status: "refused", playbook: "y", cases: [], questions: [], note: "(set aside by olga)", created_by: "olga", created_at: "2026-11-18T10:00:00+00:00", eval: {} },
+    { version: 0, status: "published", playbook: detail.playbook, cases: [], questions: [], note: "as shipped" },
+  ];
+  const lines = [...Array.from({ length: 20 }, (_, i) => ({ op: "same", text: `line ${i}` })),
+    { op: "remove", text: "Start with `rotating_screen(at)`." }, { op: "add", text: "Check the suction strainer first." },
+    ...Array.from({ length: 20 }, (_, i) => ({ op: "same", text: `after ${i}` }))];
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: {
+    id: "u1", actor: "user:u1", display_name: "Olga", enabled: true, owner: false, permissions: ["read", "operate", "ai"], roles: ["engineer"] } } }));
+  await page.route("**/work/skills", (route) => route.fulfill({ json: { skills: [row(), row({ skill: "shared/charts", name: "charts", title: "Charts",
+    area: "shared", area_label: "Shared by every agent", draft: null, shortfalls: 0 })], ai: detail.ai } }));
+  await page.route("**/work/skills/detail?*", (route) => route.fulfill({ json: detail }));
+  await page.route("**/work/skills/versions?*", (route) => route.fulfill({ json: versions }));
+  await page.route("**/work/skills/diff?*", (route) => route.fulfill({ json: { skill: detail.skill, version: 2, against: 0, added: 1, removed: 1, questions: 3, lines } }));
+  await page.goto(`${url}/#/skills`);
+  await page.getByRole("heading", { name: "Maintenance & Integrity", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Shared by every agent", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Draft waiting", exact: true }).click();
+  await page.waitForURL(/#\/skills\?show=draft$/);
+  await page.getByRole("link", { name: "Charts", exact: true }).waitFor({ state: "detached" });
+  await page.getByRole("link", { name: "Draft v2", exact: true }).click();
+  await page.waitForURL(/tab=versions&v=2/);
+  const diff = page.getByRole("group", { name: "Changes against the live playbook" });
+  await diff.getByText("Check the suction strainer first.").waitFor();
+  await diff.getByText("18 unchanged lines").first().waitFor();  // the long same stretches either side fold
+  // AI is paused: Publish says why rather than failing after the click.
+  assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(), true);
+  await page.getByText("AI is paused: this month's model spend has reached its budget.").waitFor();
+  await page.getByRole("link", { name: "Fell short (1)" }).click();
+  await page.getByRole("link", { name: "K-1 surge" }).waitFor();
+  await page.getByText("brief not followed").waitFor();
+  await page.getByRole("link", { name: "Playbook", exact: true }).click();
+  await page.getByRole("button", { name: "Edit playbook" }).click();
+  const box = page.getByRole("textbox", { name: "Playbook" });
+  assert.match(await box.inputValue(), /^---\nname: compression/);
+  assert.equal(await page.getByRole("button", { name: "Save draft" }).isDisabled(), true);  // nothing changed yet
+  let sent = null;
+  await page.route("**/work/skills/versions", (route) => { sent = route.request().postDataJSON(); return route.fulfill({ json: { skill: detail.skill, version: 3, status: "draft" } }); });
+  await box.fill(`${detail.playbook}Then the lube oil.\n`);
+  await page.getByRole("textbox", { name: "What changed and why" }).fill("lube oil after the strainer");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForURL(/tab=versions&v=3/);
+  assert.equal(sent.note, "lube oil after the strainer");
+  assert.match(sent.playbook, /Then the lube oil/);
+  for (const [width, height] of [[390, 844], [820, 1180]]) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${url}/#/skills`);
+    await page.getByRole("heading", { name: "Maintenance & Integrity", exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${width}px`);
   }
   assert.deepEqual(errors, []);
 });

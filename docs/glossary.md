@@ -202,6 +202,11 @@ as a Gantt under Plan > Schedules. A planning system such as Primavera P6 can de
 **Shelve.** Take a standing condition that can wait off the list until a date, with a reason. It comes back by
 itself. Safety work cannot be shelved.
 
+**Skill.** A playbook (its SKILL.md) an agent follows for one kind of work, with the tools it may call and the eval
+questions it is held to. A skill's owner changes it on Ops IQ, Skills: a change is a **draft**, and a person
+**publishes** it behind the skill's eval (it goes live only if it scores no lower than the live version) or **sets it
+aside**; **roll back** makes the version before it live again. Not "prompt" or "pack" on screen. See [agents](agents.md).
+
 **Source catalog.** The systems of record, their connections, datasets, mapping versions, runs, profiles,
 checks and rules, as rows edited on the Sources page with history. See [sources](sources.md).
 
