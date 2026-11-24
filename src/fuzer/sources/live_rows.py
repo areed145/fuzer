@@ -26,6 +26,10 @@ from pathlib import Path
 
 DATASETS = ("ec_downtime", "oplogs", "sap_notifications")
 EC_LAG = timedelta(hours=2)  # Energy Components has the downtime row a couple of hours after the train is back
+# Data quality, as a real site's records have it: shares of the live rows that come in wrong
+LATE = 0.15        # a downtime row entered the next day (the allocation engineer was off shift)
+UNMATCHED = 0.12   # a notification raised against an old functional location with no equipment number
+DUPLICATE = 0.10   # a trip raised twice, by the control room and again by the field
 
 
 def _now() -> datetime:
@@ -152,7 +156,8 @@ def rows(name: str, data_dir, now: datetime | None = None, spec: dict | None = N
             hours = (end - start).total_seconds() / 3600
             rough = any(e["kind"] == "vibration" for e in ev["all"])
             why = "high vibration" if rough else "a process shutdown"
-            if name == "ec_downtime" and end + EC_LAG <= now:
+            lag = EC_LAG if _h(tag, "late") >= LATE else timedelta(hours=26 + 4 * _h(tag, "lag"))
+            if name == "ec_downtime" and end + lag <= now:
                 out.append({"event_id": f"{site.down_prefix}{n}", "object_code": site.code,
                             "start": _rel(start, today), "end": _rel(end, today), "reason_code": site.trip_code,
                             "lost_oil_bbl": str(round(site.lost["lost_oil_bbl"] * hours)),
@@ -170,6 +175,9 @@ def rows(name: str, data_dir, now: datetime | None = None, spec: dict | None = N
             if name == "sap_notifications" and (eq := site.equnr(unit)) \
                     and start + timedelta(minutes=30 + 60 * _h(tag, "notif")) <= now:
                 out.append(_notification(site, n, eq, "M2", "2", f"{what} tripped on {why}", start, today, now))
+                if _h(tag, "dup") < DUPLICATE:  # raised again by the field an hour later
+                    out.append(_notification(site, n, eq, "M2", "2", f"{what} trip", start + timedelta(hours=1),
+                                             today, now, copy=1))
         elif kind == "rough_running":
             peak = _peak(main)
             if name == "oplogs" and peak <= now:
@@ -203,11 +211,13 @@ def rows(name: str, data_dir, now: datetime | None = None, spec: dict | None = N
 
 
 def _notification(site: _Site, n: str, eq: tuple[str, str], kind: str, priority: str, text: str, at: datetime,
-                  today: date, now: datetime) -> dict:
+                  today: date, now: datetime, copy: int = 0) -> dict:
     """An SAP notification: outstanding (OSNO) when raised, completed (NOCO) two to ten days on, as the work it asked
-    for is done."""
-    number = str(90_000_000 + int(n, 16) % 9_000_000)
-    done = at + timedelta(days=2 + 8 * _h(n, "done")) <= now
+    for is done. Some are raised against an old functional location with no equipment number (UNMATCHED)."""
+    number = str(90_000_000 + int(n, 16) % 9_000_000 + copy)
+    done = at + timedelta(days=2 + 8 * _h(n, copy, "done")) <= now
+    if _h(n, copy, "unmatched") < UNMATCHED:  # the old numbering, before the site code went on the front
+        eq = ("", eq[1].split("-", 1)[1])
     return {"qmnum": number, "notif_type": kind, "created": _rel(at, today, time=False), "equnr": eq[0],
             "floc": eq[1], "priority": priority, "short_text": text[:40], "damage_code": site.codes[0],
             "cause_code": site.codes[1], "status": "NOCO" if done else "OSNO"}

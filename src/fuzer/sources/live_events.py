@@ -129,3 +129,42 @@ def generate(spec: dict, start: date, end: date) -> list[dict]:
         out += of_day(spec, d)
         d += timedelta(days=1)
     return out
+
+
+# Instrument faults on a live facility, per day: a tag that goes stale after a comms fault and comes back when the
+# technician resets the card, a transmitter that starts storing Bad Input. Data quality the IOC has to notice.
+FAULT_RATES = {"frozen": 0.3, "bad": 0.12}
+
+
+def faults_of_day(spec: dict, day: date) -> list[dict]:
+    """The live instrument faults starting on `day`, in instrument_faults.json's shape (sources/instruments)."""
+    if not enabled(spec):
+        return []
+    points = sorted(spec.get("points", {}))
+    if not points:
+        return []
+    out = []
+    for kind, rate in FAULT_RATES.items():
+        r = _rng(spec.get("seed", 0), day, f"fault:{kind}")
+        if r.random() >= rate:
+            continue
+        start = r.uniform(0, 1380)
+        hours = r.uniform(3, 10) if kind == "frozen" else r.uniform(1, 4)
+        f = {"id": f"LIVE-{day.isoformat()}-{kind}", "point": r.choice(points), "kind": kind,
+             "start": _at(day, start), "end": _at(day, start + hours * 60), "live": f"{day.isoformat()}#{kind}",
+             "finds": {"frozen": "frozen", "bad": None}[kind],
+             "why": {"frozen": "a comms fault: the tag holds its last value until the card is reset",
+                     "bad": "the transmitter failed: the historian stores Bad Input until it is replaced"}[kind]}
+        if kind == "bad":
+            f["state"] = "Bad Input"
+        out.append(f)
+    return out
+
+
+def faults(spec: dict, start: date, end: date) -> list[dict]:
+    out: list[dict] = []
+    d = start
+    while d <= end:
+        out += faults_of_day(spec, d)
+        d += timedelta(days=1)
+    return out
