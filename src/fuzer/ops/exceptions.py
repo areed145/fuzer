@@ -410,7 +410,9 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
         (type, key, OPEN)).fetchone())
     if current is None and signal is not None:
         current = _held(conn, type, key, signal, by)
-        if current and current["state"] != OPEN:  # held: the same condition its close-out answered, counted with no case
+    if current:
+        evidence = _first_found(current["evidence"], evidence)
+        if current["state"] != OPEN:  # held: the same condition its close-out answered, counted with no case
             row = conn.execute("update exception_record set raised_count = raised_count + 1, last_seen = now(), "
                                "evidence = evidence || %s, updated_at = now() where id = %s returning *",
                                (Jsonb(evidence), current["id"])).fetchone()
@@ -464,6 +466,17 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
     case = conn.execute("select assignee, role from work_item where id = %s", (item_id,)).fetchone() if item_id else None
     events.publish(conn, "exception.raised", f"exception:{row['id']}", {**_payload(row, t), **(case or {})})
     return {**row, "raised": True, "unmatched_note": _unmatched_note(conn, unmatched)}
+
+
+def _first_found(old: dict | None, new: dict) -> dict:
+    """New evidence for a condition already raised, still saying when it was first found (#1384): a later raise's
+    finding starts at its own scan, and the case opened on the first would read "found this on Nov 21" under "opened
+    Nov 14", its trend and alarms moved to the last scan."""
+    was, now = ((old or {}).get("finding") or {}).get("start"), (new.get("finding") or {}).get("start")
+    first, latest = clock.wall(was), clock.wall(now)
+    if first and latest and first < latest:
+        return {**new, "finding": {**new["finding"], "start": was}}
+    return new
 
 
 def _holding(conn, type: str, key: str) -> dict | None:

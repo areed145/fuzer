@@ -233,8 +233,10 @@ def item(conn, item_id: int) -> dict:
         mine = [s for s in steps if s["process_id"] == p["id"]]
         p["path"] = [s for s in mine if s["state"] == "done"]
         p["open"] = [s for s in mine if s["state"] in ("ready", "waiting")]
+    # what a brief or an option could not settle is Fuzer's own working, kept for what would answer it (P6.6), not a
+    # line of the case's history (#1384)
     events = history(conn.execute("select id, kind, actor, element, data, at, process_id, token_id from work_event "
-                                  "where item_id = %s order by id", (item_id,)).fetchall())
+                                  "where item_id = %s and kind <> 'undetermined' order by id", (item_id,)).fetchall())
     parent = conn.execute("select id, title, state, closed_at from work_item where id = %s",
                           (row["parent_id"],)).fetchone() if row.get("parent_id") else None
     return {**row, "processes": procs, "events": events, "checklist": checklist.items(conn, item_id), "parent": parent}

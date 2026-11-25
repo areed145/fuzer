@@ -735,7 +735,8 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await card.getByText("Stage 1 ran within 4 % of its surge line", { exact: false }).waitFor();
   await card.getByText("Proposed: Plan an anti-surge valve check", { exact: true }).waitFor();
   await card.getByText("72% confident", { exact: false }).waitFor();
-  await card.getByText("no OEM map revision date", { exact: true }).waitFor();
+  // what it could not check is the agent's working, kept for what would answer it, not a list on the case (#1384)
+  assert.equal(await card.getByText("no OEM map revision date", { exact: true }).count(), 0);
   // what the brief cost is AI usage's, not the case's (#1348)
   assert.equal(await card.getByText("budget", { exact: false }).count(), 0);
   await card.getByRole("button", { name: "Evidence, analysis and similar cases" }).click();
@@ -8968,6 +8969,36 @@ test("a case's trend opens on the reading its title names, with every value a ta
   await card.getByRole("button", { name: "Suction pressure", exact: true }).waitFor();
   assert.match(await card.locator("[aria-label*=' series and ']").first().getAttribute("aria-label"), /: 4 series/);
 });
+
+// #1384: a case's trend that was slow to answer held a chart's height of blank space under "Loading…" (about 500 px on
+// the tour's desktop). On a case it is one line until it has drawn.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a case's trend takes one line while it loads, then draws (#1384, ${size})`, async () => {
+    const view = { provider: "synthetic", centre: "2024-03-14T06:00", start: "2024-03-13T23:00", end: "2024-03-14T09:00",
+      step_minutes: 5, upsets: [], unit: "p2", unit_label: "P-2", classes: ["PU"], template: { key: "PU", title: "Pump" },
+      missing: [], other: [], groups: [{ key: "bearings", label: "Bearings", show: true, traces: [{ id: "tt2", point: "OK:tt2.PV",
+        description: "Bearing temperature", uom: "degF", axis: "degF", show: true, values: [["2024-03-14T00:00", 180], ["2024-03-14T08:00", 193]],
+        min: 180, max: 193, mean: 186, last: 193, role_label: "Bearing temperature", on: null, limits: [] }] }] };
+    let answer;
+    const answered = new Promise((resolve) => { answer = resolve; });
+    await page.route("**/work/items/33", route => route.fulfill({ json: { id: 33, title: "P-2 bearing temperature on P-2: 193 degF",
+      type: "round_finding", state: "open", subjects: ["p2"], created_by: "alex", created_at: "2024-03-14T03:20:00Z", events: [], processes: [] } }));
+    await page.route("**/work/items/33/around", route => route.fulfill({ json: {
+      window: { start: "2024-03-13T23:00", end: "2024-03-14T09:00" }, units: [{ id: "p2", label: "P-2" }], alarms: [], log: [], basis: "" } }));
+    await page.route("**/entities/p2/trend-spec*", async route => { await answered; return route.fulfill({ json: specOf(view) }); });
+    await page.route("**/entities/p2/timeline*", route => route.fulfill({ json: { unit: "p2", start: view.start, end: view.end, lanes: [] } }));
+    await page.setViewportSize(viewport);
+    await page.goto(`${url}/#/cases/33`);
+    const card = page.locator(".trend-view");
+    await card.getByText("Loading…").waitFor();
+    assert.ok((await card.boundingBox()).height < 160, "a loading trend is one line, not a chart's blank height");
+    assert.equal(await card.getByRole("button", { name: "Earlier" }).count(), 0);
+    answer();
+    await card.locator(".main-svg").first().waitFor();
+    assert.equal(await card.getByText("Loading…").count(), 0);
+    await card.getByRole("button", { name: "Earlier" }).waitFor();
+  });
+}
 
 test("P5.14a The installed app has its own Back, never leaves the app, and resumes the last page", async () => {
   // Opened from the home screen: standalone display, no browser back button.

@@ -99,6 +99,25 @@ def test_a_case_closed_while_the_condition_holds_does_not_hide_it(conn, types):
     conn.commit()
 
 
+def test_a_condition_raised_again_still_says_when_it_was_first_found(conn, types):
+    """#1384: a rule re-raising a standing condition each scan moved its finding's start to the last scan, so a case
+    opened Nov 14 read "A rule found this on Nov 21" and its trend opened on Nov 21. Later evidence keeps the first
+    start; an earlier one (a source correcting itself) still moves it back."""
+    from fuzer.core.findings import Finding
+
+    types("hot_bearing", role="role:engineer")
+    raise_exception(conn, "hot_bearing", "B-1384", "Bearing hot", "rules",
+                    finding=Finding("test", "deterministic", start="2026-11-14T14:07"))
+    again = raise_exception(conn, "hot_bearing", "B-1384", "Bearing hot", "rules",
+                            finding=Finding("test", "deterministic", start="2026-11-21T09:00", data={"peak": 193}))
+    assert again["evidence"]["finding"]["start"] == "2026-11-14T14:07" and again["evidence"]["peak"] == 193
+    earlier = raise_exception(conn, "hot_bearing", "B-1384", "Bearing hot", "rules",
+                              finding=Finding("test", "deterministic", start="2026-11-13T22:00"))
+    assert earlier["evidence"]["finding"]["start"] == "2026-11-13T22:00"
+    clear_exception(conn, "hot_bearing", "B-1384", "rules")
+    conn.commit()
+
+
 def test_an_exception_nobody_is_routed_to_waits_on_the_board(conn, types):
     types("field_report", audience=("ioc", "field"))
     e = raise_exception(conn, "field_report", "walkdown-3", "Leak at well A-12 flowline", "olga",

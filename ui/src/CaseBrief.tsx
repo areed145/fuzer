@@ -1,6 +1,7 @@
-/** The specialist brief on a case (P4.3): what the owning specialist found before anyone opened it, its proposed
- * disposition with a confidence and what it could not check. What it cost is AI usage's, not the case's (#1348). The
- * person who decides says whether they followed the proposal; the brief never decides. */
+/** The specialist brief on a case (P4.3): what the owning specialist found before anyone opened it and its proposed
+ * disposition with a confidence. What it cost is AI usage's, not the case's (#1348), and what it could not check (a
+ * method with no measurement to run on) is the agent's working, not the case's: it stops the gate, and the proposal's
+ * confidence says it (#1384). The person who decides says whether they followed the proposal; the brief never decides. */
 import { useState } from "react";
 import { useAction } from "./lib";
 import { percent, when } from "./format";
@@ -26,7 +27,7 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
   if (e.missing) return <Card className="case-brief" title="Specialist brief"><Text as="p" small>No brief: {e.missing}.</Text></Card>;
   const b = e.brief ?? {};
   const p = b.proposal ?? {};
-  const evidence = b.evidence ?? [], analysis = b.analysis ?? [], similar = b.similar ?? [], gaps = b.could_not_check ?? [];
+  const evidence = b.evidence ?? [], analysis = b.analysis ?? [], similar = b.similar ?? [];
   return (
     <Card className="case-brief" title="Specialist brief">
       {b.what_happened && <p>{b.what_happened}</p>}
@@ -35,11 +36,6 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
           <strong>Proposed: {p.disposition}</strong> <Text small>({pct(p.confidence)})</Text>
           {p.why && <Text as="p" small>{p.why}</Text>}
         </Notice>
-      )}
-      {gaps.length > 0 && (
-        <Text as="div" small><strong>Could not check</strong>
-          <ul>{gaps.map((c, i) => <li key={i}>{c}</li>)}</ul>
-        </Text>
       )}
       {(e.lessons ?? []).length > 0 && (
         <Text as="div" small><strong>Reviewed lessons it was given</strong>
