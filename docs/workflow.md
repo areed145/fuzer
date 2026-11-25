@@ -188,14 +188,21 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   from the field opens with its **Options** card (and its row on All work has **Options**): **Dispatch now**, **Ride
   along with the next visit**, **Shelve** and **Escalate**, side by side (`GET /exceptions/{id}/options`,
   `GET /work/items/{id}/options`). Each says when it would be done, the production deferred until then in bbl and $,
-  the risk of waiting (the event's priority and its assets' ABC criticality, lower for a short wait), whether it is
-  ready (crew, permit, spares, simultaneous operations, MOC) and its clashes. What it defers now is the producing
-  wells it reaches at their latest test, all of it while a machine is stopped (a trip, with its share where parallel
-  trains carry the rest), else the pack's share for a condition still going (`upsets.rate_at_risk_share`, the
-  assumption an upset's value uses); a condition not yet costing anything says what is behind it if it trips. When:
-  the operator queue's SLA for a dispatch; the start of the next scheduled plan item on the same equipment (its assets
-  or what they are part of, short of the area, which can be half a plant) within
-  `options.window_days` for a ride along; the area's next turnaround or shutdown, at most
+  the risk of waiting, whether it is ready (the field's last report, crew, permit, spares, simultaneous operations,
+  MOC) and its clashes. The risk is said only from the record (#1365): its assets' ABC criticality with the event's
+  priority, lower for a short wait, or a hazard to people (gas escaping, H2S, fire or smoke in what was reported, or a
+  safety or HSE type), which is high to wait on and never reads low; with neither, no risk word is shown and the
+  criticality is named as not known. A field report that says the job needs a gas test, a permit, an isolation, a
+  scaffold or parts holds Dispatch now until a later report, and says what it waits on. The crew checked is the one
+  the job's words need (a transmitter or gauge is the instrument crew's), and a full crew is one line with its count.
+  What it defers now is the producing wells it reaches at their latest test, all of it while a machine is stopped (a
+  trip, with its share where parallel trains carry the rest), else the pack's share for a process upset still going
+  (`upsets.rate_at_risk_share`, the assumption an upset's value uses). A report of a smell or a drip, or a
+  notification, has no measured link to production: it says what is behind it if it stops and that what it defers is
+  not known. When: the operator queue's SLA for a dispatch; for a ride along, a field operator already sent to or on
+  site at the same asset (riding along sends it to them, and their job is not a clash), else the next scheduled plan
+  item under way or starting on the same equipment (its assets or what they are part of, short of the area, which can
+  be half a plant) within `options.window_days`; the area's next turnaround or shutdown, at most
   `exceptions.max_shelve_days`, for a shelf; the engineer queue's SLA and then a dispatch to escalate. Prices are the
   pack's value config. One option is **recommended** by one rule, the same on every case: wait while it leaves no high
   risk and defers less than a separate trip costs (`options.trip_usd`); dispatch now when waiting costs more or leaves

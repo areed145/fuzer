@@ -284,7 +284,8 @@ def test_work_sent_out_now_takes_its_crews_time_and_the_ready_check_reads_the_pl
     assert plan.coming_up(conn, "fred") == [] or all(i["id"] != bar["id"] for i in plan.coming_up(conn, "fred"))
     # the next job for the same crew sees it booked: the crew of one is full today
     check = readiness.crew(conn, ["fz-pump-1"])
-    assert not check["ready"] and "1 of 1 booked today" in check["blockers"][0] and "P-105 drip" in check["blockers"][0]
+    assert not check["ready"] and check["blockers"][0].endswith("1 of 1 booked today")
+    assert [j["title"] for j in check["centers"][0]["jobs"]] == ["P-105 drip"]  # on the crew, not in the blocker
     # but the job itself does not count against itself
     assert readiness.crew(conn, ["fz-pump-1"], job=e["id"])["ready"]
     conn.rollback()

@@ -166,14 +166,16 @@ by side:
 | Option | What happens | When it is done |
 |---|---|---|
 | **Dispatch now** | Sent to a field operator, or the operator queue, with what to check or do on the job | The operator queue's SLA |
-| **Ride along with the next visit** | Put on the plan with a job already booked on the same equipment (its assets or what they are part of) | That visit, within `options.window_days` (21) |
+| **Ride along with the next visit** | Sent to a field operator already at the same asset, or put on the plan with a job already booked on the same equipment (its assets or what they are part of) | Now, or that visit within `options.window_days` (21) |
 | **Shelve** | Off the list until the area's next turnaround or shutdown | At most `exceptions.max_shelve_days` (30) |
 | **Escalate** | Sent to the engineer, or past the engineer to the ops lead | The engineer queue's SLA, then a dispatch |
 
-Each option says the production it defers until then (in bbl and $, from the wells it reaches at their latest test),
-the risk of waiting, whether it is ready (crew, permit, spares, simultaneous operations, MOC) and its clashes on the
-plan. One is recommended by the same rule on every case: wait while waiting leaves no high risk and defers less than a
-separate trip costs (`options.trip_usd`); dispatch now when waiting costs more; escalate when it should go now and
+Each option says the production it defers until then (in bbl and $, from the wells it reaches at their latest test,
+only for a trip or a process upset; a report has no measured link to production), the risk of waiting (from
+criticality or a reported hazard only, never low for gas, H2S or fire), whether it is ready (the field's last report,
+crew, permit, spares, simultaneous operations, MOC) and its clashes on the plan. One is recommended by the same rule
+on every case: wait while waiting leaves no high risk and defers less than a separate trip costs (`options.trip_usd`),
+and shelve only on a risk the record backs; dispatch now when waiting costs more; escalate when it should go now and
 can't. Taking the recommended option is one tap; any choice takes one optional why. The choice, the recommendation and any
 reason go on the case's history, and **Work performance** shows how often the recommendation was taken, per type.
 
