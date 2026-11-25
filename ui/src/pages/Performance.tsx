@@ -223,6 +223,7 @@ function Skills() {
           ? <a href={href(`/cases/${s.edits.review_case}`)}>Review change v{s.edits.waiting}</a> : null}</td>
       </tr>)}</tbody>
     </Table> : <Empty>No brief or rated answer yet.</Empty>)}
+    <Undetermined />
     {d && d.specialists.length > 0 && <Card title="Agent spend per specialist">
       <Table density="compact" className="phone-rows">
         <thead><tr><th>Specialist</th><th>Steps</th><th>Cases</th><th>Spend</th><th>Per case</th></tr></thead>
@@ -233,4 +234,32 @@ function Skills() {
       </Table>
     </Card>}
   </>;
+}
+
+const REASON: Record<string, string> = {
+  no_data: "no data", no_tool: "no tool", no_skill: "no skill", conflicting_evidence: "conflicting evidence",
+  out_of_scope: "out of scope", low_confidence: "low confidence",
+};
+
+/** What Fuzer couldn't determine (P6.6), beside the shortfalls: by the source, tool or skill that would have answered
+ * it, the most cases first, then the most at stake, each opening its cases. */
+function Undetermined() {
+  const data = useAsync(() => api.workUndetermined(), []);
+  const d = data.data;
+  if (!d) return <Status of={data} />;
+  return <Card as="section" aria-label="What Fuzer couldn't determine" title="What Fuzer couldn't determine">
+    {d.length ? <Table density="compact" className="phone-rows">
+      <thead><tr><th>Would answer it</th><th>Cases</th><th>Value at stake</th><th>Why</th><th>Asked</th></tr></thead>
+      <tbody>{d.map((g) => <tr key={`${g.needs.kind}:${g.needs.name}`}>
+        <td><strong>{g.needs.name}</strong><Text as="div" small muted>{g.needs.kind}</Text></td>
+        <td>{g.count}
+          <List plain small>{g.cases.slice(0, 5).map((c) => <li key={c.id}>
+            <a href={href(`/cases/${c.id}`)}>{c.title ?? `case ${c.id}`}</a></li>)}</List>
+          {g.answers ? <Text small muted>{g.answers} assistant answers</Text> : null}</td>
+        <td>{cost(g.value_usd)}</td>
+        <td>{Object.entries(g.reasons).map(([k, n]) => `${REASON[k] ?? k} ${n}`).join(", ")}</td>
+        <td><Text small>{g.asked.slice(0, 2).join("; ")}</Text></td>
+      </tr>)}</tbody>
+    </Table> : <Empty>Nothing left undetermined.</Empty>}
+  </Card>;
 }

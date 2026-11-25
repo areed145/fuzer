@@ -248,6 +248,15 @@ def work_skill_shortfalls(since: datetime | None = None, conn=Depends(get_conn))
     return shortfalls.gather(conn, since.isoformat() if since else None)
 
 
+@router.get("/work/undetermined")
+def work_undetermined(since: datetime | None = None, conn=Depends(get_conn)):
+    """What Fuzer couldn't determine (P6.6), beside the shortfalls: grouped by the source, tool or skill that would
+    have answered it, the most cases and answers first, then the most value at stake, with the cases."""
+    from ..ops import undetermined
+
+    return undetermined.gather(conn, since.isoformat() if since else None)
+
+
 class SkillDraft(BaseModel):
     skill: str
     playbook: str

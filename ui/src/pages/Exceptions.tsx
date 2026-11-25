@@ -346,7 +346,8 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
     {r.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul> : null;
   const confirm = r.checks.some((c) => c.confirm);  // needs a permit, none to check it against (#742)
   return <>{warned}{r.ready
-    ? <p className="small ready-note">{confirm ? <Badge tone="warn">check permit</Badge> : <Badge tone="ok">ready</Badge>}{" "}
+    ? <p className="small ready-note">{confirm ? <Badge tone="warn">check permit</Badge>
+      : r.unknown?.length ? <Badge tone="muted">unknown</Badge> : <Badge tone="ok">ready</Badge>}{" "}
       {[...r.checks.flatMap((c) => (c.centers ?? []).filter((w) => w.crew != null)
         .map((w) => `${w.description ?? w.label}: ${w.busy} of ${w.crew} busy.`)),
         ...r.checks.flatMap((c) => (c.permits ?? []).filter((p) => p.valid).slice(0, 1)

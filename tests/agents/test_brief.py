@@ -197,3 +197,20 @@ def test_an_approved_lesson_reaches_the_next_brief_on_any_asset_of_its_class(con
     assert "rejected" not in asked[0] and "suggested seal" not in asked[0]
     assert out["lessons"] == [{"id": ids["approved"], "title": "approved seal lesson", "failure_mode": "ELU",
                                "by": "user:ana", "review_overdue": True}]  # approved with no review date
+
+
+def test_what_a_brief_cannot_settle_is_kept_for_what_would_answer_it(conn, classes):
+    """P6.6: the methods its pack can't run for a missing measurement, and a case no pack covers, kept on the case."""
+    from fuzer.ops import undetermined
+
+    item = _case(conn, "machine_health", "unit-co")
+    brief.prepare(conn, item, lambda q: {"answer": BRIEFED, "usage": {"cost_usd": 0.1}})
+    vessel = _case(conn, "machine_health", "unit-ve")
+    brief.prepare(conn, vessel, ask=None)
+    groups = {g["needs"]["name"]: g for g in undetermined.gather(conn)}
+    surge = groups["suction flow or anti-surge valve position measurement"]
+    assert surge["needs"]["kind"] == "source" and surge["reasons"].get("no_data")
+    assert item in {c["id"] for c in surge["cases"]} and "surge on unit-co" in surge["asked"]
+    skill = groups["machine health brief on this equipment"]
+    assert skill["needs"]["kind"] == "skill" and vessel in {c["id"] for c in skill["cases"]}
+    assert skill["reasons"].get("no_skill")

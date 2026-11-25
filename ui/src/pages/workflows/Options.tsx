@@ -116,9 +116,11 @@ function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose, statu
         {opt.deferred ? <span>about {estimate(opt.deferred.oil_bbl)} bbl, {money(twoFigures(opt.deferred.usd))} deferred</span>
           : d.loss ? <span>nothing deferred</span> : null}
         {opt.risk && <span title={opt.risk.why}>Risk <Badge tone={RISK[opt.risk.level]}>{opt.risk.level.toLowerCase()}</Badge></span>}
-        {!blocked && (opt.key === "dispatch" || opt.key === "window") && <Badge tone="ok">ready</Badge>}
+        {!blocked && (opt.key === "dispatch" || opt.key === "window") &&
+          (opt.unknown?.length ? <Badge tone="muted">unknown</Badge> : <Badge tone="ok">ready</Badge>)}
       </div>
       {blocked && <Text as="div" small><Badge tone="warn">not ready</Badge> {opt.blockers?.[0]}</Text>}
+      {(opt.unknown ?? []).map((u) => <Text as="div" small key={u}>{u}</Text>)}
       {(opt.clashes ?? []).slice(0, 2).map((c) => <Text as="div" small key={c}><Badge tone="warn">clash</Badge> {c}</Text>)}
       {(opt.warnings ?? []).slice(0, 1).map((w) => <Text as="div" small key={w}><Badge tone="warn">check</Badge> {w}</Text>)}
       {rec && d.reason && <div className="case-option-why">{d.reason}</div>}

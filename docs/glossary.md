@@ -65,6 +65,11 @@ references. A system can have several. See [sources](sources.md).
 
 **Connector.** Reads one source table in one format (CSV, Parquet, Delta, Excel, JSON, GeoJSON, a live system).
 
+**Couldn't determine.** Something readiness, an option, a brief or the assistant could not settle, kept with the
+reason and what would have answered it (a source, a tool or a skill). Shown as "unknown" with the reason where the
+value would be, and ranked on How the work is running under **What Fuzer couldn't determine**. Not a guess, not 0.
+See [agents](agents.md).
+
 **Custom report.** A report a person made by copying one or starting blank, listed under My reports. Its owner changes
 it on the page and shares it with everyone or a workflow role; each save is a new version, and an earlier one can be
 restored. See [reports](reports.md).
