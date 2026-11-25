@@ -1,6 +1,6 @@
-"""Where no bypass register is loaded, what is bypassed is unknown, never none (Okan ships without one): the measures,
-the report's panels, the AI note's facts and the shift handover say so and why. Once a register is loaded, a bypass
-register with nothing in place reads 0."""
+"""What a site hasn't loaded is unknown, never none. Okan's shared test plant has no bypass register and no business
+plan: the measures, the report's panels, the AI note's facts and the shift handover say so and why, and Plan against
+actual says it in one line instead of empty panels. Once a bypass register is loaded, nothing in place reads 0."""
 
 from datetime import UTC, date, datetime
 
@@ -11,7 +11,7 @@ from fuzer.agents import report_summary
 from fuzer.core import metrics, rowsets
 from fuzer.core.measures import builtin
 from fuzer.core.pack import current_pack
-from fuzer.ops import handover, report_pages, safeguards
+from fuzer.ops import business_plan, handover, report_pages, safeguards
 
 pytestmark = pytest.mark.integration
 
@@ -72,3 +72,14 @@ def test_a_loaded_register_with_nothing_in_place_reads_zero(okan_db):
         assert metrics.value(conn, pack, "safety.bypasses_active", window="1d", at=DAY)["value"] == 1
     finally:
         conn.rollback()
+
+
+def test_without_a_business_plan_the_report_says_so_in_one_line(okan_db):
+    conn, pack = okan_db.conn, current_pack()
+    assert not business_plan.loaded(conn)
+    v = report_pages.view(conn, pack, "plan", window="qtd", at=DAY)
+    assert v["unknown"] == [{"rows": ["headline", "per-program", "lines"], "note": "No business plan loaded"}]
+    for panel in ("est-hours", "act-cost", "unplanned", "plan-lines"):
+        r = report_pages.panel_data(conn, pack, "plan", panel, window="qtd", at=DAY)
+        assert r["unknown"] and r["note"] == business_plan.MISSING, panel
+    assert report_pages.view(conn, pack, "work", window="7d", at=DAY)["unknown"] == []

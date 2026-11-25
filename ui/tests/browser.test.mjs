@@ -379,7 +379,10 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
       window: { default: "7d", options: ["7d", "30d"] }, source: "platform", rows: [
         { id: "headline", panels: [stat("a"), stat("b"), stat("c"), stat("d")] },
         { id: "more", panels: [{ id: "t", type: "table", size: 2, measure: "work.arrivals", grain: "type", phone: false },
-          { id: "w", type: "cases", size: 2, filter: { overdue: true } }] }] } };
+          { id: "w", type: "cases", size: 2, filter: { overdue: true } }] },
+        { id: "plan-a", requires: "plan.estimate_hours", panels: [stat("p1")] },
+        { id: "plan-b", requires: "plan.estimate_hours", panels: [stat("p2")] }] },
+    unknown: [{ rows: ["plan-a", "plan-b"], note: "No business plan loaded" }] };
   const asked = [];
   await page.route("**/reports/work?*", (route) => { asked.push(new URL(route.request().url()).searchParams.toString()); return route.fulfill({ json: view }); });
   await page.route("**/reports/work", (route) => route.fulfill({ json: view }));
@@ -403,6 +406,9 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   const unknown = page.locator(".report-type-stat", { hasText: "Safeguards bypassed" });
   await unknown.getByText("no bypass register loaded").waitFor();
   assert.equal(await unknown.locator(".report-stat-value").innerText(), "Unknown");
+  // rows reading a measure that is unknown here are one line, said once, instead of empty panels
+  assert.equal(await page.getByText("No business plan loaded").count(), 1);
+  assert.equal(await page.locator(".report-type-stat").count(), 4);
   assert.equal(new Set(await tops()).size, 1, "four stats share a row on a desk");
   await page.setViewportSize({ width: 820, height: 1180 });
   assert.equal(new Set(await tops()).size, 2, "two across on an iPad");

@@ -74,7 +74,7 @@ def values(conn, pack, body: str, scope: str | None, window: str, at: date | Non
             continue
         m = metrics.registry().get(key)
         try:
-            v = metrics.value(conn, pack, key, scope=fid, window=window, at=at if m and m.dated else None)
+            v = metrics.value(conn, pack, key, scope=fid, window=window, at=at if m and (m.dated or m.windowed) else None)
         except metrics.MetricError as e:
             out[token] = {"key": key, "scope": fid, "value": None, "error": str(e)}
             continue

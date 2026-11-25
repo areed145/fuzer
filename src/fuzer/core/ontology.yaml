@@ -247,6 +247,13 @@ kinds:
     description: >-
       A project, WBS element or activity in a schedule (Primavera P6, MS Project), with planned, baseline and
       actual dates and percent complete. A project is a top-level activity; the rest are part of their parent.
+  plan_line:
+    label: Plan line
+    group: Planning
+    colour: "#2e8b57"
+    description: >-
+      A line of the business plan: the work it means to do in a program, on a facility or area, over a period, with
+      the hours and cost it estimates. Read against the real cases that do the work.
 
 relations:
   part_of:
@@ -273,8 +280,8 @@ relations:
     view: physical
     description: >-
       Manifolds and wells on the jacket or platform they are on; a scheduled activity and the plant it is planned on;
-      a control loop and the item it holds.
-    from: [allocation_node, well, activity, control_loop]
+      a control loop and the item it holds; a business plan line and the plant it plans work on.
+    from: [allocation_node, well, activity, control_loop, plan_line]
     to: [area, facility, tag, well]
   found_on:
     label: found on

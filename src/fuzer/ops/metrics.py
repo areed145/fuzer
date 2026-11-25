@@ -615,7 +615,11 @@ def _plan_measure(key: str, label: str, unit: str, definition: str, formula: str
     @metric(key, label, unit=unit, better=better, definition=definition, formula=formula,
             period="plan lines whose period meets the window (the quarter to date by default)", **PLAN)
     def compute(conn, pack, q) -> dict:
+        from . import business_plan
+
         lines = _lines(conn, q)
+        if not q.cache["lines"]:  # no business plan at all: unknown, not 0 hours
+            return {"note": business_plan.MISSING, "unknown": True}
         if not lines:
             return {"note": "no business plan line " + ("on this scope " if q.scope else "") + "in the window"}
 
@@ -625,7 +629,9 @@ def _plan_measure(key: str, label: str, unit: str, definition: str, formula: str
         groups: dict[str, list] = {}
         for x in lines:
             groups.setdefault(x["program"], []).append(x)
-        return {"value": total(lines), "refs": [f"case:{c}" for x in lines for c in x["cases"]][:IDS],
+        value = total(lines)
+        return {"value": value, "refs": [f"case:{c}" for x in lines for c in x["cases"]][:IDS],
+                "note": None if value is not None else "none recorded yet for the lines in the window",
                 "rows": _rows([(k, k, total(ls), [f"case:{c}" for x in ls for c in x["cases"]][:IDS])
                                for k, ls in sorted(groups.items())]) if q.grain else []}
     return compute
@@ -651,6 +657,10 @@ _plan_measure("plan.actual_cost", "Actual cost", "USD", "The cost SAP records on
                 "in a plan container x 100",
         records="cases in plan containers (their jobs or their container) and the plan lines they are matched to")
 def unplanned_share(conn, pack, q) -> dict:
+    from . import business_plan
+
+    if not business_plan.loaded(conn):  # with no plan every case would be unplanned: unknown instead
+        return {"note": business_plan.MISSING, "unknown": True}
     if "contained" not in q.cache:
         q.cache["contained"] = {r["item_id"] for r in conn.execute(
             "select item_id from plan_item where item_id is not null and container_id is not null "
@@ -700,14 +710,25 @@ def open_cases(conn, pack, q) -> dict:
          columns=[{"key": "program", "label": "Program"}, {"key": "line", "label": "Line"},
                   {"key": "est_h", "label": "Planned hours", "unit": "h", "align": "end"},
                   {"key": "act_h", "label": "Actual hours", "unit": "h", "align": "end"},
+                  {"key": "var_h", "label": "Hours variance", "unit": "h", "align": "end"},
                   {"key": "est_cost", "label": "Planned cost", "unit": "USD", "align": "end"},
                   {"key": "act_cost", "label": "Actual cost", "unit": "USD", "align": "end"},
+                  {"key": "var_cost", "label": "Cost variance", "unit": "USD", "align": "end"},
                   {"key": "cases", "label": "Cases", "align": "end"}])
 def plan_lines(conn, pack, q) -> dict:
+    from . import business_plan
+
     lines = _lines(conn, q)
-    return {"rows": [{"key": f"line:{x['id']}", "href": f"/cases/{x['cases'][0]}" if len(x["cases"]) == 1 else None,
-                      "cells": {"program": x["program"], "line": x["title"], "est_h": x["estimate_hours"],
-                                "act_h": round(x["actual"]["hours_done"] + x["actual"]["hours_booked"], 1),
-                                "est_cost": x["estimate_cost"], "act_cost": x["actual"]["cost"],
-                                "cases": len(x["cases"])}} for x in lines],
+    if not q.cache["lines"]:
+        return {"rows": [], "note": business_plan.MISSING, "unknown": True}
+    rows = []
+    for x in lines:
+        v = business_plan.variance(x, x["actual"])
+        rows.append({"key": f"line:{x['id']}", "href": f"/cases/{x['cases'][0]}" if len(x["cases"]) == 1 else None,
+                     "cells": {"program": x["program"], "line": x["title"], "est_h": x["estimate_hours"],
+                               "act_h": round(x["actual"]["hours_done"] + x["actual"]["hours_booked"], 1),
+                               "var_h": v["hours_variance"], "est_cost": x["estimate_cost"],
+                               "act_cost": x["actual"]["cost"], "var_cost": v["cost_variance"],
+                               "cases": len(x["cases"])}})
+    return {"rows": rows,
             "note": None if lines else "no business plan line " + ("on this scope " if q.scope else "") + "in the window"}

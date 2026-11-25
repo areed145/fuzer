@@ -1,0 +1,8 @@
+# The business plan: its lines, each the work a program means to do on a facility or area over a period, with the
+# hours and cost it estimates, read against the cases that do the work (step 9 of docs/work-model.md).
+# A built-in source pack (P1.5): the datasets name built-in mapping files, assembled by fuzer.sources.packs.builtin.
+# Optional datasets are ones not every site exports.
+fuzer_source_pack: 1
+system: {name: business_plan}
+datasets: [business_plan_lines]
+optional: [business_plan_lines]

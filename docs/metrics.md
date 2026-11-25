@@ -631,4 +631,4 @@ A row set is a registered list with fixed columns, each row opening its case or 
 | `downtime.open` Still down | Stops in progress at the window's end (now, for a window ending today), the longest down first. | On, Down since, Cause, Oil lost so far | 1d |
 | `incidents` Incidents | Incidents that started in the window, newest first. | Start, Unit, What happened, Oil lost | 30d |
 | `permits.open` Permits in date | Permits to work whose validity covers the window's end, the soonest to lapse first. | Permit, Type, State, Covers, Valid to | 1d |
-| `plan.lines` Plan lines | The business plan's open lines whose period meets the window, each estimate against its actuals. | Program, Line, Planned hours, Actual hours, Planned cost, Actual cost, Cases | qtd |
+| `plan.lines` Plan lines | The business plan's open lines whose period meets the window, each estimate against its actuals. | Program, Line, Planned hours, Actual hours, Hours variance, Planned cost, Actual cost, Cost variance, Cases | qtd |

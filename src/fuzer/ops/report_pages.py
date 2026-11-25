@@ -3,7 +3,8 @@ named window, answered one panel at a time from the application's own model, the
 the Work list, so a figure on a report is the figure everywhere else.
 
     view(conn, pack, key, scope, window, at)                 the definition, the scope, the window, the scopes to pick
-                                                              from and the entities each repeat row draws for
+                                                              from, the entities each repeat row draws for and the
+                                                              rows whose `requires` measure is unknown, with why
     panel_data(conn, pack, key, panel_id, scope, window, at)  one panel's result: the envelope and its type's fields
     panel_type(name)                                          register fn(conn, pack, report, panel, scope, window)
     default_scope(conn, pack, report)                         the scope a report opens on when its link names none
@@ -135,7 +136,24 @@ def view(conn, pack, key: str, scope: str | None = None, window: str | None = No
             repeats[r["id"]] = kids[:rep["limit"]]
     choices = scopes(conn, d["scope"]["kinds"])
     choices.sort(key=lambda c: c["id"] != ref["id"])  # the one shown first
-    return {"definition": d, "scope": ref, "window": w, "repeats": repeats, "scopes": choices}
+    return {"definition": d, "scope": ref, "window": w, "repeats": repeats, "scopes": choices,
+            "unknown": _unknown_rows(conn, pack, d, ref, w)}
+
+
+def _unknown_rows(conn, pack, d: dict, scope: dict, w: dict) -> list[dict]:
+    """The rows whose `requires` measure is unknown for this scope and window, grouped by why (no business plan
+    loaded): [{rows: [row ids], note}]. The page says the note once, in place of those rows, not as empty panels."""
+    said: dict[str, str] = {}
+    for need in dict.fromkeys(r["requires"] for r in d["rows"] if r.get("requires")):
+        m = _value(conn, pack, need, scope, w)
+        if m["unknown"]:
+            note = m["note"] or "unknown"
+            said[need] = note[:1].upper() + note[1:]
+    out: dict[str, dict] = {}
+    for r in d["rows"]:
+        if note := said.get(r.get("requires")):
+            out.setdefault(note, {"rows": [], "note": note})["rows"].append(r["id"])
+    return list(out.values())
 
 
 def panel_data(conn, pack, key: str, panel_id: str, scope: str | None = None, window: str | None = None,
@@ -166,7 +184,7 @@ def panel_data(conn, pack, key: str, panel_id: str, scope: str | None = None, wi
 
 def _value(conn, pack, key: str, scope: dict, w: dict, grain: str | None = None, history: bool = False) -> dict:
     m = metrics.registry()[key]
-    at = _at(w) if m.dated else None
+    at = _at(w) if m.dated or m.windowed else None  # a windowed measure ends on the day the link names, if it names one
     return metrics.value(conn, pack, key, scope=scope["id"], window=w["key"], at=at, grain=grain, history=history)
 
 

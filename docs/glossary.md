@@ -162,6 +162,10 @@ with its reason. Choosing another needs a reason; the choice is kept on the case
 **Plan.** The one timeline of every planned job from every source: SAP orders and maintenance plans, inspections,
 schedules, and work the IOC planned for a day. A bar on it is a **plan item**.
 
+**Plan line.** One line of the business plan: the work a program means to do on a facility or area over a period,
+with the hours and cost it estimates, read against the cases matched to it (plan against actual). Written by a planner or
+brought by the business plan export. Its **variance** is the actual less the estimate; above 0 is over the plan.
+
 **Panel.** One figure, chart, list or note on a report, sized in quarters of the width. It reads a registered
 measure, a trend or the Work list's rows; it never adds up a number of its own. See [reports](reports.md).
 

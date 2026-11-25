@@ -1,4 +1,4 @@
-"""Command line: fakeplant generate | demo | drawings | journal | historian | oilfield."""
+"""Command line: fakeplant generate | demo | drawings | journal | historian | oilfield | business-plan."""
 
 import argparse
 import json
@@ -30,6 +30,8 @@ def main(argv=None):
     jr = sub.add_parser("journal", help="write a hand-written bundle's DCS alarm and event journal from its process model")
     jr.add_argument("bundle", help="the bundle folder, e.g. fakeplant/bundles/kestrel")
     jr.add_argument("--days", type=int, default=100, help="days of journal up to today")
+    bp = sub.add_parser("business-plan", help="write a folder's business plan export from its own SAP exports")
+    bp.add_argument("folder", help="e.g. fakeplant/bundles/kestrel/exports")
     of = sub.add_parser("oilfield", help="rewrite a folder of metric exports in US oilfield units, in place")
     of.add_argument("folder", help="e.g. fakeplant/bundles/kestrel/exports")
     h = sub.add_parser("historian", help="serve a fake PI Web API and ADX over the fake plant's points")
@@ -48,6 +50,10 @@ def main(argv=None):
         from . import drawings
 
         _print(drawings.render(Path(args.bundle)))
+    elif args.cmd == "business-plan":
+        from . import business_plan
+
+        _print(business_plan.write(Path(args.folder)))
     elif args.cmd == "oilfield":
         from . import oilfield
 
@@ -98,6 +104,12 @@ def generate(args) -> dict:
     from .common import _write_csv
 
     _write_csv(out / "p6_activities.csv", schedules.export(out))
+    # the business plan export, read by Fuzer's built-in business plan source: its lines plan the work in the SAP
+    # exports, so the Plan against actual report has a plan to read (the shared test plant has none, as a site
+    # without one)
+    from . import business_plan
+
+    stats["business_plan"] = business_plan.write(out)
     if args.format == "parquet":
         stats["parquet_tables"] = lake.to_parquet(out)
     else:

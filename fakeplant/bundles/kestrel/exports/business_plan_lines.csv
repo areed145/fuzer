@@ -1,0 +1,19 @@
+line_id,plan,program,title,work_kind,floc,period_start,period_end,estimate_hours,estimate_cost,currency
+BP-KRGP-A1-MNT-P-1,KRGP business plan,Maintenance,"Maintenance, Train A1 inlet separation",maintenance,KRGP-A1,today-91d,today-1d,24,1700,USD
+BP-KRGP-C1-MNT-P-1,KRGP business plan,Maintenance,"Maintenance, Train C1 glycol dehydration",maintenance,KRGP-C1,today-91d,today-1d,116,3400,USD
+BP-KRGP-G1-MNT-P-1,KRGP business plan,Maintenance,"Maintenance, Train G1 utilities",maintenance,KRGP-G1,today-91d,today-1d,48,300,USD
+BP-KRGP-H1-INSP-P+0,KRGP business plan,Inspection,"Inspection, Train H1 flare and sales metering",inspection,KRGP-H1,today,today+90d,24,2800,USD
+BP-KRGP-A1-MNT-P+0,KRGP business plan,Maintenance,"Maintenance, Train A1 inlet separation",maintenance,KRGP-A1,today,today+90d,40,4100,USD
+BP-KRGP-B1-MNT-P+0,KRGP business plan,Maintenance,"Maintenance, Train B1 compression",maintenance,KRGP-B1,today,today+90d,40,4100,USD
+BP-KRGP-C1-MNT-P+0,KRGP business plan,Maintenance,"Maintenance, Train C1 glycol dehydration",maintenance,KRGP-C1,today,today+90d,92,1100,USD
+BP-KRGP-D1-MNT-P+0,KRGP business plan,Maintenance,"Maintenance, Train D1 amine treating",maintenance,KRGP-D1,today,today+90d,52,1500,USD
+BP-KRGP-G1-MNT-P+0,KRGP business plan,Maintenance,"Maintenance, Train G1 utilities",maintenance,KRGP-G1,today,today+90d,56,4600,USD
+BP-KRGP-A1-INSP-P+1,KRGP business plan,Inspection,"Inspection, Train A1 inlet separation",inspection,KRGP-A1,today+91d,today+181d,20,2300,USD
+BP-KRGP-C1-INSP-P+1,KRGP business plan,Inspection,"Inspection, Train C1 glycol dehydration",inspection,KRGP-C1,today+91d,today+181d,24,2600,USD
+BP-KRGP-D1-INSP-P+1,KRGP business plan,Inspection,"Inspection, Train D1 amine treating",inspection,KRGP-D1,today+91d,today+181d,24,2000,USD
+BP-KRGP-H1-INSP-P+1,KRGP business plan,Inspection,"Inspection, Train H1 flare and sales metering",inspection,KRGP-H1,today+91d,today+181d,28,2100,USD
+BP-KRGP-E1-MNT-P+1,KRGP business plan,Maintenance,"Maintenance, Train E1 hydrocarbon dew point control",maintenance,KRGP-E1,today+91d,today+181d,24,2000,USD
+BP-KRGP-TAR-P+1,KRGP business plan,Turnaround KR-TAR-2027,Turnaround KR-TAR-2027 scope,turnaround,KRGP,today+91d,today+181d,116,287300,USD
+BP-KRGP-B1-MNT-P+3,KRGP business plan,Maintenance,"Maintenance, Train B1 compression",maintenance,KRGP-B1,today+273d,today+363d,24,2600,USD
+BP-KRGP-E1-COAT-P+0,KRGP business plan,Maintenance,"Coating repairs, Train E1 hydrocarbon dew point control",maintenance,KRGP-E1,today,today+90d,72,10900,USD
+BP-KRGP-F1-COAT-P+0,KRGP business plan,Maintenance,"Coating repairs, Train F1 condensate stabilization",maintenance,KRGP-F1,today,today+90d,96,14600,USD

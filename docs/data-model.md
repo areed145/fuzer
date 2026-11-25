@@ -78,6 +78,16 @@ and a schedule kept elsewhere is mapped from the Sources page (`tests/sources/te
 complete mapping). After each register build, and at every deploy, each project with activities under it becomes a
 schedule on Plan (`ops/schedule.py: sync_activities`).
 
+## Business plan
+
+A business plan export lands as `plan_line` entities, each `located_at` the facility or area it plans work on, with
+its plan, program, work kind, period and the hours and cost it estimates. The built-in `business_plan` source reads
+`business_plan_lines.csv` this way (`mappings/business_plan_line.yaml`; the demo data carries one, written by
+`fakeplant business-plan` from the folder's SAP exports). After each register build each line is an intent line
+under its program and plan containers, matched to the cases whose jobs are on that plant in its period
+(`ops/business_plan.py: sync`), and Plan against actual reads it. Without any line, plan against actual is unknown
+("no business plan loaded"), never 0.
+
 ## Incidents
 Logged events (`involves`), downtime (`caused_by`) and notifications (`concerns`)
 are signals on a tag; instrument tags roll up to the equipment tag they're

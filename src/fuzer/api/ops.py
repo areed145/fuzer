@@ -1488,13 +1488,13 @@ def plan_reschedule(item_id: int, r: PlanReschedule, conn=Depends(get_conn)):
 def plan_sync(conn=Depends(get_conn)):
     """Bring the plan's SAP work orders, maintenance plans and planning-system schedules up to date with the register
     now (the rebuild does it too)."""
-    from ..ops import containers, plan, schedule, source_links
+    from ..ops import business_plan, containers, plan, schedule, source_links
 
     def both(c):
         return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c),
                 "planning_system": schedule.sync_activities(c), "containers": containers.sync(c),
                 "cases": source_links.sync_orders(c), "activities": source_links.sync_activities(c),
-                "moves": source_links.send_moves(c)}
+                "business_plan": business_plan.sync(c), "moves": source_links.send_moves(c)}
     return _plan_call(conn, both)
 
 

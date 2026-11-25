@@ -44,6 +44,10 @@ rows:
     repeat: {kind: area, limit: 8}  # drawn once for each entity of that kind beneath the scope
     panels:
       - {id: area-backlog, type: stat, size: 1, measure: work.backlog}
+  - id: plan
+    requires: plan.estimate_hours   # while this measure is unknown (no business plan loaded), the row is its one line
+    panels:
+      - {id: plan-lines, type: table, size: 4, rows: plan.lines}
   - panels:
       - {id: overdue, type: cases, size: 4, title: Overdue cases, filter: {overdue: true}, limit: 10, phone: false}
 ```
