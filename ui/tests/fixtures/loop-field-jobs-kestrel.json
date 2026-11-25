@@ -759,7 +759,7 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-1e1744d55bc5",
+    "fuzer_id": "fz-tag-a2922fdd1f0e",
     "kind": "tag",
     "label": "C1-P-3002B",
     "lat": 40.8709,
@@ -768,7 +768,16 @@
     "site": "Train C1 glycol dehydration"
    },
    {
-    "fuzer_id": "fz-permit-b7c83f086ebc",
+    "fuzer_id": "fz-isolation-61df6a8e7f20",
+    "kind": "isolation",
+    "label": "ISO-24102-1",
+    "lat": null,
+    "lon": null,
+    "offshore": false,
+    "site": null
+   },
+   {
+    "fuzer_id": "fz-permit-5497391424fc",
     "kind": "permit",
     "label": "PTW-24102",
     "lat": null,
@@ -781,7 +790,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-24T04:57:54.866197+00:00",
+  "due": "2026-11-25T22:46:23.018415+00:00",
   "evidence": {
    "finding": {
     "detector": "permits.permit_lapsed",
@@ -814,7 +823,7 @@
      {
       "kind": "time",
       "label": "Valid to",
-      "value": "2026-11-20 18:00"
+      "value": "2026-11-22 18:00"
      },
      {
       "kind": "text",
@@ -824,7 +833,7 @@
     ],
     "method": "Permit to work register: permits past their valid-to time and not closed, read with the state of each isolation they hold",
     "origin": "deterministic",
-    "start": "2026-11-20 18:00",
+    "start": "2026-11-22 18:00",
     "v": 1
    },
    "isolations": [
@@ -868,7 +877,7 @@
     {
      "kind": "time",
      "label": "Valid to",
-     "value": "2026-11-20 18:00"
+     "value": "2026-11-22 18:00"
     },
     {
      "kind": "text",
@@ -880,22 +889,23 @@
    "origin": "deterministic",
    "origin_label": "Rule",
    "standard": null,
-   "start": "2026-11-20 18:00",
+   "start": "2026-11-22 18:00",
    "subjects": [
-    "fz-tag-1e1744d55bc5",
-    "fz-permit-b7c83f086ebc"
+    "fz-tag-a2922fdd1f0e",
+    "fz-isolation-61df6a8e7f20",
+    "fz-permit-5497391424fc"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-23T20:57:54.847425+00:00",
+  "first_seen": "2026-11-25T14:46:22.986603+00:00",
   "handover": null,
   "history": [],
-  "id": 43,
-  "item_id": 43,
+  "id": 41,
+  "item_id": 41,
   "joined_to": null,
   "key": "PTW-24102",
   "label": "Permit lapsed with plant still isolated",
-  "last_seen": "2026-11-23T20:57:54.847425+00:00",
+  "last_seen": "2026-11-25T14:46:22.986603+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -916,8 +926,8 @@
     "state": "expired",
     "type": "cold work",
     "valid": false,
-    "valid_from": "2026-11-13 06:00",
-    "valid_to": "2026-11-20 18:00",
+    "valid_from": "2026-11-15 06:00",
+    "valid_to": "2026-11-22 18:00",
     "why_not": "expired",
     "work": "Glycol pump B quarterly service"
    }
@@ -928,7 +938,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-23T20:57:54.866197+00:00",
+   "at": "2026-11-25T14:46:23.018415+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -939,16 +949,17 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-1e1744d55bc5",
-   "fz-permit-b7c83f086ebc"
+   "fz-tag-a2922fdd1f0e",
+   "fz-isolation-61df6a8e7f20",
+   "fz-permit-5497391424fc"
   ],
   "task_id": 110,
   "task_name": "Field check",
   "task_role": "operator",
-  "title": "PTW-24102 on C1-P-3002B: lapsed with 1 isolation still in place",
+  "title": "Permit PTW-24102 lapsed with 1 isolation still in place on C1-P-3002B",
   "type": "permit_lapsed",
   "unmatched": [],
-  "updated_at": "2026-11-23T20:57:54.847425+00:00",
+  "updated_at": "2026-11-25T14:46:22.986603+00:00",
   "value_usd": null,
   "warnings": []
  },

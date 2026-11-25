@@ -427,7 +427,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 
 ## permit_lapsed
 
-**A permit lapsed with plant still isolated under it.** Each permit past its valid-to time and not closed, with isolations still applied or verified, raised as `permit_lapsed` for the ops lead (keyed by the permit); open ones closed, back in date or with nothing isolated are cleared.
+**A permit lapsed with plant still isolated under it.** Each permit past its valid-to time and not closed, with isolations still applied or verified, raised as `permit_lapsed` for the ops lead (keyed by the permit), about its location and its isolation points, with the permit, its valid-to time and each isolation still in place as evidence; open ones closed, back in date or with nothing isolated are cleared.
 
 - **Kind:** Rule
 - **Runs:** Every hour

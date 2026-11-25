@@ -117,7 +117,7 @@ or well surveillance) send alerts through a source pack's `detection_providers`.
 
 | Work | Where it comes from | Matched to | Routed to | Field | Closes |
 |---|---|---|---|---|---|
-| **Permit lapsed with plant still isolated** `permit_lapsed` | Permit to work records: past valid-to, not closed, isolations still in place | The permit and its locations | Ops lead queue | Yes: Options, or Send to the field from the case | By itself when the permit is closed or back in date, or nothing on it is still isolated |
+| **Permit lapsed with plant still isolated** `permit_lapsed` | Permit to work records: past valid-to, not closed, isolations still in place | The permit, its location and its isolation points | Ops lead queue | Yes: Options, or Send to the field from the case | By itself when the permit is closed or back in date, or nothing on it is still isolated |
 | **Bypass overdue** `bypass_overdue` | A safeguard still bypassed past its authorised expiry | The bypass, the safeguard, what it protects and acts on | Ops lead queue | Sent from the case | When the register shows it removed. Active bypasses are on every handover. |
 | **Proof test overdue** `proof_test_overdue` | A safeguard past its proof test interval, or with none on file | The safeguard and what it protects | Engineer queue | Sent from the case | When a test is recorded |
 | **Safeguard demand to review** `safeguard_demand` | A safeguard that failed on demand, or was demanded more often than its risk assessment assumed | The safeguard and what it protects | Engineer queue | No | Desk close-out |
