@@ -867,6 +867,48 @@ test("another option than the recommended one takes an optional why, which goes 
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.26h after Escalate the case reads again once its workflow has moved on, and waits for its options to draw (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    // the escalation is saved before the case's step reaches its new queue: the read made at once still shows the old one
+    let chosen = 0, readsAfter = 0, optionsAnswered = false;
+    const step = (role) => ({ id: 50, kind: "user", name: "Work the case", element: "work", role, assignee: null, process_id: 1,
+      due_at: null, created_at: "2026-11-22T12:00:00Z" });
+    const item = (role) => ({ id: 21, title: "20-K-2300B tripped", type: "machine_trip", state: "open", subjects: [],
+      created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], payload: { exception_id: 7 },
+      processes: [{ id: 1, process_key: "queue_item", state: "running", definition_id: 3, open: [step(role)] }] });
+    await page.route("**/work/items/21", (route) => {
+      if (chosen) readsAfter++;
+      return route.fulfill({ json: item(chosen && readsAfter > 1 ? "engineer" : "ops_lead") });
+    });
+    await page.route("**/work/items/21/options", async (route) => {
+      if (!optionsAnswered) await new Promise((r) => setTimeout(r, 600));
+      optionsAnswered = true;
+      return route.fulfill({ json: chosen ? caseOptions({ applies: false, why_not: "escalated", options: [] })
+        : caseOptions({ recommended: "escalate", reason: "an engineer decides" }) });
+    });
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      chosen++;
+      return route.fulfill({ json: { choice: { id: 3, chosen: "escalate", recommended: "escalate", accepted: true },
+        event: { id: 7, item_id: 21, stage: "desk", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => { localStorage.setItem("fuzer.reviewer", "riley"); localStorage.clear(); localStorage.setItem("fuzer.reviewer", "riley"); });
+    await page.reload();
+    // nothing of the case moves under the reader: Waiting on and the options draw together, once the options answer
+    const waiting = page.getByLabel("Next step");
+    await page.getByLabel("Options").waitFor();
+    assert.equal(await waiting.count(), 1, "Waiting on drew with the options, not before them");
+    await waiting.getByText(/With .*ops lead/i).waitFor();
+    await page.getByLabel("Options").getByRole("button", { name: "Escalate", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Escalated" }).waitFor();
+    // the read made at once still has the old queue; the one after the workflow moved on shows where it went
+    await waiting.getByText(/With .*engineer/i).waitFor({ timeout: 5000 });
+    assert.equal(chosen, 1, "the escalation went once: only reads repeat");
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
+
 // P5.25d (#1347): a dispatch that is not ready and not recommended goes with one optional why box, its fields stay
 // inside the option's card, and "Dispatched to …" shows in view on every width.
 for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["iPad landscape", { width: 1194, height: 834 }],
@@ -4329,6 +4371,10 @@ for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]
     await said.getByText("It goes back to the IOC.").waitFor();  // the IOC's queue, not the dispatcher in person (#1364)
     await card.waitFor({ state: "detached" });
     await page.waitForTimeout(300);
+    // P5.26h: each list's count is of the job cards under it, never one counting the job just reported
+    const counted = await page.evaluate(() => [...document.querySelectorAll("section.field-jobs")].map((s) =>
+      [Number(s.querySelector("h2 .muted, h2 small, h2 span")?.textContent ?? 0) || 0, s.querySelectorAll(".field-job").length]));
+    assert.ok(counted.length > 0 && counted.every(([n, cards]) => n === cards), JSON.stringify(counted));
     // said where the card was: below the job above it, in view and clear of the top bar
     const [prev, note] = await Promise.all([page.locator(".field-job", { hasText: "Gauge check" }).boundingBox(), said.boundingBox()]);
     const bar = await page.evaluate(() => { const b = document.querySelector(".topbar")?.getBoundingClientRect();

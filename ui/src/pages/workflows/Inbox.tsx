@@ -148,7 +148,8 @@ export function InboxPage() {
       {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
       {(sent.length > 0 || reported?.list === "sent") && <section className="field-jobs" aria-labelledby="sent-to-you">
-        <Heading id="sent-to-you" detail={sent.length}>Your field jobs</Heading>
+        {/* the count is of the job cards under it: a job just reported shows its notice in place, not counted */}
+        <Heading id="sent-to-you" detail={sent.filter((j) => j.id !== reported?.id).length || undefined}>Your field jobs</Heading>
         {cards(sent, "sent")}
       </section>}
       {!offline && fieldRole && <NoteToIOC person={person} />}
@@ -156,7 +157,7 @@ export function InboxPage() {
       <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
         hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />
       {(waitingJobs.length > 0 || reported?.list === "waiting") && <section className="field-jobs" aria-labelledby="waiting-jobs">
-        <Heading id="waiting-jobs" detail={waitingJobs.length}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
+        <Heading id="waiting-jobs" detail={waitingJobs.filter((j) => j.id !== reported?.id).length || undefined}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
         {cards(waitingJobs, "waiting")}
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}

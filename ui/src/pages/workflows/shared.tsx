@@ -6,7 +6,7 @@ import { Due, holder, priorityLevel, usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
 import { useState, type ReactNode } from "react";
 import { api, type ChecklistProgress, type WorkRow } from "../../api";
-import { href, notifyChanged, useAction, useAsync } from "../../lib";
+import { href, useAction, useAsync } from "../../lib";
 import { queue, workKind } from "../../wording";
 
 /** A step named for the engine, not for the work: where it would be a title or a row's lead, the work is used. */
@@ -188,7 +188,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   const [blocked, setBlocked] = useState<string[] | null>(null);
   const a = useAction();
   // Said where the IOC pressed Send (red team #2): the form empties, so without this nothing showed it went. The case
-  // reads again now and once more shortly, as its workflow moves on to the field check after the send is saved.
+  // reads again now and once more shortly (useAction), as its workflow moves on to the field check after the send is saved.
   const [sent, setSent] = useState<string | null>(null);
   const field = (people.data ?? []).filter((p) => p.roles.includes("operator"));
   const named = (v: string) => v === "role:operator" ? queue("operator") : field.find((p) => p.name === v)?.display_name || v;
@@ -196,8 +196,7 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
     const who = named(to);
     return a.run("Sending to the field", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined, due || undefined), () => {
       setSent(`Sent to ${who}${due ? `, wanted back by ${when(due)}` : ""}. It is on their field jobs, and their report comes back to you here.`);
-      setTo(""); setAsk(""); setWhy(""); setDue(""); setBlocked(null); onDone(); notifyChanged();
-      window.setTimeout(onDone, 1500);
+      setTo(""); setAsk(""); setWhy(""); setDue(""); setBlocked(null); onDone();
     }).catch(() => undefined);
   };
   const notReady = a.error?.startsWith("Not ready to dispatch") ?? false;

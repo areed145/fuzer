@@ -51,3 +51,31 @@ def test_the_counts_agree_across_every_endpoint_that_shows_them(okan_db):
         overdue = {r["exception_id"]: r["overdue"] for r in rows if r.get("exception_id")}
         spots = client.get("/attention").json()["places"]
         assert all(i["overdue"] == overdue[i["id"]] for p in spots for i in p["top"] if i["id"] in overdue)
+
+
+def test_the_counts_follow_a_change_at_once(okan_db):
+    """P5.26h, #1370: the counts the badge and Tower read and All work's list are one computation shared until anything
+    is written. Work cleared is gone from both on the next read, and they still agree: no count is served from before
+    the change."""
+    from fuzer import api
+    from fuzer.ops import exceptions
+    from fuzer.workflow import engine
+
+    conn = okan_db.conn
+    engine.set_person(conn, "ivy", [r["name"] for r in conn.execute("select name from work_role where kind = 'person'")])
+    conn.commit()
+    with TestClient(api.app) as client:
+        before = client.get("/work/counts", params={"person": "ivy"}).json()
+        rows = client.get("/cases", params={"limit": 5000}).json()
+        assert rows["total"] == before["open"]
+        mine = {r.get("item_id") for r in client.get("/cases", params={"limit": 5000, "waiting_on": "ivy"}).json()["rows"]}
+        row = next(r for r in rows["rows"] if r.get("item_id") and r.get("exception_id") and r["item_id"] in mine)
+        item = row["item_id"]
+        ex = conn.execute("select type, key from exception_record where id = %s", (row["exception_id"],)).fetchone()
+        assert exceptions.clear(conn, ex["type"], ex["key"], "ivy", "cleared in the test")
+        conn.commit()
+        after = client.get("/work/counts", params={"person": "ivy"}).json()
+        listed = client.get("/cases", params={"limit": 5000}).json()
+        assert after["open"] == before["open"] - 1 == listed["total"]
+        assert after["waiting_on_you"]["total"] == before["waiting_on_you"]["total"] - 1
+        assert item not in {r.get("item_id") for r in listed["rows"]}
