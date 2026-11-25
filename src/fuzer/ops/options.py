@@ -222,8 +222,8 @@ def _deferred(now: dict | None, hours: float, prices: dict) -> dict | None:
 def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
     """The next planned visit to the event's own equipment that it could ride along with: a plan item scheduled or
     under way, starting after now and within `days`, not this event's own, on one of its assets or on what they are
-    part of short of an area (an instrument's exchanger, a well's tags). An area can be half a plant (Okan's
-    compression area holds half its tags), so a job elsewhere in it is not a visit to this one (#1358)."""
+    part of short of an area (an instrument's exchanger, a well's tags). An area can be half a plant (one demo
+    field's compression area holds half its tags), so a job elsewhere in it is not a visit to this one (#1358)."""
     from .plan import ACTIVE
 
     subjects = list(row["subjects"] or [])
