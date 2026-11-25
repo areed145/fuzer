@@ -201,7 +201,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   risk and defers less than a separate trip costs (`options.trip_usd`); dispatch now when waiting costs more or leaves
   a high risk; escalate when it should go now and can't. What is not known is named. The recommended option is one
   tap (a dispatch goes to the operator queue, or **Choose who…** for a person, what to do, when it is wanted back and a
-  priority); another needs a reason (`POST /exceptions/{id}/options/choose`). The dispatch carries what to check or do
+  priority); any choice takes one optional why, and nothing holds the button back, a dispatch that is not ready included
+  (`POST /exceptions/{id}/options/choose`). Once the field reports it done the options go and the case leads with Close out. The dispatch carries what to check or do
   to the field job ("Go and have a look, report what you find" when the IOC writes nothing), with "Why now" only when
   the IOC wrote its own reason: the recommendation's costing stays on the case, not on the field's instruction; the choice, the recommendation and the reason go on the case's history, and Work performance by work type
   shows how often the recommendation was taken (`GET /options/acceptance`).

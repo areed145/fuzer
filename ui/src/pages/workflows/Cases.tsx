@@ -165,7 +165,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {/* the choices side by side, with what each costs (P5.20): the IOC's decision on field work comes first */}
       {!backFromField && optionsCard}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
-        optionsShown={!!options.data?.applies} closeout={inStep ? closeout : null}
+        optionsShown={!!options.data?.applies || backFromField} closeout={inStep ? closeout : null}
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null}
         proposal={typeof raised.opportunity === "string"}
         asked={typeof raised.summary === "string" ? raised.summary : null}
@@ -218,7 +218,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
   /** Close out or Finish, shown under the step it ends. */
   closeout?: ReactNode;
-  /** The Options card above dispatches it (P5.20), so the step leaves out its own Send to the field. */
+  /** The Options card dispatches it (P5.20), or the field has reported, so the step leaves out its own Send to the field. */
   optionsShown?: boolean;
   /** The case shows its proposal with the decision below, so the step leaves it out. */
   proposal?: boolean;

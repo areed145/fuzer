@@ -1,11 +1,11 @@
 /** Options with consequences (P5.20, #1251): the realistic choices for a piece of field work side by side, each with
  * when it would be done, the production deferred until then, the risk of waiting and whether it is ready, one of them
- * recommended with its reason. The recommended one is one tap; another needs a reason, and both are kept on the case. */
-import { useState } from "react";
+ * recommended with its reason. The recommended one is one tap; any choice takes an optional why, kept on the case. */
+import { useState, type ReactNode } from "react";
 import { api, type CaseOption, type CaseOptions } from "../../api";
 import { estimate, money, twoFigures, when } from "../../format";
 import { Status, notifyChanged, useAction, useAsync } from "../../lib";
-import { Badge, Button, Card, ErrorText, Field, Input, Line, Notice, Select, Text, type Tone } from "../../ui";
+import { ActionStatus, Badge, Button, Card, Field, Input, Line, Notice, Select, Text, type Tone } from "../../ui";
 import { person as personName, queue } from "../../wording";
 
 const RISK: Record<string, Tone> = { Low: "ok", Medium: "warn", High: "danger" };
@@ -13,13 +13,19 @@ const RISK: Record<string, Tone> = { Low: "ok", Medium: "warn", High: "danger" }
 const VERB: Record<CaseOption["key"], string> = {
   dispatch: "Dispatch now", window: "Add to the visit", shelve: "Shelve", escalate: "Escalate",
 };
+const DOING: Record<CaseOption["key"], string> = {
+  dispatch: "Dispatching…", window: "Adding to the visit…", shelve: "Shelving…", escalate: "Escalating…",
+};
 const DONE: Record<CaseOption["key"], string> = {
   dispatch: "Dispatched", window: "Added to the visit", shelve: "Shelved", escalate: "Escalated",
 };
+type Choice = Parameters<typeof api.chooseOption>[3];
+/** Carries out an option; `name` is how the person it goes to is called, for the confirmation. */
+type OnChoose = (c: Choice, name?: string) => void;
 const PRIORITY = [["", "as it is"], ["0.9", "High"], ["0.6", "Medium"], ["0.3", "Low"]] as const;
 
 /** The options for the event a case works (read by the case page, which hides its own Send to the field while they
- * show); nothing when there are none to choose (desk work, with the field). */
+ * show); nothing when there are none to choose (desk work, with the field, the field reported it done). */
 export function CaseOptionsCard({ o, person, readOnly = false, onDone }: {
   o: { data?: CaseOptions; reload: () => void }; person: string; readOnly?: boolean; onDone: () => void;
 }) {
@@ -38,7 +44,9 @@ function OptionsLoaded({ o, person, readOnly = false, onDone }: {
   o: { data?: CaseOptions; reload: () => void }; person: string; readOnly?: boolean; onDone: () => void;
 }) {
   const [said, setSaid] = useState<string | null>(null);
-  if (said) return <Notice role="status" className="case-options-done">{said}</Notice>;
+  // The card it replaces can be a screen tall, scrolled to its button: the confirmation is brought into view.
+  if (said) return <Notice role="status" className="case-options-done"
+    ref={(el) => el?.scrollIntoView?.({ block: "nearest" })}>{said}</Notice>;
   const d = o.data;
   if (!d?.applies || d.exception_id == null) return null;
   return <OptionsView d={d} person={person} readOnly={readOnly}
@@ -49,27 +57,30 @@ function OptionsView({ d, person, readOnly, onChosen }: {
   d: CaseOptions; person: string; readOnly: boolean; onChosen: (said: string) => void;
 }) {
   const [open, setOpen] = useState<CaseOption["key"] | null>(null);
+  const [acted, setActed] = useState<CaseOption["key"] | null>(null);
   const a = useAction();
   const last = d.decided?.[0];
-  const choose = (opt: CaseOption, c: Parameters<typeof api.chooseOption>[3] = {}) =>
-    a.run(VERB[opt.key], () => api.chooseOption(d.exception_id!, person, opt.key, c), () => {
-      const to = opt.key === "dispatch" ? ` to ${c.to && !c.to.startsWith("role:") ? personName(c.to) : `the ${queue(c.to ?? "operator")}`}` : "";
+  const choose = (opt: CaseOption, c: Choice = {}, name?: string) => {
+    setActed(opt.key);
+    return a.run(DOING[opt.key], () => api.chooseOption(d.exception_id!, person, opt.key, c), () => {
+      const to = opt.key === "dispatch" ? ` to ${c.to && !c.to.startsWith("role:") ? name ?? personName(c.to) : `the ${queue(c.to ?? "operator")}`}` : "";
       onChosen(`${DONE[opt.key]}${to}${opt.key === d.recommended ? ", as recommended" : ""}. The choice and why are on the case.`);
     });
+  };
   return (
     <Card className="case-options" aria-label="Options" title="Options">
       <Cost d={d} />
       <ul className="case-options-list">
         {d.options.filter((opt) => opt.available).map((opt) => <Option key={opt.key} opt={opt} d={d} readOnly={readOnly || !person} busy={!!a.busy}
           open={open === opt.key} anyOpen={open !== null} onOpen={() => setOpen(open === opt.key ? null : opt.key)}
-          onChoose={(c) => choose(opt, c)} />)}
+          onChoose={(c, name) => choose(opt, c, name)}
+          status={acted === opt.key ? <ActionStatus busy={a.busy} error={a.error} /> : null} />)}
       </ul>
       {d.options.filter((opt) => !opt.available).map((opt) =>
         <Text as="div" small key={opt.key}><strong>{opt.label}</strong>: {opt.unavailable}</Text>)}
       {last && <Text as="div" small>Last chosen: {d.options.find((x) => x.key === last.chosen)?.label ?? last.chosen},
-        {" "}by {personName(last.by)} {when(last.at)}{last.accepted ? ", as recommended" : `: ${last.reason ?? ""}`}</Text>}
+        {" "}by {personName(last.by)} {when(last.at)}{last.accepted ? ", as recommended" : last.reason ? `: ${last.reason}` : ""}</Text>}
       {d.unknown && d.unknown.length > 0 && <Text as="div" small>Not known: {d.unknown.join("; ")}.</Text>}
-      <ErrorText>{a.error}</ErrorText>
     </Card>
   );
 }
@@ -85,9 +96,11 @@ function Cost({ d }: { d: CaseOptions }) {
   return <div className="case-options-cost"><strong>Nothing deferred that Fuzer can see</strong></div>;
 }
 
-function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose }: {
+function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose, status }: {
   opt: CaseOption; d: CaseOptions; readOnly: boolean; busy: boolean; open: boolean; anyOpen: boolean;
-  onOpen: () => void; onChoose: (c: Parameters<typeof api.chooseOption>[3]) => void;
+  onOpen: () => void; onChoose: OnChoose;
+  /** Dispatching…, or why it failed, under the option that was chosen. */
+  status: ReactNode;
 }) {
   const rec = opt.key === d.recommended;
   const blocked = opt.ready === false;
@@ -115,15 +128,17 @@ function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose }: {
           : <Button variant="secondary" disabled={busy} aria-expanded={open} onClick={onOpen}>{VERB[opt.key]}…</Button>}
         {oneTap && opt.key === "dispatch" && <Button variant="ghost" disabled={busy} aria-expanded={open} onClick={onOpen}>Choose who…</Button>}
       </div>}
-      {open && !readOnly && <ChoiceForm opt={opt} rec={rec} busy={busy} onChoose={onChoose} />}
+      {open && !readOnly && <ChoiceForm opt={opt} busy={busy} onChoose={onChoose} />}
+      {status}
     </li>
   );
 }
 
-/** What carrying out an option needs beyond the tap: who and what for a dispatch, and why, when it is not the
- * recommended one or it goes though not ready. */
-function ChoiceForm({ opt, rec, busy, onChoose }: {
-  opt: CaseOption; rec: boolean; busy: boolean; onChoose: (c: Parameters<typeof api.chooseOption>[3]) => void;
+/** What carrying out an option needs beyond the tap: who and what for a dispatch, and one optional why, kept on the
+ * case. Nothing holds the button back: a dispatch that is not ready names its blocker on the option above. Each field
+ * takes the option's width, so none runs out of its card on a phone, a tablet or a desk. */
+function ChoiceForm({ opt, busy, onChoose }: {
+  opt: CaseOption; busy: boolean; onChoose: OnChoose;
 }) {
   const people = useAsync(() => opt.key === "dispatch" ? api.workPeople() : Promise.resolve([]), [opt.key]);
   const [to, setTo] = useState("");
@@ -131,34 +146,29 @@ function ChoiceForm({ opt, rec, busy, onChoose }: {
   const [due, setDue] = useState("");
   const [priority, setPriority] = useState("");
   const [reason, setReason] = useState("");
-  const [override, setOverride] = useState("");
-  const blocked = opt.ready === false;
   const field = (people.data ?? []).filter((p) => p.roles.includes("operator"));
-  const missing = (!rec && !reason.trim()) || (blocked && opt.key === "dispatch" && !override.trim());
   return (
     <div className="case-option-form">
-      {opt.key === "dispatch" && <Line wrap>
-        <Field label="Send to" width="md"><Select value={to} onChange={(e) => setTo(e.target.value)}>
+      {opt.key === "dispatch" && <>
+        <Field label="Send to" width="full"><Select width="full" value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="">{queue("operator")}, whoever is free</option>
           {field.map((p) => <option key={p.name} value={p.name}>{p.display_name || p.name}
             {p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ` · holds ${p.holding ?? 0}`}</option>)}
         </Select></Field>
-        <Field label="What to check or do (they see this)" width="lg"><Input value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>
-        <Field label="Wanted back by" width="md"><Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
-        <Field label="Priority" width="sm"><Select value={priority} onChange={(e) => setPriority(e.target.value)}>
+        <Field label="What to check or do (they see this)" width="full">
+          <Input width="full" value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>
+        <Field label="Wanted back by" width="full">
+          <Input width="full" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
+        <Field label="Priority" width="full"><Select width="full" value={priority} onChange={(e) => setPriority(e.target.value)}>
           {PRIORITY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></Field>
-      </Line>}
-      {blocked && opt.key === "dispatch" && <Field label="Why send it anyway (kept on the case)" width="lg">
-        <Input value={override} onChange={(e) => setOverride(e.target.value)} /></Field>}
-      <Field label={rec ? "Why (optional; the recommendation's reason is kept otherwise)" : "Why not the recommended one (kept on the case)"} width="lg">
-        <Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-      <Button variant="primary" disabled={busy || missing}
-        title={missing ? "Say why first: it is kept on the case" : undefined}
+      </>}
+      <Field label="Why (optional, kept on the case)" width="full">
+        <Input width="full" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+      <Button variant="primary" disabled={busy}
         onClick={() => onChoose({
           ...(reason.trim() ? { reason: reason.trim() } : {}), ...(to ? { to } : {}), ...(ask.trim() ? { ask: ask.trim() } : {}),
           ...(due ? { due: new Date(due).toISOString() } : {}), ...(priority ? { priority: Number(priority) } : {}),
-          ...(override.trim() ? { override: override.trim() } : {}),
-        })}>{VERB[opt.key]}</Button>
+        }, field.find((p) => p.name === to)?.display_name || undefined)}>{VERB[opt.key]}</Button>
     </div>
   );
 }

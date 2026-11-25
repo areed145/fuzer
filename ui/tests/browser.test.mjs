@@ -817,7 +817,7 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
   });
 }
 
-test("another option than the recommended one needs a reason, which goes with the choice (P5.20)", async () => {
+test("another option than the recommended one takes an optional why, which goes with the choice (P5.20, #1347)", async () => {
   const chosen = [];
   await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
     state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
@@ -833,13 +833,88 @@ test("another option than the recommended one needs a reason, which goes with th
   const card = page.getByLabel("Options");
   await card.getByRole("button", { name: "Add to the visit…" }).click();
   const go = card.getByRole("button", { name: "Add to the visit", exact: true });
-  assert.equal(await go.isDisabled(), true);
-  await card.getByLabel("Why not the recommended one (kept on the case)").fill("crew already on OKJ-01 that day");
+  assert.equal(await go.isDisabled(), false, "nothing holds the button back");
+  assert.equal(await go.getAttribute("title"), null, "no reason hidden in a hover tooltip");
+  await card.getByLabel("Why (optional, kept on the case)").fill("crew already on OKJ-01 that day");
   await go.click();
   await page.getByRole("status").filter({ hasText: "Added to the visit. The choice and why are on the case." }).waitFor();
   assert.deepEqual(chosen, [{ by: "riley", option: "window", reason: "crew already on OKJ-01 that day" }]);
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
+
+// P5.25d (#1347): a dispatch that is not ready and not recommended goes with one optional why box, its fields stay
+// inside the option's card, and "Dispatched to …" shows in view on every width.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["iPad landscape", { width: 1194, height: 834 }],
+  ["iPad portrait", { width: 834, height: 1194 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`dispatch now needs no hidden why, keeps its fields in its card and says where it went (#1347, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const chosen = [];
+    const blocked = caseOptions({ recommended: "escalate", reason: "It can't go now and waiting leaves the risk high: an engineer decides the way round.",
+      options: caseOptions().options.map((o) => o.key === "dispatch"
+        ? { ...o, ready: false, blockers: ["Spares: Rod packing set: 0 in stock, 2 needed; nothing on order"] } : o) });
+    let options = blocked;
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
+      state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
+      { name: "kai", display_name: "Kai Moana", roles: ["operator"], holding: 1 }] }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.route("**/exceptions/7/options/choose", async (route) => {
+      chosen.push(route.request().postDataJSON());
+      await new Promise((r) => setTimeout(r, 400));  // a slow server: the option says it is dispatching meanwhile
+      options = caseOptions({ applies: false, why_not: "the field has it", stage: "field", options: [] });
+      return route.fulfill({ json: { choice: { id: 3, chosen: "dispatch", recommended: "escalate", accepted: false }, event: { id: 7, item_id: 21, stage: "field", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    const card = page.getByLabel("Options");
+    const option = card.locator(".case-option").filter({ hasText: "Dispatch now" });
+    await option.getByRole("button", { name: "Dispatch now…" }).click();
+    const form = option.locator(".case-option-form");
+    await form.getByLabel("Send to").selectOption("kai");
+    await form.getByLabel("What to check or do (they see this)").fill("Walk down PTW-30015 isolations before the valve is touched");
+    assert.equal(await form.locator("input, select").count(), 5, "who, what, when, priority and one why");
+    assert.equal(await form.getByText("Why", { exact: false }).count(), 1, "one why box");
+    const edge = await option.boundingBox();
+    for (const box of await form.locator("input, select, .ui-button").evaluateAll((els) => els.map((e) => {
+      const r = e.getBoundingClientRect(); return { left: r.left, right: r.right };
+    }))) assert.ok(box.left >= edge.x - 1 && box.right <= edge.x + edge.width + 1, `a field runs out of its card (${JSON.stringify(box)} in ${edge.x}+${edge.width})`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
+    const go = form.getByRole("button", { name: "Dispatch now", exact: true });
+    assert.equal(await go.isDisabled(), false, "not ready, not recommended, no why: it still goes");
+    assert.equal(await go.getAttribute("title"), null);
+    await go.click();
+    await option.getByRole("status").filter({ hasText: "Dispatching…" }).waitFor();
+    const done = page.getByRole("status").filter({ hasText: "Dispatched to Kai Moana. The choice and why are on the case." });
+    await done.waitFor();
+    const box = await done.boundingBox();
+    assert.ok(box && box.y >= 0 && box.y + box.height <= viewport.height, `the confirmation is in view (${box?.y})`);
+    assert.deepEqual(chosen, [{ by: "riley", option: "dispatch", to: "kai", ask: "Walk down PTW-30015 isolations before the valve is touched" }]);
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
+
+// P5.25d (#1347): once the field has reported it done, the case offers no dispatch, and no cost beside Close out.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a case the field reported done shows no options and no second send (#1347, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "Small drip from the drain valve", type: "field_report",
+      state: "open", subjects: [], created_by: "sam", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions({ applies: false, stage: "back",
+      why_not: "the field reported it done: close it out", options: [] }) }));
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    await page.getByRole("heading", { name: "Small drip from the drain valve" }).waitFor();
+    await page.getByLabel("Next step").waitFor();
+    assert.equal(await page.getByLabel("Options").count(), 0);
+    assert.equal(await page.getByText("Dispatch now").count(), 0);
+    assert.equal(await page.getByText("Send to the field…").count(), 0);
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
 
 test("an event to dispatch opens its options from its row on All work (P5.20)", async () => {
   const row = { id: 7, type: "machine_trip", key: "K-2300B", title: "20-K-2300B tripped", source: "sre", state: "open",

@@ -134,12 +134,9 @@ def test_a_one_tap_dispatch_asks_the_field_to_look_not_the_cost_sum(conn):
                         "('handed_off', 'created') order by id desc limit 1", (out["event"]["item_id"],)).fetchone()["r"]
     assert sent == options.ASK
 
-def test_another_option_than_recommended_needs_a_reason_and_is_counted_as_not_taken(conn):
+def test_any_option_takes_an_optional_why_and_is_counted_as_not_taken(conn):
     e = trip(conn, "K-2300B trip 3")
     visit(conn, 3)
-    with pytest.raises(options.OptionsError, match="say why"):
-        options.choose(conn, e["id"], "riley", "window")
-    conn.rollback()
     out = options.choose(conn, e["id"], "riley", "window", reason="crew already on OKJ-01 that day")
     conn.commit()
     assert out["choice"]["accepted"] is False and out["choice"]["recommended"] == "dispatch"
@@ -147,6 +144,25 @@ def test_another_option_than_recommended_needs_a_reason_and_is_counted_as_not_ta
                       (e["id"],)).fetchone()
     assert on and "crew already on OKJ-01 that day" in on["notes"] and "OKJ-01 well work" in on["notes"]
     assert options.decisions(conn, e["id"])[0]["reason"] == "crew already on OKJ-01 that day"
+    # no why: still carried out (#1347), and the recommendation's reason is not passed off as this choice's
+    e2 = trip(conn, "K-2300B trip 5")
+    out = options.choose(conn, e2["id"], "riley", "shelve")
+    conn.commit()
+    assert out["choice"]["accepted"] is False and out["choice"]["reason"] is None
+    said = [r["t"] for r in conn.execute("select data->>'text' as t from work_event where item_id = %s and kind = "
+                                         "'commented'", (out["event"]["item_id"],))]
+    assert any(s.startswith("Chose shelve") and s.endswith("Why: none given") for s in said), said
+
+
+def test_once_the_field_reports_it_done_the_options_go(conn):
+    e = trip(conn, "K-2300B trip 6")
+    options.choose(conn, e["id"], "riley", "dispatch", to="sam")
+    conn.commit()
+    ex.report(conn, e["id"], "sam", "on_site")
+    ex.report(conn, e["id"], "sam", "done", "reset the trip and restarted, running")
+    conn.commit()
+    out = options.for_exception(conn, e["id"])
+    assert out["applies"] is False and out["options"] == [], out
 
 
 def test_the_api_reads_and_chooses(conn):
@@ -162,8 +178,6 @@ def test_the_api_reads_and_chooses(conn):
     e = trip(conn, "K-2300B trip 4")
     r = client.get(f"/exceptions/{e['id']}/options")
     assert r.status_code == 200 and r.json()["recommended"] == "dispatch"
-    r = client.post(f"/exceptions/{e['id']}/options/choose", json={"by": "riley", "option": "shelve"})
-    assert r.status_code == 400 and "say why" in r.text
     r = client.post(f"/exceptions/{e['id']}/options/choose",
                     json={"by": "riley", "option": "escalate", "reason": "repeat trip: engineer to look first"})
     assert r.status_code == 200, r.text
