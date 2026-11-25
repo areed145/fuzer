@@ -6779,7 +6779,9 @@ test("a case closes out on a phone with what it was, its failure mode, cause and
   await page.goto(`${url}/#/cases/7`);
   const started = Date.now();
   await page.getByRole("button", { name: "Close out", exact: true }).click();
-  await page.getByText("Filled in from what the case says.", { exact: false }).waitFor();
+  // said beside each field it filled, not over the form (#1366): what it was, the failure mode and the action
+  await page.getByText("Filled in from what the case says").first().waitFor();
+  assert.equal(await page.getByText("Filled in from what the case says").count(), 3);
   assert.equal(await page.getByLabel("Failure mode").inputValue(), "VIB");
   assert.equal(await page.getByLabel("Action taken").inputValue(), "1");
   assert.equal(await page.getByRole("button", { name: "Close the case" }).isDisabled(), true);  // the cause is still to say
@@ -6797,6 +6799,58 @@ test("a case closes out on a phone with what it was, its failure mode, cause and
   assert.deepEqual(posts[0].suggested, { from: "words", disposition: "real", failure_mode: "VIB", activity: "1" });
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// P5.26d (#1366): a stuck level control valve was closed as "A real problem: Noise", the failure mode taken silently
+// from the folded "Equipment failure details (optional)" nobody opened. Off equipment, the folded fields are blank and
+// sent only when the person opens and sets them; "Filled in" is said only beside a field it filled that shows.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a close-out saves only what a person chose, never a folded optional field (P5.26d, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const item = { ...demoTask.item, title: "Glycol contactor level high, gauge glass agrees", state: "open", closed_at: null,
+      processes: [], events: [] };
+    await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+    const vocabulary = {
+      dispositions: { real: "A real problem", false_alarm: "False alarm", duplicate: "Duplicate", data_problem: "Data problem" },
+      outcomes: { fixed: "Fixed", contained: "Contained, follow-up planned" },
+      failure_modes: { NOI: "Noise", STD: "Structural deficiency" }, mechanisms: {}, causes: { "3": "Operation / maintenance" },
+      activities: { "1": "Replace", "4": "Adjust" },
+    };
+    const posts = [];
+    await page.route("**/work/items/7/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        posts.push(route.request().postDataJSON());
+        return route.fulfill({ status: 400, json: { detail: "kept here" } });  // nothing to draw after: the body is the test
+      }
+      // even were a failure mode suggested, the form doesn't fill the folded section with it
+      return route.fulfill({ json: { item_id: 7, record: null, vocabulary, repeats: [], equipment: false, asked: false,
+        suggestion: { from: "words", disposition: "real", failure_mode: "NOI", activity: "4" } } });
+    });
+    await page.goto(`${url}/#/cases/7`);
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    const form = page.locator(".closeout-form");
+    await form.getByLabel("What it was").waitFor();
+    assert.equal(await form.getByLabel("What it was").inputValue(), "real");
+    assert.equal(await form.getByText("Filled in from what the case says").count(), 1);  // beside What it was only
+    assert.equal(await form.getByLabel("Failure mode").count(), 0);  // folded away
+    await form.getByLabel("Outcome").selectOption("contained");
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await form.getByText("kept here").waitFor();
+    assert.equal(posts.length, 1);
+    assert.deepEqual([posts[0].disposition, posts[0].outcome, posts[0].failure_mode, posts[0].activity, posts[0].cause],
+      ["real", "contained", undefined, undefined, undefined]);
+    // opened, the folded fields are blank and claim nothing; what the person sets there is sent
+    await form.getByRole("button", { name: "Equipment failure details (optional)" }).click();
+    assert.equal(await form.getByLabel("Failure mode").inputValue(), "");
+    assert.equal(await form.getByLabel("Action taken").inputValue(), "");
+    assert.equal(await form.getByText("Filled in from what the case says").count(), 1);
+    await form.getByLabel("Failure mode").selectOption("STD");
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await expectReports(posts, 2);
+    assert.deepEqual([posts[1].failure_mode, posts[1].activity], ["STD", undefined]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
 
 // P6.1b (#656): when the re-check is due, whoever closed the problem out answers "did the fix hold?" on its case.
 test("whoever closed a problem out answers whether the fix held, and a no reopens the case (#656)", async () => {

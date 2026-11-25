@@ -68,8 +68,9 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
   const offered = s.disposition && dispositions[s.disposition] ? s.disposition : undefined;
   const start: Draft = data.record
     ? Object.fromEntries(Object.entries(data.record).filter(([, x]) => x != null).map(([k, x]) => [k, String(x)]))
-    : offered ? { disposition: offered, failure_mode: s.failure_mode, mechanism: s.mechanism, cause: s.cause,
-        activity: s.activity, outcome: s.outcome } : {};
+    : offered ? { disposition: offered, outcome: s.outcome, ...(data.equipment !== false
+        // off equipment the failure terms sit in a folded, optional section: left for the person to open and set
+        ? { failure_mode: s.failure_mode, mechanism: s.mechanism, cause: s.cause, activity: s.activity } : {}) } : {};
   const [d, setD] = useState<Draft>(start);
   const a = useAction();
   const set = (k: keyof Draft) => (e: { target: { value: string } }) => setD({ ...d, [k]: e.target.value || undefined });
@@ -83,10 +84,16 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
   const hint = !d.disposition ? "Say what it was first"
     : missingTerms.length ? `Still needed: ${missingTerms.join(", ")}`
     : d.disposition === "duplicate" && !Number(d.duplicate_of) ? "Say which case it duplicates" : undefined;
-  // "Filled in" only when a field shows something filled: the disposition, which the rest hang from
-  const suggested = !data.record && !!offered;
+  // "Filled in" sits beside each field the pre-fill filled and still shows, never as one line over the form: a folded
+  // section is never filled (the server leaves it out), so nothing is saved that the person didn't see (#1366)
+  const suggested = !data.record && !!offered && !data.asked;
+  const from = s.from === "agent" ? "the agent's suggestion" : "what the case says";
+  const filled = (k: keyof Draft) => {
+    const was = (s as Partial<Record<keyof Draft, string>>)[k];
+    return suggested && was != null && d[k] === was;
+  };
   const list = (k: keyof Draft, label: string, options: Record<string, string>, required = false) => (
-    <Field label={label} width="full">
+    <Field label={label} width="full" hint={filled(k) ? `Filled in from ${from}` : undefined}>
       <Select width="full" aria-label={label} value={d[k] ?? ""} onChange={set(k)} required={required}>
         <option value="">{required ? "Choose" : "Not known"}</option>
         {Object.entries(options).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
@@ -103,8 +110,6 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
       {openItems > 0 && !missing && <Notice tone="warn">{openItems === 1 ? "1 checklist item is" : `${openItems} checklist items are`} still
         open. Tick each one done or mark it not needed first, or finish and they stay open in the record.</Notice>}
       {missing && <Text as="p" small>This case closed without saying what it was. Fill it in so it counts.</Text>}
-      {suggested && !data.asked && <Text as="p" small muted>Filled in from {s.from === "agent" ? "the agent's suggestion" : "what the case says"}.
-        Check it before you save.</Text>}
       {list("disposition", "What it was", dispositions, true)}
       {needsTerms && <>
         {list("failure_mode", "Failure mode", v.failure_modes, true)}

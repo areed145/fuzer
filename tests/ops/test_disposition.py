@@ -66,6 +66,23 @@ def test_a_real_problem_off_equipment_needs_no_failure_terms(conn):
     conn.commit()
 
 
+def test_a_case_off_equipment_pre_fills_no_failure_terms_the_form_folds_away(conn):
+    """A stuck level control valve reported in a message was closed as "A real problem: Noise", the failure mode taken
+    from the folded, optional section nobody opened (#1366). Off equipment the pre-fill says what it was and nothing
+    the form doesn't show."""
+    case = work.open_case(conn, "manual", "Contactor level high, LCV stuck; noisy, vibration on the line",
+                          by="ioc-ann")["id"]
+    work.comment(conn, case, "alex", "Field: Done: stroked the LCV by hand, replaced the positioner")
+    words = disposition.suggest(conn, PACK, case)
+    assert words["disposition"] == "real" and words.get("failure_mode")  # the words alone name a failure mode
+    form = disposition.form(conn, PACK, case)
+    assert form["equipment"] is False
+    assert form["suggestion"] == {"from": "words", "disposition": "real"}
+    row = disposition.record(conn, PACK, case, "riley", "real", outcome="contained", suggested=form["suggestion"])
+    assert row["failure_mode"] is None and row["cause"] is None and row["activity"] is None
+    conn.commit()
+
+
 def test_a_false_alarm_or_duplicate_needs_no_cause_and_a_closed_case_shows_it_is_missing(conn):
     alarm = work.open_case(conn, "manual", "Tank level alarm: spurious, nothing wrong", by="ioc-ann")["id"]
     assert disposition.suggest(conn, PACK, alarm)["disposition"] == "false_alarm"

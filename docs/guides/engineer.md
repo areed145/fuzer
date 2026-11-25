@@ -100,7 +100,8 @@ a completed plan or a fixed instrument makes it untrue. You do not need to chase
 
 Closing a case asks what it was: a real problem, a false alarm, a duplicate, or a data problem. For a real problem
 it asks what failed, why and what was done, from the ISO 14224 lists, pre-filled from the case's own words so you
-confirm rather than type. That is what makes closed work countable and comparable: how each detector's cases
+confirm rather than type; each filled field says so beside it. Off equipment those terms are optional, folded away
+and left blank: only what you open and set there is saved. That is what makes closed work countable and comparable: how each detector's cases
 turned out, on **How the work is running** and **Settings > Detection**, is read from these answers.
 
 A real problem's close-out sets a re-check. When it is due you get a short case asking whether the fix held. "No"

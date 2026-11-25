@@ -123,9 +123,15 @@ def form(conn, pack: Pack, item_id: int) -> dict:
     problem on it needs the equipment-failure terms."""
     _text(conn, item_id)
     repeats = conn.execute("select again, at from case_repeat where first = %s order by at", (item_id,)).fetchall()
-    return {"item_id": item_id, "record": get(conn, item_id), "suggestion": suggest(conn, pack, item_id),
-            "vocabulary": vocabulary(pack), "repeats": repeats, "equipment": equipment_case(conn, item_id),
+    equipment, suggestion = equipment_case(conn, item_id), suggest(conn, pack, item_id)
+    if not equipment:  # the failure terms are optional here, folded away on the form: nothing fills what isn't shown (#1366)
+        suggestion = {k: v for k, v in suggestion.items() if k not in TERMS}
+    return {"item_id": item_id, "record": get(conn, item_id), "suggestion": suggestion,
+            "vocabulary": vocabulary(pack), "repeats": repeats, "equipment": equipment,
             "asked": asked_case(conn, item_id)}
+
+
+TERMS = ("failure_mode", "mechanism", "cause", "activity")  # a real problem's equipment-failure terms
 
 
 def record_known(conn, item_id: int, by: str, disposition: str, note: str | None = None) -> None:
