@@ -37,12 +37,13 @@ Filters, each optional, a comma list where it says so:
 from datetime import UTC, datetime
 
 from ..core import work
+from ..graph.hierarchy import WORK_KINDS
 from . import exceptions
 
 SORTS = ("value", "due", "opened", "updated", "title")
 STATES = ("open", "closed", "all")
 DIMENSIONS = ("kind", "stage", "holder", "queue", "source", "facility", "area", "asset")
-ASSET_KINDS = ("well", "pipeline", "pipeline_segment")
+ASSET_KINDS = tuple(k for k in WORK_KINDS if k not in ("tag", "equipment"))  # filed under before a tag or equipment
 
 
 def _asset(chain: list[dict]) -> dict | None:

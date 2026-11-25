@@ -152,7 +152,6 @@ export function InboxPage() {
         <Heading id="sent-to-you" detail={sent.filter((j) => j.id !== reported?.id).length || undefined}>Your field jobs</Heading>
         {cards(sent, "sent")}
       </section>}
-      {!offline && fieldRole && <NoteToIOC person={person} />}
       {!offline && fieldRole && <NewForYou person={person} told={told} onCard={onCard} />}
       <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
         hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />
@@ -162,6 +161,8 @@ export function InboxPage() {
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
+      {/* A note about no job, once, under the work: a job's own note is on its card (P5.26a) */}
+      {!offline && fieldRole && <NoteToIOC person={person} />}
       <OtherFields person={person} />
       <HowYouAreTold person={person} />
     </section>

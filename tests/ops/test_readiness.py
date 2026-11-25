@@ -56,7 +56,7 @@ def test_a_compressor_short_of_valves_waits_on_its_order_and_its_packing_has_non
     k2001 = queries.resolve_ref(conn, pack, "B1-K-2001")
     out = readiness.check(conn, [k2001])
     assert out["ready"] is False
-    spares = out["checks"][0]
+    spares = out["checks"][1]
     valves = next(p for p in spares["parts"] if p["label"] == "MAT-K2001-VLV")
     assert (valves["needed"], valves["stock"], valves["short"]) == (4, 2, 2)
     today = datetime.now(ZoneInfo(projects.config(conn, "kestrel")["timezone"])).date()  # the plant's date (#882)
@@ -75,9 +75,9 @@ def test_equipment_with_its_parts_in_stock_is_ready_and_one_with_no_bom_says_so(
     fan = queries.resolve_ref(conn, pack, "B1-E-2010")  # 2 belts needed, 3 in stock
     assert readiness.check(conn, [fan])["ready"] is True
     out = readiness.check(conn, ["fz-nothing-here"])
-    assert out["ready"] is True and out["checks"][0]["checked"] is False
-    assert out["checks"][0]["note"].startswith("No BOM")
-    assert [c["check"] for c in out["checks"]] == ["spares", "crew", "permits", "simops", "moc"]
+    assert out["ready"] is True and out["checks"][1]["checked"] is False
+    assert out["checks"][1]["note"].startswith("No BOM")
+    assert [c["check"] for c in out["checks"]] == ["field", "spares", "crew", "permits", "simops", "moc"]
 
 
 @pytest.fixture(autouse=True)
@@ -140,13 +140,13 @@ def test_a_blocked_job_goes_only_with_a_reason_and_the_reason_is_on_its_case(kes
         "by": "ioc-ann", "to": "fred", "override": "belts only, valve crew agreed, scrubber level watched"}).status_code == 200
 
 
-def test_a_job_waits_for_a_free_crew_and_the_blocker_names_the_jobs_holding_it(kestrel, client):
+def test_a_job_waits_for_a_free_crew_and_the_blocker_says_how_many_jobs_hold_it(kestrel, client):
     from fuzer.graph import queries
 
     conn, pack = kestrel
     gen = queries.resolve_ref(conn, pack, "G1-G-7006")  # its work orders go to ELEC, one electrician
     first = job(conn, "G-7006 load test", gen)
-    crew = client.get(f"/exceptions/{first}/readiness").json()["checks"][1]
+    crew = client.get(f"/exceptions/{first}/readiness").json()["checks"][2]
     assert crew["check"] == "crew" and crew["ready"] is True
     [elec] = crew["centers"]
     assert (elec["label"], elec["crew"], elec["busy"]) == ("ELEC", 1, 0)
@@ -154,11 +154,11 @@ def test_a_job_waits_for_a_free_crew_and_the_blocker_names_the_jobs_holding_it(k
     second = job(conn, "G-7006 batteries", gen)
     out = client.get(f"/exceptions/{second}/readiness").json()
     assert out["ready"] is False
-    assert f"Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #{first} Look at G-7006 load test" in \
+    assert "Crew: Electrical technicians (ELEC): all 1 busy on 1 open job" in \
         out["blockers"]
     assert client.post(f"/exceptions/{second}/dispatch", json={"by": "ioc-ann", "to": "fred"}).status_code == 409
     # the first one is not held up by itself, and a compressor's mechanical crew (3) still has room
-    assert client.get(f"/exceptions/{first}/readiness").json()["checks"][1]["ready"] is True
+    assert client.get(f"/exceptions/{first}/readiness").json()["checks"][2]["ready"] is True
     k2001 = readiness.crew(conn, [queries.resolve_ref(conn, pack, "B1-K-2001")])
     assert [c["label"] for c in k2001["centers"]] == ["MECH"] and k2001["ready"] is True
 
@@ -456,7 +456,7 @@ def test_okan_spares_come_from_its_own_records(okan_db):
         "select b.src from edge b join golden s on s.fuzer_id = b.dst and s.field = 'stock' "
         "where b.rel = 'uses_part' and (s.value #>> '{}')::numeric = 0 limit 1").fetchone()["src"]
     out = readiness.check(conn, [short])
-    assert out["ready"] is False and out["checks"][0]["checked"]
+    assert out["ready"] is False and out["checks"][1]["checked"]
     ordered = conn.execute("select count(*) as n from entity where kind = 'purchase_order'").fetchone()["n"]
     centers = readiness.crew(conn, [short])["centers"]
     assert centers and {c["label"] for c in centers} <= {"MECH", "INST", "ELEC"} and all(c["crew"] for c in centers)
@@ -464,3 +464,25 @@ def test_okan_spares_come_from_its_own_records(okan_db):
                         "where c.rel = 'covers' limit 1").fetchone()["dst"]
     assert readiness.permits(conn, [held])["permits"]
     assert ordered > 0
+
+
+def test_instrument_work_is_checked_against_the_instrument_crew_only(okan_db):
+    """#1365: a drifting level transmitter on a separator listed the mechanical crew's nine jobs as not ready."""
+    from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
+
+    conn = okan_db.conn
+    mech = next((r["src"] for r in conn.execute(
+        "select distinct o.dst as src from edge o join edge d on d.src = o.src and d.rel = 'done_by' "
+        "join entity_label l on l.fuzer_id = d.dst where o.rel = 'concerns' and l.label = 'MECH' limit 50")
+        if {c["label"] for c in readiness.crew(conn, [r["src"]])["centers"]} == {"MECH"}), None)
+    assert mech, "an asset whose work orders all go to the mechanical crew"
+    TYPES["walkdown_check"] = ExceptionType("walkdown_check", "Walkdown check", audience=("ioc", "field"), joins=False)
+    try:
+        e = raise_exception(conn, "walkdown_check", "lt drift", "Gauge glass lower than the transmitter: LT drifting",
+                            "olga", refs=[mech])
+        assert [c["label"] for c in readiness.crew(conn, [mech], e["id"])["centers"]] == ["INST"]
+        other = raise_exception(conn, "walkdown_check", "drip", "Small drip from a drain valve", "olga", refs=[mech])
+        assert [c["label"] for c in readiness.crew(conn, [mech], other["id"])["centers"]] == ["MECH"]
+    finally:
+        conn.rollback()
+        TYPES.pop("walkdown_check", None)

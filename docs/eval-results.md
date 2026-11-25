@@ -134,7 +134,7 @@ Free-text messages to the IOC (P2.8: mail, radio calls, Teams posts, field notes
 
 | Run | Bundle | Messages | Cases right | Precision | Recall | To steward | Noise handled | Passed | Wrong |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026-11-25 | okan | 23 | 11 of 12 | 92% | 92% | 100% | 100% | yes | MSG-0023: case tag:20-PT-3003, not case tag:30-PT-3003 |
+| 2026-11-25 | okan | 23 | 10 of 11 | 91% | 91% | 100% | 100% | yes | MSG-0023: case tag:20-PT-3003, not case tag:30-PT-3003 |
 
 ## Operations loop
 

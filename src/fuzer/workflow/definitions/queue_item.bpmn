@@ -29,7 +29,7 @@
       <bpmn:outgoing>f_field</bpmn:outgoing>
       <bpmn:outgoing>f_done</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:userTask id="field_check" name="Field check" fuzer:sla="PT8H" fuzer:escalateTo="ops_lead">
+    <bpmn:userTask id="field_check" name="Field check" fuzer:sla="PT8H">
       <bpmn:incoming>f_field</bpmn:incoming>
       <bpmn:outgoing>f_checked</bpmn:outgoing>
     </bpmn:userTask>

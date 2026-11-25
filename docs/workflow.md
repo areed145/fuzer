@@ -80,12 +80,18 @@ the published version, and running cases stay on their original version.
 **Routing and escalation are data** (`workflow/roles.py`, `work_role`, `work_person`):
 
 - A **role** is a person role or an agent role, with what it's for, a **default SLA** for person steps that set
-  none, **escalate_to** (where an overdue step goes when the step names nowhere itself) and an **assignment**:
+  none, **escalate_to** (where an overdue step goes when the step names nowhere itself; no built-in role names one) and an **assignment**:
   steps wait in the queue to be claimed, or go to members round-robin or to the least loaded. Roles are edited under
   Settings > Users; the BPMN checks read them, so a new role can be used in a process straight away.
 - **Escalation**: when a person step's SLA passes (the `work_tick` job, every 5 minutes), it moves to the step's
   `escalateTo`, then along the role chain, each hop with the next role's own SLA, up to three hops. The reason
-  (which SLA, who had it) is kept on the case.
+  (which SLA, who had it) is kept on the case. Overdue work stays in its own team's queue by default, marked
+  escalated (#1346, #1369): no built-in role and no shipped process names a target, since the ops lead can't answer a
+  steward's question or an engineer's triage. A site that has a lead for a team sets that role's escalate_to (or a
+  step's `escalateTo` in its own model). A step's `escalateTo` is read from the process as published now, so a case
+  running on an earlier version follows the current model. Work that escalated into another team's queue before
+  went back once, at the schema update, to whoever held it (a person or the queue), still marked escalated; a step
+  someone took since stays theirs. Leading is separate from escalation: the IOC lead may act on any queue's work.
 - **Away**: a person can be away until a time, with a delegate. What they hold, and anything assigned or handed to
   them while away, goes to the delegate (or back to the role's queue when no one covers); auto-assignment skips
   them; the delegate's inbox shows what was theirs.
@@ -188,14 +194,21 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   from the field opens with its **Options** card (and its row on All work has **Options**): **Dispatch now**, **Ride
   along with the next visit**, **Shelve** and **Escalate**, side by side (`GET /exceptions/{id}/options`,
   `GET /work/items/{id}/options`). Each says when it would be done, the production deferred until then in bbl and $,
-  the risk of waiting (the event's priority and its assets' ABC criticality, lower for a short wait), whether it is
-  ready (crew, permit, spares, simultaneous operations, MOC) and its clashes. What it defers now is the producing
-  wells it reaches at their latest test, all of it while a machine is stopped (a trip, with its share where parallel
-  trains carry the rest), else the pack's share for a condition still going (`upsets.rate_at_risk_share`, the
-  assumption an upset's value uses); a condition not yet costing anything says what is behind it if it trips. When:
-  the operator queue's SLA for a dispatch; the start of the next scheduled plan item on the same equipment (its assets
-  or what they are part of, short of the area, which can be half a plant) within
-  `options.window_days` for a ride along; the area's next turnaround or shutdown, at most
+  the risk of waiting, whether it is ready (the field's last report, crew, permit, spares, simultaneous operations,
+  MOC) and its clashes. The risk is said only from the record (#1365): its assets' ABC criticality with the event's
+  priority, lower for a short wait, or a hazard to people (gas escaping, H2S, fire or smoke in what was reported, or a
+  safety or HSE type), which is high to wait on and never reads low; with neither, no risk word is shown and the
+  criticality is named as not known. A field report that says the job needs a gas test, a permit, an isolation, a
+  scaffold or parts holds Dispatch now until a later report, and says what it waits on. The crew checked is the one
+  the job's words need (a transmitter or gauge is the instrument crew's), and a full crew is one line with its count.
+  What it defers now is the producing wells it reaches at their latest test, all of it while a machine is stopped (a
+  trip, with its share where parallel trains carry the rest), else the pack's share for a process upset still going
+  (`upsets.rate_at_risk_share`, the assumption an upset's value uses). A report of a smell or a drip, or a
+  notification, has no measured link to production: it says what is behind it if it stops and that what it defers is
+  not known. When: the operator queue's SLA for a dispatch; for a ride along, a field operator already sent to or on
+  site at the same asset (riding along sends it to them, and their job is not a clash), else the next scheduled plan
+  item under way or starting on the same equipment (its assets or what they are part of, short of the area, which can
+  be half a plant) within `options.window_days`; the area's next turnaround or shutdown, at most
   `exceptions.max_shelve_days`, for a shelf; the engineer queue's SLA and then a dispatch to escalate. Prices are the
   pack's value config. One option is **recommended** by one rule, the same on every case: wait while it leaves no high
   risk and defers less than a separate trip costs (`options.trip_usd`); dispatch now when waiting costs more or leaves

@@ -1,7 +1,7 @@
 """Free-text messages to the Okan IOC (P2.8, #1254): what reaches the control room with no system behind it. Mail to
 the IOC mailbox, radio calls the CRO typed in, posts in the operations Teams channel and a field operator's note from
 the phone, in the words people use. Some name one asset by its tag or a name people use for it, some could be about
-any of several, some ask for nothing.
+any of several, some ask for nothing or only say what was done.
 
 `MESSAGES` is the export (`messages.csv`); `ANSWERS` is what each one is: a case about the entity named by its key, a
 question for the data steward (the text does not say which entity), or nothing to do. Fuzer's reader is scored on it
@@ -74,7 +74,7 @@ ANSWERS = {
     "MSG-0010": ("handled",),
     "MSG-0011": ("case", "tag:20-PT-3003"),
     "MSG-0012": ("case", "well:OK-NWP-05"),
-    "MSG-0013": ("case", "tag:10-P-1001A"),
+    "MSG-0013": ("handled",),  # says what was done and asks for nothing: a log entry
     "MSG-0014": ("steward",),  # no 20-P-9999 in the register
     "MSG-0015": ("case", "tag:20-V-2400"),
     "MSG-0016": ("steward",),  # a train is not one entity

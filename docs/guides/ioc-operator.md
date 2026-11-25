@@ -164,5 +164,5 @@ incoming lead acknowledges it. The rest of the open work is on **All work**.
   three sources. [How work is routed](../work-routing.md#3-one-event-one-case) explains how.
 - Planned work suppresses what it explains: a trip on a compressor that is down for a scheduled shutdown is counted
   under the shutdown, not raised. All work shows how many findings were held back, and by which windows.
-- What you dispatch is due by the work type's policy (SAP priority, for example) or the role's SLA, and escalates
-  along the role's chain if nobody acts.
+- What you dispatch is due by the work type's policy (SAP priority, for example) or the role's SLA, and is marked
+  escalated in its queue if nobody acts.

@@ -7,7 +7,7 @@ import { OpportunityPanel } from "./OpportunityPanel";
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { cap, say, workKind } from "../../wording";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
-import { api, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
+import { api, type CaseSource, type MessageSaid, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
 import { Status, href, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, ENGINE_FIELDS, EntityLinks, describe, holder, usePerson } from "../../work";
@@ -92,7 +92,10 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   const raised = (payload.start && typeof payload.start === "object" ? payload.start : payload) as Record<string, unknown>;
   const dataset = typeof raised.dataset === "string" ? raised.dataset : null;
   // what was asked and its evidence are shown under Waiting on, so Details leaves them out
-  const hidden: readonly string[] = typeof raised.summary === "string" ? HIDDEN_DETAILS : ENGINE_FIELDS;
+  // a message's case opens with the message itself (P5.26a): who sent it, how and when, then all it said
+  const message = messageOf(raised.message);
+  const hidden: readonly string[] = [...(typeof raised.summary === "string" ? HIDDEN_DETAILS : ENGINE_FIELDS),
+    ...(message ? ["message"] : [])];
   const level = priorityLevel(it.priority, it.type);
   // A field operator reading the case on a phone needs the job, not the IOC's evidence (#1071): for someone who only
   // works in the field, the evidence and history fold under Full case.
@@ -120,7 +123,8 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
     <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
     {!evidenceReady ? <Status loading /> : <>
       <CaseSafeguards id={it.id} data={safeguards.data} />
-      {!asks && <CaseFindings sources={it.sources} />}
+      {/* the message card above is what was found when the case is only messages */}
+      {!asks && !(message && it.sources?.every((x) => x.type === "message_report")) && <CaseFindings sources={it.sources} />}
       {/* a question about the records has no event to trend, answered or not */}
       {!question && <CaseAround id={it.id} data={around.data} focus={it.title} />}
       <Related about={{ case: it.id }} />
@@ -155,13 +159,14 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
               <EntityLinks ids={it.subjects} />
               {dataset && <> source dataset <a href={href("/sources", { view: "dataset", name: dataset })}>{dataset}</a></>}
             </span>}
-            <span className="case-opened"><Text muted>opened by</Text> <Actor who={it.created_by} /> <Text muted>{when(it.created_at)}</Text></span>
+            {!message && <span className="case-opened"><Text muted>opened by</Text> <Actor who={it.created_by} /> <Text muted>{when(it.created_at)}</Text></span>}
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
             {!demo && canAsk && <AskOpsIq about={{ case: String(it.id) }} what="case" />}
           </Line>
           {it.parent && <Text as="p" small>Part of <a href={caseHref(it.parent.id)}>{say(it.parent.title)}</a></Text>}
         </div>
       </div>
+      {message && <CaseMessage m={message} matched={matchedBy(it.sources)} />}
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
       {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
@@ -188,6 +193,25 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {fieldOnly ? <Disclosure className="case-full" label={<>Full case</>}>{evidence}</Disclosure> : evidence}
     </section>
   );
+}
+
+const messageOf = (m: unknown): MessageSaid | null =>
+  m && typeof m === "object" && typeof (m as MessageSaid).text === "string" ? m as MessageSaid : null;
+
+/** How the reader placed a message's case: its finding's "Matched by". */
+const matchedBy = (sources?: CaseSource[]): string | null => {
+  const item = sources?.find((x) => x.type === "message_report")?.finding.items.find((i) => i.label === "Matched by");
+  return item ? String(item.value) : null;
+};
+
+/** The message a case was opened from, first on the case (P5.26a): "Radio call · GGCP CRO · Nov 23, 6:52 AM", then
+ * everything it said. The title above it is a short summary. */
+function CaseMessage({ m, matched }: { m: MessageSaid; matched: string | null }) {
+  return <UICard className="case-message" title={`${m.channel_label} · ${m.sender} · ${when(m.received_at)}`}>
+    {m.subject && <Text as="p" small>{m.subject}</Text>}
+    <p>{say(m.text)}</p>
+    {matched && <Text as="p" small muted>Matched by {matched}</Text>}
+  </UICard>;
 }
 
 /** The standard workflows that end with their case (fuzer:closeWithCase in queue_item.bpmn and task.bpmn). */

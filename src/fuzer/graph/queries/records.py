@@ -5,7 +5,7 @@ from datetime import date
 
 from ...core import nel
 from ...core.pack import Pack
-from ..hierarchy import CONTAINMENT
+from ..hierarchy import CONTAINMENT, WORK_KINDS
 
 
 class AmbiguousRef(LookupError):
@@ -249,7 +249,7 @@ def lookup_source(conn, source: str, key: str) -> list[dict]:
 
 def reviews(conn, status: str = "open", kind: str | None = None, limit: int = 100,
             item: int | None = None) -> list[dict]:
-    return conn.execute(
+    rows = conn.execute(
         """
         select r.*, l.label, g.value as description
         from review_item r
@@ -261,6 +261,30 @@ def reviews(conn, status: str = "open", kind: str | None = None, limit: int = 10
         """,
         (status, kind, kind, item, item, limit),
     ).fetchall()
+    return _message_choices(conn, rows)
+
+
+def _message_choices(conn, rows: list[dict]) -> list[dict]:
+    """A message question's choices as the steward reads them (P5.26f): only the candidates work can be about, each with
+    its kind, description and the place it sits in, and `kinds`, what the register search for another is limited to."""
+    asked = [r for r in rows if r["kind"] == "message"]
+    ids = list({c["fuzer_id"] for r in asked for c in (r["payload"] or {}).get("candidates") or []})
+    if not asked:
+        return rows
+    found = {r["fuzer_id"]: r for r in conn.execute(
+        """
+        select e.fuzer_id, e.kind, l.label, g.value #>> '{}' as description, p.label as parent_label
+        from entity e
+        left join entity_label l on l.fuzer_id = e.fuzer_id
+        left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
+        """ + _PARENT + """
+        where e.fuzer_id = any(%(ids)s) and e.kind = any(%(kinds)s) and e.merged_into is null and e.retired_at is null
+        """, {"ids": ids, "kinds": list(WORK_KINDS), "rels": list(CONTAINMENT)})}
+    for r in asked:
+        p = r["payload"] = dict(r["payload"] or {})
+        p["candidates"] = [dict(found[c["fuzer_id"]]) for c in p.get("candidates") or [] if c["fuzer_id"] in found]
+        p["kinds"] = list(WORK_KINDS)
+    return rows
 
 
 def ontology(conn, cached: bool = True) -> dict:

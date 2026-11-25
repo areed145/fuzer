@@ -7,12 +7,17 @@ its equipment type:
     crew     the work center (SAP `arbpl`) that does the equipment's work orders, its crew size, and the jobs
              already sent to it and still open (P5.5b): a full crew is a blocker naming the jobs holding it. A work
              center with a crew resource on the plan is read from the plan's one capacity ledger instead: everyone
-             booked on it today, planned or sent out (step 3 of the work model)
+             booked on it today, planned or sent out (step 3 of the work model). Work whose words name a trade
+             (a transmitter or gauge is instrument work, a motor or switchgear electrical) is checked against that
+             trade's work center only, not every crew that has worked on the equipment (#1365)
+    field    what the field's latest report says the job waits on: a note or could-not-do naming a gas test, a
+             permit, an isolation, a scaffold or parts holds it until a later report (#1365)
 
 A check with no records to read says so and does not block. A blocked job is sent only with a reason (enforced where
 people dispatch: the dispatch route and card), and the reason goes on the case's history.
 """
 
+import re
 from datetime import UTC, date, datetime
 
 from ..core import clock
@@ -129,10 +134,54 @@ def _centers(conn, subjects: list[str]) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# The trade a job's own words call for, and how its work center describes itself: a level transmitter drifting on a
+# separator is the instrument technicians' work, whoever does the separator's mechanical work orders.
+TRADES = {
+    "instrument": (re.compile(r"(?i)transmitter|gauge|instrument|calibrat|analy[sz]er|cable gland|local display"
+                              r"|impulse line|positioner|\bdcs\b"), re.compile(r"(?i)instrument|^inst")),
+    "electrical": (re.compile(r"(?i)\bmotor\b|electrical|switchgear|batter(y|ies)"), re.compile(r"(?i)electric|^elec")),
+}
+
+
+def _trade_centers(conn, centers: list[dict], job: int | None) -> list[dict]:
+    """Of the work centers that do the equipment's work, the one the job's own words need: an instrument job goes to
+    the instrument crew even where the equipment's orders went to the mechanical one. As they were when the words name
+    no trade, or no work center is that trade's."""
+    title = _title(conn, job)
+    trade = next((t for t, (words, _) in TRADES.items() if words.search(title)), None) if title else None
+    if trade is None:
+        return centers
+    names = TRADES[trade][1]
+
+    def fits(c: dict) -> bool:
+        return bool(names.search(c["description"] or "") or names.search(c["label"] or ""))
+
+    mine = [c for c in centers if fits(c)]
+    if mine:
+        return mine
+    every = conn.execute(
+        """
+        select e.fuzer_id as id, l.label, gd.value #>> '{}' as description, (gc.value #>> '{}')::numeric as crew
+        from entity e left join entity_label l on l.fuzer_id = e.fuzer_id
+        left join golden gd on gd.fuzer_id = e.fuzer_id and gd.field = 'description'
+        left join golden gc on gc.fuzer_id = e.fuzer_id and gc.field = 'crew_size'
+        where e.kind = 'work_center' and e.retired_at is null and e.merged_into is null order by l.label
+        """).fetchall()
+    return [dict(c) for c in every if fits(c)] or centers
+
+
+def _title(conn, job: int | None) -> str:
+    if job is None:
+        return ""
+    row = conn.execute("select title from exception_record where id = %s", (job,)).fetchone()
+    return (row and row["title"]) or ""
+
+
 def crew(conn, subjects: list[str], job: int | None = None) -> dict:
-    """The crew for a job: each work center that does its work, its size and the jobs already sent to it and still
-    open. Ready while every work center has someone free."""
-    centers = _centers(conn, subjects)
+    """The crew for a job: each work center that does its work (the one its words' trade needs, when they name one),
+    its size and the jobs already sent to it and still open. Ready while every work center has someone free. A full
+    crew's blocker is one line with its count; the jobs holding it are on the work center."""
+    centers = _trade_centers(conn, _centers(conn, subjects), job)
     if not centers:
         return {"check": "crew", "label": "Crew", "ready": True, "blockers": [], "centers": [], "checked": False,
                 "note": "No work orders name a work center for this equipment, so no crew to check."}
@@ -156,9 +205,7 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
             out.append(booked)
             if booked["full"]:
                 name = c["description"] or c["label"]
-                held = "; ".join(j["title"] for j in booked["jobs"][:5]) + ("; ..." if len(booked["jobs"]) > 5 else "")
-                blockers.append(f"{name} ({c['label']}): {_n(booked['busy'])} of {_n(booked['crew'])} booked today"
-                                + (f": {held}" if held else ""))
+                blockers.append(f"{name} ({c['label']}): {_n(booked['busy'])} of {_n(booked['crew'])} booked today")
             continue
         jobs = holding[c["id"]]
         size = float(c["crew"]) if c["crew"] is not None else None
@@ -166,8 +213,8 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
         out.append({**c, "crew": size, "busy": len(jobs), "jobs": jobs, "full": full})
         if full:
             name = c["description"] or c["label"]
-            held = "; ".join(f"#{j['id']} {j['title']}" for j in jobs[:5]) + ("; ..." if len(jobs) > 5 else "")
-            blockers.append(f"{name} ({c['label']}): all {_n(size)} busy on open jobs: {held}")
+            blockers.append(f"{name} ({c['label']}): all {_n(size)} busy on {len(jobs)} open job"
+                            + ("s" if len(jobs) != 1 else ""))
     return {"check": "crew", "label": "Crew", "ready": not blockers, "blockers": blockers, "centers": out,
             "checked": True, "note": None}
 
@@ -412,7 +459,40 @@ def mocs_many(conn, places: dict[int, set[str]]) -> dict[int, dict]:
             for job, near in places.items()}
 
 
-CHECKS = (_spares, crew, permits, _simops, mocs)
+# What a field report says the job waits on, by the words people use for it. Said only with a word of need beside it
+# ("needs a gas test", "no permit", "waiting on scaffold"), so "permit closed" in a note holds nothing.
+PREREQUISITES = {
+    "a gas test": re.compile(r"(?i)gas[- ]?test"),
+    "a permit": re.compile(r"(?i)\bpermit|\bptw\b"),
+    "an isolation": re.compile(r"(?i)\bisolat"),
+    "a scaffold": re.compile(r"(?i)scaffold"),
+    "parts": re.compile(r"(?i)\b(parts?|spares?)\b"),
+}
+NEED = re.compile(r"(?i)\b(needs?|needed|requires?|required|wait(s|ing)?|awaiting|until|no|without|before)\b")
+
+
+def field(conn, subjects: list[str], job: int | None = None) -> dict:
+    """What the field's latest report on the job says it waits on (#1365): a note or could-not-do naming a gas test,
+    a permit, an isolation, a scaffold or parts holds the job until a later report. Silent when the field has not
+    said."""
+    row = conn.execute("select evidence from exception_record where id = %s", (job,)).fetchone() if job else None
+    evidence = (row and row["evidence"]) or {}
+    reports = (evidence.get("field") if isinstance(evidence, dict) else None) or []
+    last = reports[-1] or {} if reports else {}
+    note = (last.get("note") or "").strip()
+    waits = ([w for w, words in PREREQUISITES.items() if words.search(note)]
+             if last.get("status") in ("could_not_do", "note") and NEED.search(note) else [])
+    who = last.get("by") or "the field"
+    blockers = [f"waits on {_list(waits)}, from {who}'s report: “{note}”"] if waits else []
+    return {"check": "field", "label": "Field", "ready": not blockers, "blockers": blockers, "waits_on": waits,
+            "checked": bool(reports), "note": None}
+
+
+def _list(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+CHECKS = (field, _spares, crew, permits, _simops, mocs)
 
 
 def check(conn, subjects: list[str], job: int | None = None) -> dict:

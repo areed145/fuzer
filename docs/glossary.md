@@ -50,8 +50,8 @@ child case); the item is done when that case is.
 **Clash.** Two planned jobs on one asset at the same time, a person booked twice, or two jobs whose permits must
 not run side by side. Shown on Plan and checked again at dispatch; it is a flag, not a case.
 
-**Close-out.** Closing a case by saying what it was (a real problem, a false alarm, a duplicate, a data problem)
-and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
+**Close-out.** Closing a case by saying what it was (a real problem, a false alarm, a duplicate, a data problem, or
+for a message that only said what was done, log only with no action) and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
 that system is drafted for a planner to approve. Work someone asked for (a task) is **finished** instead: done as
 asked, or a duplicate.
 
@@ -182,8 +182,8 @@ with the one before to catch a source changing shape.
 
 **Project.** One asset's configuration: its pack, data folder, timezone and time-series source.
 
-**Queue.** Where work for a role waits until one of its holders takes it. A step in a queue has the role's SLA and
-escalates along the role's chain.
+**Queue.** Where work for a role waits until one of its holders takes it. A step in a queue has the role's SLA; when
+it is overdue it is marked escalated there, or moves on where a site has set the role's chain.
 
 **Record.** One row from a source system, before identity resolution decides which entity it describes. Not a word
 for the entity itself.

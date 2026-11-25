@@ -203,6 +203,8 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         # Merging or splitting records touches IDs, links and values; an accepted curve lands with the
         # rebuild. Do it in the background.
         return {"decided": item_id, "rebuild": deps.rebuilder.request()}
+    if out["kind"] == "message":  # the case the answer opened, for the line that confirms it (#1363)
+        return {"decided": item_id, "case": messages.case_for(conn, item_id)}
     return {"decided": item_id}
 
 

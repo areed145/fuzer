@@ -222,3 +222,85 @@ def test_the_api_reads_and_chooses(conn):
     assert r.status_code == 200, r.text
     assert client.get("/options/acceptance").json()["decided"] >= 1
     assert client.get("/exceptions/999999/options").status_code == 404
+
+
+@pytest.fixture
+def report_type(conn):
+    """A field-work type of its own that never joins another case, so two reports on one asset stay two."""
+    from fuzer.core.exceptions import TYPES, ExceptionType
+
+    TYPES["walkdown_check"] = ExceptionType("walkdown_check", "Walkdown check", audience=("ioc", "field"), joins=False)
+    yield "walkdown_check"
+    TYPES.pop("walkdown_check", None)
+    conn.rollback()  # closed again, so a report left in the field is no clash for the next test's trip
+    conn.execute("update exception_record set state = 'closed' where state = 'open' and type = 'walkdown_check'")
+    conn.commit()
+
+
+def raise_report(conn, key: str, title: str, refs: list[str]) -> dict:
+    from fuzer.core import exceptions as port
+
+    e = port.raise_exception(conn, "walkdown_check", key, title, "olga", refs=refs, priority=0.3)
+    conn.commit()
+    return e
+
+
+def test_a_gas_smell_never_reads_low_and_a_report_is_not_costed_as_lost_production(conn, report_type):
+    """#1365: a gas smell at a wellhead read "Risk low", and a drip was costed at the well's share of its test rate."""
+    e = raise_report(conn, "gas smell", f"Gas smell at the wellhead of {WELLS[0]}", [f"well:{WELLS[0]}"])
+    out = options.for_exception(conn, e["id"])
+    assert out["applies"] is True
+    risks = {o["key"]: o["risk"] for o in out["options"] if o.get("available")}
+    assert all(r and r["level"] != "Low" for r in risks.values()), risks
+    assert risks["dispatch"]["level"] == "Medium" and "gas smell reported" in risks["dispatch"]["why"]
+    assert risks["shelve"]["level"] == "High" and out["recommended"] != "shelve"
+    # nothing measured links a smell to lost production: what is behind it, not a loss
+    assert out["loss"] is None and all(not o.get("deferred") for o in out["options"])
+    assert out["if_it_trips"]["oil_bbld"] > 0
+    assert any("nothing measured links it to a loss of production" in u for u in out["unknown"])
+
+
+def test_no_criticality_and_no_hazard_gives_no_risk_word_and_no_shelf(conn, report_type):
+    e = raise_report(conn, "glm gauge", "Gauge on OKJ01-GLM reads low", ["allocation_node:OKJ01-GLM"])
+    out = options.for_exception(conn, e["id"])
+    if out["criticality"]:
+        pytest.skip("this asset has a criticality on record")
+    assert all(o.get("risk") is None for o in out["options"] if o.get("available"))
+    assert "criticality: not assessed on its assets" in out["unknown"]
+    assert out["recommended"] != "shelve", out["reason"]
+
+
+def test_a_field_report_naming_a_gas_test_and_permit_holds_the_dispatch(conn, report_type):
+    """#1365: after "gas detector in alarm, needs gas test and permit", Options said "Dispatch now… ready"."""
+    e = raise_report(conn, "gas alarm", f"Gas smell at the wellhead of {WELLS[1]}", [f"well:{WELLS[1]}"])
+    options.choose(conn, e["id"], "riley", "dispatch", to="sam")
+    ex.report(conn, e["id"], "sam", "could_not_do", "Gas detector in alarm, needs gas test and permit")
+    conn.commit()
+    out = options.for_exception(conn, e["id"])
+    d = by_key(out)["dispatch"]
+    assert d["ready"] is False
+    assert d["blockers"][0].startswith("Field: waits on a gas test and a permit, from sam's report")
+    assert out["recommended"] != "dispatch", out["reason"]
+    # a later report that names nothing lets it go again
+    ex.report(conn, e["id"], "sam", "note", "Gas test clear, permit issued")
+    conn.commit()
+    assert by_key(options.for_exception(conn, e["id"]))["dispatch"]["blockers"][:1] != d["blockers"][:1]
+
+
+def test_an_operator_on_site_at_the_same_asset_is_the_ride_along_not_a_clash(conn, report_type):
+    """#1365: case 1155 recommended a 30-day shelf and flagged a clash with sam, on site at the same transmitter."""
+    first = raise_report(conn, "gland", "Loose cable gland on 20-TT-2250B", ["tag:20-TT-2250B"])
+    options.choose(conn, first["id"], "riley", "dispatch", to="sam")
+    ex.report(conn, first["id"], "sam", "on_site")
+    conn.commit()
+    e = raise_report(conn, "erratic", "20-TT-2250B reading erratic", ["tag:20-TT-2250B"])
+    out = options.for_exception(conn, e["id"])
+    o = by_key(out)
+    w = o["window"]
+    assert w["available"] is True and w["person"] == "sam" and "on site" in w["detail"], w
+    assert not any("20-TT-2250B" in c and "at the same time" in c for c in o["dispatch"]["clashes"]), o["dispatch"]
+    assert out["recommended"] == "window" and out["reason"].startswith("sam is already there"), out["reason"]
+    chosen = options.choose(conn, e["id"], "riley", "window")
+    conn.commit()
+    held = conn.execute("select assignee from work_item where id = %s", (chosen["event"]["item_id"],)).fetchone()
+    assert held["assignee"] == "sam" and chosen["choice"]["accepted"] is True

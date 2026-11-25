@@ -34,7 +34,7 @@
     <bpmn:startEvent id="detected" name="Upset detected" >
       <bpmn:outgoing>f_start</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:userTask id="triage" name="Triage" fuzer:sla="PT4H" fuzer:escalateTo="ops_lead" fuzer:form="upset-triage" fuzer:dispatch="triage=field_check" fuzer:gate="field_dispatch">
+    <bpmn:userTask id="triage" name="Triage" fuzer:sla="PT4H" fuzer:form="upset-triage" fuzer:dispatch="triage=field_check" fuzer:gate="field_dispatch">
       <bpmn:incoming>f_start</bpmn:incoming>
       <bpmn:incoming>f_checked</bpmn:incoming>
       <bpmn:outgoing>f_triaged</bpmn:outgoing>
@@ -45,7 +45,7 @@
       <bpmn:outgoing>f_field</bpmn:outgoing>
       <bpmn:outgoing>f_real</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:userTask id="field_check" name="Field check" fuzer:sla="PT8H" fuzer:escalateTo="ops_lead" fuzer:form="field-check">
+    <bpmn:userTask id="field_check" name="Field check" fuzer:sla="PT8H" fuzer:form="field-check">
       <bpmn:incoming>f_field</bpmn:incoming>
       <bpmn:outgoing>f_checked</bpmn:outgoing>
     </bpmn:userTask>
@@ -62,7 +62,7 @@
       <bpmn:incoming>f_diagnose</bpmn:incoming>
       <bpmn:outgoing>f_proposed</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:userTask id="approve" name="Approve proposed action" fuzer:requiresHuman="true" fuzer:sla="P1D" fuzer:escalateTo="ops_lead" fuzer:form="upset-approve">
+    <bpmn:userTask id="approve" name="Approve proposed action" fuzer:requiresHuman="true" fuzer:sla="P1D" fuzer:form="upset-approve">
       <bpmn:incoming>f_proposed</bpmn:incoming>
       <bpmn:outgoing>f_decided</bpmn:outgoing>
     </bpmn:userTask>

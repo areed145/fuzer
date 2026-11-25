@@ -72,12 +72,17 @@ export interface MessageSaid {
 
 /** A message that named no entity for certain (P2.8): why the reader stopped and the entities it might be about. */
 export interface MessagePayload {
-  message: MessageSaid; why: string; question: string; candidates: { fuzer_id: string; label: string | null }[];
+  message: MessageSaid; why: string; question: string;
+  /** the entities it might be about that work can be about, each with its kind, description and place (P5.26f) */
+  candidates: { fuzer_id: string; kind: string; label: string | null; description: string | null; parent_label: string | null }[];
+  /** the kinds a message's case can be about: the register search for another is limited to them */
+  kinds?: string[];
 }
 
 /** A note sent from the phone, read as any message to the IOC is: what became of it, in one line (`said`). */
 export interface MessageNote {
   id: string; outcome: "case" | "steward" | "handled"; said: string; exception_id: number | null; review_item_id: number | null;
+  /** The case it opened, linked from the confirmation. */ item_id: number | null;
 }
 
 export interface CurveReading {
@@ -1295,7 +1300,8 @@ export const workApi = {
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
   caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null; suggestion: CloseoutSuggestion;
     vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean;
-    /** Work someone asked for: it closes as done as asked. */ asked?: boolean }>("GET", `/work/items/${id}/closeout`),
+    /** Work someone asked for: it closes as done as asked. */ asked?: boolean;
+    /** A message's case: one that only said what was done closes as log only. */ message?: boolean }>("GET", `/work/items/${id}/closeout`),
   answerRecheck: (id: number, by: string, held: boolean, note?: string) =>
     request<CaseCloseout>("POST", `/work/items/${id}/recheck`, undefined, { by, held, note }),
   recordCaseCloseout: (id: number, body: CloseoutInput) => request<CaseCloseout>("POST", `/work/items/${id}/closeout`, undefined, body),
@@ -1358,7 +1364,8 @@ export const workApi = {
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   /** One open question, as a list of one (none once it is answered). */
   review: (kind: ReviewKind, item: number) => request<ReviewItem[]>("GET", "/review", { kind, item }),
-  decide: (id: number, d: Decision) => request<{ decided: number }>("POST", `/review/${id}`, undefined, d),
+  /** `case` is the case a message question's answer opened (P5.26a). */
+  decide: (id: number, d: Decision) => request<{ decided: number; case?: number | null }>("POST", `/review/${id}`, undefined, d),
   reviewGroups: (kind: ReviewKind) => request<ReviewGroup[]>("GET", "/review/groups", { kind }),
   decideGroup: (body: { key: string; decision: Decision["decision"]; source?: string; value?: unknown; standing: boolean; by: string }) =>
     request<{ decided: number[]; skipped: { id: number; why: string }[] }>("POST", "/review/groups", undefined, body),

@@ -50,7 +50,8 @@ create table if not exists fuzer.work_person_cover (
 
 -- Roles are data (workflow/roles.py): person roles hold steps people do, agent roles steps agents do. A role's
 -- default SLA applies to steps that set none; when a step's SLA passes it moves to the step's escalateTo, else
--- the role's escalate_to (chained up to three hops, each with that role's SLA). Assignment: queue (whoever claims
+-- the role's escalate_to (chained up to three hops, each with that role's SLA); with neither it stays, marked
+-- escalated. No built-in role or shipped process names a target (#1369). Assignment: queue (whoever claims
 -- it), round_robin or least_loaded among the role's members who aren't away.
 create table if not exists work_role (
     name          text primary key,
@@ -85,9 +86,9 @@ insert into work_role (name, kind, description, default_sla, escalate_to, update
 select 'data_steward', 'person', 'Master data steward: source problems and register gaps', 'P1D', null, 'seed'
 where exists (select 1 from work_role)
 on conflict do nothing;
--- An overdue steward question stays with the stewards (#1346). A seeded role still escalating to the ops lead stops;
--- a site that chose the ops lead itself keeps its choice.
-update work_role set escalate_to = null where name = 'data_steward' and escalate_to = 'ops_lead' and updated_by = 'seed';
+-- Overdue work stays with its own team (#1346, #1369). A seeded role still escalating to the ops lead stops; a site
+-- that chose a target itself keeps its choice.
+update work_role set escalate_to = null where escalate_to = 'ops_lead' and updated_by = 'seed';
 
 create table if not exists work_item (
     id          bigserial primary key,
@@ -358,22 +359,55 @@ create table if not exists fuzer.operating_model_rollout (
 );
 create index if not exists operating_model_rollout_project on fuzer.operating_model_rollout (project, id desc);
 
--- Steward questions that escalated to the ops lead queue before #1346 go back to the steward queue, still marked
--- escalated (so they don't escalate again). Only a queue step nobody took, whose last move was that escalation,
--- and only while the steward role no longer escalates to the ops lead. Runs each time the schema is applied; idempotent.
-with moved as (
-    update work_token t set role = 'data_steward'
-    from work_process p
-    where p.id = t.process_id and p.process_key = 'queue_item' and p.data->>'role' = 'data_steward'
-      and t.state = 'waiting' and t.kind = 'user' and t.element = 'work' and t.role = 'ops_lead'
-      and t.assignee is null and t.escalated_at is not null
-      and exists (select 1 from work_role where name = 'data_steward' and escalate_to is distinct from 'ops_lead')
-      and (select e.kind = 'escalated' and e.data->>'to' = 'role:ops_lead' from work_event e
-           where e.token_id = t.id and e.kind in ('escalated', 'handed_off')
-           order by e.id desc limit 1)
-    returning t.id, t.item_id
+-- Work the SLA tick escalated into another team's queue goes back to its own (#1346, #1369), still marked escalated,
+-- to whoever held it there: the queue, or the person who had it. Only a step nobody has taken or moved since that
+-- escalation (one a person took stays theirs), only while its own role no longer escalates there (a site's own target
+-- stays) and its process as published now names no such step target. Runs each time the schema is applied;
+-- idempotent: the move is a hand-off on the step's history, so it is never made twice. #1346 moved only unclaimed
+-- steward steps whose very last event was the escalation, which missed every step escalated again in place
+-- after it was re-dated, and every other team's.
+with placed as (   -- the escalation that put each escalated step in the queue it is in
+    select t.id, t.item_id, t.process_id, t.element, t.role,
+           (select max(e.id) from work_event e where e.token_id = t.id and e.kind = 'escalated'
+            and e.data->>'to' = 'role:' || t.role) as esc
+    from work_token t
+    where t.state = 'waiting' and t.kind = 'user' and t.escalated_at is not null and t.role is not null
+), settled as (    -- nobody moved it since; the last move a person or the process made before it
+    select p.*, (select max(m.id) from work_event m where m.token_id = p.id and m.id < p.esc and m.kind in
+                 ('step_started', 'handed_off', 'claimed', 'released', 'delegated', 'auto_assigned')) as last_move
+    from placed p
+    where p.esc is not null
+      and not exists (select 1 from work_event m where m.token_id = p.id and m.id > p.esc
+                      and m.kind in ('handed_off', 'claimed', 'released', 'delegated'))
+), home as (       -- the queue it was in then, and who had it when it first escalated
+    select s.*,
+           (select coalesce(h.data->>'role', substr(h.data->>'to', 6)) from work_event h
+            where h.token_id = s.id and h.id <= s.last_move
+              and (h.kind = 'step_started' or (h.kind = 'handed_off' and left(h.data->>'to', 5) = 'role:'))
+            order by h.id desc limit 1) as home_role,
+           (select f.data->>'from' from work_event f where f.token_id = s.id and f.kind = 'escalated'
+            and f.id > s.last_move order by f.id limit 1) as holder
+    from settled s
+    where s.last_move is not null
+), back as (
+    select h.* from home h join work_process p on p.id = h.process_id
+    where h.home_role is not null and h.home_role <> h.role
+      and exists (select 1 from work_role r where r.name = h.home_role and r.escalate_to is distinct from h.role)
+      and not exists (select 1 from work_definition d where d.process_key = p.process_key and d.state = 'published'
+                      and strpos(d.xml, 'escalateTo="' || h.role || '"') > 0)
+), moved as (
+    update work_token t set role = b.home_role,
+           assignee = case when left(b.holder, 4) = 'the ' and right(b.holder, 6) = ' queue' then null else b.holder end
+    from back b where t.id = b.id
+    returning t.id, t.item_id, t.process_id, t.element, b.role as was, b.home_role, t.assignee
+), told as (
+    insert into work_event (item_id, process_id, token_id, definition_id, kind, actor, element, data)
+    select m.item_id, m.process_id, m.id, p.definition_id, 'handed_off', 'system', m.element,
+           jsonb_build_object('from', 'role:' || m.was, 'to', coalesce(m.assignee, 'role:' || m.home_role),
+                              'reason', 'Back to its own queue: overdue work stays with its team, marked escalated')
+    from moved m join work_process p on p.id = m.process_id
 )
-update work_item i set role = 'data_steward', assignee = null
-from moved where i.id = moved.item_id
-  and not exists (select 1 from work_token o where o.item_id = i.id and o.state = 'waiting' and o.kind = 'user'
-                  and o.role is distinct from 'data_steward' and o.id not in (select id from moved));
+update work_item i set role = m.home_role, assignee = m.assignee
+from moved m where i.id = m.item_id
+  and not exists (select 1 from work_token o where o.item_id = i.id and o.state = 'waiting' and o.kind in ('user', 'fix')
+                  and o.id not in (select id from moved));

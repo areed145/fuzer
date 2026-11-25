@@ -11,19 +11,25 @@ on one scale, one of them recommended with the factor that decided it, carried o
 
 Read from what Fuzer already has, never from equipment type:
     what it defers now      the producing wells it reaches at their latest test (sre_handoff.rate_at_risk): all of it
-                            while a machine is down (a trip), else the pack's share for a condition still going
+                            while a machine is down (a trip), else the pack's share for a process upset still going
                             (value config `upsets.rate_at_risk_share`), the same assumption an upset's value uses.
                             A machine that is down takes the wells behind it on the flow network (at_risk.trip), its
-                            share where parallel trains carry the rest
+                            share where parallel trains carry the rest. Anything else (a report of a smell or a drip,
+                            a notification) has no measured link to production: what it defers is not known (#1365)
     what it puts at risk    for a condition not yet costing production: what is behind it if it trips, for the
                             risk line; never added to the deferred barrels, since the chance it trips is not known
-    when it is done         dispatch now: the operator queue's time to respond (its SLA); the next visit: a plan item
-                            on its equipment (its assets or what they are part of, short of the area) starting
+    the risk of waiting     from the record only: its assets' ABC criticality (with its priority), or a hazard it
+                            reports (gas, H2S, fire) or its type carries (safety, HSE), which never reads low. Neither
+                            on record: no risk word, and the criticality is named as not known (#1365)
+    when it is done         dispatch now: the operator queue's time to respond (its SLA); the next visit: a field
+                            operator already sent to or on site at the same asset (#1365), else a plan item on its
+                            equipment (its assets or what they are part of, short of the area) under way or starting
                             within `options.window_days`; shelve: until the next
                             turnaround or shutdown of the area, at most `exceptions.max_shelve_days`; escalate: the
                             engineer queue's SLA, then a dispatch
-    readiness and clashes   readiness.check (crew, permit, spares, simultaneous operations, MOC) for dispatch now;
-                            the visit's own clashes on the plan for riding along
+    readiness and clashes   readiness.check (the field's last report, crew, permit, spares, simultaneous operations,
+                            MOC) for dispatch now, less the visit it can ride along with: someone already at the
+                            asset is the ride along, not a clash; the visit's own clashes on the plan for riding along
     price                   the pack's value config (oil per bbl, gas per Mscf)
 
 The recommendation is a rule, the same on every case, so two people reading one case get one answer: the cheapest
@@ -31,6 +37,7 @@ option that is ready and does not leave a high risk waiting, where a separate tr
 more than it costs. Anything not known is named, not guessed.
 """
 
+import re
 from datetime import datetime, timedelta
 
 from psycopg.types.json import Jsonb
@@ -40,6 +47,11 @@ from ..core.exceptions import ExceptionError
 
 KEYS = ("dispatch", "window", "shelve", "escalate")
 DOWN_TYPES = ("machine_trip",)  # the thing is stopped: everything it reaches is deferred, not a share
+SHARE_TYPES = ("upset",)  # a process upset still going: the pack's share of what it reaches, as an upset's value says
+# A hazard to people in what was reported: gas escaping, H2S, fire or smoke. Never a low risk, whatever the asset.
+HAZARD = re.compile(r"(?i)\b(h2s|hydrogen sul[pf]hide|smoke|flames?|explosion|lel)\b"
+                    r"|\bfire\b(?!\s*(water|pump|main|hydrant))|gas (smell|leak|release|escap\w*|detector|alarm)"
+                    r"|smell(s|ing|ed)? (of )?gas|(leaking|escaping) gas")
 OPEN_STAGES = ("dispatch", "desk", "back", "planned")
 JOB_HOURS = 4.0  # the job itself, once someone is there: added after a wait for a visit or a shelf
 LEVELS = ("Low", "Medium", "High")
@@ -130,14 +142,20 @@ def loss(conn, row: dict, prices: dict) -> tuple[dict | None, dict | None, list[
     down = row["type"] in DOWN_TYPES
     rate = sre_handoff.rate_at_risk(conn, subjects) if subjects else None
     now = behind = None
-    if rate:
+    if rate and not down and row["type"] not in SHARE_TYPES:
+        # a report of a smell or a drip on a well defers nothing anyone measured: what is behind it, not a loss
+        behind = {"oil_bbld": round(rate["oil_bbld"], 1), "gas_mscfd": round(rate["gas_mscfd"], 1),
+                  "usd_per_day": round(_usd(rate["oil_bbld"], rate["gas_mscfd"], prices)), "wells": rate["wells"],
+                  "basis": f"the latest test rate of the {rate['wells']} producing well(s) it is on, if they stop"}
+        unknown.append("what it defers: nothing measured links it to a loss of production")
+    elif rate:
         share = 1.0 if down else prices["share"]
         oil, gas = rate["oil_bbld"] * share, rate["gas_mscfd"] * share
         now = {"oil_bbld": round(oil, 1), "gas_mscfd": round(gas, 1), "usd_per_day": round(_usd(oil, gas, prices)),
                "wells": rate["wells"],
                "basis": (f"the latest test rate of the {rate['wells']} producing well(s) it is on, stopped"
                          if down else f"{share:.0%} of the latest test rate of the {rate['wells']} producing well(s) "
-                         "it is on, while it lasts (the pack's share for a condition still going)")}
+                         "it is on, while it lasts (the pack's share for an upset still going)")}
     elif subjects:
         tripped = at_risk.trip(conn, subjects[0], hours=24)
         oil = next((a["value"] for a in tripped["at_risk"] if a["quantity"] == "oil_rate"), 0.0)
@@ -156,6 +174,7 @@ def loss(conn, row: dict, prices: dict) -> tuple[dict | None, dict | None, list[
                 now = {**figure, "basis": said + ", stopped"}
             else:
                 behind = {**figure, "basis": said + ", if it trips"}
+                unknown.append("what it defers: nothing measured links it to a loss of production")
         elif not tripped["on_network"]:
             unknown.append("what it defers: it reaches no tested producing well and is not on the flow network")
     else:
@@ -177,9 +196,29 @@ def _criticality(conn, subjects: list[str]) -> str | None:
     return found[0] if found else None
 
 
-def _base(priority: float | None, crit: str | None) -> int:
-    """The risk of the condition itself, 0 low to 2 high: its priority (a 0-1 score, or SAP 1-4 stored as 5 minus
-    it) and its criticality, whichever is higher."""
+def _hazard(conn, row: dict) -> str | None:
+    """What makes it a hazard to people, from the record: its type is a safety case type or HSE's work, or what was
+    reported (its title, the field's notes) names gas escaping, H2S, fire or smoke. None when nothing does."""
+    from . import exceptions
+
+    if row["type"] in _safety_types(conn):
+        return "a safety case type"
+    t = exceptions.types(conn).get(row["type"])
+    if t is not None and t.role == "role:hse_specialist":
+        return "HSE work"
+    reports = (row.get("evidence") or {}).get("field") if isinstance(row.get("evidence"), dict) else None
+    for text in [row.get("title") or "", *[(f or {}).get("note") or "" for f in reports or []]]:
+        if m := HAZARD.search(text):
+            return f"{m.group(0).lower()} reported"
+    return None
+
+
+def _base(priority: float | None, crit: str | None, hazard: str | None = None) -> dict | None:
+    """The risk of the condition itself, 0 low to 2 high, and the least it can be: its priority (a 0-1 score, or SAP
+    1-4 stored as 5 minus it) and its criticality, whichever is higher; a hazard to people is high and never reads
+    low however short the wait. None when nothing on record backs a risk word: no criticality and no hazard (#1365)."""
+    if not crit and not hazard:
+        return None
     p = 0
     if priority is not None and priority > 0:
         if priority <= 1:
@@ -190,15 +229,19 @@ def _base(priority: float | None, crit: str | None) -> int:
         else:  # a value in USD
             p = 2 if priority >= 10000 else 1 if priority >= 1000 else 0
     c = {"A": 2, "B": 1, "C": 0}.get(crit or "", 0)
-    return max(p, c)
+    return {"level": 2 if hazard else max(p, c), "floor": 1 if hazard else 0, "hazard": hazard}
 
 
-def _risk(base: int, hours: float, crit: str | None, behind: dict | None) -> dict:
+def _risk(base: dict | None, hours: float, crit: str | None, behind: dict | None) -> dict | None:
     """The risk of leaving it this long: a short wait takes the condition's own risk down a level or two, a long one
-    leaves it as it is."""
-    level = base - 2 if hours <= 8 else base - 1 if hours <= 72 else base
-    level = max(0, min(2, level))
+    leaves it as it is; a hazard stays at least medium. None when nothing on record backs one."""
+    if base is None:
+        return None
+    level = base["level"] - 2 if hours <= 8 else base["level"] - 1 if hours <= 72 else base["level"]
+    level = max(base["floor"], min(2, level))
     why = [f"criticality {crit}" if crit else "criticality not assessed"]
+    if base["hazard"]:
+        why.append(base["hazard"])
     if behind:
         why.append(f"{_n(behind['oil_bbld'])} bbl/d behind it if it trips")
     return {"level": LEVELS[level], "why": ", ".join(why)}
@@ -218,16 +261,46 @@ def _deferred(now: dict | None, hours: float, prices: dict) -> dict | None:
 
 # ---- the windows -------------------------------------------------------------------------------------------------
 
+def _alongside(conn, row: dict, at: datetime) -> dict | None:
+    """A field operator already sent to or on site at one of the event's own assets, on another open job: the visit
+    to ride along with, now (#1365). Work in the operator queue nobody has taken is not someone there."""
+    from . import exceptions
+
+    field = exceptions.operators(conn)
+    if not field:
+        return None
+    for r in conn.execute(
+        """
+        select e.id, e.title, e.evidence, w.assignee from exception_record e join work_item w on w.id = e.item_id
+        where e.state = 'open' and e.joined_to is null and e.id <> %s and e.subjects && %s::text[]
+          and w.state not in ('done', 'cancelled') and w.assignee = any(%s)
+        order by e.updated_at desc, e.id
+        """, (row["id"], list(row["subjects"] or []), sorted(field))).fetchall():
+        reports = ((r["evidence"] or {}).get("field") or []) if isinstance(r["evidence"], dict) else []
+        last = reports[-1] if reports else {}
+        if last.get("status") in ("done", "could_not_do"):
+            continue  # back from the field: nobody there now
+        there = "on site" if last.get("status") == "on_site" and last.get("by") == r["assignee"] else "sent there"
+        return {"id": None, "exception": r["id"], "person": r["assignee"], "title": f"{r['assignee']}, {there} for "
+                f"“{r['title']}”", "kind": "field_job", "start_at": at, "end_at": at + timedelta(hours=JOB_HOURS),
+                "crew": r["assignee"], "basis": f"{r['assignee']} is {there} on its asset now, then {JOB_HOURS:g} h "
+                "for the job"}
+    return None
+
+
 def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
-    """The next planned visit to the event's own equipment that it could ride along with: a plan item scheduled or
-    under way, starting after now and within `days`, not this event's own, on one of its assets or on what they are
-    part of short of an area (an instrument's exchanger, a well's tags). An area can be half a plant (one demo
-    field's compression area holds half its tags), so a job elsewhere in it is not a visit to this one (#1358)."""
+    """The next visit to the event's own equipment that it could ride along with: a field operator at the same asset
+    now (`_alongside`), else a plan item scheduled or under way, ending after now and starting within `days`, not this
+    event's own, on one of its assets or on what they are part of short of an area (an instrument's exchanger, a
+    well's tags). An area can be half a plant (one demo field's compression area holds half its tags), so a job
+    elsewhere in it is not a visit to this one (#1358)."""
     from .plan import ACTIVE
 
     subjects = list(row["subjects"] or [])
     if not subjects:
         return None
+    if along := _alongside(conn, row, at):
+        return along
     r = conn.execute(
         """
         with recursive up (fuzer_id, depth) as (
@@ -237,14 +310,30 @@ def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
             join entity k on k.fuzer_id = e.dst and k.kind not in ('area', 'facility') where up.depth < 4),
         mine as (select array_agg(fuzer_id) as ids from up)
         select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew from plan_item p, mine
-        where p.status = any(%(active)s) and p.status <> 'proposed' and p.start_at > %(at)s
+        where p.status = any(%(active)s) and p.status <> 'proposed' and p.end_at > %(at)s
           and p.start_at <= %(until)s and p.exception_id is distinct from %(e)s
           and (p.subjects && mine.ids or exists (select 1 from edge x where x.src = any(p.subjects)
                                                  and x.rel = 'part_of' and x.dst = any(mine.ids)))
         order by p.start_at, p.id limit 1
         """, {"active": list(ACTIVE), "at": at, "until": at + timedelta(days=days), "e": row["id"],
               "s": subjects}).fetchone()
-    return dict(r) if r else None
+    return {**r, "start_at": max(r["start_at"], at)} if r else None  # under way: it is there now
+
+
+def _beside(ready: dict, visit: dict | None) -> dict:
+    """Readiness for dispatch now, less the same-asset clash with the visit it can ride along with: someone already at
+    the asset is the ride along, not a clash (#1365)."""
+    if not visit:
+        return ready
+    ref = {"exception": visit["exception"]} if visit.get("exception") else {"plan_item": visit["id"]}
+    gone = {x["say"] for c in ready["checks"] if c["check"] == "simops" for x in c.get("conflicts") or []
+            if x["kind"] == "same_asset" and x["with"] == ref}
+    if not gone:
+        return ready
+    checks = [{**c, "blockers": [b for b in c["blockers"] if b not in gone]} if c["check"] == "simops" else c
+              for c in ready["checks"]]
+    blockers = [b for b in ready["blockers"] if b.split(": ", 1)[-1] not in gone]
+    return {**ready, "checks": checks, "blockers": blockers, "ready": not blockers}
 
 
 def _turnaround(conn, row: dict, at: datetime) -> dict | None:
@@ -329,12 +418,14 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
     crit = _criticality(conn, list(row["subjects"] or []))
     if not crit:
         unknown.append("criticality: not assessed on its assets")
-    base = _base(row["case_priority"] or row["priority"], crit)
+    base = _base(row["case_priority"] or row["priority"], crit, _hazard(conn, row))
     options = []
+    days = int(settings.get(conn, "options.window_days"))
+    visit = _visit(conn, row, at, days)
 
     # dispatch now
     respond = _hours(conn, "operator", 4.0)
-    ready = readiness.check(conn, list(row["subjects"] or []), row["id"])
+    ready = _beside(readiness.check(conn, list(row["subjects"] or []), row["id"]), visit)
     clashes = next((c["blockers"] for c in ready["checks"] if c["check"] == "simops"), [])
     notes = [c["note"] for c in ready["checks"] if not c.get("checked") and c.get("note")]
     options.append({
@@ -346,8 +437,6 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
         "basis": f"the operator queue answers within {respond:g} h (its SLA)"})
 
     # ride along with the next visit
-    days = int(settings.get(conn, "options.window_days"))
-    visit = _visit(conn, row, at, days)
     if visit:
         hours = (visit["start_at"] - at).total_seconds() / 3600 + JOB_HOURS
         parts = readiness.spares(conn, list(row["subjects"] or []))
@@ -360,7 +449,9 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
             "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
             "ready": not short, "blockers": short, "warnings": [], "unknown": [parts["note"]] if parts.get("unknown") else [],
             "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"]), "available": True,
-            "basis": f"{visit['kind'].replace('_', ' ')} on the plan on its equipment, then {JOB_HOURS:g} h for the job"})
+            "person": visit.get("person"), "with_exception": visit.get("exception"),
+            "basis": visit.get("basis") or f"{visit['kind'].replace('_', ' ')} on the plan on its equipment, then "
+                                           f"{JOB_HOURS:g} h for the job"})
     else:
         options.append({"key": "window", "label": "Ride along with the next visit", "available": False,
                         "unavailable": f"nothing scheduled on its equipment in the next {days} days"})
@@ -425,15 +516,21 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
     by = {o["key"]: o for o in options if o.get("available")}
     d = by["dispatch"]
     usd = lambda o: (o.get("deferred") or {}).get("usd") or 0
+    level = lambda o: (o.get("risk") or {}).get("level")
     waiting = [o for o in (by.get("window"), by.get("shelve")) if o]
-    waits = [o for o in waiting if o["ready"] and o["risk"]["level"] != "High"]
+    # a shelf is only recommended on a risk the record backs; riding along with a visit already going there is not
+    # a wait anyone needs a criticality to judge
+    waits = [o for o in waiting if o["ready"] and level(o) != "High" and (level(o) or o["key"] == "window")]
     cheapest = min(waits, key=lambda o: (usd(o), o["hours"])) if waits else None
     saved = usd(cheapest) - usd(d) if cheapest else None
     if cheapest and saved <= trip_usd:
-        risk = f"waiting leaves the risk {cheapest['risk']['level'].lower()}"
+        risk = (f"waiting leaves the risk {level(cheapest).lower()}" if level(cheapest)
+                else "the risk of waiting is not known (no criticality on record)")
         if cheapest["key"] == "window":
             cost = (f"{_money(saved)} more deferred than going now, less than a separate trip "
                     f"({money(trip_usd)})" if now and saved > 0 else "nothing deferred while it waits")
+            if cheapest.get("person"):
+                return "window", f"{cheapest['person']} is already there: riding along does it with {cost}; {risk}."
             return "window", f"The visit on {cheapest['detail'].rsplit(', ', 1)[-1]} does it with {cost}; {risk}."
         cost = (f"Waiting defers {_bbl(cheapest)} ({_money(usd(cheapest))}), less than a separate trip "
                 f"({money(trip_usd)})" if now and usd(cheapest) else "Nothing is deferred while it waits")
@@ -447,14 +544,15 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
             wait = f"for {name}" if alt["key"] == "window" else name
             why.append(f"Waiting {wait} defers {_bbl(alt)} ({_money(usd(alt))}) against {_bbl(d)} "
                        f"({_money(usd(d))}) if it goes now")
-        if any(o["risk"]["level"] == "High" for o in waiting):
+        if any(level(o) == "High" for o in waiting):
             why.append("waiting leaves the risk high" if why else "Waiting leaves the risk high")
         why.append("nothing blocks it")
         return "dispatch", "; ".join(why) + "."
     blocked = (d["blockers"] or d["clashes"] or ["not ready"])[0]
-    if "window" in by and by["window"]["ready"] and by["window"]["risk"]["level"] != "High":
+    if "window" in by and by["window"]["ready"] and level(by["window"]) != "High":
         return "window", f"It can't go now ({blocked}); the next visit can take it."
-    return "escalate", f"It can't go now ({blocked}) and waiting leaves the risk high: an engineer decides the way round."
+    high = " and waiting leaves the risk high" if any(level(o) == "High" for o in waiting) else ""
+    return "escalate", f"It can't go now ({blocked}){high}: an engineer decides the way round."
 
 
 def about(v: float) -> float:
@@ -516,6 +614,9 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
             work.set_due(conn, row["item_id"], by, due, "wanted back by then when dispatched")
         if row["item_id"] and priority is not None:
             work.set_priority(conn, row["item_id"], by, priority, "set when dispatched")
+    elif option == "window" and o.get("person"):  # someone already at the asset takes it with them
+        told = (ask or "").strip() or f"While you are there: {ASK[0].lower()}{ASK[1:]}"
+        row = exceptions.dispatch(conn, eid, by, o["person"], told)
     elif option == "window":
         from ..core.plan import PlanError
 

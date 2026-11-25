@@ -128,8 +128,13 @@ def test_an_escalation_tells_the_new_holder_and_whoever_had_it(conn):
     step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state = 'waiting' "
                         "order by id limit 1", (item,)).fetchone()["id"]
     engine.hand_off(conn, step, "ines", "olav")
+    roles.set_role(conn, "engineer", "olga", escalate_to="ops_lead")  # a site that sends overdue triage to its lead
     conn.commit()
-    engine.tick(conn, now=engine.utcnow() + timedelta(days=30))
+    try:
+        engine.tick(conn, now=engine.utcnow() + timedelta(days=30))
+    finally:
+        roles.set_role(conn, "engineer", "olga", escalate_to=None)
+        conn.commit()
     mine = [n for n in told(conn, "olav") if n["item_id"] == item and n["kind"] == "escalated"]
     assert mine and "escalated away from you" in mine[0]["text"]
 

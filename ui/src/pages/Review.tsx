@@ -1,9 +1,9 @@
 import { openDocument } from "../DocumentViewer";
-import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice, Field, Tabs } from "../ui";
+import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice, Field } from "../ui";
 import { percent } from "../format";
 import "../styles/review.css";
 import "../styles/trends.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   type HeldLoadPayload,
   type PidConnectionPayload,
@@ -30,7 +30,8 @@ import { personSignedIn } from "../identityStore";
 import { FindingEvidence } from "../Finding";
 import { say } from "../wording";
 import { DrawingViewer } from "../DrawingViewer";
-import { MatchRef } from "./masterdata/MatchRef";
+import { MatchRef, hitLine } from "./masterdata/MatchRef";
+import { caseHref } from "./workflows/shared";
 
 /** Where a kind of question is listed: its tab on Master data (P2.3, #505). */
 /** The kinds of question, in the order their tabs show. */
@@ -43,8 +44,8 @@ const QUESTION_KINDS: [ReviewKind, string][] = [
 export const questionsHref = (kind?: string, item?: number) =>
   href("/masterdata", { tab: "questions", kind, item: item === undefined ? undefined : String(item) });
 
-/** What a recorded answer did, in one line. */
-function saved(item: ReviewItem, d: Omit<Decision, "by">): string {
+/** What a recorded answer did, in one line; a message's answer links the case it opened (P5.26a). */
+function saved(item: ReviewItem, d: Omit<Decision, "by">, opened?: number | null): ReactNode {
   return (
       item.kind === "match"
         ? `Saved #${item.id}. Fuzer is updating the records in the background.`
@@ -76,8 +77,10 @@ function saved(item: ReviewItem, d: Omit<Decision, "by">): string {
             ? `Saved #${item.id}. ${item.payload.point ?? "The point"} is ${roleLabel(item.payload, d)} from now on, and stays so after rebuilds.`
           : item.kind === "message"
             ? d.decision === "reject"
-              ? `Saved #${item.id}. The message is kept with no case.`
-              : `Saved #${item.id}. The message is a case about the entity you chose, routed like any other.`
+              ? "Saved. The message is kept with no case."
+              : opened != null
+                ? <>Saved. The message is <a href={caseHref(opened)}>case {opened}</a>, routed like any other.</>
+                : "Saved. The message is a case about the entity you chose, routed like any other."
           : `Saved #${item.id}. The chosen value is live.`
   );
 }
@@ -92,14 +95,17 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = usePerson();
   const [done, setDone] = useState<Set<number>>(new Set());
-  const [toast, setToast] = useState<string>();
+  const [toast, setToast] = useState<ReactNode>();
 
   useEffect(() => setDone(new Set()), [kind]);
+  // On a phone the kinds scroll sideways: the chosen one is brought into sight.
+  const kinds = useRef<HTMLElement>(null);
+  useEffect(() => { kinds.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ inline: "center", block: "nearest" }); }, [kind]);
 
   const decide = async (item: ReviewItem, d: Omit<Decision, "by">) => {
-    await api.decide(item.id, { ...d, by: name || "anonymous" });
+    const out = await api.decide(item.id, { ...d, by: name || "anonymous" });
     setDone((s) => new Set(s).add(item.id));
-    setToast(saved(item, d));
+    setToast(saved(item, d, out.case));
     notifyChanged();
   };
 
@@ -110,16 +116,17 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
 
   return (
     <section>
-      <Line spread>
-        <Tabs label="Kinds of question" items={QUESTION_KINDS.map(([k, label]) => ({
-          key: k, label: <>{label} <Text muted>{stats?.open_reviews[k] ?? 0}</Text></>, current: kind === k, href: questionsHref(k),
-        }))} />
-        {/* a signed-in account answers as itself: only a local, unsigned session types a name */}
-        {!personSignedIn() && <label className="reviewer">
-          Reviewer
-          <Input value={name} placeholder="your name" onChange={(e) => setName(e.target.value)} />
-        </label>}
-      </Line>
+      {/* The kinds are facets with counts: chips that wrap on a desk and scroll on a phone, so all ten are in sight
+          (P5.26f: as tabs, Messages sat off a 1440 px screen). */}
+      <nav ref={kinds} className="chips question-kinds" aria-label="Kinds of question">
+        {QUESTION_KINDS.map(([k, label]) => <a key={k} href={questionsHref(k)} className={kind === k ? "chip on" : "chip"}
+          aria-current={kind === k ? "page" : undefined}>{label} <Text muted>{stats?.open_reviews[k] ?? 0}</Text></a>)}
+      </nav>
+      {/* a signed-in account answers as itself: only a local, unsigned session types a name */}
+      {!personSignedIn() && <label className="reviewer">
+        Reviewer
+        <Input value={name} placeholder="your name" onChange={(e) => setName(e.target.value)} />
+      </label>}
 
       <Text as="p" small>
         {kind === "match"
@@ -146,8 +153,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       {toast && (
         <Notice role="status">
           {toast}
-          <p><a href={href("/sources")}>Review source loads and freshness</a>{" · "}
-            <a href={href("/jobs")}>Inspect technical execution</a></p>
+          {/* a message's answer is a case, not a load: Sources and Jobs have nothing to show for it */}
+          {kind !== "message" && <p><a href={href("/sources")}>Review source loads and freshness</a>{" · "}
+            <a href={href("/jobs")}>Inspect technical execution</a></p>}
         </Notice>
       )}
 
@@ -198,15 +206,15 @@ function QuestionCard({ item, onDecide }: { item: ReviewItem; onDecide: OnDecide
 export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKind; onDone: () => void }) {
   const q = useAsync(() => api.review(kind, id), [kind, id]);
   const [name] = usePerson();
-  const [done, setDone] = useState<string>();
+  const [done, setDone] = useState<ReactNode>();
   const item = q.data?.find((i) => i.id === id);
   if (done) return <Notice role="status">{done}</Notice>;
   if (!item) return <Status of={q} />;
   const sheet = item.kind === "pid_mismatch" ? item.payload : null;
   return <div className="case-question">
     <QuestionCard item={item} onDecide={async (d) => {
-      await api.decide(item.id, { ...d, by: name || "anonymous" });
-      setDone(saved(item, d)); notifyChanged(); onDone();
+      const out = await api.decide(item.id, { ...d, by: name || "anonymous" });
+      setDone(saved(item, d, out.case)); notifyChanged(); onDone();
     }} />
     {sheet?.document && <DrawingViewer id={sheet.document} highlight={[sheet.fuzer_id]} title={sheet.sheet} compact />}
   </div>;
@@ -668,11 +676,13 @@ function MessageCard({ id, p, onDecide }: { id: number; p: MessagePayload; onDec
       {m.subject && <Text as="p" small>{m.subject}</Text>}
       <p>{m.text}</p>
       <Text as="p" small>Why it stopped: {p.why}</Text>
+      {/* each candidate by name, kind, description and place: five bare "About 30-PT-2001" told the steward nothing */}
+      {p.candidates.length > 0 && <List plain>{p.candidates.map((c) => <li key={c.fuzer_id}>
+        <Button disabled={busy} onClick={() => run({ decision: "choose", value: c.fuzer_id })}>About {hitLine(c)}</Button>
+      </li>)}</List>}
+      <MatchRef value={p.candidates[0]?.label ?? ""} label="Another entity" canRemember={false} busy={busy} kinds={p.kinds}
+        onPick={(fid) => run({ decision: "choose", value: fid })} />
       <Line wrap>
-        {p.candidates.map((c) => <Button key={c.fuzer_id} disabled={busy}
-          onClick={() => run({ decision: "choose", value: c.fuzer_id })}>About {c.label ?? c.fuzer_id}</Button>)}
-        <MatchRef value={p.candidates[0]?.label ?? ""} label="Another entity" canRemember={false} busy={busy}
-          onPick={(fid) => run({ decision: "choose", value: fid })} />
         <Button variant="secondary" disabled={busy} onClick={() => run({ decision: "reject" })}>No work needed</Button>
       </Line>
       {feedback}

@@ -21,7 +21,7 @@ flowchart TB
 Open **Work > List** and pick **Waiting on me**. Beside your own steps is what waits unclaimed in the engineer queue,
 with **Take it** on its row.
 Each row says what kind of work it is, the asset, and when it is due. A step is usually due a day after it arrives
-(a triage sooner) and escalates to the ops lead if nobody takes it.
+(a triage sooner) and is marked escalated in the engineer queue if nobody takes it.
 
 | Kind of work | Where it comes from | What it usually needs |
 |---|---|---|
