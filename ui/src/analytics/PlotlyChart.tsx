@@ -6,6 +6,8 @@ import { useTheme } from "../theme";
 import { FullscreenButton, useFullscreen, ErrorText } from "../ui";
 
 type Spec = FigureData["spec"];
+/** How long a chart may take to draw before it says it could not. */
+const DEADLINE_MS = 15_000;
 
 /** Bars with long labels run down the page below the width the figure asks for. */
 function forWidth(spec: Spec, width: number): Spec {
@@ -44,6 +46,8 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, onTime }: {
     let dispose: (() => void) | undefined;
     let purge: (() => void) | undefined;
     setError("");
+    // A chart that never finishes drawing says so and points at its table, not "Drawing the chart…" for ever (#1348).
+    const late = window.setTimeout(() => { if (!gone) setError("it did not finish drawing"); }, DEADLINE_MS);
     import("plotly.js-cartesian-dist-min").then(async ({ default: Plotly }) => {
       if (gone) return;
       purge = () => Plotly.purge(node);
@@ -57,6 +61,8 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, onTime }: {
       let width = node.parentElement?.clientWidth ?? 0;
       await draw(width);
       if (gone) return;
+      window.clearTimeout(late);
+      setError("");
       setReady(true);
       const events = node as HTMLDivElement & { on?: (ev: string, fn: (e: any) => void) => void };
       if (onPoint || onTime) {
@@ -83,7 +89,7 @@ export function PlotlyChart({ spec, label, onPoint, onZoom, onTime }: {
       observer.observe(node.parentElement ?? node);
       dispose = () => observer.disconnect();
     }).catch((failure: Error) => { if (!gone) setError(failure.message); });
-    return () => { gone = true; dispose?.(); purge?.(); };
+    return () => { gone = true; window.clearTimeout(late); dispose?.(); purge?.(); };
   }, [spec, theme, onPoint, onZoom, onTime, full.on]);
   return <>
     {error && <ErrorText>Chart unavailable: {error}. Use the data table below.</ErrorText>}

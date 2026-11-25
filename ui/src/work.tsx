@@ -83,31 +83,31 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
   const el = d.step ?? (e.element ? cap(e.element.replace(/_/g, " ")) : null);
   const step = el;
   switch (e.kind) {
-    case "created": return { text: <>opened the case{d.assignee ? <> for {personName(d.assignee)}</> : ""}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
+    case "created": return { text: <>opened the case{d.assignee ? <> for {personName(d.assignee)}</> : ""}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "started": return { text: <>started the {String(d.process_key ?? "").replace(/_/g, " ")} process</> };
     case "step_started": return { text: <><strong>{step}</strong> is waiting for {d.assignee ? personName(d.assignee) : (d.agent ? `the ${d.agent} agent` : to(`role:${d.role}`))}</> };
     case "claimed": return { text: <>took <strong>{el}</strong>{d.worker ? ` (worker ${d.worker}, try ${d.attempt})` : ""}</> };
     case "released": return { text: <>let go of <strong>{el}</strong></> };
     case "completed": return { text: <>completed <strong>{step}</strong></>, body: <DataView data={d.data} /> };
     case "agent_result": return { text: <>finished <strong>{step}</strong></>, body: <DataView data={d.data} /> };
-    case "handed_off": return { text: <>handed <strong>{el ?? "the case"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
+    case "handed_off": return { text: <>handed <strong>{el ?? "the case"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "escalated": return { text: escalation(e) };
     case "timer_fired": return { text: <>timer <strong>{el}</strong> fired</> };
     case "message": return { text: <>sent {d.name} {d.delivered ? "and the workflow moved on" : "(kept as evidence)"}</>, body: <DataView data={d.payload} /> };
     case "agent_failed": return { text: <>failed try {d.attempt} at <strong>{el}</strong>; retrying</>, body: <ErrorText>{d.error}</ErrorText> };
     case "failed": return { text: <><strong>{el}</strong> couldn't go on; it is a task for {to(`role:${d.role}`)}</>, body: <ErrorText>{d.error}</ErrorText> };
     case "step_cancelled": return { text: <><strong>{el}</strong> was cancelled</>, body: d.why && <Text as="p" small>{d.why}</Text> };
-    case "completed_process": return { text: <>workflow {d.state}: <strong>{d.outcome}</strong></> };
-    case "state_changed": return { text: <>case is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
+    case "completed_process": return { text: <>workflow {d.state}: <strong>{say(d.outcome)}</strong></> };
+    case "state_changed": return { text: <>case is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "commented": return { text: <>commented</>, body: <p className="section-text small">{d.text}</p> };
     case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">
       <Text as="p" small><strong>{d.question}</strong></Text><Markdown text={String(d.answer ?? "")} /></div> };
-    case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
+    case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "migrated": return { text: <>picked up the current version of its workflow</> };
     case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
     case "auto_assigned": return { text: <><strong>{step}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
-    case "delegated": return { text: <><strong>{el ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
-    case "item_changed": return { text: <>changed {[d.priority && `priority ${d.priority.from ?? "–"} → ${d.priority.to}`, d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <Text as="p" small>{d.reason}</Text> };
+    case "delegated": return { text: <><strong>{el ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
+    case "item_changed": return { text: <>changed {[d.priority && `priority ${d.priority.from ?? "–"} → ${d.priority.to}`, d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "checklist_added": return { text: <>added to the checklist</>, body: <List small>{(d.items ?? []).map((t: string, i: number) => <li key={i}>{t}</li>)}</List> };
     case "checked": return { text: <>{d.state === "done" ? "ticked off" : d.state === "skipped" ? "marked not needed" : "opened again"} <strong>{d.item}</strong></>,
       body: d.note && <Text as="p" small>{d.note}</Text> };

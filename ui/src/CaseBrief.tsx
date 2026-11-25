@@ -1,9 +1,9 @@
 /** The specialist brief on a case (P4.3): what the owning specialist found before anyone opened it, its proposed
- * disposition with a confidence, what it could not check and what it cost against its budget. The person who
- * decides says whether they followed the proposal; the brief never decides. Sits above the decision. */
+ * disposition with a confidence and what it could not check. What it cost is AI usage's, not the case's (#1348). The
+ * person who decides says whether they followed the proposal; the brief never decides. */
 import { useState } from "react";
 import { useAction } from "./lib";
-import { money, percent, when } from "./format";
+import { percent, when } from "./format";
 import { api, type WorkItem } from "./api";
 import { Actor } from "./work";
 import { Badge, Button, Card, Disclosure, Input, Notice, Table, ErrorText, Line, Text } from "./ui";
@@ -28,10 +28,7 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
   const p = b.proposal ?? {};
   const evidence = b.evidence ?? [], analysis = b.analysis ?? [], similar = b.similar ?? [], gaps = b.could_not_check ?? [];
   return (
-    <Card className="case-brief" title="Specialist brief" actions={<Text small>
-      {money(e.ledger?.cost_usd ?? 0)}{e.budget_usd ? <> of {money(e.budget_usd)} budget</> : null}{" "}
-      {e.over_budget && <Badge tone="warn">over budget</Badge>}{" "}
-      {e.late && <Badge tone="warn">late</Badge>}</Text>}>
+    <Card className="case-brief" title="Specialist brief">
       {b.what_happened && <p>{b.what_happened}</p>}
       {p.disposition && (
         <Notice tone="info">

@@ -627,28 +627,6 @@ test("a case names the signed-in person who opened and started it, never their a
   assert.ok(!(await page.locator("main").innerText()).includes("user:9abd"), "no account id on the case");
 });
 
-test("a case shows what each agent did on it, its versions and cost, against the case's cap (P4.4)", async () => {
-  const ledger = { agent: "maintenance-integrity", agents: ["maintenance-integrity"], models: ["claude-test"],
-    skills: { "maintenance-integrity/rotating": "3f9c0a1b2c4d" }, cost_usd: 0.42, seconds: 9,
-    tools: [{ agent: "maintenance-integrity", tool: "calc", args: { check: "vibration", ref: "20-K-2200B" } }] };
-  await page.route("**/work/items/7", route => route.fulfill({ json: { id: 7, title: "Agent case", type: "upset", state: "open",
-    subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", processes: [],
-    agent_spend: { usd: 2.1, cap_usd: 2 },
-    events: [{ id: 1, kind: "agent_result", actor: "agent:maintenance-integrity", element: "diagnose", at: "2026-11-09T09:05:00Z",
-      data: { step: "Diagnose", data: { diagnose: { answer: "Bearing wear on the drive end.", ledger } } } }] } }));
-  await page.goto(`${url}/#/cases/7`);
-  const card = page.locator(".ui-card, .card").filter({ has: page.getByText("Agent work", { exact: true }) }).first();
-  await card.waitFor();
-  await card.getByText("$2.10 of $2.00 cap", { exact: false }).waitFor();
-  await card.getByText("cap reached", { exact: true }).waitFor();
-  await card.getByRole("cell", { name: "claude-test" }).waitFor();
-  await card.getByRole("cell", { name: "$0.42" }).waitFor();
-  await card.getByRole("button", { name: "What Diagnose did" }).click();
-  await card.getByText("Bearing wear on the drive end.", { exact: true }).waitFor();
-  await card.getByRole("cell", { name: "calc", exact: true }).waitFor();
-  await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
-});
-
 test("a case links to Ask about it and shows an answer attached from Ask in its history (P4.5)", async () => {
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Pump vibration rising", type: "machine_health",
     state: "open", subjects: [], created_by: "detector:machine_health", created_at: "2026-11-09T09:00:00Z", processes: [],
@@ -711,8 +689,8 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await card.getByText("Proposed: Plan an anti-surge valve check", { exact: true }).waitFor();
   await card.getByText("72% confident", { exact: false }).waitFor();
   await card.getByText("no OEM map revision date", { exact: true }).waitFor();
-  await card.getByText("$0.62 of $0.50 budget", { exact: false }).waitFor();
-  await card.getByText("over budget", { exact: true }).waitFor();
+  // what the brief cost is AI usage's, not the case's (#1348)
+  assert.equal(await card.getByText("budget", { exact: false }).count(), 0);
   await card.getByRole("button", { name: "Evidence, analysis and similar cases" }).click();
   await card.getByRole("cell", { name: "anti-surge valve recalibrated" }).waitFor();
   await card.getByLabel("Note on the proposal").fill("checked the valve first");
@@ -9845,3 +9823,99 @@ test("Evals shows each skill and kind of output with its latest checks and grade
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
 });
+
+// P5.25e (#1348): a case back from the field leads with the field's answer and Close out, carries no AI cost or
+// agent/model table, offers one way to finish, and its close-out claims only what it filled.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a case back from the field leads with the field's answer and one Close out (#1348, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const step = { id: 61, process_id: 9, element: "work", name: "Work the case", kind: "user", state: "waiting", flow: null,
+      role: "ops_lead", assignee: null, requires_human: false, due_at: null, escalated_at: null, attempts: 0, error: null,
+      created_at: "2026-11-25T11:45:00Z", finished_at: null, finished_by: null };
+    const ledger = { agent: "maintenance-integrity", agents: ["maintenance-integrity"], models: ["claude-opus-5-5"], cost_usd: 0.53, tools: [] };
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, type: "machine_health", state: "open",
+      title: "20-K-2100C needs action: running near surge, surged outright", subjects: [], created_by: "agent:rotating_screen",
+      created_at: "2026-11-25T06:09:00Z", payload: { exception_id: 7 }, agent_spend: { usd: 0.53, cap_usd: 2 },
+      processes: [{ id: 9, process_key: "queue_item", version: 1, definition_id: 3, parent_token: null, state: "running", outcome: null,
+        data: {}, started_by: "agent:rotating_screen", started_at: "2026-11-25T06:09:00Z", path: [], open: [step] }],
+      brief: { expected: true, due: "2026-11-26T06:00:00Z", verdict: null, entry: { pack: "maintenance-integrity/compression",
+        ledger: { cost_usd: 0.53 }, budget_usd: 0.5, over_budget: true, late: true,
+        brief: { what_happened: "Stage 1 ran near its surge line.", proposal: { disposition: "Check the anti-surge valve", confidence: 0.75 } } } },
+      events: [{ id: 3, kind: "agent_result", actor: "agent:maintenance-integrity", element: "brief", at: "2026-11-25T14:13:00Z",
+        data: { step: "brief", data: { brief: { answer: "Briefed.", ledger } } } }] } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions({ applies: false, stage: "back",
+      why_not: "the field reported it done: close it out", options: [] }) }));
+    await page.route("**/work/tasks/61", (route) => route.fulfill({ json: { ...demoTask,
+      task: { ...demoTask.task, task_id: 61, element: "work", name: "Work the case", role: "ops_lead", requires_human: false,
+        process_id: 9, item_id: 21, process_key: "queue_item" },
+      item: { id: 21, title: "20-K-2100C needs action", type: "machine_health", state: "open", subjects: [], created_by: "agent:rotating_screen" },
+      data: { field_ask: "Go and have a look, report what you find", field_result: "done" },
+      evidence: { ...demoTask.evidence, comments: [{ id: 5, kind: "commented", actor: "alex", element: null, at: "2026-11-25T11:45:00Z",
+        data: { text: "Field: Done: Checked on site: no leak or damage found and the reading agrees locally." } }] } } }));
+    await page.route("**/work/items/21/closeout", (route) => route.fulfill({ json: { item_id: 21, record: null, repeats: [],
+      vocabulary: { dispositions: { real: "A real problem", false_alarm: "False alarm", duplicate: "Duplicate" },
+        outcomes: { fixed: "Fixed" }, failure_modes: { VIB: "Vibration" }, mechanisms: {}, causes: { "1": "Design" }, activities: { "3": "Inspect" } },
+      // the case's words named an action but no disposition: nothing the form shows is filled
+      suggestion: { from: "words", activity: "3" } } }));
+    await page.goto(`${url}/#/cases/21`);
+    const box = page.locator(".from-field");
+    await box.getByText("Done: Checked on site: no leak or damage found", { exact: false }).waitFor();
+    const close = page.getByRole("button", { name: "Close out", exact: true });
+    await close.waitFor();
+    for (const [what, el] of [["From the field", box.getByRole("heading", { name: "From the field" })], ["Close out", close]]) {
+      const b = await el.boundingBox();
+      assert.ok(b && b.y + b.height <= viewport.height, `${what} is in the first screen (${b?.y} + ${b?.height} > ${viewport.height})`);
+    }
+    // no options to dispatch it again, and no second way to finish beside Close out
+    assert.equal(await page.getByLabel("Options").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Complete", exact: true }).count(), 0);
+    await page.getByRole("heading", { name: "Specialist brief" }).waitFor();
+    const text = await page.locator("main").innerText();
+    for (const gone of ["budget", "over budget", "Agent work", "claude-opus", "$0.53", "cap"])
+      assert.ok(!text.includes(gone), `no AI cost or agent/model detail on the case: ${gone}`);
+    await close.click();
+    const form = page.locator(".closeout-form");
+    await form.getByLabel("What it was").waitFor();
+    assert.equal(await form.getByLabel("What it was").inputValue(), "");
+    assert.equal(await form.getByText("Filled in from", { exact: false }).count(), 0, "no claim of filling what is empty");
+    assert.deepEqual(await page.locator("main .ui-button-primary").allTextContents(), ["Close the case"], "one way to finish");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// P5.25e (#1348): an answered steward question names the person who answered, no raw id chip and no trend.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`an answered question shows who answered by name, with no raw id or trend (#1348, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const question = finding("external", "Two systems hold what may be one entity", [
+      { label: "Answer", value: "#/masterdata?tab=questions&kind=match&item=5", kind: "page", text: "Answer it on Master data" }]);
+    const source = { id: 7, type: "unmatched_record", key: "match:5", title: "Same item? JDE 500008 and maximo MX-00006", source: "stewardship",
+      state: "closed", first_seen: "2026-11-23T17:01:00Z", last_seen: "2026-11-23T17:01:00Z", joined_to: null, subjects: [],
+      label: "Unmatched record", finding: question };
+    await page.route("**/work/items/30", (route) => route.fulfill({ json: { id: 30, type: "unmatched_record", state: "done",
+      outcome: "answered by user:demo", closed_at: "2026-11-25T14:51:00Z", title: "Same item? JDE 500008 and maximo MX-00006 at 20-V-2001",
+      subjects: ["fz-equipment-51b4c553a6dc"], created_by: "stewardship", created_at: "2026-11-23T17:01:00Z", processes: [], sources: [source],
+      events: [{ id: 8, kind: "state_changed", actor: "user:demo", element: null, at: "2026-11-25T14:51:00Z",
+        data: { state: "done", reason: "answered by user:demo" } }] } }));
+    const around = [];
+    await page.route("**/work/items/30/around", (route) => { around.push(1); return route.fulfill({ json: {
+      window: { start: "2026-11-23T17:00", end: "2026-11-25T03:00" },
+      units: [{ id: "fz-vessel-1", label: "20-V-2001" }, { id: "fz-equipment-51b4c553a6dc", label: null }], alarms: [], log: [], basis: "" } }); });
+    await page.route("**/work/items/30/closeout", (route) => route.fulfill({ json: { item_id: 30, repeats: [], suggestion: { from: "words" },
+      record: { item_id: 30, disposition: "data_problem", note: "answered by user:demo", by: "user:demo", at: "2026-11-25T14:51:00Z" },
+      vocabulary: { dispositions: { data_problem: "Data problem" }, outcomes: {}, failure_modes: {}, mechanisms: {}, causes: {}, activities: {} } } }));
+    await page.route("**/entities/names**", (route) => route.fulfill({ json: {
+      "fz-equipment-51b4c553a6dc": { label: "20-V-2001", description: "GGCP inlet separator" } } }));
+    await page.goto(`${url}/#/cases/30`);
+    await page.locator(".closeout-done").getByText("answered by Demo account", { exact: false }).waitFor();
+    await page.getByRole("heading", { name: "History" }).waitFor();
+    const text = await page.locator("main").innerText();
+    assert.ok(!text.includes("user:demo"), "the person by name, never their account id");
+    assert.ok(!text.includes("fz-equipment-"), "no raw id chip");
+    assert.equal(await page.getByRole("tablist", { name: "Trend of" }).count(), 0, "a question about records shows no trend");
+    assert.equal(await page.locator(".trend-view").count(), 0);
+    assert.deepEqual(errors, []);
+  });
+}

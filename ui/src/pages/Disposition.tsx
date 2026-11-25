@@ -8,6 +8,7 @@ import { Button, Card, Disclosure, Field, Input, Select, ErrorText, Line, Text, 
 import { Status, useAsync, useAction } from "../lib";
 import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
+import { say } from "../wording";
 
 type Draft = Partial<Record<"disposition" | "failure_mode" | "mechanism" | "cause" | "activity" | "outcome" | "note", string>>
   & { duplicate_of?: string };
@@ -35,7 +36,7 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, sta
   if (record && !open) {
     return (
       <Card className="closeout-done" title="Close-out">
-        <Text as="p" small>{closeoutLine(record, v)}{record.note && <Text muted> · {record.note}</Text>}</Text>
+        <Text as="p" small>{closeoutLine(record, v)}{record.note && <Text muted> · {say(record.note)}</Text>}</Text>
         <Text as="p" small muted>by <Actor who={record.by} /> {when(record.at)}
           {!readOnly && <> · <Button variant="link" onClick={() => setOpen(true)}>Correct it</Button></>}</Text>
         {record.held != null
@@ -63,10 +64,12 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
   const dispositions = Object.fromEntries(Object.entries(v.dispositions)
     .filter(([code]) => (data.asked ? ["done", "duplicate"].includes(code) : code !== "done")));
   const s = data.suggestion;
+  // a suggested disposition the form doesn't offer here fills nothing: the form shows Choose, and claims nothing
+  const offered = s.disposition && dispositions[s.disposition] ? s.disposition : undefined;
   const start: Draft = data.record
     ? Object.fromEntries(Object.entries(data.record).filter(([, x]) => x != null).map(([k, x]) => [k, String(x)]))
-    : { disposition: s.disposition, failure_mode: s.failure_mode, mechanism: s.mechanism, cause: s.cause,
-        activity: s.activity, outcome: s.outcome };
+    : offered ? { disposition: offered, failure_mode: s.failure_mode, mechanism: s.mechanism, cause: s.cause,
+        activity: s.activity, outcome: s.outcome } : {};
   const [d, setD] = useState<Draft>(start);
   const a = useAction();
   const set = (k: keyof Draft) => (e: { target: { value: string } }) => setD({ ...d, [k]: e.target.value || undefined });
@@ -80,7 +83,8 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
   const hint = !d.disposition ? "Say what it was first"
     : missingTerms.length ? `Still needed: ${missingTerms.join(", ")}`
     : d.disposition === "duplicate" && !Number(d.duplicate_of) ? "Say which case it duplicates" : undefined;
-  const suggested = !data.record && (s.disposition || s.failure_mode || s.activity);
+  // "Filled in" only when a field shows something filled: the disposition, which the rest hang from
+  const suggested = !data.record && !!offered;
   const list = (k: keyof Draft, label: string, options: Record<string, string>, required = false) => (
     <Field label={label} width="full">
       <Select width="full" aria-label={label} value={d[k] ?? ""} onChange={set(k)} required={required}>
