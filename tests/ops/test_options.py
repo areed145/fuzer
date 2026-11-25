@@ -109,7 +109,7 @@ def test_no_visit_on_the_plan_says_so_and_desk_work_has_no_options(conn):
         assert options.for_exception(conn, desk["id"])["applies"] is False
 
 
-def test_choosing_dispatch_sends_it_with_why_now_and_counts_the_recommendation(conn):
+def test_choosing_dispatch_sends_the_ask_and_counts_the_recommendation(conn):
     e = trip(conn, "K-2300B trip 2")
     out = options.choose(conn, e["id"], "riley", "dispatch", to="sam", ask="Restart checks on the four wells")
     conn.commit()
@@ -120,7 +120,7 @@ def test_choosing_dispatch_sends_it_with_why_now_and_counts_the_recommendation(c
     assert any(s.startswith("Chose dispatch now") and "as recommended" in s for s in said), said
     sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
                         "('handed_off', 'created') order by id desc limit 1", (item,)).fetchone()["r"]
-    assert sent and sent.startswith("Restart checks") and "Why now:" not in sent  # no reason given: the ask alone
+    assert sent == "Restart checks on the four wells"
     assert options.for_case(conn, item)["applies"] is False  # the field has it now
     stats = options.acceptance(conn)
     assert stats["decided"] >= 1 and next(t for t in stats["types"] if t["type"] == "machine_trip")["rate"] is not None
@@ -133,6 +133,20 @@ def test_a_one_tap_dispatch_asks_the_field_to_look_not_the_cost_sum(conn):
     sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
                         "('handed_off', 'created') order by id desc limit 1", (out["event"]["item_id"],)).fetchone()["r"]
     assert sent == options.ASK
+
+def test_the_field_gets_only_what_to_do_and_the_why_stays_on_the_case(conn):
+    e = trip(conn, "K-2300B trip 5")
+    out = options.choose(conn, e["id"], "riley", "dispatch", "the shelf costs more than the trip", to="sam",
+                         ask="Check the seal for weeping")
+    conn.commit()
+    item = out["event"]["item_id"]
+    sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
+                        "('handed_off', 'created') order by id desc limit 1", (item,)).fetchone()["r"]
+    assert sent == "Check the seal for weeping"
+    said = [r["body"] for r in conn.execute(
+        "select data->>'text' as body from work_event where item_id = %s and kind = 'commented'", (item,))]
+    assert any("the shelf costs more than the trip" in s for s in said), said
+
 
 def test_any_option_takes_an_optional_why_and_is_counted_as_not_taken(conn):
     e = trip(conn, "K-2300B trip 3")

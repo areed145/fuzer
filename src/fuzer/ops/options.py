@@ -478,7 +478,7 @@ ASK = "Go and have a look, report what you find"  # what a dispatch asks when th
 def choose(conn, exception_id: int, by: str, option: str, reason: str | None = None, *, to: str | None = None,
            ask: str | None = None, due=None, priority: float | None = None, override: str | None = None) -> dict:
     """Carry out one of an event's options and record it: dispatch it (to a person or the operator queue, with what to
-    do and why now), put it on the plan with the next visit, shelve it, or send it to the engineer. Taking another
+    do), put it on the plan with the next visit, shelve it, or send it to the engineer. Taking another
     option than the one recommended, or sending one that is not ready, asks for nothing more: a why is optional (#1347),
     and a dispatch that is not ready still names its blockers on the case. The choice, the recommendation and any reason
     are kept, on the case's history too, and published as exception.option_chosen."""
@@ -500,9 +500,9 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
     if option == "dispatch":
         ready = readiness.for_exception(conn, eid)
         override = (override or "").strip() or why
-        # The field reads this first, in bold, on the job: what to do, and why only when the IOC wrote its own. The
-        # recommendation's reason (bbl and dollars against the shelf) is kept on the case, not sent as the instruction.
-        told = "; ".join(x for x in ((ask or "").strip() or ASK, f"Why now: {reason}" if reason else "") if x)
+        # The field reads only what to check or do (#1344). Why it goes now, the IOC's or the recommendation's, is kept
+        # on the case's history below, not sent as the instruction.
+        told = (ask or "").strip() or ASK
         row = exceptions.dispatch(conn, eid, by, to or "role:operator", told,
                                   override=override if not ready["ready"] else None, blockers=ready["blockers"])
         if row["item_id"] and due:

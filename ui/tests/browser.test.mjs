@@ -3851,15 +3851,24 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await page.goto(`${url}/#/field`);  // the old My jobs link lands on My work (#503)
   await page.waitForURL(/#\/inbox/);
   await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
-  await page.getByRole("link", { name: "directions" }).first().waitFor();
-  await page.getByText("Drips per min").first().waitFor();
   await page.getByText("isolate and check the gland").waitFor();  // what the IOC asked for, on the job
+  const mine = page.locator(".field-job", { hasText: "Leak at P-101" });
+  // the card is its title, the ask and the next button; where and what was found wait under Details (#1344)
+  assert.equal(await mine.getByRole("link", { name: "directions" }).count(), 0);
+  await mine.getByRole("button", { name: "Details" }).click();
+  await mine.getByRole("link", { name: "directions" }).first().waitFor();
+  await mine.getByText("Drips per min").first().waitFor();
   const queued = page.locator(".field-job", { hasText: "Compressor trip" });
   assert.equal(await queued.getByRole("button", { name: "Done" }).count(), 0);  // not theirs until taken
   await queued.getByRole("button", { name: "Take it" }).click();
   await expectReports(taken, 1);
   assert.deepEqual([taken[0].by, taken[0].to], ["fred", "fred"]);
-  const mine = page.locator(".field-job", { hasText: "Leak at P-101" });
+  // the jobs read again still say it waits (as the live site did): the card is theirs in place all the same, so a
+  // second tap can't take it again (#1344)
+  await queued.getByRole("button", { name: "On site" }).waitFor();
+  assert.equal(await queued.getByRole("button", { name: "Take it" }).count(), 0);
+  await queued.getByRole("button", { name: "Could not do" }).waitFor();
+  assert.equal(taken.length, 1);
   await page.getByRole("heading", { name: "Coming up" }).waitFor();
   await page.getByText("bring the seal kit").waitFor();
   await page.getByText("for operator").waitFor();
@@ -4135,6 +4144,88 @@ test("a field job taken from the queue is followed up to the operator's own jobs
   await card.getByRole("button", { name: "Done" }).waitFor();
   await page.waitForFunction(() => { const r = document.getElementById("field-job-8").getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight / 2; });
 });
+
+// P5.25a (#1344): one tap, one change. Take it turns the card into the job's own in place even while the jobs read again
+// say it waits, a double tap takes it once, Done is said where the card was, and the card is the title, the ask and the
+// next button, with no notice repeating its own escalation.
+for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]]) {
+  test(`a field card takes once, swaps in place and says Done where it was (P5.25a, ${name})`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+    const finding = { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+      end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null };
+    const base = { type: "upset", source: "scada", state: "open", priority: null, value_usd: null, subjects: [], unmatched: [],
+      raised_count: 1, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", evidence: {}, finding,
+      history: [], field: [], label: "Upset", role: "operator", assignee: null,
+      assets: [{ fuzer_id: "fz-k", label: "65-HCV-1002", kind: "tag", lat: null, lon: null, offshore: true, site: "Okan Jacket 05" }],
+      permit: { needed: true, blocked: false, permit: null } };
+    const above = { ...base, id: 20, key: "a", title: "Gauge check on the jacket", item_id: 40, queued: true,
+      sent: { by: "riley", at: "2026-11-08T07:05:00Z", reason: "Read the local gauge" } };
+    const job = { ...base, id: 21, key: "b", title: "Corroded flange bolting on 65-HCV-1002", item_id: 41, queued: true,
+      sent: { by: "riley", at: "2026-11-08T07:05:00Z", reason: "Go and have a look, report what you find" } };
+    let jobs = [above, job];
+    await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", coming_up: [], jobs } }));
+    const taken = [];
+    let answer;
+    await page.route("**/exceptions/21/dispatch", async (route) => {
+      taken.push(route.request().postDataJSON());
+      await new Promise((r) => { answer = r; });
+      return route.fulfill({ json: job });
+    });
+    const reports = [];
+    await page.route("**/exceptions/21/report", (route) => {
+      reports.push(route.request().postDataJSON());
+      jobs = [above];  // a job they reported done is the IOC's now: it leaves their list
+      return route.fulfill({ json: job });
+    });
+    await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    await page.route("**/work/notifications?*", (route) => route.fulfill({ json: { unread: 2, notifications: [
+      { id: 5, kind: "escalated", item_id: 41, token_id: null, text: "'Corroded flange bolting' was escalated to the ops lead queue.",
+        link: "#/cases/41", channel: "in_app", delivery: null, created_at: "2026-11-08T08:00:00Z", read_at: null },
+      { id: 6, kind: "assigned", item_id: 77, token_id: null, text: "You were given 'Swap the filter'.",
+        link: "#/cases/77", channel: "in_app", delivery: null, created_at: "2026-11-08T08:00:00Z", read_at: null }] } }));
+    await page.setViewportSize({ width, height });
+    await page.goto(`${url}/#/inbox`);
+    const card = page.locator(".field-job", { hasText: "Corroded flange bolting" });
+    await card.getByText("Go and have a look, report what you find").waitFor();
+    // the notice about its own escalation is not repeated above the card that says it; other news still shows
+    await page.getByText("You were given 'Swap the filter'.").waitFor();
+    assert.equal(await page.getByText("was escalated to the ops lead queue").count(), 0);
+    // title, ask and Take it: where and the permit wait under Details
+    assert.equal(await card.getByText("Okan Jacket 05").count(), 0);
+    assert.equal(await card.getByText("Permit to work").count(), 0);
+    const take = card.getByRole("button", { name: "Take it" });
+    await take.click();
+    await take.click({ force: true, timeout: 1000 }).catch(() => undefined);  // a second tap while the first is in flight
+    await expectReports(taken, 1);
+    assert.equal(await take.isDisabled(), true);
+    answer();
+    // the jobs read again still say it waits: the card is theirs in place regardless, On site first
+    await card.getByRole("button", { name: "On site" }).waitFor();
+    assert.equal(await card.getByRole("button", { name: "Take it" }).count(), 0);
+    assert.equal(taken.length, 1);
+    await card.getByRole("button", { name: "Reading or photo" }).click();
+    const fits = await card.evaluate((el) => {
+      const box = el.getBoundingClientRect(), file = el.querySelector('input[type="file"]').getBoundingClientRect();
+      return file.left >= box.left && file.right <= box.right;
+    });
+    assert.equal(fits, true, "the photo input stays inside its card");
+    await card.getByLabel("Note for the IOC").fill("Bolts replaced");
+    await card.getByRole("button", { name: "Done", exact: true }).click();
+    await expectReports(reports, 1);
+    assert.equal(reports[0].status, "done");
+    const said = page.getByRole("status").filter({ hasText: "Done sent for" });
+    await said.waitFor();
+    await card.waitFor({ state: "detached" });
+    // said where the card was: below the job above it, in view
+    const [prev, note] = await Promise.all([page.locator(".field-job", { hasText: "Gauge check" }).boundingBox(), said.boundingBox()]);
+    assert.ok(note.y > prev.y, "the confirmation sits where the card was, not at the top");
+    assert.ok(note.y >= 0 && note.y + note.height <= height, "the confirmation is in view");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await said.getByRole("button", { name: "OK" }).click();
+    await said.waitFor({ state: "detached" });
+  });
+}
 
 test("My work is the List's Waiting on me, and a row waiting in your queue is taken from it", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
@@ -5300,7 +5391,7 @@ for (const [type, found] of Object.entries(FINDINGS)) {
         assert.match(sentence, /^(A rule|An agent|Another system) found this/);
         assert.ok(sentence.includes(`A ${type} title`), sentence);
         if (await details.getAttribute("aria-expanded") !== "true") await details.click();
-      }
+      } else await page.locator(".field-job").getByRole("button", { name: "Details" }).click();  // the job's card (#1344)
       const box = page.locator(".finding dl").first();
       await box.waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} fits ${width}px`);
@@ -5338,6 +5429,7 @@ for (const [bundle, type, job] of LOOP_JOBS) {
     // the title in people's words, as the case shows it: "207 °F", not "207 degF"
     await card.getByRole("heading", { name: job.title.replace(/\bdegF\b/g, "°F").replace(/\bdegC\b/g, "°C") }).waitFor();
     await card.getByText(job.sent.reason).waitFor();  // what the IOC asked
+    await card.getByRole("button", { name: "Details" }).click();  // where it is, under Details (#1344)
     for (const a of job.assets) await card.getByText(a.label ?? a.name, { exact: false }).first().waitFor();
     assert.doesNotMatch(await card.innerText(), /\bfz-[\w-]+/, "no raw ids on the job");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "fits 390 px");
@@ -5460,6 +5552,7 @@ test("a reading and a photo taken on the phone reach the IOC's From the field bo
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/inbox`);
   const card = page.locator(".field-job").first();
+  await card.getByRole("button", { name: "Reading or photo" }).click();
   await card.getByLabel("What was read").fill("Gland temperature");
   await card.getByLabel("Reading", { exact: true }).fill("72.5");
   await card.getByLabel("Unit").fill("°C");
@@ -5515,6 +5608,7 @@ test("a report made without signal waits on the phone and is sent once with its 
   await page.getByText("No signal: these are your jobs as kept on this phone", { exact: false }).waitFor();
   const card = page.locator(".field-job").first();
   await card.getByText("Look at the gland").waitFor();
+  await card.getByRole("button", { name: "Details" }).click();
   await card.getByText("P-101 export pump").waitFor();
   const before = Date.now();
   await card.getByLabel(/Note for the IOC/).fill("Gland weeping, 12 drips a minute");
@@ -5585,6 +5679,7 @@ test("P5.17a Ten reports with four photos each wait on the phone and are sent on
   }), "base64");
   const files = [1, 2, 3, 4].map((n) => ({ name: `gland-${n}.jpg`, mimeType: "image/jpeg", buffer: photo }));
   for (let n = 1; n <= 10; n++) {
+    await card.getByRole("button", { name: "Reading or photo" }).click();
     await card.locator('input[type="file"]').setInputFiles(files);
     await card.getByText("Photos (4)").waitFor();
     await card.getByLabel(/Note for the IOC/).fill(`Report ${n}`);
@@ -5754,6 +5849,7 @@ test("P5.17c A job's asset page, documents and drawing open without signal, and 
     `/entities/${id}/trend-spec?hours_before=48&hours_after=24`]) assert.ok(kept.some((k) => k.endsWith(path)), `kept ${path}`);
 
   reachable = false;
+  await page.locator(".field-job").getByRole("button", { name: "Details" }).click();
   await page.locator(".field-job").getByRole("link", { name: "P-101 export pump" }).click();
   await page.locator("h1", { hasText: "P-101 export pump" }).waitFor();
   await page.getByText("No signal: kept on this phone", { exact: false }).waitFor();
@@ -6032,7 +6128,10 @@ test("P5.17g Field mode: 56 px targets, 7:1 text, a job's actions in thumb reach
   }));
   assert.ok(gaps.length && gaps.every((g) => g >= 8), `8 px between targets: ${gaps}`);
 
-  // The job's Done is in the bottom third of the screen, above the bottom bar, with the job's top on screen.
+  // The job's Done is in the bottom third of the screen, above the bottom bar, with the job's top on screen, however
+  // long the card (its Details and a reading open).
+  await page.locator(".field-job").getByRole("button", { name: "Details" }).click();
+  await page.locator(".field-job").getByRole("button", { name: "Reading or photo" }).click();
   await page.locator(".field-job").evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + scrollY - 60));
   const done = await page.locator(".field-job").getByRole("button", { name: "Done", exact: true }).boundingBox();
   const bar = await page.locator(".bottombar").boundingBox();
@@ -6118,6 +6217,7 @@ test("P5.17h On throttled 3G, a report whose answer was cut off is sent again an
     g.fillStyle = "#357"; g.fillRect(0, 0, 400, 300); g.fillStyle = "#eee"; g.fillRect(50, 50, 120, 80);
     return c.toDataURL("image/jpeg", 0.8).split(",")[1];
   }), "base64");
+  await card.getByRole("button", { name: "Reading or photo" }).click();
   await card.locator('input[type="file"]').setInputFiles([{ name: "gland.jpg", mimeType: "image/jpeg", buffer: photo }]);
   await card.getByText("Photos (1)").waitFor();
   await card.getByLabel(/Note for the IOC/).fill("Gland weeping");

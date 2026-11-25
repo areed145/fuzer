@@ -52,8 +52,9 @@ export function InboxPage() {
   const [show, setShow] = useRouteState("show");
   const [picked, setPicked] = useState<Set<number>>(new Set());
   useEffect(() => setPicked(new Set()), [person]);
-  // What the field just reported, said here because its card leaves the list once the IOC has it.
-  const [reported, setReported] = useState<string | null>(null);
+  // What the field just reported, said where its card was: the card leaves the list once the IOC has it (#1344).
+  const [reported, setReported] = useState<{ id: number; said: string; at: number; list: "sent" | "waiting" } | null>(null);
+  useEffect(() => { if (reported) document.getElementById("field-reported")?.scrollIntoView({ block: "nearest" }); }, [reported]);
   if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Pick your name to see your work">
     <p>Choose your name under “You are” in the menu.</p>
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
@@ -88,7 +89,17 @@ export function InboxPage() {
     && (fieldRole || !j.role || j.role === "operator"));
   // A job's card carries its case's step, its instruction and the report buttons, so the same case isn't listed twice.
   const onCard = new Set([...sent, ...waitingJobs].map((j) => j.item_id).filter((id): id is number => id != null));
-  const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
+  // Done or Could not do is said where the job's card was, in its place until OK.
+  const cards = (list: FieldJob[], name: "sent" | "waiting") => {
+    const said = reported?.list === name && <Notice key="reported" id="field-reported" role="status" className="row">
+      <span>{reported.said}</span><Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>;
+    const out = list.map((j, i) => said && reported?.id === j.id ? said
+      : <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload}
+        onReported={(text) => setReported({ id: j.id, said: text, at: i, list: name })} />);
+    if (said && !list.some((j) => j.id === reported?.id)) out.splice(Math.min(reported!.at, out.length), 0, said);
+    return out;
+  };
+  const all =[...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
   const mineIds = new Set(d.mine.map((r) => r.task_id ?? -r.item_id));
   const isMine = (r: WorkRow) => mineIds.has(r.task_id ?? -r.item_id);
   // Escalated first, then the most urgent: one list, as Home's Needs you lists it.
@@ -122,8 +133,6 @@ export function InboxPage() {
       </Notice>}
       {offline && <Notice tone="warn">No signal: these are your jobs as kept on this phone{offline.since ? ` ${when(offline.since)}` : ""}.
         Reports wait here and send when the signal returns.</Notice>}
-      {reported && <Notice role="status" className="row"><span>{reported}</span>
-        <Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>}
       <FieldModeOffer />
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
       {/* What changed on your work since you last looked is Home's Needs you; a field operator, whose Home is this
@@ -147,17 +156,17 @@ export function InboxPage() {
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
       {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
-      {sent.length > 0 && <section className="field-jobs" aria-labelledby="sent-to-you">
+      {(sent.length > 0 || reported?.list === "sent") && <section className="field-jobs" aria-labelledby="sent-to-you">
         <Heading id="sent-to-you" detail={sent.length}>Your field jobs</Heading>
-        {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} onReported={setReported} />)}
+        {cards(sent, "sent")}
       </section>}
       {!offline && fieldRole && <NoteToIOC person={person} />}
-      {!offline && fieldRole && <NewForYou person={person} told={told} />}
+      {!offline && fieldRole && <NewForYou person={person} told={told} onCard={onCard} />}
       <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
         hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />
-      {waitingJobs.length > 0 && <section className="field-jobs" aria-labelledby="waiting-jobs">
+      {(waitingJobs.length > 0 || reported?.list === "waiting") && <section className="field-jobs" aria-labelledby="waiting-jobs">
         <Heading id="waiting-jobs" detail={waitingJobs.length}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
-        {waitingJobs.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
+        {cards(waitingJobs, "waiting")}
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
@@ -168,13 +177,15 @@ export function InboxPage() {
 }
 
 /** What the person was told since they last looked (P5.2, #604): each line opens its case and counts as read. */
-function NewForYou({ person, told }: {
+function NewForYou({ person, told, onCard }: {
   person: string;
   told: { data?: Awaited<ReturnType<typeof api.notifications>> | null; reload: () => void };
+  /** Cases on a field card above: the card says when they are due, so no notice repeats it (#1344). */
+  onCard: Set<number>;
 }) {
   // One line per case and kind of news, the latest: three escalations of one case read as one.
   const seen = new Set<string>();
-  const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at)
+  const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at && !(n.item_id != null && onCard.has(n.item_id)))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .filter((n) => { const k = `${n.item_id ?? n.id}:${n.kind}`; if (seen.has(k)) return false; seen.add(k); return true; });
   if (!unread.length) return null;

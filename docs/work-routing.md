@@ -165,7 +165,7 @@ by side:
 
 | Option | What happens | When it is done |
 |---|---|---|
-| **Dispatch now** | Sent to a field operator, or the operator queue, with *why now* on the job | The operator queue's SLA |
+| **Dispatch now** | Sent to a field operator, or the operator queue, with what to check or do on the job | The operator queue's SLA |
 | **Ride along with the next visit** | Put on the plan with a job already booked on the same area or assets | That visit, within `options.window_days` (21) |
 | **Shelve** | Off the list until the area's next turnaround or shutdown | At most `exceptions.max_shelve_days` (30) |
 | **Escalate** | Sent to the engineer, or past the engineer to the ops lead | The engineer queue's SLA, then a dispatch |

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { kindWord, person as personName, say as words } from "../wording";
-import { ActionStatus, Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List, Heading } from "../ui";
+import { ActionStatus, Badge, Button, ButtonLink, Card, ConfirmAction, Disclosure, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List, Heading } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
   sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
@@ -316,9 +316,11 @@ const DESK_ROLES = new Set(["data_steward", "engineer", "production_engineer", "
  * rather than staying on the queue or the notices above. */
 let justTaken: number | null = null;
 
+/** One field job on My work (#1344): its title, what the IOC asked and the next button; where, the permit and what
+ * was found wait under Details. Take it turns the card into the job's own in place: On site, Done, Could not do. */
 export function FieldJobCard({ job, person, onChange, onReported }: {
   job: FieldJob; person: string; onChange: () => void;
-  /** Told when Done or Could not do reached the IOC, so the page can say so after the card leaves the list. */
+  /** Told when Done or Could not do reached the IOC, so the page can say so where the card was. */
   onReported?: (said: string) => void;
 }) {
   const { busy, error, run } = useAction();
@@ -327,10 +329,15 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   const [value, setValue] = useState("");
   const [unit, setUnit] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [kept, setKept] = useState(false);
   const [why, setWhy] = useState("");
   const [inHand, setInHand] = useState(false);
+  // Taken here: the card is the job's own at once, before the jobs are read again, and a second tap can't take it again.
+  const [taken, setTaken] = useState(false);
+  const taking = useRef(false);
+  const queued = job.queued && !taken;
   useEffect(() => {
     if (justTaken !== job.id || job.queued) return;
     justTaken = null;
@@ -345,6 +352,13 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   const waiting = mine.filter((w) => w.kind === "field_report");
   const dictate = useDictation((t) => setNote((n) => (n.trim() ? `${n.trim()} ${t}` : t)));
   const reading: FieldReading | undefined = value.trim() ? { value: Number(value), unit: unit.trim(), what: what.trim() || null } : undefined;
+  const take = () => {
+    if (taking.current) return;
+    taking.current = true;
+    justTaken = job.id;
+    void run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), () => { setTaken(true); onChange(); })
+      .finally(() => { taking.current = false; });
+  };
   const say = (status: string) => {
     const sent = note.trim();
     if (reading && (!Number.isFinite(reading.value) || !reading.unit)) return setProblem("A reading needs a number and its unit.");
@@ -355,7 +369,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
     return run(SAID[status], () => sendReport({ exception_id: job.id, by: person, status, note: sent || undefined, reading, photos, override,
       permit_in_hand }),
       (how) => {
-        setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]);
+        setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]); setAdding(false);
         setKept(how === "queued");
         if (how === "sent" && (status === "done" || status === "could_not_do"))
           onReported?.(`${SAID[status]} sent for "${words(job.title)}". It goes back to ${job.sent?.by ? personName(job.sent.by) : "the IOC"} to close out.`);
@@ -376,6 +390,8 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   // (a note, a reading or a photo), so one stray tap can't close a job with no evidence.
   const onSite = last?.status === "on_site" && last.by === person;
   const evidence = !!note.trim() || !!reading || photos.length > 0;
+  // A permit that holds On site back sits by the button; any other waits under Details.
+  const gating = !queued && !desk && !!job.permit && (blocked || !!job.permit.unchecked);
   return (
     <Card className="field-job" id={`field-job-${job.id}`} tabIndex={-1} title={<>{words(job.title)}{job.label && !job.title.toLowerCase().includes(job.label.toLowerCase()) && <> <Badge>{job.label}</Badge></>}</>}>
       {job.handover && <HandoverNote h={job.handover} />}
@@ -392,65 +408,59 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
           <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
         {waiting.length > 0 && <Badge tone="warn">{waiting.length === 1 ? `${SAID[(waiting[0].payload as { status: string }).status] ?? "Report"} waiting to send`
           : `${waiting.length} reports waiting to send`}</Badge>}
-        <Text muted>seen {job.reports ?? job.raised_count}× since {when(job.first_seen)}</Text>
       </Line>
-      {job.sent && (job.sent.reason || !job.queued) && <p className="field-sent">
-        <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
+      {job.sent?.reason && <p className="field-sent"><strong>{job.sent.reason}</strong>
         {job.sent.by && <Text small muted> · sent by {personName(job.sent.by)}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</Text>}</p>}
-      {job.assets.length > 0 && <div>
-        <Heading level={3} small>Where</Heading>
-        <List plain>{job.assets.map((a) => <li key={a.fuzer_id}>
-          <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <Text small muted>{kindWord(a.kind ?? "item").toLowerCase()}</Text></>}
-          {!desk && a.offshore && a.site && <> · <Text small>on {a.site}</Text></>}
-          {a.lat != null && a.lon != null && !desk && !a.offshore && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
-            target="_blank" rel="noreferrer">directions</a></>}
-        </li>)}</List>
-      </div>}
-      {job.unmatched.length > 0 && <Text as="p" small muted>Also named: {job.unmatched.join(", ")}</Text>}
-      {job.sources?.length > 1 && <div>
-        <Heading level={3} small>{reportedBy(job.sources)}</Heading>
-        <List plain small>{job.sources.map((x) => <li key={x.id}>
-          <strong>{x.label}</strong>: {x.title} <Text muted>· {x.source ?? ""}</Text></li>)}</List>
-      </div>}
       {!!job.warnings?.length && <ul className="plain small field-warnings" aria-label="Before you start">
         {job.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul>}
-      {job.permit && !desk && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
-      {(job.checklist?.length ?? 0) > 0 && <div>
-        <Heading level={3} small>Checks before restart</Heading>
-        <List as="ol" small>{job.checklist!.map((c) => <li key={c}>{c}</li>)}</List>
-      </div>}
-      {/* Waiting in a queue, a job is picked by what, where and how urgent: the evidence record and the asset's
-          history come with it once taken, so a queue of three jobs is not twenty screens long on a phone. */}
-      {!job.queued && <div>
-        <Heading level={3} small>What was found</Heading>
-        <FindingEvidence finding={job.finding} checks={false} />
-      </div>}
-      {!job.queued && job.history.length > 0 && <div>
-        <Heading level={3} small>Lately at this asset</Heading>
-        <List plain small>{job.history.map((h) => <li key={h.id}>
-          {when(h.first_seen)} · {h.title} <Text muted>({h.state})</Text></li>)}</List>
-      </div>}
-      {job.field.length > 0 && <div>
-        <Heading level={3} small>Field log</Heading>
-        <List plain small>{job.field.map((f, i) => <li key={i}>
-          {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""}
-          {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <Text muted>{personName(f.by)}</Text>
-          {f.photos?.length ? <div className="field-photos">{f.photos.map((p) => <FieldPhoto key={p} exceptionId={job.id} photoId={p} />)}</div> : null}
-        </li>)}</List>
-      </div>}
-      {job.handover?.mine_to_accept ? null : job.queued ? <div className="row field-actions">
-        <Text as="p" small>{last?.status === "on_site"
-          ? `Back in the ${job.role?.replace(/_/g, " ") ?? ""} queue: ${personName(last.by)} was on site ${when(last.at)} and has not reported since.`
-          : `Waiting in the ${job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.`}</Text>
-        <Button variant="primary" disabled={!!busy || !signal.live}
-          onClick={() => { justTaken = job.id; run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), onChange); }}>Take it</Button>
+      {gating && <PermitPanel permit={job.permit!} inHand={inHand} onInHand={setInHand} />}
+      <Disclosure className="small" label="Details">
+        {job.assets.length > 0 && <div>
+          <Heading level={3} small>Where</Heading>
+          <List plain>{job.assets.map((a) => <li key={a.fuzer_id}>
+            <a href={entityHref(a.fuzer_id)}>{a.label ?? kindWord(a.kind ?? "item")}</a>{a.label && <> <Text small muted>{kindWord(a.kind ?? "item").toLowerCase()}</Text></>}
+            {!desk && a.offshore && a.site && <> · <Text small>on {a.site}</Text></>}
+            {a.lat != null && a.lon != null && !desk && !a.offshore && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
+              target="_blank" rel="noreferrer">directions</a></>}
+          </li>)}</List>
+        </div>}
+        {job.unmatched.length > 0 && <Text as="p" small muted>Also named: {job.unmatched.join(", ")}</Text>}
+        {job.sources?.length > 1 && <div>
+          <Heading level={3} small>{reportedBy(job.sources)}</Heading>
+          <List plain small>{job.sources.map((x) => <li key={x.id}>
+            <strong>{x.label}</strong>: {x.title} <Text muted>· {x.source ?? ""}</Text></li>)}</List>
+        </div>}
+        {job.permit && !desk && !gating && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
+        {(job.checklist?.length ?? 0) > 0 && <div>
+          <Heading level={3} small>Checks before restart</Heading>
+          <List as="ol" small>{job.checklist!.map((c) => <li key={c}>{c}</li>)}</List>
+        </div>}
+        <div>
+          <Heading level={3} small>What was found</Heading>
+          <FindingEvidence finding={job.finding} checks={false} />
+        </div>
+        {job.history.length > 0 && <div>
+          <Heading level={3} small>Lately at this asset</Heading>
+          <List plain small>{job.history.map((h) => <li key={h.id}>
+            {when(h.first_seen)} · {h.title} <Text muted>({h.state})</Text></li>)}</List>
+        </div>}
+        {job.field.length > 0 && <div>
+          <Heading level={3} small>Field log</Heading>
+          <List plain small>{job.field.map((f, i) => <li key={i}>
+            {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""}
+            {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <Text muted>{personName(f.by)}</Text>
+            {f.photos?.length ? <div className="field-photos">{f.photos.map((p) => <FieldPhoto key={p} exceptionId={job.id} photoId={p} />)}</div> : null}
+          </li>)}</List>
+        </div>}
+      </Disclosure>
+      {job.handover?.mine_to_accept ? null : queued ? <div className="row field-actions field-report">
+        {last?.status === "on_site" && <Text as="p" small>{personName(last.by)} was on site {when(last.at)} and has not reported since.</Text>}
+        <Button variant="primary" disabled={!!busy || !signal.live} onClick={take}>Take it</Button>
         {!signal.live && <Text small muted>{NEEDS_SIGNAL}</Text>}
       </div> : <>
-      <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC (a reading, what you found, why it couldn't be done)</label>
+      <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC</label>
       <Textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-      {dictate && <Button size="sm" onClick={dictate.toggle} aria-pressed={dictate.listening}>
-        {dictate.listening ? "Stop dictating" : "Dictate the note"}</Button>}
-      <fieldset className="field-evidence">
+      {(adding || photos.length > 0) && <fieldset className="field-evidence">
         <legend className="small">A reading</legend>
         <Line>
           <Input aria-label="What was read" placeholder="what (e.g. bearing temperature)" value={what} onChange={(e) => setWhat(e.target.value)} />
@@ -465,14 +475,14 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
           <img src={p} alt={`Photo ${i + 1} to send`} />
           <Button size="sm" aria-label={`Remove photo ${i + 1}`} onClick={() => setPhotos((x) => x.filter((_, j) => j !== i))}>Remove</Button>
         </span>)}</div>}
-      </fieldset>
+      </fieldset>}
       <ErrorText>{problem}</ErrorText>
       {kept && <p role="status" className="small">No signal: kept on this phone. It sends, with this time, when the signal returns.</p>}
       {blocked && <>
         <label className="small" htmlFor={`why-${job.id}`}>Why start without a valid permit</label>
         <Input id={`why-${job.id}`} value={why} onChange={(e) => setWhy(e.target.value)} />
       </>}
-      <div className="row field-actions">
+      <div className="row field-actions field-report">
         <Button variant={onSite ? undefined : "primary"} disabled={!!busy || onSite || (blocked && !why.trim())}
           title={onSite ? "You are on site" : blocked && !why.trim() ? "No valid permit: say why it starts anyway" : undefined}
           onClick={() => say("on_site")}>{onSite ? "On site ✓" : "On site"}</Button>
@@ -481,10 +491,15 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
           onClick={() => say("done")}>Done</Button>
         <Button disabled={!!busy || !note.trim()} title={note.trim() ? undefined : "Say why in the note first"}
           onClick={() => say("could_not_do")}>Could not do</Button>
-        <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
+      </div>
+      <div className="row field-actions">
+        <Button size="sm" disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
+        {dictate && <Button size="sm" onClick={dictate.toggle} aria-pressed={dictate.listening}>
+          {dictate.listening ? "Stop dictating" : "Dictate the note"}</Button>}
+        {!adding && photos.length === 0 && <Button size="sm" onClick={() => setAdding(true)}>Reading or photo</Button>}
         {/* a step of their own is worked on its case (#1222) */}
-        {job.item_id && job.task_id && job.own_step && <ButtonLink href={href(`/cases/${job.item_id}`)}>Open the case</ButtonLink>}
-        {job.item_id && !job.task_id && <ButtonLink href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
+        {job.item_id && job.task_id && job.own_step && <ButtonLink size="sm" href={href(`/cases/${job.item_id}`)}>Open the case</ButtonLink>}
+        {job.item_id && !job.task_id && <ButtonLink size="sm" href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
       </div>
       {!job.handover && <HandOver job={job} person={person} onChange={onChange} />}</>}
       {busy && <p role="status">{busy}…</p>}
