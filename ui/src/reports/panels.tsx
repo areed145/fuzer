@@ -115,7 +115,9 @@ function CasesPanel(props: PanelProps) {
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
   const queues = (roles.data ?? []).filter((x) => x.kind === "person").map((x) => x.name);
-  return <PanelFrame title={props.panel.title ?? d?.title ?? ""} detail={d && d.total ? count(d.total) : undefined} result={d} loading={r}
+  // the count is for the report's scope, not the whole of Work: said with it so it isn't read as Work's number
+  return <PanelFrame title={props.panel.title ?? d?.title ?? ""} result={d} loading={r}
+    detail={d && d.total ? `${count(d.total)}${d.scope.id ? ` at ${d.scope.label}` : ""}` : undefined}
     className="report-cases">
     {d && (rows.length
       ? <div className="report-case-cards">{rows.map((row) => <BoardCard key={row.uid} r={row} person={person || null}

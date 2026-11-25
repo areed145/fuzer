@@ -1335,12 +1335,13 @@ def test_where_an_event_stands_is_decided_once_and_counted_over_every_open_event
     ex.report(conn, raised[2]["id"], "olly", "done", note="tightened it")
     stage = {r["id"]: r["stage"] for r in ex.listing(conn, type="drip")}
     assert [stage[r["id"]] for r in raised] == ["dispatch", "field", "back"]
-    before = ex.counts(conn)
+    from fuzer.ops import worklist
+
+    before = worklist.figures(conn)
     assert before["open"] == sum(before["stages"].values())
     raise_exception(conn, "drip", "D-3", "Drip at D-3", "walk", refs=["tag:D-3"])
-    after = ex.counts(conn)
+    after = worklist.figures(conn)
     assert after["open"] == before["open"] + 1 and after["stages"]["dispatch"] == before["stages"]["dispatch"] + 1
-    assert engine.case_counts(conn)["open"] >= 2
     conn.commit()
 
 

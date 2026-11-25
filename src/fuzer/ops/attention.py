@@ -136,21 +136,6 @@ def only_at(conn, rows: list[dict], place: str) -> list[dict]:
     return [r for r in rows if any(located.get(s, {}).get("id") in ids for s in r["subjects"])]
 
 
-def _dues(conn, item_ids: list[int]) -> dict[int, dict]:
-    """Each case's due time (its open person step's, else the case's) and whether it is past it."""
-    if not item_ids:
-        return {}
-    rows = conn.execute(
-        """
-        select w.id, coalesce(t.due_at, w.due) as due, coalesce(t.due_at, w.due) < now() as overdue
-        from work_item w
-        left join lateral (select due_at from work_token where item_id = w.id and state = 'open' and due_at is not null
-                           order by due_at limit 1) t on true
-        where w.id = any(%s)
-        """, (item_ids,)).fetchall()
-    return {r["id"]: r for r in rows}
-
-
 def _crew(row: dict) -> dict | None:
     """Who is out on it: the last field report saying someone is on site, else the crew planned for it."""
     field = [f for f in ((row.get("evidence") or {}).get("field") or []) if f.get("status") in ("on_site", "done")]
@@ -173,7 +158,10 @@ def hotspots(conn, limit: int = 1000) -> dict:
     data_work = sum(1 for r in rows if _housekeeping(kinds, r))
     rows = [r for r in rows if not _housekeeping(kinds, r)]
     located = _places(conn, sorted({s for r in rows for s in r["subjects"]}))
-    dues = _dues(conn, sorted({r["item_id"] for r in rows if r["item_id"]}))
+    from . import worklist
+
+    # the List's own definition of overdue, so a place's overdue count is the List's at that place (#1352)
+    dues = worklist.dues(conn, sorted({r["item_id"] for r in rows if r["item_id"]}))
     labels = {n: t.label for n, t in kinds.items()}
     places: dict[str, dict] = {}
     unplaced = 0

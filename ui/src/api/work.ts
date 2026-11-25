@@ -559,7 +559,8 @@ export interface WorkFigures {
   open: number;
   overdue: number;
   stages: Record<Exclude<EventStage, "closed">, number>;
-  waiting_on_you: { total: number; overdue: number; to_dispatch: number } | null;
+  /** `my_work`: what waits on you less what waits for dispatch, the count Home's My work and the My work page show. */
+  waiting_on_you: { total: number; overdue: number; to_dispatch: number; my_work: number } | null;
 }
 
 export interface WorkInbox {

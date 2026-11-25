@@ -15,7 +15,6 @@ import { ComingUp, FieldJobCard, NoteToIOC, Outbox, RoundsThisShift } from "../F
 import { fieldJobs } from "../../fieldOffline";
 import { cap, person as personName } from "../../wording";
 import { FieldModeOffer } from "../../theme";
-import { waitingToDispatch } from "../Exceptions";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
  * A field job's card carries its case's step, so that case is not counted twice. */
@@ -37,8 +36,9 @@ export function InboxPage() {
   // Jobs dispatched to them (or waiting in their queues) and what they are planned onto: the field side of their work.
   // Kept on the phone, so the jobs still read without signal (P5.3c).
   const field = useAsync(() => (person ? fieldJobs(person) : Promise.resolve(null)), [person]);
-  // Exceptions nothing routes wait on Exceptions for the IOC to dispatch: say so here, where the ops lead looks.
-  const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
+  // The counts every page shows (the Work badge, Home): what waits on them, its overdue and what waits for dispatch,
+  // read from the server, never counted from these rows, so My work reads the same numbers as Home (#1352).
+  const figures = useAsync(() => (person ? api.workCounts(person) : Promise.resolve(null)), [person]);
   // The shift handover is reached from here, not the nav (#504): a banner until the incoming lead acknowledges it.
   const handovers = useAsync(() => api.handovers(), []);
   // What is new for them, read here so the page can wait for it (NewForYou draws it).
@@ -63,7 +63,7 @@ export function InboxPage() {
   // The handover banner, what is new, the counts and the jobs sent to them all sit above the lists: drawn as each
   // answered, every one pushed the lists down the page (#1069). The page waits for them, failures included.
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
-  if (!offline && ![field, handovers, told, exceptions].every(settled)) return <Status loading />;
+  if (!offline && ![field, handovers, told, figures].every(settled)) return <Status loading />;
   const none = { total: 0, overdue: 0, due_soon: 0 };
   const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&
@@ -93,16 +93,18 @@ export function InboxPage() {
   const isMine = (r: WorkRow) => mineIds.has(r.task_id ?? -r.item_id);
   // Escalated first, then the most urgent: one list, as Home's Needs you lists it.
   const ranked = all.filter(keep).sort((a, b) => Number(!!b.escalated_at) - Number(!!a.escalated_at) || byUrgency(a, b));
-  const CHIPS: { key: string; label: string; rows: WorkRow[]; danger?: boolean }[] = [
-    { key: "", label: "All", rows: ranked },
+  const waiting = figures.data?.waiting_on_you;
+  // All, unfiltered, is Home's My work count; a filter's chips count what it keeps
+  const CHIPS: { key: string; label: string; rows: WorkRow[]; danger?: boolean; count?: number }[] = [
+    { key: "", label: "All", rows: ranked, count: !q && !type && waiting ? waiting.my_work : undefined },
     { key: "mine", label: "Assigned to you", rows: ranked.filter(isMine) },
     { key: "queue", label: "Unclaimed in your roles", rows: ranked.filter((r) => !isMine(r)) },
     { key: "escalated", label: "Escalated", rows: ranked.filter((r) => r.escalated_at), danger: true },
   ];
   const chip = CHIPS.find((c) => c.key === (show ?? "")) ?? CHIPS[0];
   const counts = myWorkCounts(d, jobs);
-  const undispatched = d.roles.includes("ops_lead")
-    ? (exceptions.data ?? []).filter(waitingToDispatch).length : 0;
+  const undispatched = waiting?.to_dispatch ?? 0;
+  const overdue = waiting ? waiting.overdue : counts.overdue;
   const types = [...new Set(all.map((r) => r.type))].sort();
   const pickedRows = all.filter((r) => r.task_id && picked.has(r.task_id));
   const lead = d.roles.includes("ops_lead");
@@ -129,12 +131,12 @@ export function InboxPage() {
       <nav className="chips work-views" aria-label="Show in my work">
         {CHIPS.map((c) => <Button key={c.key} className="chip"
           aria-pressed={c === chip} onClick={() => setShow(c.key)}>
-          {c.label} {c.danger && c.rows.length ? <UIBadge tone="danger">{c.rows.length}</UIBadge> : <Text muted>{c.rows.length}</Text>}</Button>)}
+          {c.label} {c.danger && c.rows.length ? <UIBadge tone="danger">{c.rows.length}</UIBadge> : <Text muted>{c.count ?? c.rows.length}</Text>}</Button>)}
         {undispatched > 0 && <a className="chip" href={href("/exceptions")}>To dispatch <UIBadge tone="danger">{undispatched}</UIBadge></a>}
       </nav>
       <Text as="p" small muted>Your roles: {d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"}
         {d.covering?.length ? `. Covering for ${d.covering.join(", ")}` : ""}
-        {counts.overdue > 0 ? `. ${counts.overdue} overdue` : ""}.</Text>
+        {overdue > 0 ? `. ${overdue} overdue` : ""}.</Text>
       <Line>
         <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select aria-label="Filter my work by case type" value={type} onChange={(e) => setType(e.target.value)}>

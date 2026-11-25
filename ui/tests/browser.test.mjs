@@ -4684,6 +4684,22 @@ test("My work opens in place: the banner, what is new and the counts don't push 
   assert.ok(cls < 0.05, `My work moved as it loaded: CLS ${cls.toFixed(3)}`);
 });
 
+test("My work reads the same counts as the Work badge and Home, never its own count of the rows (#1352)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const inbox = { person: "ann", roles: ["ops_lead"], mine: [{ ...homeRow(1), bulk: [] }], queue: [{ ...homeRow(2), bulk: [] }],
+    counts: { mine: { total: 1, overdue: 0 }, queue: { total: 1, overdue: 1 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  await page.route("**/work/counts?*", (route) => route.fulfill({ json: { open: 9, overdue: 4,
+    stages: { dispatch: 3, planned: 0, field: 0, back: 0, desk: 6 }, waiting_on_you: { total: 8, overdue: 2, to_dispatch: 3, my_work: 5 } } }));
+  await page.goto(`${url}/#/inbox?steps=1`);
+  const chips = page.getByRole("navigation", { name: "Show in my work" });
+  await chips.waitFor();
+  // All is Home's My work (waiting on you less what waits for dispatch); To dispatch and overdue are the server's too
+  await chips.getByRole("button", { name: "All 5" }).waitFor();
+  await chips.getByRole("link", { name: "To dispatch 3" }).waitFor();
+  await page.getByText(". 2 overdue", { exact: false }).waitFor();
+});
+
 test("My work is one list, escalated first, and its chips pick what it holds", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
   const inbox = { person: "ann", roles: ["ops_lead"], mine: [{ ...homeRow(1), bulk: [] }],

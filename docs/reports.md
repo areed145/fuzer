@@ -62,7 +62,7 @@ Every panel has an `id` (unique in the report, kept across versions so notes and
 | `trend` | `measures` (one or more) | The measures on the one trend chart, from `trend_spec.from_measures`: a measure that adds up over days (oil produced, cases opened) draws each day's own part, labelled "per day"; any other (a share, a median, a stock) draws the measure over the report's window ending each day, so its last point is the stat beside it | engine |
 | `figure` | `measure`, `grain`, `chart` (`bar`, `pareto` or `share`), `limit` | The measure cut by one of its grains | engine |
 | `table` | `rows` (a row set), or `measure` (or `measures`, a column each) + `grain`, `limit` | Rows, each opening its case or entity | engine |
-| `cases` | `filter` (the Work list's filters: `state`, `kind`, `stage`, `holder`, `queue`, `source`, `overdue`, `q`, `sort`), `limit` | Live case rows, the same rows as Work (`ops/worklist.rows`, scoped with `within`), with a link to that list | engine |
+| `cases` | `filter` (the Work list's filters: `state`, `kind`, `stage`, `holder`, `queue`, `source`, `overdue`, `q`, `sort`), `limit` | Live case rows, the same rows as Work (`ops/worklist.rows`, scoped with `within`), with a link to that list; its count says the scope ("106 at OKAN") so it isn't read as Work's own count for everything | engine |
 | `note` | `text` (fixed markdown, optional) | Written commentary for the report and period, with live values | commentary |
 | `summary` | none | The AI note for this report, scope, window and day | commentary |
 | `narrative` | none | The daily report for the window's last day: its narrative, versions and checks; Publish and Send back go in the report's header | engine |
