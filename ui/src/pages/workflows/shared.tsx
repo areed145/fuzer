@@ -1,14 +1,13 @@
 import "../../styles/work.css";
-import { count, money, when } from "../../format";
+import { count, when } from "../../format";
 import { Button, ConfirmAction, Disclosure, Field, Input, Select, Badge as UIBadge, ErrorText, Line, Text, List, Notice } from "../../ui";
 import { useAuth, usePermission } from "../../Auth";
-import { Due, holder, usePerson } from "../../work";
+import { Due, holder, priorityLevel, usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
 import { useState, type ReactNode } from "react";
 import { api, type ChecklistProgress, type WorkRow } from "../../api";
 import { href, notifyChanged, useAction, useAsync } from "../../lib";
-import { queue } from "../../wording";
-import { ATTENTION_TONE } from "../../kinds";
+import { queue, workKind } from "../../wording";
 
 /** A step named for the engine, not for the work: where it would be a title or a row's lead, the work is used. */
 export const GENERIC_STEP = /^(work the case|do the task)$/i;
@@ -53,22 +52,7 @@ export function priorityText(p: number | null | undefined): string | null {
   return p < 2 ? p.toFixed(2) : count(Math.round(p));
 }
 
-export type PriorityLevel = { level: "High" | "Medium" | "Low"; tone: "danger" | "warn" | "info"; why: string };
-
-/** A priority as a person reads it (#1071): High, Medium or Low and why, whatever scale the source used. Priorities
- * arrive on three scales: a 0–1 score (high from 0.8, medium from 0.5), an SAP notification's priority 1 (very high)
- * to 4 (low), stored as 5 minus it so higher comes first, and a value in USD for work ranked by what is at stake. */
-export function priorityLevel(p: number | null | undefined, type?: string | null): PriorityLevel | null {
-  if (p == null || p <= 0) return null;
-  const level = (l: PriorityLevel["level"], why: string): PriorityLevel =>
-    ({ level: l, tone: ATTENTION_TONE[l === "High" ? "high" : l === "Medium" ? "medium" : "low"], why });
-  if ((type === "sap_notification" && p <= 4) || (p > 1 && p <= 4 && Number.isInteger(p))) {
-    const sap = 5 - Math.round(p);
-    return level(sap <= 2 ? "High" : sap === 3 ? "Medium" : "Low", `SAP priority ${sap}`);
-  }
-  if (p <= 1) return level(p >= 0.8 ? "High" : p >= 0.5 ? "Medium" : "Low", `scored ${p.toFixed(2)} of 1`);
-  return level(p >= 10000 ? "High" : p >= 1000 ? "Medium" : "Low", `${money(p)} at stake`);
-}
+export { priorityLevel, type PriorityLevel } from "../../work";
 
 /** High, Medium or Low in its colour; why it is that is the tooltip. Low is left out unless asked for, so it doesn't
  * add a word to every row. */
@@ -113,7 +97,7 @@ export function WorkLine({ r, title, extra }: {
       <Text small muted>{/* a step named for the engine ("Work the case") says nothing a row needs */}
         {!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}
         {r.checklist && <><strong>{progressText(r.checklist)}</strong> · </>}
-        {r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}
+        {workKind(r.type)} · with {holder(r.assignee, r.role, r.kind)}
         {p && <> · <span title={p.why}>{p.level} priority</span></>}<StepBadges row={r} />
       </Text>
       {r.handed_reason && <Text small muted>{r.handed_reason}</Text>}

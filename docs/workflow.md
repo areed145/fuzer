@@ -194,7 +194,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   wells it reaches at their latest test, all of it while a machine is stopped (a trip, with its share where parallel
   trains carry the rest), else the pack's share for a condition still going (`upsets.rate_at_risk_share`, the
   assumption an upset's value uses); a condition not yet costing anything says what is behind it if it trips. When:
-  the operator queue's SLA for a dispatch; the start of the next scheduled plan item on the same area or assets within
+  the operator queue's SLA for a dispatch; the start of the next scheduled plan item on the same equipment (its assets
+  or what they are part of, short of the area, which can be half a plant) within
   `options.window_days` for a ride along; the area's next turnaround or shutdown, at most
   `exceptions.max_shelve_days`, for a shelf; the engineer queue's SLA and then a dispatch to escalate. Prices are the
   pack's value config. One option is **recommended** by one rule, the same on every case: wait while it leaves no high

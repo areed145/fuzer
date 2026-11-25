@@ -12,7 +12,7 @@ import { PriorityBadge } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
 import { EventOptions } from "./workflows/Options";
-import { cap, detectorName, person as personName, queue, say } from "../wording";
+import { detectorName, person as personName, queue, say, workKind } from "../wording";
 
 const WINDOW: Record<string, string> = {
   shutdown: "Shutdown", planned_work: "Planned work", person: "Set by a person", muted: "Provider muted",
@@ -211,7 +211,6 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
   const canAct = r.state === "open" && !!person;
   const subjects = namedSubjects(r.subjects, names);
   const event = happened(r);
-  const reports = r.reports ?? r.raised_count;
   const done = () => { setPanel(null); onChange(); };
   const back = !!r.item_id && backFromField(r);
   return (
@@ -221,7 +220,7 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
         <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
         {/* The type opens its route: where this kind of work goes, who holds it and when it is due (#1078). */}
         <Text as="div" small muted><a className="muted work-type-link" href={href("/routing", { type: r.type })} title="Where this type of work goes">
-          {cap(r.type.replace(/_/g, " "))}</a>{sourceWords(r.source, r.evidence?.message as MessageSaid | undefined)}{reports > 1 ? ` · ${reports} reports` : ""}</Text>
+          {workKind(r.type)}</a>{sourceWords(r.source, r.evidence?.message as MessageSaid | undefined)}</Text>
         {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}
         {error && <p role="alert" className="error small">{error}</p>}
       </td>

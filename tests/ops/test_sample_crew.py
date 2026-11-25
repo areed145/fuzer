@@ -173,7 +173,9 @@ def test_the_field_reports_what_it_notices_a_few_times_a_shift_once_each(crewed)
     assert len(rows) == sample_crew.REPORTS_PER_SHIFT
     assert all(r["source"] == "sample crew" and r["subjects"] for r in rows)
     kinds = {t["name"]: t for t in exceptions.type_listing(crewed)}
-    assert "sample crew" in kinds[sample_crew.FIELD_REPORT]["label"]
+    # one name for the kind (#1358); each report says it is synthetic by its source, and the kind by its description
+    assert kinds[sample_crew.FIELD_REPORT]["label"] == "Field report"
+    assert "synthetic" in kinds[sample_crew.FIELD_REPORT]["description"]
 
 
 def test_desk_work_with_no_queue_goes_to_the_engineers_not_the_field(crewed):

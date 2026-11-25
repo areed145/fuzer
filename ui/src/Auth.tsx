@@ -55,6 +55,13 @@ export function useViewOnly() {
   const user = useAuth()?.user;
   return !!user?.enabled && !!user.inspect && !user.owner && !user.permissions.includes("configure");
 }
+/** True for an account that can change configuration, not only look at it: the people who can act on Jobs, so the
+ * only ones shown its system alerts (#1358). */
+export function useConfigures() {
+  const configure = usePermission("configure");
+  const viewOnly = useViewOnly();
+  return configure && !viewOnly;
+}
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { query } = useRoute();

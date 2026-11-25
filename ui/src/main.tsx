@@ -10,7 +10,7 @@ import { StrictMode, Suspense, lazy, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { href, useAsync, useRoute } from "./lib";
 import { api } from "./api";
-import { setPeopleNames } from "./wording";
+import { setPeopleNames, setWorkKinds } from "./wording";
 import { AskPage } from "./pages/Ask";
 import { RegulatoryPage } from "./pages/RegulatoryReports";
 import { SettingsPage } from "./pages/Settings";
@@ -52,7 +52,7 @@ import { AppErrorBoundary } from "./AppErrorBoundary";
 import { Button, DialogHost, EmptyState, PageHeader, PageNote } from "./ui";
 import { Status } from "./lib";
 import "./theme";
-import { AuthGate, useViewOnly } from "./Auth";
+import { AuthGate, useConfigures, useViewOnly } from "./Auth";
 import { startOutbox } from "./fieldOffline";
 import "./styles/field-mode.css";
 
@@ -93,11 +93,14 @@ function App() {
   // Records keep who acted as an actor ("user:9abd…"); every page shows the account's name instead.
   const names = useAsync(() => api.workNames(), []);
   if (names.data) setPeopleNames(names.data);
+  const kinds = useAsync(() => api.workKinds(), []);
+  if (kinds.data) setWorkKinds(kinds.data);
   void declared.data;
 
   const s = stats.data;
   const section = path[0] ?? "";
   const viewOnly = useViewOnly();
+  const configures = useConfigures();
   const navSection = !section && query.has("q") ? "browse" : section;
   // What waits on you: the List's Waiting on me, counted by the server over the List's own rows.
   const work = figures.data?.waiting_on_you?.total ?? 0;
@@ -189,7 +192,7 @@ function App() {
               </div>
             )}
             {rebuilding && <UIBadge tone="warn">Updating…</UIBadge>}
-            <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />
+            {configures && <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />}
             {stats.error && <ErrorText inline>API not reachable</ErrorText>}
             {demo.error && section !== "demo" && section !== "investigate" &&
               <Status error={`Demo availability: ${demo.error}`} onRetry={demo.reload} />}

@@ -72,6 +72,15 @@ const accountName = (actor: string) => accountNames[actor] ?? "a signed-in user"
 /** A state or label as a sentence starts: "open" reads "Open". */
 export const cap = (s: string | null | undefined): string => (s ? s[0].toUpperCase() + s.slice(1) : "");
 
+let workKinds: Record<string, string> = {};
+/** Each kind of work's label (GET /work/kinds), loaded once by the app shell. */
+export function setWorkKinds(kinds: Record<string, string>) {
+  if (kinds && !Array.isArray(kinds)) workKinds = kinds;
+}
+/** A kind of work (a case's or an event's type) by its one label (#1358): "SAP order", never "sap order" on one page
+ * and "Sap order" on the next; a kind nothing labels reads as its name in words, as the server says it. */
+export const workKind = (type: string): string => workKinds[type] ?? cap(type.replace(/_/g, " "));
+
 /** What raised an event, as words (#16): "alarm_performance" reads "Alarm performance", "agent:opportunity_scan" the
  * "Opportunity scan agent". */
 export function detectorName(source: string): string {

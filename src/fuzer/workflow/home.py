@@ -1,6 +1,7 @@
-"""Home is my shift (P5.1): what changed on a person's work since they last looked at Home. Their work is every case
-they hold or opened, every case in their roles' queues, and every case they watch (P5.1b); a change is anything
-someone else did on it (a hand-off, an escalation, a comment, a close, a gate stop, a step that failed)."""
+"""Home is my shift (P5.1): what changed on a person's work lately. Their work is every case they hold or opened, every
+case in their roles' queues, and every case they watch (P5.1b); a change is anything someone else did on it (a
+hand-off, an escalation, a comment, a close, a gate stop, a step that failed). A change stays for a day, or from their
+last look when that was longer ago, so one look at Home doesn't empty it before they have acted (#1358)."""
 
 from .definitions import roles_of
 
@@ -17,6 +18,12 @@ def mark_seen(conn, person: str) -> str:
     row = conn.execute("insert into work_home_seen (name) values (%s) on conflict (name) do update set seen_at = now() "
                        "returning seen_at", (person,)).fetchone()
     return row["seen_at"].isoformat()
+
+
+def since(conn, person: str) -> str:
+    """Where the person's changes start: a day ago, or their last look at Home when that was longer ago."""
+    return conn.execute("select least(now() - interval '1 day', (select seen_at from work_home_seen where name = %s))"
+                        " as t", (person,)).fetchone()["t"].isoformat()
 
 
 def changes(conn, person: str, since: str | None = None, limit: int = 30) -> list[dict]:
@@ -62,9 +69,10 @@ def watching(conn, person: str) -> list[str]:
 
 
 def home(conn, person: str, mark: bool = False) -> dict:
-    """The person's Home since they last looked; `mark` records this visit as the new last look."""
-    since = seen(conn, person)
-    out = {"person": person, "seen_at": since, "changes": changes(conn, person, since),
+    """What changed on the person's work `since` (the last day, or back to their last look); `mark` records this
+    visit as the new last look."""
+    start = since(conn, person)
+    out = {"person": person, "seen_at": seen(conn, person), "since": start, "changes": changes(conn, person, start),
            "watching": watching(conn, person)}
     if mark:
         mark_seen(conn, person)

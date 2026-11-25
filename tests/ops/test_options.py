@@ -98,6 +98,31 @@ def test_a_condition_costing_nothing_rides_along_with_the_visit(conn):
         conn.commit()
 
 
+def test_a_visit_rides_along_only_on_the_same_equipment_not_anywhere_in_the_area(conn):
+    """#1358: every field report in Okan's compression area (half its tags) was offered the one gas turbine PM there.
+    A visit is offered on the asset itself or what it is part of (a temperature on its exchanger), not elsewhere in
+    the area."""
+    from fuzer.core import exceptions as port
+    from fuzer.core.exceptions import TYPES, ExceptionType
+
+    TYPES["walkdown_check"] = ExceptionType("walkdown_check", "Walkdown check", audience=("ioc", "field"))
+    try:
+        e = port.raise_exception(conn, "walkdown_check", "TT weeping", "Weeping fitting at 20-TT-2250B", "olga",
+                                 refs=["tag:20-TT-2250B"], priority=0.3)
+        conn.commit()
+        visit(conn, 2, title="Preventive maintenance gas turbine driver", refs=["tag:20-GT-2000A"])
+        w = by_key(options.for_exception(conn, e["id"]))["window"]
+        assert w["available"] is False and "nothing scheduled on its equipment" in w["unavailable"]
+        visit(conn, 3, title="Clean 20-E-2250B", refs=["tag:20-E-2250B"])
+        w = by_key(options.for_exception(conn, e["id"]))["window"]
+        assert w["available"] is True and "Clean 20-E-2250B" in w["detail"]
+    finally:
+        conn.rollback()
+        TYPES.pop("walkdown_check", None)
+        conn.execute("update exception_record set state = 'closed' where type = 'walkdown_check'")
+        conn.commit()
+
+
 def test_no_visit_on_the_plan_says_so_and_desk_work_has_no_options(conn):
     e = trip(conn)
     out = options.for_exception(conn, e["id"])

@@ -1,5 +1,5 @@
 /** Needs you (Home): one live list of what is waiting on the signed-in person, across every field they hold roles in,
- * and what others did on their work since they last looked. Each item opens the record it is about, and the map rings
+ * and what others did on their work lately. Each item opens the record it is about, and the map rings
  * the place that record sits at: while an item is pointed at or focused, and for a few seconds when one arrives.
  * Read only; it reads again every 30 s while the page is in view. */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -13,6 +13,7 @@ import { switchProject } from "../authState";
 import { GENERIC_STEP, StepBadges, byUrgency, caseHref } from "./workflows/shared";
 import { waitingToDispatch } from "./Exceptions";
 import { workHref } from "../pageTabs";
+import { workKind } from "../wording";
 
 const TOP = 5;  // per section
 const SLOW = 300_000;  // load health is a heavy read: every five minutes, not every 30 s
@@ -112,7 +113,7 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
       group: "work", key: `t-${project}-${r.task_id ?? "i"}-${r.item_id}`, title: r.title, to: caseHref(r.item_id),
       project: project === here ? undefined : project, due: r.due_at, late: !!r.overdue || !!r.escalated_at,
       subjects: r.subjects ?? [], at: r.created_at, priority: r.priority, gain: /opportunit/.test(r.type),
-      meta: <>{!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}
+      meta: <>{!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}{workKind(r.type)} · with {holder(r.assignee, r.role, r.kind)}
         {project !== here && <> · <Badge>{project || "this field"}</Badge></>} <StepBadges row={r} /></>,
     });
     if (inbox.data) out.push(...[...inbox.data.mine, ...inbox.data.queue].map((r) => row(r, here)));
@@ -140,7 +141,7 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
     return out.sort(rank);
   }, [inbox.data, fields.data, exceptions, loads.data, jobs.data, here, person]);
 
-  // What others did since the last look: the first read, then each later read's new events added on top.
+  // What others did lately: the first read, then each later read's new events added on top.
   const [changes, setChanges] = useState<Change[]>([]);
   useEffect(() => { if (since.data) setChanges(since.data.changes ?? []); }, [since.data]);
   useEffect(() => {
@@ -247,8 +248,9 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
               {g.total > TOP && <a className="small" href={more[g.key]}>{g.key === "work" ? `All ${g.total} on My work` : `All ${g.total}`}</a>}
             </section>)}
             {!sections.length && !inbox.error && <Empty className="small">Nothing waiting for you.</Empty>}
-            <Heading level={3} detail={since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}>Since you last looked</Heading>
-            {own.length ? changeList(own, "Since you last looked") : <Empty className="small">Nothing new on your work.</Empty>}
+            {/* A change stays a day (or back to the last look), so one look doesn't empty it before it is acted on (#1358). */}
+            <Heading level={3} detail={since.data?.since && `since ${when(since.data.since)}`}>Changes on your work</Heading>
+            {own.length ? changeList(own, "Changes on your work") : <Empty className="small">Nothing new on your work.</Empty>}
             {(watched.length > 0 || (since.data?.watching?.length ?? 0) > 0) && <>
               <Heading level={3}>Watching</Heading>
               {watched.length ? changeList(watched, "Watching") : <Empty className="small">Nothing new on what you watch.</Empty>}

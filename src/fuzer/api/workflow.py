@@ -420,7 +420,7 @@ def work_inbox(person: str, role: list[str] | None = Query(None), conn=Depends(g
 
 @router.get("/work/home")
 def work_home(person: str, mark: bool = False, conn=Depends(get_conn)):
-    """What changed on a person's work since they last looked at Home (P5.1); `mark` records this look."""
+    """What changed on a person's work lately (P5.1): the last day, or back to their last look; `mark` records it."""
     out = work.home(conn, person, mark)
     conn.commit()
     return out

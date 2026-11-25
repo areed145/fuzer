@@ -3,12 +3,13 @@ import { api } from "./api";
 import { applyOntology } from "./kinds";
 import { notifyChanged, useAsync } from "./lib";
 import { usePerson } from "./work";
-import { usePermission } from "./Auth";
+import { useConfigures } from "./Auth";
 
 /** Shared data lifecycle stays separate from route selection and shell presentation. */
 export function useAppData() {
   const [person] = usePerson();
-  const configure = usePermission("configure");
+  // System alerts go to the people who can act on them (#1358), not to every role, nor to a view-only account.
+  const configure = useConfigures();
   const stats = useAsync(() => api.stats(), []);
   const demo = useAsync(() => api.demoConfig(), []);
   const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(undefined), [person]);

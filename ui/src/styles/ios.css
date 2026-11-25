@@ -50,15 +50,14 @@
     background: var(--bg); border-bottom: var(--hair) solid transparent;
     transition: background-color .2s, border-color .2s;
   }
-  :root.ios.ios-scrolled .topbar {
-    background: var(--bar); border-bottom-color: var(--line);
-    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
-  }
+  /* Opaque once the page scrolls under it: a translucent bar let the content read through the title (#1358). */
+  :root.ios.ios-scrolled .topbar { border-bottom-color: var(--line); }
   :root.ios .topbar .back-button { border: 0; background: none; color: var(--accent); font-size: var(--t-body); padding-left: 0; gap: 0; }
   :root.ios .topbar .back-button svg { width: 26px; height: 26px; stroke-width: 2.4; }
   :root.ios .topbar .brand .logo { height: 24px; }
   :root.ios .topbar-title {
-    position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 4px); max-width: 58%;
+    /* Clear of Search and Back on the left and the account on the right, so it never runs over Back (#1358). */
+    position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 4px); max-width: calc(100% - 240px);
     height: 44px; line-height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-size: var(--t-body); font-weight: 600; opacity: 0; transition: opacity .18s, transform .18s; pointer-events: none;
   }

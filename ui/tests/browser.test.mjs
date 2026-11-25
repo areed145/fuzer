@@ -78,6 +78,7 @@ beforeEach(async () => {
     "/work/performance/detectors": { detectors: [], confirmed: 0, by_origin: {}, min_closed: 5, noisy: 0.5 },
     "/work/performance/skills": { skills: [], specialists: [], min_rated: 5 },
     "/work/names": { "user:9abd0c5686d748c987c6101bfc432705": "Adam Reeder" },
+    "/work/kinds": { sap_notification: "SAP notification", machine_trip: "Machine trip", field_report: "Field report" },
   };
   await page.route("**/*", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -624,7 +625,8 @@ test("a case names the signed-in person who opened and started it, never their a
   const who = "user:9abd0c5686d748c987c6101bfc432705";
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Start a purchase order", type: "task", state: "open",
     subjects: [], created_by: who, created_at: "2026-11-09T09:00:00Z",
-    events: [{ id: 1, kind: "created", actor: who, element: null, at: "2026-11-09T09:00:00Z", data: {} }],
+    events: [{ id: 1, kind: "created", actor: who, element: null, at: "2026-11-09T09:00:00Z", data: {} },
+      { id: 2, kind: "item_changed", actor: who, element: null, at: "2026-11-09T09:30:00Z", data: { priority: { from: 0.75, to: 0.9 } } }],
     processes: [{ id: 2, process_key: "task", version: 1, definition_id: 2, parent_token: null, state: "running", outcome: null,
       data: {}, started_by: who, started_at: "2026-11-09T09:00:00Z", path: [], open: [] }] } }));
   await page.route("**/work/definitions/2/bpmn", route => route.fulfill({ body: xml, contentType: "application/xml" }));
@@ -633,6 +635,9 @@ test("a case names the signed-in person who opened and started it, never their a
   await page.getByText("How this case is routed").click();  // a one-step task's diagram is folded
   await page.locator(".fz-node").first().waitFor();
   assert.ok(!(await page.locator("main").innerText()).includes("user:9abd"), "no account id on the case");
+  // #1358: a priority change reads in the priority words, not "0.75 → 0.9"
+  await page.getByText(/changed priority Medium → High/).waitFor();
+  assert.ok(!(await page.locator("main").innerText()).includes("0.75"));
 });
 
 test("a case links to Ask about it and shows an answer attached from Ask in its history (P4.5)", async () => {
@@ -1344,6 +1349,9 @@ test("The demo account goes anywhere, view only on configuration, and picks the 
   await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
   await page.route("**/settings", (route) => route.fulfill({ json: setupSettings }));
   await page.route("**/sources/catalog", (route) => route.fulfill({ json: { systems: [], types: { connections: {} } } }));
+  let healthAsked = 0;
+  await page.route("**/jobs/health", (route) => { healthAsked += 1; return route.fulfill({ json: {
+    available: true, level: "red", summary: "writeback_run_schedule failing; scheduler not running" } }); });
   let picked = [];
   const sent = [];
   await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [
@@ -1374,6 +1382,9 @@ test("The demo account goes anywhere, view only on configuration, and picks the 
   await page.getByText("View only: the demo account can look at this page but can't change it.").waitFor();
   await page.goto(`${url}/#/inbox`);
   assert.equal(await page.getByText("View only:", { exact: false }).count(), 0);  // work pages are the demo's to act on
+  // #1358: the scheduler's alerts go to whoever can act on Jobs; a view-only account isn't shown them in red
+  assert.equal(await page.locator("a.health").count(), 0);
+  assert.equal(healthAsked, 0);
 });
 
 test("Source readiness belongs in Sources and Settings remains application-wide on desktop/mobile", async () => {
@@ -4273,18 +4284,24 @@ test("My work stays My work for a desk role, and a row waiting in your queue is 
   const claims = [];
   const exc = { id: 4, type: "sap_notification", key: "k4", source: "sap", state: "open", priority: null, value_usd: null,
     subjects: [], unmatched: [], case_state: "open", role: "ops_lead", raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
-    last_seen: "2026-11-08T07:00:00Z", item_id: 12, assignee: null, evidence: {}, title: "Approve PM order 4711" };
+    last_seen: "2026-11-08T07:00:00Z", item_id: 12, assignee: null, evidence: {},
+    title: "Approve PM order 4711: low alarm on OK-J01-06 (peak 190.5 psig) from 2026-11-21 00:40, across 3 assets",
+    subjects: ["fz-tag-000000000001", "fz-tag-000000000002"] };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [exc] }));
-  await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 2, labels: {}, facets: { overdue: 0 },
+  await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 2, labels: { "fz-area-000000000020": "OKAN-20" }, facets: { overdue: 1, kind: { sap_notification: 1, opportunity: 1 } },
     rows: [{ ...exc, uid: "e4", exception_id: 4, kind: "sap_notification", kind_label: "SAP notification", stage: "desk",
-      holder: taken ? "ivy" : "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen,
-      updated: exc.last_seen, facility: "none", area: "none", asset: "none", take: taken ? null : 55,
+      holder: taken ? "ivy" : "role:ops_lead", queue: "ops_lead", due_at: "2026-11-13T00:00:00Z", overdue: true, opened: exc.first_seen,
+      updated: exc.last_seen, facility: "none", area: "fz-area-000000000020", asset: "none", take: taken ? null : 55, priority: 0.9,
+      value_usd: 33650,
       assignee: taken ? "ivy" : null },
     // a case of its own (no exception) shows its value in the Value column, as the sort says (#6)
     { ...exc, uid: "c9", id: null, exception_id: null, item_id: 9, type: "opportunity", kind: "opportunity",
       kind_label: "Opportunity", title: "Reallocate lift gas on 30-FT-3002", value_usd: 5611950, stage: "desk",
       holder: "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen,
       updated: exc.last_seen, facility: "none", area: "none", asset: "none", take: null }] } }));
+  await page.route("**/entities/names?*", (route) => route.fulfill({ json: {
+    "fz-tag-000000000001": { label: "OK-J01-06", description: "Well OK-J01-06 (GL oil producer)" },
+    "fz-tag-000000000002": { label: "OK_J01_06.WHP", description: "Wellhead pressure" } } }));
   await page.route("**/work/tasks/55/claim*", (route) => { claims.push(route.request().postDataJSON()); taken = true; return route.fulfill({ json: {} }); });
   // a desk role with operator too (as the demo account holds): My work is its own page all the same (#1345)
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ivy", roles: ["ops_lead", "operator"], mine: [],
@@ -4300,6 +4317,13 @@ test("My work stays My work for a desk role, and a row waiting in your queue is 
   const row = page.locator("tr.work-row", { hasText: "Approve PM order 4711" });
   const valued = page.locator("tr", { hasText: "Reallocate lift gas on 30-FT-3002" });
   assert.match(await valued.locator("td").nth(3).innerText(), /\$5\.6M|\$5,611,950/);
+  // #1358: at 1440 px the table fits its card, so Take it is not clipped behind a sideways scroll
+  await row.getByRole("button", { name: "Take it" }).waitFor();
+  if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/list-1440.png` });
+  assert.equal(await page.locator(".work-list-card .ui-table-wrap").evaluate((w) => w.scrollWidth <= w.clientWidth + 1), true);
+  // one label for a kind of work (GET /work/kinds), on the row and in the Kind filter alike
+  await row.getByRole("link", { name: "SAP notification", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Kind of work").locator("option[value=sap_notification]").textContent(), "SAP notification (1)");
   await row.getByRole("button", { name: "Take it" }).click();
   await expectReports(claims, 1);
   assert.equal(claims[0].by, "ivy");
@@ -6500,7 +6524,7 @@ test("Home ranks an ops lead's work across both fields and opens one in the othe
   const marked = [];
   await page.route("**/work/home?*", (route) => {
     marked.push(new URL(route.request().url()).searchParams.get("mark"));
-    return route.fulfill({ json: { person: "ines", seen_at: "2026-11-12T04:00:00Z", changes: [
+    return route.fulfill({ json: { person: "ines", seen_at: "2026-11-12T04:00:00Z", since: "2026-11-11T05:00:00Z", changes: [
       { id: 5, item_id: 3, kind: "commented", actor: "fred", at: "2026-11-12T05:30:00Z", data: { text: "gland weeping" },
         title: "Okan separator level", type: "upset", state: "open" }] } });
   });
@@ -6512,6 +6536,8 @@ test("Home ranks an ops lead's work across both fields and opens one in the othe
   assert.deepEqual(titles, ["Kestrel compressor trip", "Okan separator level"]);  // overdue first, whichever field
   await shift.getByText("gland weeping", { exact: false }).waitFor();
   assert.ok(marked.includes("true"));  // this look is the new last look
+  // #1358: the changes stay a day (or back to the last look), said so, not "since you last looked"
+  await shift.getByRole("heading", { name: /^Changes on your work/ }).getByText("since", { exact: false }).waitFor();
   await shift.getByRole("button", { name: "Kestrel compressor trip" }).click();
   await page.waitForURL(/#\/cases\/21$/);
   assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.project")), "kestrel");
@@ -6570,6 +6596,12 @@ test("a view saved on All work for a role opens for everyone in that role with i
     asked.push(new URL(route.request().url()).searchParams.get("person"));
     return route.fulfill({ json: saved });
   });
+  await page.goto(`${url}/#/list?stage=back&kind=upset`);
+  await page.getByRole("button", { name: "Save this view for a role", exact: true }).waitFor();
+  // #1358: the box says what was chosen: a preset with a filter on top is still that preset, and no preset is Filtered
+  assert.equal(await page.getByLabel("Preset").evaluate((s) => s.selectedOptions[0].text), "Back from the field");
+  await page.goto(`${url}/#/list?kind=upset`);
+  await page.waitForFunction(() => document.querySelector("select[aria-label='Preset']")?.selectedOptions[0]?.text === "Filtered");
   await page.goto(`${url}/#/list?stage=back&kind=upset`);
   await page.getByRole("button", { name: "Save this view for a role", exact: true }).click();
   await page.getByLabel("View name").fill("Upsets back from the field");

@@ -135,6 +135,32 @@ def test_locate_names_the_place_a_feed_item_or_incident_sits_at(conn):
     conn.rollback()
 
 
+def test_each_kind_of_work_has_one_label(conn, raised):
+    """#1358: the List's rows, its Kind filter and every other page read one label per kind (GET /work/kinds)."""
+    from fuzer.ops import exceptions, worklist
+
+    labels = exceptions.work_labels(conn)
+    assert labels["sap_order"] == "SAP order" and labels["writeback"] == "Write-back" and labels["trip"] == "Machine trip"
+    assert exceptions.work_label(labels, "odd_kind") == "Odd kind"
+    rows = worklist.rows(conn, kind="trip")["rows"]
+    assert rows and {r["kind_label"] for r in rows} == {"Machine trip"}
+
+
+def test_an_asset_is_filed_under_its_register_tag_not_a_serial_number():
+    """#1358: the asset filter listed serial numbers. Equipment is labelled by serial number, so work on it is filed
+    under the tag it is installed at; an instrument under the tag it is part of; a well stays the well."""
+    from fuzer.ops.worklist import _asset
+
+    tt, gt, sn = ({"id": "fz-tt", "kind": "tag", "label": "20-TT-2001"}, {"id": "fz-gt", "kind": "tag", "label": "20-GT-2000A"},
+                  {"id": "fz-sn", "kind": "equipment", "label": "SN-4471"})
+    area, well = {"id": "fz-a", "kind": "area", "label": "OKAN-20"}, {"id": "fz-w", "kind": "well", "label": "W-1"}
+    assert _asset([sn, gt, area]) == gt, "equipment reads as the tag it is installed at"
+    assert _asset([tt, gt, area]) == gt, "an instrument reads as the tag it is part of"
+    assert _asset([tt, well, area]) == well
+    assert _asset([sn, area]) == sn, "untagged equipment is still an asset"
+    assert _asset([area]) is None
+
+
 def test_the_list_filters_and_counts_work_by_facility_area_and_asset(conn, raised):
     """The List and Board (ops.worklist): each row's area and asset come from what it is about and what that sits in,
     so work can be filtered and counted by them, and `within` keeps the work about an entity or anything in it."""

@@ -5,6 +5,7 @@ import { when, whenDay } from "./format";
 import { Badge, Card, Text, List, Heading } from "./ui";
 import { href, planItemHref, useAsync } from "./lib";
 import { holder } from "./work";
+import { workKind } from "./wording";
 
 const day = (at: string) => whenDay(at);
 
@@ -23,7 +24,7 @@ export function WorkHere({ id, area, data }: { id: string; area: boolean; data?:
       {exceptions.length > 0 && <>
         <Heading level={3} small>Open exceptions</Heading>
         <List plain small>{exceptions.map((x) => <li key={x.id}>
-          <a href={href("/exceptions")}>{x.title}</a> <Text muted>{x.type.replace(/_/g, " ")} · last {when(x.last_seen)}</Text>{" "}
+          <a href={href("/exceptions")}>{x.title}</a> <Text muted>{workKind(x.type)} · last {when(x.last_seen)}</Text>{" "}
           {x.item_id ? <a href={href(`/cases/${x.item_id}`)}>with {holder(x.assignee, x.role)}</a>
             : x.planned ? <a className="muted" href={planItemHref(x.planned)}>planned {whenDay(x.planned.start_at)}</a> : <Badge tone="warn">not dispatched</Badge>}
         </li>)}</List>
