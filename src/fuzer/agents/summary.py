@@ -1,7 +1,7 @@
 """An entity page's summary (Explore): the summary specialist reads the facts about an entity and everything beneath
 it (`ops.beneath.picture`) and says, in a headline and a few points, what matters there now.
 
-One short call on a small model (`agents.summary_model`, low effort), kept for `agents.summary_hours` and shared with
+One short call on `agents.summary_model` at medium effort, kept for `agents.summary_hours` and shared with
 everyone who opens the page: the next visit by someone with AI access after that writes a new one. The facts it was
 written from are kept with it, so every point can be checked against them; a point cites the ids it rests on.
 
@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
-from ..core import llm, settings
+from ..core import llm, models, settings
 
 SYSTEM = """You are the summary specialist of an oil and gas integrated operations centre. You are given the facts
 about one entity in the asset register (a facility, an area, a well, a machine or an instrument) and everything that
@@ -74,7 +74,7 @@ def write(conn, fid: str, by: str, client=None) -> dict | None:
         "model": model, "max_tokens": 1200,
         "system": [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": json.dumps(facts, ensure_ascii=False, default=str)}],
-        "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}}},
+        "output_config": {"effort": models.DEFAULT_EFFORT, "format": {"type": "json_schema", "schema": SCHEMA}}},
         scope="agents")
     if message.stop_reason in ("refusal", "max_tokens"):
         raise RuntimeError(f"The summary stopped early ({message.stop_reason}); nothing was kept.")

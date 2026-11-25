@@ -18,7 +18,7 @@ One call per run, on `evals.grade_model` (empty: the summary model), as automate
 
 import json
 
-from ..core import llm, settings
+from ..core import llm, models, settings
 from ..core import usage as metering
 
 RUBRICS = {
@@ -73,7 +73,7 @@ def grade(kind: str, items: list[dict], client=None, conn=None) -> dict:
             "model": name, "max_tokens": 400 + 160 * len(items),
             "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             "messages": [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-            "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}}},
+            "output_config": {"effort": models.DEFAULT_EFFORT, "format": {"type": "json_schema", "schema": SCHEMA}}},
             scope="agents")
     if message.stop_reason in ("refusal", "max_tokens"):
         raise RuntimeError(f"The grader stopped early ({message.stop_reason}); nothing was graded.")

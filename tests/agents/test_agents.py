@@ -180,15 +180,15 @@ def test_team_answers_through_a_specialist(conn, okan_pack, monkeypatch):
         {k: v for k, v in t.items() if k != "seconds"} for t in out["tools"]]  # each call also has its seconds
     assert out["usage"]["model_calls"] == len(fake.requests) and out["usage"]["cost_usd"] > 0
 
-    for r in fake.requests:  # what reaches the API: valid for Claude Opus 5.5
-        assert r["model"] == "claude-opus-5-5" and "thinking" not in r
+    for r in fake.requests:  # what reaches the API: valid for Claude Sonnet 5.5
+        assert r["model"] == "claude-sonnet-5-5" and "thinking" not in r
         assert r["output_config"]["effort"] in ("high", "medium") and r["max_tokens"] == agents.MAX_OUTPUT_TOKENS
         assert r.get("tool_choice", {"type": "auto"})["type"] == "auto"
         assert r["cache_control"] == {"type": "ephemeral"} and r["fallbacks"] == "default"
         assert "server-side-fallback-2026-07-01" in r["betas"]
         assert "web_search" not in json.dumps(r.get("tools", []))
     efforts = {("operations assistant" in json.dumps(r["system"])): r["output_config"]["effort"] for r in fake.requests}
-    assert efforts == {True: "high", False: "medium"}
+    assert efforts == {True: "medium", False: "medium"}
     orchestrator = next(r for r in fake.requests if "operations assistant" in json.dumps(r["system"]))
     assert all(agent_id in json.dumps(orchestrator["system"])
                for agent_id in agents.SPECIALISTS)

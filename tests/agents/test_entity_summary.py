@@ -49,8 +49,8 @@ def test_a_summary_is_written_once_and_kept_for_a_day(okan_db):
     assert summary.fresh(conn, ggcp) is None
     out = summary.write(conn, ggcp, "user:test", client=fake)
     assert out["headline"].startswith("OKAN-20") and out["points"][0]["cites"] == [ggcp]
-    assert fake.requests[0]["model"] == "claude-haiku-5-5"
-    assert fake.requests[0]["output_config"]["effort"] == "low"
+    assert fake.requests[0]["model"] == "claude-sonnet-5-5"
+    assert fake.requests[0]["output_config"]["effort"] == "medium"
     assert summary.fresh(conn, ggcp)["headline"] == out["headline"]
     conn.execute("update entity_summary set created_at = created_at - %s", (timedelta(hours=25),))
     conn.commit()
