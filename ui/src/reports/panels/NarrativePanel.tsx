@@ -9,7 +9,7 @@ import { money, when, whenDay } from "../../format";
 import { Markdown } from "../../Markdown";
 import { Status, entityHref, href, useAsync, useAction } from "../../lib";
 import { AgentIdle } from "../../pages/workflows/shared";
-import { Badge, Button, ErrorText, Heading, List, Text, Textarea, type Tone } from "../../ui";
+import { Badge, Button, ErrorText, List, Text, Textarea, type Tone } from "../../ui";
 import { usePermission } from "../../Auth";
 import { usePerson } from "../../work";
 import { units } from "../../wording";
@@ -58,16 +58,8 @@ function Narrative({ day }: { day: string }) {
         {d.checks.unknown_citations.map((c) => <li key={c}>Cites a record not in the day's facts: {c}</li>)}
         {d.checks.unknown_numbers.map((n) => <li key={n}>A number not in the records: {n}</li>)}
       </List>}
-      {d.changes && <>
-        <Heading level={3}>Changed since version {d.version - 1}</Heading>
-        {Object.entries(d.changes).map(([section, c]) => (
-          <div key={section} className="small">
-            <strong>{section}</strong>
-            {c.added.map((a) => <div key={a} className="ok">+ {a}</div>)}
-            {c.removed.map((a) => <div key={a} className="muted">− {a}</div>)}
-          </div>
-        ))}
-      </>}
+      {/* no line-by-line diff of versions under the report (#1386): "Changed since version 0" and its +/− lines read
+          as part of the report; earlier versions are a tap away below */}
       {(reviewing || d.versions.length > 1 || d.production_day) && <div className="row small muted report-versions">
         {d.versions.length > 1 && <>
           <span>Version</span>

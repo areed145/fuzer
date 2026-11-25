@@ -28,6 +28,7 @@ from datetime import date, datetime, timedelta
 from psycopg.types.json import Jsonb
 
 from ..core import metrics, settings, wording
+from . import measures
 
 OUTLINE = ["Headline", "Production and deferment", "Upsets and events", "Wells", "Maintenance and integrity",
            "Look-ahead and asks"]
@@ -96,8 +97,12 @@ def facts(conn, pack, day: str) -> dict:
     sections["Production and deferment"].append(prod)
     eff = metrics.value(conn, pack, "production.efficiency", window="1d", at=d)
     if eff["value"] is not None:
+        # with the volumes it is the ratio of (#1386): the capacity it is measured against is the binding one, which
+        # can be below the reported potential, so "100%" beside "46,997 of 47,086 bbl" read as a contradiction
+        parts = eff.get("parts") or {}
         sections["Production and deferment"].append(_f(
-            "Production efficiency {eff}% on {day} ({standard})", eff["refs"], eff=eff["value"], day=day,
+            "Production efficiency {eff}% on {day}: {oil} bbl of the {cap} bbl the facility could deliver ({standard})",
+            eff["refs"], eff=eff["value"], day=day, oil=parts.get("allocated_bbl"), cap=parts.get("capacity_bbl"),
             standard=eff["standard"]))
     if prev:
         p_oil = num(prev.get("oil_bbl"))
@@ -107,9 +112,20 @@ def facts(conn, pack, day: str) -> dict:
         sections["Production and deferment"].append(_f(_vs("the 7-day average of {avg} bbl", round(oil - avg)),
                                                        [today["id"], *[r["id"] for r in week]],
                                                        change=abs(round(oil - avg)), avg=round(avg)))
-    sections["Production and deferment"].append(_f(
-        "Gas export {gas} Mscf, lift gas {lift} Mscf, flare {flare} Mscf", [today["id"]],
-        gas=num(today.get("gas_export_mscf")), lift=num(today.get("lift_gas_mscf")), flare=num(today.get("flare_mscf"))))
+    # a figure the same on each of the last reports has stopped being read: said, not reported (#1386)
+    run = [r for r in (_day001(conn, (d - timedelta(days=i)).isoformat())
+                       for i in range(measures.FROZEN_DAYS - 1, 7, -1)) if r] + [*reversed(week), today]
+    gas = {"gas_export_mscf": "gas export", "lift_gas_mscf": "lift gas", "flare_mscf": "flare"}
+    stuck = [f for f in gas if measures.frozen([r.get(f) for r in run]) is not None]
+    read = [f for f in gas if f not in stuck]
+    if read:
+        line = ", ".join(f"{gas[f]} {{{f}}} Mscf" for f in read)
+        sections["Production and deferment"].append(_f(line[0].upper() + line[1:], [today["id"]],
+                                                       **{f: num(today.get(f)) for f in read}))
+    if stuck:
+        sections["Production and deferment"].append(_f(
+            " and ".join(gas[f] for f in stuck).capitalize() + " not reported: the same figure on each of the last "
+            "{n} daily reports", [r["id"] for r in run[-measures.FROZEN_DAYS:]], n=measures.FROZEN_DAYS))
     w = operations.what_changed(conn, day, nxt, limit=50)
     losses = sorted(w["downtime_started"], key=lambda x: -num(x.get("lost_oil_bbl")))
     def status(x):

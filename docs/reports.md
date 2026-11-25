@@ -125,7 +125,16 @@ line alone, the AI note is told never to read it as zero, and the shift handover
 measure with `from.empty` is unknown for a window with no record in it, as Oil deferred is on a day with no downtime
 record ("no downtime recorded in the window"), never 0 beside a gap to potential. A case measure over a window that
 ends before the first case was opened is unknown ("no history"), so a stat says "no history the period before", never
-"0 the period before", and `previous_unknown` tells the AI note there is nothing to compare against.
+"0 the period before", and `previous_unknown` tells the AI note there is nothing to compare against. A daily
+report figure (a measure with the `production_day` cut-off that adds up or averages a field) that reads the same,
+and not 0, on each of the last 14 daily reports up to the window's end has stopped being read: the measure is
+unknown with "every daily report since ... gives the same ...: the reading looks frozen", and the daily report says
+the frozen figures are not reported (`ops/measures.frozen`, #1386). Production efficiency carries the volumes it is
+the ratio of (`parts`: allocated oil and the binding capacity), and the daily report states them beside it, so 100%
+never sits unexplained beside a smaller share of the reported potential. Plan against actual's planned hours and cost
+count each line's estimate for the part of its period inside the window, so the quarter to date and the window before
+it are compared like for like; its backlog table starts with the open orders the sentence above it starts from. The
+daily report shows no line-by-line diff of its versions; earlier versions are a tap away.
 
 `trend_spec.from_measures` draws measures over a window as a trend spec (`analysis/trend_spec.py`), one series per
 measure with its label and unit, so the one chart (`ui/src/trends/TrendChart.tsx`) draws it.

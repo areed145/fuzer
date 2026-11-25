@@ -21,7 +21,9 @@ export function BacklogBurn() {
         </Text>
         <Table density="compact">
           <thead><tr><th>Month</th><th>Created</th><th>Closed</th><th>Open at month end</th></tr></thead>
-          <tbody>{d.months.map((m) => (
+          {/* the history starts where the sentence above does (#1386): "went from 1" over a first row reading 0 */}
+          <tbody><tr data-month="start"><td>{d.since}</td><td /><td /><td>{d.summary.open_at_start}</td></tr>
+            {d.months.map((m) => (
             <tr key={m.month} data-month={m.month}>
               <td>{m.month}</td>
               <td>{m.created}</td>

@@ -8194,6 +8194,9 @@ test("The backlog burn shows created against closed and the lag, leaving out ord
   await card.getByText("17 orders created, 8 closed; open went from 23 to 32", { exact: false }).waitFor();
   await card.locator(".ui-badge").getByText("growing").waitFor();
   await card.locator('tr[data-month="2025-12"] td[data-label="Open at month end"]').getByText("32").waitFor();
+  // the table starts where the sentence does (#1386): the open orders on its first day, then each month's end
+  await card.locator('tr[data-month="start"] td[data-label="Open at month end"]').getByText("23").waitFor();
+  assert.equal(await card.locator("tbody tr").first().getAttribute("data-month"), "start");
   await card.getByText("Median 1 days, 90% within 7, longest 16", { exact: false }).waitFor();
   await card.getByText("10 of 17 orders had no notification and are left out.", { exact: false }).waitFor();
   await card.getByText("16 days, notified 2025-09-29, ordered 2025-10-15", { exact: false }).waitFor();
