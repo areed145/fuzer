@@ -101,9 +101,11 @@ register(
     Setting("llm.base_url", "str", "", "OpenAI-compatible endpoint (empty uses the provider default)", "LLM"),
     Setting("llm.api_key", "secret", "env:ANTHROPIC_API_KEY", "Environment variable holding the reader provider API key",
             "LLM"),
-    Setting("llm.model", "str", models.DEFAULT_MODEL, "Model for log links, P&IDs, documents, curves, mapping "
+    Setting("llm.model", "str", models.DEFAULT_MODEL, "Model for log links, documents, curves, mapping "
             "suggestions and daily report drafts", "LLM", env="FUZER_LLM_MODEL"),
-    Setting("llm.effort", "choice", "medium", "Effort for the readers", "LLM", choices=EFFORTS, env="FUZER_LLM_EFFORT"),
+    Setting("llm.pid_model", "str", models.PID_MODEL, "Model that reads P&ID drawings", "LLM",
+            env="FUZER_LLM_PID_MODEL"),
+    Setting("llm.effort", "choice", models.DEFAULT_EFFORT, "Effort for the readers", "LLM", choices=EFFORTS, env="FUZER_LLM_EFFORT"),
     Setting("llm.budget_usd_month", "float", 20.0, "Estimated model spend all AI features may reach in a calendar "
             "month (USD, UTC months); at it they turn off until the month ends or it is raised (0: no budget)", "LLM",
             min=0, scopes=(GLOBAL,)),
@@ -117,16 +119,16 @@ register(
             "Agents", restart=True),
     Setting("agents.model", "str", models.DEFAULT_MODEL, "Model for the assistant's orchestrator", "Agents",
             env="FUZER_AGENT_MODEL", restart=True),
-    Setting("agents.effort", "choice", "high", "Effort for the assistant's orchestrator", "Agents", choices=EFFORTS,
+    Setting("agents.effort", "choice", models.DEFAULT_EFFORT, "Effort for the assistant's orchestrator", "Agents", choices=EFFORTS,
             env="FUZER_AGENT_EFFORT", restart=True),
     Setting("agents.specialist_model", "str", "", "Model for the specialists (empty: the orchestrator's)",
             "Agents", env="FUZER_AGENT_SPECIALIST_MODEL", restart=True),
-    Setting("agents.specialist_effort", "choice", "medium", "Effort for the specialists", "Agents", choices=EFFORTS,
+    Setting("agents.specialist_effort", "choice", models.DEFAULT_EFFORT, "Effort for the specialists", "Agents", choices=EFFORTS,
             env="FUZER_AGENT_SPECIALIST_EFFORT", restart=True),
     Setting("agents.fallbacks", "bool", True, "On a policy decline, let the API re-run the request on a fallback model",
             "Agents", env="FUZER_AGENT_FALLBACKS", restart=True),
-    Setting("agents.summary_model", "str", "claude-haiku-5-5", "Model that writes an entity page's summary: a small, "
-            "cheap one, as the summary is one short call per entity a day", "Agents", env="FUZER_AGENT_SUMMARY_MODEL"),
+    Setting("agents.summary_model", "str", models.DEFAULT_MODEL, "Model that writes entity and report summaries and "
+            "reads facts from conversations", "Agents", env="FUZER_AGENT_SUMMARY_MODEL"),
     Setting("agents.summary_hours", "int", 24, "How long an entity's summary is kept before the next visit by someone "
             "with AI access writes a new one", "Agents", min=1),
     Setting("agents.case_cap_usd", "float", 2.0, "Agent spend a case may reach (USD) before its next agent step goes "

@@ -309,7 +309,7 @@ Each of those disagreements is also a **Drawing disagreements** item in Data rev
 person records whether the drawing or the other system needs changing. Manuals and
 procedures show their file inline on their page.
 
-Model defaults to `claude-opus-5-5` (`--model` or the `llm.model` setting to change),
+Model defaults to `claude-sonnet-5-5` at medium effort, and `claude-opus-5-5` for P&ID drawings (`--model`, or the `llm.model` and `llm.pid_model` settings, to change),
 with server-side refusal fallback on.
 
 Ingest treats each export file as a full snapshot: records no longer in it are

@@ -498,7 +498,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
     """Read drawings (all but smart P&IDs) that have no current cached result. Needs a rebuilt register first.
     With `twins`, read instead the images of sheets that also come as DEXPI (#63), kept under TWIN so they are only
     compared with the exact file (twin_differences) and never become links."""
-    model, effort = model or llm.model(), effort or llm.effort()  # the settings (#131) unless given
+    model, effort = model or llm.pid_model(), effort or llm.effort()  # the settings (#131) unless given
     rows = conn.execute(
         """
         select r.source_key, r.payload, x.text_hash, x.prompt_version

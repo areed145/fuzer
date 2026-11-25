@@ -3,7 +3,7 @@ results for a scope, window and day, and says in a headline and a few points wha
 about what is on the page, because the page is all it is given.
 
 The entity summary's pattern (agents/summary.py), kept per period instead of per hours: one short call on
-`agents.summary_model` at low effort, kept per report, scope, window and day in `report_summary`, shared with everyone
+`agents.summary_model` at medium effort, kept per report, scope, window and day in `report_summary`, shared with everyone
 who opens that report. Reading never calls a model. The daily report's checks apply (ops/daily_report.check): a point
 with no citation, a citation that isn't in the facts, or a number that isn't in them is flagged on the note.
 
@@ -19,7 +19,7 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from ..core import llm, reports, settings
+from ..core import llm, models, reports, settings
 from ..core.jsonsafe import plain
 from ..ops import report_pages
 
@@ -203,7 +203,7 @@ def write(conn, pack, key: str, scope: str | None, window: str, at: date, by: st
         "model": model, "max_tokens": 1200,
         "system": [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": json.dumps(f, ensure_ascii=False, default=str)}],
-        "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}}},
+        "output_config": {"effort": models.DEFAULT_EFFORT, "format": {"type": "json_schema", "schema": SCHEMA}}},
         scope="agents")
     if message.stop_reason in ("refusal", "max_tokens"):
         raise RuntimeError(f"The note stopped early ({message.stop_reason}); nothing was kept.")

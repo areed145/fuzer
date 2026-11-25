@@ -169,7 +169,7 @@ as panel results, so reading a report never calls a model.
 
 **AI note (`summary` panel, `agents/report_summary.py`).** The facts are the report's own panel results for that scope,
 window and day (`report_pages.panel_data` of every panel except the commentary and the repeat rows), made small enough
-for one short call on `agents.summary_model` at low effort. It writes a headline and two to five points; each point
+for one short call on `agents.summary_model` at medium effort. It writes a headline and two to five points; each point
 cites the measure keys, entity ids or `case:<n>` it rests on. The daily report's checks run on it and are kept with it:
 a number not in the facts, a citation not in them or a point with no citation is flagged on the note, not hidden.
 Notes are kept in `report_summary`, shared with everyone. The panel's result says `due` when none is kept for the

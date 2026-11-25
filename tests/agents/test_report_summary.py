@@ -66,7 +66,7 @@ def test_a_note_is_written_from_the_panels_and_kept_for_its_period(okan_db):
     assert rs.latest(conn, "work", None, "7d", DAY) is None
     out = rs.write(conn, pack, "work", None, "7d", DAY, "user:test", client=fake)
     assert out["headline"].startswith("Work and dispatch") and out["checks"]["ok"], out["checks"]
-    assert fake.requests[0]["model"] == "claude-haiku-5-5" and fake.requests[0]["output_config"]["effort"] == "low"
+    assert fake.requests[0]["model"] == "claude-sonnet-5-5" and fake.requests[0]["output_config"]["effort"] == "medium"
     assert rs.latest(conn, "work", None, "7d", DAY)["headline"] == out["headline"]
     assert rs.latest(conn, "work", None, "30d", DAY) is None, "another window is another note"
     assert rs.facts(conn, pack, "no-such-report", None, "7d", DAY) is None

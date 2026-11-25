@@ -31,7 +31,7 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from ..core import llm, settings
+from ..core import llm, models, settings
 from ..core.pack import Pack
 
 FUZER_ID = re.compile(r"\bfz-[a-z_]+-[0-9a-f]{12}\b")
@@ -191,7 +191,7 @@ def learn(conn, pack: Pack, answer_id: str, statement: str | None = None, by: st
         "model": model, "max_tokens": 4000,
         "system": [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": json.dumps(payload, ensure_ascii=False, default=str)}],
-        "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}}},
+        "output_config": {"effort": models.DEFAULT_EFFORT, "format": {"type": "json_schema", "schema": SCHEMA}}},
         scope="agents")
     if message.stop_reason in ("refusal", "max_tokens"):
         return {"error": f"stopped: {message.stop_reason}", "facts": []}

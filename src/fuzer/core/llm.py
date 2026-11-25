@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from . import models, settings
 
 DEFAULT_MODEL = models.DEFAULT_MODEL
-DEFAULT_EFFORT = "medium"
+DEFAULT_EFFORT = models.DEFAULT_EFFORT
 _PROVIDER_ENV = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
@@ -22,6 +22,10 @@ _PROVIDER_ENV = {
 
 def model() -> str:
     return settings.get(None, "llm.model")
+
+
+def pid_model() -> str:
+    return settings.get(None, "llm.pid_model")
 
 
 def effort() -> str:

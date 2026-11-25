@@ -10,7 +10,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `llm.provider` | choice | `anthropic` | anthropic / openai / azure_openai / ollama | Provider used for reader calls. |
 | `llm.base_url` | str | `` |  | OpenAI-compatible endpoint (empty uses the provider default). |
 | `llm.api_key` | secret | `env:ANTHROPIC_API_KEY` |  | Environment variable holding the reader provider API key. |
-| `llm.model` | str | `claude-opus-5-5` |  | Model for log links, P&IDs, documents, curves, mapping suggestions and daily report drafts. Replaces `FUZER_LLM_MODEL`. |
+| `llm.model` | str | `claude-sonnet-5-5` |  | Model for log links, documents, curves, mapping suggestions and daily report drafts. Replaces `FUZER_LLM_MODEL`. |
+| `llm.pid_model` | str | `claude-opus-5-5` |  | Model that reads P&ID drawings. Replaces `FUZER_LLM_PID_MODEL`. |
 | `llm.effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the readers. Replaces `FUZER_LLM_EFFORT`. |
 | `llm.budget_usd_month` | float | `20.0` | ≥ 0 | Estimated model spend all AI features may reach in a calendar month (USD, UTC months); at it they turn off until the month ends or it is raised (0: no budget). |
 | `llm.budget_alert_pct` | float | `80.0` | 0 to 100 | Tell the alert webhook when the month's model spend passes this share of its budget (percent; 0: only at the budget). |
@@ -22,12 +23,12 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `agents.provider` | choice | `anthropic` | anthropic / openai / azure_openai / ollama | Provider used for assistant and specialist agents. Takes effect on restart. |
 | `agents.base_url` | str | `` |  | OpenAI-compatible endpoint (empty uses the provider default). Takes effect on restart. |
 | `agents.api_key` | secret | `env:ANTHROPIC_API_KEY` |  | Environment variable holding the agents provider API key. Takes effect on restart. |
-| `agents.model` | str | `claude-opus-5-5` |  | Model for the assistant's orchestrator. Takes effect on restart. Replaces `FUZER_AGENT_MODEL`. |
-| `agents.effort` | choice | `high` | low / medium / high / xhigh / max | Effort for the assistant's orchestrator. Takes effect on restart. Replaces `FUZER_AGENT_EFFORT`. |
+| `agents.model` | str | `claude-sonnet-5-5` |  | Model for the assistant's orchestrator. Takes effect on restart. Replaces `FUZER_AGENT_MODEL`. |
+| `agents.effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the assistant's orchestrator. Takes effect on restart. Replaces `FUZER_AGENT_EFFORT`. |
 | `agents.specialist_model` | str | `` |  | Model for the specialists (empty: the orchestrator's). Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_MODEL`. |
 | `agents.specialist_effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the specialists. Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_EFFORT`. |
 | `agents.fallbacks` | bool | `True` |  | On a policy decline, let the API re-run the request on a fallback model. Takes effect on restart. Replaces `FUZER_AGENT_FALLBACKS`. |
-| `agents.summary_model` | str | `claude-haiku-5-5` |  | Model that writes an entity page's summary: a small, cheap one, as the summary is one short call per entity a day. Replaces `FUZER_AGENT_SUMMARY_MODEL`. |
+| `agents.summary_model` | str | `claude-sonnet-5-5` |  | Model that writes entity and report summaries and reads facts from conversations. Replaces `FUZER_AGENT_SUMMARY_MODEL`. |
 | `agents.summary_hours` | int | `24` | ≥ 1 | How long an entity's summary is kept before the next visit by someone with AI access writes a new one. |
 | `agents.case_cap_usd` | float | `2.0` | ≥ 0 | Agent spend a case may reach (USD) before its next agent step goes to a person, with the spend and the cap on the case (0: no cap). |
 | `agents.briefs` | bool | `True` |  | Have the owning specialist brief each new case of a type a pack briefs, when the agent worker has no step to run. |
