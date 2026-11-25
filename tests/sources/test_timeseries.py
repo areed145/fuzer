@@ -90,9 +90,10 @@ def test_window_with_nothing_to_centre_on_follows_the_data_not_the_clock(conn):
     assert values._latest(conn, live, 24)[:10] == date.today().isoformat()
 
 
-def test_no_value_is_later_than_now(conn, okan_data, monkeypatch):
-    """#1350: a historian holds nothing in the future, so neither does the synthetic one, and a trend asked for hours
-    past now (a case's window, "Later", the loaded data's last day) ends at now on the plant's clock."""
+def test_no_trend_value_is_later_than_now(conn, okan_data, monkeypatch):
+    """#1350: a trend asked for hours past now (a case's window, "Later", the loaded data's last day) ends at now on the
+    plant's clock. The provider itself is not capped: detectors read it in data time, which a replay or a rolled-forward
+    scenario puts past the wall clock."""
     from datetime import timedelta
 
     from fuzer.core import clock
@@ -100,9 +101,6 @@ def test_no_value_is_later_than_now(conn, okan_data, monkeypatch):
     monkeypatch.setattr(clock, "name", lambda: "America/Chicago")  # hours behind UTC: now is the plant's wall clock
     p = timeseries.SyntheticProvider(okan_data)
     now = clock.now()
-    for point in ("OK_GGCP:20-VT-2200B.PV", "OK_NOT_MODELLED.PV"):
-        got = p.values(point, "mm/s", now - timedelta(hours=6), now + timedelta(hours=6), 5, [])
-        assert got and max(t for t, _ in got) <= clock.now().isoformat(timespec="minutes")
     inc = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-K-2200B"))["items"])
     out = values.around(conn, inc["id"], at=(now + timedelta(hours=3)).isoformat(timespec="minutes"),
                         hours_before=12, hours_after=6, src=p)
