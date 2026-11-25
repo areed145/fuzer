@@ -248,6 +248,8 @@ def safeguard_status(ref: str | None = None, system: bool = True) -> dict[str, A
         return _plain({
             "ref": ref, "system": system,
             "bypasses": safeguards.bypasses(conn, subjects, system=system),
+            # an empty list without a bypass register is unknown, not "nothing bypassed"
+            **({} if safeguards.loaded(conn) else {"bypasses_unknown": safeguards.NO_REGISTER}),
             "proof_tests_overdue": [p for p in tests if p["overdue"]],
             "proof_tests_in_date": len([p for p in tests if not p["overdue"]]),
             "demands": demands,

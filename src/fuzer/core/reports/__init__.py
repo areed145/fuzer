@@ -205,6 +205,9 @@ def check(d: dict, source: str = "platform") -> dict:
         if not panels:
             raise ReportError(f"{rw}: a row holds at least one panel")
         row = {"id": rid, "panels": panels, **({"title": r["title"]} if r.get("title") else {})}
+        if need := r.get("requires"):  # a measure the row reads from: while it is unknown, the row is one line
+            _measure(rw, need)
+            row["requires"] = need
         if rep := r.get("repeat"):
             if not isinstance(rep, dict) or not isinstance(rep.get("limit", 8), int):
                 raise ReportError(f"{rw}: repeat is {{kind, limit}}")

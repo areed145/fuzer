@@ -134,19 +134,42 @@ def _aggregate(m: dict, rows: list[dict], q) -> float | None:
     return round(mean(ages), 1) if ages else None
 
 
+def _unknown(conn, src: dict, q, every: list[dict]) -> str | None:
+    """Why a measure or row set over these records can't be said, or None when it can (0 or no rows is then the
+    answer): the register holds no record of the kind at all (its source isn't loaded: `missing`), or none in the
+    scope, whatever `where` and `unless` keep. Never 0: a site with no bypass register may have safeguards out."""
+    if every:
+        return None
+    what = src["kind"].replace("_", " ")
+    key = ("loaded", src["kind"])
+    if key not in q.cache:
+        q.cache[key] = conn.execute("select 1 from entity where kind = %s and retired_at is null and merged_into is null "
+                                    "limit 1", (src["kind"],)).fetchone() is not None
+    if not q.cache[key]:
+        return src.get("missing") or f"no {what} records loaded"
+    if not q.scope:
+        return None
+    if src.get("where") or src.get("unless"):
+        unfiltered = {k: v for k, v in src.items() if k not in ("where", "unless")}
+        if any(q.within(r["subjects"]) for r in records(conn, unfiltered, q)):
+            return None
+    return f"no {what} records within this scope"
+
+
 def compute(m: dict, conn, pack, q) -> dict:
     src = m["from"]
     cuts = m.get("cuts") or {}
     every = [r for r in records(conn, src, q, cuts.values()) if q.within(r["subjects"])]
-    if not every:
-        what = src["kind"].replace("_", " ")
-        return {"note": f"no {what} records {'within this scope' if q.scope else 'in the register'}"}
+    if why := _unknown(conn, src, q, every):
+        return {"note": why, "unknown": True}
     if m.get("stock"):
         t = q.span.end
         rows = [r for r in every if r["at"] and r["at"] <= t and (r["end"] is None or r["end"] > t)]
     else:
         rows = [r for r in every if q.span.holds(r["at"])]
     out = {"value": _aggregate(m, rows, q), "refs": [r["id"] for r in rows][:REFS], "as_of": q.span.at.isoformat()}
+    if out["value"] is None and not rows:  # a mean or an age of nothing: there is none to average
+        out["note"] = "none open at the window's end" if m.get("stock") else "none in the window"
     if q.grain:
         groups: dict[str, tuple[str, list]] = {}
         if q.grain in cuts:
@@ -217,7 +240,6 @@ def rows(spec: dict, conn, pack, q) -> dict:
     want = sorted({s for r in rows for s in r["subjects"][1:]})
     labels = {x["fuzer_id"]: x["label"] for x in conn.execute(
         "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (want,))} if want else {}
-    note = None if every else f"no {spec['from']['kind'].replace('_', ' ')} records " + \
-        ("within this scope" if q.scope else "in the register")
+    why = _unknown(conn, spec["from"], q, every)
     return {"rows": [{"key": r["id"], "cells": {c["key"]: _cell(r, c["field"], labels) for c in spec["columns"]},
-                      "href": f"/e/{r['id']}"} for r in rows], "note": note}
+                      "href": f"/e/{r['id']}"} for r in rows], "note": why, "unknown": bool(why)}

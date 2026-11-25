@@ -24,10 +24,11 @@ KESTREL_DATASETS = {
     "safeguard_register", "safeguard_bypasses", "safeguard_demands", "moc_changes",
     "oplogs", "ec_downtime", "dcs_alarms", "dcs_alarm_journal", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
-    "gis_facilities", "gis_pipelines", "gis_wells", "well_surveys", "witsml_trajectories", "well_completions", "well_logs"}
-KESTREL_ENTITIES = 443  # with 24 completion components (#61), 14 closed permits (P6.5), Operator rounds points, 4 Teams threads (P5.8),
+    "gis_facilities", "gis_pipelines", "gis_wells", "well_surveys", "witsml_trajectories", "well_completions", "well_logs",
+    "business_plan_lines"}
+KESTREL_ENTITIES = 461  # with 24 completion components (#61), 14 closed permits (P6.5), Operator rounds points, 4 Teams threads (P5.8),
 # 5 safeguards and 3 bypasses (P3.9a), 5 change records (P3.9b, #755) and 4 safeguard demands (P4.2e), and the isolation
-# glycol pump B's lapsed permit still holds (P3.14)
+# glycol pump B's lapsed permit still holds (P3.14), and 18 business plan lines
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 

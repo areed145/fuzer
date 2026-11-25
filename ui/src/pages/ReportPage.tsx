@@ -162,14 +162,19 @@ export function ReportPage({ reportKey }: { reportKey: string }) {
       {!editor && hasNarrative(shown) && <DailyReview day={shown.window.at} onDay={setAt} />}
       {editor && <AddPanelSlot definition={editor.definition} index={0} open={editor.adding === 0} onOpen={editor.onAdding} onChange={editor.onChange} />}
       {!editor && shown.definition.rows.length === 0 && <Empty>No panels yet.</Empty>}
-      {shown.definition.rows.map((row, ri) => <Fragment key={row.id}>
-        {row.repeat
-          ? (editor ? (shown.repeats[row.id] ?? [shown.scope]).slice(0, 1) : shown.repeats[row.id] ?? [])
-            .map((e) => <Row key={`${row.id}:${e.id}`} row={row} index={ri} view={shown} scope={e} editor={editor} />)
-          : <Row row={row} index={ri} view={shown} scope={shown.scope} editor={editor} />}
-        {editor && <AddPanelSlot definition={editor.definition} index={ri + 1} open={editor.adding === ri + 1}
-          onOpen={editor.onAdding} onChange={editor.onChange} />}
-      </Fragment>)}
+      {shown.definition.rows.map((row, ri) => {
+        // rows that read a measure unknown here (no business plan loaded) are one line, said once, not empty panels
+        const gap = editor ? undefined : shown.unknown?.find((u) => u.rows.includes(row.id));
+        return <Fragment key={row.id}>
+          {gap ? gap.rows[0] === row.id && <Empty>{gap.note}</Empty>
+            : row.repeat
+              ? (editor ? (shown.repeats[row.id] ?? [shown.scope]).slice(0, 1) : shown.repeats[row.id] ?? [])
+                .map((e) => <Row key={`${row.id}:${e.id}`} row={row} index={ri} view={shown} scope={e} editor={editor} />)
+              : <Row row={row} index={ri} view={shown} scope={shown.scope} editor={editor} />}
+          {editor && <AddPanelSlot definition={editor.definition} index={ri + 1} open={editor.adding === ri + 1}
+            onOpen={editor.onAdding} onChange={editor.onChange} />}
+        </Fragment>;
+      })}
     </Everything.Provider></div>}
   </section>;
 }

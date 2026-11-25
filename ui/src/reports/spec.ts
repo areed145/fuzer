@@ -55,6 +55,8 @@ export interface ReportRow {
   title?: string;
   /** Draw the row once for each entity of this kind beneath the scope. */
   repeat?: { kind: string; limit: number };
+  /** A measure the row reads from: while it is unknown the row is one line saying why (ReportView.unknown). */
+  requires?: string;
   panels: (Panel | PanelColumn)[];
 }
 
@@ -149,6 +151,8 @@ export interface ReportView {
   scopes: ScopeRef[];
   /** A custom report's owner, sharing and origin; null for a standard report. */
   custom?: CustomReport | null;
+  /** Rows whose `requires` measure is unknown here ("No business plan loaded"): said once, in place of those rows. */
+  unknown?: { rows: string[]; note: string }[];
 }
 
 /** What every panel result carries, then its type's own fields. */
@@ -162,6 +166,9 @@ export interface PanelResultBase {
   as_of: string | null;
   /** Why it is empty, or what it leaves out. */
   note: string | null;
+  /** Stat and table panels: it can't be said because what it is read from isn't loaded (the note says which), so it
+   * is unknown, never 0 or nothing. */
+  unknown?: boolean;
   /** False when the data is for the whole register, not the scope asked for. */
   scoped: boolean;
   /** What it is made of: entity ids or "case:<id>". */

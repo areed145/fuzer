@@ -43,7 +43,12 @@ def _when(v: str | None) -> datetime | None:
     return clock.aware(t)
 
 
+NO_REGISTER = "no bypass register loaded"  # why bypasses are unknown, not none, where the register has no bypass
+
+
 def loaded(conn) -> bool:
+    """Whether the register holds a bypass register at all. Without one, what is bypassed is unknown (NO_REGISTER),
+    never none: a site that hasn't loaded its bypass register may have safeguards out."""
     return conn.execute("select 1 from entity where kind = 'bypass' and retired_at is null limit 1").fetchone() is not None
 
 

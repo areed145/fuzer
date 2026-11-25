@@ -1,0 +1,26 @@
+# The business plan's lines, as the planning or budgeting tool exports them: each line the work a program means to do
+# on a facility or area (its functional location) over a period, with the hours and cost it estimates. The lines land
+# under their plan and program as intent lines (ops/business_plan.sync), each read against the real cases that do
+# the work on that plant in that period: plan against actual.
+source: business_plan
+record_type: plan_line
+shape: records
+dataset: business_plan_lines
+key: line_id
+entity:
+  kind: plan_line
+  fields:
+    - plan
+    - program
+    - title
+    - work_kind
+    - period_start
+    - period_end
+    - [estimate_hours, {from: estimate_hours, as: number}]
+    - [estimate_cost, {from: estimate_cost, as: number}]
+    - currency
+    - owner
+links:
+  - rel: located_at
+    when: floc
+    to: {from: floc, as: floc}

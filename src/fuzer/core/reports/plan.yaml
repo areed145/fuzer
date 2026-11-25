@@ -3,7 +3,7 @@
 schema: 1
 key: plan
 title: Plan against actual
-version: 2
+version: 3
 for: [planner, operations manager]
 scope:
   kinds: [facility, area]
@@ -12,6 +12,7 @@ window:
   options: [qtd, ytd, 30d, 90d]
 rows:
   - id: headline
+    requires: plan.estimate_hours  # with no business plan loaded, the plan's rows are that one line
     panels:
       - {id: est-hours, type: stat, measure: plan.estimate_hours}
       - {id: act-hours, type: stat, measure: plan.actual_hours}
@@ -29,10 +30,12 @@ rows:
       - {id: notes, type: note, size: 2}
   - id: per-program
     title: By program
+    requires: plan.estimate_hours
     panels:
       - {id: by-program, type: table, size: 4, title: Plan against actual by program,
          measures: [plan.estimate_hours, plan.actual_hours, plan.estimate_cost, plan.actual_cost], grain: program}
   - id: lines
+    requires: plan.estimate_hours
     panels:
       - {id: plan-lines, type: table, size: 4, title: Plan lines, rows: plan.lines, limit: 20}
   - id: work

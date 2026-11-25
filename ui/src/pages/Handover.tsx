@@ -80,8 +80,11 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
   // fold into one line, so a handover reads in a minute on a phone instead of listing every open case.
   const sections = Object.entries(h.facts.sections)
     .sort(([a], [b]) => rank(a) - rank(b));
-  const busy = sections.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) > 0);
-  const quiet = sections.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) === 0).map(([name]) => name);
+  // a section that can't be said (no bypass register loaded) is unknown, never "nothing in" it
+  const unknown = h.facts.unknown ?? {};
+  const said = sections.filter(([name]) => !(name in unknown));
+  const busy = said.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) > 0);
+  const quiet = said.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) === 0).map(([name]) => name);
   const jumps = (part: typeof busy) => part.map(([name, lines], i) => <span key={name}>{i > 0 && " · "}
     <a href={`#handover-${slug(name)}`} onClick={(e) => { e.preventDefault(); document.getElementById(`handover-${slug(name)}`)?.scrollIntoView({ block: "start" }); }}>
       {lines.length + (h.facts.more?.[name] ?? 0)} {name.toLowerCase()}</a></span>);
@@ -122,7 +125,9 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
             {open ? "Show fewer" : `Show all ${total}`}</Button>}
         </div>;
       })}
-      {quiet.length > 0 && <Text as="p" small muted>Nothing in {quiet.join(", ").toLowerCase()}.</Text>}
+      {(quiet.length > 0 || Object.keys(unknown).length > 0) && <Text as="p" small muted>
+        {[quiet.length > 0 && `Nothing in ${quiet.join(", ").toLowerCase()}.`,
+          ...Object.entries(unknown).map(([name, why]) => `${name} unknown: ${why}.`)].filter(Boolean).join(" ")}</Text>}
       <Heading level={3}>Outgoing notes</Heading>
       {h.notes && notes === null && <p>{h.notes} <Text small muted>({personName(h.notes_by)}, {when(h.notes_at!)})</Text></p>}
       {!acked && canAct && (

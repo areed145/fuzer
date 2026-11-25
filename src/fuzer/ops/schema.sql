@@ -880,6 +880,9 @@ create table if not exists work_plan_line (
     updated_at         timestamptz not null default now()
 );
 create index if not exists work_plan_line_container on work_plan_line (container_id);
+-- the plan_line entity a business plan export brought it as (ops/business_plan.sync); null for a line written here
+alter table work_plan_line add column if not exists source_key text;
+create unique index if not exists work_plan_line_source on work_plan_line (source_key) where source_key is not null;
 create table if not exists work_plan_match (
     item_id      bigint primary key,                    -- a case counts against one line
     line_id      bigint not null references work_plan_line (id) on delete cascade,

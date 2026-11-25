@@ -349,6 +349,8 @@ def follow_register(conn, pack: Pack) -> dict:
     from . import source_links
     planned["orders"] = source_links.sync_orders(conn)  # after the notifications: an order joins its notification's case
     planned["activities"] = source_links.sync_activities(conn)  # an activity works its order's or container's case
+    from . import business_plan
+    planned["business_plan"] = business_plan.sync(conn)  # after the cases: each line takes the cases doing its work
     planned["moves"] = source_links.send_moves(conn)  # a job done here that SAP still holds open: its confirmation drafted
     from . import messages
     read = {**messages.read_new(conn, pack), "answered": messages.sync_answers(conn)}  # free text to the IOC (P2.8)

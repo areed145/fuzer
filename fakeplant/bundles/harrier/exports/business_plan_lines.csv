@@ -1,0 +1,13 @@
+line_id,plan,program,title,work_kind,floc,period_start,period_end,estimate_hours,estimate_cost,currency
+BP-HRPT-A1-MNT-P-1,HRPT business plan,Maintenance,"Maintenance, Area A1 origin pump station",maintenance,HRPT-A1,today-91d,today-1d,24,900,USD
+BP-HRPT-B1-MNT-P-1,HRPT business plan,Maintenance,"Maintenance, Area B1 intermediate pump station (KP 110)",maintenance,HRPT-B1,today-91d,today-1d,28,4800,USD
+BP-HRPT-D1-MNT-P-1,HRPT business plan,Maintenance,"Maintenance, Area D1 terminal receipt",maintenance,HRPT-D1,today-91d,today-1d,24,1300,USD
+BP-HRPT-A1-MNT-P+0,HRPT business plan,Maintenance,"Maintenance, Area A1 origin pump station",maintenance,HRPT-A1,today,today+90d,24,2800,USD
+BP-HRPT-D1-MNT-P+0,HRPT business plan,Maintenance,"Maintenance, Area D1 terminal receipt",maintenance,HRPT-D1,today,today+90d,20,2300,USD
+BP-HRPT-E1-MNT-P+0,HRPT business plan,Maintenance,"Maintenance, Area E1 terminal tank farm",maintenance,HRPT-E1,today,today+90d,20,2200,USD
+BP-HRPT-F1-MNT-P+0,HRPT business plan,Maintenance,"Maintenance, Area F1 ship loading and custody transfer",maintenance,HRPT-F1,today,today+90d,32,2200,USD
+BP-HRPT-H1-MNT-P+0,HRPT business plan,Maintenance,"Maintenance, Area H1 utilities and thermal oxidiser",maintenance,HRPT-H1,today,today+90d,28,2300,USD
+BP-HRPT-A1-MNT-P+1,HRPT business plan,Maintenance,"Maintenance, Area A1 origin pump station",maintenance,HRPT-A1,today+91d,today+181d,56,4600,USD
+BP-HRPT-G1-MNT-P+1,HRPT business plan,Maintenance,"Maintenance, Area G1 vapour recovery",maintenance,HRPT-G1,today+91d,today+181d,20,2300,USD
+BP-HRPT-B1-COAT-P+0,HRPT business plan,Maintenance,"Coating repairs, Area B1 intermediate pump station (KP 110)",maintenance,HRPT-B1,today,today+90d,72,10900,USD
+BP-HRPT-C1-COAT-P+0,HRPT business plan,Maintenance,"Coating repairs, Area C1 mainline, origin to terminal (130.5 mi)",maintenance,HRPT-C1,today,today+90d,96,14600,USD
