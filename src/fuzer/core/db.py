@@ -286,7 +286,7 @@ def init_schema(conn) -> None:
             time.sleep(wait)
 
 
-SCHEMA_ATTEMPTS = 8
+SCHEMA_ATTEMPTS = 16  # about three minutes of backing off: the deploy of #1374 ran out at 8 while the old instance ticked
 SCHEMA_LOCK_TIMEOUT = "5s"  # each lock the migration waits for: a busy table makes it back off, not queue traffic
 
 

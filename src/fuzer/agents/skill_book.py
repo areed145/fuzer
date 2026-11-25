@@ -83,17 +83,19 @@ def _questions(conn, path: str, live_version: int) -> list[dict]:
 
 
 def listing(conn) -> dict:
-    """Every skill with its live version, a draft waiting and the shortfalls since it went live, grouped by area."""
+    """Every skill with its live version, a draft waiting, the shortfalls since it went live and how often its
+    recommendations were taken since then, grouped by area."""
     from ..ops import skill_review
 
     versions, reviews = _versions(conn), _reviews(conn)
-    short = {s["skill"]: s for s in shortfalls.gather(conn)}
+    counted = shortfalls.tally(conn)
     rows = []
     for s in catalog.SKILL_CATALOG:
         v = versions.get(s.path, {"live": None, "draft": None})
         live = v["live"] or {"version": 0, "published_by": None, "published_at": None, "eval": {}}
         since = live.get("published_at")
-        fell = [x for x in (short.get(s.path) or {}).get("shortfalls", []) if not since or x["at"] >= since]
+        mine = counted.get(s.path) or {}
+        fell = [x for x in mine.get("shortfalls", []) if not since or x["at"] >= since]
         draft = v["draft"]
         rows.append({
             "skill": s.path, "name": s.name, "title": _title(s), "area": _area(s), "area_label": _label(_area(s)),
@@ -103,7 +105,7 @@ def listing(conn) -> dict:
             "draft": draft and {"version": draft["version"], "by": draft["created_by"], "at": draft["created_at"],
                                 "note": draft["note"],
                                 "review_case": reviews.get(skill_review.key_of(s.path, draft["version"]))},
-            "shortfalls": len(fell),
+            "shortfalls": len(fell), "taken": shortfalls.taken(mine.get("decisions", []), since),
             "questions": len(_questions(conn, s.path, live["version"])),
             "score": ((live.get("eval") or {}).get("candidate") or {}).get("score"),
         })
@@ -113,7 +115,8 @@ def listing(conn) -> dict:
 
 def detail(conn, path: str) -> dict:
     """One skill: its live playbook (front matter apart), its pack, the tools its agents may call, the eval questions
-    the gate asks, and where it fell short since its live version went live."""
+    the gate asks, where it fell short since its live version went live and how often its recommendations were
+    taken."""
     from .capabilities import tools_by_agent
 
     s = skill_versions._skill(path)
@@ -124,8 +127,8 @@ def detail(conn, path: str) -> dict:
         manifest = yaml.safe_load((SKILLS / s.path / packs.MANIFEST).read_text()) or {}
         pack = {k: manifest.get(k) or [] for k in ("classes", "tools", "methods", "detectors", "briefs")}
     since = live.get("published_at")
-    short = next((x for x in shortfalls.gather(conn) if x["skill"] == s.path), None)
-    fell = [x for x in (short or {}).get("shortfalls", []) if not since or x["at"] >= since]
+    mine = shortfalls.tally(conn).get(s.path) or {}
+    fell = [x for x in mine.get("shortfalls", []) if not since or x["at"] >= since]
     tools = sorted({t for a in s.agents for t in tools_by_agent().get(a, [])})
     out = {
         "skill": s.path, "name": s.name, "title": _title(s), "area": _area(s), "area_label": _label(_area(s)),
@@ -136,7 +139,8 @@ def detail(conn, path: str) -> dict:
         "playbook": live["playbook"], "body": body, "pack": pack, "tools": tools,
         "named_tools": sorted(set(re.findall(r"`([a-z_]+)(?:\(|`)", body)) & set(tools)),
         "questions": _questions(conn, s.path, live["version"]),
-        "shortfalls": fell, "ai": llm.availability("agents"),
+        "shortfalls": fell, "taken": shortfalls.taken(mine.get("decisions", []), since),
+        "ai": llm.availability("agents"),
     }
     conn.commit()
     return out

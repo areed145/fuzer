@@ -162,7 +162,8 @@ item on the same area or assets), **Shelve** (until the area's turnaround, or fo
 **Escalate** (to the engineer, or past the engineer to the ops lead). Each says when it would be done, the
 production deferred until then in bbl and $, the risk of waiting, and whether it is ready; one is **recommended**
 with its reason. Choosing another needs a reason; the choice is kept on the case and counted as the recommendation
-**taken** or not, per work type, on Work performance. Not "proposal" (that is an agent's suggested change).
+**taken** or not, per work type, on Work performance, and per skill on Ops IQ, Skills (with a brief followed in full).
+Not "proposal" (that is an agent's suggested change).
 
 **Plan.** The one timeline of every planned job from every source: SAP orders and maintenance plans, inspections,
 schedules, and work the IOC planned for a day. A bar on it is a **plan item**.
