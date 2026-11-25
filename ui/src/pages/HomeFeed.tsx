@@ -204,7 +204,7 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
       : g.key === "dispatch" && figures && exceptions ? figures.stages.dispatch : rows.length };
   }).filter((g) => g.rows.length > 0 || g.total > 0);
   const more: Record<Group, string> = {
-    work: href("/list", waiting?.to_dispatch ? { waiting_on: "me", stage: "desk,planned,field,back" } : { waiting_on: "me" }),
+    work: href("/inbox"),
     dispatch: workHref("dispatch"), data: href("/sources") };
   const feedRow = (i: FeedItem) => (
     <li key={i.key} className={`feed-item${i.late ? " late" : ""}${fresh(i.key) ? " fresh" : ""}`} {...point(i.subjects, i.title)}>

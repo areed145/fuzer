@@ -53,16 +53,16 @@ export interface NavGroup {
 export const NAV: NavGroup[] = [
   // The control tower: the field map with what needs you over it (#/ keeps its URL).
   { label: "Tower", icon: "M12 2v3M4.5 5h15L17 10H7zM10 5.5l.4 4M14 5.5l-.4 4M9.5 10l-1 11M14.5 10l1 11M6 21h12", items: [{ label: "Tower", section: "" }] },
-  // Work: all the work, as a List (a table) or a Board, one set of rows filtered on any dimension. My work and Data
-  // questions are presets on it; their pages (#/inbox for a field operator's jobs, #/masterdata) keep their links
-  // and light Work.
+  // Work opens on My work (#1345), what waits on you, for every role and on every device; beside it all the work, as a
+  // List (a table) or a Board, one set of rows filtered on any dimension. Master data (#/masterdata) keeps its link
+  // and lights Work.
   {
     label: "Work",
     icon: "M6 4h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 10l2 2 4-4M8 16h8",
     items: [
+      { label: "My work", section: "inbox", also: ["field", "handover", "work"], badge: "work" },
       { label: "List", section: "list",
-        also: ["exceptions", "cases", "performance", "inbox", "work", "teams", "field", "handover", "masterdata", "review"],
-        badge: "work" },
+        also: ["exceptions", "cases", "performance", "teams", "masterdata", "review"] },
       { label: "Board", section: "board", noPhone: true },
     ],
   },

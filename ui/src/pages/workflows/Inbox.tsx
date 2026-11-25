@@ -2,8 +2,8 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
 import { when } from "../../format";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
  * escalated to you, jobs the IOC sent you (with the field report buttons), steps assigned to you (and to anyone you're
- * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
- * pages for "what is waiting on me"; `#/field` redirects here. */
+ * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. One page for every role at
+ * every width (#1345): the Work tab opens it, and `#/field`, `#/work` and the List's old Waiting on me redirect here. */
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync, useRouteState, useAction } from "../../lib";
@@ -30,8 +30,6 @@ export function myWorkCounts(d: WorkInbox, jobs: Pick<FieldJob, "item_id" | "que
     top: [...all].sort(byUrgency).slice(0, 3),
   };
 }
-
-const stepsWanted = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("steps") === "1";
 
 export function InboxPage() {
   const [person] = usePerson();
@@ -66,15 +64,6 @@ export function InboxPage() {
   // answered, every one pushed the lists down the page (#1069). The page waits for them, failures included.
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
   if (!offline && ![field, handovers, told, exceptions].every(settled)) return <Status loading />;
-  // My work is the List's Waiting on me now: one list, one count. Someone only in the field (an operator alone), or
-  // anyone with field jobs sent to them (not just waiting in the operator queue, which the List offers to take), keeps this page for their jobs, kept for no signal with the report buttons; a person with a
-  // desk role besides (the demo account holds every role) goes to the List. Anyone can still open their steps here to
-  // tick several at once (`?steps=1`).
-  if (!offline && inbox.data && inbox.data.roles.some((r) => r !== "operator")
-      && !(field.data?.jobs ?? []).some((j) => !j.queued) && !stepsWanted()) {
-    location.replace(href("/list", { waiting_on: "me" }));
-    return <Status loading />;
-  }
   const none = { total: 0, overdue: 0, due_soon: 0 };
   const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&

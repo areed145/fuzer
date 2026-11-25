@@ -1166,6 +1166,35 @@ test("the Work badge says what it counts and the Cases filters are labelled (#39
   assert.equal(await page.getByRole("option", { name: "Anyone", exact: true }).count(), 1);
 });
 
+// P5.25b (#1345): one My work, and the Work tab lands on it, for every role on a phone and on a desk.
+for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]]) {
+  test(`the Work tab opens My work for every role (P5.25b, ${name})`, async () => {
+    await page.route("**/work/counts?*", route => route.fulfill({ json: { open: 3, overdue: 0,
+      stages: { dispatch: 0, planned: 0, field: 0, back: 0, desk: 3 }, waiting_on_you: { total: 7, overdue: 0, to_dispatch: 0 } } }));
+    await page.setViewportSize({ width, height });
+    for (const [who, roles] of [["fred", ["operator"]], ["ann", ["ops_lead", "operator"]], ["ana", ["engineer"]]]) {
+      await page.evaluate((p) => localStorage.setItem("fuzer.reviewer", p), who).catch(() => undefined);
+      await context.addInitScript((p) => localStorage.setItem("fuzer.reviewer", p), who);
+      await page.unroute("**/work/inbox?*");
+      await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: who, roles, mine: [], queue: [],
+        counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+      await page.goto(`${url}/#/reports`);
+      const work = width < 900
+        ? page.getByRole("navigation", { name: "Quick" }).getByRole("link", { name: /^Work, 7 items waiting on you/ })
+        : page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Work/ });
+      await work.click();
+      await page.waitForURL(/#\/inbox$/);
+      await page.getByRole("heading", { level: 1, name: "My work" }).waitFor();
+      assert.match(page.url(), /#\/inbox$/, `${who} stays on My work`);
+      // My work, List and Board are Work's tabs, My work the current one (a phone has no Board)
+      const tabs = page.getByRole("navigation", { name: "Work pages", exact: true });
+      await tabs.getByRole("link", { name: "My work" }).and(page.locator('[aria-current="page"]')).waitFor();
+      await tabs.getByRole("link", { name: "List" }).waitFor();
+    }
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
 test("Core consistency Sources uses keyboard links, UTC ingestion times and explicit unknown state", async () => {
   await page.route("**/sources/datasets/sap_equipment", route => route.fulfill({ status: 503, json: { detail: "Dataset unavailable" } }));
   await page.route("**/sources/catalog", route => route.fulfill({ json: {
@@ -2395,7 +2424,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.getByRole("link", { name: "Explore", exact: true }).waitFor();
-  const expected = ["#/", "#/list", "#/plan", "#/browse", "#/ask", "#/reports", "#/sources", "#/jobs", "#/settings"];
+  const expected = ["#/", "#/inbox", "#/plan", "#/browse", "#/ask", "#/reports", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
@@ -2418,16 +2447,18 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
     await page.goto(`${url}/${route}`);
     await nav.locator('a[href="#/browse"][aria-current="page"]').waitFor();
   }
-  await page.goto(`${url}/#/work`);
-  await page.waitForURL(/#\/list\?waiting_on=me$/);
-  // My work and Master data are presets on the list now; their pages keep their links and light List.
-  await nav.locator('a[href="#/list"][aria-current="page"]').waitFor();
-  // List and Board are Work's two pages.
+  // Work opens on My work (#1345); the old links to it land there and light Work.
+  for (const [route, to] of [["#/work", /#\/inbox$/], ["#/list?waiting_on=me", /#\/inbox$/], ["#/field", /#\/inbox$/]]) {
+    await page.goto(`${url}/${route}`);
+    await page.waitForURL(to);
+    await nav.locator('a[href="#/inbox"][aria-current="page"]').waitFor();
+  }
+  // My work, List and Board are Work's pages.
   assert.deepEqual(await page.getByRole("navigation", { name: "Work pages", exact: true }).locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/list", "#/board"]);
+    ["#/inbox", "#/list", "#/board"]);
   for (const route of ["#/handover", "#/review", "#/masterdata"]) {
     await page.goto(`${url}/${route}`);
-    await nav.locator('a[href="#/list"][aria-current="page"]').waitFor();
+    await nav.locator('a[href="#/inbox"][aria-current="page"]').waitFor();
   }
   // The pages that left the menu still open, under the entry that owns them now (#554).
   await page.route("**/plan/schedules", (route) => route.fulfill({ json: [] }));
@@ -2476,7 +2507,7 @@ test("primary destination navigation keeps page headings and active context alig
     { label: "Tower", href: "#/", heading: "Tower" },
     { label: "Explore", href: "#/browse", heading: "Explore" },
     { label: "Reports", href: "#/reports", heading: "Reports", area: "Reports pages", current: "Reports" },
-    { label: "Work", href: "#/list", heading: "All work", area: "Work pages", current: "List" },
+    { label: "Work", href: "#/inbox", heading: "My work", area: "Work pages", current: "My work" },
     { label: "Plan", href: "#/plan", heading: "Plan", area: "Plan pages", current: "Plan" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
     { label: "Jobs", href: "#/jobs", heading: "Jobs" },
@@ -4034,11 +4065,12 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
   await page.locator(".work-board").evaluate((el) => { el.scrollLeft = el.scrollWidth; });
   await page.locator(".work-board-frame.more-left:not(.more-right)").waitFor();
 
-  // A phone has no Board: the same link shows the List as cards, and Work has no Board tab there.
+  // A phone has no Board: the same link shows the List as cards, and Work's tabs are My work and List there.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".work-table").waitFor();
   assert.equal(await page.locator(".work-board").count(), 0);
-  assert.equal(await page.getByRole("navigation", { name: "Work pages" }).count(), 0);
+  await page.getByRole("navigation", { name: "Work pages" }).getByRole("link", { name: "My work" }).waitFor();
+  assert.deepEqual(await page.getByRole("navigation", { name: "Work pages" }).locator("a").allTextContents(), ["My work", "List"]);
   const phoneCard = page.locator("tr.work-row", { hasText: "Wellhead pressure high" });
   const buttons = await phoneCard.locator(".work-row-actions > *").evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
   assert.ok(buttons.length >= 2 && buttons.every((t) => Math.abs(t - buttons[0]) < 2), "a card's actions sit side by side in one row");
@@ -4227,7 +4259,7 @@ for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]
   });
 }
 
-test("My work is the List's Waiting on me, and a row waiting in your queue is taken from it", async () => {
+test("My work stays My work for a desk role, and a row waiting in your queue is taken from All work", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
   let taken = false;
   const claims = [];
@@ -4246,15 +4278,17 @@ test("My work is the List's Waiting on me, and a row waiting in your queue is ta
       holder: "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen,
       updated: exc.last_seen, facility: "none", area: "none", asset: "none", take: null }] } }));
   await page.route("**/work/tasks/55/claim*", (route) => { claims.push(route.request().postDataJSON()); taken = true; return route.fulfill({ json: {} }); });
-  // a desk role with operator too (as the demo account holds): field jobs only waiting in the operator queue are taken
-  // from the List, so My work is still the List
+  // a desk role with operator too (as the demo account holds): My work is its own page all the same (#1345)
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ivy", roles: ["ops_lead", "operator"], mine: [],
     queue: [], counts: { mine: { total: 0 }, queue: { total: 1 } } } }));
   await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "ivy", coming_up: [], jobs: [
-    { item_id: 30, exception_id: 30, title: "Compressor trip", role: "operator", queued: true, sent: null, history: [], field: [] }] } }));
+    { id: 30, item_id: 30, exception_id: 30, title: "Compressor trip", role: "operator", queued: true, sent: null, history: [], field: [],
+      assets: [], unmatched: [], first_seen: "2026-11-08T06:00:00Z", raised_count: 1 }] } }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/inbox`);
-  await page.waitForURL(/#\/list\?waiting_on=me$/);
+  await page.locator(".field-job", { hasText: "Compressor trip" }).waitFor();
+  assert.match(page.url(), /#\/inbox$/);
+  await page.goto(`${url}/#/list`);
   const row = page.locator("tr.work-row", { hasText: "Approve PM order 4711" });
   const valued = page.locator("tr", { hasText: "Reallocate lift gas on 30-FT-3002" });
   assert.match(await valued.locator("td").nth(3).innerText(), /\$5\.6M|\$5,611,950/);
@@ -4683,10 +4717,11 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   ];
   await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "Open work": lines } },
     drafted_at: "2026-11-12T06:00:00Z", notes: "Watch K-201", notes_at: "2026-11-12T05:50:00Z", acknowledged_note: null } }));
-  // My work is the List's Waiting on me now: the banner waits for the incoming lead there
+  // My work is one page at every width (#1345): on an iPad too the banner waits for the incoming lead there
+  await page.setViewportSize({ width: 834, height: 1194 });
   await page.goto(`${url}/#/inbox`);
-  await page.waitForURL(/#\/list\?waiting_on=me$/);
   await page.getByText("Shift handover ready", { exact: false }).waitFor();
+  assert.match(page.url(), /#\/inbox$/);
   await page.getByRole("link", { name: "Read and acknowledge" }).click();
   await page.waitForURL(/#\/handover\?id=7$/);
   await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
@@ -4697,9 +4732,11 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   assert.equal(await page.getByRole("link", { name: "the permit", exact: true }).getAttribute("href"), "#/e/fz-permit-65501ac23ccf");
   assert.doesNotMatch(await page.locator("main").innerText(), /\[case:|\[entity:|fz-[a-z_]+-[0-9a-f]{6,}|role:|alarm:/);
   acked = true;
-  await page.goto(`${url}/#/list?waiting_on=me`);
-  await page.locator('select[aria-label="Preset"] option', { hasText: "Shift handover" }).waitFor({ state: "attached" });
+  await page.goto(`${url}/#/list?waiting_on=me`);  // the List's old Waiting on me is My work
+  await page.waitForURL(/#\/inbox$/);
+  await page.getByRole("link", { name: "Shift handover" }).waitFor();
   await page.getByText("Shift handover ready", { exact: false }).waitFor({ state: "detached" });
+  await page.setViewportSize({ width: 1280, height: 800 });
 });
 
 test("a handover reads in a minute on a phone: what needs the lead first, five lines a section, the rest on ask", async () => {
@@ -8520,13 +8557,14 @@ test("A field operator finds their jobs, with the report buttons, from the List"
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/list`);
-  // A phone shows the List as cards with no Board tab; the field jobs page is in the preset picker.
-  assert.equal(await page.getByRole("navigation", { name: "Work pages" }).count(), 0);
-  await page.getByLabel("Preset").selectOption({ label: "Your field jobs" });
+  // A phone shows the List as cards with no Board tab; My work is a tab and in the preset picker.
+  await page.getByRole("navigation", { name: "Work pages" }).getByRole("link", { name: "My work" }).waitFor();
+  assert.deepEqual(await page.getByRole("navigation", { name: "Work pages" }).locator("a").allTextContents(), ["My work", "List"]);
+  await page.getByLabel("Preset").selectOption({ label: "My work" });
   await page.waitForFunction(() => location.hash === "#/inbox");
   await page.goto(`${url}/#/masterdata`);
-  // Master data is a preset now, not a menu entry: its page still opens from a link, under List.
-  await page.locator('#sidebar nav[aria-label="Main"] a[href="#/list"][aria-current="page"]').waitFor({ state: "attached" });
+  // Master data is a preset now, not a menu entry: its page still opens from a link, and lights Work.
+  await page.locator('#sidebar nav[aria-label="Main"] a[href="#/inbox"][aria-current="page"]').waitFor({ state: "attached" });
 });
 
 test("P5.14b On a phone, Home, Work, Explore and Reports are one tap away at the bottom", async () => {
@@ -8548,14 +8586,15 @@ test("P5.14b On a phone, Home, Work, Explore and Reports are one tap away at the
   assert.ok(Math.round(barBox.y + barBox.height) >= 824 && barBox.y + barBox.height <= 844, "the bar sits on the bottom edge");
   assert.equal(await bar.locator('a[aria-current="page"]').innerText(), "Explore");
 
-  // Work says how much is waiting on you and opens all the work.
+  // Work says how much is waiting on you and opens My work (#1345).
   const list = bar.getByRole("link", { name: "Work, 2 items waiting on you", exact: true });
   await list.click();
-  await page.waitForURL(/#\/list$/);
-  await bar.locator('a[aria-current="page"]', { hasText: "Work" }).waitFor();
-  // On My work's page the Work slot stays lit, so the bar always shows where you are (#1131): Work owns it.
-  await page.evaluate(() => { location.hash = "#/inbox"; });
+  await page.waitForURL(/#\/inbox$/);
   await page.getByRole("heading", { name: "My work", exact: true }).waitFor();
+  await bar.locator('a[aria-current="page"]', { hasText: "Work" }).waitFor();
+  // On All work the Work slot stays lit, so the bar always shows where you are (#1131): Work owns it.
+  await page.evaluate(() => { location.hash = "#/list"; });
+  await page.getByRole("heading", { name: "All work", exact: true }).waitFor();
   assert.equal(await bar.locator("a.on").evaluate((a) => a.lastElementChild.textContent.trim()), "Work");
 
   // Menu opens the drawer with everything else, and the page's foot clears the bar.
