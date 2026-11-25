@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { kindWord, person as personName, say as words } from "../wording";
-import { Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List, Heading } from "../ui";
+import { ActionStatus, Badge, Button, ButtonLink, Card, ConfirmAction, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List, Heading } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
   sendTake, useOutbox, type FlushResult, type QueuedTake, type QueuedWrite } from "../fieldOffline";
@@ -72,6 +72,27 @@ function Refused({ w, jobs }: { w: QueuedWrite; jobs: { id: number; title: strin
     </div>
     <ErrorText>{error}</ErrorText>
   </div>;
+}
+
+/** A note for the IOC that belongs to no job (P2.8): read as any message to the IOC is, into a case about what it names,
+ * a question for the data steward, or nothing to do; the server says which in one line. */
+export function NoteToIOC({ person }: { person: string }) {
+  const { busy, error, run } = useAction();
+  const [text, setText] = useState("");
+  const [said, setSaid] = useState<string | null>(null);
+  const send = () => {
+    const sent = text.trim();
+    // Clear only the note that went: words typed while the request was in flight stay.
+    return run("Sending…", () => api.sendNote(person, sent), (out) => {
+      setSaid(out.said);
+      setText((t) => (t.trim() === sent ? "" : t));
+    });
+  };
+  return <Card title="Note to the IOC">
+    <Textarea aria-label="Note to the IOC" rows={2} value={text} onChange={(e) => { setText(e.target.value); setSaid(null); }} />
+    <Button variant="primary" disabled={!!busy || !text.trim()} onClick={() => void send()}>Send</Button>
+    <ActionStatus busy={busy} error={error}>{said}</ActionStatus>
+  </Card>;
 }
 
 const SAID: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };

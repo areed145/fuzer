@@ -895,6 +895,27 @@ def exception_report(exception_id: int, r: FieldReport, conn=Depends(get_conn)):
                            permit_in_hand=r.permit_in_hand)
 
 
+class MessageNote(BaseModel):
+    by: str
+    text: str
+
+
+@router.post("/messages")
+def message_note(m: MessageNote, conn=Depends(get_conn)):
+    """A note a field operator sends from the phone (P2.8): read as any message to the IOC is, into a case about the
+    entity it names, a question for the data steward, or nothing to do. Returns the message with its outcome."""
+    from ..core.jsonsafe import plain
+    from ..ops import messages
+    _loaded_types()
+    try:
+        out = messages.receive(conn, deps.pack(), m.by, m.text)
+    except messages.MessageError as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return plain(out)
+
+
 @router.get("/exceptions/{exception_id}/photos/{photo_id}")
 def exception_photo(exception_id: int, photo_id: int, conn=Depends(get_conn)):
     """A photo the field attached to a report."""

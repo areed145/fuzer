@@ -74,7 +74,20 @@ ARRIVE: dict[str, dict] = {
 
 # A source's sync that raises its own work, by the name a bundle's evals/loop.yaml uses.
 SOURCES = {"sap_notifications": lambda conn: __import__("fuzer.ops.intake", fromlist=["intake"]).sync_notifications(
-    conn, enabled=True), "routines": lambda conn: _routines(conn)}
+    conn, enabled=True), "routines": lambda conn: _routines(conn), "messages": lambda conn: _messages(conn)}
+
+
+def _messages(conn) -> dict:
+    """The loaded messages to the IOC read, as the register follow-up reads them (P2.8), then the stewards' queue
+    synced: one read raises both types, and the questions still open come back after the other type's run set them
+    aside."""
+    from ..core.pack import resolve
+    from ..graph import data_work
+    from ..ops import messages
+
+    out = messages.read_new(conn, resolve(conn))
+    data_work.sync(conn)
+    return out
 
 
 def _routines(conn) -> dict:

@@ -2,7 +2,7 @@
  * to the assets it is about; the ones no queue picked up wait here for someone to dispatch them. */
 import { useEffect, useState } from "react";
 import { money, when, whenDay, count } from "../format";
-import { api, type ExceptionRow, type Readiness } from "../api";
+import { api, type ExceptionRow, type MessageSaid, type Readiness } from "../api";
 import { Badge, Button, ButtonLink, Card, Disclosure, Field, Input, Select, Table, ErrorText, Line, Text, Checkbox, List } from "../ui";
 import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../lib";
 import { holder, reportedBy } from "../work";
@@ -141,7 +141,7 @@ function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | nul
     <Text as="div" small>
       <Badge tone="ok">{reportedBy([r, ...all])}</Badge>
       <List plain>{all.map((j) => <li key={j.id}>
-        {j.label}: {say(j.title)} <Text muted>· {j.source ?? ""} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</Text>
+        {j.label}: {say(j.title)} <Text muted>{sourceWords(j.source, j.message)} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</Text>
         {j.state === "open" && person && operate && <> <Button size="sm" disabled={!!busy}
           title="A different event: give it a case of its own"
           onClick={() => run("Splitting", () => api.splitException(j.id, person), onChange)}>Split out</Button></>}
@@ -149,6 +149,13 @@ function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | nul
       <ErrorText>{error}</ErrorText>
     </Text>
   );
+}
+
+/** What raised an event, after its type: a detector or system by name, or a message by its channel and sender (P2.8),
+ * whose words are the event's title. */
+function sourceWords(source: string | null, message?: MessageSaid | null): string {
+  if (message) return ` · ${message.channel_label} from ${message.sender}`;
+  return source ? ` · ${detectorName(source)}` : "";
 }
 
 /** How long ago, as an operator says it: 15m, 2h 10m, 4d 12h. */
@@ -214,7 +221,7 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
         <div className="work-card-title">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{say(r.title)}</a> : say(r.title)}</div>
         {/* The type opens its route: where this kind of work goes, who holds it and when it is due (#1078). */}
         <Text as="div" small muted><a className="muted work-type-link" href={href("/routing", { type: r.type })} title="Where this type of work goes">
-          {cap(r.type.replace(/_/g, " "))}</a>{r.source ? ` · ${detectorName(r.source)}` : ""}{reports > 1 ? ` · ${reports} reports` : ""}</Text>
+          {cap(r.type.replace(/_/g, " "))}</a>{sourceWords(r.source, r.evidence?.message as MessageSaid | undefined)}{reports > 1 ? ` · ${reports} reports` : ""}</Text>
         {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}
         {error && <p role="alert" className="error small">{error}</p>}
       </td>

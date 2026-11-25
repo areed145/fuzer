@@ -216,6 +216,9 @@ register(
             "downtime_reasons give each reason its category)", "Work"),
     Setting("records.lookback_days", "int", 7, "Records mismatch: days before the latest log entry whose "
             "mismatches are raised for the shift (older ones stay in the calc)", "Work", min=1, max=90),
+    Setting("messages.min_confidence", "float", 0.8, "A message to the IOC becomes a case about the entity it names "
+            "when every match is at least this sure (a tag 0.95, a well 0.9, a tag without its area 0.85, an alias "
+            "0.8); below it, the data steward says which entity it is about", "Work", min=0.5, max=1),
     Setting("intake.sap_notifications.max_age_days", "int", 60, "Only raise notifications created this many days "
             "before the latest data (an older backlog is a planning question)", "Work", min=1, max=3650),
     Setting("intake.sap_notifications.due_hours", "str", "1:24,2:72,3:336,4:720", "When a dispatched SAP "

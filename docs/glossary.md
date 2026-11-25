@@ -136,6 +136,10 @@ versions in the source catalog (the latest approved one is in use); the files in
 
 **MCP.** Model Context Protocol: how Claude, in the app or in another client, calls Fuzer's tools.
 
+**Message.** Free text sent to the IOC with no system behind it: mail to its mailbox, a radio call the control room
+typed in, a Teams post, or a field operator's **Note to the IOC** from My work. Read once into a case about the entity
+it names (**Reported in a message**), a question for the data steward (**Message to match**), or nothing to do.
+
 **Need.** Why work should happen: a condition seen, an obligation falling due, or an intent to change something. A
 need opens a case or joins an open one. In code; on screen it is shown by its type (a notification, a due date).
 

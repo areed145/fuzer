@@ -1,5 +1,5 @@
 """Recorded eval runs (#134): `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --ops --full --record` and
-`fuzer eval --watch --record` and `fuzer pid-score --record` write a
+`fuzer eval --watch --record`, `fuzer eval --messages --record` and `fuzer pid-score --record` write a
 run's scores (no answers) to evals/runs/, and docs/eval-results.md is generated from them, so the baselines
 are committed with the code that made them.
 """
@@ -62,6 +62,16 @@ def drifts(res: dict) -> dict:
     """A slow-drift detector replay (P3.11a) on one bundle: the slow upsets it raised, and what it raised falsely."""
     return {"kind": "drifts", "bundle": res["bundle"], "since": res["since"], "until": res["until"],
             **{k: res.get(k) for k in DRIFTS}}
+
+
+MESSAGES = ("messages", "cases", "right", "precision", "recall", "to_steward", "noise_handled", "min_confidence",
+            "wrong", "passes")
+
+
+def messages(res: dict) -> dict:
+    """A message reader run (P2.8) on one bundle's recorded messages: which entity each case is about, and where the
+    rest went."""
+    return {"kind": "messages", "bundle": res["bundle"], **{k: res.get(k) for k in MESSAGES}}
 
 
 def save(run: dict, day: str | None = None, runs: Path = RUNS) -> Path:

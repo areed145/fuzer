@@ -11,7 +11,7 @@ import { usePerson } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
 import { SampleTeam, WorkLine, byUrgency, caseHref } from "./shared";
-import { ComingUp, FieldJobCard, Outbox, RoundsThisShift } from "../Field";
+import { ComingUp, FieldJobCard, NoteToIOC, Outbox, RoundsThisShift } from "../Field";
 import { fieldJobs } from "../../fieldOffline";
 import { cap, person as personName } from "../../wording";
 import { FieldModeOffer } from "../../theme";
@@ -151,6 +151,7 @@ export function InboxPage() {
         <Heading id="sent-to-you" detail={sent.length}>Your field jobs</Heading>
         {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} onReported={setReported} />)}
       </section>}
+      {!offline && fieldRole && <NoteToIOC person={person} />}
       {!offline && fieldRole && <NewForYou person={person} told={told} />}
       <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
         hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />

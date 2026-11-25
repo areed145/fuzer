@@ -2330,6 +2330,26 @@ Custom reports (docs/reports.md, ops/custom_reports.py): a report definition kep
 | `note` | text |  |
 | `created_at` | timestamptz |  |
 
+### `message`
+
+Free-text messages to the IOC (P2.8, #1254): mail, radio calls typed in, Teams posts and field notes, each read once (fuzer.ops.messages) into a case about the entity it names, a question for the data steward, or nothing to do.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | text | the export's message_id, or note-<hex> for one sent from the phone |
+| `channel` | text | mailbox, radio, teams, phone |
+| `sender` | text |  |
+| `subject` | text |  |
+| `text` | text |  |
+| `received_at` | timestamp | the plant's wall clock, as written |
+| `outcome` | text |  |
+| `refs` | text[] |  |
+| `confidence` | double precision |  |
+| `why` | text |  |
+| `exception_id` | bigint |  |
+| `review_item_id` | bigint, | the steward's question, with who answered it and when |
+| `read_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

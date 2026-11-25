@@ -1,0 +1,9 @@
+# Free-text messages to the IOC (P2.8, #1254): mail to its mailbox, radio calls typed by the control room, Teams posts
+# and field notes. Kept as source records, not register entities; fuzer.ops.messages reads each one into a case about
+# the entity it names, a question for the data steward, or nothing to do.
+source: messages
+record_type: message
+shape: events
+dataset: messages
+key: message_id
+watermark: received_at

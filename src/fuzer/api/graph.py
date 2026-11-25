@@ -154,11 +154,12 @@ class GroupDecision(BaseModel):
 def review_group_decide(d: GroupDecision, conn=Depends(get_conn)):
     """Answer every question in a group the same way; `standing` answers new ones like them at each rebuild too."""
     from ..graph import review
-    from ..ops import corrections
+    from ..ops import corrections, messages
 
     try:
         out = review.decide_group(conn, d.key, d.decision, d.by, source=d.source, value=d.value, standing=d.standing)
         corrections.sync(conn, d.by)
+        messages.sync_answers(conn, d.by)
     except LookupError as e:
         conn.rollback()
         raise HTTPException(404, str(e)) from e
@@ -183,11 +184,12 @@ def review_group_withdraw(key: str, by: str = "anonymous", conn=Depends(get_conn
 @router.post("/review/{item_id}")
 def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
     from ..graph import review
-    from ..ops import corrections
+    from ..ops import corrections, messages
 
     try:
         out = review.decide(conn, item_id, d.decision, d.value, d.by)
         corrections.sync(conn, d.by)  # an answer that says a source is wrong drafts its correction (P2.4)
+        messages.sync_answers(conn, d.by)  # a message the steward matched becomes its case (P2.8)
     except LookupError as e:
         conn.rollback()
         raise HTTPException(404, str(e)) from e

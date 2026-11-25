@@ -1,0 +1,161 @@
+"""Free-text messages become matched work (P2.8, #1254). The recorded Okan messages (fakeplant/messages.py: mail, radio
+calls, Teams posts and field notes) are read against Okan's register and scored: which entity each case is about, that
+the ones naming nothing for certain reach the data steward instead, and that "thanks" opens nothing. A steward's answer
+makes the case; a field operator's note from the phone goes through the same reader and becomes routed work."""
+
+import pytest
+from fastapi.testclient import TestClient
+
+from fakeplant import messages as recorded
+from fuzer.core.pack import load_pack
+from fuzer.graph import review
+from fuzer.graph.llm_links import Register
+from fuzer.ops import exceptions as engine
+from fuzer.ops import messages
+
+pytestmark = pytest.mark.sequence
+
+KNOWN_MISSES = {"MSG-0023"}  # "lift gas header" is the pack's name for GGCP's header; the call is about ST1's
+
+
+def _register() -> Register:
+    reg = Register()
+    for key in ("20-K-2200B", "10-PT-2001", "20-PT-2001", "20-V-2001"):
+        reg.known[("tag", key)] = ""
+        reg.by_short.setdefault(key.split("-", 1)[1], []).append(key)
+    reg.known[("area", "OKAN-72")] = ""
+    return reg
+
+
+def test_the_reader_needs_no_database_and_no_model():
+    pack, reg = load_pack("okan"), _register()
+    assert messages.read("20-K-2200B vibration up", pack, reg).refs == ["tag:20-K-2200B"]
+    assert messages.read("K-2200B vibration up", pack, reg).refs == ["tag:20-K-2200B"]  # one area has it
+    short = messages.read("PT-2001 erratic", pack, reg)
+    assert short.outcome == "steward" and short.candidates == ["tag:10-PT-2001", "tag:20-PT-2001"]
+    assert messages.read("inlet separator carrying over", pack, reg).refs == ["tag:20-V-2001"]  # the pack's alias
+    assert messages.read("20-P-9999 noisy", pack, reg).why == "“20-P-9999” is not in the register"
+    assert messages.read("crane on J12 down", pack, reg).candidates == ["area:OKAN-72"]  # only a place
+    assert messages.read("Thanks, received.", pack, reg).outcome == "handled"
+    assert messages.read("noted", pack, reg, subject="Automatic reply: Out of office").outcome == "handled"
+    # an alias alone is 0.8 sure: a deployment that wants more asks the steward
+    assert messages.read("inlet separator carrying over", pack, reg, min_confidence=0.9).outcome == "steward"
+
+
+@pytest.fixture(scope="module")
+def read(okan_db):
+    conn = okan_db.conn
+    assert conn.execute("select count(*) as n from source_record where source = 'messages'").fetchone()["n"] == len(
+        recorded.MESSAGES)  # the export loaded with Okan's others
+    out = messages.read_new(conn, load_pack("okan"))
+    conn.commit()
+    return conn, out
+
+
+def _id(conn, ref: str) -> str:
+    ids, _ = engine.match(conn, [ref])
+    assert len(ids) == 1, ref
+    return ids[0]
+
+
+def test_the_recorded_okan_messages_are_matched_and_scored(read):
+    conn, out = read
+    got = {r["id"]: r for r in conn.execute("select * from message where id like 'MSG-%'")}
+    assert set(got) == set(recorded.ANSWERS)
+    cases = [i for i, r in got.items() if r["outcome"] == "case"]
+    right = [i for i in cases if recorded.ANSWERS[i][0] == "case"
+             and _id(conn, got[i]["refs"][0]) == _id(conn, recorded.ANSWERS[i][1])]
+    assert set(cases) - set(right) == KNOWN_MISSES
+    assert (len(right), len(cases)) == (11, 12)  # precision 11/12 = 0.92, as docs/eval-results.md records
+    wanted = {i for i, a in recorded.ANSWERS.items() if a[0] == "case"}
+    assert set(right) == wanted - KNOWN_MISSES  # recall 11/12 too
+    for kind in ("steward", "handled"):
+        assert {i for i, r in got.items() if r["outcome"] == kind} == {
+            i for i, a in recorded.ANSWERS.items() if a[0] == kind}
+    assert out == {"case": 12, "steward": 8, "handled": 3, "refused": 0}
+
+
+def test_a_case_shows_the_message_as_its_source(read):
+    conn, _ = read
+    from fuzer.ops import worklist
+
+    ex = conn.execute("select * from exception_record where type = 'message_report' and key = 'MSG-0002'").fetchone()
+    assert ex["source"] == "messages" and ex["subjects"] == [_id(conn, "tag:10-P-1001B")]
+    assert ex["item_id"]  # routed: a case in the ops lead's queue, or the open case about the pump it joined
+    m = ex["evidence"]["message"]
+    assert (m["channel_label"], m["sender"]) == ("Radio call", "PP CRO") and m["text"].startswith("Field op reports")
+    labels = {i["label"]: i["value"] for i in ex["evidence"]["finding"]["items"]}
+    assert labels["Channel"] == "Radio call" and labels["From"] == "PP CRO" and "10-P-1001B" in labels["Matched by"]
+    rows = worklist.rows(conn, kind="message_report")["rows"]
+    row = next(r for r in rows if r["key"] == "MSG-0002" or any(j["key"] == "MSG-0002" for j in r.get("joined") or []))
+    assert row["kind_label"] == "Reported in a message" or row["joined"]
+
+
+def test_noise_opens_nothing_and_reading_again_reads_nothing_new(read):
+    conn, _ = read
+    for i in ("MSG-0010", "MSG-0019", "MSG-0021"):
+        m = conn.execute("select * from message where id = %s", (i,)).fetchone()
+        assert m["outcome"] == "handled" and m["exception_id"] is None and m["review_item_id"] is None
+        assert not conn.execute("select 1 from exception_record where key = %s", (i,)).fetchone()
+    assert messages.read_new(conn, load_pack("okan")) == {"case": 0, "steward": 0, "handled": 0, "refused": 0}
+    conn.commit()
+
+
+def test_a_steward_question_carries_the_message_and_its_answer_makes_the_case(read):
+    conn, _ = read
+    q = conn.execute("select * from review_item where kind = 'message' and subject = 'MSG-0007'").fetchone()
+    assert q["payload"]["message"]["text"].startswith("PT-2001") and len(q["payload"]["candidates"]) == 5
+    work = conn.execute("select * from exception_record where type = 'message_to_match' and key = 'message:MSG-0007' "
+                        "and state = 'open'").fetchone()
+    assert work and work["title"].startswith("Which entity is this about? Radio call from ST1 CRO")
+
+    chosen = _id(conn, "tag:30-PT-2001")  # the ST1 CRO called it: ST1's separator
+    review.decide(conn, q["id"], "choose", chosen, "ana")
+    with pytest.raises(review.ReviewError):
+        review.decide(conn, conn.execute("select id from review_item where kind = 'message' and subject = 'MSG-0016'")
+                      .fetchone()["id"], "accept", None, "ana")
+    noise = conn.execute("select id from review_item where kind = 'message' and subject = 'MSG-0017'").fetchone()["id"]
+    review.decide(conn, noise, "reject", None, "ana")
+    assert messages.sync_answers(conn) == {"case": 1, "handled": 1}
+    conn.commit()
+    m = conn.execute("select * from message where id = 'MSG-0007'").fetchone()
+    assert m["outcome"] == "case" and m["refs"] == [chosen] and m["why"] == "chosen by ana"
+    ex = conn.execute("select * from exception_record where id = %s", (m["exception_id"],)).fetchone()
+    assert ex["type"] == "message_report" and ex["subjects"] == [chosen] and ex["item_id"]
+    assert conn.execute("select state from exception_record where type = 'message_to_match' and key = "
+                        "'message:MSG-0007'").fetchone()["state"] == "cleared"  # the steward's case closed
+    assert conn.execute("select outcome from message where id = 'MSG-0017'").fetchone()["outcome"] == "handled"
+
+
+def test_a_field_operators_note_from_the_phone_becomes_routed_work(read):
+    conn, _ = read
+    from fuzer import api
+
+    with TestClient(api.app) as client:
+        r = client.post("/messages", json={"by": "femi", "text": "20-K-2100C seal gas vent flow high, smells of gas"})
+        assert r.status_code == 200, r.text
+        note = r.json()
+        assert note["outcome"] == "case" and note["channel"] == "phone" and note["sender"] == "femi"
+        assert note["said"].startswith("Sent to the IOC as a case about 20-K-2100C"), note["said"]
+        vague = client.post("/messages", json={"by": "femi", "text": "Something rattling near the stairs"}).json()
+        assert vague["outcome"] == "steward" and vague["review_item_id"]
+        assert vague["said"].startswith("Sent to the IOC. The data steward says which entity")
+        assert client.post("/messages", json={"by": "femi", "text": "   "}).status_code == 400
+    ex = conn.execute("select * from exception_record where id = %s", (note["exception_id"],)).fetchone()
+    assert ex["subjects"] == [_id(conn, "tag:20-K-2100C")] and ex["item_id"]
+    assert ex["evidence"]["message"]["channel_label"] == "Field note"
+    conn.rollback()
+
+
+def test_the_reader_eval_scores_what_docs_eval_results_records(read, okan_db):
+    """`fuzer eval --messages`: the same reading, scored against the answer key the generator wrote, and the run
+    recorded in evals/runs/ (docs/eval-results.md) is what the reader does now."""
+    from fuzer.evals import message_eval, runs
+
+    conn, _ = read
+    res = message_eval.run(conn, load_pack("okan"), "okan", okan_db.data)
+    assert res["passes"] and (res["right"], res["cases"], res["precision"]) == (11, 12, 0.917)
+    assert res["wrong"] == ["MSG-0023: case tag:20-PT-3003, not case tag:30-PT-3003"]
+    assert res["to_steward"] == res["noise_handled"] == 1.0
+    [last] = [r for r in runs.load() if r["kind"] == "messages" and r["bundle"] == "okan"][-1:]
+    assert {k: last[k] for k in runs.MESSAGES} == {k: res[k] for k in runs.MESSAGES}

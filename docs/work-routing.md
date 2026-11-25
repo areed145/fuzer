@@ -52,6 +52,7 @@ pack. [Work types](work-types.md) lists every one with its queue, generated from
 | Integrity and inspection | Inspection or wall loss finding, pig run anomaly over the screen, leak repair not holding |
 | Safety and permits | Permit lapsed with plant still isolated, bypass overdue, proof test overdue, safeguard demand to review, temporary MOC overdue |
 | The field | Round finding; a field report, once a site defines the type (the demo's sample crew raises them) |
+| Messages | Reported in a message (mail to the IOC, a radio call, a Teams post, a field note); a message to match, for the data steward |
 | Regulatory | Regulatory report coming due, regulatory report to review |
 | Data quality | Source problem, source quality dropped, records that match nothing, links that name nothing, asset context missing |
 | Agents | Proposed by the watch (live mode only, off by default), detector tuning to review, skill change to review |
@@ -256,6 +257,7 @@ does the jobs.
 |---|---|---|
 | Exception types and raising | `fuzer.core.exceptions`, `fuzer.ops.exceptions` | [workflow](workflow.md#exceptions-dispatch-and-the-field) |
 | SAP intake | `fuzer.ops.intake` | [every source](work-sources.md#maintenance-and-materials) |
+| Messages to the IOC | `fuzer.ops.messages` | [every source](work-sources.md#messages) |
 | Other systems' rules and webhooks | `fuzer.sources.workflows` | [sources](sources.md) |
 | Other detection tools | `fuzer.sources.providers` | [sources](sources.md) |
 | Matching refs to entities | `fuzer.ops.exceptions.match`, `fuzer.graph` | [identity](identity.md) |

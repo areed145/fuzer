@@ -930,3 +930,21 @@ create table if not exists custom_report_version (
     created_at  timestamptz not null default now(),
     primary key (report_id, version)
 );
+
+-- Free-text messages to the IOC (P2.8, #1254): mail, radio calls typed in, Teams posts and field notes, each read
+-- once (fuzer.ops.messages) into a case about the entity it names, a question for the data steward, or nothing to do.
+create table if not exists message (
+    id             text primary key,        -- the export's message_id, or note-<hex> for one sent from the phone
+    channel        text not null,           -- mailbox, radio, teams, phone
+    sender         text not null,
+    subject        text,
+    text           text not null,
+    received_at    timestamp not null,      -- the plant's wall clock, as written
+    outcome        text not null check (outcome in ('case', 'steward', 'handled')),
+    refs           text[] not null default '{}',
+    confidence     double precision,
+    why            text,
+    exception_id   bigint,
+    review_item_id bigint,                  -- the steward's question, with who answered it and when
+    read_at        timestamptz not null default now()
+);

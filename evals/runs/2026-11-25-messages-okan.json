@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-25",
+  "kind": "messages",
+  "bundle": "okan",
+  "messages": 23,
+  "cases": 12,
+  "right": 11,
+  "precision": 0.917,
+  "recall": 0.917,
+  "to_steward": 1.0,
+  "noise_handled": 1.0,
+  "min_confidence": 0.8,
+  "wrong": [
+    "MSG-0023: case tag:20-PT-3003, not case tag:30-PT-3003"
+  ],
+  "passes": true
+}

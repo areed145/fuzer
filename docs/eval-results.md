@@ -1,7 +1,7 @@
 # Eval results
 
 Generated from the recorded runs in `evals/runs/`; don't edit by hand (`uv run python -m fuzer.reference`).
-Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or `fuzer eval --ops --full --live --record` (all cost money), or `fuzer eval --drifts --record` (free), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: [assistant eval](assistant-eval.md).
+Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or `fuzer eval --ops --full --live --record` (all cost money), or `fuzer eval --drifts --record` or `fuzer eval --messages --record` (free), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: [assistant eval](assistant-eval.md).
 
 ## Operations assistant
 
@@ -127,6 +127,14 @@ The `peer_drifts` detector (P3.11a) replayed a day at a time over each bundle's 
 | 2026-11-16 | harrier | 2026-09-06 to 2026-11-15 | 2 of 7 | 29% | 5 | 100% | 0.0 | yes | E1-PT-5003 2026-11-14 02:45; H1-FT-8005 2026-11-14 02:45; A1-F-1007 2026-10-16 00:00; G1-E-7003 2026-11-14 01:00; A1-P-1003B 2026-09-16 00:00 |  |
 | 2026-11-16 | kestrel | 2026-09-16 to 2026-11-15 | 1 of 9 | 11% | 1 | 100% | 0.0 | yes | meter:sales 2026-11-03 00:00; H1-FT-8003 2026-11-14 03:10; D1-V-4001 2026-11-14 06:45; D1-AT-4002 2026-11-14 06:45; C1-H-3008 2026-09-30 00:00; C1-AT-3011 2026-09-29 00:00; B1-K-2001 2026-11-09 00:00; B1-K-2001 2026-10-25 00:00 |  |
 | 2026-11-16 | okan | 2024-12-31 to 2025-10-01 | 4 of 7 | 57% | 95 | 30% | 1.6 | yes | OK-J12-02 2025-01-15 00:00; 20-GT-2000C 2025-10-01 00:00; OK-J10-01 2025-10-01 00:00 | OK_GGCP:20-PIC-3003.OP peer_drift_down 2025-01-13 00:00; 40FT3001.PV peer_drift_up 2025-01-14 00:00; OKA_PP.10FT3001.PV peer_drift_up 2025-01-14 00:00; 30FT3001.PV peer_drift_up 2025-01-14 00:00; 40FT3002.PV peer_drift_up 2025-01-14 00:00 |
+
+## Message reader
+
+Free-text messages to the IOC (P2.8: mail, radio calls, Teams posts, field notes) read with `fuzer eval --messages` against the bundle's `answer_keys/messages.json`, with no model: a case about the entity a message names, a question for the data steward, or nothing to do. Precision is the share of cases about the right entity; to steward, the share of messages no reading can place that reach the steward. A run passes with precision at least 90%.
+
+| Run | Bundle | Messages | Cases right | Precision | Recall | To steward | Noise handled | Passed | Wrong |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-25 | okan | 23 | 11 of 12 | 92% | 92% | 100% | 100% | yes | MSG-0023: case tag:20-PT-3003, not case tag:30-PT-3003 |
 
 ## Operations loop
 

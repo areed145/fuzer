@@ -109,3 +109,8 @@ arrive:
   parts_not_ready: {detector: parts_not_ready}
   # The permit to work system's own work (P3.14): every fourth permit lapsed two days ago, not closed, its isolations still applied
   permit_lapsed: {detector: permit_lapsed}
+  # The messages to the IOC (P2.8), read after the register is built: a radio call or a mail naming a tag becomes a
+  # case about it, and one that could be about any of several separators waits for the steward. Read once, so the
+  # second of the two types finds what the read left open
+  message_report: {source: messages, build: true}
+  message_to_match: {source: messages, build: true}

@@ -5,8 +5,10 @@ import { errorMessage } from "../../lib";
 import { api, type SearchHit } from "../../api";
 import { Button, Input, Empty, ErrorText, Line, Text, Checkbox, List } from "../../ui";
 
-export function MatchRef({ value, onPick, busy, remember: rememberDefault = true, label = "Match" }: {
+export function MatchRef({ value, onPick, busy, remember: rememberDefault = true, label = "Match", canRemember = true }: {
   value: string; busy?: boolean; remember?: boolean; label?: string;
+  /** false where a pick is kept some other way (a message's case, P2.8): no alias is offered. */
+  canRemember?: boolean;
   onPick: (fuzerId: string, remember: boolean) => void;
 }) {
   const bare = value.includes(":") ? value.slice(value.indexOf(":") + 1) : value;
@@ -14,13 +16,13 @@ export function MatchRef({ value, onPick, busy, remember: rememberDefault = true
   const [q, setQ] = useState(bare);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [picked, setPicked] = useState<string>("");
-  const [remember, setRemember] = useState(rememberDefault);
+  const [remember, setRemember] = useState(rememberDefault && canRemember);
   const [error, setError] = useState<string | null>(null);
   const search = async () => {
     setError(null);
     try { setHits((await api.search(q)).slice(0, 12)); } catch (e) { setError(errorMessage(e)); }
   };
-  if (!open) return <Button size="sm" variant="link" onClick={() => { setOpen(true); void search(); }}
+  if (!open) return <Button size="sm" variant="link" onClick={() => { setOpen(true); if (q.trim()) void search(); }}
     title={`Pick the asset ${value} meant`}>{label}…</Button>;
   return (
     <div className="match-ref small">
@@ -40,7 +42,7 @@ export function MatchRef({ value, onPick, busy, remember: rememberDefault = true
         ))}</List>
       )}
       <Line>
-        <Checkbox checked={remember} onChange={setRemember}>remember “{bare}” as a name for it</Checkbox>
+        {canRemember && <Checkbox checked={remember} onChange={setRemember}>remember “{bare}” as a name for it</Checkbox>}
         <Button size="sm" variant="primary" disabled={!picked || busy} onClick={() => onPick(picked, remember)}>Use it</Button>
       </Line>
       <ErrorText>{error}</ErrorText>

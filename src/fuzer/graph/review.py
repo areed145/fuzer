@@ -76,6 +76,12 @@ def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None
             roles.confirm(conn, item["subject"], role, by)
         except ValueError as e:
             raise ReviewError(str(e)) from e
+    elif item["kind"] == "message":  # a message that named no entity for certain (P2.8): which, or no work needed
+        if decision not in ("choose", "reject"):
+            raise ReviewError("messages take choose with the entity it is about, or reject (no work needed)")
+        if decision == "choose" and not (isinstance(value, str) and conn.execute(
+                "select 1 from entity where fuzer_id = %s and retired_at is null", (value,)).fetchone()):
+            raise ReviewError("choose needs the Fuzer ID of the entity the message is about")
     elif item["kind"] == "match":
         if decision == "choose":
             raise ReviewError("match items take accept or reject")
